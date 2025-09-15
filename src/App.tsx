@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { GraphView } from './views/GraphView';
 import { OutlineView } from './views/OutlineView';
 import { TimelineView } from './views/TimelineView';
 import { EditorView } from './views/EditorView';
 import { CodexView } from './views/CodexView';
-import { Sidecar } from './components/Sidecar';
 import { CommandPalette } from './components/CommandPalette';
 import { useAppStore } from './store';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
-import { BookOpen, Network, FileText, Clock, Edit3, Archive, Command, Settings, Plus } from 'lucide-react';
 import { useEntitiesStore } from './store/entities';
 import { EntityEditor } from './components/EntityEditor';
 
@@ -21,7 +19,6 @@ function Layout() {
   
   const { 
     chapters, 
-    entities,
     entityTypes,
     addChapter, 
     addEntity,
