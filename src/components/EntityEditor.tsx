@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useEntitiesStore } from '../store/entities';
 import { X, Save } from 'lucide-react';
+import { query, run } from '../lib/db';
+import type { Entry } from '../lib/schema';
 
 interface EntityEditorProps {
   entityId: string;
@@ -10,16 +11,15 @@ interface EntityEditorProps {
 }
 
 export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
-  const { entities, updateEntity } = useEntitiesStore();
-  const entity = entities.find(e => e.id === entityId);
-  
-  const [name, setName] = useState(entity?.name || '');
-  const [type, setType] = useState(entity?.type || '');
-  const [color, setColor] = useState(entity?.color || '#e3f2fd');
+  const [entry, setEntry] = useState<Entry | null>(null);
+  const [name, setName] = useState('');
+  const [type, setType] = useState<Entry['type']>('character');
+  const [aliases, setAliases] = useState<string>('');
+  const [attributes, setAttributes] = useState<string>('{}');
 
   const editor = useEditor({
     extensions: [StarterKit],
-    content: entity?.description || '',
+    content: '',
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-[200px] p-4',
@@ -28,24 +28,36 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
   });
 
   useEffect(() => {
-    if (entity && editor) {
-      editor.commands.setContent(entity.description || '');
-      setName(entity.name);
-      setType(entity.type);
-      setColor(entity.color || '#e3f2fd');
-    }
-  }, [entity, editor]);
+    const load = async () => {
+      const rows = await query<Entry>(`SELECT * FROM entry WHERE id='${entityId}' LIMIT 1`);
+      const e = rows[0] || null;
+      setEntry(e);
+      if (e) {
+        setName(e.name);
+        setType(e.type as Entry['type']);
+        setAliases(safeToCSV(e.aliases_json));
+        setAttributes(safePrettyJSON(e.attributes_json));
+        if (editor) editor.commands.setContent(e.canonical_summary || '');
+      }
+    };
+    load();
+  }, [entityId, editor]);
 
   const handleSave = () => {
-    if (!entity || !editor) return;
-    
-    updateEntity(entityId, {
-      name,
-      type,
-      color,
-      description: editor.getHTML()
-    });
-    onClose();
+    if (!entry || !editor) return;
+    const canonical = editor.getHTML();
+    const aliasesJson = safeFromCSV(aliases);
+    const attributesJson = safeMinJSON(attributes);
+    (async () => {
+      await run(`UPDATE entry SET 
+        name='${escapeSql(name)}', 
+        type='${escapeSql(type)}', 
+        aliases_json='${escapeSql(aliasesJson)}', 
+        attributes_json='${escapeSql(attributesJson)}', 
+        canonical_summary='${escapeSql(canonical)}',
+        updated_at='${new Date().toISOString()}'
+        WHERE id='${entry.id}'`);
+    })().then(onClose).catch((e) => console.error('Failed to save entry', e));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -57,7 +69,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
     }
   };
 
-  if (!entity) {
+  if (!entry) {
     return null;
   }
 
@@ -119,32 +131,17 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
                 minWidth: '200px'
               }}
             />
-            <input
-              type="text"
+            <select
               value={type}
-              onChange={(e) => setType(e.target.value)}
-              placeholder="Type"
-              style={{
-                fontSize: '14px',
-                padding: '4px 8px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                backgroundColor: color,
-                minWidth: '100px'
-              }}
-            />
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              style={{
-                width: '32px',
-                height: '32px',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            />
+              onChange={(e) => setType(e.target.value as Entry['type'])}
+              style={{ fontSize: '14px', padding: '4px 8px', border: '1px solid #ccc', borderRadius: '4px', minWidth: '120px' }}
+            >
+              <option value="character">character</option>
+              <option value="location">location</option>
+              <option value="object">object</option>
+              <option value="faction">faction</option>
+              <option value="concept">concept</option>
+            </select>
           </div>
           
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -182,30 +179,35 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
         </div>
 
         {/* Editor */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          minHeight: '300px'
-        }}>
-          <div style={{
-            padding: '16px',
-            fontSize: '14px',
-            color: '#666',
-            borderBottom: '1px solid #e0e0e0'
-          }}>
-            Description and Notes
-          </div>
-          
-          {editor && (
-            <div style={{ minHeight: '250px' }}>
-              <EditorContent 
-                editor={editor}
-                style={{
-                  minHeight: '250px'
-                }}
+        <div style={{ flex: 1, overflow: 'auto', minHeight: '300px' }}>
+          <div style={{ padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: 6 }}>Aliases (comma-separated)</div>
+              <input
+                type="text"
+                value={aliases}
+                onChange={(e) => setAliases(e.target.value)}
+                style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 6, fontSize: 13 }}
+              />
+
+              <div style={{ fontSize: '14px', color: '#666', margin: '16px 0 6px' }}>Attributes (JSON)</div>
+              <textarea
+                value={attributes}
+                onChange={(e) => setAttributes(e.target.value)}
+                rows={10}
+                style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 6, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}
               />
             </div>
-          )}
+
+            <div>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: 6 }}>Canonical Summary</div>
+              {editor && (
+                <div style={{ minHeight: '250px', border: '1px solid #ccc', borderRadius: 6 }}>
+                  <EditorContent editor={editor} style={{ minHeight: '250px', padding: 12 }} />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -224,4 +226,22 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
       </div>
     </div>
   );
+}
+
+function escapeSql(s: string) {
+  return s.replaceAll("'", "''");
+}
+
+function safeToCSV(json: string | undefined): string {
+  try { const arr = json ? JSON.parse(json) as string[] : []; return arr.join(', '); } catch { return ''; }
+}
+function safeFromCSV(csv: string): string {
+  const arr = csv.split(',').map(s => s.trim()).filter(Boolean);
+  return JSON.stringify(arr);
+}
+function safePrettyJSON(json: string | undefined): string {
+  try { return JSON.stringify(JSON.parse(json || '{}'), null, 2); } catch { return '{}'; }
+}
+function safeMinJSON(json: string): string {
+  try { return JSON.stringify(JSON.parse(json)); } catch { return '{}'; }
 }

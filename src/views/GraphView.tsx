@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -17,115 +17,70 @@ import { query, run } from '../lib/db';
 import { useAppStore } from '../store';
 import { events } from '../lib/events';
 import type { StoryNode as StoryNodeType, NodeEdge, NodeType } from '../lib/schema';
-import { Plus } from 'lucide-react';
-import { ChapterNode } from '../components/ChapterNode';
-import { StoryStageGroup } from '../components/StoryStageGroup';
-import { ChapterEditor } from '../components/ChapterEditor';
-import { useEntitiesStore } from '../store/entities';
+import { StoryNode as StoryNodeComponent } from '../components/StoryNode';
+import { ensureProjectId } from '../lib/codex';
 
-interface ChapterNodeData {
-  chapterId: string;
-  onEdit?: (chapterId: string) => void;
-}
-
-interface StoryStageGroupData {
+interface StoryNodeData {
   label: string;
-  width: number;
-  height: number;
-  color?: string;
+  type: StoryNodeType['type'];
+  status: StoryNodeType['status'];
+  summary?: string;
 }
 
 // Define nodeTypes outside component to prevent recreation on each render
 const nodeTypes = {
-  chapterNode: ChapterNode,
-  storyStageGroup: StoryStageGroup,
+  storyNode: StoryNodeComponent,
 };
 
 function GraphViewInner() {
   const { 
-    selectedNodeId,
     setSelectedNodeId,
     addNode: addStoreNode,
     addEdge: addStoreEdge
   } = useAppStore();
-  
-  const { chapters, storyStages, entities } = useEntitiesStore();
-  const [nodes, setNodes, onNodesChange] = useNodesState<ChapterNodeData | StoryStageGroupData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<StoryNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [editingChapter, setEditingChapter] = useState<string | null>(null);
   const { } = useReactFlow();
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const loadGraphData = useCallback(async () => {
     try {
-      console.log('Loading graph data from store...');
-      
-      const nodes: Node<ChapterNodeData | StoryStageGroupData>[] = [];
-      const edges: Edge[] = [];
+      // Ensure we have a project id for DB-backed graph
+      const pid = await ensureProjectId();
+      setProjectId(pid);
 
-      // Group chapters by story stage
-      const stageChapters = storyStages.map(stage => ({
-        stage,
-        chapters: chapters.filter(ch => ch.storyStage === stage.name)
+      const sn = await query<StoryNodeType>(`SELECT * FROM story_node WHERE project_id='${pid}' ORDER BY order_key ASC`);
+      const es = await query<NodeEdge>(`SELECT * FROM node_edge WHERE project_id='${pid}'`);
+
+      const nodesRf: Node<StoryNodeData>[] = sn.map((n, idx) => ({
+        id: n.id,
+        type: 'storyNode',
+        position: { x: 80 + (idx % 3) * 260, y: 80 + Math.floor(idx / 3) * 160 },
+        data: {
+          label: n.title,
+          type: n.type,
+          status: n.status,
+          summary: n.summary,
+        },
       }));
 
-      // Create story stage group nodes with auto-sizing
-      stageChapters.forEach((stageData, stageIndex) => {
-        const chaptersCount = stageData.chapters.length;
-        const stageWidth = Math.max(300, chaptersCount * 280);
-        const stageHeight = Math.max(180, Math.ceil(chaptersCount / 2) * 160 + 80);
-        
-        nodes.push({
-          id: stageData.stage.id,
-          type: 'storyStageGroup',
-          position: { x: 50 + stageIndex * 450, y: 50 + (stageIndex % 2) * 300 },
-          data: {
-            label: stageData.stage.name,
-            width: stageWidth,
-            height: stageHeight,
-            color: '#f8f8f8'
-          },
-          draggable: true,
-          selectable: true
-        });
+      const edgesRf: Edge[] = es.map((e) => ({
+        id: e.id,
+        source: e.src_node_id,
+        target: e.dst_node_id,
+        type: 'smoothstep',
+        style: { stroke: '#ccc', strokeWidth: 2 },
+        label: e.label,
+      }));
 
-        // Create chapter nodes positioned within their story stage
-        stageData.chapters.forEach((chapter, chapterIndex) => {
-          const chapterX = 30 + (chapterIndex % 2) * 250; // Relative to stage
-          const chapterY = 50 + Math.floor(chapterIndex / 2) * 120; // Relative to stage
-          
-          nodes.push({
-            id: chapter.id,
-            type: 'chapterNode',
-            position: { x: chapterX, y: chapterY },
-            data: {
-              chapterId: chapter.id,
-              onEdit: setEditingChapter
-            },
-            parentNode: stageData.stage.id,
-            extent: 'parent'
-          });
-        });
-      });
-
-      // Create edges between chapters
-      for (let i = 0; i < chapters.length - 1; i++) {
-        edges.push({
-          id: `edge-${i}`,
-          source: chapters[i].id,
-          target: chapters[i + 1].id,
-          type: 'smoothstep',
-          style: { stroke: '#ccc', strokeWidth: 2 }
-        });
-      }
-
-      setNodes(nodes);
-      setEdges(edges);
+      setNodes(nodesRf);
+      setEdges(edgesRf);
     } catch (error) {
       console.error('Failed to load graph data:', error);
       setNodes([]);
       setEdges([]);
     }
-  }, [chapters, storyStages, setNodes, setEdges, setEditingChapter]);
+  }, [setNodes, setEdges]);
 
   useEffect(() => {
     loadGraphData();
@@ -140,9 +95,10 @@ function GraphViewInner() {
     async (params: Edge | Connection) => {
       try {
         const edgeId = `edge_${Date.now()}`;
+        const pid = projectId || (await ensureProjectId());
         const newEdge: NodeEdge = {
           id: edgeId,
-          project_id: 'default', // TODO: get from project context
+          project_id: pid,
           src_node_id: params.source!,
           dst_node_id: params.target!,
           kind: 'chronology',
@@ -162,7 +118,7 @@ function GraphViewInner() {
         console.error('Failed to create edge:', error);
       }
     },
-    [addStoreEdge, loadGraphData]
+    [addStoreEdge, loadGraphData, projectId]
   );
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -173,9 +129,10 @@ function GraphViewInner() {
   const createNode = useCallback(async (type: NodeType) => {
     try {
       const nodeId = `node_${Date.now()}`;
+      const pid = projectId || (await ensureProjectId());
       const newNode: StoryNodeType = {
         id: nodeId,
-        project_id: 'default', // TODO: get from project context
+        project_id: pid,
         type,
         title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         order_key: Date.now(),
@@ -195,11 +152,25 @@ function GraphViewInner() {
     } catch (error) {
       console.error('Failed to create node:', error);
     }
-  }, [addStoreNode]);
+  }, [addStoreNode, projectId]);
 
   return (
     <>
-      <div style={{ height: '100%', width: '100%' }}>
+      <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => createNode('chapter')}
+            style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, background: 'white', fontSize: 12 }}
+          >
+            + Chapter
+          </button>
+          <button
+            onClick={() => createNode('scene')}
+            style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, background: 'white', fontSize: 12 }}
+          >
+            + Scene
+          </button>
+        </div>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -215,13 +186,6 @@ function GraphViewInner() {
           <Controls position="bottom-right" />
         </ReactFlow>
       </div>
-      
-      {editingChapter && (
-        <ChapterEditor 
-          chapterId={editingChapter} 
-          onClose={() => setEditingChapter(null)} 
-        />
-      )}
     </>
   );
 }
@@ -233,5 +197,3 @@ export function GraphView() {
     </ReactFlowProvider>
   );
 }
-
-

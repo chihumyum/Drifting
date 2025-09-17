@@ -3,6 +3,7 @@ import { query, run } from '../lib/db';
 import { useAppStore } from '../store';
 import { events } from '../lib/events';
 import type { Entry, EntryType } from '../lib/schema';
+import { EntityEditor } from '../components/EntityEditor';
 import { Plus, Search, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
 
 const entryIcons = {
@@ -111,6 +112,8 @@ export function CodexView() {
     }
   }, [removeEntry]);
 
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+
   const filteredEntries = entries.filter(entry => {
     if (selectedEntryType !== 'all' && entry.type !== selectedEntryType) return false;
     if (searchQuery.trim() && !entry.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -197,7 +200,7 @@ export function CodexView() {
           return (
             <div
               key={entry.id}
-              onClick={() => setSelectedEntryId(entry.id)}
+              onClick={() => setEditingEntryId(entry.id)}
               className={`
                 p-3 rounded-lg border cursor-pointer transition-colors
                 ${colorClass}
@@ -240,7 +243,9 @@ export function CodexView() {
           </div>
         )}
       </div>
+      {editingEntryId && (
+        <EntityEditor entityId={editingEntryId} onClose={() => setEditingEntryId(null)} />
+      )}
     </div>
   );
 }
-

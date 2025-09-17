@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../store';
-import { query } from '../lib/db';
+import { query, run } from '../lib/db';
 import type { StoryNode, Entry } from '../lib/schema';
 import { Eye, FileText, CheckSquare, Scissors, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
+import { linkNodeToEntry } from '../lib/codex';
 
 interface LinkedEntry {
   id: string;
@@ -34,12 +35,18 @@ export function Sidecar() {
   const [linkedEntries, setLinkedEntries] = useState<LinkedEntry[]>([]);
   const [todoItems, setTodoItems] = useState<string[]>([]);
   const [newTodo, setNewTodo] = useState('');
+  const [allEntries, setAllEntries] = useState<Entry[]>([]);
+  const [entryToLink, setEntryToLink] = useState<string>('');
 
   const loadNodeDetails = useCallback(async (nodeId: string) => {
     try {
       const nodeRows = await query<StoryNode>(`SELECT * FROM story_node WHERE id = '${nodeId}' LIMIT 1`);
       const node = nodeRows[0] || null;
       setSelectedNode(node);
+      if (node) {
+        setEditingSummary(node.summary || '');
+        setEditingStatus(node.status);
+      }
 
       if (node) {
         const linkRows = await query<LinkedEntry>(`
@@ -53,6 +60,10 @@ export function Sidecar() {
           ORDER BY appearances DESC, e.name
         `);
         setLinkedEntries(linkRows);
+
+        // Load all entries for linking options
+        const entries = await query<Entry>(`SELECT * FROM entry ORDER BY name ASC`);
+        setAllEntries(entries);
       }
     } catch (error) {
       console.error('Failed to load node details:', error);
@@ -130,7 +141,7 @@ export function Sidecar() {
             {selectedNode ? (
               <>
                 <div>
-                  <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+          <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-2">
                     Node Details
                   </h3>
                   <div className="space-y-2 text-sm">
@@ -142,18 +153,43 @@ export function Sidecar() {
                       <span className="text-neutral-500">Type:</span>
                       <div className="capitalize">{selectedNode.type}</div>
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <span className="text-neutral-500">Status:</span>
-                      <div className="capitalize">{selectedNode.status}</div>
+                      <select
+                        value={editingStatus}
+                        onChange={(e) => setEditingStatus(e.target.value as StoryNode['status'])}
+                        className="text-xs border border-neutral-300 dark:border-neutral-700 rounded px-1 py-0.5 bg-transparent capitalize"
+                      >
+                        <option value="draft">draft</option>
+                        <option value="in_progress">in_progress</option>
+                        <option value="complete">complete</option>
+                        <option value="archived">archived</option>
+                      </select>
                     </div>
-                    {selectedNode.summary && (
-                      <div>
-                        <span className="text-neutral-500">Summary:</span>
-                        <div className="text-xs mt-1 p-2 bg-neutral-100 dark:bg-neutral-800 rounded">
-                          {selectedNode.summary}
-                        </div>
+                    <div>
+                      <span className="text-neutral-500">Summary:</span>
+                      <textarea
+                        value={editingSummary}
+                        onChange={(e) => setEditingSummary(e.target.value)}
+                        rows={4}
+                        className="w-full text-xs mt-1 p-2 bg-neutral-100 dark:bg-neutral-800 rounded border border-neutral-300 dark:border-neutral-700"
+                      />
+                      <div className="mt-1 flex justify-end">
+                        <button
+                          onClick={async () => {
+                            if (!selectedNode) return;
+                            try {
+                              await run(`UPDATE story_node SET summary='${escapeSql(editingSummary)}', status='${editingStatus}', updated_at='${new Date().toISOString()}' WHERE id='${selectedNode.id}'`);
+                              await loadNodeDetails(selectedNode.id);
+                              events.emit('nodes:changed');
+                            } catch (e) { console.error('Failed to update node', e); }
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded"
+                        >
+                          Save
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -183,6 +219,43 @@ export function Sidecar() {
                       <div className="text-xs text-neutral-500 italic">No linked entries</div>
                     )}
                   </div>
+
+                  {selectedNode && (
+                    <div className="mt-3 p-2 border border-neutral-200 dark:border-neutral-800 rounded">
+                      <div className="text-xs text-neutral-600 dark:text-neutral-400 mb-1">Link an entry</div>
+                      <div className="flex gap-2">
+                        <select
+                          value={entryToLink}
+                          onChange={(e) => setEntryToLink(e.target.value)}
+                          className="flex-1 px-2 py-1 text-xs border border-neutral-300 dark:border-neutral-700 rounded bg-transparent"
+                        >
+                          <option value="">Select entry…</option>
+                          {allEntries
+                            .filter(e => !linkedEntries.some(le => le.id === e.id))
+                            .map(e => (
+                              <option key={e.id} value={e.id}>
+                                {e.name} • {e.type}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          onClick={async () => {
+                            if (!entryToLink) return;
+                            try {
+                              await linkNodeToEntry(selectedNode.id, entryToLink, 'present');
+                              setEntryToLink('');
+                              await loadNodeDetails(selectedNode.id);
+                            } catch (err) {
+                              console.error('Failed to link entry:', err);
+                            }
+                          }}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Link
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             ) : selectedEntry ? (
@@ -267,6 +340,8 @@ export function Sidecar() {
                     className="text-red-500 hover:text-red-700 text-xs"
                   >
                     ×
+  const [editingSummary, setEditingSummary] = useState('');
+  const [editingStatus, setEditingStatus] = useState<StoryNode['status']>('draft');
                   </button>
                 </div>
               ))}
@@ -297,4 +372,6 @@ export function Sidecar() {
   );
 }
 
-
+function escapeSql(s: string) {
+  return s.replaceAll("'", "''");
+}
