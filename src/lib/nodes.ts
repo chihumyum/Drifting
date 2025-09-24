@@ -15,6 +15,14 @@ export async function createChapter(title: string) {
   return id
 }
 
+export async function createScene() {
+  // placeholder
+}
+
+export async function createBeat() {
+  // placeholder
+}
+
 function escapeSql(s: string) {
   return s.replaceAll("'", "''")
 }

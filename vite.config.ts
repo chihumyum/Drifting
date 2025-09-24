@@ -6,7 +6,8 @@ export default defineConfig({
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp'
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Resource-Policy': 'same-origin'
     }
   },
   plugins: [
@@ -88,7 +89,6 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'editor-vendor': ['@tiptap/react', '@tiptap/starter-kit'],
-          'graph-vendor': ['reactflow'],
           'sqlite-vendor': ['@sqlite.org/sqlite-wasm']
         }
       }

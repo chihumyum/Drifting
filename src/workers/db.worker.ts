@@ -1,8 +1,11 @@
 /// <reference lib="webworker" />
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm'
 import wasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
+import { DB_SCHEMA, DEFAULT_entity_CATEGORIES } from '../model/schema'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let sqlite3: any = null;
 
 interface WorkerMessage {
@@ -25,18 +28,20 @@ self.addEventListener('message', async (ev) => {
 
   try {
     switch (type) {
-      case 'init':
+      case 'init': {
         await initDatabase(payload?.dbName as string);
         reply({ type: 'ready' });
         break;
+      }
 
-      case 'run':
+      case 'run': {
         if (!db) throw new Error('Database not initialized');
         db.exec(payload?.sql as string);
         reply({ type: 'ok' });
         break;
+      }
 
-      case 'query':
+      case 'query': {
         if (!db) throw new Error('Database not initialized');
         const rows: Record<string, unknown>[] = [];
         db.exec({
@@ -46,13 +51,51 @@ self.addEventListener('message', async (ev) => {
         });
         reply({ type: 'rows', payload: { rows } });
         break;
+      }
 
-      case 'migrate':
+      case 'migrate': {
         if (!db) throw new Error('Database not initialized');
-        const { DB_SCHEMA } = await import('../lib/schema');
+        let renamedLegacy = false;
+        try {
+          db.exec('PRAGMA foreign_keys=OFF');
+          // If old tables existed under entry*, rename here if present
+          db.exec('ALTER TABLE entry RENAME TO entry__legacy');
+          renamedLegacy = true;
+        } catch {
+          // ignore if table already migrated
+        }
+
         db.exec(DB_SCHEMA);
+
+        if (renamedLegacy) {
+          // Move legacy data into new entity table
+          db.exec(`INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
+            SELECT id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at FROM entry__legacy`);
+          db.exec('DROP TABLE entry__legacy');
+        }
+
+        db.exec('PRAGMA foreign_keys=ON');
+        try {
+          db.exec('ALTER TABLE story_node ADD COLUMN pos_x REAL');
+        } catch (error) {
+          if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+            throw error;
+          }
+        }
+        try {
+          db.exec('ALTER TABLE story_node ADD COLUMN pos_y REAL');
+        } catch (error) {
+          if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
+            throw error;
+          }
+        }
+        DEFAULT_entity_CATEGORIES.forEach((name) => {
+          const safeName = name.replaceAll("'", "''");
+          db.exec(`INSERT OR IGNORE INTO entity_category (name, color) VALUES ('${safeName}', NULL)`);
+        });
         reply({ type: 'migrated' });
         break;
+      }
 
       default:
         reply({ type: 'error', error: `Unknown message type: ${type}` });
@@ -122,5 +165,3 @@ async function initDatabase(dbName?: string): Promise<void> {
 }
 
 export {}
-
-

@@ -1,69 +1,56 @@
-# React + TypeScript + Vite
+# Drifting 前端
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+现代化的小说创作界面，采用双列侧栏 + 章节画布的布局：
 
-Currently, two official plugins are available:
+- **章节导航-左栏1**：最左侧提供章节列表与缩略图切换，便于快速定位、排序与重命名。
+  - 缩略图模式需要自动根据章节画布，构建关联关系，显示为迷你版本的、紧凑的章节画布。
+- **实体设定-左栏2**：第二列汇总整部作品的角色、地点等entity，可按阶段管理实体演化。
+  - 允许添加entity种类，entity item。
+- **章节画布**：核心区域以卡片+连线展示章节关系，卡片支持拖拽、双击打开编辑器，标题/梗概可在卡片上直接编辑。
+  - 卡片的边缘以便条形式显示一个个该章节最重要entity，如章节主角，地点等，方便用户获取信息。
+- **小说编辑器**： tiptap 基础之上实现的block 文本编辑器。支持三级heading，bold，italic，quote，颜色，stroke，underline等基本样式。
+  - 提供两种format方式。1. slash menu 2. 右侧format按钮。右侧format按钮打开后变为竖栏，内部是所有样式，用来应用在选定片段。
+  - 右侧竖着排列多个按钮，点击后变为竖栏。
+- **右侧栏**：提供节点检查、关联实体，以及 TODO / 片段等辅助面板。默认状态是按钮。点开后变为竖栏。
+  - 章节画布显示todo， snippet等按钮，进入小说编辑器之后，额外显示format， 章节info等按钮。此时将todo, snippet等按钮排在下方。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+所有的单栏都采用类似craft的设计语言，使用圆角矩形来实现，并附带合适的阴影已经毛玻璃效果。
 
-## Expanding the ESLint configuration
+## 近期更新
+- 章节节点可自由拖拽，位置会持久化到数据库中，便于自定义大纲布局。
+- 新增卡片内梗概的就地编辑，以及更直观的连线创建流程（先选择源节点，再点击目标节点）。
+- 编辑器升级为 TipTap Notion 风格，支持标题、列表、引用、代码块、粗体/斜体/下划线、链接等富文本格式。
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 快速开始
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+默认在 `http://localhost:5173` 运行。初次启动会自动初始化浏览器端 SQLite 数据库。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 构建与检查
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- 类型检查：`npm run build`（需先通过 TypeScript 编译，再进入 Vite 构建）
+- 代码风格：`npm run lint`
+
+
+## 目录总览
+
 ```
+src/
+  components/     # 章节导航、实体列表、侧栏等界面模块
+  views/          # 路由页（章节画布、编辑器、设定库等）
+  store/          # Zustand 状态树
+  lib/            # SQLite 工具、事件总线、Schema 常量
+  workers/        # SQLite Wasm Web Worker
+```
+
+
+## 编辑器与布局改造
+- TipTap 编辑器已集成 `@chi-hum/tiptap-simple-slash-menu`，Slash 菜单覆盖标题、列表、引用、代码块等常用命令。
+- 编辑器右侧新增竖向工具条，提供格式、信息、页面等入口；格式按钮弹出面板，可直接应用 TipTap 支持的格式。
+- Inspector / TODO / Snippets 入口改为矩形按钮：在 Graph 场景以浮动面板显示，在 Editor 场景跟随右侧工具条排列。
+- 左侧章节与实体面板采用圆角卡片布局，实体面板默认收起，仅露出细边，悬停或点击展开；收起时提供独立的“新建实体 / 新建类别”快捷按钮。

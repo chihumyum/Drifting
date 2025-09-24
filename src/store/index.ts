@@ -1,27 +1,30 @@
 import { create } from 'zustand';
-import type { StoryNode, NodeEdge, Entry, NodeBlock } from '../lib/schema';
+import type { StoryNode, NodeEdge, Entity, ContentBlock } from '../model/schema';
 
 type UiSlice = {
   theme: 'light' | 'dark';
-  currentView: 'graph' | 'tree' | 'timeline' | 'editor' | 'codex';
-  sidecarOpen: boolean;
-  sidecarTab: 'inspector' | 'todo' | 'snippets';
-  commandPaletteOpen: boolean;
+  currentView: 'graph' | 'tree' | 'timeline' | 'editor';
+  chapterPanelOpen: boolean;
+  setChapterPanelOpen: (isOpen: boolean) => void;
+  entityPanelOpen: boolean;
+  setEntityPanelOpen: (isOpen: boolean) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setCurrentView: (view: UiSlice['currentView']) => void;
-  setSidecarOpen: (open: boolean) => void;
-  setSidecarTab: (tab: UiSlice['sidecarTab']) => void;
-  setCommandPaletteOpen: (open: boolean) => void;
+
+  rightPanelOpen: boolean;
+  rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai';
+  setRightPanelOpen: (isOpen: boolean) => void;
+  setRightPanelType: (rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai') => void;
 };
 
 type SelectionSlice = {
-  selectedNodeId: string | null;
-  selectedEntryId: string | null;
+  selectedChapterId: string | null;
   selectedBlockId: string | null;
+  selectedEntityId: string | null;
   multiSelectedNodeIds: string[];
-  setSelectedNodeId: (id: string | null) => void;
-  setSelectedEntryId: (id: string | null) => void;
+  setSelectedChapterId: (id: string | null) => void;
   setSelectedBlockId: (id: string | null) => void;
+  setSelectedEntityId: (id: string | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
   clearSelection: () => void;
 };
@@ -42,27 +45,29 @@ type GraphSlice = {
   setGraphZoom: (zoom: number) => void;
 };
 
+
+
 type EditorSlice = {
   currentNodeId: string | null;
-  blocks: NodeBlock[];
+  blocks: ContentBlock[];
   editorContent: string;
   setCurrentNodeId: (id: string | null) => void;
-  setBlocks: (blocks: NodeBlock[]) => void;
-  updateBlock: (id: string, updates: Partial<NodeBlock>) => void;
-  addBlock: (block: NodeBlock) => void;
+  setBlocks: (blocks: ContentBlock[]) => void;
+  updateBlock: (id: string, updates: Partial<ContentBlock>) => void;
+  addBlock: (block: ContentBlock) => void;
   removeBlock: (id: string) => void;
   setEditorContent: (content: string) => void;
 };
 
-type CodexSlice = {
-  entries: Entry[];
-  selectedEntryType: Entry['type'] | 'all';
+type EntitySlice = {
+  entities: Entity[];
+  selectedEntityType: string | 'all';
   searchQuery: string;
-  setEntries: (entries: Entry[]) => void;
-  addEntry: (entry: Entry) => void;
-  updateEntry: (id: string, updates: Partial<Entry>) => void;
-  removeEntry: (id: string) => void;
-  setSelectedEntryType: (type: Entry['type'] | 'all') => void;
+  setEntities: (entities: Entity[]) => void;
+  addEntity: (entity: Entity) => void;
+  updateEntity: (id: string, updates: Partial<Entity>) => void;
+  removeEntity: (id: string) => void;
+  setSelectedEntityCategory: (type: string | 'all') => void;
   setSearchQuery: (query: string) => void;
 };
 
@@ -76,31 +81,34 @@ type JobsSlice = {
   setJobResult: (jobId: string, result: unknown) => void;
 };
 
-export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & CodexSlice & JobsSlice;
+export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & EntitySlice & JobsSlice;
 
 export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   currentView: 'graph',
-  sidecarOpen: true,
-  sidecarTab: 'inspector',
-  commandPaletteOpen: false,
+  chapterPanelOpen: false,
+  entityPanelOpen: false,
+  rightPanelOpen: false,
+  rightPanelType: 'snippet',
   setTheme: (theme) => set({ theme }),
   setCurrentView: (currentView) => set({ currentView }),
-  setSidecarOpen: (sidecarOpen) => set({ sidecarOpen }),
-  setSidecarTab: (sidecarTab) => set({ sidecarTab }),
-  setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
+  setChapterPanelOpen: (isOpen) => set({ chapterPanelOpen: isOpen }),
+  setEntityPanelOpen: (open) => set({ entityPanelOpen: open }),
+  setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
+  setRightPanelType: (type) => set({ rightPanelType: type }),
 
-  selectedNodeId: null,
-  selectedEntryId: null,
+
+  selectedChapterId: null,
+  selectedEntityId: null,
   selectedBlockId: null,
   multiSelectedNodeIds: [],
-  setSelectedNodeId: (selectedNodeId) => set({ selectedNodeId }),
-  setSelectedEntryId: (selectedEntryId) => set({ selectedEntryId }),
+  setSelectedChapterId: (selectedNodeId) => set({ selectedChapterId: selectedNodeId }),
+  setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
   setSelectedBlockId: (selectedBlockId) => set({ selectedBlockId }),
   setMultiSelectedNodeIds: (multiSelectedNodeIds) => set({ multiSelectedNodeIds }),
   clearSelection: () => set({ 
-    selectedNodeId: null, 
-    selectedEntryId: null, 
+    selectedChapterId: null, 
+    selectedEntityId: null, 
     selectedBlockId: null, 
     multiSelectedNodeIds: [] 
   }),
@@ -140,18 +148,18 @@ export const useAppStore = create<AppState>((set) => ({
   })),
   setEditorContent: (editorContent) => set({ editorContent }),
 
-  entries: [],
-  selectedEntryType: 'all',
+  entities: [],
+  selectedEntityType: 'all',
   searchQuery: '',
-  setEntries: (entries) => set({ entries }),
-  addEntry: (entry) => set((state) => ({ entries: [...state.entries, entry] })),
-  updateEntry: (id, updates) => set((state) => ({
-    entries: state.entries.map(entry => entry.id === id ? { ...entry, ...updates } : entry)
+  setEntities: (entities) => set({ entities }),
+  addEntity: (entity) => set((state) => ({ entities: [...state.entities, entity] })),
+  updateEntity: (id, updates) => set((state) => ({
+    entities: state.entities.map(entity => entity.id === id ? { ...entity, ...updates } : entity)
   })),
-  removeEntry: (id) => set((state) => ({
-    entries: state.entries.filter(entry => entry.id !== id)
+  removeEntity: (id) => set((state) => ({
+    entities: state.entities.filter(entity => entity.id !== id)
   })),
-  setSelectedEntryType: (selectedEntryType) => set({ selectedEntryType }),
+  setSelectedEntityCategory: (selectedEntityType) => set({ selectedEntityType }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
   runningJobs: [],
@@ -173,6 +181,5 @@ export const useAppStore = create<AppState>((set) => ({
     jobResults: { ...state.jobResults, [jobId]: result }
   })),
 }));
-
 
 

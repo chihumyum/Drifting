@@ -2,11 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { query, run } from '../lib/db';
 import { useAppStore } from '../store';
 import { events } from '../lib/events';
-import type { Entry, EntryType } from '../lib/schema';
+import type { Entity, EntityCategory } from '../model/schema';
+import { MOCK_ENTITY_CATEGORIES, MOCK_ENTITIES } from '../model/schema';
+import { listEntityCategories, ensureEntityCategory } from '../lib/entity';
 import { EntityEditor } from '../components/EntityEditor';
 import { Plus, Search, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
 
-const entryIcons = {
+const iconMap: Record<string, typeof User> = {
   character: User,
   location: MapPin,
   object: Package,
@@ -14,7 +16,7 @@ const entryIcons = {
   concept: Lightbulb,
 };
 
-const entryColors = {
+const colorMap: Record<string, string> = {
   character: 'bg-blue-50 border-blue-200 text-blue-900',
   location: 'bg-green-50 border-green-200 text-green-900',
   object: 'bg-orange-50 border-orange-200 text-orange-900',
@@ -22,88 +24,152 @@ const entryColors = {
   concept: 'bg-purple-50 border-purple-200 text-purple-900',
 };
 
-export function CodexView() {
+const fallbackColor = 'bg-neutral-200 border-neutral-300 text-neutral-700';
+
+function getCategoryIcon(type: string) {
+  return iconMap[type] ?? Lightbulb;
+}
+
+function getCategoryColor(type: string) {
+  return colorMap[type] ?? fallbackColor;
+}
+
+function dedupeCategories(categories: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  categories.forEach((raw) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result;
+}
+
+export function EntityView() {
   const {
-    entries,
-    selectedEntryType,
-    selectedEntryId,
+    entities,
+    selectedEntityType,
+    selectedEntityId,
     searchQuery,
-    setEntries,
-    addEntry,
-    removeEntry,
-    setSelectedEntryType,
-    setSelectedEntryId,
+    setEntities: setEntries,
+    addEntity: addEntry,
+    removeEntity,
+    setSelectedEntityCategory: setSelectedEntityType,
     setSearchQuery,
   } = useAppStore();
 
-  const [newEntryName, setNewEntryName] = useState('');
-  const [newEntryType, setNewEntryType] = useState<EntryType>('character');
+  const [newEntityName, setNewEntityName] = useState('');
+  const [newEntityCategory, setNewEntityCategory] = useState<string>('new entity category');
+  const [categories, setCategories] = useState<EntityCategory[]>(() => [...MOCK_ENTITY_CATEGORIES]);
 
-  const loadEntries = useCallback(async () => {
+  const loadEntities = useCallback(async () => {
     try {
-      let sql = 'SELECT * FROM entry';
+  let sql = 'SELECT * FROM entity';
 
-      if (selectedEntryType !== 'all') {
-        sql += ` WHERE type = '${selectedEntryType}'`;
+      if (setSelectedEntityType !== 'all') {
+        sql += ` WHERE type = '${setSelectedEntityType}'`;
       }
 
       if (searchQuery.trim()) {
-        const searchClause = selectedEntryType !== 'all' ? ' AND' : ' WHERE';
+        const searchClause = setSelectedEntityType !== 'all' ? ' AND' : ' WHERE';
         sql += `${searchClause} (name LIKE '%${searchQuery}%' OR canonical_summary LIKE '%${searchQuery}%')`;
       }
 
       sql += ' ORDER BY created_at DESC';
 
-      const result = await query<Entry>(sql);
+      const result = await query<Entity>(sql);
       setEntries(result);
     } catch (error) {
       console.error('Failed to load entries:', error);
     }
-  }, [selectedEntryType, searchQuery, setEntries]);
+  }, [setSelectedEntityType, searchQuery, setEntries]);
 
   useEffect(() => {
-    loadEntries();
-  }, [loadEntries]);
+    loadEntities();
+  }, [loadEntities]);
 
   useEffect(() => {
-    events.on('entries:changed', loadEntries);
-    return () => events.off('entries:changed', loadEntries);
-  }, [loadEntries]);
+    events.on('entity:entity-updated', loadEntities);
+    return () => events.off('entity:entity-updated', loadEntities);
+  }, [loadEntities]);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const rows = await listEntityCategories();
+      if (rows.length) {
+  setCategories(dedupeCategories([...DEFAULT_entity_CATEGORIES, ...rows.map((row) => row.name)]));
+      } else {
+  setCategories(dedupeCategories([...DEFAULT_entity_CATEGORIES]));
+      }
+    } catch (error) {
+  console.error('Failed to load entity categories:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+    const handle = () => loadCategories();
+    events.on('categories:changed', handle);
+    events.on('db:ready', handle);
+    return () => {
+      events.off('categories:changed', handle);
+      events.off('db:ready', handle);
+    };
+  }, [loadCategories]);
+
+  useEffect(() => {
+  setCategories((prev) => dedupeCategories([...prev, ...entries.map((entry: any) => entry.type)]));
+  }, [entries]);
+
+  useEffect(() => {
+    if (setSelectedEntityType !== 'all' && !categories.includes(setSelectedEntityType)) {
+      setsetSelectedEntityType('all');
+    }
+    if (!categories.includes(newEntryType)) {
+      setNewEntryType(categories[0] ?? '');
+    }
+  }, [categories, newEntryType, setSelectedEntityType, setsetSelectedEntityType]);
 
   const createEntry = useCallback(async () => {
-    if (!newEntryName.trim()) return;
+    if (!newEntityName.trim()) return;
 
     try {
-      const entryId = `entry_${Date.now()}`;
-      const newEntry: Entry = {
+  const entryId = `entity_${Date.now()}`;
+      const newEntry: Entity = {
         id: entryId,
         project_id: 'default', // TODO: get from project context
         type: newEntryType,
-        name: newEntryName.trim(),
+        name: newEntityName.trim(),
         aliases_json: '[]',
         attributes_json: '{}',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
+      await ensureEntityCategory(newEntryType);
       await run(`
-        INSERT INTO entry (id, project_id, type, name, aliases_json, attributes_json, created_at, updated_at)
+        INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, created_at, updated_at)
         VALUES ('${entryId}', '${newEntry.project_id}', '${newEntry.type}', '${newEntry.name}', '${newEntry.aliases_json}', '${newEntry.attributes_json}', '${newEntry.created_at}', '${newEntry.updated_at}')
       `);
 
       addEntry(newEntry);
+      setCategories((prev) => dedupeCategories([...prev, newEntryType]));
       events.emit('codex:entry-created', { entry: newEntry });
       events.emit('entries:changed');
+      events.emit('categories:changed');
       
       setNewEntryName('');
     } catch (error) {
       console.error('Failed to create entry:', error);
     }
-  }, [newEntryName, newEntryType, addEntry]);
+  }, [newEntityName, newEntryType, addEntry]);
 
   const deleteEntry = useCallback(async (entryId: string) => {
     try {
-      await run(`DELETE FROM entry WHERE id = '${entryId}'`);
+  await run(`DELETE FROM entity WHERE id = '${entryId}'`);
       removeEntry(entryId);
       events.emit('codex:entry-deleted', { entryId });
       events.emit('entries:changed');
@@ -115,7 +181,7 @@ export function CodexView() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const filteredEntries = entries.filter(entry => {
-    if (selectedEntryType !== 'all' && entry.type !== selectedEntryType) return false;
+    if (setSelectedEntityType !== 'all' && entry.type !== setSelectedEntityType) return false;
     if (searchQuery.trim() && !entry.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -146,21 +212,21 @@ export function CodexView() {
         </div>
       </div>
 
-      <div className="flex gap-1 mb-4 text-xs">
+      <div className="flex gap-1 mb-4 text-xs flex-wrap">
         <button
-          onClick={() => setSelectedEntryType('all')}
-          className={`px-2 py-1 rounded ${selectedEntryType === 'all' ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'}`}
+          onClick={() => setsetSelectedEntityType('all')}
+          className={`px-2 py-1 rounded ${setSelectedEntityType === 'all' ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'}`}
         >
           All
         </button>
-        {(['character', 'location', 'object', 'faction', 'concept'] as EntryType[]).map(type => {
-          const Icon = entryIcons[type];
+        {categories.map((type) => {
+          const Icon = getCategoryIcon(type);
           return (
             <button
               key={type}
-              onClick={() => setSelectedEntryType(type)}
+              onClick={() => setsetSelectedEntityType(type)}
               className={`flex items-center gap-1 px-2 py-1 rounded capitalize ${
-                selectedEntryType === type ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'
+                setSelectedEntityType === type ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'
               }`}
             >
               <Icon size={12} />
@@ -171,21 +237,43 @@ export function CodexView() {
       </div>
 
       <div className="flex gap-2 mb-4">
-        <select
-          value={newEntryType}
-          onChange={(e) => setNewEntryType(e.target.value as EntryType)}
-          className="border border-neutral-300 dark:border-neutral-700 rounded px-2 py-1 bg-transparent text-sm"
-        >
-          <option value="character">Character</option>
-          <option value="location">Location</option>
-          <option value="object">Object</option>
-          <option value="faction">Faction</option>
-          <option value="concept">Concept</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <input
+            list="codex-categories"
+            value={newEntryType}
+            onChange={(e) => setNewEntryType(e.target.value)}
+            placeholder="Category"
+            className="border border-neutral-300 dark:border-neutral-700 rounded px-2 py-1 bg-transparent text-sm w-36"
+          />
+          <datalist id="codex-categories">
+            {categories.map((category) => (
+              <option key={category} value={category} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            onClick={() => {
+              const value = prompt('新的类别名称', newEntryType) ?? '';
+              const trimmed = value.trim();
+              if (!trimmed) return;
+              ensureEntityCategory(trimmed)
+                .then(() => {
+                  setCategories((prev) => dedupeCategories([...prev, trimmed]));
+                  setNewEntryType(trimmed);
+                  events.emit('categories:changed');
+                })
+                .catch((error) => console.error('Failed to create category:', error));
+            }}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-neutral-200 text-neutral-700 hover:bg-neutral-300"
+          >
+            <Plus size={12} />
+            类别
+          </button>
+        </div>
         <input
           type="text"
           placeholder="Entry name..."
-          value={newEntryName}
+          value={newEntityName}
           onChange={(e) => setNewEntryName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && createEntry()}
           className="flex-1 border border-neutral-300 dark:border-neutral-700 rounded px-2 py-1 bg-transparent text-sm"
@@ -194,8 +282,8 @@ export function CodexView() {
 
       <div className="flex-1 overflow-auto space-y-2">
         {filteredEntries.map((entry) => {
-          const Icon = entryIcons[entry.type];
-          const colorClass = entryColors[entry.type];
+          const Icon = getCategoryIcon(entry.type);
+          const colorClass = getCategoryColor(entry.type);
           
           return (
             <div
