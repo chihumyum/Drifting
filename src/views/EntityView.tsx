@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
-import { query, run } from '../lib/db';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, Search, PenSquare, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
+
 import { useAppStore } from '../store';
+import * as EntityOps from '../lib/book_entity';
 import { events } from '../lib/events';
-import type { Entity, EntityCategory } from '../model/schema';
-import { MOCK_ENTITY_CATEGORIES, MOCK_ENTITIES } from '../model/schema';
-import { listEntityCategories, ensureEntityCategory } from '../lib/entity';
-import { EntityEditor } from '../components/EntityEditor';
-import { Plus, Search, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
+import type { Entity } from '../model/domain';
+import type { EntityCategory } from '../schema/table';
+import { EntityCreateModal, type NewEntityPayload } from '../components/modals/ElementCreateModal';
+import { EntityEditModal } from '../components/modals/ElementEditModal';
 
 const iconMap: Record<string, typeof User> = {
   character: User,
@@ -24,315 +25,257 @@ const colorMap: Record<string, string> = {
   concept: 'bg-purple-50 border-purple-200 text-purple-900',
 };
 
+const fallbackIcon = Lightbulb;
 const fallbackColor = 'bg-neutral-200 border-neutral-300 text-neutral-700';
+const uncategorizedKey = 'uncategorized';
 
-function getCategoryIcon(type: string) {
-  return iconMap[type] ?? Lightbulb;
+function getCategoryIcon(name: string) {
+  return iconMap[name] ?? fallbackIcon;
 }
 
-function getCategoryColor(type: string) {
-  return colorMap[type] ?? fallbackColor;
+function getCategoryColor(name: string) {
+  if (name === uncategorizedKey) {
+    return 'bg-neutral-100 border-neutral-200 text-neutral-600';
+  }
+  return colorMap[name] ?? fallbackColor;
 }
 
-function dedupeCategories(categories: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  categories.forEach((raw) => {
-    const trimmed = raw.trim();
-    if (!trimmed) return;
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    result.push(trimmed);
-  });
-  return result;
+function normalizeCategory(entity: Entity) {
+  const trimmed = entity.category.trim();
+  return trimmed ? trimmed : uncategorizedKey;
+}
+
+function summarize(entity: Entity) {
+  if (!entity.canonicalSummary) return '';
+  const plain = entity.canonicalSummary.replace(/<[^>]+>/g, '');
+  return plain.length > 120 ? `${plain.slice(0, 117)}…` : plain;
 }
 
 export function EntityView() {
   const {
     entities,
-    selectedEntityType,
+    setEntities,
     selectedEntityId,
+    setSelectedEntityId,
     searchQuery,
-    setEntities: setEntries,
-    addEntity: addEntry,
-    removeEntity,
-    setSelectedEntityCategory: setSelectedEntityType,
     setSearchQuery,
   } = useAppStore();
 
-  const [newEntityName, setNewEntityName] = useState('');
-  const [newEntityCategory, setNewEntityCategory] = useState<string>('new entity category');
-  const [categories, setCategories] = useState<EntityCategory[]>(() => [...MOCK_ENTITY_CATEGORIES]);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<EntityCategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
 
   const loadEntities = useCallback(async () => {
+    setLoading(true);
     try {
-  let sql = 'SELECT * FROM entity';
-
-      if (setSelectedEntityType !== 'all') {
-        sql += ` WHERE type = '${setSelectedEntityType}'`;
-      }
-
-      if (searchQuery.trim()) {
-        const searchClause = setSelectedEntityType !== 'all' ? ' AND' : ' WHERE';
-        sql += `${searchClause} (name LIKE '%${searchQuery}%' OR canonical_summary LIKE '%${searchQuery}%')`;
-      }
-
-      sql += ' ORDER BY created_at DESC';
-
-      const result = await query<Entity>(sql);
-      setEntries(result);
+      const rows = await EntityOps.getAllEntities();
+      setEntities(rows);
     } catch (error) {
-      console.error('Failed to load entries:', error);
+      console.error('Failed to load entities', error);
+    } finally {
+      setLoading(false);
     }
-  }, [setSelectedEntityType, searchQuery, setEntries]);
-
-  useEffect(() => {
-    loadEntities();
-  }, [loadEntities]);
-
-  useEffect(() => {
-    events.on('entity:entity-updated', loadEntities);
-    return () => events.off('entity:entity-updated', loadEntities);
-  }, [loadEntities]);
+  }, [setEntities]);
 
   const loadCategories = useCallback(async () => {
     try {
-      const rows = await listEntityCategories();
-      if (rows.length) {
-  setCategories(dedupeCategories([...DEFAULT_entity_CATEGORIES, ...rows.map((row) => row.name)]));
-      } else {
-  setCategories(dedupeCategories([...DEFAULT_entity_CATEGORIES]));
-      }
+      const rows = await EntityOps.getEntityCategories();
+      setCategories(rows);
     } catch (error) {
-  console.error('Failed to load entity categories:', error);
+      console.error('Failed to load categories', error);
     }
   }, []);
 
   useEffect(() => {
-    loadCategories();
-    const handle = () => loadCategories();
-    events.on('categories:changed', handle);
-    events.on('db:ready', handle);
-    return () => {
-      events.off('categories:changed', handle);
-      events.off('db:ready', handle);
+    loadEntities().catch((error) => console.error(error));
+    loadCategories().catch((error) => console.error(error));
+  }, [loadEntities, loadCategories]);
+
+  useEffect(() => {
+    const reload = () => {
+      loadEntities().catch((error) => console.error('Failed to reload entities', error));
+      loadCategories().catch((error) => console.error('Failed to reload categories', error));
     };
-  }, [loadCategories]);
+    events.on('db:ready', reload);
+    events.on('entity:entity-created', reload);
+    events.on('entity:entity-updated', reload);
+    events.on('entity:entity-deleted', reload);
+    events.on('entity:category-created', reload);
+    events.on('entity:category-updated', reload);
+    events.on('entity:category-deleted', reload);
+    return () => {
+      events.off('db:ready', reload);
+      events.off('entity:entity-created', reload);
+      events.off('entity:entity-updated', reload);
+      events.off('entity:entity-deleted', reload);
+      events.off('entity:category-created', reload);
+      events.off('entity:category-updated', reload);
+      events.off('entity:category-deleted', reload);
+    };
+  }, [loadEntities, loadCategories]);
 
-  useEffect(() => {
-  setCategories((prev) => dedupeCategories([...prev, ...entries.map((entry: any) => entry.type)]));
-  }, [entries]);
+  const categoryOptions = useMemo(() => {
+    const names = new Set<string>();
+    categories.forEach((cat) => names.add(cat.name));
+    entities.forEach((entity) => names.add(normalizeCategory(entity)));
+    return ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))];
+  }, [categories, entities]);
 
-  useEffect(() => {
-    if (setSelectedEntityType !== 'all' && !categories.includes(setSelectedEntityType)) {
-      setsetSelectedEntityType('all');
-    }
-    if (!categories.includes(newEntryType)) {
-      setNewEntryType(categories[0] ?? '');
-    }
-  }, [categories, newEntryType, setSelectedEntityType, setsetSelectedEntityType]);
+  const filteredEntities = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    return entities.filter((entity) => {
+      if (selectedCategory !== 'all' && normalizeCategory(entity) !== selectedCategory) {
+        return false;
+      }
+      if (!trimmedQuery) return true;
+      const haystack = [entity.name, entity.canonicalSummary, entity.aliases.join(' ')].join(' ').toLowerCase();
+      return haystack.includes(trimmedQuery);
+    });
+  }, [entities, searchQuery, selectedCategory]);
 
-  const createEntry = useCallback(async () => {
-    if (!newEntityName.trim()) return;
+  const handleCreateEntity = useCallback(async (payload: NewEntityPayload) => {
+    const created = await EntityOps.createEntity({
+      category: payload.category,
+      name: payload.name,
+      aliases: payload.aliases ?? [],
+      canonicalSummary: payload.summary ?? '',
+    });
+    await loadEntities();
+    await loadCategories();
+    setShowCreateModal(false);
+    setSelectedEntityId(created.id);
+  }, [loadCategories, loadEntities, setSelectedEntityId]);
 
-    try {
-  const entryId = `entity_${Date.now()}`;
-      const newEntry: Entity = {
-        id: entryId,
-        project_id: 'default', // TODO: get from project context
-        type: newEntryType,
-        name: newEntityName.trim(),
-        aliases_json: '[]',
-        attributes_json: '{}',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      await ensureEntityCategory(newEntryType);
-      await run(`
-        INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, created_at, updated_at)
-        VALUES ('${entryId}', '${newEntry.project_id}', '${newEntry.type}', '${newEntry.name}', '${newEntry.aliases_json}', '${newEntry.attributes_json}', '${newEntry.created_at}', '${newEntry.updated_at}')
-      `);
-
-      addEntry(newEntry);
-      setCategories((prev) => dedupeCategories([...prev, newEntryType]));
-      events.emit('codex:entry-created', { entry: newEntry });
-      events.emit('entries:changed');
-      events.emit('categories:changed');
-      
-      setNewEntryName('');
-    } catch (error) {
-      console.error('Failed to create entry:', error);
-    }
-  }, [newEntityName, newEntryType, addEntry]);
-
-  const deleteEntry = useCallback(async (entryId: string) => {
-    try {
-  await run(`DELETE FROM entity WHERE id = '${entryId}'`);
-      removeEntry(entryId);
-      events.emit('codex:entry-deleted', { entryId });
-      events.emit('entries:changed');
-    } catch (error) {
-      console.error('Failed to delete entry:', error);
-    }
-  }, [removeEntry]);
-
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-
-  const filteredEntries = entries.filter(entry => {
-    if (setSelectedEntityType !== 'all' && entry.type !== setSelectedEntityType) return false;
-    if (searchQuery.trim() && !entry.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
+  const handleUpdateEntity = useCallback(async (payload: NewEntityPayload & { id: string }) => {
+    await EntityOps.updateEntity(payload.id, {
+      name: payload.name,
+      category: payload.category,
+      aliases: payload.aliases ?? [],
+      canonicalSummary: payload.summary ?? '',
+    });
+    await loadEntities();
+    setEditingEntity(null);
+  }, [loadEntities]);
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Codex</h2>
+    <div className="h-full flex flex-col gap-4 p-4">
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">实体库</h1>
+          <p className="text-sm text-neutral-500">管理角色、地点、组织等设定。</p>
+        </div>
         <button
-          onClick={createEntry}
-          className="flex items-center gap-1 px-3 py-1 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
-          <Plus size={14} />
-          Add Entry
+          <Plus size={16} /> 新建实体
         </button>
-      </div>
+      </header>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-2 top-2 text-neutral-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
-            placeholder="Search entries..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 dark:border-neutral-700 rounded-md bg-transparent focus:ring-2 focus:ring-blue-500"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="搜索名称、简介或别名"
+            className="w-full rounded-md border border-neutral-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
-      </div>
-
-      <div className="flex gap-1 mb-4 text-xs flex-wrap">
-        <button
-          onClick={() => setsetSelectedEntityType('all')}
-          className={`px-2 py-1 rounded ${setSelectedEntityType === 'all' ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'}`}
-        >
-          All
-        </button>
-        {categories.map((type) => {
-          const Icon = getCategoryIcon(type);
-          return (
+        <div className="flex flex-wrap gap-2">
+          {categoryOptions.map((option) => (
             <button
-              key={type}
-              onClick={() => setsetSelectedEntityType(type)}
-              className={`flex items-center gap-1 px-2 py-1 rounded capitalize ${
-                setSelectedEntityType === type ? 'bg-blue-600 text-white' : 'bg-neutral-200 text-neutral-700'
-              }`}
+              key={option}
+              onClick={() => setSelectedCategory(option)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${selectedCategory === option
+                ? 'bg-blue-600 text-white'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
             >
-              <Icon size={12} />
-              {type}
+              {option === 'all' ? '全部' : option === uncategorizedKey ? '未分类' : option}
             </button>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-2 mb-4">
-        <div className="flex items-center gap-2">
-          <input
-            list="codex-categories"
-            value={newEntryType}
-            onChange={(e) => setNewEntryType(e.target.value)}
-            placeholder="Category"
-            className="border border-neutral-300 dark:border-neutral-700 rounded px-2 py-1 bg-transparent text-sm w-36"
-          />
-          <datalist id="codex-categories">
-            {categories.map((category) => (
-              <option key={category} value={category} />
-            ))}
-          </datalist>
-          <button
-            type="button"
-            onClick={() => {
-              const value = prompt('新的类别名称', newEntryType) ?? '';
-              const trimmed = value.trim();
-              if (!trimmed) return;
-              ensureEntityCategory(trimmed)
-                .then(() => {
-                  setCategories((prev) => dedupeCategories([...prev, trimmed]));
-                  setNewEntryType(trimmed);
-                  events.emit('categories:changed');
-                })
-                .catch((error) => console.error('Failed to create category:', error));
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-neutral-200 text-neutral-700 hover:bg-neutral-300"
-          >
-            <Plus size={12} />
-            类别
-          </button>
+          ))}
         </div>
-        <input
-          type="text"
-          placeholder="Entry name..."
-          value={newEntityName}
-          onChange={(e) => setNewEntryName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && createEntry()}
-          className="flex-1 border border-neutral-300 dark:border-neutral-700 rounded px-2 py-1 bg-transparent text-sm"
-        />
       </div>
 
-      <div className="flex-1 overflow-auto space-y-2">
-        {filteredEntries.map((entry) => {
-          const Icon = getCategoryIcon(entry.type);
-          const colorClass = getCategoryColor(entry.type);
-          
-          return (
-            <div
-              key={entry.id}
-              onClick={() => setEditingEntryId(entry.id)}
-              className={`
-                p-3 rounded-lg border cursor-pointer transition-colors
-                ${colorClass}
-                ${selectedEntryId === entry.id ? 'ring-2 ring-blue-500' : ''}
-              `}
-            >
-              <div className="flex items-start gap-2">
-                <Icon size={16} className="mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{entry.name}</div>
-                  <div className="text-xs opacity-70 capitalize">{entry.type}</div>
-                  {entry.canonical_summary && (
-                    <div className="text-xs mt-1 opacity-80 line-clamp-2">
-                      {entry.canonical_summary}
-                    </div>
-                  )}
-                  {entry.aliases_json !== '[]' && (
-                    <div className="text-xs mt-1 opacity-60">
-                      Aliases: {JSON.parse(entry.aliases_json).join(', ')}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteEntry(entry.id);
-                  }}
-                  className="text-red-500 hover:text-red-700 text-xs"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          );
-        })}
-        
-        {filteredEntries.length === 0 && (
-          <div className="text-center text-neutral-500 py-8">
-            {searchQuery ? 'No entries match your search' : 'No entries yet'}
-          </div>
+      <section className="flex-1 overflow-auto rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        {loading && (
+          <div className="py-10 text-center text-sm text-neutral-500">加载中…</div>
         )}
-      </div>
-      {editingEntryId && (
-        <EntityEditor entityId={editingEntryId} onClose={() => setEditingEntryId(null)} />
+        {!loading && filteredEntities.length === 0 && (
+          <div className="py-10 text-center text-sm text-neutral-500">暂无符合条件的实体</div>
+        )}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {filteredEntities.map((entity) => {
+            const category = normalizeCategory(entity);
+            const Icon = getCategoryIcon(category);
+            const colorClass = getCategoryColor(category);
+            return (
+              <article
+                key={entity.id}
+                className={`group cursor-pointer rounded-xl border bg-white p-4 transition hover:-translate-y-0.5 hover:shadow ${selectedEntityId === entity.id ? 'border-blue-400 shadow' : 'border-neutral-200'
+                  } ${colorClass}`}
+                onClick={() => setSelectedEntityId(entity.id)}
+              >
+                <header className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Icon size={16} />
+                      <span className="text-xs uppercase tracking-wide text-neutral-600">
+                        {category === uncategorizedKey ? '未分类' : category}
+                      </span>
+                    </div>
+                    <h2 className="mt-2 text-base font-semibold text-neutral-900">{entity.name}</h2>
+                  </div>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setEditingEntity(entity);
+                    }}
+                    className="rounded-full p-1 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-800"
+                    aria-label="编辑实体"
+                  >
+                    <PenSquare size={16} />
+                  </button>
+                </header>
+                {entity.aliases.length > 0 && (
+                  <div className="mt-3 text-xs text-neutral-600">
+                    别名：{entity.aliases.slice(0, 3).join('、')}
+                  </div>
+                )}
+                {entity.canonicalSummary && (
+                  <p className="mt-3 text-sm text-neutral-700">{summarize(entity)}</p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {showCreateModal && (
+        <EntityCreateModal
+          categories={categoryOptions.filter((option) => option !== 'all')}
+          defaultCategory={selectedCategory !== 'all' ? selectedCategory : undefined}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateEntity}
+          renderCategoryLabel={(value) => (value === uncategorizedKey ? '未分类' : value)}
+        />
+      )}
+
+      {editingEntity && (
+        <EntityEditModal
+          entity={editingEntity}
+          categories={categoryOptions.filter((option) => option !== 'all')}
+          onClose={() => setEditingEntity(null)}
+          onSubmit={async (payload) => {
+            await handleUpdateEntity(payload);
+            setSelectedEntityId(payload.id);
+          }}
+          renderCategoryLabel={(value) => (value === uncategorizedKey ? '未分类' : value)}
+        />
       )}
     </div>
   );

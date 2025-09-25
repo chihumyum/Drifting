@@ -3,9 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { X, Save, Plus } from 'lucide-react';
 import { query, run } from '../lib/db';
-import type { Entity, EntityStage } from '../model/schema';
-import { DEFAULT_entity_CATEGORIES } from '../model/schema';
-import { listEntityCategories, ensureEntityCategory } from '../lib/entity';
+import type { EntityRecord, EntityStage } from '../schema/table';
+import { listEntityCategories, ensureEntityCategory } from '../lib/book_entity';
 import { events } from '../lib/events';
 
 interface EntityEditorProps {
@@ -14,13 +13,13 @@ interface EntityEditorProps {
 }
 
 export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
-  const [entry, setEntry] = useState<Entity | null>(null);
+  const [entry, setEntry] = useState<EntityRecord | null>(null);
   const [name, setName] = useState('');
-  const [type, setType] = useState<Entity['type']>('character');
+  const [type, setType] = useState<EntityRecord['type']>('character');
   const [aliases, setAliases] = useState<string>('');
   const [attributes, setAttributes] = useState<string>('{}');
   const [stages, setStages] = useState<EntityStage[]>([]);
-  const [categories, setCategories] = useState<string[]>(() => [...DEFAULT_entity_CATEGORIES]);
+  const [categories, setCategories] = useState<string[]>();
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -43,12 +42,12 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
         console.error('Failed to load categories', error);
       }
 
-  const rows = await query<Entity>(`SELECT * FROM entity WHERE id='${entityId}' LIMIT 1`);
+  const rows = await query<EntityRecord>(`SELECT * FROM entity WHERE id='${entityId}' LIMIT 1`);
       const e = rows[0] || null;
       setEntry(e);
       if (e) {
         setName(e.name);
-        setType(e.type as Entity['type']);
+        setType(e.type as EntityRecord['type']);
         setCategories((prev) => dedupeCategories([...prev, e.type]));
         setAliases(safeToCSV(e.aliases_json));
         setAttributes(safePrettyJSON(e.attributes_json));
@@ -210,7 +209,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as Entity['type'])}
+                onChange={(e) => setType(e.target.value as EntityRecord['type'])}
                 style={{ fontSize: '14px', padding: '4px 8px', border: '1px solid #ccc', borderRadius: '4px', minWidth: '140px' }}
               >
                 {categories.map((category) => (

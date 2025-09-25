@@ -1,3 +1,8 @@
+import type { Project } from "./book_general";
+import type { ElementRecord, ElementCategoryRecord } from "./book_element";
+
+
+
 export const TABLES = {
   project: 'project',
   storyNode: 'story_node',
@@ -6,160 +11,6 @@ export const TABLES = {
   entity: 'entity',
   entityStage: 'entity_stage',
 } as const
-
-export type NodeType = 'chapter' | 'scene' | 'beat';
-export type EdgeKind = 'chronology' | 'causality' | 'reference' | 'foreshadow';
-
-
-// collection could contain multiple Projects
-export interface Collection {
-  id: string;
-  owner: string;
-  created_at: string;
-  updated_at: string;
-}
-// aka a book. 
-export interface Project {
-  id: string;
-  collection_id?: string;
-  name: string;
-  author: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// each project has multiple stages
-export interface StoryStage {
-  id: string;
-  name: string;
-  description: string;
-  project_id: string;
-}
-
-// each stage contain multiple story nodes
-export interface StoryStageChapterLink {
-  story_stage_id: string;
-  story_node_id: string;
-}
-
-// story node, where works happen
-export interface StoryNode {
-  id: string;
-  parent_id: string; // stage - chapter - scene - beat
-  title: string;
-  project_id: string;
-  type: NodeType;
-  order_key: number;
-  summary?: string; // doesn't apply to lower levels
-  pos_x?: number | null;
-  pos_y?: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// tag for each story node
-export interface NodeTag {
-  id: string;
-  name: string;
-  node_id: string;
-}
-
-// relations between nodes on the same level
-export interface NodeEdge {
-  id: string;
-  project_id: string;
-  src_node_id: string; // same level
-  dst_node_id: string;
-  kind: EdgeKind;
-  label?: string;
-  weight: number;
-  created_at: string;
-}
-
-// minimal text block for editing 
-export interface ContentBlock {
-  id: string;
-  node_id: string; // chapter | scene | beat
-  order_index: number;
-  pm_json: string;
-  plain_text: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// entities adhere to story nodes
-export interface EntityNodeLink {
-  id: string;
-  node_id: string;
-  entity_id: string;
-}
-
-// entity could be anything of the book
-// entity exists for some range of chapters of the book
-export interface Entity {
-  id: string;
-  name: string;
-  entity_stage_id: string;
-  project_id: string;
-  category_id: string;
-  aliases_json: string;
-  attributes_json: string;
-  canonical_summary?: string;
-  occurrence_count: number; 
-  created_at: string;
-  updated_at: string;
-}
-
-// entity belongs to some categories
-export interface EntityCategory {
-  id: string;
-  entity_id: string;
-  name: string;
-  color?: string;
-  created_at: string;
-}
-
-// entity has tags
-export interface EntityTag {
-  id: string;
-  entity_id: string;
-  tag_name: string;
-  created_at: string;
-}
-
-// link entity & entity stage
-export interface StageEntityLink {
-  entity_stage_id: string;
-  entity_id: string;
-}
-
-// each entity could have multiple stages, evolving with the story
-export interface EntityStage {
-  id: string;
-  entity_id: string;
-  start_order: number;
-  end_order: number;
-  attributes_patch_json: string;
-  stage_summary?: string;
-  created_at: string;
-}
-
-// each entity stage could span over multiple chapters
-// entity stages span can't exceed entity itself's span
-export interface ChapterEntityStageLink {
-  chapter_id: string; // scene or lower level nodes don't apply here
-  entity_stage_id: string;
-}
-
-// entity mention/appearance records for text blocks
-export interface EntityOccurrence {
-  id: string;
-  entity_id: string;
-  node_id: string;
-  block_id: string;
-  spans_json: string;
-  created_at: string;
-}
 
 
 export const DB_SCHEMA = `
@@ -311,110 +162,101 @@ export const DB_SCHEMA = `
 
 
 
+export const DEFAULT_PROJECT: Project = {
+  id: 'project_mock_1',
+  name: 'My First Story',
+  author: 'Author Name',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
 
-// Mock data for EntityCategory (note: interface has id & entity_id though DB table differs)
-export const MOCK_ENTITY_CATEGORIES: EntityCategory[] = [
+export const DEFAULT_ENTITY_CATEGORY: ElementCategoryRecord = {
+  name: 'others',
+  color: '#CCCCCC',
+  created_at: new Date().toISOString(),
+}
+
+export const MOCK_ENTITY_CATEGORIES: ElementCategoryRecord[] = [
   {
-    id: 'cat_character',
-    entity_id: 'entity_mock_1',
     name: 'character',
     color: '#FF6B6B',
     created_at: new Date().toISOString(),
   },
   {
-    id: 'cat_location',
-    entity_id: 'entity_mock_1',
     name: 'location',
     color: '#4ECDC4',
     created_at: new Date().toISOString(),
   },
   {
-    id: 'cat_object',
-    entity_id: 'entity_mock_1',
     name: 'object',
     color: '#FFD93D',
     created_at: new Date().toISOString(),
   },
   {
-    id: 'cat_faction',
-    entity_id: 'entity_mock_1',
     name: 'faction',
     color: '#1A535C',
     created_at: new Date().toISOString(),
   },
   {
-    id: 'cat_concept',
-    entity_id: 'entity_mock_1',
     name: 'concept',
     color: '#9368B7',
     created_at: new Date().toISOString(),
   },
 ];
-export const MOCK_ENTITIES: Entity[] = [
+export const MOCK_ENTITIES: ElementRecord[] = [
   {
     id: 'entity_mock_1',
-    name: 'Aria Thorn',
-    entity_stage_id: 'entity_stage_mock_1',
     project_id: 'project_mock_1',
-    category_id: 'cat_character',
+    type: 'character',
+    name: 'Aria Thorn',
     aliases_json: JSON.stringify(['The Wanderer', 'AT']),
     attributes_json: JSON.stringify({ role: 'protagonist', temperament: 'curious', age: 19 }),
     canonical_summary: 'Central protagonist seeking the lost citadel.',
-    occurrence_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: 'entity_mock_2',
-    name: 'Elder Oakspire',
-    entity_stage_id: 'entity_stage_mock_2',
     project_id: 'project_mock_1',
-    category_id: 'cat_location',
+    type: 'location',
+    name: 'Elder Oakspire',
     aliases_json: JSON.stringify(['The Whispering Tree']),
     attributes_json: JSON.stringify({ type: 'ancient_tree', region: 'Northwood', mystical: true }),
     canonical_summary: 'A sentient tree holding fragmented memories of the realm.',
-    occurrence_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: 'entity_mock_3',
-    name: 'Shard Compass',
-    entity_stage_id: 'entity_stage_mock_3',
     project_id: 'project_mock_1',
-    category_id: 'cat_object',
+    type: 'object',
+    name: 'Shard Compass',
     aliases_json: JSON.stringify(['Fractured Navigator']),
     attributes_json: JSON.stringify({ material: 'obsidian + silver', attuned: true }),
     canonical_summary: 'An artifact that points toward emotional fractures in reality.',
-    occurrence_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: 'entity_mock_4',
-    name: 'Order of the Veil',
-    entity_stage_id: 'entity_stage_mock_4',
     project_id: 'project_mock_1',
-    category_id: 'cat_faction',
+    type: 'faction',
+    name: 'Order of the Veil',
     aliases_json: JSON.stringify(['Veilkeepers']),
     attributes_json: JSON.stringify({ influence: 'regional', secrecy_level: 8 }),
     canonical_summary: 'A clandestine faction guarding forbidden chronomancy.',
-    occurrence_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: 'entity_mock_5',
-    name: 'Echo Convergence',
-    entity_stage_id: 'entity_stage_mock_5',
     project_id: 'project_mock_1',
-    category_id: 'cat_concept',
+    type: 'concept',
+    name: 'Echo Convergence',
     aliases_json: JSON.stringify(['Resonance Event']),
     attributes_json: JSON.stringify({ cycle: 'once / century', stability: 'volatile' }),
     canonical_summary: 'A periodic phenomenon where timelines partially overlap.',
-    occurrence_count: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
-

@@ -11,8 +11,7 @@ import { useAppStore } from '../../store'
 import { query, run } from '../../lib/db'
 import { debounce } from '../../utils/debounce'
 import { events } from '../../lib/events'
-import type { ContentBlock, StoryNode } from '../../model/schema'
-import { updateAppearancesForBlock } from '../../lib/mentions'
+import type { ContentBlock, StoryNode } from '../../schema/table'
 
 
 type PanelKey = 'format' | 'info' | 'page' | 'inspector' | 'todo' | 'snippets'

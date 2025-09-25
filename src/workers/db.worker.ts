@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm'
 import wasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
-import { DB_SCHEMA, DEFAULT_entity_CATEGORIES } from '../model/schema'
+import { DB_SCHEMA, DEFAULT_entity_CATEGORIES } from '../schema/table'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any = null;

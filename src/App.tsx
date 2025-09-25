@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Route, Routes, Outlet, useLocation } from 'react-router-dom';
-import { GraphView } from './views/MainAppView';
 import { EditorView } from './views/Editor/EditorView';
 import { EntityView } from './views/EntityView';
 import { useAppStore } from './store';
@@ -76,6 +75,7 @@ function Layout() {
 
 
   return (
+    <div>
     <div
       style={{
         height: '100vh',
@@ -89,7 +89,7 @@ function Layout() {
       }}
     >
 
-      <aside
+      <div
         style={{
           padding: '22px 16px',
           overflow: 'visible',
@@ -115,26 +115,7 @@ function Layout() {
         </div>
 
         <div style={{ position: 'relative', width: 280, flex: 1, minHeight: 0, overflow: 'visible' }}>
-          <div
-            onMouseEnter={scheduleExpand}
-            onMouseLeave={scheduleCollapse}
-            onClick={() => setEntityExpanded((prev) => !prev)}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: 260,
-              borderRadius: 24,
-              background: '#ffffff',
-              boxShadow: '0 24px 48px rgba(40, 32, 70, 0.16)',
-              cursor: entityExpanded ? 'default' : 'pointer',
-              transform: entityExpanded ? 'translateX(48px)' : 'translateX(-220px)',
-              transition: 'transform 0.35s ease',
-              zIndex: entityExpanded ? 4 : 2,
-              overflow: 'hidden',
-            }}
-          >
-            <EntityPanel collapsed={!entityExpanded} onRegisterActions={handleRegisterActions} />
+            <EntityPanel onRegisterActions={handleRegisterActions} />
           </div>
 
           {!entityExpanded && (
@@ -173,50 +154,8 @@ function Layout() {
             </div>
           )}
         </div>
-      </aside>
+      </div>
 
-      <main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'transparent' }}>
-        {!isEditorRoute && (
-          <div style={{
-            padding: '16px 24px',
-            borderBottom: 'none',
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
-            <div>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#9b92a3', letterSpacing: '0.08em' }}>Project</div>
-              <h1 style={{ margin: '4px 0 0 0', fontSize: 18, color: '#312a34' }}>{novelName}</h1>
-            </div>
-          </div>
-        )}
-
-        <div style={{ flex: 1, position: 'relative', background: 'transparent' }}>
-          {isEditorRoute && <GraphView />}
-          <Outlet />
-        </div>
-      </main>
-
-      <aside
-        style={{
-          background: 'transparent',
-          position: 'relative',
-          transition: 'all 0.3s ease',
-          display: 'flex',
-          alignItems: 'stretch',
-          justifyContent: sidecarOpen ? 'flex-start' : 'center',
-        }}
-      >
-        {!isEditorRoute && (
-          <>
-            <div style={{ position: 'absolute', top: 32, left: -70 }}>
-              <SidecarToggleButtons orientation="vertical" variant="floating" />
-            </div>
-            <Sidecar showHeader={false} />
-          </>
-        )}
-      </aside>
     </div>
   );
 }
@@ -225,8 +164,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<GraphView />} />
-        <Route path="graph" element={<GraphView />} />
+        <Route index element={<EntityView />} />
+        {/* <Route path="graph" element={<GraphView />} /> */}
         <Route path="editor" element={<EditorView />} />
         <Route path="codex" element={<EntityView />} />
       </Route>

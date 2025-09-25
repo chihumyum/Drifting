@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { StoryNode, NodeEdge, Entity, ContentBlock } from '../model/schema';
+import type { StoryNode, NodeEdge, ContentBlock, EntityCategory } from '../schema/table';
+import type { Entity } from '../model/domain';
 
 type UiSlice = {
   theme: 'light' | 'dark';
@@ -20,10 +21,14 @@ type UiSlice = {
 type SelectionSlice = {
   selectedChapterId: string | null;
   selectedBlockId: string | null;
+  selectedEntity: Entity | null;
   selectedEntityId: string | null;
+  selectedEntityCategory: EntityCategory | null;
   multiSelectedNodeIds: string[];
   setSelectedChapterId: (id: string | null) => void;
   setSelectedBlockId: (id: string | null) => void;
+  setSelectedEntity: (entity: Entity | null) => void;
+  setSelectedEntityCategory: (category: EntityCategory | null) => void;
   setSelectedEntityId: (id: string | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
   clearSelection: () => void;
@@ -59,15 +64,21 @@ type EditorSlice = {
   setEditorContent: (content: string) => void;
 };
 
+// 先Entity整体丢进来，日后优化为domain + meta
 type EntitySlice = {
   entities: Entity[];
-  selectedEntityType: string | 'all';
   searchQuery: string;
   setEntities: (entities: Entity[]) => void;
   addEntity: (entity: Entity) => void;
   updateEntity: (id: string, updates: Partial<Entity>) => void;
   removeEntity: (id: string) => void;
-  setSelectedEntityCategory: (type: string | 'all') => void;
+  entityCategories: EntityCategory[];
+  setEntityCategories: (categories: EntityCategory[]) => void;
+  addEntityCategory: (category: EntityCategory) => void;
+  updateEntityCategory: (name: string, updates: Partial<EntityCategory>) => void;
+  removeEntityCategory: (name: string) => void;
+
+
   setSearchQuery: (query: string) => void;
 };
 
@@ -83,6 +94,7 @@ type JobsSlice = {
 
 export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & EntitySlice & JobsSlice;
 
+// create Zustand store之后需要先拉取一次state，确保所有的初始值都被正确设置
 export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   currentView: 'graph',
@@ -100,11 +112,16 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedChapterId: null,
   selectedEntityId: null,
+  selectedEntity: null,
+  selectedEntityCategory: null,
   selectedBlockId: null,
   multiSelectedNodeIds: [],
   setSelectedChapterId: (selectedNodeId) => set({ selectedChapterId: selectedNodeId }),
   setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
+  setSelectedEntity: (selectedEntity) => set({ selectedEntity }),
   setSelectedBlockId: (selectedBlockId) => set({ selectedBlockId }),
+  setSelectedEntityCategory: (selectedEntityCategory) => set({ selectedEntityCategory }),
+
   setMultiSelectedNodeIds: (multiSelectedNodeIds) => set({ multiSelectedNodeIds }),
   clearSelection: () => set({ 
     selectedChapterId: null, 
@@ -149,7 +166,6 @@ export const useAppStore = create<AppState>((set) => ({
   setEditorContent: (editorContent) => set({ editorContent }),
 
   entities: [],
-  selectedEntityType: 'all',
   searchQuery: '',
   setEntities: (entities) => set({ entities }),
   addEntity: (entity) => set((state) => ({ entities: [...state.entities, entity] })),
@@ -159,7 +175,15 @@ export const useAppStore = create<AppState>((set) => ({
   removeEntity: (id) => set((state) => ({
     entities: state.entities.filter(entity => entity.id !== id)
   })),
-  setSelectedEntityCategory: (selectedEntityType) => set({ selectedEntityType }),
+  entityCategories: [],
+  setEntityCategories: (entityCategories) => set({ entityCategories }),
+  addEntityCategory: (category) => set((state) => ({ entityCategories: [...state.entityCategories, category] })),
+  updateEntityCategory: (name, updates) => set((state) => ({
+    entityCategories: state.entityCategories.map((cat) => cat.name === name ? { ...cat, ...updates } : cat)
+  })),
+  removeEntityCategory: (name) => set((state) => ({
+    entityCategories: state.entityCategories.filter((cat) => cat.name !== name)
+  })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
 
   runningJobs: [],
@@ -181,5 +205,3 @@ export const useAppStore = create<AppState>((set) => ({
     jobResults: { ...state.jobResults, [jobId]: result }
   })),
 }));
-
-

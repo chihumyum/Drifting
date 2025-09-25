@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { query, run } from '../lib/db';
-import type { StoryNode, NodeEdge } from '../model/schema';
+import type { StoryNode, NodeEdge } from '../schema/table';
 import { createChapter } from '../lib/nodes';
 import { events } from '../lib/events';
 import { useAppStore } from '../store';
