@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import type { StoryNode, NodeEdge, ContentBlock, EntityCategory } from '../schema/table';
-import type { Entity } from '../model/domain';
+import type { BookElement, BookElementCategory, BookElementStage } from '../domain/book_element';
 
 type UiSlice = {
   theme: 'light' | 'dark';
@@ -8,7 +7,7 @@ type UiSlice = {
   chapterPanelOpen: boolean;
   setChapterPanelOpen: (isOpen: boolean) => void;
   entityPanelOpen: boolean;
-  setEntityPanelOpen: (isOpen: boolean) => void;
+  setBookElementPanelOpen: (isOpen: boolean) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setCurrentView: (view: UiSlice['currentView']) => void;
 
@@ -21,62 +20,62 @@ type UiSlice = {
 type SelectionSlice = {
   selectedChapterId: string | null;
   selectedBlockId: string | null;
-  selectedEntity: Entity | null;
-  selectedEntityId: string | null;
-  selectedEntityCategory: EntityCategory | null;
+  selectedElement: BookElement | null;
+  selectedBookElementId: string | null;
+  selectedBookElementCategory: BookElementCategory | null;
   multiSelectedNodeIds: string[];
   setSelectedChapterId: (id: string | null) => void;
   setSelectedBlockId: (id: string | null) => void;
-  setSelectedEntity: (entity: Entity | null) => void;
-  setSelectedEntityCategory: (category: EntityCategory | null) => void;
-  setSelectedEntityId: (id: string | null) => void;
+  setSelectedBookElement: (entity: BookElement | null) => void;
+  setSelectedBookElementCategory: (category: BookElementCategory | null) => void;
+  setSelectedBookElementId: (id: string | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
   clearSelection: () => void;
 };
 
-type GraphSlice = {
-  nodes: StoryNode[];
-  edges: NodeEdge[];
-  graphPosition: { x: number; y: number };
-  graphZoom: number;
-  setNodes: (nodes: StoryNode[]) => void;
-  setEdges: (edges: NodeEdge[]) => void;
-  addNode: (node: StoryNode) => void;
-  updateNode: (id: string, updates: Partial<StoryNode>) => void;
-  removeNode: (id: string) => void;
-  addEdge: (edge: NodeEdge) => void;
-  removeEdge: (id: string) => void;
-  setGraphPosition: (position: { x: number; y: number }) => void;
-  setGraphZoom: (zoom: number) => void;
-};
+// type GraphSlice = {
+//   nodes: StoryNode[];
+//   edges: NodeEdge[];
+//   graphPosition: { x: number; y: number };
+//   graphZoom: number;
+//   setNodes: (nodes: StoryNode[]) => void;
+//   setEdges: (edges: NodeEdge[]) => void;
+//   addNode: (node: StoryNode) => void;
+//   updateNode: (id: string, updates: Partial<StoryNode>) => void;
+//   removeNode: (id: string) => void;
+//   addEdge: (edge: NodeEdge) => void;
+//   removeEdge: (id: string) => void;
+//   setGraphPosition: (position: { x: number; y: number }) => void;
+//   setGraphZoom: (zoom: number) => void;
+// };
 
 
 
-type EditorSlice = {
-  currentNodeId: string | null;
-  blocks: ContentBlock[];
-  editorContent: string;
-  setCurrentNodeId: (id: string | null) => void;
-  setBlocks: (blocks: ContentBlock[]) => void;
-  updateBlock: (id: string, updates: Partial<ContentBlock>) => void;
-  addBlock: (block: ContentBlock) => void;
-  removeBlock: (id: string) => void;
-  setEditorContent: (content: string) => void;
-};
+// type EditorSlice = {
+//   currentNodeId: string | null;
+//   blocks: ContentBlock[];
+//   editorContent: string;
+//   setCurrentNodeId: (id: string | null) => void;
+//   setBlocks: (blocks: ContentBlock[]) => void;
+//   updateBlock: (id: string, updates: Partial<ContentBlock>) => void;
+//   addBlock: (block: ContentBlock) => void;
+//   removeBlock: (id: string) => void;
+//   setEditorContent: (content: string) => void;
+// };
 
-// 先Entity整体丢进来，日后优化为domain + meta
-type EntitySlice = {
-  entities: Entity[];
+
+type BookElementSlice = {
+  elements: BookElement[];
   searchQuery: string;
-  setEntities: (entities: Entity[]) => void;
-  addEntity: (entity: Entity) => void;
-  updateEntity: (id: string, updates: Partial<Entity>) => void;
-  removeEntity: (id: string) => void;
-  entityCategories: EntityCategory[];
-  setEntityCategories: (categories: EntityCategory[]) => void;
-  addEntityCategory: (category: EntityCategory) => void;
-  updateEntityCategory: (name: string, updates: Partial<EntityCategory>) => void;
-  removeEntityCategory: (name: string) => void;
+  setElements: (elements: BookElement[]) => void;
+  addBookElement: (entity: BookElement) => void;
+  updateBookElement: (id: string, updates: Partial<BookElement>) => void;
+  removeBookElement: (id: string) => void;
+  entityCategories: BookElementCategory[];
+  setBookElementCategories: (categories: BookElementCategory[]) => void;
+  addBookElementCategory: (category: BookElementCategory) => void;
+  updateBookElementCategory: (name: string, updates: Partial<BookElementCategory>) => void;
+  removeBookElementCategory: (name: string) => void;
 
 
   setSearchQuery: (query: string) => void;
@@ -92,7 +91,8 @@ type JobsSlice = {
   setJobResult: (jobId: string, result: unknown) => void;
 };
 
-export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & EntitySlice & JobsSlice;
+// export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & BookElementSlice & JobsSlice;
+export type AppState = UiSlice & SelectionSlice & BookElementSlice & JobsSlice;
 
 // create Zustand store之后需要先拉取一次state，确保所有的初始值都被正确设置
 export const useAppStore = create<AppState>((set) => ({
@@ -105,29 +105,29 @@ export const useAppStore = create<AppState>((set) => ({
   setTheme: (theme) => set({ theme }),
   setCurrentView: (currentView) => set({ currentView }),
   setChapterPanelOpen: (isOpen) => set({ chapterPanelOpen: isOpen }),
-  setEntityPanelOpen: (open) => set({ entityPanelOpen: open }),
+  setBookElementPanelOpen: (open) => set({ entityPanelOpen: open }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setRightPanelType: (type) => set({ rightPanelType: type }),
 
 
   selectedChapterId: null,
-  selectedEntityId: null,
-  selectedEntity: null,
-  selectedEntityCategory: null,
+  selectedBookElementId: null,
+  selectedBookElement: null,
+  selectedBookElementCategory: null,
   selectedBlockId: null,
   multiSelectedNodeIds: [],
   setSelectedChapterId: (selectedNodeId) => set({ selectedChapterId: selectedNodeId }),
-  setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
-  setSelectedEntity: (selectedEntity) => set({ selectedEntity }),
+  setSelectedBookElementId: (selectedBookElementId) => set({ selectedBookElementId }),
+  setSelectedBookElement: (selectedBookElement) => set({ selectedBookElement }),
   setSelectedBlockId: (selectedBlockId) => set({ selectedBlockId }),
-  setSelectedEntityCategory: (selectedEntityCategory) => set({ selectedEntityCategory }),
+  setSelectedBookElementCategory: (selectedBookElementCategory) => set({ selectedBookElementCategory }),
 
   setMultiSelectedNodeIds: (multiSelectedNodeIds) => set({ multiSelectedNodeIds }),
-  clearSelection: () => set({ 
-    selectedChapterId: null, 
-    selectedEntityId: null, 
-    selectedBlockId: null, 
-    multiSelectedNodeIds: [] 
+  clearSelection: () => set({
+    selectedChapterId: null,
+    selectedBookElementId: null,
+    selectedBlockId: null,
+    multiSelectedNodeIds: []
   }),
 
   nodes: [],
@@ -165,23 +165,23 @@ export const useAppStore = create<AppState>((set) => ({
   })),
   setEditorContent: (editorContent) => set({ editorContent }),
 
-  entities: [],
+  elements: [],
   searchQuery: '',
-  setEntities: (entities) => set({ entities }),
-  addEntity: (entity) => set((state) => ({ entities: [...state.entities, entity] })),
-  updateEntity: (id, updates) => set((state) => ({
-    entities: state.entities.map(entity => entity.id === id ? { ...entity, ...updates } : entity)
+  setelements: (elements) => set({ elements }),
+  addBookElement: (entity) => set((state) => ({ elements: [...state.elements, entity] })),
+  updateBookElement: (id, updates) => set((state) => ({
+    elements: state.elements.map(entity => entity.id === id ? { ...entity, ...updates } : entity)
   })),
-  removeEntity: (id) => set((state) => ({
-    entities: state.entities.filter(entity => entity.id !== id)
+  removeBookElement: (id) => set((state) => ({
+    elements: state.elements.filter(entity => entity.id !== id)
   })),
   entityCategories: [],
-  setEntityCategories: (entityCategories) => set({ entityCategories }),
-  addEntityCategory: (category) => set((state) => ({ entityCategories: [...state.entityCategories, category] })),
-  updateEntityCategory: (name, updates) => set((state) => ({
+  setBookElementCategories: (entityCategories) => set({ entityCategories }),
+  addBookElementCategory: (category) => set((state) => ({ entityCategories: [...state.entityCategories, category] })),
+  updateBookElementCategory: (name, updates) => set((state) => ({
     entityCategories: state.entityCategories.map((cat) => cat.name === name ? { ...cat, ...updates } : cat)
   })),
-  removeEntityCategory: (name) => set((state) => ({
+  removeBookElementCategory: (name) => set((state) => ({
     entityCategories: state.entityCategories.filter((cat) => cat.name !== name)
   })),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -189,8 +189,8 @@ export const useAppStore = create<AppState>((set) => ({
   runningJobs: [],
   completedJobs: [],
   jobResults: {},
-  addJob: (jobId) => set((state) => ({ 
-    runningJobs: [...state.runningJobs, jobId] 
+  addJob: (jobId) => set((state) => ({
+    runningJobs: [...state.runningJobs, jobId]
   })),
   completeJob: (jobId, result) => set((state) => ({
     runningJobs: state.runningJobs.filter(id => id !== jobId),

@@ -1,4 +1,4 @@
-
+// definitions for the sql database
 // element rows as stored in SQLite
 export interface ElementRecord {
     id: string;
@@ -6,7 +6,8 @@ export interface ElementRecord {
     category_id: string;
     type: string;
     name: string;
-    content: string;
+    content_json: string; // tiptap JSON content
+    summary_json: string; // description for display in the list
     created_at: string;
     updated_at: string;
 }
@@ -16,15 +17,16 @@ export interface ElementRecord {
 export interface ElementCategoryRecord {
     id: string;
     name: string;
+    description_json: string;
     color?: string;
-    created_at: string;
 }
 
 // element has tags
 export interface ElementTag {
     id: string;
     element_id: string;
-    tag_name: string;
+    stage_id?: string; // tag could belong to element or element stage
+    name: string;
     created_at: string;
 }
 
@@ -38,11 +40,14 @@ export interface StageElementLink {
 export interface ElementStage {
     id: string;
     element_id: string;
-    start_order: number;
-    end_order: number;
-    attributes_patch_json: string;
-    stage_summary?: string;
+    stage_index: number;
+    start_node_id: number;
+    end_node_id: number;
+    name: string;
+    content_json: string;
+    summary_json: string;
     created_at: string;
+    updated_at: string;
 }
 
 // each element stage could span over multiple chapters
