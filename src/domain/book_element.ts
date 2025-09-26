@@ -32,3 +32,4 @@ export interface BookElementCategory {
   description_json: string;
   color?: string;
 }
+

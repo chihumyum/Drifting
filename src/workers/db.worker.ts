@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm'
 import wasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
-import { DB_SCHEMA, DEFAULT_entity_CATEGORIES } from '../schema/table'
+import { DB_SCHEMA, MOCK_ENTITY_CATEGORIES } from '../schema/table'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any = null;
@@ -23,7 +23,7 @@ interface WorkerResponse {
 
 self.addEventListener('message', async (ev) => {
   const { id, type, payload }: WorkerMessage = ev.data || {};
-  const reply = (data: Omit<WorkerResponse, 'id'>) => 
+  const reply = (data: Omit<WorkerResponse, 'id'>) =>
     self.postMessage({ id, ...data });
 
   try {
@@ -89,9 +89,10 @@ self.addEventListener('message', async (ev) => {
             throw error;
           }
         }
-        DEFAULT_entity_CATEGORIES.forEach((name) => {
+        MOCK_ENTITY_CATEGORIES.forEach(({ name, color }) => {
           const safeName = name.replaceAll("'", "''");
-          db.exec(`INSERT OR IGNORE INTO entity_category (name, color) VALUES ('${safeName}', NULL)`);
+          const safeColor = color ? `'${color.replaceAll("'", "''")}'` : 'NULL';
+          db.exec(`INSERT OR IGNORE INTO entity_category (name, color) VALUES ('${safeName}', ${safeColor})`);
         });
         reply({ type: 'migrated' });
         break;
@@ -101,9 +102,9 @@ self.addEventListener('message', async (ev) => {
         reply({ type: 'error', error: `Unknown message type: ${type}` });
     }
   } catch (error) {
-    reply({ 
-      type: 'error', 
-      error: error instanceof Error ? error.message : String(error) 
+    reply({
+      type: 'error',
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -123,7 +124,7 @@ async function initDatabase(dbName?: string): Promise<void> {
     // Try OPFS first, fallback to in-memory if it fails
     let filename = '';
     let useOPFS = false;
-    
+
     // Check if OPFS is available
     if (sqlite3.capi.sqlite3_vfs_find('opfs')) {
       try {
@@ -136,7 +137,7 @@ async function initDatabase(dbName?: string): Promise<void> {
         db = null;
       }
     }
-    
+
     // Fallback to in-memory database
     if (!db) {
       filename = ':memory:';
@@ -144,7 +145,7 @@ async function initDatabase(dbName?: string): Promise<void> {
       useOPFS = false;
       console.log('✅ SQLite initialized with in-memory storage');
     }
-    
+
     // Configure SQLite for optimal performance
     if (useOPFS) {
       db.exec('PRAGMA journal_mode=WAL');
@@ -153,15 +154,15 @@ async function initDatabase(dbName?: string): Promise<void> {
       db.exec('PRAGMA journal_mode=MEMORY');
       db.exec('PRAGMA synchronous=OFF');
     }
-    
+
     db.exec('PRAGMA cache_size=2000');
     db.exec('PRAGMA foreign_keys=ON');
     db.exec('PRAGMA temp_store=memory');
-    
+
   } catch (error) {
     console.error('Database initialization failed:', error);
     throw error;
   }
 }
 
-export {}
+export { }

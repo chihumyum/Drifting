@@ -1,11 +1,9 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { query, run } from '../lib/db';
-import type { StoryNode, NodeEdge } from '../schema/table';
-import { createChapter } from '../lib/nodes';
-import { events } from '../lib/events';
 import { useAppStore } from '../store';
+import type { BookNode, BookNodeEdge } from '../domain/book_node';
+import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 
 type NavigatorMode = 'list' | 'map';
 
@@ -18,77 +16,71 @@ const cardColors: Record<string, string> = {
 
 export function ChapterNavigator() {
   const navigate = useNavigate();
-  const { selectedChapterId: selectedNodeId, setSelectedChapterId: setSelectedNodeId } = useAppStore();
-  const [chapters, setChapters] = useState<StoryNode[]>([]);
+  const {
+    selectedChapterId,
+    setSelectedChapterId,
+    bookNodes,
+    nodeEdges,
+  } = useAppStore();
+  const { loadNodes, loadEdges, createNode, renameNode, reorderNode } = useBookNodeUsecases();
+
   const [mode, setMode] = useState<NavigatorMode>('list');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [search, setSearch] = useState('');
-  const [edges, setEdges] = useState<NodeEdge[]>([]);
 
-  const loadChapters = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
-      setIsLoading(true);
-      const rows = await query<StoryNode>(
-        "SELECT * FROM story_node WHERE type='chapter' ORDER BY order_key ASC"
-      );
-      setChapters(rows);
+      await Promise.all([
+        loadNodes({ type: 'chapter' }),
+        loadEdges(),
+      ]);
     } catch (error) {
       console.error('Failed to load chapters', error);
-      setChapters([]);
+      setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
-  const loadEdges = useCallback(async () => {
-    try {
-      const rows = await query<NodeEdge>('SELECT * FROM node_edge ORDER BY created_at');
-      setEdges(rows);
-    } catch (error) {
-      console.error('Failed to load edges', error);
-      setEdges([]);
-    }
-  }, []);
+  }, [loadNodes, loadEdges]);
 
   useEffect(() => {
-    const reload = () => {
-      void loadChapters();
-      void loadEdges();
-    };
-    reload();
-    events.on('nodes:changed', reload);
-    events.on('db:ready', reload);
-    events.on('graph:edge-created', reload);
-    events.on('graph:edge-deleted', reload);
-    return () => {
-      events.off('nodes:changed', reload);
-      events.off('db:ready', reload);
-      events.off('graph:edge-created', reload);
-      events.off('graph:edge-deleted', reload);
-    };
-  }, [loadChapters, loadEdges]);
+    void loadAll();
+  }, [loadAll]);
+
+  const chapters = useMemo(
+    () => bookNodes
+      .filter((node) => node.type === 'chapter')
+      .slice()
+      .sort((a, b) => a.orderKey - b.orderKey),
+    [bookNodes]
+  );
 
   const filteredChapters = useMemo(() => {
     if (!search.trim()) return chapters;
     const term = search.toLowerCase();
-    return chapters.filter((ch) => ch.title.toLowerCase().includes(term));
+    return chapters.filter((chapter) => chapter.title.toLowerCase().includes(term));
   }, [chapters, search]);
 
   const openChapter = useCallback((id: string) => {
-    setSelectedNodeId(id);
+    setSelectedChapterId(id);
     navigate('/editor');
-  }, [navigate, setSelectedNodeId]);
+  }, [navigate, setSelectedChapterId]);
 
   const onAddChapter = useCallback(async () => {
-    const id = await createChapter('New Chapter');
-    await loadChapters();
-    setSelectedNodeId(id);
-    navigate('/editor');
-  }, [loadChapters, navigate, setSelectedNodeId]);
+    try {
+      const node = await createNode({ title: 'New Chapter', type: 'chapter' });
+      setSelectedChapterId(node.id);
+      navigate('/editor');
+    } catch (error) {
+      console.error('Failed to create chapter', error);
+    }
+  }, [createNode, navigate, setSelectedChapterId]);
 
-  const startRename = useCallback((chapter: StoryNode) => {
+  const startRename = useCallback((chapter: BookNode) => {
     setEditingId(chapter.id);
     setEditingTitle(chapter.title);
   }, []);
@@ -97,56 +89,40 @@ export function ChapterNavigator() {
     if (!editingId) return;
     const nextTitle = editingTitle.trim() || 'Untitled Chapter';
     try {
-      await run(`UPDATE story_node SET title='${escapeSql(nextTitle)}', updated_at='${new Date().toISOString()}' WHERE id='${editingId}'`);
-      events.emit('nodes:changed');
+      await renameNode(editingId, nextTitle);
     } catch (error) {
       console.error('Failed to rename chapter', error);
     } finally {
       setEditingId(null);
       setEditingTitle('');
     }
-  }, [editingId, editingTitle]);
+  }, [editingId, editingTitle, renameNode]);
 
   const moveChapter = useCallback(async (id: string, direction: 'up' | 'down') => {
-    const index = chapters.findIndex((c) => c.id === id);
-    if (index === -1) return;
-    const swapIdx = direction === 'up' ? index - 1 : index + 1;
-    if (swapIdx < 0 || swapIdx >= chapters.length) return;
-
-    const current = chapters[index];
-    const target = chapters[swapIdx];
     try {
-      await run(`UPDATE story_node SET order_key=${target.order_key}, updated_at='${new Date().toISOString()}' WHERE id='${current.id}'`);
-      await run(`UPDATE story_node SET order_key=${current.order_key}, updated_at='${new Date().toISOString()}' WHERE id='${target.id}'`);
-      events.emit('nodes:changed');
-      await loadChapters();
+      await reorderNode(id, direction);
     } catch (error) {
       console.error('Failed to reorder chapters', error);
     }
-  }, [chapters, loadChapters]);
+  }, [reorderNode]);
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#f6f4f6',
-      borderRight: '1px solid #d8d3d8'
-    }}>
-      <div style={{ padding: '16px 18px 12px 18px', borderBottom: '1px solid #ddd6dd' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: 320, background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(16px)', borderRadius: 24, border: '1px solid rgba(220,210,230,0.7)', boxShadow: '0 18px 40px rgba(28,12,36,0.18)', overflow: 'hidden' }}>
+      <div style={{ padding: '18px 18px 10px', borderBottom: '1px solid rgba(220,210,230,0.7)', background: 'linear-gradient(180deg, rgba(250,245,255,0.9) 0%, rgba(245,236,255,0.65) 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#978297', letterSpacing: '0.08em' }}>Chapters</div>
-            <h2 style={{ fontSize: 16, margin: '4px 0 0 0', color: '#352f35' }}>Outline</h2>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#2d1f2d' }}>章节</div>
+            <div style={{ fontSize: 12, color: '#8c7d8c' }}>Manage your story flow</div>
           </div>
           <button
+            type="button"
             onClick={onAddChapter}
             style={{
-              border: 'none',
-              backgroundColor: '#4c915d',
-              color: '#fff',
-              borderRadius: 18,
+              border: '1px solid #bca2bc',
+              backgroundColor: '#ffffff',
+              color: '#4d3e4d',
               fontSize: 12,
+              borderRadius: 999,
               padding: '6px 14px',
               cursor: 'pointer'
             }}
@@ -172,6 +148,7 @@ export function ChapterNavigator() {
           />
           <div style={{ display: 'flex', borderRadius: 999, border: '1px solid #d4c8d4', overflow: 'hidden' }}>
             <button
+              type="button"
               onClick={() => setMode('list')}
               style={{
                 padding: '6px 12px',
@@ -185,6 +162,7 @@ export function ChapterNavigator() {
               List
             </button>
             <button
+              type="button"
               onClick={() => setMode('map')}
               style={{
                 padding: '6px 12px',
@@ -203,13 +181,13 @@ export function ChapterNavigator() {
 
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {isLoading && <div style={{ fontSize: 12, color: '#998a99' }}>Loading chapters…</div>}
-
-        {!isLoading && filteredChapters.length === 0 && (
+        {!isLoading && loadError && <div style={{ fontSize: 12, color: '#b85c5c' }}>Failed to load chapters: {loadError}</div>}
+        {!isLoading && !loadError && filteredChapters.length === 0 && (
           <div style={{ fontSize: 12, color: '#998a99' }}>No chapters yet. Create one to get started.</div>
         )}
 
-        {!isLoading && mode === 'list' && filteredChapters.map((chapter, index) => {
-          const isSelected = chapter.id === selectedNodeId;
+        {!isLoading && !loadError && mode === 'list' && filteredChapters.map((chapter, index) => {
+          const isSelected = chapter.id === selectedChapterId;
           const background = cardColors[chapter.status] || '#ffffff';
           return (
             <div
@@ -256,16 +234,19 @@ export function ChapterNavigator() {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); moveChapter(chapter.id, 'up'); }}
                       style={iconButtonStyle}
                       title="Move up"
                     >↑</button>
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); moveChapter(chapter.id, 'down'); }}
                       style={iconButtonStyle}
                       title="Move down"
                     >↓</button>
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); startRename(chapter); }}
                       style={iconButtonStyle}
                       title="Rename"
@@ -287,12 +268,12 @@ export function ChapterNavigator() {
           );
         })}
 
-        {!isLoading && mode === 'map' && (
+        {!isLoading && !loadError && mode === 'map' && (
           <MiniMap
             chapters={filteredChapters}
-            edges={edges}
+            edges={nodeEdges}
             onSelect={openChapter}
-            selectedId={selectedNodeId}
+            selectedId={selectedChapterId}
           />
         )}
       </div>
@@ -306,31 +287,21 @@ function MiniMap({
   onSelect,
   selectedId,
 }: {
-  chapters: StoryNode[];
-  edges: NodeEdge[];
+  chapters: BookNode[];
+  edges: BookNodeEdge[];
   onSelect: (id: string) => void;
   selectedId: string | null;
 }) {
-  const positioned = chapters.filter((chapter) => chapter.pos_x != null && chapter.pos_y != null);
-  const unpositioned = chapters.filter((chapter) => chapter.pos_x == null || chapter.pos_y == null);
+  const positioned = chapters.filter((chapter) => chapter.position.x != null && chapter.position.y != null);
+  const unpositioned = chapters.filter((chapter) => chapter.position.x == null || chapter.position.y == null);
   const hasPositions = positioned.length > 0;
 
   if (!hasPositions) {
     const cardWidth = 120;
     const cardHeight = 70;
-    const gap = 12;
-    const columns = 2;
-
     return (
-      <div style={{ position: 'relative', minHeight: 300, width: 280, margin: '0 auto', background: '#fefcfe', borderRadius: 16, border: '1px solid #e6dfea', padding: 12 }}>
-        {chapters.length === 0 && (
-          <div style={{ fontSize: 12, color: '#b3a4b3', textAlign: 'center', marginTop: 120 }}>No chapters yet</div>
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
         {chapters.map((chapter, idx) => {
-          const row = Math.floor(idx / columns);
-          const col = idx % columns;
-          const x = col * (cardWidth + gap);
-          const y = row * (cardHeight + gap);
           const isSelected = chapter.id === selectedId;
           return (
             <button
@@ -338,15 +309,12 @@ function MiniMap({
               type="button"
               onClick={() => onSelect(chapter.id)}
               style={{
-                position: 'absolute',
-                left: x,
-                top: y,
-                width: cardWidth,
-                height: cardHeight,
+                minHeight: cardHeight,
+                minWidth: cardWidth,
                 borderRadius: 14,
-                border: isSelected ? '2px solid #4a9e63' : '1px solid #dacfe2',
-                backgroundColor: '#fff',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                border: isSelected ? '2px solid #4a9e63' : '1px solid #d6cfe4',
+                background: '#ffffff',
+                boxShadow: isSelected ? '0 6px 16px rgba(69, 122, 92, 0.22)' : '0 3px 10px rgba(52, 37, 70, 0.12)',
                 padding: '10px 12px',
                 cursor: 'pointer',
                 transition: 'transform 0.15s ease',
@@ -368,8 +336,8 @@ function MiniMap({
   const width = 280;
   const height = 320;
   const margin = 36;
-  const xs = positioned.map((chapter) => Number(chapter.pos_x ?? 0));
-  const ys = positioned.map((chapter) => Number(chapter.pos_y ?? 0));
+  const xs = positioned.map((chapter) => Number(chapter.position.x ?? 0));
+  const ys = positioned.map((chapter) => Number(chapter.position.y ?? 0));
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
@@ -379,10 +347,10 @@ function MiniMap({
   const innerWidth = width - margin * 2;
   const innerHeight = height - margin * 2;
 
-  const positions = new Map<string, { x: number; y: number; node: StoryNode }>();
+  const positions = new Map<string, { x: number; y: number; node: BookNode }>();
   positioned.forEach((chapter) => {
-    const rawX = Number(chapter.pos_x ?? 0);
-    const rawY = Number(chapter.pos_y ?? 0);
+    const rawX = Number(chapter.position.x ?? 0);
+    const rawY = Number(chapter.position.y ?? 0);
     const x = margin + ((rawX - minX) / spanX) * innerWidth;
     const y = margin + ((rawY - minY) / spanY) * innerHeight;
     positions.set(chapter.id, { x, y, node: chapter });
@@ -397,7 +365,7 @@ function MiniMap({
     });
   }
 
-  const visibleEdges = edges.filter((edge) => positions.has(edge.src_node_id) && positions.has(edge.dst_node_id));
+  const visibleEdges = edges.filter((edge) => positions.has(edge.sourceNodeId) && positions.has(edge.targetNodeId));
 
   return (
     <div style={{ position: 'relative', minHeight: height, width: width, margin: '0 auto', background: '#fefcfe', borderRadius: 16, border: '1px solid #e6dfea', padding: 0, overflow: 'hidden' }}>
@@ -407,8 +375,8 @@ function MiniMap({
 
       <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
         {visibleEdges.map((edge) => {
-          const src = positions.get(edge.src_node_id)!;
-          const dst = positions.get(edge.dst_node_id)!;
+          const src = positions.get(edge.sourceNodeId)!;
+          const dst = positions.get(edge.targetNodeId)!;
           return (
             <line
               key={edge.id}
@@ -472,7 +440,3 @@ const iconButtonStyle: CSSProperties = {
   borderRadius: 8,
   cursor: 'pointer'
 };
-
-function escapeSql(value: string) {
-  return value.replaceAll("'", "''");
-}

@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, PenSquare, User, MapPin, Package, Users, Lightbulb } from 'lucide-react';
 
 import { useAppStore } from '../store';
-import * as EntityOps from '../lib/book_entity';
 import { events } from '../lib/events';
-import type { Entity } from '../model/domain';
-import type { EntityCategory } from '../schema/table';
 import { EntityCreateModal, type NewEntityPayload } from '../components/modals/ElementCreateModal';
 import { EntityEditModal } from '../components/modals/ElementEditModal';
 
@@ -51,7 +48,7 @@ function summarize(entity: Entity) {
   return plain.length > 120 ? `${plain.slice(0, 117)}…` : plain;
 }
 
-export function EntityView() {
+export function ElementView() {
   const {
     entities,
     setEntities,

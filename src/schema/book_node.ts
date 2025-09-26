@@ -1,15 +1,16 @@
 export type NodeType = 'chapter' | 'scene' | 'beat';
+export type NodeStatus = 'draft' | 'in_progress' | 'complete' | 'archived';
 
-
-// story node, where works happen
-export interface StoryNodeRecord {
+// book node, where works happen
+export interface BookNodeRecord {
   id: string;
-  parent_id: string; // stage - chapter - scene - beat
+  parent_id?: string | null; // stage - chapter - scene - beat
   title: string;
   project_id: string;
   type: NodeType;
   order_key: number;
-  summary?: string; // doesn't apply to lower levels
+  status: NodeStatus;
+  summary?: string | null; // doesn't apply to lower levels
   pos_x?: number | null;
   pos_y?: number | null;
   created_at: string;
@@ -29,7 +30,8 @@ export interface NodeEdge {
   project_id: string;
   src_node_id: string; // same level
   dst_node_id: string;
-  label?: string;
+  kind: 'chronology' | 'causality' | 'reference' | 'foreshadow';
+  label?: string | null;
   weight: number;
   created_at: string;
 }

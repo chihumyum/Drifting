@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { BookElement, BookElementCategory, BookElementStage } from '../domain/book_element';
+import type { BookElement, BookElementCategory } from '../domain/book_element';
+import type { BookNode, BookNodeEdge } from '../domain/book_node';
 
 type UiSlice = {
   theme: 'light' | 'dark';
@@ -33,52 +34,22 @@ type SelectionSlice = {
   clearSelection: () => void;
 };
 
-// type GraphSlice = {
-//   nodes: StoryNode[];
-//   edges: NodeEdge[];
-//   graphPosition: { x: number; y: number };
-//   graphZoom: number;
-//   setNodes: (nodes: StoryNode[]) => void;
-//   setEdges: (edges: NodeEdge[]) => void;
-//   addNode: (node: StoryNode) => void;
-//   updateNode: (id: string, updates: Partial<StoryNode>) => void;
-//   removeNode: (id: string) => void;
-//   addEdge: (edge: NodeEdge) => void;
-//   removeEdge: (id: string) => void;
-//   setGraphPosition: (position: { x: number; y: number }) => void;
-//   setGraphZoom: (zoom: number) => void;
-// };
-
-
-
-// type EditorSlice = {
-//   currentNodeId: string | null;
-//   blocks: ContentBlock[];
-//   editorContent: string;
-//   setCurrentNodeId: (id: string | null) => void;
-//   setBlocks: (blocks: ContentBlock[]) => void;
-//   updateBlock: (id: string, updates: Partial<ContentBlock>) => void;
-//   addBlock: (block: ContentBlock) => void;
-//   removeBlock: (id: string) => void;
-//   setEditorContent: (content: string) => void;
-// };
-
 
 type BookElementSlice = {
-  elements: BookElement[];
-  searchQuery: string;
-  setElements: (elements: BookElement[]) => void;
-  addBookElement: (entity: BookElement) => void;
-  updateBookElement: (id: string, updates: Partial<BookElement>) => void;
-  removeBookElement: (id: string) => void;
-  entityCategories: BookElementCategory[];
+  bookElements: BookElement[];
+  bookElementCategories: BookElementCategory[];
+  setBookElements: (elements: BookElement[]) => void;
   setBookElementCategories: (categories: BookElementCategory[]) => void;
-  addBookElementCategory: (category: BookElementCategory) => void;
-  updateBookElementCategory: (name: string, updates: Partial<BookElementCategory>) => void;
-  removeBookElementCategory: (name: string) => void;
+};
 
-
-  setSearchQuery: (query: string) => void;
+type BookNodeSlice = {
+  bookNodes: BookNode[];
+  nodeEdges: BookNodeEdge[];
+  setBookNodes: (nodes: BookNode[]) => void;
+  addBookNode: (node: BookNode) => void;
+  updateBookNode: (id: string, updates: Partial<BookNode>) => void;
+  removeBookNode: (id: string) => void;
+  setNodeEdges: (edges: BookNodeEdge[]) => void;
 };
 
 type JobsSlice = {
@@ -91,10 +62,97 @@ type JobsSlice = {
   setJobResult: (jobId: string, result: unknown) => void;
 };
 
-// export type AppState = UiSlice & SelectionSlice & GraphSlice & EditorSlice & BookElementSlice & JobsSlice;
-export type AppState = UiSlice & SelectionSlice & BookElementSlice & JobsSlice;
+export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookNodeSlice & JobsSlice;
 
-// create Zustand store之后需要先拉取一次state，确保所有的初始值都被正确设置
+
+// Mock data for testing
+const mockBookElementCategories: BookElementCategory[] = [
+  {
+    id: '1',
+    name: '人物',
+    description_json: JSON.stringify({ description: '小说中的人物角色' }),
+    color: '#3B82F6'
+  },
+  {
+    id: '2',
+    name: '地点',
+    description_json: JSON.stringify({ description: '故事发生的场所' }),
+    color: '#10B981'
+  },
+  {
+    id: '3',
+    name: '物品',
+    description_json: JSON.stringify({ description: '重要的道具或物品' }),
+    color: '#F59E0B'
+  },
+  {
+    id: '4',
+    name: '概念',
+    description_json: JSON.stringify({ description: '抽象概念或设定' }),
+    color: '#8B5CF6'
+  }
+];
+
+const mockBookElements: BookElement[] = [
+  {
+    id: '1',
+    category: '人物',
+    name: '主角',
+    tags: ['主角', '男性', '年轻'],
+    content_json: JSON.stringify({
+      appearance: '黑发黑眼，身材中等',
+      personality: '勇敢、善良、有正义感',
+      background: '普通家庭出身'
+    }),
+    summary_json: JSON.stringify({ summary: '故事的主人公，性格坚韧不拔' }),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    stages: [
+      {
+        id: '1-1',
+        elementId: '1',
+        stage_index: 1,
+        start_node_id: 1,
+        end_node_id: 5,
+        cur_stage_tags: ['初期'],
+        cur_stage_content_json: JSON.stringify({ stage_description: '初次登场，展现基本性格' }),
+        cur_stage_summary_json: JSON.stringify({ stage_summary: '角色初期设定' }),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ]
+  },
+  {
+    id: '2',
+    category: '地点',
+    name: '神秘森林',
+    tags: ['森林', '神秘', '危险'],
+    content_json: JSON.stringify({
+      description: '古老而神秘的森林，充满未知的危险',
+      features: ['古树参天', '雾气弥漫', '野兽出没']
+    }),
+    summary_json: JSON.stringify({ summary: '故事中重要的冒险场所' }),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    stages: []
+  },
+  {
+    id: '3',
+    category: '物品',
+    name: '魔法剑',
+    tags: ['武器', '魔法', '传说'],
+    content_json: JSON.stringify({
+      appearance: '银色剑身，镶嵌蓝色宝石',
+      power: '能够释放冰霜魔法',
+      history: '古代英雄的佩剑'
+    }),
+    summary_json: JSON.stringify({ summary: '主角的重要武器，具有强大魔力' }),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    stages: []
+  }
+];
+
 export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   currentView: 'graph',
@@ -112,13 +170,14 @@ export const useAppStore = create<AppState>((set) => ({
 
   selectedChapterId: null,
   selectedBookElementId: null,
+  selectedElement: null,
   selectedBookElement: null,
   selectedBookElementCategory: null,
   selectedBlockId: null,
   multiSelectedNodeIds: [],
-  setSelectedChapterId: (selectedNodeId) => set({ selectedChapterId: selectedNodeId }),
+  setSelectedChapterId: (selectedChapterId) => set({ selectedChapterId }),
   setSelectedBookElementId: (selectedBookElementId) => set({ selectedBookElementId }),
-  setSelectedBookElement: (selectedBookElement) => set({ selectedBookElement }),
+  setSelectedBookElement: (selectedElement) => set({ selectedElement }),
   setSelectedBlockId: (selectedBlockId) => set({ selectedBlockId }),
   setSelectedBookElementCategory: (selectedBookElementCategory) => set({ selectedBookElementCategory }),
 
@@ -126,65 +185,33 @@ export const useAppStore = create<AppState>((set) => ({
   clearSelection: () => set({
     selectedChapterId: null,
     selectedBookElementId: null,
+    selectedElement: null,
     selectedBlockId: null,
     multiSelectedNodeIds: []
   }),
+  bookElements: mockBookElements,
+  setBookElements: (bookElements) => set({ bookElements }),
+  bookElementCategories: mockBookElementCategories,
+  setBookElementCategories: (elementCategories) => set({ bookElementCategories: elementCategories }),
 
-  nodes: [],
-  edges: [],
-  graphPosition: { x: 0, y: 0 },
-  graphZoom: 1,
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
-  addNode: (node) => set((state) => ({ nodes: [...state.nodes, node] })),
-  updateNode: (id, updates) => set((state) => ({
-    nodes: state.nodes.map(node => node.id === id ? { ...node, ...updates } : node)
+  bookNodes: [],
+  nodeEdges: [],
+  setBookNodes: (bookNodes) => set({ bookNodes }),
+  addBookNode: (bookNode) => set((state) => ({ bookNodes: [...state.bookNodes, bookNode] })),
+  updateBookNode: (id, updates) => set((state) => ({
+    bookNodes: state.bookNodes.map((node) => {
+      if (node.id !== id) return node;
+      const position = updates.position ? { ...node.position, ...updates.position } : node.position;
+      return {
+        ...node,
+        ...updates,
+        position,
+      };
+    }),
   })),
-  removeNode: (id) => set((state) => ({
-    nodes: state.nodes.filter(node => node.id !== id),
-    edges: state.edges.filter(edge => edge.src_node_id !== id && edge.dst_node_id !== id)
-  })),
-  addEdge: (edge) => set((state) => ({ edges: [...state.edges, edge] })),
-  removeEdge: (id) => set((state) => ({
-    edges: state.edges.filter(edge => edge.id !== id)
-  })),
-  setGraphPosition: (graphPosition) => set({ graphPosition }),
-  setGraphZoom: (graphZoom) => set({ graphZoom }),
+  removeBookNode: (id) => set((state) => ({ bookNodes: state.bookNodes.filter((node) => node.id !== id) })),
+  setNodeEdges: (edges) => set({ nodeEdges: edges }),
 
-  currentNodeId: null,
-  blocks: [],
-  editorContent: '',
-  setCurrentNodeId: (currentNodeId) => set({ currentNodeId }),
-  setBlocks: (blocks) => set({ blocks }),
-  updateBlock: (id, updates) => set((state) => ({
-    blocks: state.blocks.map(block => block.id === id ? { ...block, ...updates } : block)
-  })),
-  addBlock: (block) => set((state) => ({ blocks: [...state.blocks, block] })),
-  removeBlock: (id) => set((state) => ({
-    blocks: state.blocks.filter(block => block.id !== id)
-  })),
-  setEditorContent: (editorContent) => set({ editorContent }),
-
-  elements: [],
-  searchQuery: '',
-  setelements: (elements) => set({ elements }),
-  addBookElement: (entity) => set((state) => ({ elements: [...state.elements, entity] })),
-  updateBookElement: (id, updates) => set((state) => ({
-    elements: state.elements.map(entity => entity.id === id ? { ...entity, ...updates } : entity)
-  })),
-  removeBookElement: (id) => set((state) => ({
-    elements: state.elements.filter(entity => entity.id !== id)
-  })),
-  entityCategories: [],
-  setBookElementCategories: (entityCategories) => set({ entityCategories }),
-  addBookElementCategory: (category) => set((state) => ({ entityCategories: [...state.entityCategories, category] })),
-  updateBookElementCategory: (name, updates) => set((state) => ({
-    entityCategories: state.entityCategories.map((cat) => cat.name === name ? { ...cat, ...updates } : cat)
-  })),
-  removeBookElementCategory: (name) => set((state) => ({
-    entityCategories: state.entityCategories.filter((cat) => cat.name !== name)
-  })),
-  setSearchQuery: (searchQuery) => set({ searchQuery }),
 
   runningJobs: [],
   completedJobs: [],

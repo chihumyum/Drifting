@@ -1,5 +1,6 @@
 // translate entity between domain and schema
 
+import type { BookElement, BookElementCategory } from "../domain/book_element";
 import type { ElementCategoryRecord, ElementRecord } from "../schema/book_element";
 
 export interface BookElementRepository {
@@ -8,10 +9,11 @@ export interface BookElementRepository {
     findAllByProject(projectId: string): Promise<ElementRecord[]>;
     findAllByCategory(projectId: string, category: string): Promise<ElementRecord[]>;
     findAllByTag(projectId: string, tag: string): Promise<ElementRecord[]>;
-    create(data: Partial<ElementRecord>): Promise<ElementRecord>;
-    update(id: string, data: Partial<ElementRecord>): Promise<ElementRecord | null>;
+    create(data: Partial<BookElement>): Promise<ElementRecord>;
+    update(id: string, data: Partial<BookElement>): Promise<ElementRecord | null>;
     delete(id: string): Promise<boolean>;
 
+    ensureCategory(name: BookElementCategory): Promise<void>;
     setElementCategory(entityId: string, categoryId: string): Promise<void>;
     getElementCategory(entityId: string): Promise<string | null>;
     updateElementCategory(entityId: string, categoryId: string): Promise<void>;

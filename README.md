@@ -29,9 +29,15 @@ UI 界面是简洁的，能够赋予创作灵感的，融合现代 markdown 笔�
   - timeline 视图
   - 树形大纲视图
 
-## 前端操作之后的数据链路
+## 技术相关
 
-1. use-case 找 Zustand 拿到 state 2.调用 domain 函数操作 state，更新 state 3. 调 repository 持久化 4. 同步 web
+- 技术选型：
+  状态管理： Zustand，UI 相关的业务实体丢 state 里面，乐观更新
+  persistence 层： OPFS; 用 wa-sqlite 的 OPFSCoopSyncVFS 来 bridge。
+
+- 数据链路：
+
+1. hook 带着 store 和 dependency 注入组件 2.前端组件操作 3.hook callback 调用 usecase 4. usecase 中 操作 state，更新 state 5. usecase 中调 repository 持久化
 
 ## 目录总览
 
@@ -44,10 +50,3 @@ schema/ # 持久层的抽象
 domain/ # 业务层的抽象
 repository/ # 业务层 - 持久层 bridge
 workers/ # SQLite Wasm Web Worker
-
-## 编辑器与布局改造
-
-- TipTap 编辑器已集成 `@chi-hum/tiptap-simple-slash-menu`，Slash 菜单覆盖标题、列表、引用、代码块等常用命令。
-- 编辑器右侧新增竖向工具条，提供格式、信息、页面等入口；格式按钮弹出面板，可直接应用 TipTap 支持的格式。
-- Inspector / TODO / Snippets 入口改为矩形按钮：在 Graph 场景以浮动面板显示，在 Editor 场景跟随右侧工具条排列。
-- 左侧章节与实体面板采用圆角卡片布局，实体面板默认收起，仅露出细边，悬停或点击展开；收起时提供独立的“新建实体 / 新建类别”快捷按钮。
