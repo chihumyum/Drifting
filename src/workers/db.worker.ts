@@ -1,168 +1,329 @@
-/// <reference lib="webworker" />
-import sqlite3InitModule from '@sqlite.org/sqlite-wasm'
-import wasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
-import { DB_SCHEMA, MOCK_ENTITY_CATEGORIES } from '../schema/table'
+import * as SQLite from 'wa-sqlite';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let db: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let sqlite3: any = null;
+import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs';
+import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 
-interface WorkerMessage {
-  id: string;
-  type: string;
-  payload?: Record<string, unknown>;
+import { DB_SCHEMA, MOCK_ENTITY_CATEGORIES } from '../schema/table';
+
+interface WorkerRequest {
+  id?: number;
+  type: 'init' | 'run' | 'query' | 'migrate';
+  payload?: {
+    dbName?: string;
+    sql?: string;
+  };
 }
 
 interface WorkerResponse {
-  id: string;
-  type: string;
-  payload?: Record<string, unknown>;
+  id?: number;
+  type: 'ready' | 'ok' | 'rows' | 'migrated' | 'error';
+  payload?: unknown;
   error?: string;
 }
 
-self.addEventListener('message', async (ev) => {
-  const { id, type, payload }: WorkerMessage = ev.data || {};
-  const reply = (data: Omit<WorkerResponse, 'id'>) =>
-    self.postMessage({ id, ...data });
+type BaseSQLiteApi = ReturnType<typeof SQLite.Factory>;
+type BindingCollection = Record<string, unknown> | Array<unknown | null>;
+type ExtendedSQLiteApi = BaseSQLiteApi & {
+  run: (db: number, sql: string, params?: BindingCollection | BindingCollection[]) => Promise<void>;
+  execWithParams: (
+    db: number,
+    sql: string,
+    params?: BindingCollection | BindingCollection[]
+  ) => Promise<{ columns: string[]; rows: unknown[][] }>;
+};
 
-  try {
-    switch (type) {
-      case 'init': {
-        await initDatabase(payload?.dbName as string);
-        reply({ type: 'ready' });
-        break;
+function isBindingCollection(value: unknown): value is BindingCollection {
+  if (Array.isArray(value)) return true;
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeBindingParams(params?: BindingCollection | BindingCollection[]): BindingCollection[] {
+  if (params === undefined) return [];
+  if (!Array.isArray(params)) return [params];
+  if (params.length === 0) return [params];
+  if (params.every((entry) => isBindingCollection(entry))) {
+    return params as BindingCollection[];
+  }
+  return [params as BindingCollection];
+}
+
+function extendApi(api: BaseSQLiteApi): ExtendedSQLiteApi {
+  const extended = api as ExtendedSQLiteApi;
+
+  extended.run = async (db, sql, params) => {
+    const paramSets = normalizeBindingParams(params);
+    let stmtIndex = 0;
+
+    for await (const stmt of api.statements(db, sql)) {
+      const binding = paramSets[stmtIndex] ?? paramSets[paramSets.length - 1];
+      if (binding !== undefined) {
+        api.bind_collection(stmt, binding as Record<string, unknown> | Array<unknown | null>);
       }
 
-      case 'run': {
-        if (!db) throw new Error('Database not initialized');
-        db.exec(payload?.sql as string);
-        reply({ type: 'ok' });
-        break;
+      while (await api.step(stmt) === SQLite.SQLITE_ROW) {
+        // Exhaust the iterator to ensure statements run fully.
       }
-
-      case 'query': {
-        if (!db) throw new Error('Database not initialized');
-        const rows: Record<string, unknown>[] = [];
-        db.exec({
-          sql: payload?.sql as string,
-          rowMode: 'object',
-          callback: (row: Record<string, unknown>) => rows.push(row)
-        });
-        reply({ type: 'rows', payload: { rows } });
-        break;
-      }
-
-      case 'migrate': {
-        if (!db) throw new Error('Database not initialized');
-        let renamedLegacy = false;
-        try {
-          db.exec('PRAGMA foreign_keys=OFF');
-          // If old tables existed under entry*, rename here if present
-          db.exec('ALTER TABLE entry RENAME TO entry__legacy');
-          renamedLegacy = true;
-        } catch {
-          // ignore if table already migrated
-        }
-
-        db.exec(DB_SCHEMA);
-
-        if (renamedLegacy) {
-          // Move legacy data into new entity table
-          db.exec(`INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
-            SELECT id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at FROM entry__legacy`);
-          db.exec('DROP TABLE entry__legacy');
-        }
-
-        db.exec('PRAGMA foreign_keys=ON');
-        try {
-          db.exec('ALTER TABLE story_node ADD COLUMN pos_x REAL');
-        } catch (error) {
-          if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-            throw error;
-          }
-        }
-        try {
-          db.exec('ALTER TABLE story_node ADD COLUMN pos_y REAL');
-        } catch (error) {
-          if (!(error instanceof Error && error.message.includes('duplicate column name'))) {
-            throw error;
-          }
-        }
-        MOCK_ENTITY_CATEGORIES.forEach(({ name, color }) => {
-          const safeName = name.replaceAll("'", "''");
-          const safeColor = color ? `'${color.replaceAll("'", "''")}'` : 'NULL';
-          db.exec(`INSERT OR IGNORE INTO entity_category (name, color) VALUES ('${safeName}', ${safeColor})`);
-        });
-        reply({ type: 'migrated' });
-        break;
-      }
-
-      default:
-        reply({ type: 'error', error: `Unknown message type: ${type}` });
+      stmtIndex += 1;
     }
-  } catch (error) {
-    reply({
-      type: 'error',
-      error: error instanceof Error ? error.message : String(error)
+  };
+
+  extended.execWithParams = async (db, sql, params) => {
+    const paramSets = normalizeBindingParams(params);
+    const rows: unknown[][] = [];
+    const allColumns: string[][] = [];
+    let stmtIndex = 0;
+
+    for await (const stmt of api.statements(db, sql)) {
+      const binding = paramSets[stmtIndex] ?? paramSets[paramSets.length - 1];
+      if (binding !== undefined) {
+        api.bind_collection(stmt, binding as Record<string, unknown> | Array<unknown | null>);
+      }
+
+      const columns = api.column_names(stmt);
+      if (columns.length === 0) {
+        while (await api.step(stmt) === SQLite.SQLITE_ROW) {
+          // Consume rows for non-SELECT statements without tracking results.
+        }
+      } else {
+        while (await api.step(stmt) === SQLite.SQLITE_ROW) {
+          rows.push(api.row(stmt));
+        }
+        allColumns.push(columns);
+      }
+      stmtIndex += 1;
+    }
+
+    const primaryColumns = allColumns.pop() ?? [];
+    return { columns: primaryColumns, rows };
+  };
+
+  return extended;
+}
+
+let sqliteModulePromise: Promise<ExtendedSQLiteApi> | null = null;
+let sqlite3: ExtendedSQLiteApi | null = null;
+let opfsVfs: OPFSCoopSyncVFS | null = null;
+let opfsAvailable = false;
+let currentDbName = 'default.db';
+let dbHandle: number | null = null;
+
+function post(id: number | undefined, type: WorkerResponse['type'], payload?: unknown, error?: string) {
+  const message: WorkerResponse = { id, type };
+  if (payload !== undefined) message.payload = payload;
+  if (error) message.error = error;
+  postMessage(message);
+}
+
+async function getSQLite(): Promise<ExtendedSQLiteApi> {
+  if (sqlite3) return sqlite3;
+  if (!sqliteModulePromise) {
+    sqliteModulePromise = SQLiteAsyncESMFactory({
+      locateFile: (file) => (file === 'wa-sqlite-async.wasm' ? wasmUrl : file),
+    }).then(async (mod) => {
+      const api = extendApi(SQLite.Factory(mod));
+      // Try to register OPFS cooperative sync VFS. If it fails we fall back to default VFS.
+      if (typeof navigator !== 'undefined' && 'storage' in navigator && navigator.storage?.getDirectory) {
+        try {
+          opfsVfs = await OPFSCoopSyncVFS.create('opfs-coop', mod);
+          api.vfs_register(opfsVfs, true);
+          opfsAvailable = true;
+        } catch (error: unknown) {
+          console.warn('[db-worker] OPFS cooperative VFS registration failed, falling back to default VFS.', error);
+          opfsVfs = null;
+          opfsAvailable = false;
+        }
+      }
+      return api;
     });
   }
-});
+  sqlite3 = await sqliteModulePromise;
+  return sqlite3;
+}
 
-async function initDatabase(dbName?: string): Promise<void> {
-  if (db) return;
+async function openDatabase(dbName?: string) {
+  const api = await getSQLite();
+  const targetName = (dbName && dbName.trim()) ? dbName.trim() : currentDbName;
 
-  try {
-    sqlite3 = await sqlite3InitModule({
-      locateFile: (file: string) => file.endsWith('.wasm') ? wasmUrl : file,
-    });
+  if (dbHandle && targetName === currentDbName) {
+    return { api, db: dbHandle };
+  }
 
-    if (sqlite3?.capi?.sqlite3_enable_fts5) {
-      sqlite3.capi.sqlite3_enable_fts5();
+  if (dbHandle) {
+    try {
+      await api.close(dbHandle);
+    } catch (error: unknown) {
+      console.warn('[db-worker] Failed closing previous database handle', error);
     }
+    dbHandle = null;
+  }
 
-    // Try OPFS first, fallback to in-memory if it fails
-    let filename = '';
-    let useOPFS = false;
+  let opened = false;
+  if (opfsAvailable && opfsVfs) {
+    try {
+      dbHandle = await api.open_v2(targetName, SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE, opfsVfs.name);
+      opened = true;
+    } catch (error) {
+      console.warn('[db-worker] Opening OPFS database failed, falling back to memory database.', error);
+      opfsAvailable = false;
+      opfsVfs = null;
+    }
+  }
 
-    // Check if OPFS is available
-    if (sqlite3.capi.sqlite3_vfs_find('opfs')) {
-      try {
-        filename = `/opfs/${dbName || 'default.db'}`;
-        db = new sqlite3.oo1.DB(filename, 'c');
-        useOPFS = true;
-        console.log('✅ SQLite initialized with OPFS storage');
-      } catch (opfsError) {
-        console.warn('⚠️ OPFS failed, falling back to in-memory:', opfsError);
-        db = null;
+  if (!opened) {
+    const memoryName = `file:${targetName}?mode=memory&cache=shared`;
+    dbHandle = await api.open_v2(memoryName, SQLite.SQLITE_OPEN_CREATE | SQLite.SQLITE_OPEN_READWRITE);
+  }
+
+  currentDbName = targetName;
+
+  await api.exec(dbHandle, `
+    PRAGMA journal_mode=WAL;
+    PRAGMA synchronous=NORMAL;
+    PRAGMA cache_size=2000;
+    PRAGMA temp_store=MEMORY;
+    PRAGMA foreign_keys=ON;
+  `);
+
+  return { api, db: dbHandle! };
+}
+
+function isDuplicateColumnError(error: unknown) {
+  return error instanceof SQLite.SQLiteError &&
+    error.code === SQLite.SQLITE_ERROR &&
+    typeof error.message === 'string' &&
+    error.message.includes('duplicate column name');
+}
+
+async function applyMigrations() {
+  const { api, db } = await openDatabase();
+
+  // Temporarily disable FK checks to allow legacy migrations.
+  await api.exec(db, 'PRAGMA foreign_keys=OFF;');
+  try {
+    let renamedLegacy = false;
+    try {
+      await api.exec(db, 'ALTER TABLE entry RENAME TO entry__legacy;');
+      renamedLegacy = true;
+    } catch (error: unknown) {
+      if (error instanceof SQLite.SQLiteError && error.code === SQLite.SQLITE_ERROR) {
+        // Ignore legacy rename failures when table already migrated.
+      } else {
+        throw error;
       }
     }
 
-    // Fallback to in-memory database
-    if (!db) {
-      filename = ':memory:';
-      db = new sqlite3.oo1.DB(filename, 'c');
-      useOPFS = false;
-      console.log('✅ SQLite initialized with in-memory storage');
+    await api.exec(db, DB_SCHEMA);
+
+    if (renamedLegacy) {
+      try {
+        await api.exec(db, `INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
+          SELECT id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at FROM entry__legacy;`);
+        await api.exec(db, 'DROP TABLE entry__legacy;');
+      } catch (error: unknown) {
+        console.error('[db-worker] Legacy entry migration failed', error);
+      }
     }
 
-    // Configure SQLite for optimal performance
-    if (useOPFS) {
-      db.exec('PRAGMA journal_mode=WAL');
-      db.exec('PRAGMA synchronous=NORMAL');
-    } else {
-      db.exec('PRAGMA journal_mode=MEMORY');
-      db.exec('PRAGMA synchronous=OFF');
+    for (const stmt of ['ALTER TABLE story_node ADD COLUMN pos_x REAL;', 'ALTER TABLE story_node ADD COLUMN pos_y REAL;']) {
+      try {
+        await api.exec(db, stmt);
+      } catch (error: unknown) {
+        if (!isDuplicateColumnError(error)) {
+          throw error;
+        }
+      }
     }
 
-    db.exec('PRAGMA cache_size=2000');
-    db.exec('PRAGMA foreign_keys=ON');
-    db.exec('PRAGMA temp_store=memory');
-
-  } catch (error) {
-    console.error('Database initialization failed:', error);
-    throw error;
+    for (const category of MOCK_ENTITY_CATEGORIES) {
+      await api.run(
+        db,
+        `INSERT OR IGNORE INTO entity_category (id, name, description_json, color)
+         VALUES (?, ?, ?, ?);`,
+        [category.id, category.name, category.description_json, category.color ?? null]
+      );
+    }
+  } finally {
+    await api.exec(db, 'PRAGMA foreign_keys=ON;');
   }
 }
 
-export { }
+async function handleInit(id: number | undefined, dbName?: string) {
+  try {
+    await openDatabase(dbName);
+    post(id, 'ready');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    post(id, 'error', undefined, message);
+  }
+}
+
+async function handleRun(id: number | undefined, sql?: string) {
+  if (!sql) {
+    post(id, 'error', undefined, 'Missing SQL statement for run()');
+    return;
+  }
+  try {
+    const { api, db } = await openDatabase();
+    await api.exec(db, sql);
+    post(id, 'ok');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    post(id, 'error', undefined, message);
+  }
+}
+
+async function handleQuery(id: number | undefined, sql?: string) {
+  if (!sql) {
+    post(id, 'error', undefined, 'Missing SQL statement for query()');
+    return;
+  }
+  try {
+    const { api, db } = await openDatabase();
+    const { rows, columns } = await api.execWithParams(db, sql);
+    const mapped = columns.length === 0
+      ? []
+      : rows.map((rowValues: unknown[]) => {
+        const record: Record<string, unknown> = {};
+        columns.forEach((columnName: string, columnIndex: number) => {
+          record[columnName] = rowValues[columnIndex];
+        });
+        return record;
+      });
+    post(id, 'rows', { rows: mapped });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    post(id, 'error', undefined, message);
+  }
+}
+
+async function handleMigrate(id: number | undefined) {
+  try {
+    await applyMigrations();
+    post(id, 'migrated');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    post(id, 'error', undefined, message);
+  }
+}
+
+self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
+  const { id, type, payload } = event.data;
+  switch (type) {
+    case 'init':
+      void handleInit(id, payload?.dbName);
+      break;
+    case 'run':
+      void handleRun(id, payload?.sql);
+      break;
+    case 'query':
+      void handleQuery(id, payload?.sql);
+      break;
+    case 'migrate':
+      void handleMigrate(id);
+      break;
+    default:
+      post(id, 'error', undefined, `Unknown message type: ${type}`);
+  }
+});
+
+export { };

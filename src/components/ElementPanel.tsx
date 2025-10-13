@@ -4,7 +4,7 @@ import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import type { BookElement } from '../domain/book_element';
 
-// 简化版 EntityPanel：直接操作 bookElements（演示 useBookElementUsecases）
+// 简化版 Element：直接操作 bookElements（演示 useBookElementUsecases）
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories, selectedBookElementId, setSelectedBookElementId } = useAppStore();

@@ -12,7 +12,7 @@ let initPromise: Promise<void> | null = null;
 
 export function getDbWorker() {
   if (!worker) {
-    worker = new Worker(new URL('../workers/db.worker.ts', import.meta.url));
+    worker = new Worker(new URL('../workers/db.worker.ts', import.meta.url), { type: 'module' });
   }
   return worker;
 }
@@ -133,4 +133,3 @@ export async function query<T = Record<string, unknown>>(sql: string): Promise<T
     w.postMessage({ id: msgId, type: 'query', payload: { sql } } as DbWorkerRequest);
   });
 }
-

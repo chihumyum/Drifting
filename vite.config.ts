@@ -80,7 +80,7 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.wasm'],
   optimizeDeps: {
-    exclude: ['@sqlite.org/sqlite-wasm']
+    exclude: ['wa-sqlite']
   },
   build: {
     target: 'esnext',
@@ -89,7 +89,7 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'editor-vendor': ['@tiptap/react', '@tiptap/starter-kit'],
-          'sqlite-vendor': ['@sqlite.org/sqlite-wasm']
+          'sqlite-vendor': ['wa-sqlite']
         }
       }
     }
