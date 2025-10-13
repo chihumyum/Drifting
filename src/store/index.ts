@@ -7,7 +7,7 @@ type UiSlice = {
   currentView: 'graph' | 'tree' | 'timeline' | 'editor';
   chapterPanelOpen: boolean;
   setChapterPanelOpen: (isOpen: boolean) => void;
-  entityPanelOpen: boolean;
+  elementPanelOpen: boolean;
   setBookElementPanelOpen: (isOpen: boolean) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setCurrentView: (view: UiSlice['currentView']) => void;
@@ -27,7 +27,7 @@ type SelectionSlice = {
   multiSelectedNodeIds: string[];
   setSelectedChapterId: (id: string | null) => void;
   setSelectedBlockId: (id: string | null) => void;
-  setSelectedBookElement: (entity: BookElement | null) => void;
+  setSelectedBookElement: (element: BookElement | null) => void;
   setSelectedBookElementCategory: (category: BookElementCategory | null) => void;
   setSelectedBookElementId: (id: string | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
@@ -157,13 +157,13 @@ export const useAppStore = create<AppState>((set) => ({
   theme: 'dark',
   currentView: 'graph',
   chapterPanelOpen: false,
-  entityPanelOpen: false,
+  elementPanelOpen: false,
   rightPanelOpen: false,
   rightPanelType: 'snippet',
   setTheme: (theme) => set({ theme }),
   setCurrentView: (currentView) => set({ currentView }),
   setChapterPanelOpen: (isOpen) => set({ chapterPanelOpen: isOpen }),
-  setBookElementPanelOpen: (open) => set({ entityPanelOpen: open }),
+  setBookElementPanelOpen: (open) => set({ elementPanelOpen: open }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setRightPanelType: (type) => set({ rightPanelType: type }),
 

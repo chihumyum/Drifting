@@ -3,22 +3,22 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { X, Save, Plus } from 'lucide-react';
 import { query, run } from '../lib/db';
-import type { EntityRecord, EntityStage } from '../schema/table';
-import { listEntityCategories, ensureEntityCategory } from '../lib/book_entity';
+import type { ElementRecord, ElementStage } from '../schema/table';
+import { listElementCategories, ensureElementCategory } from '../lib/book_element';
 import { events } from '../lib/events';
 
-interface EntityEditorProps {
-  entityId: string;
+interface ElementEditorProps {
+  elementId: string;
   onClose: () => void;
 }
 
-export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
-  const [entry, setEntry] = useState<EntityRecord | null>(null);
+export function ElementEditor({ elementId, onClose }: ElementEditorProps) {
+  const [entry, setEntry] = useState<ElementRecord | null>(null);
   const [name, setName] = useState('');
-  const [type, setType] = useState<EntityRecord['type']>('character');
+  const [type, setType] = useState<ElementRecord['type']>('character');
   const [aliases, setAliases] = useState<string>('');
   const [attributes, setAttributes] = useState<string>('{}');
-  const [stages, setStages] = useState<EntityStage[]>([]);
+  const [stages, setStages] = useState<ElementStage[]>([]);
   const [categories, setCategories] = useState<string[]>();
 
   const editor = useEditor({
@@ -34,7 +34,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const rows = await listEntityCategories();
+        const rows = await listElementCategories();
         if (rows.length) {
           setCategories((prev) => dedupeCategories([...prev, ...rows.map((row) => row.name)]));
         }
@@ -42,25 +42,25 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
         console.error('Failed to load categories', error);
       }
 
-  const rows = await query<EntityRecord>(`SELECT * FROM entity WHERE id='${entityId}' LIMIT 1`);
+  const rows = await query<ElementRecord>(`SELECT * FROM element WHERE id='${elementId}' LIMIT 1`);
       const e = rows[0] || null;
       setEntry(e);
       if (e) {
         setName(e.name);
-        setType(e.type as EntityRecord['type']);
+        setType(e.type as ElementRecord['type']);
         setCategories((prev) => dedupeCategories([...prev, e.type]));
         setAliases(safeToCSV(e.aliases_json));
         setAttributes(safePrettyJSON(e.attributes_json));
         if (editor) editor.commands.setContent(e.canonical_summary || '');
 
-  const stageRows = await query<EntityStage>(`SELECT * FROM entity_stage WHERE entity_id='${entityId}' ORDER BY start_order`);
+  const stageRows = await query<ElementStage>(`SELECT * FROM element_stage WHERE element_id='${elementId}' ORDER BY start_order`);
         setStages(stageRows);
       } else {
         setStages([]);
       }
     };
     load();
-  }, [entityId, editor]);
+  }, [elementId, editor]);
 
   const handleSave = () => {
     if (!entry || !editor) return;
@@ -68,8 +68,8 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
     const aliasesJson = safeFromCSV(aliases);
     const attributesJson = safeMinJSON(attributes);
     (async () => {
-      await ensureEntityCategory(type);
-      await run(`UPDATE entity SET 
+      await ensureElementCategory(type);
+      await run(`UPDATE element SET 
         name='${escapeSql(name)}', 
         type='${escapeSql(type)}', 
         aliases_json='${escapeSql(aliasesJson)}', 
@@ -86,7 +86,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
     if (!entry) return;
     const now = new Date().toISOString();
     const base = stages.length ? stages[stages.length - 1].end_order + 1 : 1;
-    const stage: EntityStage = {
+    const stage: ElementStage = {
       id: `stage_${Date.now()}`,
       entry_id: entry.id,
       start_order: base,
@@ -96,7 +96,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
       created_at: now,
     };
     try {
-      await run(`INSERT INTO entity_stage (id, entity_id, start_order, end_order, attributes_patch_json, stage_summary, created_at)
+      await run(`INSERT INTO element_stage (id, element_id, start_order, end_order, attributes_patch_json, stage_summary, created_at)
         VALUES ('${stage.id}', '${stage.entry_id}', ${stage.start_order}, ${stage.end_order}, '${stage.attributes_patch_json}', '', '${now}')`);
       setStages((prev) => [...prev, stage]);
       events.emit('entryStages:changed');
@@ -105,7 +105,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
     }
   }, [entry, stages]);
 
-  const updateStageField = useCallback(async <K extends keyof EntityStage>(stageId: string, field: K, value: EntityStage[K]) => {
+  const updateStageField = useCallback(async <K extends keyof ElementStage>(stageId: string, field: K, value: ElementStage[K]) => {
     try {
       let sqlValue: string;
       if (field === 'start_order' || field === 'end_order') {
@@ -118,7 +118,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
         return;
       }
 
-  await run(`UPDATE entity_stage SET ${field}=${sqlValue} WHERE id='${stageId}'`);
+  await run(`UPDATE element_stage SET ${field}=${sqlValue} WHERE id='${stageId}'`);
       events.emit('entryStages:changed');
     } catch (error) {
       console.error('Failed to update stage', error);
@@ -127,7 +127,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
 
   const removeStage = useCallback(async (stageId: string) => {
     try {
-  await run(`DELETE FROM entity_stage WHERE id='${stageId}'`);
+  await run(`DELETE FROM element_stage WHERE id='${stageId}'`);
       setStages((prev) => prev.filter((stage) => stage.id !== stageId));
       events.emit('entryStages:changed');
     } catch (error) {
@@ -196,7 +196,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Entity name"
+              placeholder="Element name"
               style={{
                 fontSize: '18px',
                 fontWeight: 'bold',
@@ -209,7 +209,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as EntityRecord['type'])}
+                onChange={(e) => setType(e.target.value as ElementRecord['type'])}
                 style={{ fontSize: '14px', padding: '4px 8px', border: '1px solid #ccc', borderRadius: '4px', minWidth: '140px' }}
               >
                 {categories.map((category) => (
@@ -225,7 +225,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
                   if (!value) return;
                   const trimmed = value.trim();
                   if (!trimmed) return;
-                  ensureEntityCategory(trimmed).then(() => {
+                  ensureElementCategory(trimmed).then(() => {
                     setCategories((prev) => dedupeCategories([...prev, trimmed]));
                     setType(trimmed);
                     events.emit('categories:changed');
@@ -343,7 +343,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
                     color: '#8c8296',
                     fontSize: 12
                   }}>
-                    No stages yet. Add stages to describe how this entity evolves alongside the story timeline.
+                    No stages yet. Add stages to describe how this element evolves alongside the story timeline.
                   </div>
                 )}
 
@@ -477,7 +477,7 @@ export function EntityEditor({ entityId, onClose }: EntityEditorProps) {
           justifyContent: 'space-between'
         }}>
           <span>Press Ctrl/Cmd + S to save, Esc to close</span>
-          <span>Entity ID: {entityId}</span>
+          <span>Element ID: {elementId}</span>
         </div>
       </div>
     </div>

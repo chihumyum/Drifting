@@ -12,13 +12,13 @@ export type AppEvents = {
   'editor:block-updated': { blockId: string; content: string };
   'editor:mention-detected': { blockId: string; mentions: string[] };
   
-  'entity:entity-created': { entity: import('../model/domain').Entity };
-  'entity:entity-updated': { entityId: string; updates: Partial<import('../model/domain').Entity> };
-  'entity:entity-deleted': { entityId: string };
-  'entity:category-created': { categoryId: string };
-  'entity:category-updated': { categoryId: string; updates: Partial<import('../schema/table').EntityCategory> };
-  'entity:category-deleted': { categoryId: string };
-  'entity:appearance-detected': { entityId: string; nodeId: string; blockId: string };
+  'element:element-created': { element: import('../model/domain').Element };
+  'element:element-updated': { elementId: string; updates: Partial<import('../model/domain').Element> };
+  'element:element-deleted': { elementId: string };
+  'element:category-created': { categoryId: string };
+  'element:category-updated': { categoryId: string; updates: Partial<import('../schema/table').ElementCategory> };
+  'element:category-deleted': { categoryId: string };
+  'element:appearance-detected': { elementId: string; nodeId: string; blockId: string };
   
   'db:ready': void;
   'db:migrated': void;

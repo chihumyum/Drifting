@@ -3,8 +3,8 @@ import { Plus, Search, PenSquare, User, MapPin, Package, Users, Lightbulb } from
 
 import { useAppStore } from '../store';
 import { events } from '../lib/events';
-import { EntityCreateModal, type NewEntityPayload } from '../components/modals/ElementCreateModal';
-import { EntityEditModal } from '../components/modals/ElementEditModal';
+import { ElementCreateModal, type NewElementPayload } from '../components/modals/ElementCreateModal';
+import { ElementEditModal } from '../components/modals/ElementEditModal';
 
 const iconMap: Record<string, typeof User> = {
   character: User,
@@ -37,14 +37,14 @@ function getCategoryColor(name: string) {
   return colorMap[name] ?? fallbackColor;
 }
 
-function normalizeCategory(entity: Entity) {
-  const trimmed = entity.category.trim();
+function normalizeCategory(element: Element) {
+  const trimmed = element.category.trim();
   return trimmed ? trimmed : uncategorizedKey;
 }
 
-function summarize(entity: Entity) {
-  if (!entity.canonicalSummary) return '';
-  const plain = entity.canonicalSummary.replace(/<[^>]+>/g, '');
+function summarize(element: Element) {
+  if (!element.canonicalSummary) return '';
+  const plain = element.canonicalSummary.replace(/<[^>]+>/g, '');
   return plain.length > 120 ? `${plain.slice(0, 117)}…` : plain;
 }
 
@@ -52,22 +52,22 @@ export function ElementView() {
   const {
     entities,
     setEntities,
-    selectedEntityId,
-    setSelectedEntityId,
+    selectedElementId,
+    setSelectedElementId,
     searchQuery,
     setSearchQuery,
   } = useAppStore();
 
   const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState<EntityCategory[]>([]);
+  const [categories, setCategories] = useState<ElementCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+  const [editingElement, setEditingElement] = useState<Element | null>(null);
 
   const loadEntities = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await EntityOps.getAllEntities();
+      const rows = await ElementOps.getAllEntities();
       setEntities(rows);
     } catch (error) {
       console.error('Failed to load entities', error);
@@ -78,7 +78,7 @@ export function ElementView() {
 
   const loadCategories = useCallback(async () => {
     try {
-      const rows = await EntityOps.getEntityCategories();
+      const rows = await ElementOps.getElementCategories();
       setCategories(rows);
     } catch (error) {
       console.error('Failed to load categories', error);
@@ -96,44 +96,44 @@ export function ElementView() {
       loadCategories().catch((error) => console.error('Failed to reload categories', error));
     };
     events.on('db:ready', reload);
-    events.on('entity:entity-created', reload);
-    events.on('entity:entity-updated', reload);
-    events.on('entity:entity-deleted', reload);
-    events.on('entity:category-created', reload);
-    events.on('entity:category-updated', reload);
-    events.on('entity:category-deleted', reload);
+    events.on('element:element-created', reload);
+    events.on('element:element-updated', reload);
+    events.on('element:element-deleted', reload);
+    events.on('element:category-created', reload);
+    events.on('element:category-updated', reload);
+    events.on('element:category-deleted', reload);
     return () => {
       events.off('db:ready', reload);
-      events.off('entity:entity-created', reload);
-      events.off('entity:entity-updated', reload);
-      events.off('entity:entity-deleted', reload);
-      events.off('entity:category-created', reload);
-      events.off('entity:category-updated', reload);
-      events.off('entity:category-deleted', reload);
+      events.off('element:element-created', reload);
+      events.off('element:element-updated', reload);
+      events.off('element:element-deleted', reload);
+      events.off('element:category-created', reload);
+      events.off('element:category-updated', reload);
+      events.off('element:category-deleted', reload);
     };
   }, [loadEntities, loadCategories]);
 
   const categoryOptions = useMemo(() => {
     const names = new Set<string>();
     categories.forEach((cat) => names.add(cat.name));
-    entities.forEach((entity) => names.add(normalizeCategory(entity)));
+    entities.forEach((element) => names.add(normalizeCategory(element)));
     return ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))];
   }, [categories, entities]);
 
   const filteredEntities = useMemo(() => {
     const trimmedQuery = searchQuery.trim().toLowerCase();
-    return entities.filter((entity) => {
-      if (selectedCategory !== 'all' && normalizeCategory(entity) !== selectedCategory) {
+    return entities.filter((element) => {
+      if (selectedCategory !== 'all' && normalizeCategory(element) !== selectedCategory) {
         return false;
       }
       if (!trimmedQuery) return true;
-      const haystack = [entity.name, entity.canonicalSummary, entity.aliases.join(' ')].join(' ').toLowerCase();
+      const haystack = [element.name, element.canonicalSummary, element.aliases.join(' ')].join(' ').toLowerCase();
       return haystack.includes(trimmedQuery);
     });
   }, [entities, searchQuery, selectedCategory]);
 
-  const handleCreateEntity = useCallback(async (payload: NewEntityPayload) => {
-    const created = await EntityOps.createEntity({
+  const handleCreateElement = useCallback(async (payload: NewElementPayload) => {
+    const created = await ElementOps.createElement({
       category: payload.category,
       name: payload.name,
       aliases: payload.aliases ?? [],
@@ -142,18 +142,18 @@ export function ElementView() {
     await loadEntities();
     await loadCategories();
     setShowCreateModal(false);
-    setSelectedEntityId(created.id);
-  }, [loadCategories, loadEntities, setSelectedEntityId]);
+    setSelectedElementId(created.id);
+  }, [loadCategories, loadEntities, setSelectedElementId]);
 
-  const handleUpdateEntity = useCallback(async (payload: NewEntityPayload & { id: string }) => {
-    await EntityOps.updateEntity(payload.id, {
+  const handleUpdateElement = useCallback(async (payload: NewElementPayload & { id: string }) => {
+    await ElementOps.updateElement(payload.id, {
       name: payload.name,
       category: payload.category,
       aliases: payload.aliases ?? [],
       canonicalSummary: payload.summary ?? '',
     });
     await loadEntities();
-    setEditingEntity(null);
+    setEditingElement(null);
   }, [loadEntities]);
 
   return (
@@ -206,16 +206,16 @@ export function ElementView() {
           <div className="py-10 text-center text-sm text-neutral-500">暂无符合条件的实体</div>
         )}
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {filteredEntities.map((entity) => {
-            const category = normalizeCategory(entity);
+          {filteredEntities.map((element) => {
+            const category = normalizeCategory(element);
             const Icon = getCategoryIcon(category);
             const colorClass = getCategoryColor(category);
             return (
               <article
-                key={entity.id}
-                className={`group cursor-pointer rounded-xl border bg-white p-4 transition hover:-translate-y-0.5 hover:shadow ${selectedEntityId === entity.id ? 'border-blue-400 shadow' : 'border-neutral-200'
+                key={element.id}
+                className={`group cursor-pointer rounded-xl border bg-white p-4 transition hover:-translate-y-0.5 hover:shadow ${selectedElementId === element.id ? 'border-blue-400 shadow' : 'border-neutral-200'
                   } ${colorClass}`}
-                onClick={() => setSelectedEntityId(entity.id)}
+                onClick={() => setSelectedElementId(element.id)}
               >
                 <header className="flex items-start justify-between">
                   <div>
@@ -225,12 +225,12 @@ export function ElementView() {
                         {category === uncategorizedKey ? '未分类' : category}
                       </span>
                     </div>
-                    <h2 className="mt-2 text-base font-semibold text-neutral-900">{entity.name}</h2>
+                    <h2 className="mt-2 text-base font-semibold text-neutral-900">{element.name}</h2>
                   </div>
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
-                      setEditingEntity(entity);
+                      setEditingElement(element);
                     }}
                     className="rounded-full p-1 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-800"
                     aria-label="编辑实体"
@@ -238,13 +238,13 @@ export function ElementView() {
                     <PenSquare size={16} />
                   </button>
                 </header>
-                {entity.aliases.length > 0 && (
+                {element.aliases.length > 0 && (
                   <div className="mt-3 text-xs text-neutral-600">
-                    别名：{entity.aliases.slice(0, 3).join('、')}
+                    别名：{element.aliases.slice(0, 3).join('、')}
                   </div>
                 )}
-                {entity.canonicalSummary && (
-                  <p className="mt-3 text-sm text-neutral-700">{summarize(entity)}</p>
+                {element.canonicalSummary && (
+                  <p className="mt-3 text-sm text-neutral-700">{summarize(element)}</p>
                 )}
               </article>
             );
@@ -253,23 +253,23 @@ export function ElementView() {
       </section>
 
       {showCreateModal && (
-        <EntityCreateModal
+        <ElementCreateModal
           categories={categoryOptions.filter((option) => option !== 'all')}
           defaultCategory={selectedCategory !== 'all' ? selectedCategory : undefined}
           onClose={() => setShowCreateModal(false)}
-          onSubmit={handleCreateEntity}
+          onSubmit={handleCreateElement}
           renderCategoryLabel={(value) => (value === uncategorizedKey ? '未分类' : value)}
         />
       )}
 
-      {editingEntity && (
-        <EntityEditModal
-          entity={editingEntity}
+      {editingElement && (
+        <ElementEditModal
+          element={editingElement}
           categories={categoryOptions.filter((option) => option !== 'all')}
-          onClose={() => setEditingEntity(null)}
+          onClose={() => setEditingElement(null)}
           onSubmit={async (payload) => {
-            await handleUpdateEntity(payload);
-            setSelectedEntityId(payload.id);
+            await handleUpdateElement(payload);
+            setSelectedElementId(payload.id);
           }}
           renderCategoryLabel={(value) => (value === uncategorizedKey ? '未分类' : value)}
         />

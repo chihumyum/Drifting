@@ -1,4 +1,4 @@
-// translate entity between domain and schema
+// translate book element between domain and schema
 
 import type { BookElement, BookElementCategory } from "../domain/book_element";
 import type { ElementCategoryRecord, ElementRecord } from "../schema/book_element";
@@ -14,19 +14,19 @@ export interface BookElementRepository {
     delete(id: string): Promise<boolean>;
 
     ensureCategory(name: BookElementCategory): Promise<void>;
-    setElementCategory(entityId: string, categoryId: string): Promise<void>;
-    getElementCategory(entityId: string): Promise<string | null>;
-    updateElementCategory(entityId: string, categoryId: string): Promise<void>;
+    setElementCategory(elementId: string, categoryId: string): Promise<void>;
+    getElementCategory(elementId: string): Promise<string | null>;
+    updateElementCategory(elementId: string, categoryId: string): Promise<void>;
 
-    getElementTags(entityId: string): Promise<string[]>;
-    addElementTag(entityId: string, tag: string): Promise<void>;
-    removeElementTag(entityId: string, tag: string): Promise<void>;
-    setElementTags(entityId: string, tags: string[]): Promise<void>;
+    getElementTags(elementId: string): Promise<string[]>;
+    addElementTag(elementId: string, tag: string): Promise<void>;
+    removeElementTag(elementId: string, tag: string): Promise<void>;
+    setElementTags(elementId: string, tags: string[]): Promise<void>;
 
-    getElementContent(entityId: string): Promise<string>;
-    setElementContent(entityId: string, content: string): Promise<void>;
+    getElementContent(elementId: string): Promise<string>;
+    setElementContent(elementId: string, content: string): Promise<void>;
 
-    // multi-stage entity implement later
+    // multi-stage element implement later
 }
 
 export interface BookElementCategoryRepository {

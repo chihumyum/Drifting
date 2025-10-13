@@ -6,7 +6,7 @@ export type NewCategoryPayload = {
   color: string;
 };
 
-interface EntityCategoryModalProps {
+interface ElementCategoryModalProps {
   existingNames: string[];
   initialName?: string;
   initialColor?: string;
@@ -16,7 +16,7 @@ interface EntityCategoryModalProps {
   onSubmit: (payload: NewCategoryPayload) => Promise<void>;
 }
 
-export function EntityCategoryModal({
+export function ElementCategoryModal({
   existingNames,
   initialName = '',
   initialColor = '#8367c7',
@@ -24,7 +24,7 @@ export function EntityCategoryModal({
   confirmLabel = '创建',
   onClose,
   onSubmit,
-}: EntityCategoryModalProps) {
+}: ElementCategoryModalProps) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor);
   const [saving, setSaving] = useState(false);

@@ -1,6 +1,6 @@
 import { query, run } from './db'
-import { ensureEntityCategory, ensureProjectId } from './book_entity'
-import { MOCK_ENTITIES, MOCK_ENTITY_CATEGORIES } from '../schema/table'
+import { ensureElementCategory, ensureProjectId } from './book_element'
+import { MOCK_ENTITIES, MOCK_ELEMENT_CATEGORIES } from '../schema/table'
 
 export async function seedIfEmpty() {
   const rows = await query<{ count: number }>('SELECT COUNT(*) as count FROM story_node')
@@ -19,14 +19,14 @@ function escapeSql(value: string) {
 }
 
 export async function seedMockEntitiesIfEmpty() {
-  const rows = await query<{ count: number }>('SELECT COUNT(*) as count FROM entity')
+  const rows = await query<{ count: number }>('SELECT COUNT(*) as count FROM element')
   if ((rows?.[0]?.count ?? 0) > 0) return
 
   const projectId = await ensureProjectId()
-  for (const category of MOCK_ENTITY_CATEGORIES) {
-    await ensureEntityCategory(category.name, category.color ?? null)
+  for (const category of MOCK_ELEMENT_CATEGORIES) {
+    await ensureElementCategory(category.name, category.color ?? null)
     if (category.color) {
-      await run(`UPDATE entity_category SET color='${escapeSql(category.color)}' WHERE name='${escapeSql(category.name)}'`)
+      await run(`UPDATE element_category SET color='${escapeSql(category.color)}' WHERE name='${escapeSql(category.name)}'`)
     }
   }
 
@@ -36,7 +36,7 @@ export async function seedMockEntitiesIfEmpty() {
       project_id: projectId,
     }
     await run(`
-      INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
+      INSERT INTO element (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
       VALUES (
         '${escapeSql(record.id)}',
         '${escapeSql(projectId)}',

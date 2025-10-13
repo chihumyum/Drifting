@@ -3,7 +3,7 @@ import * as SQLite from 'wa-sqlite';
 import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs';
 import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 
-import { DB_SCHEMA, MOCK_ENTITY_CATEGORIES } from '../schema/table';
+import { DB_SCHEMA, MOCK_ELEMENT_CATEGORIES } from '../schema/table';
 
 interface WorkerRequest {
   id?: number;
@@ -216,7 +216,7 @@ async function applyMigrations() {
 
     if (renamedLegacy) {
       try {
-        await api.exec(db, `INSERT INTO entity (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
+        await api.exec(db, `INSERT INTO element (id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at)
           SELECT id, project_id, type, name, aliases_json, attributes_json, canonical_summary, created_at, updated_at FROM entry__legacy;`);
         await api.exec(db, 'DROP TABLE entry__legacy;');
       } catch (error: unknown) {
@@ -234,10 +234,10 @@ async function applyMigrations() {
       }
     }
 
-    for (const category of MOCK_ENTITY_CATEGORIES) {
+    for (const category of MOCK_ELEMENT_CATEGORIES) {
       await api.run(
         db,
-        `INSERT OR IGNORE INTO entity_category (id, name, description_json, color)
+        `INSERT OR IGNORE INTO element_category (id, name, description_json, color)
          VALUES (?, ?, ?, ?);`,
         [category.id, category.name, category.description_json, category.color ?? null]
       );

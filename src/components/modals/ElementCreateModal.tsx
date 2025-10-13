@@ -6,28 +6,28 @@ import {
   modalSecondaryButtonStyle,
 } from "./ModalShell";
 
-export type NewEntityPayload = {
+export type NewElementPayload = {
   name: string;
   category: string;
   summary?: string;
   aliases?: string[];
 };
 
-interface EntityCreateModalProps {
+interface ElementCreateModalProps {
   categories: string[];
   defaultCategory?: string;
   onClose: () => void;
-  onSubmit: (payload: NewEntityPayload) => Promise<void>;
+  onSubmit: (payload: NewElementPayload) => Promise<void>;
   renderCategoryLabel?: (category: string) => string;
 }
 
-export function EntityCreateModal({
+export function ElementCreateModal({
   categories,
   defaultCategory,
   onClose,
   onSubmit,
   renderCategoryLabel = (value) => value,
-}: EntityCreateModalProps) {
+}: ElementCreateModalProps) {
   const startingCategory = defaultCategory ?? categories[0] ?? "";
   const [name, setName] = useState("");
   const [category, setCategory] = useState(startingCategory);

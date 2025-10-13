@@ -1,41 +1,41 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import type { Entity } from '../../model/domain';
+import type { Element } from '../../model/domain';
 import { ModalShell, modalInputStyle, modalPrimaryButtonStyle, modalSecondaryButtonStyle } from './ModalShell';
-import { toAliasArray, type NewEntityPayload } from './ElementCreateModal';
+import { toAliasArray, type NewElementPayload } from './ElementCreateModal';
 
-interface EntityEditModalProps {
-  entity: Entity;
+interface ElementEditModalProps {
+  element: Element;
   categories: string[];
   onClose: () => void;
-  onSubmit: (payload: NewEntityPayload & { id: string }) => Promise<void>;
+  onSubmit: (payload: NewElementPayload & { id: string }) => Promise<void>;
   renderCategoryLabel?: (category: string) => string;
 }
 
-export function EntityEditModal({
-  entity,
+export function ElementEditModal({
+  element,
   categories,
   onClose,
   onSubmit,
   renderCategoryLabel = (value) => value,
-}: EntityEditModalProps) {
-  const [name, setName] = useState(entity.name);
-  const [category, setCategory] = useState(entity.category);
-  const [aliases, setAliases] = useState(aliasesToInput(entity.aliases));
-  const [summary, setSummary] = useState(entity.canonicalSummary ?? '');
+}: ElementEditModalProps) {
+  const [name, setName] = useState(element.name);
+  const [category, setCategory] = useState(element.category);
+  const [aliases, setAliases] = useState(aliasesToInput(element.aliases));
+  const [summary, setSummary] = useState(element.canonicalSummary ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setName(entity.name);
-    setCategory(entity.category);
-    setAliases(aliasesToInput(entity.aliases));
-    setSummary(entity.canonicalSummary ?? '');
-  }, [entity]);
+    setName(element.name);
+    setCategory(element.category);
+    setAliases(aliasesToInput(element.aliases));
+    setSummary(element.canonicalSummary ?? '');
+  }, [element]);
 
   const options = useMemo(() => {
-    if (categories.includes(entity.category)) return categories;
-    return [entity.category, ...categories];
-  }, [categories, entity.category]);
+    if (categories.includes(element.category)) return categories;
+    return [element.category, ...categories];
+  }, [categories, element.category]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -52,7 +52,7 @@ export function EntityEditModal({
     setError(null);
     try {
       await onSubmit({
-        id: entity.id,
+        id: element.id,
         name: name.trim(),
         category,
         summary,

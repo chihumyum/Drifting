@@ -8,55 +8,55 @@ export const TABLES = {
   storyNode: 'story_node',
   nodeEdge: 'node_edge',
   nodeBlock: 'node_block',
-  entity: 'entity',
-  entityStage: 'entity_stage',
+  element: 'element',
+  elementStage: 'element_stage',
 } as const
 
 
 export const DB_SCHEMA = `
 -- =============================
--- Book Element / Entity Schema
+-- Book Element / Element Schema
 -- =============================
 
 -- Category table (element categories)
-CREATE TABLE IF NOT EXISTS entity_category (
+CREATE TABLE IF NOT EXISTS element_category (
   id TEXT PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   description_json TEXT NOT NULL DEFAULT '{}',
   color TEXT NULL
 );
 
--- Core element (entity) table
-CREATE TABLE IF NOT EXISTS entity (
+-- Core element (element) table
+CREATE TABLE IF NOT EXISTS element (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
-  category_id TEXT,                 -- FK to entity_category (may be null / delayed assignment)
+  category_id TEXT,                 -- FK to element_category (may be null / delayed assignment)
   type TEXT NOT NULL,               -- semantic type (e.g. character/location/object)
   name TEXT NOT NULL,
   content_json TEXT NOT NULL DEFAULT '{}',
   summary_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY(category_id) REFERENCES entity_category(id) ON DELETE SET NULL
+  FOREIGN KEY(category_id) REFERENCES element_category(id) ON DELETE SET NULL
 );
-CREATE INDEX IF NOT EXISTS idx_entity_project ON entity(project_id);
-CREATE INDEX IF NOT EXISTS idx_entity_category ON entity(category_id);
-CREATE INDEX IF NOT EXISTS idx_entity_type ON entity(type);
+CREATE INDEX IF NOT EXISTS idx_element_project ON element(project_id);
+CREATE INDEX IF NOT EXISTS idx_element_category ON element(category_id);
+CREATE INDEX IF NOT EXISTS idx_element_type ON element(type);
 
 -- Element tags
-CREATE TABLE IF NOT EXISTS entity_tag (
+CREATE TABLE IF NOT EXISTS element_tag (
   id TEXT PRIMARY KEY,
   element_id TEXT NOT NULL,
   name TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES entity(id) ON DELETE CASCADE,
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
   UNIQUE(element_id, name)
 );
-CREATE INDEX IF NOT EXISTS idx_entity_tag_element ON entity_tag(element_id);
-CREATE INDEX IF NOT EXISTS idx_entity_tag_name ON entity_tag(name);
+CREATE INDEX IF NOT EXISTS idx_element_tag_element ON element_tag(element_id);
+CREATE INDEX IF NOT EXISTS idx_element_tag_name ON element_tag(name);
 
 -- Element stages (evolution across the story)
-CREATE TABLE IF NOT EXISTS entity_stage (
+CREATE TABLE IF NOT EXISTS element_stage (
   id TEXT PRIMARY KEY,
   element_id TEXT NOT NULL,
   stage_index INTEGER NOT NULL,
@@ -67,18 +67,18 @@ CREATE TABLE IF NOT EXISTS entity_stage (
   summary_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES entity(id) ON DELETE CASCADE,
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
   UNIQUE(element_id, stage_index)
 );
-CREATE INDEX IF NOT EXISTS idx_entity_stage_element ON entity_stage(element_id);
-CREATE INDEX IF NOT EXISTS idx_entity_stage_stage_index ON entity_stage(element_id, stage_index);
+CREATE INDEX IF NOT EXISTS idx_element_stage_element ON element_stage(element_id);
+CREATE INDEX IF NOT EXISTS idx_element_stage_stage_index ON element_stage(element_id, stage_index);
 
 -- Mapping stages to chapters (span coverage)
 CREATE TABLE IF NOT EXISTS chapter_element_stage (
   chapter_id TEXT NOT NULL,
   element_stage_id TEXT NOT NULL,
   PRIMARY KEY(chapter_id, element_stage_id),
-  FOREIGN KEY(element_stage_id) REFERENCES entity_stage(id) ON DELETE CASCADE
+  FOREIGN KEY(element_stage_id) REFERENCES element_stage(id) ON DELETE CASCADE
 );
 
 -- Element occurrence inside text blocks
@@ -89,13 +89,13 @@ CREATE TABLE IF NOT EXISTS element_occurrence (
   block_id TEXT NOT NULL,            -- text block id
   spans_json TEXT NOT NULL,          -- serialized spans / ranges
   created_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES entity(id) ON DELETE CASCADE
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
 
 -- Seed default categories (id generated at runtime if not present); name uniqueness prevents duplication
--- INSERT OR IGNORE INTO entity_category (id, name, description_json, color) VALUES (...)
+-- INSERT OR IGNORE INTO element_category (id, name, description_json, color) VALUES (...)
 `;
 
 
@@ -108,14 +108,14 @@ export const DEFAULT_PROJECT: Project = {
   updated_at: new Date().toISOString(),
 }
 
-export const DEFAULT_ENTITY_CATEGORY: ElementCategoryRecord = {
+export const DEFAULT_ELEMENT_CATEGORY: ElementCategoryRecord = {
   id: 'cat_default',
   name: 'others',
   description_json: JSON.stringify({ description: 'Default category' }),
   color: '#CCCCCC',
 };
 
-export const MOCK_ENTITY_CATEGORIES: ElementCategoryRecord[] = [
+export const MOCK_ELEMENT_CATEGORIES: ElementCategoryRecord[] = [
   {
     id: 'cat_character',
     name: 'character',
@@ -150,7 +150,7 @@ export const MOCK_ENTITY_CATEGORIES: ElementCategoryRecord[] = [
 
 export const MOCK_ENTITIES: ElementRecord[] = [
   {
-    id: 'entity_mock_1',
+    id: 'element_mock_1',
     project_id: 'project_mock_1',
     category_id: 'cat_character',
     type: 'character',
@@ -161,7 +161,7 @@ export const MOCK_ENTITIES: ElementRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'entity_mock_2',
+    id: 'element_mock_2',
     project_id: 'project_mock_1',
     category_id: 'cat_location',
     type: 'location',
@@ -172,7 +172,7 @@ export const MOCK_ENTITIES: ElementRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'entity_mock_3',
+    id: 'element_mock_3',
     project_id: 'project_mock_1',
     category_id: 'cat_object',
     type: 'object',
@@ -183,7 +183,7 @@ export const MOCK_ENTITIES: ElementRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'entity_mock_4',
+    id: 'element_mock_4',
     project_id: 'project_mock_1',
     category_id: 'cat_faction',
     type: 'faction',
@@ -194,7 +194,7 @@ export const MOCK_ENTITIES: ElementRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'entity_mock_5',
+    id: 'element_mock_5',
     project_id: 'project_mock_1',
     category_id: 'cat_concept',
     type: 'concept',
