@@ -23,6 +23,16 @@ export interface CreateBookElementInput {
     summary_json?: string;
 }
 
+
+export async function loadInitialBookElements(deps: BookElementUsecaseDeps, projectId: string) {
+    const elements = await deps.elementRepo.findAllByProject(projectId);
+    deps.setElements(elements);
+    const categories = await deps.categoryRepo.findAll();
+    deps.setCategories(categories);
+}
+
+
+
 export async function createBookElement(deps: BookElementUsecaseDeps, input: CreateBookElementInput) {
     const now = (deps.now ?? (() => new Date()))();
     const category = await ensureCategory(deps, input.category);
@@ -42,9 +52,12 @@ export async function createBookElement(deps: BookElementUsecaseDeps, input: Cre
     const prev = deps.getElements();
     deps.setElements([...prev, newElement]);
 
-    await deps.elementRepo.create(newElement);
+    const persisted = await deps.elementRepo.create(newElement);
+
+    const current = deps.getElements();
+    deps.setElements(current.map(el => el.id === newElement.id ? persisted : el));
     // TODO: rollback strategy & sync with server
-    return newElement;
+    return persisted;
 }
 
 export async function updateBookElement(deps: BookElementUsecaseDeps, id: string, updates: Partial<CreateBookElementInput>) {
@@ -52,24 +65,33 @@ export async function updateBookElement(deps: BookElementUsecaseDeps, id: string
     const elements = deps.getElements();
     const existing = elements.find(e => e.id === id);
     if (!existing) throw new Error(`Element with id ${id} not found`);
-    const cast: BookElement = {
+
+    let categoryName = existing.category;
+    if (updates.category) {
+        const category = await ensureCategory(deps, updates.category);
+        categoryName = category.name;
+    }
+
+    const updatedElement: BookElement = {
         ...existing,
+        category: categoryName,
+        name: updates.name ?? existing.name,
+        tags: updates.tags ?? existing.tags,
+        content_json: updates.content_json ?? existing.content_json,
+        summary_json: updates.summary_json ?? existing.summary_json,
+        updatedAt: now.toISOString(),
+    };
+
+    deps.setElements(elements.map(el => el.id === id ? updatedElement : el));
+
+    const persisted = await deps.elementRepo.update(id, updatedElement);
+    if (persisted) {
+        const current = deps.getElements();
+        deps.setElements(current.map(el => el.id === id ? persisted : el));
+        return persisted;
     }
-    for (const key of Object.keys(updates)) {
-        if (key === 'category' && updates.category) {
-            // ensure category exists
-            const category = await ensureCategory(deps, updates.category);
-            existing.category = category.name;
-        }
-    }
-    Object.assign(existing, cast);
-    existing.updatedAt = now.toISOString();
 
-    deps.setElements([...elements]);
-
-    await deps.elementRepo.update(id, existing);
-
-    return existing;
+    return updatedElement;
 }
 
 export async function deleteBookElement(deps: BookElementUsecaseDeps, id: string) {

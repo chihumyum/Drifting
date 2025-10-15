@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
@@ -7,7 +7,7 @@ import type { BookElement } from '../domain/book_element';
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories, selectedBookElementId, setSelectedBookElementId } = useAppStore();
-  const { create, update, remove } = useBookElementUsecases();
+  const { createElement: create, updateElement: update, removeElement: remove, loadInitial } = useBookElementUsecases();
 
   const [creating, setCreating] = useState(false);
   const [formName, setFormName] = useState('');
@@ -18,7 +18,7 @@ export function ElementPanel() {
 
 
   const categoryNames = useMemo(() => {
-    const names = new Set<string>();
+    const names = new Set<string>(['others']);
     bookElementCategories.forEach(c => names.add(c.name));
     bookElements.forEach(e => names.add(e.category));
     return Array.from(names).sort((a, b) => a.localeCompare(b));
@@ -32,11 +32,12 @@ export function ElementPanel() {
   const beginCreate = () => {
     setCreating(true);
     setFormName('');
-    setFormCategory(categoryNames[0] || '');
+    setFormCategory(categoryNames[0] || 'others');
   };
 
   const submitCreate = useCallback(async () => {
     if (!formName.trim() || !formCategory.trim()) return;
+    console.log(`Submit create ${formName} in category ${formCategory}`);
     await create({ name: formName.trim(), category: formCategory.trim() });
     setCreating(false);
   }, [create, formName, formCategory]);
@@ -60,6 +61,13 @@ export function ElementPanel() {
     await remove(id);
     if (selectedBookElementId === id) setSelectedBookElementId(null);
   }, [remove, selectedBookElementId, setSelectedBookElementId]);
+
+  useEffect(() => {
+    console.log('Loading initial book elements');
+    loadInitial().catch(err => {
+      console.error('Failed to load book elements', err);
+    });
+  }, [loadInitial]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#faf9fa', borderRight: '1px solid #e2dfea' }}>

@@ -18,6 +18,7 @@ export function getDbWorker() {
 }
 
 export function initDatabase(projectId?: string): Promise<void> {
+  console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
   if (dbInitialized) return Promise.resolve();
   if (initPromise) return initPromise;
 
@@ -57,10 +58,11 @@ export function initDatabase(projectId?: string): Promise<void> {
     };
 
     w.addEventListener('message', handler);
+    console.log(`Project id is ${projectId}`);
     w.postMessage({
       id: msgId,
       type: 'init',
-      payload: { dbName: projectId ? `${projectId}.db` : 'default.db' }
+      payload: { dbName: projectId ? `${projectId}.db` : 'default-project.db' }
     } as DbWorkerRequest);
   });
 

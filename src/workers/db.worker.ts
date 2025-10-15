@@ -75,7 +75,8 @@ async function execute(sql: string, params?: BindParams): Promise<void> {
   if (!sqlite3 || db === null) throw new Error('Database not initialized');
 
   let index = 0;
-  console.log(`Trying ${sql} with params ${params}`);
+  console.log(`Trying execute ${sql} with params ${params}`);
+  // Important: wa-sqlite automatically manage the statements, never call finalize explicitly
   for await (const stmt of sqlite3.statements(db, sql)) {
     try {
       if (index === 0 && params) {
@@ -89,7 +90,7 @@ async function execute(sql: string, params?: BindParams): Promise<void> {
     }
     index += 1;
   }
-  console.log(`Done.`);
+  console.log(`Done executing.`);
 }
 
 async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
@@ -97,7 +98,7 @@ async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
 
   const results: RowObject[] = [];
   let index = 0;
-
+  console.log(`Trying select ${sql} with params ${params}`);
   for await (const stmt of sqlite3.statements(db, sql)) {
     try {
       if (index === 0 && params) {
@@ -114,10 +115,11 @@ async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
         results.push(record);
       }
     } finally {
-      await sqlite3.finalize(stmt);
+      // await sqlite3.finalize(stmt); this is wrong!
     }
     index += 1;
   }
+  console.log(`Done selecting. Got ${results.length} rows.`);
 
   return results;
 }

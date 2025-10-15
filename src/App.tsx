@@ -8,14 +8,12 @@ import { events } from './lib/events';
 import { ChapterNavigator } from './components/ChapterNavigator';
 import { ElementPanel } from './components/ElementPanel';
 
-const PROJECT_ID = 'default-project';
 
+const PROJECT_ID = 'default-project';
 function Layout() {
-  const {
-  } = useAppStore();
+
   const location = useLocation();
   const isEditorRoute = location.pathname.includes('/editor');
-
   useEffect(() => {
     initDatabase(PROJECT_ID).then(() => {
       events.emit('db:ready');
@@ -24,11 +22,6 @@ function Layout() {
       events.emit('db:error', { error: error.message });
     });
   }, []);
-
-
-
-
-
   return (
     <div>
       <div

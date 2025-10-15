@@ -109,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
 
 
 export const DEFAULT_PROJECT: Project = {
-  id: 'project_mock_1',
+  id: 'default-project',
   name: 'My First Story',
   author: 'Author Name',
   created_at: new Date().toISOString(),
@@ -159,7 +159,7 @@ export const MOCK_ELEMENT_CATEGORIES: ElementCategoryRecord[] = [
 export const MOCK_ELEMENTS: ElementRecord[] = [
   {
     id: 'element_mock_1',
-    project_id: 'project_mock_1',
+    project_id: 'default-project',
     category_id: 'cat_character',
     type: 'character',
     name: 'Aria Thorn',
@@ -170,7 +170,7 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
   },
   {
     id: 'element_mock_2',
-    project_id: 'project_mock_1',
+    project_id: 'default-project',
     category_id: 'cat_location',
     type: 'location',
     name: 'Elder Oakspire',
@@ -181,7 +181,7 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
   },
   {
     id: 'element_mock_3',
-    project_id: 'project_mock_1',
+    project_id: 'default-project',
     category_id: 'cat_object',
     type: 'object',
     name: 'Shard Compass',
@@ -192,7 +192,7 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
   },
   {
     id: 'element_mock_4',
-    project_id: 'project_mock_1',
+    project_id: 'default-project',
     category_id: 'cat_faction',
     type: 'faction',
     name: 'Order of the Veil',
@@ -203,7 +203,7 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
   },
   {
     id: 'element_mock_5',
-    project_id: 'project_mock_1',
+    project_id: 'default-project',
     category_id: 'cat_concept',
     type: 'concept',
     name: 'Echo Convergence',

@@ -1,22 +1,18 @@
-// translate book element between domain and schema
-
-import type { BookElement, BookElementCategory } from "../domain/book_element";
-import type { ElementCategoryRecord, ElementRecord } from "../schema/book_element";
+import type { BookElement, BookElementCategory } from '../domain/book_element';
 
 export interface BookElementRepository {
-    findById(id: string): Promise<ElementRecord | null>;
-    findAll(): Promise<ElementRecord[]>;
-    findAllByProject(projectId: string): Promise<ElementRecord[]>;
-    findAllByCategory(projectId: string, category: string): Promise<ElementRecord[]>;
-    findAllByTag(projectId: string, tag: string): Promise<ElementRecord[]>;
-    create(data: Partial<BookElement>): Promise<ElementRecord>;
-    update(id: string, data: Partial<BookElement>): Promise<ElementRecord | null>;
+    findById(id: string): Promise<BookElement | null>;
+    findAll(): Promise<BookElement[]>;
+    findAllByProject(projectId: string): Promise<BookElement[]>;
+    findAllByCategory(projectId: string, category: string): Promise<BookElement[]>;
+    findAllByTag(projectId: string, tag: string): Promise<BookElement[]>;
+    create(element: BookElement): Promise<BookElement>;
+    update(id: string, element: BookElement): Promise<BookElement | null>;
     delete(id: string): Promise<boolean>;
 
-    ensureCategory(name: BookElementCategory): Promise<void>;
-    setElementCategory(elementId: string, categoryId: string): Promise<void>;
+    setElementCategory(elementId: string, categoryName: string): Promise<void>;
     getElementCategory(elementId: string): Promise<string | null>;
-    updateElementCategory(elementId: string, categoryId: string): Promise<void>;
+    updateElementCategory(elementId: string, categoryName: string): Promise<void>;
 
     getElementTags(elementId: string): Promise<string[]>;
     addElementTag(elementId: string, tag: string): Promise<void>;
@@ -25,15 +21,13 @@ export interface BookElementRepository {
 
     getElementContent(elementId: string): Promise<string>;
     setElementContent(elementId: string, content: string): Promise<void>;
-
-    // multi-stage element implement later
 }
 
 export interface BookElementCategoryRepository {
-    findAll(): Promise<string[]>;
-    findByName(name: string): Promise<ElementCategoryRecord | null>;
-    create(name: string, color?: string): Promise<ElementCategoryRecord>;
-    update(name: string, color: string): Promise<ElementCategoryRecord | null>;
+    findAll(): Promise<BookElementCategory[]>;
+    findByName(name: string): Promise<BookElementCategory | null>;
+    create(name: string, color?: string): Promise<BookElementCategory>;
+    update(name: string, color: string): Promise<BookElementCategory | null>;
     delete(name: string): Promise<boolean>;
     ensureCategory(name: string): Promise<void>;
 }
