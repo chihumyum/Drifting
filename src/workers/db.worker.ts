@@ -5,7 +5,7 @@ import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs';
 import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 
 import type { DbWorkerRequest } from '../lib/db';
-import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES } from '../schema/table';
+import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES, MOCK_ELEMENTS } from '../schema/table';
 
 type SQLiteAPI = ReturnType<typeof SQLite.Factory>;
 type SQLiteCompatibleType = number | string | Uint8Array | Array<number> | bigint | null;
@@ -75,6 +75,7 @@ async function execute(sql: string, params?: BindParams): Promise<void> {
   if (!sqlite3 || db === null) throw new Error('Database not initialized');
 
   let index = 0;
+  console.log(`Trying ${sql} with params ${params}`);
   for await (const stmt of sqlite3.statements(db, sql)) {
     try {
       if (index === 0 && params) {
@@ -83,11 +84,12 @@ async function execute(sql: string, params?: BindParams): Promise<void> {
       while ((await sqlite3.step(stmt)) === SQLite.SQLITE_ROW) {
         // Drain rows for statements that might return data (e.g. PRAGMA)
       }
-    } finally {
-      await sqlite3.finalize(stmt);
+    } catch (error) {
+      console.error(`Error executing SQL: ${sql}`, error);
     }
     index += 1;
   }
+  console.log(`Done.`);
 }
 
 async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
@@ -121,8 +123,12 @@ async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
 }
 
 async function migrateSchema() {
+  console.log('Migrating database schema...');
   await execute(DB_SCHEMA);
+  console.log('Seeding categories.');
   await seedDefaultCategories();
+  console.log('Seeding elements.');
+  await seedDefaultElements();
 }
 
 async function seedDefaultCategories() {
@@ -139,6 +145,34 @@ async function seedDefaultCategories() {
       ]
     );
   }
+}
+
+async function seedDefaultElements() {
+  const elements = MOCK_ELEMENTS;
+  for (const elem of elements) {
+    if (typeof elem.content_json !== 'string') {
+      console.warn('content_json is not string:', elem.id, elem.content_json);
+    }
+    if (typeof elem.summary_json !== 'string') {
+      console.warn('summary_json is not string:', elem.id, elem.summary_json);
+    }
+    await execute(
+      `INSERT OR IGNORE INTO element (id, project_id, category_id, type, name, content_json, summary_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      elem.id,
+      elem.project_id,
+      elem.category_id,
+      elem.type,
+      elem.name,
+      elem.content_json,
+      elem.summary_json,
+      elem.created_at,
+      elem.updated_at
+    ]
+    );
+  }
+
 }
 
 async function handleRequest(message: DbWorkerRequest) {

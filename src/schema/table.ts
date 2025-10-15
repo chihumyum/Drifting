@@ -17,7 +17,15 @@ export const DB_SCHEMA = `
 -- =============================
 -- Book Element / Element Schema
 -- =============================
-
+-- Projects table
+CREATE TABLE IF NOT EXISTS project (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  author TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_project_name ON project(name);
 -- Category table (element categories)
 CREATE TABLE IF NOT EXISTS element_category (
   id TEXT PRIMARY KEY,
@@ -148,7 +156,7 @@ export const MOCK_ELEMENT_CATEGORIES: ElementCategoryRecord[] = [
   },
 ];
 
-export const MOCK_ENTITIES: ElementRecord[] = [
+export const MOCK_ELEMENTS: ElementRecord[] = [
   {
     id: 'element_mock_1',
     project_id: 'project_mock_1',

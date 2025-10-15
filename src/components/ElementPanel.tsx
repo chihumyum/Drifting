@@ -4,7 +4,6 @@ import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import type { BookElement } from '../domain/book_element';
 
-// 简化版 Element：直接操作 bookElements（演示 useBookElementUsecases）
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories, selectedBookElementId, setSelectedBookElementId } = useAppStore();
@@ -17,7 +16,7 @@ export function ElementPanel() {
   const [editingName, setEditingName] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
-  // 所有类别名（来自 store）
+
   const categoryNames = useMemo(() => {
     const names = new Set<string>();
     bookElementCategories.forEach(c => names.add(c.name));
@@ -25,7 +24,6 @@ export function ElementPanel() {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [bookElementCategories, bookElements]);
 
-  // 过滤后的元素
   const filtered = useMemo(() => {
     if (filterCategory === 'all') return bookElements;
     return bookElements.filter(e => e.category === filterCategory);
@@ -120,8 +118,3 @@ export function ElementPanel() {
     </div>
   );
 }
-
-// 未来你可以：
-// 1. 把类别编辑 / 颜色等放回（bookElementCategories 的增删改）
-// 2. 增加 tags 与 content 编辑表单，调用 update(usecase)
-// 3. 增加初次挂载时从 DB hydrate（单独 hook）

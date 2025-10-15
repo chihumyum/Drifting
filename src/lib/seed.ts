@@ -1,6 +1,6 @@
 import { query, run } from './db'
 import { ensureElementCategory, ensureProjectId } from './book_element'
-import { MOCK_ENTITIES, MOCK_ELEMENT_CATEGORIES } from '../schema/table'
+import { MOCK_ELEMENTS, MOCK_ELEMENT_CATEGORIES } from '../schema/table'
 
 export async function seedIfEmpty() {
   const rows = await query<{ count: number }>('SELECT COUNT(*) as count FROM story_node')
@@ -30,7 +30,7 @@ export async function seedMockEntitiesIfEmpty() {
     }
   }
 
-  for (const mock of MOCK_ENTITIES) {
+  for (const mock of MOCK_ELEMENTS) {
     const record = {
       ...mock,
       project_id: projectId,

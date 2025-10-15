@@ -43,6 +43,7 @@ export function initDatabase(projectId?: string): Promise<void> {
         });
     };
 
+
     const handler = (ev: MessageEvent) => {
       if (ev.data?.id !== msgId) return;
       cleanup();

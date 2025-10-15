@@ -7,7 +7,6 @@ import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ChapterNavigator } from './components/ChapterNavigator';
 import { ElementPanel } from './components/ElementPanel';
-import { Plus } from 'lucide-react';
 
 const PROJECT_ID = 'default-project';
 
@@ -67,7 +66,7 @@ function Layout() {
               zIndex: 3,
             }}
           >
-            <ChapterNavigator />
+            {/* <ChapterNavigator /> */}
           </div>
 
           <div style={{ position: 'relative', width: 280, flex: 1, minHeight: 0, overflow: 'visible' }}>

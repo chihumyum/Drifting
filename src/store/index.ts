@@ -189,9 +189,11 @@ export const useAppStore = create<AppState>((set) => ({
     selectedBlockId: null,
     multiSelectedNodeIds: []
   }),
-  bookElements: mockBookElements,
+  // bookElements: mockBookElements,
+  bookElements: [],
   setBookElements: (bookElements) => set({ bookElements }),
-  bookElementCategories: mockBookElementCategories,
+  // bookElementCategories: mockBookElementCategories,
+  bookElementCategories: [],
   setBookElementCategories: (elementCategories) => set({ bookElementCategories: elementCategories }),
 
   bookNodes: [],
