@@ -11,8 +11,9 @@ export interface Collection {
 export interface Project {
   id: string;
   collection_id?: string;
-  name: string;
-  author: string;
+  project_name?: string;
+  author?: string;
+  description?: string;
   created_at: string;
   updated_at: string;
 }

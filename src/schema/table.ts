@@ -20,12 +20,14 @@ export const DB_SCHEMA = `
 -- Projects table
 CREATE TABLE IF NOT EXISTS project (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
+  project_name TEXT,
   author TEXT,
+  description TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_project_name ON project(name);
+CREATE INDEX IF NOT EXISTS idx_project_name ON project(project_name);
+
 -- Category table (element categories)
 CREATE TABLE IF NOT EXISTS element_category (
   id TEXT PRIMARY KEY,
@@ -33,6 +35,44 @@ CREATE TABLE IF NOT EXISTS element_category (
   description_json TEXT NOT NULL DEFAULT '{}',
   color TEXT NULL
 );
+-- Create story nodes (chapter/scene/beat)
+CREATE TABLE IF NOT EXISTS story_node (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT,
+  title TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  type TEXT NOT NULL,               -- chapter/scene/beat
+  order_key INTEGER NOT NULL,
+  status TEXT NOT NULL,             -- draft/in_progress/complete/archived
+  summary TEXT,
+  pos_x REAL,
+  pos_y REAL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
+  FOREIGN KEY(parent_id) REFERENCES story_node(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_story_node_project ON story_node(project_id);
+CREATE INDEX IF NOT EXISTS idx_story_node_parent ON story_node(parent_id);
+CREATE INDEX IF NOT EXISTS idx_story_node_type ON story_node(type);
+CREATE INDEX IF NOT EXISTS idx_story_node_order ON story_node(project_id, order_key);
+
+-- Edges between nodes 
+CREATE TABLE IF NOT EXISTS node_edge (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  src_node_id TEXT NOT NULL,
+  dst_node_id TEXT NOT NULL,
+  kind TEXT NOT NULL,               -- chronology/causality/reference/foreshadow
+  label TEXT,
+  weight INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL, 
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_node_edge_project ON node_edge(project_id);
+CREATE INDEX IF NOT EXISTS idx_node_edge_src ON node_edge(src_node_id);
+CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
 
 -- Core element (element) table
 CREATE TABLE IF NOT EXISTS element (
@@ -81,6 +121,18 @@ CREATE TABLE IF NOT EXISTS element_stage (
 CREATE INDEX IF NOT EXISTS idx_element_stage_element ON element_stage(element_id);
 CREATE INDEX IF NOT EXISTS idx_element_stage_stage_index ON element_stage(element_id, stage_index);
 
+-- Element to story node links (many-to-many)
+CREATE TABLE IF NOT EXISTS element_node_link (
+  id TEXT PRIMARY KEY,
+  node_id TEXT NOT NULL,
+  element_id TEXT NOT NULL,
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
+  UNIQUE(node_id, element_id)
+);
+CREATE INDEX IF NOT EXISTS idx_element_node_link_node ON element_node_link(node_id);
+CREATE INDEX IF NOT EXISTS idx_element_node_link_element ON element_node_link(element_id);
+
 -- Mapping stages to chapters (span coverage)
 CREATE TABLE IF NOT EXISTS chapter_element_stage (
   chapter_id TEXT NOT NULL,
@@ -110,8 +162,9 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
 
 export const DEFAULT_PROJECT: Project = {
   id: 'default-project',
-  name: 'My First Story',
+  project_name: 'Default Project',
   author: 'Author Name',
+  description: 'This is your default project. You can create more projects later.',
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 }

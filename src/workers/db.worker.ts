@@ -3,9 +3,8 @@
 import * as SQLite from 'wa-sqlite';
 import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs';
 import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
-
 import type { DbWorkerRequest } from '../lib/db';
-import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES, MOCK_ELEMENTS } from '../schema/table';
+import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES, MOCK_ELEMENTS, DEFAULT_PROJECT } from '../schema/table';
 
 type SQLiteAPI = ReturnType<typeof SQLite.Factory>;
 type SQLiteCompatibleType = number | string | Uint8Array | Array<number> | bigint | null;
@@ -127,12 +126,27 @@ async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
 async function migrateSchema() {
   console.log('Migrating database schema...');
   await execute(DB_SCHEMA);
+  await seedDefaultProject();
   console.log('Seeding categories.');
   await seedDefaultCategories();
   console.log('Seeding elements.');
   await seedDefaultElements();
 }
 
+async function seedDefaultProject() {
+  await execute(
+    `INSERT OR IGNORE INTO project (id, project_name, author, description, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      DEFAULT_PROJECT.id,
+      DEFAULT_PROJECT.project_name ?? null,
+      DEFAULT_PROJECT.author ?? null,
+      DEFAULT_PROJECT.description ?? null,
+      DEFAULT_PROJECT.created_at,
+      DEFAULT_PROJECT.updated_at,
+    ]
+  );
+}
 async function seedDefaultCategories() {
   const categories = [DEFAULT_ELEMENT_CATEGORY, ...MOCK_ELEMENT_CATEGORIES];
   for (const category of categories) {

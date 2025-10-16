@@ -34,10 +34,11 @@ export interface NodeEdge {
   label?: string | null;
   weight: number;
   created_at: string;
+  updated_at: string;
 }
 
 
-// entities adhere to story nodes
+// book elements adhere to story nodes through links
 export interface ElementNodeLink {
   id: string;
   node_id: string;

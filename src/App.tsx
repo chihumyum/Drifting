@@ -7,15 +7,15 @@ import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ChapterNavigator } from './components/ChapterNavigator';
 import { ElementPanel } from './components/ElementPanel';
+import { DEFAULT_PROJECT } from './schema/table';
 
 
-const PROJECT_ID = 'default-project';
 function Layout() {
 
   const location = useLocation();
   const isEditorRoute = location.pathname.includes('/editor');
   useEffect(() => {
-    initDatabase(PROJECT_ID).then(() => {
+    initDatabase(DEFAULT_PROJECT.id).then(() => {
       events.emit('db:ready');
     }).catch(error => {
       console.error('Failed to initialize database:', error);
@@ -59,7 +59,7 @@ function Layout() {
               zIndex: 3,
             }}
           >
-            {/* <ChapterNavigator /> */}
+            <ChapterNavigator />
           </div>
 
           <div style={{ position: 'relative', width: 280, flex: 1, minHeight: 0, overflow: 'visible' }}>
