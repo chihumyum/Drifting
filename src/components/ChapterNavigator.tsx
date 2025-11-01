@@ -281,6 +281,8 @@ export function ChapterNavigator() {
   );
 }
 
+// TODO: turn this into a 微观节点图
+
 function MiniMap({
   chapters,
   edges,

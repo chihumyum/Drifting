@@ -1,7 +1,7 @@
 // minimal text block for editing 
 export interface ContentBlock {
   id: string;
-  node_id: string; // chapter | scene | beat
+  node_id: string; // link to chapter | scene | beat
   order_index: number;
   pm_json: string;
   plain_text: string;

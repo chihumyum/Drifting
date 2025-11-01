@@ -40,7 +40,7 @@ export const EditorView: FC = () => {
       createDefaultSlashMenu(),
     ],
     content: '<p>开始写作...</p>',
-    autofocus: false,
+    autofocus: true,
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-[400px]',

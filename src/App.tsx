@@ -67,6 +67,23 @@ function Layout() {
           </div>
 
         </div>
+
+        <main
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            background: 'transparent',
+          }}
+        >
+          <Outlet />
+        </main>
+
+        <aside
+          style={{
+            borderLeft: '1px solid rgba(220,210,230,0.5)',
+            background: isEditorRoute ? 'rgba(255,255,255,0.6)' : 'transparent'
+          }}
+        />
       </div>
 
     </div>
@@ -85,4 +102,3 @@ export default function App() {
     </Routes>
   )
 }
-
