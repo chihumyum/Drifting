@@ -6,7 +6,7 @@ import type { BookElement } from '../domain/book_element';
 
 
 export function ElementPanel() {
-  const { bookElements, bookElementCategories, selectedBookElementId, setSelectedBookElementId } = useAppStore();
+  const { bookElements, bookElementCategories, selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId } = useAppStore();
   const { createElement: create, updateElement: update, removeElement: remove, loadInitial } = useBookElementUsecases();
 
   const [creating, setCreating] = useState(false);

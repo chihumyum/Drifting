@@ -17,16 +17,16 @@ const PROJECT_ID = 'default-project';
 
 export function useBookNodeUsecases() {
   const store = useAppStore;
-  const depsRef = useRef<BookNodeUsecaseDeps>();
+  const depsRef = useRef<BookNodeUsecaseDeps | null>(null);
 
   if (!depsRef.current) {
     depsRef.current = {
       nodeRepo: createBookNodeSqliteRepository(PROJECT_ID),
       edgeRepo: createBookNodeEdgeSqliteRepository(PROJECT_ID),
-      getNodes: () => store.getState().bookNodes,
-      setNodes: (nodes) => store.getState().setBookNodes(nodes),
-      updateNode: (id, updates) => store.getState().updateBookNode(id, updates),
-      setEdges: (edges) => store.getState().setNodeEdges(edges),
+      getNodesState: () => store.getState().bookNodes,
+      setNodesState: (nodes) => store.getState().setBookNodes(nodes),
+      updateNodeState: (id, updates) => store.getState().updateBookNode(id, updates),
+      setEdgesState: (edges) => store.getState().setNodeEdges(edges),
       now: () => new Date(),
     };
   }

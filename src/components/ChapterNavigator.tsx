@@ -17,8 +17,8 @@ const cardColors: Record<string, string> = {
 export function ChapterNavigator() {
   const navigate = useNavigate();
   const {
-    selectedChapterId,
-    setSelectedChapterId,
+    selectedNodeId: selectedChapterId,
+    setSelectedNodeId: setSelectedChapterId,
     bookNodes,
     nodeEdges,
   } = useAppStore();
@@ -67,14 +67,14 @@ export function ChapterNavigator() {
 
   const openChapter = useCallback((id: string) => {
     setSelectedChapterId(id);
-    navigate('/editor');
+    navigate(`/editor/${id}`);
   }, [navigate, setSelectedChapterId]);
 
   const onAddChapter = useCallback(async () => {
     try {
       const node = await createNode({ title: 'New Chapter', type: 'chapter' });
       setSelectedChapterId(node.id);
-      navigate('/editor');
+      navigate(`/editor/${node.id}`);
     } catch (error) {
       console.error('Failed to create chapter', error);
     }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { BookElement, BookElementCategory } from '../domain/book_element';
 import type { BookNode, BookNodeEdge } from '../domain/book_node';
+import type { BookContent } from '../domain/book_content';
 
 type UiSlice = {
   theme: 'light' | 'dark';
@@ -19,27 +20,19 @@ type UiSlice = {
 };
 
 type SelectionSlice = {
-  selectedChapterId: string | null;
-  selectedBlockId: string | null;
+  selectedNodeId: string | null;
+  selectedElementId: string | null;
+
   selectedElement: BookElement | null;
-  selectedBookElementId: string | null;
   selectedBookElementCategory: BookElementCategory | null;
   multiSelectedNodeIds: string[];
-  setSelectedChapterId: (id: string | null) => void;
-  setSelectedBlockId: (id: string | null) => void;
-  setSelectedBookElement: (element: BookElement | null) => void;
-  setSelectedBookElementCategory: (category: BookElementCategory | null) => void;
-  setSelectedBookElementId: (id: string | null) => void;
+  setSelectedNodeId: (id: string | null) => void;
+  setSelectedElementId: (id: string | null) => void;
+  setSelectedElement: (element: BookElement | null) => void;
+  setSelectedElementCategory: (category: BookElementCategory | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
+  
   clearSelection: () => void;
-};
-
-
-type BookElementSlice = {
-  bookElements: BookElement[];
-  bookElementCategories: BookElementCategory[];
-  setBookElements: (elements: BookElement[]) => void;
-  setBookElementCategories: (categories: BookElementCategory[]) => void;
 };
 
 type BookNodeSlice = {
@@ -52,6 +45,20 @@ type BookNodeSlice = {
   setNodeEdges: (edges: BookNodeEdge[]) => void;
 };
 
+type BookContentSlice = { // book content 根据当前的 node Id拿
+  bookContent: BookContent | null;
+  setBookContent: (content: BookContent | null) => void;
+  updateBookContent: (updates: Partial<BookContent>) => void;
+};
+
+type BookElementSlice = {
+  bookElements: BookElement[];
+  bookElementCategories: BookElementCategory[];
+  setBookElements: (elements: BookElement[]) => void;
+  setBookElementCategories: (categories: BookElementCategory[]) => void;
+};
+
+
 type JobsSlice = {
   runningJobs: string[];
   completedJobs: string[];
@@ -62,7 +69,7 @@ type JobsSlice = {
   setJobResult: (jobId: string, result: unknown) => void;
 };
 
-export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookNodeSlice & JobsSlice;
+export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookContentSlice & BookNodeSlice & JobsSlice;
 
 
 export const useAppStore = create<AppState>((set) => ({
@@ -80,25 +87,22 @@ export const useAppStore = create<AppState>((set) => ({
   setRightPanelType: (type) => set({ rightPanelType: type }),
 
 
-  selectedChapterId: null,
-  selectedBookElementId: null,
+  selectedNodeId: null,
+  selectedElementId: null,
   selectedElement: null,
   selectedBookElement: null,
   selectedBookElementCategory: null,
-  selectedBlockId: null,
   multiSelectedNodeIds: [],
-  setSelectedChapterId: (selectedChapterId) => set({ selectedChapterId }),
-  setSelectedBookElementId: (selectedBookElementId) => set({ selectedBookElementId }),
-  setSelectedBookElement: (selectedElement) => set({ selectedElement }),
-  setSelectedBlockId: (selectedBlockId) => set({ selectedBlockId }),
-  setSelectedBookElementCategory: (selectedBookElementCategory) => set({ selectedBookElementCategory }),
+  setSelectedNodeId: (selectedChapterId) => set({ selectedNodeId: selectedChapterId }),
+  setSelectedElementId: (selectedBookElementId) => set({ selectedElementId: selectedBookElementId }),
+  setSelectedElement: (selectedElement) => set({ selectedElement }),
+  setSelectedElementCategory: (selectedBookElementCategory) => set({ selectedBookElementCategory }),
 
   setMultiSelectedNodeIds: (multiSelectedNodeIds) => set({ multiSelectedNodeIds }),
   clearSelection: () => set({
-    selectedChapterId: null,
-    selectedBookElementId: null,
+    selectedNodeId: null,
+    selectedElementId: null,
     selectedElement: null,
-    selectedBlockId: null,
     multiSelectedNodeIds: []
   }),
   // bookElements: mockBookElements,
@@ -107,6 +111,12 @@ export const useAppStore = create<AppState>((set) => ({
   // bookElementCategories: mockBookElementCategories,
   bookElementCategories: [],
   setBookElementCategories: (elementCategories) => set({ bookElementCategories: elementCategories }),
+
+  bookContent: {} as BookContent,
+  setBookContent: (content) => set({ bookContent: content }),
+  updateBookContent: (updates) => set((state) => ({
+    bookContent: state.bookContent ? { ...state.bookContent, ...updates } : state.bookContent,
+  })),
 
   bookNodes: [],
   nodeEdges: [],

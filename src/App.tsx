@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Route, Routes, Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
 import { EditorView } from './views/Editor/EditorView';
-import { ElementView } from './views/ElementView';
-import { useAppStore } from './store';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ChapterNavigator } from './components/ChapterNavigator';
@@ -29,8 +27,8 @@ function Layout() {
           height: '100vh',
           display: 'grid',
           gridTemplateColumns: isEditorRoute
-            ? '320px 1fr 160px'
-            : '320px 1fr 120px',
+            ? '320px 1fr'
+            : '320px 1fr',
           transition: 'grid-template-columns 0.3s ease',
           backgroundColor: '#f4f2f6',
           overflow: 'hidden'
@@ -68,7 +66,7 @@ function Layout() {
 
         </div>
 
-        {/* <main
+        <main
           style={{
             position: 'relative',
             overflow: 'hidden',
@@ -76,7 +74,7 @@ function Layout() {
           }}
         >
           <Outlet />
-        </main> */}
+        </main>
 
         <aside
           style={{
@@ -94,10 +92,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={<ElementView />} />
-        {/* <Route path="graph" element={<GraphView />} /> */}
-        <Route path="editor" element={<EditorView />} />
-        <Route path="elements" element={<ElementView />} />
+        <Route path="editor" element={<Navigate to="/" replace />} />
+        <Route path="editor/:nodeId" element={<EditorView />} />
       </Route>
     </Routes>
   )

@@ -7,6 +7,7 @@ export interface BookContentRepository {
   create(data: Partial<BookContent>): Promise<BookContent>;
   update(contentId: string, data: Partial<BookContent>): Promise<BookContent | null>;
   updateByNodeId(nodeId: string, data: Partial<BookContent>): Promise<BookContent | null>;
-  delete(id: string): Promise<boolean>;
+  deleteById(id: string): Promise<boolean>;
   deleteByNodeId(nodeId: string): Promise<boolean>;
 }
+

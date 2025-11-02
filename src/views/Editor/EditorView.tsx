@@ -1,31 +1,120 @@
-import { useEditor, EditorContent } from '@tiptap/react'
-import type { Editor } from '@tiptap/core'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
-import { createDefaultSlashMenu } from '@chi-hum/tiptap-simple-slash-menu'
-import type { CSSProperties, ComponentType, Ref, FC } from 'react'
-import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAppStore } from '../../store'
-import { query, run } from '../../lib/db'
-import { debounce } from '../../utils/debounce'
-import { events } from '../../lib/events'
-import type { ContentBlock, StoryNode } from '../../schema/table'
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import type { JSONContent } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import { createDefaultSlashMenu } from '@chi-hum/tiptap-simple-slash-menu';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAppStore } from '../../store';
+import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
+import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 
+const DEFAULT_DOC_STRING = JSON.stringify({
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: '开始写作...' },
+      ],
+    },
+  ],
+});
 
-type PanelKey = 'format' | 'info' | 'page' | 'inspector' | 'todo' | 'snippets'
+function getDefaultDoc(): JSONContent {
+  return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
+}
 
-export const EditorView: FC = () => {
+export function EditorView() {
+  const navigate = useNavigate();
+  const { nodeId } = useParams<{ nodeId: string }>();
+
   const {
-    selectedChapterId: selectedNodeId,
-    currentNodeId,
-    setCurrentNodeId,
-    setBlocks,
-    addBlock,
-    updateBlock,
-  } = useAppStore()
-  const navigate = useNavigate()
+    selectedNodeId,
+    setSelectedNodeId,
+    setBookContent,
+    bookContent,
+    bookNodes,
+  } = useAppStore();
+
+  const { loadNodes } = useBookNodeUsecases();
+  const { loadContent, updateContent, newContent } = useBookContentUsecases();
+
+  const [isContentLoading, setIsContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+
+  const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
+  const bookContentRef = useRef(bookContent);
+  const lastSyncedContentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+  }, [selectedNodeId]);
+
+  useEffect(() => {
+    bookContentRef.current = bookContent;
+  }, [bookContent]);
+
+  useEffect(() => {
+    if (!nodeId) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (selectedNodeId !== nodeId) {
+      setSelectedNodeId(nodeId);
+    }
+  }, [navigate, nodeId, selectedNodeId, setSelectedNodeId]);
+
+  useEffect(() => {
+    if (!nodeId) return;
+    // Lazily load nodes if navigator hasn't already hydrated them
+    if (!bookNodes.length) {
+      void loadNodes({ type: 'chapter' }).catch((error) => {
+        console.error('Failed to load chapters for editor', error);
+      });
+    }
+  }, [bookNodes.length, loadNodes, nodeId]);
+
+  useEffect(() => {
+    if (!nodeId) return;
+    setIsContentLoading(true);
+    setContentError(null);
+    setBookContent(null);
+    lastSyncedContentRef.current = null;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await loadContent(nodeId);
+      } catch (error) {
+        console.error('Failed to load chapter content', error);
+        if (!cancelled) {
+          setContentError(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsContentLoading(false);
+        }
+      }
+    })();
+    console.log('Loading content for node', nodeId);
+    console.log('Current book content in store', bookContentRef.current);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadContent, nodeId, setBookContent]);
+
+  useEffect(() => {
+    if (!nodeId) return;
+    if (!bookNodes.length) return;
+    const exists = bookNodes.some((node) => node.id === nodeId);
+    if (!exists) {
+      setContentError('未找到对应的章节节点');
+    }
+  }, [bookNodes, nodeId]);
 
   const editor = useEditor({
     extensions: [
@@ -39,7 +128,7 @@ export const EditorView: FC = () => {
       Link.configure({ openOnClick: false, autolink: true }),
       createDefaultSlashMenu(),
     ],
-    content: '<p>开始写作...</p>',
+    content: getDefaultDoc(),
     autofocus: true,
     editorProps: {
       attributes: {
@@ -48,138 +137,62 @@ export const EditorView: FC = () => {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      const text = ed.getText()
-      if (selectedNodeId && text.trim()) {
-        saveContent(selectedNodeId, ed.getJSON(), text)
+      const activeNodeId = selectedNodeIdRef.current;
+      if (!activeNodeId) return;
+      const json = ed.getJSON();
+      const pmJson = JSON.stringify(json);
+      console.log('Json to update', pmJson);
+      if (pmJson === lastSyncedContentRef.current) return;
+      lastSyncedContentRef.current = pmJson;
+      
+      const currentContent = bookContentRef.current;
+      if (currentContent && currentContent.id) {
+        void updateContent({
+          id: currentContent.id,
+          nodeId: currentContent.nodeId ?? activeNodeId,
+          pmJson,
+        });
+        console.log(`Updated for ${currentContent.id}, content is now ${bookContentRef.current?.pmJson}`);
+      } else {
+        void newContent(activeNodeId, pmJson);
       }
     },
-  })
+  });
 
-  const saveContent = useMemo(
-    () => debounce(async (nodeId: string, pmJson: Record<string, unknown>, plainText: string) => {
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!isContentLoading);
+  }, [editor, isContentLoading]);
+
+  useEffect(() => {
+    if (!editor) return;
+    if (!nodeId) return;
+    const content = bookContent && bookContent.nodeId === nodeId ? bookContent : null;
+    console.log('Starting with content', content);
+    if (content?.pmJson) {
+      const pmJson = content.pmJson;
+      if (pmJson === lastSyncedContentRef.current) return;
       try {
-        const existingBlocks = await query<ContentBlock>(
-          `SELECT * FROM node_block WHERE node_id = '${nodeId}' ORDER BY order_index`
-        )
-
-        if (existingBlocks.length > 0) {
-          const blockId = existingBlocks[0].id
-          await run(`
-            UPDATE node_block
-            SET pm_json = '${escapeSql(JSON.stringify(pmJson))}',
-                plain_text = '${escapeSql(plainText)}',
-                updated_at = '${new Date().toISOString()}'
-            WHERE id = '${blockId}'
-          `)
-
-          updateBlock(blockId, {
-            pm_json: JSON.stringify(pmJson),
-            plain_text: plainText,
-            updated_at: new Date().toISOString(),
-          })
-
-          await updateAppearancesForBlock(nodeId, blockId, plainText)
-        } else {
-          const blockId = `block_${Date.now()}`
-          const newBlock: ContentBlock = {
-            id: blockId,
-            node_id: nodeId,
-            order_index: 0,
-            pm_json: JSON.stringify(pmJson),
-            plain_text: plainText,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-
-          await run(`
-            INSERT INTO node_block (id, node_id, order_index, pm_json, plain_text, created_at, updated_at)
-            VALUES ('${blockId}', '${nodeId}', 0, '${escapeSql(JSON.stringify(pmJson))}', '${escapeSql(plainText)}', '${newBlock.created_at}', '${newBlock.updated_at}')
-          `)
-
-          addBlock(newBlock)
-          await updateAppearancesForBlock(nodeId, blockId, plainText)
-        }
-
-        events.emit('editor:saved', { nodeId, content: plainText })
-        events.emit('editor:block-updated', { blockId: existingBlocks[0]?.id || `block_${Date.now()}`, content: plainText })
+        const doc = JSON.parse(pmJson) as JSONContent;
+        editor.commands.setContent(doc, false);
+        lastSyncedContentRef.current = pmJson;
       } catch (error) {
-        console.error('Failed to save content:', error)
+        console.error('Failed to parse editor content; falling back to default doc', error);
+        editor.commands.setContent(getDefaultDoc(), false);
+        lastSyncedContentRef.current = DEFAULT_DOC_STRING;
+        setContentError('章节内容解析失败，已恢复默认内容');
       }
-    }, 800),
-    [updateBlock, addBlock]
-  )
-
-  const loadNodeContent = useCallback(async (nodeId: string) => {
-    try {
-      const nodeRows = await query<StoryNode>(`SELECT * FROM story_node WHERE id='${nodeId}' LIMIT 1`)
-      if (nodeRows[0]) {
-        setNodeMeta(nodeRows[0])
-        setTitle(nodeRows[0].title)
-      }
-
-      const nodeBlocks = await query<ContentBlock>(
-        `SELECT * FROM node_block WHERE node_id = '${nodeId}' ORDER BY order_index`
-      )
-
-      if (nodeBlocks.length > 0) {
-        const primaryBlock = nodeBlocks[0]
-        try {
-          const pmDoc = JSON.parse(primaryBlock.pm_json)
-          editor?.commands.setContent(pmDoc)
-        } catch {
-          editor?.commands.setContent(`<p>${escapeHtml(primaryBlock.plain_text)}</p>`)
-        }
-      } else {
-        editor?.commands.setContent('<p>开始书写你的故事…</p>')
-      }
-
-      setBlocks(nodeBlocks)
-      setCurrentNodeId(nodeId)
-    } catch (error) {
-      console.error('Failed to load node content:', error)
+    } else if (!isContentLoading && lastSyncedContentRef.current !== DEFAULT_DOC_STRING) {
+      console.log('No content found, setting default doc');
+      editor.commands.setContent(getDefaultDoc(), false);
+      lastSyncedContentRef.current = DEFAULT_DOC_STRING;
     }
-  }, [editor, setBlocks, setCurrentNodeId])
+  }, [bookContent, editor, isContentLoading, nodeId]);
 
-  const [nodeMeta, setNodeMeta] = useState<StoryNode | null>(null)
-  const [title, setTitle] = useState('')
-  const [activePanel, setActivePanel] = useState<PanelKey | null>(null)
-  const formatPanelRef = useRef<HTMLDivElement | null>(null)
-
-  const saveTitle = useMemo(
-    () => debounce(async (nodeId: string, newTitle: string) => {
-      try {
-        await run(`UPDATE story_node SET title='${escapeSql(newTitle)}', updated_at='${new Date().toISOString()}' WHERE id='${nodeId}'`)
-        events.emit('nodes:changed')
-      } catch (e) {
-        console.error('Failed to update title:', e)
-      }
-    }, 500),
-    []
-  )
-
-  useEffect(() => {
-    if (selectedNodeId && selectedNodeId !== currentNodeId) {
-      loadNodeContent(selectedNodeId)
-    } else if (!selectedNodeId) {
-      editor?.commands.setContent('<p>选择左侧章节开始写作...</p>')
-      setCurrentNodeId(null)
-      setNodeMeta(null)
-      setTitle('')
-    }
-  }, [selectedNodeId, currentNodeId, loadNodeContent, editor, setCurrentNodeId])
-
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      if (formatPanelRef.current && !formatPanelRef.current.contains(event.target as Node)) {
-        setActivePanel((panel) => (panel === 'format' ? null : panel))
-      }
-    }
-    if (activePanel === 'format') {
-      document.addEventListener('mousedown', handleClick)
-    }
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [activePanel])
-
+  const currentNode = useMemo(
+    () => (nodeId ? bookNodes.find((node) => node.id === nodeId) ?? null : null),
+    [bookNodes, nodeId],
+  );
 
   return (
     <div
@@ -227,36 +240,49 @@ export const EditorView: FC = () => {
           padding: '40px 56px 48px 56px',
         }}
       >
-        {nodeMeta ? (
-          <>
-            <input
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value)
-                if (selectedNodeId) saveTitle(selectedNodeId, e.target.value)
-              }}
-              placeholder="未命名章节"
-              style={{
-                width: '100%',
-                fontSize: 28,
-                fontWeight: 700,
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                color: '#2f2540',
-              }}
-            />
-            <div style={{ fontSize: 13, color: '#847a97', marginTop: 8 }}>
-              {nodeMeta.type} • {nodeMeta.status}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#302432' }}>
+              {currentNode?.title ?? '加载章节中…'}
             </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 14, color: '#7a708c' }}>请选择左侧章节后开始创作内容。</div>
+            <div style={{ fontSize: 12, color: '#8b7c8b', marginTop: 6 }}>
+              {currentNode ? `状态：${currentNode.status.replace('_', ' ')}` : '请稍候，正在获取章节信息'}
+            </div>
+          </div>
+          {isContentLoading && (
+            <div style={{ fontSize: 12, color: '#8c7d8c' }}>
+              正在加载内容…
+            </div>
+          )}
+        </div>
+
+        {contentError && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: 'rgba(216,82,82,0.12)',
+              color: '#b23c3c',
+              fontSize: 12,
+            }}
+          >
+            {contentError}
+          </div>
         )}
 
-      
-
-        <div style={{ marginTop: 28, borderRadius: 26, background: '#ffffff', boxShadow: '0 30px 60px rgba(31, 26, 58, 0.12)', padding: '32px 38px', minHeight: 520 }}>
+        <div
+          style={{
+            marginTop: 28,
+            borderRadius: 26,
+            background: '#ffffff',
+            boxShadow: '0 30px 60px rgba(31, 26, 58, 0.12)',
+            padding: '32px 38px',
+            minHeight: 520,
+            opacity: isContentLoading ? 0.6 : 1,
+            transition: 'opacity 0.2s ease',
+          }}
+        >
           <EditorContent
             editor={editor}
             style={{
@@ -265,39 +291,7 @@ export const EditorView: FC = () => {
             }}
           />
         </div>
-
-        <div
-          style={{
-            position: 'absolute',
-            top: 120,
-            right: 40,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-          }}
-        >
-          
-        </div>
-
-        
       </div>
     </div>
-  )
+  );
 }
-
-
-
-
-
-
-function escapeSql(s: string): string {
-  return s.replaceAll("'", "''")
-}
-
-function escapeHtml(s: string): string {
-  const el = document.createElement('div')
-  el.textContent = s
-  return el.innerHTML
-}
-

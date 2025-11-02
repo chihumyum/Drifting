@@ -7,8 +7,8 @@ import type { DbWorkerRequest } from '../lib/db';
 import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES, MOCK_ELEMENTS, DEFAULT_PROJECT } from '../schema/table';
 
 type SQLiteAPI = ReturnType<typeof SQLite.Factory>;
-type SQLiteCompatibleType = number | string | Uint8Array | Array<number> | bigint | null;
-type BindParams =
+export type SQLiteCompatibleType = number | string | Uint8Array | Array<number> | bigint | null;
+export type BindParams =
   | Array<SQLiteCompatibleType | null>
   | { [index: string]: SQLiteCompatibleType | null };
 type RowObject = Record<string, SQLiteCompatibleType | null>;
@@ -16,7 +16,7 @@ type RowObject = Record<string, SQLiteCompatibleType | null>;
 type DbWorkerResponse =
   | { id?: number; type: 'ready' }
   | { id?: number; type: 'migrated' }
-  | { id?: number; type: 'ok' }
+  | { id?: number; type: 'changes'; payload: { changes: number } } // number of rows changed, for run, for now
   | { id?: number; type: 'rows'; payload: { rows: RowObject[] } }
   | { id?: number; type: 'error'; error: string };
 
@@ -70,7 +70,7 @@ async function initDB(filename = 'drifting.db') {
   }
 }
 
-async function execute(sql: string, params?: BindParams): Promise<void> {
+async function execute(sql: string, params?: BindParams): Promise<number> {
   if (!sqlite3 || db === null) throw new Error('Database not initialized');
 
   let index = 0;
@@ -89,7 +89,11 @@ async function execute(sql: string, params?: BindParams): Promise<void> {
     }
     index += 1;
   }
+  const changes = sqlite3.changes(db);
+  console.log(`Changes: ${changes}`);
+
   // console.log(`Done executing.`);
+  return changes;
 }
 
 async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
@@ -210,8 +214,8 @@ async function handleRequest(message: DbWorkerRequest) {
       case 'run': {
         await ensureInitialized();
         ensureSql(payload?.sql);
-        await execute(payload.sql);
-        postMessage({ id, type: 'ok' });
+        const changes = await execute(payload.sql, payload?.params);
+        postMessage({ id, type: 'changes', payload: { changes } });
         return;
       }
       case 'query': {

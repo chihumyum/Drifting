@@ -46,7 +46,7 @@ components/ # 章节导航、实体列表、侧栏等界面模块
 views/ # 路由页(章节画布、编辑器、设定库等), 日后拆一下
 store/ # Zustand 状态树
 lib/ # SQLite 工具、事件总线、Schema 常量
-usecase/ # 封装repository操作给UI层
+usecase/ & hooks/ # 将 repository 持久层操作 和 Zustand state操作绑一起，封装暴露给顶层
 repository/ # domain 操作 -> 转record -> 持久化
 domain/ # 最前的业务层抽象
 schema/ # 持久层的抽象

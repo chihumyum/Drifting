@@ -1,5 +1,3 @@
-
-
 export interface BookElement {
   id: string;
   category: string;

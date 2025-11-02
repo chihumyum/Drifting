@@ -7,7 +7,7 @@ export const TABLES = {
   project: 'project',
   storyNode: 'story_node',
   nodeEdge: 'node_edge',
-  nodeBlock: 'node_block',
+  bookContent: 'book_content',
   element: 'element',
   elementStage: 'element_stage',
 } as const
@@ -73,6 +73,17 @@ CREATE TABLE IF NOT EXISTS node_edge (
 CREATE INDEX IF NOT EXISTS idx_node_edge_project ON node_edge(project_id);
 CREATE INDEX IF NOT EXISTS idx_node_edge_src ON node_edge(src_node_id);
 CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
+
+-- Book content table 
+CREATE TABLE IF NOT EXISTS book_content (
+  id TEXT PRIMARY KEY,
+  node_id TEXT NOT NULL,
+  pm_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_book_content_node ON book_content(node_id);
 
 -- Core element (element) table
 CREATE TABLE IF NOT EXISTS element (

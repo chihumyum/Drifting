@@ -1,5 +1,3 @@
-// Domain to Schema for BookNode
-
 import { query, run } from '../lib/db';
 import type { BookNode, BookNodeEdge, BookNodeTag, BookNodeElementLink } from '../domain/book_node';
 import type { NodeType, BookNodeRecord, NodeEdgeRecord, ElementNodeLinkRecord, NodeTagRecord } from '../schema/book_node';
@@ -201,7 +199,7 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
   };
 }
 
-export function toBookNode(record: BookNodeRecord): BookNode {
+function toBookNode(record: BookNodeRecord): BookNode {
   return {
     id: record.id,
     projectId: record.project_id,
@@ -220,7 +218,7 @@ export function toBookNode(record: BookNodeRecord): BookNode {
   };
 }
 
-export function fromBookNode(node: BookNode): BookNodeRecord {
+function fromBookNode(node: BookNode): BookNodeRecord {
   return {
     id: node.id,
     project_id: node.projectId,
@@ -237,7 +235,7 @@ export function fromBookNode(node: BookNode): BookNodeRecord {
   };
 }
 
-export function toBookNodeEdge(record: NodeEdgeRecord): BookNodeEdge {
+function toBookNodeEdge(record: NodeEdgeRecord): BookNodeEdge {
   return {
     id: record.id,
     projectId: record.project_id,

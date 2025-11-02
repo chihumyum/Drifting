@@ -3,7 +3,6 @@ import type { BookElement, BookElementCategory } from '../domain/book_element';
 import { v7 as uuidv7 } from 'uuid';
 import type { BookElementRepository, BookElementCategoryRepository } from '../repositories/book_element';
 
-// Application layer context slice (minimal for this usecase)
 export interface BookElementUsecaseDeps {
     elementRepo: BookElementRepository;
     categoryRepo: BookElementCategoryRepository;
@@ -126,5 +125,3 @@ async function ensureCategory(deps: BookElementUsecaseDeps, categoryName: string
     return existing;
 }
 
-// (Optional) future: add rollback strategy if persistence fails
-// try { ... } catch(e) { deps.setElements(prev); throw e }

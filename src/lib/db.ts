@@ -1,9 +1,9 @@
 // Database interface
-
+import type { BindParams } from "../workers/db.worker";
 export type DbWorkerRequest =
   | { id?: number; type: 'init'; payload?: { dbName?: string } }
-  | { id?: number; type: 'run'; payload: { sql: string } }
-  | { id?: number; type: 'query'; payload: { sql: string } }
+  | { id?: number; type: 'run'; payload: { sql: string, params?: BindParams } }
+  | { id?: number; type: 'query'; payload: { sql: string, params?: BindParams } }
   | { id?: number; type: 'migrate'; payload?: Record<string, never> }
 
 let worker: Worker | null = null;
@@ -18,8 +18,8 @@ export function getDbWorker() {
 }
 
 export function initDatabase(projectId?: string): Promise<void> {
-  console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
   if (dbInitialized) return Promise.resolve();
+  console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
   if (initPromise) return initPromise;
 
   initPromise = new Promise<void>((resolve, reject) => {
@@ -87,7 +87,7 @@ export async function migrate(): Promise<void> {
   });
 }
 
-export async function run(sql: string): Promise<void> {
+export async function run(sql: string, params?: BindParams): Promise<number> {
   if (!dbInitialized) {
     await initDatabase();
   }
@@ -98,21 +98,21 @@ export async function run(sql: string): Promise<void> {
   const w = getDbWorker();
   const msgId = Date.now() + Math.random();
 
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<number>((resolve, reject) => {
     const handler = (ev: MessageEvent) => {
       if (ev.data?.id !== msgId) return;
       w.removeEventListener('message', handler);
 
-      if (ev.data?.type === 'ok') resolve();
+      if (ev.data?.type === 'changes') resolve(ev.data?.payload?.changes || 0);
       else reject(new Error(ev.data?.error || 'run failed'));
     };
 
     w.addEventListener('message', handler);
-    w.postMessage({ id: msgId, type: 'run', payload: { sql } } as DbWorkerRequest);
+    w.postMessage({ id: msgId, type: 'run', payload: { sql, params } } as DbWorkerRequest);
   });
 }
 
-export async function query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
+export async function query<T = Record<string, unknown>>(sql: string, params?: BindParams): Promise<T[]> {
   if (!dbInitialized) {
     await initDatabase();
   }
@@ -133,6 +133,6 @@ export async function query<T = Record<string, unknown>>(sql: string): Promise<T
     };
 
     w.addEventListener('message', handler);
-    w.postMessage({ id: msgId, type: 'query', payload: { sql } } as DbWorkerRequest);
+    w.postMessage({ id: msgId, type: 'query', payload: { sql, params } } as DbWorkerRequest);
   });
 }
