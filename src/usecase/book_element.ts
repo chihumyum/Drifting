@@ -1,4 +1,4 @@
-
+// operation related to book elements (like character, location, item, etc.)
 import type { BookElement, BookElementCategory } from '../domain/book_element';
 import { v7 as uuidv7 } from 'uuid';
 import type { BookElementRepository, BookElementCategoryRepository } from '../repositories/book_element';

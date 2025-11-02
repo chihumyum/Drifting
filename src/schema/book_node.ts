@@ -1,10 +1,10 @@
 export type NodeType = 'chapter' | 'scene' | 'beat';
 export type NodeStatus = 'draft' | 'in_progress' | 'complete' | 'archived';
-
+export type NodeEdgeKind = 'chronology' | 'causality' | 'reference' | 'foreshadow';
 // book node, where works happen
 export interface BookNodeRecord {
   id: string;
-  parent_id?: string | null; // stage - chapter - scene - beat
+  parent_id?: string | null; // Stage or any NodeType. Stage has null parent_id
   title: string;
   project_id: string;
   type: NodeType;
@@ -18,19 +18,19 @@ export interface BookNodeRecord {
 }
 
 // tag for each story node
-export interface NodeTag {
+export interface NodeTagRecord {
   id: string;
   name: string;
   node_id: string;
 }
 
 // relations between nodes on the same level
-export interface NodeEdge {
+export interface NodeEdgeRecord {
   id: string;
   project_id: string;
   src_node_id: string; // same level
   dst_node_id: string;
-  kind: 'chronology' | 'causality' | 'reference' | 'foreshadow';
+  kind: NodeEdgeKind;
   label?: string | null;
   weight: number;
   created_at: string;
@@ -39,7 +39,7 @@ export interface NodeEdge {
 
 
 // book elements adhere to story nodes through links
-export interface ElementNodeLink {
+export interface ElementNodeLinkRecord {
   id: string;
   node_id: string;
   element_id: string;

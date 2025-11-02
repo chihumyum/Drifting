@@ -1,4 +1,6 @@
-import { DEFAULT_BOOK_NODE_STATUS, toBookNode, toBookNodeEdge, type BookNode, type BookNodeEdge } from '../domain/book_node';
+// operations related to book nodes & node edges
+import type {BookNode, BookNodeEdge } from '../domain/book_node';
+import { DEFAULT_BOOK_NODE_STATUS } from '../repositories/book_node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
 import type { NodeType } from '../schema/book_node';
 
@@ -17,17 +19,16 @@ function getNow(deps: BookNodeUsecaseDeps) {
 }
 
 export async function loadBookNodes(deps: BookNodeUsecaseDeps, options?: { projectId?: string; type?: NodeType }) {
-  const records = options?.type
+  const nodes = options?.type
     ? await deps.nodeRepo.findAllByType(options.type, options?.projectId)
     : await deps.nodeRepo.findAll(options?.projectId);
-  const nodes = records.map(toBookNode).sort((a, b) => a.orderKey - b.orderKey);
-  deps.setNodes(nodes);
-  return nodes;
+  const sorted = nodes.slice().sort((a, b) => a.orderKey - b.orderKey);
+  deps.setNodes(sorted);
+  return sorted;
 }
 
 export async function loadBookNodeEdges(deps: BookNodeUsecaseDeps, projectId?: string) {
-  const records = await deps.edgeRepo.findAll(projectId);
-  const edges = records.map(toBookNodeEdge);
+  const edges = await deps.edgeRepo.findAll(projectId);
   deps.setEdges(edges);
   return edges;
 }
@@ -50,21 +51,20 @@ export async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBoo
   const maxOrder = filtered.reduce((max, node) => Math.max(max, node.orderKey), Number.NEGATIVE_INFINITY);
   const nextOrder = Number.isFinite(maxOrder) ? maxOrder + 1 : 1;
 
-  const record = await deps.nodeRepo.create({
+  const created = await deps.nodeRepo.create({
     title: input.title,
     type: input.type ?? 'chapter',
-    project_id: input.projectId,
-    parent_id: input.parentId ?? null,
-    order_key: input.orderKey ?? nextOrder,
+    projectId: input.projectId,
+    parentId: input.parentId ?? null,
+    orderKey: input.orderKey ?? nextOrder,
     status: input.status ?? DEFAULT_BOOK_NODE_STATUS,
     summary: input.summary ?? null,
-    pos_x: input.position?.x ?? null,
-    pos_y: input.position?.y ?? null,
-    created_at: now.toISOString(),
-    updated_at: now.toISOString(),
+    position: input.position,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
   });
 
-  const node = toBookNode(record);
+  const node = created;
   const nextNodes = [...nodes, node].sort((a, b) => a.orderKey - b.orderKey);
   deps.setNodes(nextNodes);
   return node;
@@ -79,7 +79,7 @@ export async function renameBookNode(deps: BookNodeUsecaseDeps, id: string, titl
   deps.updateNode(id, { title, updatedAt: now });
 
   try {
-    await deps.nodeRepo.update(id, { title, updated_at: now });
+    await deps.nodeRepo.update(id, { title, updatedAt: now });
   } catch (error) {
     deps.setNodes(prevNodes);
     throw error;
@@ -134,7 +134,7 @@ export async function updateBookNodePosition(
   deps.updateNode(id, { position, updatedAt: nowIso });
 
   try {
-    await deps.nodeRepo.update(id, { pos_x: position.x, pos_y: position.y, updated_at: nowIso });
+    await deps.nodeRepo.update(id, { position, updatedAt: nowIso });
   } catch (error) {
     deps.setNodes(prevNodes);
     throw error;

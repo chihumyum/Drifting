@@ -46,7 +46,8 @@ components/ # 章节导航、实体列表、侧栏等界面模块
 views/ # 路由页(章节画布、编辑器、设定库等), 日后拆一下
 store/ # Zustand 状态树
 lib/ # SQLite 工具、事件总线、Schema 常量
+usecase/ # 封装repository操作给UI层
+repository/ # domain 操作 -> 转record -> 持久化
+domain/ # 最前的业务层抽象
 schema/ # 持久层的抽象
-domain/ # 业务层的抽象
-repository/ # 业务层 - 持久层 bridge
 workers/ # SQLite Wasm Web Worker

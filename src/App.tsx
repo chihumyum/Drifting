@@ -68,7 +68,7 @@ function Layout() {
 
         </div>
 
-        <main
+        {/* <main
           style={{
             position: 'relative',
             overflow: 'hidden',
@@ -76,7 +76,7 @@ function Layout() {
           }}
         >
           <Outlet />
-        </main>
+        </main> */}
 
         <aside
           style={{
