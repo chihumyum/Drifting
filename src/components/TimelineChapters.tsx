@@ -11,13 +11,15 @@ const PROJECT_ID = 'default-project';
 // Timeline 配置
 const TIMELINE_CONFIG = {
   GRID_UNIT: 40, // 每个 order_key 单位占用的像素宽度（像视频剪辑软件的网格）
-  NODE_WIDTH: 80, // 节点固定宽度（不随展开/收起变化）
+  NODE_MIN_WIDTH: 40, // 节点最小宽度（1个网格单位）
+  NODE_DEFAULT_DURATION: 2, // 节点默认持续时长（2个网格单位 = 80px）
   NODE_MIN_HEIGHT: 24, // 节点最小高度（太小就不显示文字）
   NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
   NODE_COMPACT_HEIGHT: 32, // 收起时节点理想高度
   THREAD_PADDING: 8, // 每个 thread 行的上下内边距
   THREAD_GAP: 4, // thread 之间的间隔
   TIMELINE_PADDING: 16, // Timeline 左右内边距
+  RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
 
 interface TimelineNode extends BookNode {
@@ -42,7 +44,29 @@ export function TimelineChapters() {
   const [needsScroll, setNeedsScroll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ nodeId: string; threadId: string } | null>(null);
   
+  // 节点边缘 hover 状态
+  const [hoveredEdge, setHoveredEdge] = useState<{ nodeId: string; edge: 'left' | 'right' } | null>(null);
+  
+  // 节点持续时长（以 grid 单位计）- 使用 Map 存储每个节点的 duration
+  const [nodeDurations, setNodeDurations] = useState<Map<string, number>>(new Map());
+  
+  // 调整大小的状态
+  const [resizingNode, setResizingNode] = useState<{
+    nodeId: string;
+    threadId: string;
+    edge: 'left' | 'right';
+    startX: number;
+    startOrderKey: number;
+    startDuration: number;
+  } | null>(null);
+  
   const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // 获取节点宽度（像素）
+  const getNodeWidth = (nodeId: string): number => {
+    const duration = nodeDurations.get(nodeId) || TIMELINE_CONFIG.NODE_DEFAULT_DURATION;
+    return duration * TIMELINE_CONFIG.GRID_UNIT;
+  };
 
   // 计算最大 order_key
   const maxOrderKey = Math.max(...nodesWithThreads.map(n => n.orderKey), 0);
@@ -124,14 +148,18 @@ export function TimelineChapters() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     
-    if (!timelineRef.current) return;
+    if (!timelineRef.current || !draggedNode) return;
     
     const rect = timelineRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const relativeX = x - TIMELINE_CONFIG.TIMELINE_PADDING;
+    const mouseX = e.clientX - rect.left; // 鼠标相对于 timeline 的位置
+    
+    // 从鼠标位置（节点中心）反推节点左边缘的位置
+    const nodeWidth = getNodeWidth(draggedNode.node.id);
+    const nodeLeftX = mouseX - nodeWidth / 2;
+    const relativeX = nodeLeftX - TIMELINE_CONFIG.TIMELINE_PADDING;
     const orderKey = Math.max(1, Math.round(relativeX / TIMELINE_CONFIG.GRID_UNIT) + 1);
     
-    setDragOverPosition({ threadId, orderKey, x });
+    setDragOverPosition({ threadId, orderKey, x: mouseX });
   };
 
   // Handle drop
@@ -171,6 +199,96 @@ export function TimelineChapters() {
     setDraggedNode(null);
     setDragOverPosition(null);
   };
+
+  // Handle resize start
+  const handleResizeStart = (e: React.MouseEvent, nodeId: string, threadId: string, edge: 'left' | 'right') => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const node = nodesWithThreads.find((n) => n.id === nodeId);
+    if (!node) return;
+    
+    const duration = nodeDurations.get(nodeId) || TIMELINE_CONFIG.NODE_DEFAULT_DURATION;
+    
+    setResizingNode({
+      nodeId,
+      threadId,
+      edge,
+      startX: e.clientX,
+      startOrderKey: node.orderKey,
+      startDuration: duration,
+    });
+  };
+
+  // Handle resize move - 添加到 document 上的监听
+  useEffect(() => {
+    let lastUpdateTime = 0;
+    const UPDATE_THROTTLE = 16; // ~60fps
+    
+    const handleResizeMove = (e: MouseEvent) => {
+      if (!resizingNode || !timelineRef.current) return;
+      
+      // 节流优化 - 限制更新频率
+      const now = Date.now();
+      if (now - lastUpdateTime < UPDATE_THROTTLE) return;
+      lastUpdateTime = now;
+      
+      const deltaX = e.clientX - resizingNode.startX;
+      const deltaGridUnits = Math.round(deltaX / TIMELINE_CONFIG.GRID_UNIT);
+      
+      if (resizingNode.edge === 'right') {
+        // 调整右侧 - 改变 duration
+        const newDuration = Math.max(1, resizingNode.startDuration + deltaGridUnits);
+        setNodeDurations((prev) => {
+          const next = new Map(prev);
+          next.set(resizingNode.nodeId, newDuration);
+          return next;
+        });
+      } else {
+        // 调整左侧 - 改变 orderKey 和 duration
+        const newOrderKey = Math.max(1, resizingNode.startOrderKey + deltaGridUnits);
+        const newDuration = Math.max(1, resizingNode.startDuration - deltaGridUnits);
+        
+        // 临时更新 duration（视觉反馈）
+        setNodeDurations((prev) => {
+          const next = new Map(prev);
+          next.set(resizingNode.nodeId, newDuration);
+          return next;
+        });
+        
+        // 临时更新节点位置（不写数据库，只在内存中）
+        setNodesWithThreads((prev) => 
+          prev.map((n) => 
+            n.id === resizingNode.nodeId ? { ...n, orderKey: newOrderKey } : n
+          )
+        );
+      }
+    };
+    
+    const handleResizeEnd = async () => {
+      if (resizingNode) {
+        // 调整结束后才写入数据库
+        const node = nodesWithThreads.find((n) => n.id === resizingNode.nodeId);
+        if (node && node.orderKey !== resizingNode.startOrderKey) {
+          await nodeUsecases.updateNode(resizingNode.nodeId, { orderKey: node.orderKey });
+        }
+        
+        // 重新加载数据确保同步
+        await nodeUsecases.loadNodes({ type: 'chapter' });
+        setResizingNode(null);
+      }
+    };
+    
+    if (resizingNode) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [resizingNode, nodeUsecases, nodesWithThreads]);
 
   // Handle remove node from thread
   const handleRemoveNodeFromThread = async (nodeId: string, threadId: string, e: React.MouseEvent) => {
@@ -275,28 +393,57 @@ export function TimelineChapters() {
     const isConfirmingDelete = showDeleteConfirm?.nodeId === node.id && showDeleteConfirm?.threadId === threadId;
     
     const leftPosition = orderKeyToPosition(node.orderKey);
+    const nodeWidth = getNodeWidth(node.id);
     const showText = nodeHeight >= TIMELINE_CONFIG.NODE_MIN_HEIGHT;
+    
+    // 检测当前节点是否有边缘 hover
+    const edgeHover = hoveredEdge?.nodeId === node.id ? hoveredEdge.edge : null;
+    
+    const handleMouseMove = (e: React.MouseEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const edgeWidth = TIMELINE_CONFIG.RESIZE_HANDLE_WIDTH;
+      
+      if (x <= edgeWidth) {
+        setHoveredEdge({ nodeId: node.id, edge: 'left' });
+      } else if (x >= nodeWidth - edgeWidth) {
+        setHoveredEdge({ nodeId: node.id, edge: 'right' });
+      } else {
+        setHoveredEdge(null);
+      }
+    };
 
     return (
       <div
         key={`${node.id}-${threadId}`}
-        draggable
+        draggable={!edgeHover}
         onDragStart={(e) => handleDragStart(e, node, threadId)}
         onDragEnd={handleDragEnd}
         onMouseEnter={() => {
           setHoveredNodeId(node.id);
           setHoveredThreadId(threadId);
         }}
+        onMouseMove={handleMouseMove}
         onMouseLeave={() => {
           setHoveredNodeId(null);
           setHoveredThreadId(null);
+          setHoveredEdge(null);
         }}
-        onClick={(e) => handleNodeClick(node.id, e)}
+        onMouseDown={(e) => {
+          if (edgeHover) {
+            handleResizeStart(e, node.id, threadId, edgeHover);
+          }
+        }}
+        onClick={(e) => {
+          if (!edgeHover) {
+            handleNodeClick(node.id, e);
+          }
+        }}
         style={{
           position: 'absolute',
           left: leftPosition,
           top: 0,
-          width: TIMELINE_CONFIG.NODE_WIDTH,
+          width: nodeWidth,
           height: nodeHeight,
           background: thread?.color || '#3B82F6',
           borderRadius: 6,
@@ -304,11 +451,17 @@ export function TimelineChapters() {
           display: 'flex',
           flexDirection: 'column',
           gap: showText ? 4 : 0,
-          cursor: 'grab',
+          cursor: edgeHover ? 'ew-resize' : 'grab',
           opacity: isDragging ? 0.5 : 1,
-          border: isSelected 
-            ? `2px solid #fff` 
-            : '2px solid transparent',
+          // 拆分 border 为单独的属性以避免冲突
+          borderTop: isSelected ? '2px solid #fff' : '2px solid transparent',
+          borderBottom: isSelected ? '2px solid #fff' : '2px solid transparent',
+          borderLeft: edgeHover === 'left' 
+            ? '3px solid rgba(255, 255, 255, 0.8)' 
+            : (isSelected ? '2px solid #fff' : '2px solid transparent'),
+          borderRight: edgeHover === 'right' 
+            ? '3px solid rgba(255, 255, 255, 0.8)' 
+            : (isSelected ? '2px solid #fff' : '2px solid transparent'),
           boxShadow: isSelected ? '0 0 0 2px rgba(255, 255, 255, 0.3)' : 'none',
           transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           overflow: 'visible',
@@ -394,7 +547,8 @@ export function TimelineChapters() {
     
     // 计算选中节点的有效添加区域
     const selectedNodeLeft = selectedNode ? orderKeyToPosition(selectedNode.orderKey) : 0;
-    const selectedNodeRight = selectedNodeLeft + TIMELINE_CONFIG.NODE_WIDTH;
+    const selectedNodeWidth = selectedNode ? getNodeWidth(selectedNode.id) : 0;
+    const selectedNodeRight = selectedNodeLeft + selectedNodeWidth;
     const isInValidAddZone = hoveredPosition?.threadId === thread.id && 
                              hoveredPosition.x >= selectedNodeLeft && 
                              hoveredPosition.x <= selectedNodeRight;
@@ -479,7 +633,7 @@ export function TimelineChapters() {
               onClick={(e) => handleAddSelectedNodeToThread(thread.id, e)}
               style={{
                 position: 'absolute',
-                left: orderKeyToPosition(selectedNode.orderKey) + TIMELINE_CONFIG.NODE_WIDTH / 2,
+                left: orderKeyToPosition(selectedNode.orderKey) + getNodeWidth(selectedNode.id) / 2,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
                 width: 32,
