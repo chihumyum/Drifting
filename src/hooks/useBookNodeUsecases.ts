@@ -9,6 +9,7 @@ import {
   renameBookNode,
   reorderBookNode,
   updateBookNodePosition,
+  updateBookNodeSummary,
   type CreateBookNodeInput,
 } from '../usecase/book_node';
 import { initDatabase } from '../lib/db';
@@ -59,6 +60,10 @@ export function useBookNodeUsecases() {
       if (!position) return;
       await ensureDb();
       return updateBookNodePosition(deps, id, position);
+    },
+    updateNodeSummary: async (id: string, summary: string | null) => {
+      await ensureDb();
+      return updateBookNodeSummary(deps, id, summary);
     },
     _deps: deps,
   }), [deps, ensureDb]);

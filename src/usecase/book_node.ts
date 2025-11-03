@@ -11,6 +11,7 @@ export {
   renameBookNode,
   reorderBookNode,
   updateBookNodePosition,
+  updateBookNodeSummary,
 };
 
 export interface BookNodeUsecaseDeps {
@@ -145,6 +146,22 @@ async function updateBookNodePosition(
 
   try {
     await deps.nodeRepo.update(id, { position, updatedAt: nowIso });
+  } catch (error) {
+    deps.setNodesState(prevNodes);
+    throw error;
+  }
+}
+
+async function updateBookNodeSummary(deps: BookNodeUsecaseDeps, id: string, summary: string | null) {
+  const now = getNow(deps).toISOString();
+  const prevNodes = deps.getNodesState().slice();
+  const existing = prevNodes.find((node) => node.id === id);
+  if (!existing) throw new Error(`Book node ${id} not found`);
+
+  deps.updateNodeState(id, { summary, updatedAt: now });
+
+  try {
+    await deps.nodeRepo.update(id, { summary, updatedAt: now });
   } catch (error) {
     deps.setNodesState(prevNodes);
     throw error;

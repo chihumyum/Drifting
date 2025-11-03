@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -8,6 +8,8 @@ import { createDefaultSlashMenu } from '@chi-hum/tiptap-simple-slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
+import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
+import type { BookNode } from '../../domain/book_node';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -22,26 +24,42 @@ export function EditorView() {
   const navigate = useNavigate();
   const { nodeId } = useParams<{ nodeId: string }>();
   const {
-    selectedNodeId,
     setSelectedNodeId,
     bookContent,
+    bookNodes,
   } = useAppStore();
 
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
-  
-  // Track if content has been loaded to prevent premature saves
+  const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
+  const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
+  const [summaryValue, setSummaryValue] = useState('');
+
+
   const isContentLoadedRef = useRef(false);
 
-  // get nodeId from url
+  // Load nodes on mount if not already loaded
+  useEffect(() => {
+    if (bookNodes.length === 0) {
+      void loadNodes({ type: 'chapter' });
+    }
+  }, [bookNodes.length, loadNodes]);
+
+  // get nodeId from url and update current node
   useEffect(() => {
     if (!nodeId) {
       navigate('/', { replace: true });
       return;
     }
-    if (selectedNodeId !== nodeId) {
-      setSelectedNodeId(nodeId);
-    }
-  }, [nodeId, navigate, selectedNodeId, setSelectedNodeId]);
+    
+    setSelectedNodeId(nodeId);
+    const node = bookNodes.find(n => n.id === nodeId) || null;
+    setCurNode(node);
+    setTitleValue(node?.title || '');
+    setSummaryValue(node?.summary || '');
+  }, [bookNodes, nodeId, navigate, setSelectedNodeId]);
 
 
   // load content when nodeId changes
@@ -190,7 +208,133 @@ export function EditorView() {
           padding: '40px 56px 48px 56px',
         }}
       >
+        {/* Title and Summary Header */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-start',
+          gap: '24px',
+          marginBottom: '20px',
+        }}>
+          {/* Title - Left */}
+          <div style={{ flex: 1 }}>
+            {editingTitle ? (
+              <input
+                type="text"
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={() => {
+                  setEditingTitle(false);
+                  if (curNode?.id && titleValue.trim() && titleValue !== curNode.title) {
+                    void renameNode(curNode.id, titleValue.trim());
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    setTitleValue(curNode?.title || '');
+                    setEditingTitle(false);
+                  }
+                }}
+                autoFocus
+                style={{
+                  width: '100%',
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: '#1a1625',
+                  border: '2px solid #8b7fa8',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  outline: 'none',
+                  background: '#fff',
+                }}
+              />
+            ) : (
+              <div
+                onClick={() => setEditingTitle(true)}
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  color: '#1a1625',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  transition: 'background 0.15s ease',
+                  minHeight: 48,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                {titleValue}
+              </div>
+            )}
+          </div>
 
+          {/* Summary - Right */}
+          <div style={{ flex: 1 }}>
+            {editingSummary ? (
+              <textarea
+                value={summaryValue}
+                onChange={(e) => setSummaryValue(e.target.value)}
+                onBlur={() => {
+                  setEditingSummary(false);
+                  if (curNode?.id && summaryValue !== (curNode.summary || '')) {
+                    void updateNodeSummary(curNode.id, summaryValue.trim() || null);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSummaryValue(curNode?.summary || '');
+                    setEditingSummary(false);
+                  }
+                }}
+                autoFocus
+                style={{
+                  width: '100%',
+                  minHeight: 80,
+                  fontSize: 14,
+                  fontWeight: 400,
+                  color: '#4a4358',
+                  border: '2px solid #8b7fa8',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  outline: 'none',
+                  background: '#fff',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
+              />
+            ) : (
+              <div
+                onClick={() => setEditingSummary(true)}
+                style={{
+                  fontSize: 14,
+                  fontWeight: 400,
+                  color: '#4a4358',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  transition: 'background 0.15s ease',
+                  minHeight: 48,
+                  lineHeight: 1.6,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                {summaryValue}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div
           style={{
