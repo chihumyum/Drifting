@@ -3,15 +3,16 @@ import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
 import { EditorView } from './views/Editor/EditorView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
-import { ChapterNavigator } from './components/ChapterNavigator';
 import { ElementPanel } from './components/ElementPanel';
+import { AppSidebar } from './components/AppSidebar';
+import { TimelineChapters } from './components/TimelineChapters';
 import { DEFAULT_PROJECT } from './schema/table';
 
 
 function Layout() {
-
   const location = useLocation();
   const isEditorRoute = location.pathname.includes('/editor');
+  
   useEffect(() => {
     initDatabase(DEFAULT_PROJECT.id).then(() => {
       events.emit('db:ready');
@@ -20,70 +21,56 @@ function Layout() {
       events.emit('db:error', { error: error.message });
     });
   }, []);
+
   return (
-    <div>
+    <div style={{ height: '100vh', overflow: 'hidden', background: '#f4f2f6' }}>
       <div
         style={{
-          height: '100vh',
+          height: 'calc(100vh - 120px)', // Leave space for timeline at bottom
           display: 'grid',
-          gridTemplateColumns: isEditorRoute
-            ? '320px 1fr'
-            : '320px 1fr',
-          transition: 'grid-template-columns 0.3s ease',
-          backgroundColor: '#f4f2f6',
-          overflow: 'hidden'
+          gridTemplateColumns: '280px 1fr',
+          overflow: 'hidden',
         }}
       >
-
+        {/* Left Sidebar - Combined App Menu + Element Panel */}
         <div
           style={{
-            padding: '22px 16px',
-            overflow: 'visible',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            gap: 20,
-            background: 'transparent',
+            background: 'linear-gradient(180deg, rgba(248, 246, 252, 0.98) 0%, rgba(252, 250, 255, 0.98) 100%)',
+            borderRight: '1px solid rgba(200, 190, 220, 0.3)',
           }}
         >
-          <div
-            style={{
-              width: 280,
-              borderRadius: 24,
-              background: '#ffffff',
-              boxShadow: '0 24px 48px rgba(40, 32, 70, 0.12)',
-              overflow: 'hidden',
-              position: 'relative',
-              zIndex: 3,
-            }}
-          >
-            <ChapterNavigator />
+          {/* App Menu Section - Top 1/4 */}
+          <div style={{ height: '25%', minHeight: 200 }}>
+            <AppSidebar />
           </div>
 
-          <div style={{ position: 'relative', width: 280, flex: 1, minHeight: 0, overflow: 'visible' }}>
+          {/* Element Panel Section - Bottom 3/4 */}
+          <div style={{ 
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
+            borderTop: '1px solid rgba(200, 190, 220, 0.25)',
+          }}>
             <ElementPanel />
           </div>
-
         </div>
 
+        {/* Main Content Area */}
         <main
           style={{
             position: 'relative',
             overflow: 'hidden',
-            background: 'transparent',
+            background: isEditorRoute ? 'rgba(245, 243, 250, 0.5)' : 'transparent',
           }}
         >
           <Outlet />
         </main>
-
-        <aside
-          style={{
-            borderLeft: '1px solid rgba(220,210,230,0.5)',
-            background: isEditorRoute ? 'rgba(255,255,255,0.6)' : 'transparent'
-          }}
-        />
       </div>
 
+      {/* Timeline Chapters - Fixed at bottom, full width */}
+      <TimelineChapters />
     </div>
   );
 }

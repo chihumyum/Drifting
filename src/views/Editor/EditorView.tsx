@@ -10,6 +10,7 @@ import { useAppStore } from '../../store';
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 import type { BookNode } from '../../domain/book_node';
+import { EditorMenuBar } from './EditorMenuBar';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -357,18 +358,19 @@ export function EditorView() {
             boxShadow: '0 30px 60px rgba(31, 26, 58, 0.12)',
             padding: '32px 38px',
             minHeight: 520,
+            maxHeight: 'calc(100vh - 400px)',
+            overflow: 'auto',
             transition: 'opacity 0.2s ease',
           }}
         >
           <EditorContent
             editor={editor}
-            style={{
-              background: 'transparent',
-              minHeight: 440,
-            }}
           />
         </div>
       </div>
+
+      {/* Floating Menu Bar */}
+      <EditorMenuBar editor={editor} />
     </div>
   );
 }

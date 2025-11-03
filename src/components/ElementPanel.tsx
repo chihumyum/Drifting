@@ -70,57 +70,303 @@ export function ElementPanel() {
   }, [loadInitial]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#faf9fa', borderRight: '1px solid #e2dfea' }}>
-      <div style={{ padding: 12, borderBottom: '1px solid #e4e0eb', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={{ padding: '4px 8px', fontSize: 12 }}>
-          <option value="all">全部类别</option>
-          {categoryNames.map(name => <option key={name} value={name}>{name}</option>)}
-        </select>
-        <button onClick={beginCreate} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#3a855a', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>
-          <Plus size={14} /> 新建
-        </button>
+    <div style={{ 
+      height: '100%',
+      display: 'flex', 
+      flexDirection: 'column',
+      padding: '20px',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '20px',
+        flexShrink: 0,
+      }}>
+        <h2 style={{
+          fontSize: '20px',
+          fontWeight: '700',
+          color: '#2d2438',
+          margin: 0,
+        }}>
+          Story Elements
+        </h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              fontSize: 13,
+              border: '1px solid rgba(180, 170, 200, 0.3)',
+              borderRadius: 8,
+              background: '#fff',
+              color: '#3a2d4a',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="all">All Categories</option>
+            {categoryNames.map(name => <option key={name} value={name}>{name}</option>)}
+          </select>
+          <button
+            onClick={beginCreate}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              padding: '8px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+            }}
+          >
+            <Plus size={16} /> New
+          </button>
+        </div>
       </div>
 
+      {/* Create Form */}
       {creating && (
-        <div style={{ padding: 12, borderBottom: '1px solid #e4e0eb', background: '#fff', display: 'flex', gap: 8 }}>
-          <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="名称" style={{ flex: 1, fontSize: 12, padding: '6px 8px', border: '1px solid #d4c8d4', borderRadius: 6 }} />
-          <select value={formCategory} onChange={e => setFormCategory(e.target.value)} style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #d4c8d4', borderRadius: 6 }}>
-            {categoryNames.map(name => <option key={name}>{name}</option>)}
-          </select>
-          <button onClick={submitCreate} style={{ background: '#3a855a', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>保存</button>
-          <button onClick={cancelCreate} style={{ background: '#eee', color: '#333', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer' }}>取消</button>
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid rgba(200, 190, 220, 0.3)',
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+              placeholder="Element name..."
+              autoFocus
+              style={{
+                fontSize: 13,
+                padding: '10px 12px',
+                border: '2px solid rgba(102, 126, 234, 0.3)',
+                borderRadius: 8,
+                outline: 'none',
+                background: '#fff',
+              }}
+            />
+            <select
+              value={formCategory}
+              onChange={e => setFormCategory(e.target.value)}
+              style={{
+                fontSize: 13,
+                padding: '10px 12px',
+                border: '1px solid rgba(180, 170, 200, 0.3)',
+                borderRadius: 8,
+                background: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              {categoryNames.map(name => <option key={name}>{name}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={submitCreate}
+                style={{
+                  flex: 1,
+                  background: '#667eea',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Create
+              </button>
+              <button
+                onClick={cancelCreate}
+                style={{
+                  flex: 1,
+                  background: 'rgba(150, 140, 180, 0.1)',
+                  color: '#6a5d7a',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Elements List */}
+      <div style={{
+        flex: 1,
+        overflow: 'auto',
+        padding: '16px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}>
         {filtered.map(el => {
           const selected = el.id === selectedBookElementId;
           return (
-            <div key={el.id} style={{ border: selected ? '2px solid #3a855a' : '1px solid #e2dfea', background: '#fff', padding: '10px 12px', borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div
+              key={el.id}
+              style={{
+                border: selected ? '2px solid #667eea' : '1px solid rgba(200, 190, 220, 0.25)',
+                background: selected ? 'rgba(102, 126, 234, 0.05)' : '#fff',
+                padding: '14px 16px',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                boxShadow: selected ? '0 4px 16px rgba(102, 126, 234, 0.15)' : '0 2px 8px rgba(100, 90, 120, 0.08)',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer',
+              }}
+              onClick={() => !editingId && setSelectedBookElementId(el.id)}
+              onMouseEnter={(e) => {
+                if (!selected) {
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 90, 120, 0.12)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!selected) {
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(100, 90, 120, 0.08)';
+                }
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 {editingId === el.id ? (
-                  <input value={editingName} onChange={e => setEditingName(e.target.value)} style={{ flex: 1, fontSize: 13, padding: '4px 6px', border: '1px solid #d4c8d4', borderRadius: 6 }} />
+                  <input
+                    value={editingName}
+                    onChange={e => setEditingName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      flex: 1,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      padding: '6px 8px',
+                      border: '2px solid #667eea',
+                      borderRadius: 6,
+                      outline: 'none',
+                    }}
+                  />
                 ) : (
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#352f3b', cursor: 'pointer' }} onClick={() => setSelectedBookElementId(el.id)}>{el.name}</div>
+                  <div style={{
+                    flex: 1,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: selected ? '#667eea' : '#2d1f3a',
+                  }}>
+                    {el.name}
+                  </div>
                 )}
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                   {editingId === el.id ? (
-                    <button onClick={submitEdit} style={{ background: '#3a6ea5', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>保存</button>
+                    <button
+                      onClick={submitEdit}
+                      style={{
+                        background: '#667eea',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Save
+                    </button>
                   ) : (
-                    <button onClick={() => startEdit(el)} style={{ background: '#ece7f6', color: '#51415f', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer' }} title="重命名"><Edit2 size={14} /></button>
+                    <button
+                      onClick={() => startEdit(el)}
+                      style={{
+                        background: 'rgba(102, 126, 234, 0.1)',
+                        color: '#667eea',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Edit"
+                    >
+                      <Edit2 size={14} />
+                    </button>
                   )}
-                  <button onClick={() => deleteElement(el.id)} style={{ background: '#f7e4e4', color: '#a33a3a', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer' }} title="删除"><Trash2 size={14} /></button>
+                  <button
+                    onClick={() => deleteElement(el.id)}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: '#ef4444',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: '#736878', display: 'flex', justifyContent: 'space-between' }}>
-                <span>类别：{el.category}</span>
-                <span style={{ fontStyle: 'italic' }}>更新时间：{new Date(el.updatedAt).toLocaleDateString()}</span>
+              <div style={{
+                fontSize: 11,
+                color: '#8a7d9a',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{
+                  background: 'rgba(102, 126, 234, 0.1)',
+                  color: '#667eea',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  fontWeight: 600,
+                }}>
+                  {el.category}
+                </span>
+                <span>{new Date(el.updatedAt).toLocaleDateString()}</span>
               </div>
             </div>
           );
         })}
         {filtered.length === 0 && (
-          <div style={{ fontSize: 12, color: '#9b8ea8', padding: 12 }}>暂无记录</div>
+          <div style={{
+            fontSize: 13,
+            color: '#9b8ea8',
+            padding: '32px 20px',
+            textAlign: 'center',
+            background: 'rgba(255, 255, 255, 0.5)',
+            borderRadius: 12,
+            border: '1px dashed rgba(150, 140, 180, 0.3)',
+          }}>
+            No elements yet. Click "New" to create one.
+          </div>
         )}
       </div>
     </div>
