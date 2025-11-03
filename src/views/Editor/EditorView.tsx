@@ -11,14 +11,7 @@ import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
-  content: [
-    {
-      type: 'paragraph',
-      content: [
-        { type: 'text', text: '开始写作...' },
-      ],
-    },
-  ],
+  content: [],
 });
 
 function getDefaultDoc(): JSONContent {
@@ -35,6 +28,9 @@ export function EditorView() {
   } = useAppStore();
 
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
+  
+  // Track if content has been loaded to prevent premature saves
+  const isContentLoadedRef = useRef(false);
 
   // get nodeId from url
   useEffect(() => {
@@ -52,12 +48,17 @@ export function EditorView() {
   useEffect(() => {
     if (!nodeId) return;
 
+    // Reset flag when switching nodes
+    isContentLoadedRef.current = false;
+    
     void (async () => {
       try {
         await loadContent(nodeId);
-        console.log('Really Loaded content for node', nodeId, "?");
+        // Mark content as loaded after successful load
+        isContentLoadedRef.current = true;
       } catch (error) {
         console.error('Failed to load chapter content', error);
+        isContentLoadedRef.current = true; // Still mark as loaded to allow editing
       }
     })();
   }, [loadContent, nodeId]);
@@ -85,18 +86,21 @@ export function EditorView() {
       },
     },
     onUpdate: ({ editor: ed }) => {
+      // Don't save until initial content is loaded
+      if (!isContentLoadedRef.current) {
+        console.log('Skipping save: content not yet loaded');
+        return;
+      }
+      
       const json = ed.getJSON();
       const pmJson = JSON.stringify(json);
-      console.log('Json to update', pmJson);
       if (pmJson === bookContent?.pmJson) return;
-      console.log(`BookContent is ${bookContent?.pmJson}, bookContent id is ${bookContent?.id}`);
       if (bookContent && bookContent.id) {
         void updateContent({
           id: bookContent.id,
           nodeId: bookContent.nodeId,
           pmJson,
         });
-        console.log(`Updated for ${bookContent.id}, content is now ${bookContent.pmJson}`);
       } else {
         if (!nodeId) return;
         console.log('Creating new content for node', nodeId);
@@ -115,8 +119,7 @@ export function EditorView() {
       console.log('No nodeId provided');
       return;
     }
-    console.log('Current book content: ', bookContent, ' for nodeId ', nodeId);
-    if (bookContent?.nodeId !== nodeId) {
+    if (bookContent && bookContent.nodeId !== nodeId) {
       console.log('Book content nodeId does not match current nodeId');
       return;
     }
@@ -133,6 +136,12 @@ export function EditorView() {
       console.log('No content found, setting to default doc');
       editor.commands.setContent(getDefaultDoc());
     }
+    
+    // Mark content as fully loaded after setting it in the editor
+    // Use a small delay to ensure the editor has processed the content
+    setTimeout(() => {
+      isContentLoadedRef.current = true;
+    }, 0);
   }, [bookContent, editor, nodeId]);
 
   return (
