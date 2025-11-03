@@ -40,3 +40,8 @@
 .read-the-docs {
   color: #888;
 }
+
+/* 隐藏 timeline 滚动条 - Webkit (Chrome, Safari, Edge) */
+.timeline-scroll-container::-webkit-scrollbar {
+  display: none;
+}

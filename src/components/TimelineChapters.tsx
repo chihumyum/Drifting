@@ -16,8 +16,8 @@ const TIMELINE_CONFIG = {
   NODE_MIN_HEIGHT: 24, // 节点最小高度（太小就不显示文字）
   NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
   NODE_COMPACT_HEIGHT: 32, // 收起时节点理想高度
-  THREAD_PADDING: 8, // 每个 thread 行的上下内边距
-  THREAD_GAP: 4, // thread 之间的间隔
+  THREAD_PADDING: 4, // 每个 thread 行的上下内边距（减小以更紧凑）
+  THREAD_GAP: 2, // thread 之间的间隔（减小以更紧凑）
   TIMELINE_PADDING: 16, // Timeline 左右内边距
   RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
@@ -148,16 +148,19 @@ export function TimelineChapters() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     
-    if (!timelineRef.current || !draggedNode) return;
+    if (!draggedNode) return;
     
-    const rect = timelineRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left; // 鼠标相对于 timeline 的位置
+    // 获取节点容器的位置（不是整个 timeline）
+    const container = (e.currentTarget as HTMLElement).querySelector('[data-node-container]') as HTMLElement;
+    if (!container) return;
+    
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left; // 鼠标相对于节点容器的位置
     
     // 从鼠标位置（节点中心）反推节点左边缘的位置
     const nodeWidth = getNodeWidth(draggedNode.node.id);
     const nodeLeftX = mouseX - nodeWidth / 2;
-    const relativeX = nodeLeftX - TIMELINE_CONFIG.TIMELINE_PADDING;
-    const orderKey = Math.max(1, Math.round(relativeX / TIMELINE_CONFIG.GRID_UNIT) + 1);
+    const orderKey = Math.max(1, Math.round(nodeLeftX / TIMELINE_CONFIG.GRID_UNIT) + 1);
     
     setDragOverPosition({ threadId, orderKey, x: mouseX });
   };
@@ -538,8 +541,7 @@ export function TimelineChapters() {
   // Render a single thread row using absolute positioning
   const renderThreadRow = (thread: StoryThread) => {
     const nodesInThread = nodesWithThreads.filter((n) => n.threads.some((t) => t.id === thread.id));
-    const headerHeight = isExpanded ? 20 : 0;
-    const rowHeight = nodeHeight + TIMELINE_CONFIG.THREAD_PADDING * 2 + headerHeight;
+    const rowHeight = nodeHeight + TIMELINE_CONFIG.THREAD_PADDING * 2;
     
     // 检查选中的节点是否属于当前 thread
     const selectedNode = nodesWithThreads.find((n) => n.id === selectedNodeId);
@@ -577,34 +579,35 @@ export function TimelineChapters() {
         }}
         style={{
           position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
           height: rowHeight,
           marginBottom: TIMELINE_CONFIG.THREAD_GAP,
-          paddingLeft: TIMELINE_CONFIG.TIMELINE_PADDING,
+          gap: 12,
         }}
       >
-        {/* Thread label */}
-        {isExpanded && (
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: thread.color,
-              marginBottom: 6,
-              height: headerHeight,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            {thread.name}
-          </div>
-        )}
+        {/* Thread label - 放在左侧 */}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: thread.color,
+            minWidth: 60,
+            textAlign: 'right',
+            paddingRight: 8,
+            opacity: isExpanded ? 1 : 0.6,
+            transition: 'opacity 0.3s',
+          }}
+        >
+          {thread.name}
+        </div>
 
         {/* Node container with absolute positioning */}
         <div
           data-node-container
           style={{
             position: 'relative',
-            width: '100%',
+            flex: 1,
             height: nodeHeight,
             background: 'rgba(255, 255, 255, 0.02)',
             borderRadius: 4,
@@ -717,7 +720,13 @@ export function TimelineChapters() {
           overflowX: 'auto',
           overflowY: isExpanded && needsScroll ? 'auto' : 'hidden',
           paddingRight: 12,
+          // 隐藏滚动条但保持滚动功能
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none', // IE and Edge
+          WebkitOverflowScrolling: 'touch', // iOS smooth scrolling
         }}
+        // 隐藏滚动条 - Webkit (Chrome, Safari)
+        className="timeline-scroll-container"
       >
         {threads.length > 0 ? (
           threads.map((thread) => renderThreadRow(thread))
