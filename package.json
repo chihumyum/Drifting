@@ -26,11 +26,12 @@
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.1",
     "vite-plugin-pwa": "^1.0.3",
-    "zustand": "^5.0.8",
-    "wa-sqlite": "git+https://github.com/chihumyum/wa-sqlite"
+    "wa-sqlite": "git+https://github.com/chihumyum/wa-sqlite",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.0",

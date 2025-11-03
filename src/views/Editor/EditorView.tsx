@@ -39,6 +39,7 @@ export function EditorView() {
 
 
   const isContentLoadedRef = useRef(false);
+  const loadedNodeIdRef = useRef<string | null>(null);
 
   // Load nodes on mount if not already loaded
   useEffect(() => {
@@ -68,15 +69,18 @@ export function EditorView() {
 
     // Reset flag when switching nodes
     isContentLoadedRef.current = false;
+    loadedNodeIdRef.current = null;
     
     void (async () => {
       try {
         await loadContent(nodeId);
         // Mark content as loaded after successful load
         isContentLoadedRef.current = true;
+        loadedNodeIdRef.current = nodeId;
       } catch (error) {
         console.error('Failed to load chapter content', error);
         isContentLoadedRef.current = true; // Still mark as loaded to allow editing
+        loadedNodeIdRef.current = nodeId;
       }
     })();
   }, [loadContent, nodeId]);
@@ -127,7 +131,7 @@ export function EditorView() {
     },
   });
 
-  // load set book content into editor
+  // initial load, set book content into editor ONLY when nodeId changes
   useEffect(() => {
     if (!editor) {
       console.log('Editor not ready yet');
@@ -137,10 +141,18 @@ export function EditorView() {
       console.log('No nodeId provided');
       return;
     }
+    
+    // Only set content if we haven't loaded this nodeId yet
+    if (loadedNodeIdRef.current === nodeId) {
+      console.log('Content already loaded for this nodeId, skipping setContent');
+      return;
+    }
+    
     if (bookContent && bookContent.nodeId !== nodeId) {
       console.log('Book content nodeId does not match current nodeId');
       return;
     }
+    
     if (bookContent) {
       try {
         const doc = JSON.parse(bookContent.pmJson) as JSONContent;
@@ -159,6 +171,7 @@ export function EditorView() {
     // Use a small delay to ensure the editor has processed the content
     setTimeout(() => {
       isContentLoadedRef.current = true;
+      loadedNodeIdRef.current = nodeId;
     }, 0);
   }, [bookContent, editor, nodeId]);
 
