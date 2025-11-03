@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/book_node_sqlite';
+import { StoryThreadSQLiteRepository } from '../repositories/story_thread_sqlite';
 import type { BookNodeUsecaseDeps } from '../usecase/book_node';
+import type { BookNode } from '../domain/book_node';
 import {
   createBookNode,
   loadBookNodeEdges,
@@ -10,6 +12,8 @@ import {
   reorderBookNode,
   updateBookNodePosition,
   updateBookNodeSummary,
+  updateBookNode,
+  deleteBookNode,
   type CreateBookNodeInput,
 } from '../usecase/book_node';
 import { initDatabase } from '../lib/db';
@@ -21,9 +25,11 @@ export function useBookNodeUsecases() {
   const depsRef = useRef<BookNodeUsecaseDeps | null>(null);
 
   if (!depsRef.current) {
+    const threadRepo = new StoryThreadSQLiteRepository();
     depsRef.current = {
       nodeRepo: createBookNodeSqliteRepository(PROJECT_ID),
       edgeRepo: createBookNodeEdgeSqliteRepository(PROJECT_ID),
+      threadRepo,
       getNodesState: () => store.getState().bookNodes,
       setNodesState: (nodes) => store.getState().setBookNodes(nodes),
       updateNodeState: (id, updates) => store.getState().updateBookNode(id, updates),
@@ -64,6 +70,14 @@ export function useBookNodeUsecases() {
     updateNodeSummary: async (id: string, summary: string | null) => {
       await ensureDb();
       return updateBookNodeSummary(deps, id, summary);
+    },
+    updateNode: async (id: string, updates: Partial<BookNode>) => {
+      await ensureDb();
+      return updateBookNode(deps, id, updates);
+    },
+    deleteNode: async (id: string) => {
+      await ensureDb();
+      return deleteBookNode(deps, id);
     },
     _deps: deps,
   }), [deps, ensureDb]);

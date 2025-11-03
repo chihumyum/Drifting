@@ -1,208 +1,586 @@
-import { useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
+import type { StoryThread } from '../domain/story_thread';
+import type { BookNode } from '../domain/book_node';
+
+const PROJECT_ID = 'default-project';
+
+// Timeline 配置
+const TIMELINE_CONFIG = {
+  GRID_UNIT: 40, // 每个 order_key 单位占用的像素宽度（像视频剪辑软件的网格）
+  NODE_WIDTH: 80, // 节点固定宽度（不随展开/收起变化）
+  NODE_MIN_HEIGHT: 24, // 节点最小高度（太小就不显示文字）
+  NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
+  NODE_COMPACT_HEIGHT: 32, // 收起时节点理想高度
+  THREAD_PADDING: 8, // 每个 thread 行的上下内边距
+  THREAD_GAP: 4, // thread 之间的间隔
+  TIMELINE_PADDING: 16, // Timeline 左右内边距
+};
+
+interface TimelineNode extends BookNode {
+  threads: StoryThread[];
+}
 
 export function TimelineChapters() {
   const navigate = useNavigate();
   const { bookNodes, selectedNodeId } = useAppStore();
-  const { loadNodes } = useBookNodeUsecases();
+  const threadUsecases = useStoryThreadUsecases();
+  const nodeUsecases = useBookNodeUsecases();
+  
+  const [threads, setThreads] = useState<StoryThread[]>([]);
+  const [nodesWithThreads, setNodesWithThreads] = useState<TimelineNode[]>([]);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
+  const [hoveredPosition, setHoveredPosition] = useState<{ threadId: string; orderKey: number; x: number } | null>(null);
+  const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; threadId: string } | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<{ threadId: string; orderKey: number; x: number } | null>(null);
+  const [nodeHeight, setNodeHeight] = useState(TIMELINE_CONFIG.NODE_COMPACT_HEIGHT);
+  const [needsScroll, setNeedsScroll] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ nodeId: string; threadId: string } | null>(null);
+  
+  const timelineRef = useRef<HTMLDivElement>(null);
 
+  // 计算最大 order_key
+  const maxOrderKey = Math.max(...nodesWithThreads.map(n => n.orderKey), 0);
+  const timelineWidth = maxOrderKey * TIMELINE_CONFIG.GRID_UNIT + TIMELINE_CONFIG.TIMELINE_PADDING * 2;
+
+  // 动态计算节点高度
   useEffect(() => {
-    if (bookNodes.length === 0) {
-      void loadNodes({ type: 'chapter' });
+    if (threads.length === 0) return;
+    
+    const availableHeight = isExpanded ? 280 : 120;
+    const headerHeight = isExpanded ? 20 : 0; // thread 标签高度
+    const totalPadding = threads.length * TIMELINE_CONFIG.THREAD_PADDING * 2 + (threads.length - 1) * TIMELINE_CONFIG.THREAD_GAP;
+    const availableForNodes = availableHeight - totalPadding - (isExpanded ? 32 : 16); // 减去上下 padding
+    
+    const targetHeight = isExpanded ? TIMELINE_CONFIG.NODE_EXPANDED_HEIGHT : TIMELINE_CONFIG.NODE_COMPACT_HEIGHT;
+    const calculatedHeight = Math.max(availableForNodes / threads.length - headerHeight, TIMELINE_CONFIG.NODE_MIN_HEIGHT);
+    
+    // 如果计算出的高度小于最小高度，说明需要滚动
+    if (calculatedHeight < targetHeight) {
+      setNeedsScroll(true);
+      setNodeHeight(targetHeight); // 使用目标高度，允许滚动
+    } else {
+      setNeedsScroll(false);
+      setNodeHeight(Math.min(calculatedHeight, targetHeight)); // 使用计算高度但不超过目标高度
     }
-  }, [bookNodes.length, loadNodes]);
+  }, [threads.length, isExpanded]);
 
-  const chapters = bookNodes.filter(node => node.type === 'chapter');
+  // Load chapters first
+  useEffect(() => {
+    async function loadChapters() {
+      try {
+        await nodeUsecases.loadNodes({ type: 'chapter' });
+      } catch (error) {
+        console.error('Failed to load chapters:', error);
+      }
+    }
+    loadChapters();
+  }, [nodeUsecases]);
 
-  const handleChapterClick = (chapterId: string) => {
-    navigate(`/editor/${chapterId}`);
+  // Load threads and node-thread relationships
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const allThreads = await threadUsecases.getThreadsByProject(PROJECT_ID);
+        setThreads(allThreads);
+
+        // Load thread info for each node
+        const chapters = bookNodes.filter((n) => n.type === 'chapter');
+        const nodesWithThreadInfo = await Promise.all(
+          chapters.map(async (node) => {
+            const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
+            return { ...node, threads: nodeThreads };
+          })
+        );
+        setNodesWithThreads(nodesWithThreadInfo);
+      } catch (error) {
+        console.error('Failed to load timeline data:', error);
+      }
+    }
+    
+    if (bookNodes.length > 0) {
+      loadData();
+    }
+  }, [bookNodes, threadUsecases]);
+
+  // 将 order_key 转换为像素位置
+  const orderKeyToPosition = (orderKey: number) => {
+    return TIMELINE_CONFIG.TIMELINE_PADDING + (orderKey - 1) * TIMELINE_CONFIG.GRID_UNIT;
+  };
+
+  // Handle drag start
+  const handleDragStart = (e: React.DragEvent, node: TimelineNode, threadId: string) => {
+    setDraggedNode({ node, threadId });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // Handle drag over - 计算应该放在哪个 orderKey 位置
+  const handleDragOver = (e: React.DragEvent, threadId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (!timelineRef.current) return;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const relativeX = x - TIMELINE_CONFIG.TIMELINE_PADDING;
+    const orderKey = Math.max(1, Math.round(relativeX / TIMELINE_CONFIG.GRID_UNIT) + 1);
+    
+    setDragOverPosition({ threadId, orderKey, x });
+  };
+
+  // Handle drop
+  const handleDrop = async (e: React.DragEvent, targetThreadId: string) => {
+    e.preventDefault();
+    if (!draggedNode || !dragOverPosition) return;
+
+    const { node, threadId: sourceThreadId } = draggedNode;
+    const targetOrderKey = dragOverPosition.orderKey;
+    
+    try {
+      // If dropped in a different thread, update threads
+      if (sourceThreadId !== targetThreadId) {
+        // 添加到新 thread
+        await threadUsecases.addNodeToThread(node.id, targetThreadId);
+        
+        // 移除旧 thread 的关联（不再特殊对待 main thread）
+        await threadUsecases.removeNodeFromThread(node.id, sourceThreadId);
+      }
+
+      // Update order_key if changed
+      if (targetOrderKey !== node.orderKey) {
+        await nodeUsecases.updateNode(node.id, { orderKey: targetOrderKey });
+      }
+
+      // Reload data
+      await nodeUsecases.loadNodes({ type: 'chapter' });
+    } catch (error) {
+      console.error('Failed to handle drop:', error);
+    } finally {
+      setDraggedNode(null);
+      setDragOverPosition(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedNode(null);
+    setDragOverPosition(null);
+  };
+
+  // Handle remove node from thread
+  const handleRemoveNodeFromThread = async (nodeId: string, threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止事件冒泡，避免取消选择
+    const node = nodesWithThreads.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    // 如果只有一个 thread，需要二次确认删除节点
+    if (node.threads.length === 1) {
+      if (showDeleteConfirm?.nodeId === nodeId && showDeleteConfirm?.threadId === threadId) {
+        // 二次确认 - 删除整个节点
+        try {
+          await nodeUsecases.deleteNode(nodeId);
+          
+          // 清除选中状态
+          if (selectedNodeId === nodeId) {
+            useAppStore.getState().setSelectedNodeId(null);
+          }
+          
+          setShowDeleteConfirm(null);
+        } catch (error) {
+          console.error('Failed to delete node:', error);
+        }
+      } else {
+        // 第一次点击 - 显示确认状态
+        setShowDeleteConfirm({ nodeId, threadId });
+        // 3秒后自动取消确认状态
+        setTimeout(() => {
+          setShowDeleteConfirm((prev) => {
+            // 只有当前确认状态还是这个节点时才清除
+            if (prev?.nodeId === nodeId && prev?.threadId === threadId) {
+              return null;
+            }
+            return prev;
+          });
+        }, 3000);
+      }
+      return;
+    }
+
+    // 多个 thread，直接移除关联
+    try {
+      await threadUsecases.removeNodeFromThread(nodeId, threadId);
+      
+      // Reload
+      const chapters = bookNodes.filter((n) => n.type === 'chapter');
+      const nodesWithThreadInfo = await Promise.all(
+        chapters.map(async (node) => {
+          const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
+          return { ...node, threads: nodeThreads };
+        })
+      );
+      setNodesWithThreads(nodesWithThreadInfo);
+    } catch (error) {
+      console.error('Failed to remove node from thread:', error);
+    }
+  };
+
+  // Handle add selected node to thread
+  const handleAddSelectedNodeToThread = async (threadId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止事件冒泡，避免取消选择
+    if (!selectedNodeId) return;
+
+    try {
+      await threadUsecases.addNodeToThread(selectedNodeId, threadId);
+      
+      // Reload
+      const chapters = bookNodes.filter((n) => n.type === 'chapter');
+      const nodesWithThreadInfo = await Promise.all(
+        chapters.map(async (node) => {
+          const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
+          return { ...node, threads: nodeThreads };
+        })
+      );
+      setNodesWithThreads(nodesWithThreadInfo);
+    } catch (error) {
+      console.error('Failed to add node to thread:', error);
+    }
+  };
+
+  // Handle node click
+  const handleNodeClick = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止事件冒泡到 timeline 背景
+    // 设置选中状态
+    useAppStore.getState().setSelectedNodeId(nodeId);
+    // 导航到编辑器
+    navigate(`/editor/${nodeId}`);
+  };
+
+  // Handle timeline background click (deselect)
+  const handleTimelineClick = () => {
+    // 点击任何空白处都取消选择（事件会被节点和按钮拦截）
+    useAppStore.getState().setSelectedNodeId(null);
+  };
+
+  // Render a single node card
+  const renderNodeCard = (node: TimelineNode, threadId: string) => {
+    const thread = threads.find((t) => t.id === threadId);
+    const isHovered = hoveredNodeId === node.id;
+    const isDragging = draggedNode?.node.id === node.id;
+    const isSelected = selectedNodeId === node.id;
+    const isConfirmingDelete = showDeleteConfirm?.nodeId === node.id && showDeleteConfirm?.threadId === threadId;
+    
+    const leftPosition = orderKeyToPosition(node.orderKey);
+    const showText = nodeHeight >= TIMELINE_CONFIG.NODE_MIN_HEIGHT;
+
+    return (
+      <div
+        key={`${node.id}-${threadId}`}
+        draggable
+        onDragStart={(e) => handleDragStart(e, node, threadId)}
+        onDragEnd={handleDragEnd}
+        onMouseEnter={() => {
+          setHoveredNodeId(node.id);
+          setHoveredThreadId(threadId);
+        }}
+        onMouseLeave={() => {
+          setHoveredNodeId(null);
+          setHoveredThreadId(null);
+        }}
+        onClick={(e) => handleNodeClick(node.id, e)}
+        style={{
+          position: 'absolute',
+          left: leftPosition,
+          top: 0,
+          width: TIMELINE_CONFIG.NODE_WIDTH,
+          height: nodeHeight,
+          background: thread?.color || '#3B82F6',
+          borderRadius: 6,
+          padding: showText ? (isExpanded ? '8px 10px' : '4px 8px') : 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: showText ? 4 : 0,
+          cursor: 'grab',
+          opacity: isDragging ? 0.5 : 1,
+          border: isSelected 
+            ? `2px solid #fff` 
+            : '2px solid transparent',
+          boxShadow: isSelected ? '0 0 0 2px rgba(255, 255, 255, 0.3)' : 'none',
+          transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'visible',
+        }}
+      >
+        {showText && (
+          <>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#fff',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.3,
+              }}
+            >
+              {node.title}
+            </div>
+            
+            {isExpanded && node.summary && nodeHeight >= TIMELINE_CONFIG.NODE_EXPANDED_HEIGHT && (
+              <div
+                style={{
+                  fontSize: 9,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  lineHeight: 1.3,
+                }}
+              >
+                {node.summary}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 删除按钮 - 仅在 hover 当前 thread 的已选中 node 时显示 */}
+        {isSelected && isHovered && hoveredThreadId === threadId && (
+          <button
+            onClick={(e) => handleRemoveNodeFromThread(node.id, threadId, e)}
+            style={{
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: isConfirmingDelete ? '#EF4444' : 'rgba(0, 0, 0, 0.8)',
+              border: '2px solid #fff',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 101,
+              transition: 'all 0.2s',
+              padding: 0,
+            }}
+            title={node.threads.length === 1 ? 'Delete node (click twice to confirm)' : 'Remove from this thread'}
+          >
+            {isConfirmingDelete ? '!' : '×'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Render a single thread row using absolute positioning
+  const renderThreadRow = (thread: StoryThread) => {
+    const nodesInThread = nodesWithThreads.filter((n) => n.threads.some((t) => t.id === thread.id));
+    const headerHeight = isExpanded ? 20 : 0;
+    const rowHeight = nodeHeight + TIMELINE_CONFIG.THREAD_PADDING * 2 + headerHeight;
+    
+    // 检查选中的节点是否属于当前 thread
+    const selectedNode = nodesWithThreads.find((n) => n.id === selectedNodeId);
+    const selectedNodeBelongsToThread = selectedNode?.threads.some((t) => t.id === thread.id);
+    
+    // 计算选中节点的有效添加区域
+    const selectedNodeLeft = selectedNode ? orderKeyToPosition(selectedNode.orderKey) : 0;
+    const selectedNodeRight = selectedNodeLeft + TIMELINE_CONFIG.NODE_WIDTH;
+    const isInValidAddZone = hoveredPosition?.threadId === thread.id && 
+                             hoveredPosition.x >= selectedNodeLeft && 
+                             hoveredPosition.x <= selectedNodeRight;
+    
+    const shouldShowAddButton = selectedNodeId && !selectedNodeBelongsToThread && isInValidAddZone;
+
+    return (
+      <div
+        key={thread.id}
+        onDragOver={(e) => handleDragOver(e, thread.id)}
+        onDrop={(e) => handleDrop(e, thread.id)}
+        onClick={handleTimelineClick}
+        onMouseMove={(e) => {
+          if (!selectedNodeId || selectedNodeBelongsToThread) return;
+          
+          const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
+          if (!container) return;
+          
+          const rect = container.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          
+          setHoveredPosition({ threadId: thread.id, orderKey: selectedNode?.orderKey || 1, x });
+        }}
+        onMouseLeave={() => {
+          setHoveredPosition(null);
+        }}
+        style={{
+          position: 'relative',
+          height: rowHeight,
+          marginBottom: TIMELINE_CONFIG.THREAD_GAP,
+          paddingLeft: TIMELINE_CONFIG.TIMELINE_PADDING,
+        }}
+      >
+        {/* Thread label */}
+        {isExpanded && (
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: thread.color,
+              marginBottom: 6,
+              height: headerHeight,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {thread.name}
+          </div>
+        )}
+
+        {/* Node container with absolute positioning */}
+        <div
+          data-node-container
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: nodeHeight,
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: 4,
+            minWidth: timelineWidth,
+          }}
+        >
+          {/* Render drop indicator */}
+          {dragOverPosition?.threadId === thread.id && (
+            <div
+              style={{
+                position: 'absolute',
+                left: dragOverPosition.x,
+                top: 0,
+                width: 2,
+                height: nodeHeight,
+                background: '#fff',
+                opacity: 0.5,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+
+          {/* 添加按钮 - 当选中的节点不属于当前 thread 时显示 */}
+          {shouldShowAddButton && selectedNode && (
+            <button
+              onClick={(e) => handleAddSelectedNodeToThread(thread.id, e)}
+              style={{
+                position: 'absolute',
+                left: orderKeyToPosition(selectedNode.orderKey) + TIMELINE_CONFIG.NODE_WIDTH / 2,
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'rgba(34, 197, 94, 0.9)',
+                border: '2px solid #fff',
+                color: '#fff',
+                fontSize: 20,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 102,
+                transition: 'all 0.2s',
+                padding: 0,
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              }}
+              title="Add selected node to this thread"
+            >
+              +
+            </button>
+          )}
+
+          {/* Render nodes */}
+          {nodesInThread.map((node) => renderNodeCard(node, thread.id))}
+
+          {/* Empty state */}
+          {nodesInThread.length === 0 && !draggedNode && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                fontSize: 11,
+                color: 'rgba(255, 255, 255, 0.3)',
+                fontStyle: 'italic',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              No chapters in this thread
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div
+      ref={timelineRef}
+      onClick={handleTimelineClick}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => {
+        setIsExpanded(false);
+        setHoveredNodeId(null);
+      }}
       style={{
         position: 'fixed',
-        left: 0, // Start from the very left edge
-        right: 0, // Extend to the very right edge
         bottom: 0,
-        height: 120,
-        background: 'linear-gradient(180deg, rgba(30, 25, 42, 0.98) 0%, rgba(20, 15, 32, 0.98) 100%)',
-        borderTop: '1px solid rgba(70, 60, 90, 0.6)',
+        left: 0,
+        right: 0,
+        height: isExpanded ? 280 : 120,
+        background: 'linear-gradient(to top, rgba(45, 36, 56, 0.98), rgba(45, 36, 56, 0.95))',
+        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+        zIndex: 20,
+        overflow: 'hidden',
         display: 'flex',
-        alignItems: 'center',
-        padding: '0 24px',
-        gap: '16px',
-        overflowX: 'auto',
-        overflowY: 'hidden',
-        zIndex: 50,
+        flexDirection: 'column',
+        padding: isExpanded ? '16px 0' : '12px 0',
       }}
     >
-      {/* Header */}
-      <div style={{
-        padding: '12px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderBottom: '1px solid rgba(220, 210, 235, 0.3)',
-      }}>
-        <div style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#4a3d5a',
-          letterSpacing: '0.02em',
-        }}>
-          Timeline • {chapters.length} Chapters
-        </div>
-        <div style={{ fontSize: 11, color: '#8a7d9a' }}>
-          Future: Timeline view with story progression
-        </div>
-      </div>
-
-      {/* Timeline Track */}
-      <div style={{
-        flex: 1,
-        overflowX: 'auto',
-        overflowY: 'hidden',
-        padding: '16px 24px',
-        display: 'flex',
-        gap: 12,
-        alignItems: 'center',
-      }}>
-        {chapters.map((chapter, index) => {
-          const isSelected = chapter.id === selectedNodeId;
-          const isActive = chapter.status === 'active';
-          
-          return (
-            <div
-              key={chapter.id}
-              onClick={() => handleChapterClick(chapter.id)}
-              style={{
-                minWidth: 180,
-                height: 56,
-                background: isSelected 
-                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                  : isActive 
-                    ? '#ffffff'
-                    : 'rgba(255, 255, 255, 0.6)',
-                borderRadius: 12,
-                padding: '10px 14px',
-                cursor: 'pointer',
-                border: isSelected 
-                  ? '2px solid rgba(102, 126, 234, 0.3)'
-                  : '1px solid rgba(200, 190, 220, 0.25)',
-                boxShadow: isSelected
-                  ? '0 8px 24px rgba(102, 126, 234, 0.35), 0 0 0 3px rgba(102, 126, 234, 0.1)'
-                  : isActive
-                    ? '0 4px 12px rgba(100, 90, 120, 0.12)'
-                    : '0 2px 6px rgba(100, 90, 120, 0.08)',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                position: 'relative',
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(100, 90, 120, 0.18)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = isActive
-                    ? '0 4px 12px rgba(100, 90, 120, 0.12)'
-                    : '0 2px 6px rgba(100, 90, 120, 0.08)';
-                }
-              }}
-            >
-              {/* Chapter Number Badge */}
-              <div style={{
-                position: 'absolute',
-                top: -8,
-                left: 12,
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                background: isSelected ? '#fff' : '#f0ecf5',
-                color: isSelected ? '#667eea' : '#6a5d7a',
-                fontSize: 11,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              }}>
-                {index + 1}
-              </div>
-
-              {/* Chapter Title */}
-              <div style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: isSelected ? '#ffffff' : '#3a2d4a',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                marginTop: 8,
-              }}>
-                {chapter.title || 'Untitled'}
-              </div>
-
-              {/* Chapter Status */}
-              <div style={{
-                fontSize: 10,
-                color: isSelected ? 'rgba(255, 255, 255, 0.85)' : '#8a7d9a',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: isSelected 
-                    ? '#fff' 
-                    : chapter.status === 'active' 
-                      ? '#4ade80' 
-                      : '#94a3b8',
-                }} />
-                {chapter.status || 'draft'}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Add Chapter Placeholder */}
-        <div style={{
-          minWidth: 180,
-          height: 56,
-          background: 'rgba(255, 255, 255, 0.4)',
-          borderRadius: 12,
-          border: '2px dashed rgba(150, 140, 180, 0.3)',
+      <div
+        style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#8a7d9a',
+          flexDirection: 'column',
+          height: '100%',
+          overflowX: 'auto',
+          overflowY: isExpanded && needsScroll ? 'auto' : 'hidden',
+          paddingRight: 12,
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.5)';
-          e.currentTarget.style.background = 'rgba(102, 126, 234, 0.08)';
-          e.currentTarget.style.color = '#667eea';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(150, 140, 180, 0.3)';
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.4)';
-          e.currentTarget.style.color = '#8a7d9a';
-        }}>
-          + Add Chapter
-        </div>
+      >
+        {threads.length > 0 ? (
+          threads.map((thread) => renderThreadRow(thread))
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: 14,
+            }}
+          >
+            Loading story threads...
+          </div>
+        )}
       </div>
     </div>
   );

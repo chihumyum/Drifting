@@ -85,14 +85,6 @@ export function ElementPanel() {
         marginBottom: '20px',
         flexShrink: 0,
       }}>
-        <h2 style={{
-          fontSize: '20px',
-          fontWeight: '700',
-          color: '#2d2438',
-          margin: 0,
-        }}>
-          Story Elements
-        </h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <select
             value={filterCategory}

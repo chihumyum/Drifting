@@ -2,6 +2,7 @@
 import type {BookNode, BookNodeEdge } from '../domain/book_node';
 import { DEFAULT_BOOK_NODE_STATUS } from '../repositories/book_node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
+import type { StoryThreadRepository } from '../repositories/story_thread';
 import type { NodeType } from '../schema/book_node';
 
 export {
@@ -12,11 +13,14 @@ export {
   reorderBookNode,
   updateBookNodePosition,
   updateBookNodeSummary,
+  updateBookNode,
+  deleteBookNode,
 };
 
 export interface BookNodeUsecaseDeps {
   nodeRepo: BookNodeRepository;
   edgeRepo: BookNodeEdgeRepository;
+  threadRepo: StoryThreadRepository;
   // state related
   getNodesState: () => BookNode[];
   setNodesState: (nodes: BookNode[]) => void;
@@ -74,6 +78,25 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   });
+
+  // Assign main thread to new node
+  const projectId = input.projectId ?? 'default-project';
+  try {
+    let mainThread = await deps.threadRepo.getMainThread(projectId);
+    if (!mainThread) {
+      // Create main thread if it doesn't exist
+      mainThread = await deps.threadRepo.createThread({
+        projectId,
+        name: 'Main Story',
+        color: '#3B82F6',
+        summary: 'Main storyline',
+        isMain: true,
+      });
+    }
+    await deps.threadRepo.addNodeToThread(created.id, mainThread.id);
+  } catch (error) {
+    console.error('Failed to assign main thread to new node:', error);
+  }
 
   const node = created;
   const nextNodes = [...nodes, node].sort((a, b) => a.orderKey - b.orderKey);
@@ -163,6 +186,41 @@ async function updateBookNodeSummary(deps: BookNodeUsecaseDeps, id: string, summ
   try {
     await deps.nodeRepo.update(id, { summary, updatedAt: now });
   } catch (error) {
+    deps.setNodesState(prevNodes);
+    throw error;
+  }
+}
+
+async function updateBookNode(deps: BookNodeUsecaseDeps, id: string, updates: Partial<BookNode>) {
+  const now = getNow(deps).toISOString();
+  const prevNodes = deps.getNodesState().slice();
+  const existing = prevNodes.find((node) => node.id === id);
+  if (!existing) throw new Error(`Book node ${id} not found`);
+
+  const updatesWithTimestamp = { ...updates, updatedAt: now };
+  deps.updateNodeState(id, updatesWithTimestamp);
+
+  try {
+    await deps.nodeRepo.update(id, updatesWithTimestamp);
+  } catch (error) {
+    deps.setNodesState(prevNodes);
+    throw error;
+  }
+}
+
+async function deleteBookNode(deps: BookNodeUsecaseDeps, id: string) {
+  const prevNodes = deps.getNodesState().slice();
+  const existing = prevNodes.find((node) => node.id === id);
+  if (!existing) throw new Error(`Book node ${id} not found`);
+
+  // Optimistically remove from state
+  const nextNodes = prevNodes.filter((node) => node.id !== id);
+  deps.setNodesState(nextNodes);
+
+  try {
+    await deps.nodeRepo.delete(id);
+  } catch (error) {
+    // Rollback on error
     deps.setNodesState(prevNodes);
     throw error;
   }

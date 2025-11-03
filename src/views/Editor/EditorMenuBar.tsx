@@ -1,11 +1,16 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
+import { useState, useEffect, useRef } from 'react';
 
 interface EditorMenuBarProps {
   editor: Editor | null;
 }
 
 export function EditorMenuBar({ editor }: EditorMenuBarProps) {
+  const [autoHide, setAutoHide] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+  const hideTimeoutRef = useRef<number | null>(null);
+
   const editorState = useEditorState({
     editor,
     selector: (ctx) => {
@@ -24,12 +29,50 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
     },
   });
 
+  // Auto-hide logic based on mouse position
+  useEffect(() => {
+    if (!autoHide) {
+      setIsVisible(true);
+      return;
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newMouseY = e.clientY;
+
+      // Show menu when mouse is near top (within 100px)
+      if (newMouseY < 100) {
+        setIsVisible(true);
+        // Clear any pending hide timeout
+        if (hideTimeoutRef.current !== null) {
+          window.clearTimeout(hideTimeoutRef.current);
+          hideTimeoutRef.current = null;
+        }
+      } else {
+        // When mouse moves away, start timeout to hide
+        if (hideTimeoutRef.current !== null) {
+          window.clearTimeout(hideTimeoutRef.current);
+        }
+        hideTimeoutRef.current = window.setTimeout(() => {
+          setIsVisible(false);
+        }, 1500); // Hide after 1.5 seconds
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, [autoHide]);
+
   if (!editor || !editorState) {
     return null;
   }
 
   const buttonStyle = (isActive: boolean) => ({
-    padding: '8px 14px',
+    padding: '10px 12px',
     border: 'none',
     borderRadius: 8,
     background: isActive ? '#6366f1' : '#f3f4f6',
@@ -39,31 +82,57 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     boxShadow: isActive ? '0 4px 12px rgba(99, 102, 241, 0.3)' : 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 36,
   });
 
   const menuBarStyle = {
     position: 'fixed' as const,
-    top: 32,
-    left: '50%',
-    transform: 'translateX(-50%)',
+    top: isVisible ? 16 : -500,
+    right: 24,
     display: 'flex',
-    gap: 8,
-    padding: '12px 16px',
+    flexDirection: 'column' as const,
+    gap: 6,
+    padding: '12px 8px',
     background: 'rgba(255, 255, 255, 0.98)',
     borderRadius: 16,
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     backdropFilter: 'blur(12px)',
-    zIndex: 50,
+    zIndex: 100,
+    transition: 'top 0.3s ease',
+    pointerEvents: isVisible ? 'auto' as const : 'none' as const,
+    minWidth: 52,
   };
 
   const separatorStyle = {
-    width: 1,
+    height: 1,
     background: '#e5e7eb',
-    margin: '0 4px',
+    margin: '4px 0',
+  };
+
+  const toggleButtonStyle = {
+    padding: '8px 12px',
+    border: 'none',
+    borderRadius: 8,
+    background: autoHide ? '#6366f1' : '#f3f4f6',
+    color: autoHide ? '#ffffff' : '#374151',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    flexDirection: 'column' as const,
   };
 
   return (
     <div style={menuBarStyle}>
+      {/* Format Buttons */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
       <button
         onClick={() => editor.chain().focus().toggleBold().run()}
         disabled={!editorState.canBold}
@@ -132,6 +201,19 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
         title="Horizontal Rule"
       >
         ―
+      </button>
+      </div>
+
+      {/* Auto-hide Toggle */}
+      <div style={separatorStyle} />
+      
+      <button
+        onClick={() => setAutoHide(!autoHide)}
+        style={toggleButtonStyle}
+        title={autoHide ? 'Auto-hide enabled' : 'Auto-hide disabled'}
+      >
+        <span style={{ fontSize: 16 }}>{autoHide ? '👁️' : '�'}</span>
+        <span style={{ fontSize: 10 }}>{autoHide ? 'Auto' : 'Pin'}</span>
       </button>
     </div>
   );

@@ -4,7 +4,17 @@ import * as SQLite from 'wa-sqlite';
 import SQLiteAsyncESMFactory from 'wa-sqlite/dist/wa-sqlite-async.mjs';
 import { OPFSCoopSyncVFS } from 'wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 import type { DbWorkerRequest } from '../lib/db';
-import { DB_SCHEMA, DEFAULT_ELEMENT_CATEGORY, MOCK_ELEMENT_CATEGORIES, MOCK_ELEMENTS, DEFAULT_PROJECT } from '../schema/table';
+import { 
+  DB_SCHEMA, 
+  DEFAULT_ELEMENT_CATEGORY, 
+  MOCK_ELEMENT_CATEGORIES, 
+  MOCK_ELEMENTS, 
+  DEFAULT_PROJECT, 
+  DEFAULT_STORY_THREAD,
+  MOCK_STORY_THREADS,
+  MOCK_CHAPTERS,
+  MOCK_NODE_THREADS,
+} from '../schema/table';
 
 type SQLiteAPI = ReturnType<typeof SQLite.Factory>;
 export type SQLiteCompatibleType = number | string | Uint8Array | Array<number> | bigint | null;
@@ -131,6 +141,10 @@ async function migrateSchema() {
   console.log('Migrating database schema...');
   await execute(DB_SCHEMA);
   await seedDefaultProject();
+  await seedDefaultThread();
+  await seedMockThreads();
+  await seedMockChapters();
+  await seedMockNodeThreads();
   console.log('Seeding categories.');
   await seedDefaultCategories();
   console.log('Seeding elements.');
@@ -151,6 +165,76 @@ async function seedDefaultProject() {
     ]
   );
 }
+
+async function seedDefaultThread() {
+  await execute(
+    `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, is_main, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      DEFAULT_STORY_THREAD.id,
+      DEFAULT_STORY_THREAD.project_id,
+      DEFAULT_STORY_THREAD.name,
+      DEFAULT_STORY_THREAD.color,
+      DEFAULT_STORY_THREAD.summary ?? null,
+      DEFAULT_STORY_THREAD.is_main,
+      DEFAULT_STORY_THREAD.created_at,
+      DEFAULT_STORY_THREAD.updated_at,
+    ]
+  );
+}
+
+async function seedMockThreads() {
+  for (const thread of MOCK_STORY_THREADS) {
+    await execute(
+      `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, is_main, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        thread.id,
+        thread.project_id,
+        thread.name,
+        thread.color,
+        thread.summary ?? null,
+        thread.is_main,
+        thread.created_at,
+        thread.updated_at,
+      ]
+    );
+  }
+}
+
+async function seedMockChapters() {
+  for (const chapter of MOCK_CHAPTERS) {
+    await execute(
+      `INSERT OR IGNORE INTO story_node (id, parent_id, title, project_id, type, order_key, status, summary, pos_x, pos_y, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        chapter.id,
+        chapter.parent_id ?? null,
+        chapter.title,
+        chapter.project_id,
+        chapter.type,
+        chapter.order_key,
+        chapter.status,
+        chapter.summary ?? null,
+        chapter.pos_x ?? null,
+        chapter.pos_y ?? null,
+        chapter.created_at,
+        chapter.updated_at,
+      ]
+    );
+  }
+}
+
+async function seedMockNodeThreads() {
+  for (const relation of MOCK_NODE_THREADS) {
+    await execute(
+      `INSERT OR IGNORE INTO node_thread (node_id, thread_id)
+       VALUES (?, ?)`,
+      [relation.node_id, relation.thread_id]
+    );
+  }
+}
+
 async function seedDefaultCategories() {
   const categories = [DEFAULT_ELEMENT_CATEGORY, ...MOCK_ELEMENT_CATEGORIES];
   for (const category of categories) {

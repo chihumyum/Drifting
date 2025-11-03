@@ -1,5 +1,7 @@
 import type { Project } from "./book_general";
 import type { ElementRecord, ElementCategoryRecord } from "./book_element";
+import type { StoryThreadRecord } from "./story_thread";
+import type { BookNodeRecord } from "./book_node";
 
 
 
@@ -10,6 +12,8 @@ export const TABLES = {
   bookContent: 'book_content',
   element: 'element',
   elementStage: 'element_stage',
+  storyThread: 'story_thread',
+  nodeThread: 'node_thread',
 } as const
 
 
@@ -56,6 +60,32 @@ CREATE INDEX IF NOT EXISTS idx_story_node_project ON story_node(project_id);
 CREATE INDEX IF NOT EXISTS idx_story_node_parent ON story_node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_story_node_type ON story_node(type);
 CREATE INDEX IF NOT EXISTS idx_story_node_order ON story_node(project_id, order_key);
+
+-- Story threads (narrative threads/storylines)
+CREATE TABLE IF NOT EXISTS story_thread (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  summary TEXT,
+  is_main INTEGER NOT NULL DEFAULT 0,  -- 0 or 1, only one main thread per project
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_story_thread_project ON story_thread(project_id);
+CREATE INDEX IF NOT EXISTS idx_story_thread_main ON story_thread(project_id, is_main);
+
+-- Node to thread relationship (many-to-many)
+CREATE TABLE IF NOT EXISTS node_thread (
+  node_id TEXT NOT NULL,
+  thread_id TEXT NOT NULL,
+  PRIMARY KEY(node_id, thread_id),
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(thread_id) REFERENCES story_thread(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_node_thread_node ON node_thread(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_thread_thread ON node_thread(thread_id);
 
 -- Edges between nodes 
 CREATE TABLE IF NOT EXISTS node_edge (
@@ -276,4 +306,270 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
+];
+
+// Default main story thread
+export const DEFAULT_STORY_THREAD: StoryThreadRecord = {
+  id: 'thread_main',
+  project_id: 'default-project',
+  name: 'Main Story',
+  color: '#3B82F6',
+  summary: 'Main storyline',
+  is_main: 1,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+// Mock story threads
+export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
+  {
+    id: 'thread_john',
+    project_id: 'default-project',
+    name: 'John',
+    color: '#60A5FA', // Light blue
+    summary: "John's storyline",
+    is_main: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'thread_emma',
+    project_id: 'default-project',
+    name: 'Emma',
+    color: '#FDE047', // Yellow
+    summary: "Emma's storyline",
+    is_main: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'thread_vera',
+    project_id: 'default-project',
+    name: 'Vera',
+    color: '#C084FC', // Purple
+    summary: "Vera's storyline",
+    is_main: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+// Mock chapters
+export const MOCK_CHAPTERS: BookNodeRecord[] = [
+  {
+    id: 'chapter_001',
+    parent_id: null,
+    title: '序章',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 1,
+    status: 'draft',
+    summary: '故事的开端，介绍世界观和主要角色',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_002',
+    parent_id: null,
+    title: '第一章：John',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 2,
+    status: 'draft',
+    summary: 'John在城市中的日常生活',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_003',
+    parent_id: null,
+    title: '第二章：Emma',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 3,
+    status: 'draft',
+    summary: 'Emma的背景故事',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_004',
+    parent_id: null,
+    title: '第三章：Vera',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 4,
+    status: 'draft',
+    summary: 'Vera的神秘过去',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_005',
+    parent_id: null,
+    title: '第四章：John',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 5,
+    status: 'draft',
+    summary: 'John遇到了第一个挑战',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_006',
+    parent_id: null,
+    title: '第五章：Emma',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 6,
+    status: 'draft',
+    summary: 'Emma的决定',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_007',
+    parent_id: null,
+    title: '第六章：Vera',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 7,
+    status: 'draft',
+    summary: 'Vera的秘密被揭露',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_008',
+    parent_id: null,
+    title: '第七章：Emma',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 8,
+    status: 'draft',
+    summary: 'Emma与Vera的相遇',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_009',
+    parent_id: null,
+    title: '第九章：所有人',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 9,
+    status: 'draft',
+    summary: '三条故事线汇聚',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_010',
+    parent_id: null,
+    title: '第十章：John',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 10,
+    status: 'draft',
+    summary: 'John做出了艰难的选择',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_011',
+    parent_id: null,
+    title: '第十一章：Emma',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 11,
+    status: 'draft',
+    summary: 'Emma的牺牲',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'chapter_012',
+    parent_id: null,
+    title: '第十二章：John & Emma',
+    project_id: 'default-project',
+    type: 'chapter',
+    order_key: 12,
+    status: 'draft',
+    summary: 'John和Emma的最终对决',
+    pos_x: null,
+    pos_y: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+// Mock node-thread relationships
+export const MOCK_NODE_THREADS = [
+  // 序章 - 主线
+  { node_id: 'chapter_001', thread_id: 'thread_main' },
+  
+  // 第一章 - John线
+  { node_id: 'chapter_002', thread_id: 'thread_main' },
+  { node_id: 'chapter_002', thread_id: 'thread_john' },
+  
+  // 第二章 - Emma线
+  { node_id: 'chapter_003', thread_id: 'thread_main' },
+  { node_id: 'chapter_003', thread_id: 'thread_emma' },
+  
+  // 第三章 - Vera线
+  { node_id: 'chapter_004', thread_id: 'thread_main' },
+  { node_id: 'chapter_004', thread_id: 'thread_vera' },
+  
+  // 第四章 - John线
+  { node_id: 'chapter_005', thread_id: 'thread_john' },
+  
+  // 第五章 - Emma线
+  { node_id: 'chapter_006', thread_id: 'thread_emma' },
+  
+  // 第六章 - Vera线
+  { node_id: 'chapter_007', thread_id: 'thread_vera' },
+  
+  // 第七章 - Emma和Vera
+  { node_id: 'chapter_008', thread_id: 'thread_emma' },
+  { node_id: 'chapter_008', thread_id: 'thread_vera' },
+  
+  // 第九章 - 所有人
+  { node_id: 'chapter_009', thread_id: 'thread_main' },
+  { node_id: 'chapter_009', thread_id: 'thread_john' },
+  { node_id: 'chapter_009', thread_id: 'thread_emma' },
+  { node_id: 'chapter_009', thread_id: 'thread_vera' },
+  
+  // 第十章 - John线
+  { node_id: 'chapter_010', thread_id: 'thread_john' },
+  
+  // 第十一章 - Emma线
+  { node_id: 'chapter_011', thread_id: 'thread_emma' },
+  
+  // 第十二章 - John和Emma
+  { node_id: 'chapter_012', thread_id: 'thread_main' },
+  { node_id: 'chapter_012', thread_id: 'thread_john' },
+  { node_id: 'chapter_012', thread_id: 'thread_emma' },
 ];

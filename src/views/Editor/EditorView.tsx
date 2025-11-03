@@ -11,6 +11,8 @@ import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 import type { BookNode } from '../../domain/book_node';
 import { EditorMenuBar } from './EditorMenuBar';
+import { RightVerticalButtons } from '../../components/RightVerticalButtons';
+import { TitleSummaryBubble } from '../../components/TitleSummaryBubble';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -101,7 +103,7 @@ export function EditorView() {
       createDefaultSlashMenu(),
     ],
     content: getDefaultDoc(),
-    autofocus: true,
+    autofocus: 'end', // Focus at the end instead of selecting all
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none min-h-[400px]',
@@ -158,14 +160,19 @@ export function EditorView() {
       try {
         const doc = JSON.parse(bookContent.pmJson) as JSONContent;
         editor.commands.setContent(doc);
+        // Clear selection and move cursor to end to avoid selecting all content
+        editor.commands.focus('end');
+        editor.commands.setTextSelection(editor.state.doc.content.size);
         console.log('Set editor content from book content');
       } catch (error) {
         console.error('Failed to parse editor content; falling back to default doc', error);
         editor.commands.setContent(getDefaultDoc());
+        editor.commands.focus('end');
       }
     } else { // only set default doc when book content is null
       console.log('No content found, setting to default doc');
       editor.commands.setContent(getDefaultDoc());
+      editor.commands.focus('end');
     }
     
     // Mark content as fully loaded after setting it in the editor
@@ -181,55 +188,76 @@ export function EditorView() {
       style={{
         position: 'absolute',
         inset: 0,
-        zIndex: 30,
         display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        padding: '80px 48px',
-        background: 'rgba(18,16,32,0.45)',
-        backdropFilter: 'blur(16px)',
+        flexDirection: 'column',
+        background: '#fdfcfe',
+        overflow: 'hidden',
       }}
     >
-      <button
-        type="button"
-        onClick={() => navigate('/graph')}
-        style={{
-          position: 'absolute',
-          top: 32,
-          left: 48,
-          padding: '10px 18px',
-          borderRadius: 999,
-          border: 'none',
-          background: '#ffffff',
-          color: '#312a34',
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: '0 14px 32px rgba(22,18,46,0.22)',
-          cursor: 'pointer',
-        }}
-      >
-        ← 返回章节
-      </button>
-
+      {/* Back Button and Title Bubble Group */}
       <div
         style={{
-          position: 'relative',
-          width: 'min(960px, 100%)',
-          minHeight: '70vh',
-          borderRadius: 32,
-          background: '#fdfcfe',
-          boxShadow: '0 48px 120px rgba(20, 18, 40, 0.28)',
-          padding: '40px 56px 48px 56px',
+          position: 'absolute',
+          top: 16,
+          left: 24,
+          display: 'flex',
+          alignItems: 'flex-start', // Align to top, don't stretch
+          gap: 12,
+          zIndex: 10,
         }}
       >
+        <button
+          type="button"
+          onClick={() => navigate('/graph')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 999,
+            border: 'none',
+            background: '#ffffff',
+            color: '#312a34',
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 8px 20px rgba(22,18,46,0.15)',
+            cursor: 'pointer',
+          }}
+        >
+          ← 返回章节
+        </button>
+
+        {/* Title/Summary Bubble */}
+        <TitleSummaryBubble 
+          title={titleValue} 
+          summary={summaryValue} 
+        />
+      </div>
+
+      {/* Main Editor Container - Everything scrolls together */}
+      <div
+        data-editor-scroll
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: '72px 56px 32px 56px',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '960px',
+            margin: '0 auto',
+            width: '100%',
+          }}
+        >
         {/* Title and Summary Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start',
-          gap: '24px',
-          marginBottom: '20px',
-        }}>
+        <div 
+          data-title-header
+          style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'flex-start',
+            gap: '24px',
+            marginBottom: '20px',
+          }}
+        >
           {/* Title - Left */}
           <div style={{ flex: 1 }}>
             {editingTitle ? (
@@ -352,25 +380,26 @@ export function EditorView() {
 
         <div
           style={{
-            marginTop: 28,
-            borderRadius: 26,
+            marginTop: 20,
             background: '#ffffff',
-            boxShadow: '0 30px 60px rgba(31, 26, 58, 0.12)',
+            borderRadius: 12,
+            boxShadow: '0 2px 8px rgba(31, 26, 58, 0.08)',
             padding: '32px 38px',
-            minHeight: 520,
-            maxHeight: 'calc(100vh - 400px)',
-            overflow: 'auto',
-            transition: 'opacity 0.2s ease',
+            minHeight: 'calc(100vh - 300px)',
           }}
         >
           <EditorContent
             editor={editor}
           />
         </div>
+        </div>
       </div>
 
-      {/* Floating Menu Bar */}
+      {/* Menu Bar - Fixed at top right */}
       <EditorMenuBar editor={editor} />
+      
+      {/* Right Vertical Utility Buttons */}
+      <RightVerticalButtons />
     </div>
   );
 }

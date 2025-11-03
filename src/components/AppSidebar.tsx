@@ -19,25 +19,6 @@ export function AppSidebar() {
         background: 'transparent',
       }}
     >
-      {/* App Logo */}
-      <div
-        style={{
-          width: '48px',
-          height: '48px',
-          margin: '0 auto 32px',
-          borderRadius: '14px',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '24px',
-          fontWeight: 'bold',
-          color: 'white',
-          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
-        }}
-      >
-        D
-      </div>
 
       {/* Menu Items */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
