@@ -70,7 +70,9 @@ export function TimelineChapters() {
 
   // 计算最大 order_key
   const maxOrderKey = Math.max(...nodesWithThreads.map(n => n.orderKey), 0);
-  const timelineWidth = maxOrderKey * TIMELINE_CONFIG.GRID_UNIT + TIMELINE_CONFIG.TIMELINE_PADDING * 2;
+  // 计算 timeline 宽度：最大节点的右边缘位置 + 一些额外空间
+  const maxNodeWidth = Math.max(...nodesWithThreads.map(n => getNodeWidth(n.id)), TIMELINE_CONFIG.NODE_DEFAULT_DURATION * TIMELINE_CONFIG.GRID_UNIT);
+  const timelineWidth = maxOrderKey * TIMELINE_CONFIG.GRID_UNIT + maxNodeWidth + 40; // 40px 额外空间
 
   // 动态计算节点高度
   useEffect(() => {
@@ -134,7 +136,8 @@ export function TimelineChapters() {
 
   // 将 order_key 转换为像素位置
   const orderKeyToPosition = (orderKey: number) => {
-    return TIMELINE_CONFIG.TIMELINE_PADDING + (orderKey - 1) * TIMELINE_CONFIG.GRID_UNIT;
+    // 不再需要 TIMELINE_PADDING，因为节点容器内部从 0 开始
+    return (orderKey - 1) * TIMELINE_CONFIG.GRID_UNIT;
   };
 
   // Handle drag start
@@ -592,11 +595,15 @@ export function TimelineChapters() {
             fontSize: 11,
             fontWeight: 600,
             color: thread.color,
-            minWidth: 60,
+            width: 60, // 固定宽度，确保所有 thread 对齐
+            flexShrink: 0, // 防止被压缩
             textAlign: 'right',
             paddingRight: 8,
             opacity: isExpanded ? 1 : 0.6,
             transition: 'opacity 0.3s',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {thread.name}
