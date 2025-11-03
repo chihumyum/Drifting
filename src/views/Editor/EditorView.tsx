@@ -8,7 +8,6 @@ import { createDefaultSlashMenu } from '@chi-hum/tiptap-simple-slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
-import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -29,93 +28,42 @@ function getDefaultDoc(): JSONContent {
 export function EditorView() {
   const navigate = useNavigate();
   const { nodeId } = useParams<{ nodeId: string }>();
-
   const {
     selectedNodeId,
     setSelectedNodeId,
-    setBookContent,
     bookContent,
-    bookNodes,
   } = useAppStore();
 
-  const { loadNodes } = useBookNodeUsecases();
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
 
-  const [isContentLoading, setIsContentLoading] = useState(false);
-  const [contentError, setContentError] = useState<string | null>(null);
-
-  const selectedNodeIdRef = useRef<string | null>(selectedNodeId);
-  const bookContentRef = useRef(bookContent);
-  const lastSyncedContentRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    selectedNodeIdRef.current = selectedNodeId;
-  }, [selectedNodeId]);
-
-  useEffect(() => {
-    bookContentRef.current = bookContent;
-  }, [bookContent]);
-
+  // get nodeId from url
   useEffect(() => {
     if (!nodeId) {
       navigate('/', { replace: true });
       return;
     }
-
     if (selectedNodeId !== nodeId) {
       setSelectedNodeId(nodeId);
     }
-  }, [navigate, nodeId, selectedNodeId, setSelectedNodeId]);
+  }, [nodeId, navigate, selectedNodeId, setSelectedNodeId]);
 
+
+  // load content when nodeId changes
   useEffect(() => {
     if (!nodeId) return;
-    // Lazily load nodes if navigator hasn't already hydrated them
-    if (!bookNodes.length) {
-      void loadNodes({ type: 'chapter' }).catch((error) => {
-        console.error('Failed to load chapters for editor', error);
-      });
-    }
-  }, [bookNodes.length, loadNodes, nodeId]);
-
-  useEffect(() => {
-    if (!nodeId) return;
-    setIsContentLoading(true);
-    setContentError(null);
-    setBookContent(null);
-    lastSyncedContentRef.current = null;
-
-    let cancelled = false;
 
     void (async () => {
       try {
         await loadContent(nodeId);
+        console.log('Really Loaded content for node', nodeId, "?");
       } catch (error) {
         console.error('Failed to load chapter content', error);
-        if (!cancelled) {
-          setContentError(error instanceof Error ? error.message : String(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsContentLoading(false);
-        }
       }
     })();
-    console.log('Loading content for node', nodeId);
-    console.log('Current book content in store', bookContentRef.current);
-    return () => {
-      cancelled = true;
-    };
-  }, [loadContent, nodeId, setBookContent]);
+  }, [loadContent, nodeId]);
 
-  useEffect(() => {
-    if (!nodeId) return;
-    if (!bookNodes.length) return;
-    const exists = bookNodes.some((node) => node.id === nodeId);
-    if (!exists) {
-      setContentError('未找到对应的章节节点');
-    }
-  }, [bookNodes, nodeId]);
 
+  // Tiptap editor setup
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -137,62 +85,55 @@ export function EditorView() {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      const activeNodeId = selectedNodeIdRef.current;
-      if (!activeNodeId) return;
       const json = ed.getJSON();
       const pmJson = JSON.stringify(json);
       console.log('Json to update', pmJson);
-      if (pmJson === lastSyncedContentRef.current) return;
-      lastSyncedContentRef.current = pmJson;
-      
-      const currentContent = bookContentRef.current;
-      if (currentContent && currentContent.id) {
+      if (pmJson === bookContent?.pmJson) return;
+      console.log(`BookContent is ${bookContent?.pmJson}, bookContent id is ${bookContent?.id}`);
+      if (bookContent && bookContent.id) {
         void updateContent({
-          id: currentContent.id,
-          nodeId: currentContent.nodeId ?? activeNodeId,
+          id: bookContent.id,
+          nodeId: bookContent.nodeId,
           pmJson,
         });
-        console.log(`Updated for ${currentContent.id}, content is now ${bookContentRef.current?.pmJson}`);
+        console.log(`Updated for ${bookContent.id}, content is now ${bookContent.pmJson}`);
       } else {
-        void newContent(activeNodeId, pmJson);
+        if (!nodeId) return;
+        console.log('Creating new content for node', nodeId);
+        void newContent(nodeId, pmJson);
       }
     },
   });
 
+  // load set book content into editor
   useEffect(() => {
-    if (!editor) return;
-    editor.setEditable(!isContentLoading);
-  }, [editor, isContentLoading]);
-
-  useEffect(() => {
-    if (!editor) return;
-    if (!nodeId) return;
-    const content = bookContent && bookContent.nodeId === nodeId ? bookContent : null;
-    console.log('Starting with content', content);
-    if (content?.pmJson) {
-      const pmJson = content.pmJson;
-      if (pmJson === lastSyncedContentRef.current) return;
+    if (!editor) {
+      console.log('Editor not ready yet');
+      return;
+    }
+    if (!nodeId) {
+      console.log('No nodeId provided');
+      return;
+    }
+    console.log('Current book content: ', bookContent, ' for nodeId ', nodeId);
+    if (bookContent?.nodeId !== nodeId) {
+      console.log('Book content nodeId does not match current nodeId');
+      return;
+    }
+    if (bookContent) {
       try {
-        const doc = JSON.parse(pmJson) as JSONContent;
-        editor.commands.setContent(doc, false);
-        lastSyncedContentRef.current = pmJson;
+        const doc = JSON.parse(bookContent.pmJson) as JSONContent;
+        editor.commands.setContent(doc);
+        console.log('Set editor content from book content');
       } catch (error) {
         console.error('Failed to parse editor content; falling back to default doc', error);
-        editor.commands.setContent(getDefaultDoc(), false);
-        lastSyncedContentRef.current = DEFAULT_DOC_STRING;
-        setContentError('章节内容解析失败，已恢复默认内容');
+        editor.commands.setContent(getDefaultDoc());
       }
-    } else if (!isContentLoading && lastSyncedContentRef.current !== DEFAULT_DOC_STRING) {
-      console.log('No content found, setting default doc');
-      editor.commands.setContent(getDefaultDoc(), false);
-      lastSyncedContentRef.current = DEFAULT_DOC_STRING;
+    } else { // only set default doc when book content is null
+      console.log('No content found, setting to default doc');
+      editor.commands.setContent(getDefaultDoc());
     }
-  }, [bookContent, editor, isContentLoading, nodeId]);
-
-  const currentNode = useMemo(
-    () => (nodeId ? bookNodes.find((node) => node.id === nodeId) ?? null : null),
-    [bookNodes, nodeId],
-  );
+  }, [bookContent, editor, nodeId]);
 
   return (
     <div
@@ -240,36 +181,7 @@ export function EditorView() {
           padding: '40px 56px 48px 56px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: '#302432' }}>
-              {currentNode?.title ?? '加载章节中…'}
-            </div>
-            <div style={{ fontSize: 12, color: '#8b7c8b', marginTop: 6 }}>
-              {currentNode ? `状态：${currentNode.status.replace('_', ' ')}` : '请稍候，正在获取章节信息'}
-            </div>
-          </div>
-          {isContentLoading && (
-            <div style={{ fontSize: 12, color: '#8c7d8c' }}>
-              正在加载内容…
-            </div>
-          )}
-        </div>
 
-        {contentError && (
-          <div
-            style={{
-              marginTop: 18,
-              padding: '12px 16px',
-              borderRadius: 12,
-              background: 'rgba(216,82,82,0.12)',
-              color: '#b23c3c',
-              fontSize: 12,
-            }}
-          >
-            {contentError}
-          </div>
-        )}
 
         <div
           style={{
@@ -279,7 +191,6 @@ export function EditorView() {
             boxShadow: '0 30px 60px rgba(31, 26, 58, 0.12)',
             padding: '32px 38px',
             minHeight: 520,
-            opacity: isContentLoading ? 0.6 : 1,
             transition: 'opacity 0.2s ease',
           }}
         >

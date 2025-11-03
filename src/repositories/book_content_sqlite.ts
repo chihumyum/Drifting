@@ -35,7 +35,9 @@ export function createBookContentRepository(): BookContentRepository {
     };
 
     const findByNodeId = async (nodeId: string): Promise<BookContent | null> => {
+        console.log("Incoming nodeId:", nodeId);
         const result = await query<BookContentRecord>(`${selectBase} WHERE bc.node_id = ?`, [nodeId]);
+        console.log("Query result:", result);
         return result.length ? recordToBookContent(result[0]) : null;
     };
 
@@ -58,16 +60,17 @@ export function createBookContentRepository(): BookContentRepository {
 
     const update = async (id: string, data: Partial<BookContent>): Promise<BookContent | null> => {
       const now = new Date().toISOString();
+      const createdAt = await findById(id).then(existing => existing ? existing.createdAt : now);
       const record: BookContentRecord = {
         id,
         node_id: data.nodeId!,
         pm_json: data.pmJson || '',
-        created_at: now,
+        created_at: createdAt,
         updated_at: now,
       };
       await run(
-        `UPDATE book_content SET node_id = ?, pm_json = ?, created_at = ?, updated_at = ? WHERE id = ?`,
-        [record.node_id, record.pm_json, record.created_at, record.updated_at, record.id]
+        `UPDATE book_content SET node_id = ?, pm_json = ?, updated_at = ? WHERE id = ?`,
+        [record.node_id, record.pm_json, record.updated_at, record.id]
       );
       return recordToBookContent(record);
     }

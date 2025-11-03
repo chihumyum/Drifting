@@ -23,6 +23,7 @@ export interface BookContentUsecaseDeps {
 async function loadBookContent(deps: BookContentUsecaseDeps, nodeId: string) {
     const content = await deps.contentRepo.findByNodeId(nodeId);
     deps.setContentState(content);
+    console.log('Loaded content for nodeId', nodeId, ':', content);
 }
 
 async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<BookContent>) {

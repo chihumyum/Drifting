@@ -221,7 +221,7 @@ async function handleRequest(message: DbWorkerRequest) {
       case 'query': {
         await ensureInitialized();
         ensureSql(payload?.sql);
-        const rows = await select(payload.sql);
+        const rows = await select(payload.sql, payload?.params);
         postMessage({ id, type: 'rows', payload: { rows } });
         return;
       }

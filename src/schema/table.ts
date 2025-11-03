@@ -77,7 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
 -- Book content table 
 CREATE TABLE IF NOT EXISTS book_content (
   id TEXT PRIMARY KEY,
-  node_id TEXT NOT NULL,
+  node_id TEXT NOT NULL UNIQUE,
   pm_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
