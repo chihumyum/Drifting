@@ -14,6 +14,9 @@ import {
   MOCK_STORY_THREADS,
   MOCK_CHAPTERS,
   MOCK_NODE_THREADS,
+  MOCK_NODE_TAGS,
+  MOCK_NODE_TAG_LINKS,
+  MOCK_BOOK_CONTENTS,
 } from '../schema/table';
 
 type SQLiteAPI = ReturnType<typeof SQLite.Factory>;
@@ -140,11 +143,31 @@ async function select(sql: string, params?: BindParams): Promise<RowObject[]> {
 async function migrateSchema() {
   console.log('Migrating database schema...');
   await execute(DB_SCHEMA);
+  
+  // 检查是否需要 seed mock data（只在表为空时 seed）
+  const existingNodes = await select('SELECT COUNT(*) as count FROM story_node');
+  const nodeCount = existingNodes[0]?.count || 0;
+  const shouldSeedMockData = nodeCount === 0;
+  
+  console.log('[Migration] Existing nodes:', nodeCount, 'Should seed mock data:', shouldSeedMockData);
+  
   await seedDefaultProject();
   await seedDefaultThread();
-  await seedMockThreads();
-  await seedMockChapters();
-  await seedMockNodeThreads();
+  
+  if (shouldSeedMockData) {
+    console.log('[Migration] Seeding mock data...');
+    await seedMockThreads();
+    await seedMockChapters();
+    await seedMockNodeThreads();
+    console.log('Seeding node tags.');
+    await seedMockNodeTags();
+    await seedMockNodeTagLinks();
+    console.log('Seeding book contents.');
+    await seedMockBookContents();
+  } else {
+    console.log('[Migration] Skipping mock data seed - database already has data');
+  }
+  
   console.log('Seeding categories.');
   await seedDefaultCategories();
   console.log('Seeding elements.');
@@ -205,17 +228,16 @@ async function seedMockThreads() {
 async function seedMockChapters() {
   for (const chapter of MOCK_CHAPTERS) {
     await execute(
-      `INSERT OR IGNORE INTO story_node (id, parent_id, title, project_id, type, order_key, status, summary, pos_x, pos_y, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO story_node (id, title, project_id, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chapter.id,
-        chapter.parent_id ?? null,
         chapter.title,
         chapter.project_id,
-        chapter.type,
-        chapter.order_key,
-        chapter.status,
+        chapter.start,
+        chapter.end ?? null,
         chapter.summary ?? null,
+        chapter.story_stage_id ?? null,
         chapter.pos_x ?? null,
         chapter.pos_y ?? null,
         chapter.created_at,
@@ -276,8 +298,50 @@ async function seedDefaultElements() {
     ]
     );
   }
-
 }
+
+async function seedMockNodeTags() {
+  for (const tag of MOCK_NODE_TAGS) {
+    await execute(
+      `INSERT OR IGNORE INTO node_tag (id, project_id, name, color, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        tag.id,
+        tag.project_id,
+        tag.name,
+        tag.color ?? null,
+        tag.created_at,
+      ]
+    );
+  }
+}
+
+async function seedMockNodeTagLinks() {
+  for (const link of MOCK_NODE_TAG_LINKS) {
+    await execute(
+      `INSERT OR IGNORE INTO node_tag_link (node_id, tag_id, created_at)
+       VALUES (?, ?, ?)`,
+      [link.node_id, link.tag_id, link.created_at]
+    );
+  }
+}
+
+async function seedMockBookContents() {
+  for (const content of MOCK_BOOK_CONTENTS) {
+    await execute(
+      `INSERT OR IGNORE INTO book_content (id, node_id, pm_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        content.id,
+        content.node_id,
+        content.pm_json,
+        content.created_at,
+        content.updated_at,
+      ]
+    );
+  }
+}
+
 
 async function handleRequest(message: DbWorkerRequest) {
   const { id, type: messageType, payload } = message;
@@ -298,14 +362,18 @@ async function handleRequest(message: DbWorkerRequest) {
       case 'run': {
         await ensureInitialized();
         ensureSql(payload?.sql);
+        console.log('[DB Worker] Executing SQL:', payload.sql, 'params:', payload?.params);
         const changes = await execute(payload.sql, payload?.params);
+        console.log('[DB Worker] SQL executed, changes:', changes);
         postMessage({ id, type: 'changes', payload: { changes } });
         return;
       }
       case 'query': {
         await ensureInitialized();
         ensureSql(payload?.sql);
+        console.log('[DB Worker] Querying SQL:', payload.sql, 'params:', payload?.params);
         const rows = await select(payload.sql, payload?.params);
+        console.log('[DB Worker] Query result, rows count:', rows.length);
         postMessage({ id, type: 'rows', payload: { rows } });
         return;
       }

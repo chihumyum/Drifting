@@ -9,7 +9,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
+import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
 import type { BookNode } from '../../domain/book_node';
+import type { NodeTag } from '../../domain/story_stage';
 import { EditorMenuBar } from './EditorMenuBar';
 import { RightVerticalButtons } from '../../components/RightVerticalButtons';
 import { TitleSummaryBubble } from '../../components/TitleSummaryBubble';
@@ -34,7 +36,9 @@ export function EditorView() {
 
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
   const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
+  const { getTagsForNode } = useNodeTagUsecases();
   const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
+  const [nodeTags, setNodeTags] = useState<NodeTag[]>([]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -47,7 +51,7 @@ export function EditorView() {
   // Load nodes on mount if not already loaded
   useEffect(() => {
     if (bookNodes.length === 0) {
-      void loadNodes({ type: 'chapter' });
+      void loadNodes();
     }
   }, [bookNodes.length, loadNodes]);
 
@@ -63,7 +67,17 @@ export function EditorView() {
     setCurNode(node);
     setTitleValue(node?.title || '');
     setSummaryValue(node?.summary || '');
-  }, [bookNodes, nodeId, navigate, setSelectedNodeId]);
+    
+    // Load tags for this node
+    if (nodeId) {
+      getTagsForNode(nodeId).then(tags => {
+        setNodeTags(tags);
+      }).catch(error => {
+        console.error('Failed to load tags for node:', error);
+        setNodeTags([]);
+      });
+    }
+  }, [bookNodes, nodeId, navigate, setSelectedNodeId, getTagsForNode]);
 
 
   // load content when nodeId changes
@@ -77,6 +91,19 @@ export function EditorView() {
     void (async () => {
       try {
         await loadContent(nodeId);
+        
+        // Check if content was actually loaded
+        const loadedContent = useAppStore.getState().bookContent;
+        if (!loadedContent || loadedContent.nodeId !== nodeId) {
+          // Content not found - create a new one
+          console.warn('No content found for node', nodeId, '- creating new content');
+          const defaultDocJson = JSON.stringify({
+            type: 'doc',
+            content: [],
+          });
+          await newContent(nodeId, defaultDocJson);
+        }
+        
         // Mark content as loaded after successful load
         isContentLoadedRef.current = true;
         loadedNodeIdRef.current = nodeId;
@@ -86,7 +113,7 @@ export function EditorView() {
         loadedNodeIdRef.current = nodeId;
       }
     })();
-  }, [loadContent, nodeId]);
+  }, [loadContent, newContent, nodeId]);
 
 
   // Tiptap editor setup
@@ -120,15 +147,17 @@ export function EditorView() {
       const json = ed.getJSON();
       const pmJson = JSON.stringify(json);
       if (pmJson === bookContent?.pmJson) return;
+      
+      // If content exists, update it
       if (bookContent && bookContent.id) {
         void updateContent({
           id: bookContent.id,
           nodeId: bookContent.nodeId,
           pmJson,
         });
-      } else {
-        if (!nodeId) return;
-        console.log('Creating new content for node', nodeId);
+      } else if (nodeId) {
+        // Content doesn't exist - create it (fallback safety)
+        console.warn('No content found during save for node', nodeId, '- creating new content');
         void newContent(nodeId, pmJson);
       }
     },
@@ -317,64 +346,110 @@ export function EditorView() {
             )}
           </div>
 
-          {/* Summary - Right */}
-          <div style={{ flex: 1 }}>
-            {editingSummary ? (
-              <textarea
-                value={summaryValue}
-                onChange={(e) => setSummaryValue(e.target.value)}
-                onBlur={() => {
-                  setEditingSummary(false);
-                  if (curNode?.id && summaryValue !== (curNode.summary || '')) {
-                    void updateNodeSummary(curNode.id, summaryValue.trim() || null);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setSummaryValue(curNode?.summary || '');
+          {/* Summary and Tags - Right */}
+          <div style={{ 
+            flex: 1, 
+            display: 'flex', 
+            gap: '16px',
+            alignItems: 'flex-start',
+          }}>
+            {/* Summary */}
+            <div style={{ flex: 1 }}>
+              {editingSummary ? (
+                <textarea
+                  value={summaryValue}
+                  onChange={(e) => setSummaryValue(e.target.value)}
+                  onBlur={() => {
                     setEditingSummary(false);
-                  }
-                }}
-                autoFocus
-                style={{
-                  width: '100%',
-                  minHeight: 80,
-                  fontSize: 14,
-                  fontWeight: 400,
-                  color: '#4a4358',
-                  border: '2px solid #8b7fa8',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  outline: 'none',
-                  background: '#fff',
-                  resize: 'vertical',
-                  fontFamily: 'inherit',
-                }}
-              />
-            ) : (
-              <div
-                onClick={() => setEditingSummary(true)}
-                style={{
-                  fontSize: 14,
-                  fontWeight: 400,
-                  color: '#4a4358',
-                  cursor: 'pointer',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  transition: 'background 0.15s ease',
-                  minHeight: 48,
-                  lineHeight: 1.6,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                {summaryValue}
-              </div>
-            )}
+                    if (curNode?.id && summaryValue !== (curNode.summary || '')) {
+                      void updateNodeSummary(curNode.id, summaryValue.trim() || null);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setSummaryValue(curNode?.summary || '');
+                      setEditingSummary(false);
+                    }
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    minHeight: 80,
+                    fontSize: 14,
+                    fontWeight: 400,
+                    color: '#4a4358',
+                    border: '2px solid #8b7fa8',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    outline: 'none',
+                    background: '#fff',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              ) : (
+                <div
+                  onClick={() => setEditingSummary(true)}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 400,
+                    color: '#4a4358',
+                    cursor: 'pointer',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    transition: 'background 0.15s ease',
+                    minHeight: 48,
+                    lineHeight: 1.6,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {summaryValue}
+                </div>
+              )}
+            </div>
+
+            {/* Tags */}
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              alignItems: 'flex-start',
+              minWidth: '200px',
+              padding: '8px 12px',
+            }}>
+              {nodeTags.length > 0 ? (
+                nodeTags.map(tag => (
+                  <span
+                    key={tag.id}
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 12px',
+                      borderRadius: '16px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      backgroundColor: tag.color || '#E5E7EB',
+                      color: '#1F2937',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {tag.name}
+                  </span>
+                ))
+              ) : (
+                <span style={{
+                  fontSize: '12px',
+                  color: '#9CA3AF',
+                  fontStyle: 'italic',
+                }}>
+                  无标签
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

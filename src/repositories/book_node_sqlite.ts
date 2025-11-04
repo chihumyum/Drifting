@@ -1,6 +1,6 @@
 import { query, run } from '../lib/db';
-import type { BookNode, BookNodeEdge, BookNodeTag, BookNodeElementLink } from '../domain/book_node';
-import type { NodeType, BookNodeRecord, NodeEdgeRecord, ElementNodeLinkRecord, NodeTagRecord } from '../schema/book_node';
+import type { BookNode, BookNodeEdge, BookNodeElementLink } from '../domain/book_node';
+import type { BookNodeRecord, NodeEdgeRecord, ElementNodeLinkRecord } from '../schema/book_node';
 import type {
   BookNodeRepository,
   BookNodeEdgeRepository,
@@ -8,7 +8,6 @@ import type {
   BookNodeUpdateData,
   BookNodeEdgeCreateData,
 } from './book_node';
-import { DEFAULT_BOOK_NODE_STATUS } from './book_node';
 
 const esc = (v: string) => v.replaceAll("'", "''");
 
@@ -24,16 +23,15 @@ const mergePosition = (
 
 const insertNodeRecord = async (record: BookNodeRecord) => {
   await run(
-    `INSERT INTO story_node (id, project_id, parent_id, type, title, order_key, status, summary, pos_x, pos_y, created_at, updated_at)
+    `INSERT INTO story_node (id, project_id, title, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at)
      VALUES (
        '${esc(record.id)}',
        '${esc(record.project_id)}',
-       ${record.parent_id ? `'${esc(record.parent_id)}'` : 'NULL'},
-       '${esc(record.type)}',
        '${esc(record.title)}',
-       ${record.order_key},
-       '${esc(record.status)}',
+       ${record.start},
+       ${record.end ?? 'NULL'},
        ${record.summary ? `'${esc(record.summary)}'` : 'NULL'},
+       ${record.story_stage_id ? `'${esc(record.story_stage_id)}'` : 'NULL'},
        ${record.pos_x ?? 'NULL'},
        ${record.pos_y ?? 'NULL'},
        '${esc(record.created_at)}',
@@ -46,12 +44,11 @@ const updateNodeRecord = async (record: BookNodeRecord) => {
   await run(
     `UPDATE story_node SET
        project_id='${esc(record.project_id)}',
-       parent_id=${record.parent_id ? `'${esc(record.parent_id)}'` : 'NULL'},
-       type='${esc(record.type)}',
        title='${esc(record.title)}',
-       order_key=${record.order_key},
-       status='${esc(record.status)}',
+       start=${record.start},
+       end=${record.end ?? 'NULL'},
        summary=${record.summary ? `'${esc(record.summary)}'` : 'NULL'},
+       story_stage_id=${record.story_stage_id ? `'${esc(record.story_stage_id)}'` : 'NULL'},
        pos_x=${record.pos_x ?? 'NULL'},
        pos_y=${record.pos_y ?? 'NULL'},
        created_at='${esc(record.created_at)}',
@@ -88,15 +85,7 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
     async findAll(projectId?: string) {
       const targetProject = ensureProjectId(projectId, defaultProjectId);
       const rows = await query<BookNodeRecord>(
-        `SELECT * FROM story_node WHERE project_id='${esc(targetProject)}' ORDER BY order_key ASC`,
-      );
-      return rows.map(toBookNode);
-    },
-
-    async findAllByType(type: NodeType, projectId?: string) {
-      const targetProject = ensureProjectId(projectId, defaultProjectId);
-      const rows = await query<BookNodeRecord>(
-        `SELECT * FROM story_node WHERE project_id='${esc(targetProject)}' AND type='${esc(type)}' ORDER BY order_key ASC`,
+        `SELECT * FROM story_node WHERE project_id='${esc(targetProject)}' ORDER BY start ASC`,
       );
       return rows.map(toBookNode);
     },
@@ -106,12 +95,11 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       const baseNode: BookNode = {
         id: data.id ?? crypto.randomUUID(),
         projectId: ensureProjectId(data.projectId, defaultProjectId),
-        parentId: data.parentId ?? null,
         title: data.title ?? 'Untitled',
-        type: data.type ?? 'chapter',
-        orderKey: data.orderKey ?? Date.now(),
-        status: data.status ?? DEFAULT_BOOK_NODE_STATUS,
+        start: data.start ?? Date.now(),
+        end: data.end ?? null,
         summary: data.summary ?? null,
+        storyStageId: data.storyStageId ?? null,
         position: mergePosition({ x: null, y: null }, data.position),
         createdAt: data.createdAt ?? nowIso,
         updatedAt: data.updatedAt ?? nowIso,
@@ -131,12 +119,11 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       const nextNode: BookNode = {
         id: existingNode.id,
         projectId: updates.projectId ?? existingNode.projectId,
-        parentId: updates.parentId !== undefined ? updates.parentId : existingNode.parentId,
         title: updates.title ?? existingNode.title,
-        type: updates.type ?? existingNode.type,
-        orderKey: updates.orderKey ?? existingNode.orderKey,
-        status: updates.status ?? existingNode.status,
+        start: updates.start ?? existingNode.start,
+        end: updates.end !== undefined ? updates.end : existingNode.end,
         summary: updates.summary !== undefined ? updates.summary : existingNode.summary,
+        storyStageId: updates.storyStageId !== undefined ? updates.storyStageId : existingNode.storyStageId,
         position: mergePosition(existingNode.position, updates.position),
         createdAt: updates.createdAt ?? existingNode.createdAt,
         updatedAt: updates.updatedAt ?? new Date().toISOString(),
@@ -148,17 +135,19 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
     },
 
     async delete(id: string) {
-      await run(`DELETE FROM story_node WHERE id='${esc(id)}'`);
+      console.log('[BookNodeRepository] Deleting node:', id);
+      const changes = await run(`DELETE FROM story_node WHERE id='${esc(id)}'`);
+      console.log('[BookNodeRepository] Delete result - changes:', changes);
       return true;
     },
 
     async swapOrder(first, second) {
       const nowIso = new Date().toISOString();
       await run(
-        `UPDATE story_node SET order_key=${second.orderKey}, updated_at='${esc(nowIso)}' WHERE id='${esc(first.id)}'`,
+        `UPDATE story_node SET start=${second.start}, updated_at='${esc(nowIso)}' WHERE id='${esc(first.id)}'`,
       );
       await run(
-        `UPDATE story_node SET order_key=${first.orderKey}, updated_at='${esc(nowIso)}' WHERE id='${esc(second.id)}'`,
+        `UPDATE story_node SET start=${first.start}, updated_at='${esc(nowIso)}' WHERE id='${esc(second.id)}'`,
       );
     },
   };
@@ -203,12 +192,11 @@ function toBookNode(record: BookNodeRecord): BookNode {
   return {
     id: record.id,
     projectId: record.project_id,
-    parentId: record.parent_id ?? null,
     title: record.title,
-    type: record.type,
-    orderKey: record.order_key,
-    status: record.status,
+    start: record.start,
+    end: record.end ?? null,
     summary: record.summary ?? null,
+    storyStageId: record.story_stage_id ?? null,
     position: {
       x: record.pos_x ?? null,
       y: record.pos_y ?? null,
@@ -222,12 +210,11 @@ function fromBookNode(node: BookNode): BookNodeRecord {
   return {
     id: node.id,
     project_id: node.projectId,
-    parent_id: node.parentId ?? null,
     title: node.title,
-    type: node.type,
-    order_key: node.orderKey,
-    status: node.status,
+    start: node.start,
+    end: node.end ?? null,
     summary: node.summary ?? null,
+    story_stage_id: node.storyStageId ?? undefined,
     pos_x: node.position.x ?? null,
     pos_y: node.position.y ?? null,
     created_at: node.createdAt,
@@ -245,14 +232,6 @@ function toBookNodeEdge(record: NodeEdgeRecord): BookNodeEdge {
     label: record.label ?? null,
     weight: record.weight,
     createdAt: record.created_at,
-  };
-}
-
-export function toBookNodeTag(record: NodeTagRecord): BookNodeTag {
-  return {
-    id: record.id,
-    nodeId: record.node_id,
-    name: record.name,
   };
 }
 

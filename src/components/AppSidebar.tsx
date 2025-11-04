@@ -34,7 +34,7 @@ export function AppSidebar() {
               borderRadius: '10px',
               border: 'none',
               background: 'transparent',
-              color: '#5a4d6f',
+              color: '#000000b1',
               fontSize: '14px',
               fontWeight: '500',
               cursor: 'pointer',
@@ -42,12 +42,10 @@ export function AppSidebar() {
               textAlign: 'left',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(102, 126, 234, 0.08)';
-              e.currentTarget.style.color = '#667eea';
+              e.currentTarget.style.background = 'rgba(234, 168, 102, 0.2)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#5a4d6f';
             }}
           >
             <item.icon size={20} />

@@ -23,7 +23,7 @@ function Layout() {
   }, []);
 
   return (
-    <div style={{ height: '100vh', overflow: 'hidden', background: '#f4f2f6' }}>
+    <div style={{ height: '100vh', overflow: 'hidden', background: 'rgba(251, 249, 243, 1)' }}>
       <div
         style={{
           height: 'calc(100vh - 120px)', // Leave space for timeline at bottom
@@ -34,15 +34,15 @@ function Layout() {
       >
         {/* Left Sidebar - Combined App Menu + Element Panel */}
         <div
+          className="bg-mild"
           style={{
             display: 'flex',
             flexDirection: 'column',
-            background: 'linear-gradient(180deg, rgba(248, 246, 252, 0.98) 0%, rgba(252, 250, 255, 0.98) 100%)',
-            borderRight: '1px solid rgba(200, 190, 220, 0.3)',
+            borderRight: '1px solid rgba(213, 213, 213, 0.3)',
           }}
         >
           {/* App Menu Section - Top 1/4 */}
-          <div style={{ height: '25%', minHeight: 200 }}>
+          <div >
             <AppSidebar />
           </div>
 
@@ -51,7 +51,7 @@ function Layout() {
             flex: 1,
             minHeight: 0,
             overflow: 'hidden',
-            borderTop: '1px solid rgba(200, 190, 220, 0.25)',
+            borderTop: '1px solid rgba(145, 145, 145, 0.25)',
           }}>
             <ElementPanel />
           </div>
@@ -62,7 +62,7 @@ function Layout() {
           style={{
             position: 'relative',
             overflow: 'hidden',
-            background: isEditorRoute ? 'rgba(245, 243, 250, 0.5)' : 'transparent',
+            background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
           }}
         >
           <Outlet />

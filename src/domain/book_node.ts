@@ -1,4 +1,4 @@
-import type { NodeType, NodeStatus, NodeEdgeKind } from '../schema/book_node';
+import type { NodeEdgeKind } from '../schema/book_node';
 
 export interface BookNodePosition {
   x: number | null;
@@ -8,19 +8,17 @@ export interface BookNodePosition {
 export interface BookNode {
   id: string;
   projectId: string;
-  parentId: string | null;
   title: string;
-  type: NodeType;
-  orderKey: number;
-  status: NodeStatus;
+  start: number;                     // Position on timeline (chapter order / story time start)
+  end: number | null;                // Timeline end position (null = use default width)
   summary: string | null;
+  storyStageId: string | null;       // FK to story_stage, nullable
   position: BookNodePosition;
   createdAt: string;
   updatedAt: string;
 }
 
-export type BookNodeStatus = NodeStatus;
-
+// DEPRECATED: Old structure kept for backward compatibility
 export interface BookNodeTag {
   id: string;
   nodeId: string;
@@ -43,4 +41,5 @@ export interface BookNodeElementLink {
   nodeId: string;
   elementId: string;
 }
+
 

@@ -1,13 +1,17 @@
-import type { Project } from "./book_general";
+import type { Project, NodeTagRecord, NodeTagLinkRecord } from "./book_general";
 import type { ElementRecord, ElementCategoryRecord } from "./book_element";
 import type { StoryThreadRecord } from "./story_thread";
 import type { BookNodeRecord } from "./book_node";
+import type { BookContentRecord } from "./book_content";
 
 
 
 export const TABLES = {
   project: 'project',
+  storyStage: 'story_stage',
   storyNode: 'story_node',
+  nodeTag: 'node_tag',
+  nodeTagLink: 'node_tag_link',
   nodeEdge: 'node_edge',
   bookContent: 'book_content',
   element: 'element',
@@ -39,27 +43,65 @@ CREATE TABLE IF NOT EXISTS element_category (
   description_json TEXT NOT NULL DEFAULT '{}',
   color TEXT NULL
 );
--- Create story nodes (chapter/scene/beat)
+
+-- Story stages (higher level than nodes/chapters)
+CREATE TABLE IF NOT EXISTS story_stage (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  order_key INTEGER NOT NULL,
+  color TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_story_stage_project ON story_stage(project_id);
+CREATE INDEX IF NOT EXISTS idx_story_stage_order ON story_stage(project_id, order_key);
+
+-- Node tags (user-defined tags for categorizing nodes)
+CREATE TABLE IF NOT EXISTS node_tag (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
+  UNIQUE(project_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_node_tag_project ON node_tag(project_id);
+
+-- Node-tag link (many-to-many)
+CREATE TABLE IF NOT EXISTS node_tag_link (
+  node_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(node_id, tag_id),
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(tag_id) REFERENCES node_tag(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_node_tag_link_node ON node_tag_link(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_tag_link_tag ON node_tag_link(tag_id);
+
+-- Story nodes (chapters/nodes - basic writing units)
 CREATE TABLE IF NOT EXISTS story_node (
   id TEXT PRIMARY KEY,
-  parent_id TEXT,
   title TEXT NOT NULL,
   project_id TEXT NOT NULL,
-  type TEXT NOT NULL,               -- chapter/scene/beat
-  order_key INTEGER NOT NULL,
-  status TEXT NOT NULL,             -- draft/in_progress/complete/archived
+  start INTEGER NOT NULL,           -- Position on timeline (chapter order / story time start)
+  end INTEGER,                       -- Timeline end position (null = use default width)
   summary TEXT,
+  story_stage_id TEXT,              -- FK to story_stage (nullable)
   pos_x REAL,
   pos_y REAL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
-  FOREIGN KEY(parent_id) REFERENCES story_node(id) ON DELETE SET NULL
+  FOREIGN KEY(story_stage_id) REFERENCES story_stage(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_story_node_project ON story_node(project_id);
-CREATE INDEX IF NOT EXISTS idx_story_node_parent ON story_node(parent_id);
-CREATE INDEX IF NOT EXISTS idx_story_node_type ON story_node(type);
-CREATE INDEX IF NOT EXISTS idx_story_node_order ON story_node(project_id, order_key);
+CREATE INDEX IF NOT EXISTS idx_story_node_stage ON story_node(story_stage_id);
+CREATE INDEX IF NOT EXISTS idx_story_node_timeline ON story_node(project_id, start, end);
 
 -- Story threads (narrative threads/storylines)
 CREATE TABLE IF NOT EXISTS story_thread (
@@ -358,13 +400,12 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
 export const MOCK_CHAPTERS: BookNodeRecord[] = [
   {
     id: 'chapter_001',
-    parent_id: null,
     title: '序章',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 1,
-    status: 'draft',
+    start: 1,
+    end: 8,
     summary: '故事的开端，介绍世界观和主要角色',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -372,13 +413,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_002',
-    parent_id: null,
     title: '第一章：John',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 2,
-    status: 'draft',
+    start: 10,
+    end: 16,
     summary: 'John在城市中的日常生活',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -386,13 +426,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_003',
-    parent_id: null,
     title: '第二章：Emma',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 3,
-    status: 'draft',
+    start: 12,
+    end: 19,
     summary: 'Emma的背景故事',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -400,13 +439,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_004',
-    parent_id: null,
     title: '第三章：Vera',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 4,
-    status: 'draft',
+    start: 15,
+    end: 22,
     summary: 'Vera的神秘过去',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -414,13 +452,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_005',
-    parent_id: null,
     title: '第四章：John',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 5,
-    status: 'draft',
+    start: 25,
+    end: 30,
     summary: 'John遇到了第一个挑战',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -428,13 +465,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_006',
-    parent_id: null,
     title: '第五章：Emma',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 6,
-    status: 'draft',
+    start: 28,
+    end: 35,
     summary: 'Emma的决定',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -442,13 +478,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_007',
-    parent_id: null,
     title: '第六章：Vera',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 7,
-    status: 'draft',
+    start: 32,
+    end: 38,
     summary: 'Vera的秘密被揭露',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -456,13 +491,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_008',
-    parent_id: null,
     title: '第七章：Emma',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 8,
-    status: 'draft',
+    start: 40,
+    end: 47,
     summary: 'Emma与Vera的相遇',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -470,13 +504,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_009',
-    parent_id: null,
     title: '第九章：所有人',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 9,
-    status: 'draft',
+    start: 50,
+    end: 58,
     summary: '三条故事线汇聚',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -484,13 +517,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_010',
-    parent_id: null,
     title: '第十章：John',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 10,
-    status: 'draft',
+    start: 60,
+    end: 66,
     summary: 'John做出了艰难的选择',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -498,13 +530,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_011',
-    parent_id: null,
     title: '第十一章：Emma',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 11,
-    status: 'draft',
+    start: 68,
+    end: 75,
     summary: 'Emma的牺牲',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -512,13 +543,12 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
   {
     id: 'chapter_012',
-    parent_id: null,
     title: '第十二章：John & Emma',
     project_id: 'default-project',
-    type: 'chapter',
-    order_key: 12,
-    status: 'draft',
+    start: 78,
+    end: 86,
     summary: 'John和Emma的最终对决',
+    story_stage_id: null,
     pos_x: null,
     pos_y: null,
     created_at: new Date().toISOString(),
@@ -573,3 +603,201 @@ export const MOCK_NODE_THREADS = [
   { node_id: 'chapter_012', thread_id: 'thread_john' },
   { node_id: 'chapter_012', thread_id: 'thread_emma' },
 ];
+
+// Mock node tags
+export const MOCK_NODE_TAGS: NodeTagRecord[] = [
+  {
+    id: 'tag_action',
+    project_id: 'default-project',
+    name: '动作',
+    color: '#EF4444',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'tag_dialogue',
+    project_id: 'default-project',
+    name: '对话',
+    color: '#3B82F6',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'tag_flashback',
+    project_id: 'default-project',
+    name: '回忆',
+    color: '#8B5CF6',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'tag_climax',
+    project_id: 'default-project',
+    name: '高潮',
+    color: '#F59E0B',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'tag_resolution',
+    project_id: 'default-project',
+    name: '结局',
+    color: '#10B981',
+    created_at: new Date().toISOString(),
+  },
+];
+
+// Mock node-tag relationships
+export const MOCK_NODE_TAG_LINKS: NodeTagLinkRecord[] = [
+  // chapter_001 - 对话
+  { node_id: 'chapter_001', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
+  
+  // chapter_002 - 对话
+  { node_id: 'chapter_002', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
+  
+  // chapter_003 - 对话, 回忆
+  { node_id: 'chapter_003', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
+  { node_id: 'chapter_003', tag_id: 'tag_flashback', created_at: new Date().toISOString() },
+  
+  // chapter_004 - 回忆
+  { node_id: 'chapter_004', tag_id: 'tag_flashback', created_at: new Date().toISOString() },
+  
+  // chapter_005 - 动作
+  { node_id: 'chapter_005', tag_id: 'tag_action', created_at: new Date().toISOString() },
+  
+  // chapter_007 - 对话, 动作
+  { node_id: 'chapter_007', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
+  { node_id: 'chapter_007', tag_id: 'tag_action', created_at: new Date().toISOString() },
+  
+  // chapter_009 - 高潮
+  { node_id: 'chapter_009', tag_id: 'tag_climax', created_at: new Date().toISOString() },
+  
+  // chapter_010 - 动作, 高潮
+  { node_id: 'chapter_010', tag_id: 'tag_action', created_at: new Date().toISOString() },
+  { node_id: 'chapter_010', tag_id: 'tag_climax', created_at: new Date().toISOString() },
+  
+  // chapter_012 - 高潮, 结局
+  { node_id: 'chapter_012', tag_id: 'tag_climax', created_at: new Date().toISOString() },
+  { node_id: 'chapter_012', tag_id: 'tag_resolution', created_at: new Date().toISOString() },
+];
+
+// Mock book contents (for half of the chapters)
+export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
+  {
+    id: 'content_001',
+    node_id: 'chapter_001',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '序章' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '这是故事的开端...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'content_002',
+    node_id: 'chapter_002',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '第一章：John' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'John在城市中漫步...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'content_004',
+    node_id: 'chapter_004',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '第三章：Vera' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Vera回忆起过去的片段...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'content_006',
+    node_id: 'chapter_006',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '第五章：Emma' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Emma做出了重要的决定...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'content_008',
+    node_id: 'chapter_008',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '第七章：Emma' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Emma与Vera的相遇改变了一切...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'content_010',
+    node_id: 'chapter_010',
+    pm_json: JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '第十章：John' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'John面临着艰难的抉择...' }],
+        },
+      ],
+    }),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+

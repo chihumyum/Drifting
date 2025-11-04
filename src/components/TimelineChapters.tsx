@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
@@ -10,9 +10,9 @@ const PROJECT_ID = 'default-project';
 
 // Timeline 配置
 const TIMELINE_CONFIG = {
-  GRID_UNIT: 40, // 每个 order_key 单位占用的像素宽度（像视频剪辑软件的网格）
-  NODE_MIN_WIDTH: 40, // 节点最小宽度（1个网格单位）
-  NODE_DEFAULT_DURATION: 2, // 节点默认持续时长（2个网格单位 = 80px）
+  GRID_UNIT: 20, // 每个网格单位占用的像素宽度（从40改为20，提高精度）
+  NODE_MIN_WIDTH: 40, // 节点最小宽度（2个网格单位）
+  NODE_DEFAULT_WIDTH: 4, // 节点默认宽度（4个网格单位 = 80px）
   NODE_MIN_HEIGHT: 24, // 节点最小高度（太小就不显示文字）
   NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
   NODE_COMPACT_HEIGHT: 32, // 收起时节点理想高度
@@ -37,9 +37,9 @@ export function TimelineChapters() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
-  const [hoveredPosition, setHoveredPosition] = useState<{ threadId: string; orderKey: number; x: number } | null>(null);
+  const [hoveredPosition, setHoveredPosition] = useState<{ threadId: string; start: number; x: number } | null>(null);
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; threadId: string } | null>(null);
-  const [dragOverPosition, setDragOverPosition] = useState<{ threadId: string; orderKey: number; x: number } | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<{ threadId: string; start: number; x: number } | null>(null);
   const [nodeHeight, setNodeHeight] = useState(TIMELINE_CONFIG.NODE_COMPACT_HEIGHT);
   const [needsScroll, setNeedsScroll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ nodeId: string; threadId: string } | null>(null);
@@ -47,8 +47,8 @@ export function TimelineChapters() {
   // 节点边缘 hover 状态
   const [hoveredEdge, setHoveredEdge] = useState<{ nodeId: string; edge: 'left' | 'right' } | null>(null);
   
-  // 节点持续时长（以 grid 单位计）- 使用 Map 存储每个节点的 duration
-  const [nodeDurations, setNodeDurations] = useState<Map<string, number>>(new Map());
+  // 节点宽度（以 grid 单位计）- 使用 Map 存储每个节点的 end 值
+  const [nodeEnds, setNodeEnds] = useState<Map<string, number | null>>(new Map());
   
   // 调整大小的状态
   const [resizingNode, setResizingNode] = useState<{
@@ -56,23 +56,45 @@ export function TimelineChapters() {
     threadId: string;
     edge: 'left' | 'right';
     startX: number;
-    startOrderKey: number;
-    startDuration: number;
+    startStart: number;
+    startEnd: number | null;
   } | null>(null);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
+  // 提取重新加载节点数据的逻辑
+  const reloadNodesWithThreads = useCallback(async () => {
+    try {
+      const nodesWithThreadInfo = await Promise.all(
+        bookNodes.map(async (node) => {
+          const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
+          return { ...node, threads: nodeThreads };
+        })
+      );
+      setNodesWithThreads(nodesWithThreadInfo);
+    } catch (error) {
+      console.error('Failed to reload nodes with threads:', error);
+    }
+  }, [bookNodes, threadUsecases]);
+  
   // 获取节点宽度（像素）
   const getNodeWidth = (nodeId: string): number => {
-    const duration = nodeDurations.get(nodeId) || TIMELINE_CONFIG.NODE_DEFAULT_DURATION;
-    return duration * TIMELINE_CONFIG.GRID_UNIT;
+    const node = nodesWithThreads.find(n => n.id === nodeId);
+    if (!node) return TIMELINE_CONFIG.NODE_DEFAULT_WIDTH * TIMELINE_CONFIG.GRID_UNIT;
+    
+    const end = nodeEnds.get(nodeId) ?? node.end;
+    if (end === null || end === undefined) {
+      return TIMELINE_CONFIG.NODE_DEFAULT_WIDTH * TIMELINE_CONFIG.GRID_UNIT;
+    }
+    
+    const width = (end - node.start) * TIMELINE_CONFIG.GRID_UNIT;
+    return Math.max(width, TIMELINE_CONFIG.NODE_MIN_WIDTH);
   };
 
-  // 计算最大 order_key
-  const maxOrderKey = Math.max(...nodesWithThreads.map(n => n.orderKey), 0);
-  // 计算 timeline 宽度：最大节点的右边缘位置 + 一些额外空间
-  const maxNodeWidth = Math.max(...nodesWithThreads.map(n => getNodeWidth(n.id)), TIMELINE_CONFIG.NODE_DEFAULT_DURATION * TIMELINE_CONFIG.GRID_UNIT);
-  const timelineWidth = maxOrderKey * TIMELINE_CONFIG.GRID_UNIT + maxNodeWidth + 40; // 40px 额外空间
+  // 计算最大 start 值
+  const maxStart = Math.max(...nodesWithThreads.map(n => n.end ?? (n.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH)), 0);
+  // 计算 timeline 宽度
+  const timelineWidth = maxStart * TIMELINE_CONFIG.GRID_UNIT + 40; // 40px 额外空间
 
   // 动态计算节点高度
   useEffect(() => {
@@ -100,7 +122,7 @@ export function TimelineChapters() {
   useEffect(() => {
     async function loadChapters() {
       try {
-        await nodeUsecases.loadNodes({ type: 'chapter' });
+        await nodeUsecases.loadNodes();
       } catch (error) {
         console.error('Failed to load chapters:', error);
       }
@@ -116,14 +138,20 @@ export function TimelineChapters() {
         setThreads(allThreads);
 
         // Load thread info for each node
-        const chapters = bookNodes.filter((n) => n.type === 'chapter');
         const nodesWithThreadInfo = await Promise.all(
-          chapters.map(async (node) => {
+          bookNodes.map(async (node) => {
             const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
             return { ...node, threads: nodeThreads };
           })
         );
         setNodesWithThreads(nodesWithThreadInfo);
+        
+        // Initialize end state from database
+        const endsMap = new Map<string, number | null>();
+        bookNodes.forEach((node) => {
+          endsMap.set(node.id, node.end ?? null);
+        });
+        setNodeEnds(endsMap);
       } catch (error) {
         console.error('Failed to load timeline data:', error);
       }
@@ -134,10 +162,9 @@ export function TimelineChapters() {
     }
   }, [bookNodes, threadUsecases]);
 
-  // 将 order_key 转换为像素位置
-  const orderKeyToPosition = (orderKey: number) => {
-    // 不再需要 TIMELINE_PADDING，因为节点容器内部从 0 开始
-    return (orderKey - 1) * TIMELINE_CONFIG.GRID_UNIT;
+  // 将 start 转换为像素位置
+  const startToPosition = (start: number) => {
+    return (start - 1) * TIMELINE_CONFIG.GRID_UNIT;
   };
 
   // Handle drag start
@@ -146,7 +173,7 @@ export function TimelineChapters() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Handle drag over - 计算应该放在哪个 orderKey 位置
+  // Handle drag over - 计算应该放在哪个 start 位置
   const handleDragOver = (e: React.DragEvent, threadId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -163,9 +190,9 @@ export function TimelineChapters() {
     // 从鼠标位置（节点中心）反推节点左边缘的位置
     const nodeWidth = getNodeWidth(draggedNode.node.id);
     const nodeLeftX = mouseX - nodeWidth / 2;
-    const orderKey = Math.max(1, Math.round(nodeLeftX / TIMELINE_CONFIG.GRID_UNIT) + 1);
+    const start = Math.max(1, Math.round(nodeLeftX / TIMELINE_CONFIG.GRID_UNIT) + 1);
     
-    setDragOverPosition({ threadId, orderKey, x: mouseX });
+    setDragOverPosition({ threadId, start, x: mouseX });
   };
 
   // Handle drop
@@ -174,25 +201,27 @@ export function TimelineChapters() {
     if (!draggedNode || !dragOverPosition) return;
 
     const { node, threadId: sourceThreadId } = draggedNode;
-    const targetOrderKey = dragOverPosition.orderKey;
+    const targetStart = dragOverPosition.start;
     
     try {
       // If dropped in a different thread, update threads
       if (sourceThreadId !== targetThreadId) {
-        // 添加到新 thread
         await threadUsecases.addNodeToThread(node.id, targetThreadId);
-        
-        // 移除旧 thread 的关联（不再特殊对待 main thread）
         await threadUsecases.removeNodeFromThread(node.id, sourceThreadId);
       }
 
-      // Update order_key if changed
-      if (targetOrderKey !== node.orderKey) {
-        await nodeUsecases.updateNode(node.id, { orderKey: targetOrderKey });
+      // Update start if changed
+      if (targetStart !== node.start) {
+        // Calculate new end to maintain width
+        const currentEnd = nodeEnds.get(node.id) ?? node.end;
+        const width = currentEnd !== null ? currentEnd - node.start : TIMELINE_CONFIG.NODE_DEFAULT_WIDTH;
+        const newEnd = targetStart + width;
+        
+        await nodeUsecases.updateNode(node.id, { start: targetStart, end: newEnd });
       }
 
       // Reload data
-      await nodeUsecases.loadNodes({ type: 'chapter' });
+      await nodeUsecases.loadNodes();
     } catch (error) {
       console.error('Failed to handle drop:', error);
     } finally {
@@ -214,15 +243,15 @@ export function TimelineChapters() {
     const node = nodesWithThreads.find((n) => n.id === nodeId);
     if (!node) return;
     
-    const duration = nodeDurations.get(nodeId) || TIMELINE_CONFIG.NODE_DEFAULT_DURATION;
+    const end = nodeEnds.get(nodeId) ?? node.end ?? (node.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
     
     setResizingNode({
       nodeId,
       threadId,
       edge,
       startX: e.clientX,
-      startOrderKey: node.orderKey,
-      startDuration: duration,
+      startStart: node.start,
+      startEnd: end,
     });
   };
 
@@ -243,29 +272,25 @@ export function TimelineChapters() {
       const deltaGridUnits = Math.round(deltaX / TIMELINE_CONFIG.GRID_UNIT);
       
       if (resizingNode.edge === 'right') {
-        // 调整右侧 - 改变 duration
-        const newDuration = Math.max(1, resizingNode.startDuration + deltaGridUnits);
-        setNodeDurations((prev) => {
+        // 调整右侧 - 只改变 end，start 保持不变
+        const newEnd = Math.max(resizingNode.startStart + 1, (resizingNode.startEnd ?? (resizingNode.startStart + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH)) + deltaGridUnits);
+        setNodeEnds((prev) => {
           const next = new Map(prev);
-          next.set(resizingNode.nodeId, newDuration);
+          next.set(resizingNode.nodeId, newEnd);
           return next;
         });
       } else {
-        // 调整左侧 - 改变 orderKey 和 duration
-        const newOrderKey = Math.max(1, resizingNode.startOrderKey + deltaGridUnits);
-        const newDuration = Math.max(1, resizingNode.startDuration - deltaGridUnits);
+        // 调整左侧 - 只改变 start，end 保持不变
+        const newStart = Math.max(1, resizingNode.startStart + deltaGridUnits);
+        const originalEnd = resizingNode.startEnd ?? (resizingNode.startStart + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
         
-        // 临时更新 duration（视觉反馈）
-        setNodeDurations((prev) => {
-          const next = new Map(prev);
-          next.set(resizingNode.nodeId, newDuration);
-          return next;
-        });
+        // 确保 start 不会超过 end
+        const validStart = Math.min(newStart, originalEnd - 1);
         
-        // 临时更新节点位置（不写数据库，只在内存中）
+        // 只更新节点位置，end 保持不变
         setNodesWithThreads((prev) => 
           prev.map((n) => 
-            n.id === resizingNode.nodeId ? { ...n, orderKey: newOrderKey } : n
+            n.id === resizingNode.nodeId ? { ...n, start: validStart } : n
           )
         );
       }
@@ -273,14 +298,35 @@ export function TimelineChapters() {
     
     const handleResizeEnd = async () => {
       if (resizingNode) {
-        // 调整结束后才写入数据库
         const node = nodesWithThreads.find((n) => n.id === resizingNode.nodeId);
-        if (node && node.orderKey !== resizingNode.startOrderKey) {
-          await nodeUsecases.updateNode(resizingNode.nodeId, { orderKey: node.orderKey });
+        if (!node) {
+          setResizingNode(null);
+          return;
+        }
+
+        // 获取当前的 end
+        const currentEnd = nodeEnds.get(resizingNode.nodeId) ?? node.end;
+        
+        // 准备更新数据
+        const updates: { start?: number; end?: number | null } = {};
+        
+        // 如果 start 变化了，更新它
+        if (node.start !== resizingNode.startStart) {
+          updates.start = node.start;
+        }
+        
+        // 如果 end 变化了，更新它
+        if (currentEnd !== resizingNode.startEnd) {
+          updates.end = currentEnd;
+        }
+        
+        // 如果有任何更新，写入数据库
+        if (Object.keys(updates).length > 0) {
+          await nodeUsecases.updateNode(resizingNode.nodeId, updates);
         }
         
         // 重新加载数据确保同步
-        await nodeUsecases.loadNodes({ type: 'chapter' });
+        await nodeUsecases.loadNodes();
         setResizingNode(null);
       }
     };
@@ -294,7 +340,7 @@ export function TimelineChapters() {
         document.removeEventListener('mouseup', handleResizeEnd);
       };
     }
-  }, [resizingNode, nodeUsecases, nodesWithThreads]);
+  }, [resizingNode, nodeUsecases, nodesWithThreads, nodeEnds]);
 
   // Handle remove node from thread
   const handleRemoveNodeFromThread = async (nodeId: string, threadId: string, e: React.MouseEvent) => {
@@ -307,16 +353,24 @@ export function TimelineChapters() {
       if (showDeleteConfirm?.nodeId === nodeId && showDeleteConfirm?.threadId === threadId) {
         // 二次确认 - 删除整个节点
         try {
+          console.log('[TimelineChapters] Deleting node:', nodeId);
           await nodeUsecases.deleteNode(nodeId);
+          console.log('[TimelineChapters] Delete successful, clearing selection');
           
-          // 清除选中状态
+          // 清除选中状态并导航到编辑器根路径
           if (selectedNodeId === nodeId) {
             useAppStore.getState().setSelectedNodeId(null);
+            navigate('/editor');
           }
           
           setShowDeleteConfirm(null);
+          
+          // 重新加载节点数据
+          console.log('[TimelineChapters] Reloading nodes from database');
+          await nodeUsecases.loadNodes();
+          console.log('[TimelineChapters] Nodes reloaded');
         } catch (error) {
-          console.error('Failed to delete node:', error);
+          console.error('[TimelineChapters] Failed to delete node:', error);
         }
       } else {
         // 第一次点击 - 显示确认状态
@@ -340,14 +394,7 @@ export function TimelineChapters() {
       await threadUsecases.removeNodeFromThread(nodeId, threadId);
       
       // Reload
-      const chapters = bookNodes.filter((n) => n.type === 'chapter');
-      const nodesWithThreadInfo = await Promise.all(
-        chapters.map(async (node) => {
-          const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
-          return { ...node, threads: nodeThreads };
-        })
-      );
-      setNodesWithThreads(nodesWithThreadInfo);
+      await reloadNodesWithThreads();
     } catch (error) {
       console.error('Failed to remove node from thread:', error);
     }
@@ -362,14 +409,7 @@ export function TimelineChapters() {
       await threadUsecases.addNodeToThread(selectedNodeId, threadId);
       
       // Reload
-      const chapters = bookNodes.filter((n) => n.type === 'chapter');
-      const nodesWithThreadInfo = await Promise.all(
-        chapters.map(async (node) => {
-          const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
-          return { ...node, threads: nodeThreads };
-        })
-      );
-      setNodesWithThreads(nodesWithThreadInfo);
+      await reloadNodesWithThreads();
     } catch (error) {
       console.error('Failed to add node to thread:', error);
     }
@@ -398,7 +438,7 @@ export function TimelineChapters() {
     const isSelected = selectedNodeId === node.id;
     const isConfirmingDelete = showDeleteConfirm?.nodeId === node.id && showDeleteConfirm?.threadId === threadId;
     
-    const leftPosition = orderKeyToPosition(node.orderKey);
+    const leftPosition = startToPosition(node.start);
     const nodeWidth = getNodeWidth(node.id);
     const showText = nodeHeight >= TIMELINE_CONFIG.NODE_MIN_HEIGHT;
     
@@ -551,7 +591,7 @@ export function TimelineChapters() {
     const selectedNodeBelongsToThread = selectedNode?.threads.some((t) => t.id === thread.id);
     
     // 计算选中节点的有效添加区域
-    const selectedNodeLeft = selectedNode ? orderKeyToPosition(selectedNode.orderKey) : 0;
+    const selectedNodeLeft = selectedNode ? startToPosition(selectedNode.start) : 0;
     const selectedNodeWidth = selectedNode ? getNodeWidth(selectedNode.id) : 0;
     const selectedNodeRight = selectedNodeLeft + selectedNodeWidth;
     const isInValidAddZone = hoveredPosition?.threadId === thread.id && 
@@ -575,7 +615,7 @@ export function TimelineChapters() {
           const rect = container.getBoundingClientRect();
           const x = e.clientX - rect.left;
           
-          setHoveredPosition({ threadId: thread.id, orderKey: selectedNode?.orderKey || 1, x });
+          setHoveredPosition({ threadId: thread.id, start: selectedNode?.start || 1, x });
         }}
         onMouseLeave={() => {
           setHoveredPosition(null);
@@ -643,7 +683,7 @@ export function TimelineChapters() {
               onClick={(e) => handleAddSelectedNodeToThread(thread.id, e)}
               style={{
                 position: 'absolute',
-                left: orderKeyToPosition(selectedNode.orderKey) + getNodeWidth(selectedNode.id) / 2,
+                left: startToPosition(selectedNode.start) + getNodeWidth(selectedNode.id) / 2,
                 top: '50%',
                 transform: 'translate(-50%, -50%)',
                 width: 32,

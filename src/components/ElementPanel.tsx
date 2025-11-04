@@ -105,28 +105,28 @@ export function ElementPanel() {
           </select>
           <button
             onClick={beginCreate}
+            className="bg-button"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: '#fff',
+              color: 'rgba(0, 0, 0, 0.75)',
               border: 'none',
               borderRadius: 8,
               padding: '8px 14px',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+              boxShadow: '0 4px 12px rgba(157, 157, 157, 0.3)',
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(131, 131, 131, 0.4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(134, 134, 134, 0.3)';
             }}
           >
             <Plus size={16} /> New
@@ -173,7 +173,7 @@ export function ElementPanel() {
             </select>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={submitCreate}
+                onClick={submitCreate} // TODO: 改为类似apple，弹出tiptap单独编辑器页面
                 style={{
                   flex: 1,
                   background: '#667eea',
@@ -193,7 +193,7 @@ export function ElementPanel() {
                 style={{
                   flex: 1,
                   background: 'rgba(150, 140, 180, 0.1)',
-                  color: '#6a5d7a',
+                  color: '#5d7a75ff',
                   border: 'none',
                   borderRadius: 8,
                   padding: '8px 12px',
@@ -223,9 +223,9 @@ export function ElementPanel() {
           return (
             <div
               key={el.id}
+              className="bg-card"
               style={{
-                border: selected ? '2px solid #667eea' : '1px solid rgba(200, 190, 220, 0.25)',
-                background: selected ? 'rgba(102, 126, 234, 0.05)' : '#fff',
+                border: selected ? '2px solid rgba(255, 214, 189, 1)' : '1px solid rgba(200, 190, 220, 0.25)',
                 padding: '14px 16px',
                 borderRadius: 12,
                 display: 'flex',
@@ -258,7 +258,6 @@ export function ElementPanel() {
                       fontSize: 14,
                       fontWeight: 600,
                       padding: '6px 8px',
-                      border: '2px solid #667eea',
                       borderRadius: 6,
                       outline: 'none',
                     }}
@@ -268,7 +267,7 @@ export function ElementPanel() {
                     flex: 1,
                     fontSize: 14,
                     fontWeight: 600,
-                    color: selected ? '#667eea' : '#2d1f3a',
+                    color: 'rgba(71, 71, 71, 1)',
                   }}>
                     {el.name}
                   </div>
@@ -277,8 +276,8 @@ export function ElementPanel() {
                   {editingId === el.id ? (
                     <button
                       onClick={submitEdit}
+                      className="bg-button"
                       style={{
-                        background: '#667eea',
                         color: '#fff',
                         border: 'none',
                         borderRadius: 6,
@@ -293,9 +292,9 @@ export function ElementPanel() {
                   ) : (
                     <button
                       onClick={() => startEdit(el)}
+                      className="bg-button"
                       style={{
-                        background: 'rgba(102, 126, 234, 0.1)',
-                        color: '#667eea',
+                        color: 'rgba(0, 0, 0, 0.75)',
                         border: 'none',
                         borderRadius: 6,
                         padding: '6px',
@@ -310,9 +309,9 @@ export function ElementPanel() {
                   )}
                   <button
                     onClick={() => deleteElement(el.id)}
+                    className="bg-button"
                     style={{
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      color: '#ef4444',
+                      color: 'rgba(0, 0, 0, 0.75)',
                       border: 'none',
                       borderRadius: 6,
                       padding: '6px',
@@ -333,9 +332,8 @@ export function ElementPanel() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
               }}>
-                <span style={{
-                  background: 'rgba(102, 126, 234, 0.1)',
-                  color: '#667eea',
+                <span className="bg-button" style={{
+                  color: 'rgba(0, 0, 0, 0.75)',
                   padding: '2px 8px',
                   borderRadius: 4,
                   fontWeight: 600,

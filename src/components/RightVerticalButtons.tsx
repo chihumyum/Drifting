@@ -6,12 +6,11 @@ export function RightVerticalButtons() {
     height: 56,
     borderRadius: 14,
     border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: '#ffffff',
     fontSize: 20,
     fontWeight: 600,
     cursor: 'pointer',
-    boxShadow: '0 4px 16px rgba(102, 126, 234, 0.3)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
     transition: 'all 0.2s ease',
     display: 'flex',
     alignItems: 'center',
@@ -41,14 +40,15 @@ export function RightVerticalButtons() {
           key={index}
           onClick={btn.action}
           style={buttonStyle}
+          className="bg-mild"
           title={btn.label}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.boxShadow = '0 6px 24px rgba(102, 126, 234, 0.4)';
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(0, 0, 0, 0.25)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 16px rgba(102, 126, 234, 0.3)';
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.1)';
           }}
         >
           {btn.icon}

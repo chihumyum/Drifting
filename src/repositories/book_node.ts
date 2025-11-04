@@ -1,17 +1,15 @@
-import type { BookNode, BookNodeEdge, BookNodePosition, BookNodeStatus } from '../domain/book_node';
-import type { NodeType, NodeStatus } from '../schema/book_node';
+import type { BookNode, BookNodeEdge, BookNodePosition } from '../domain/book_node';
 
 type PositionInput = Partial<BookNodePosition> | undefined;
 
 export interface BookNodeCreateData {
   id?: string;
   projectId?: string;
-  parentId?: string | null;
   title: string;
-  type?: NodeType;
-  orderKey?: number;
-  status?: BookNodeStatus;
+  start?: number;
+  end?: number | null;
   summary?: string | null;
+  storyStageId?: string | null;
   position?: PositionInput;
   createdAt?: string;
   updatedAt?: string;
@@ -19,12 +17,11 @@ export interface BookNodeCreateData {
 
 export interface BookNodeUpdateData {
   projectId?: string;
-  parentId?: string | null;
   title?: string;
-  type?: NodeType;
-  orderKey?: number;
-  status?: BookNodeStatus;
+  start?: number;
+  end?: number | null;
   summary?: string | null;
+  storyStageId?: string | null;
   position?: PositionInput;
   createdAt?: string;
   updatedAt?: string;
@@ -45,11 +42,10 @@ export interface BookNodeEdgeCreateData {
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
   findAll(projectId?: string): Promise<BookNode[]>;
-  findAllByType(type: NodeType, projectId?: string): Promise<BookNode[]>;
   create(data: BookNodeCreateData): Promise<BookNode>;
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
-  swapOrder(first: Pick<BookNode, 'id' | 'orderKey'>, second: Pick<BookNode, 'id' | 'orderKey'>): Promise<void>;
+  swapOrder(first: Pick<BookNode, 'id' | 'start'>, second: Pick<BookNode, 'id' | 'start'>): Promise<void>;
 }
 
 export interface BookNodeEdgeRepository {
@@ -62,4 +58,3 @@ export interface BookNodeDataSource {
   nodeRepo: BookNodeRepository;
   edgeRepo: BookNodeEdgeRepository;
 }
-export const DEFAULT_BOOK_NODE_STATUS: NodeStatus = 'draft';

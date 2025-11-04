@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/book_node_sqlite';
+import { createBookContentRepository } from '../repositories/book_content_sqlite';
 import { StoryThreadSQLiteRepository } from '../repositories/story_thread_sqlite';
 import type { BookNodeUsecaseDeps } from '../usecase/book_node';
 import type { BookNode } from '../domain/book_node';
@@ -26,10 +27,12 @@ export function useBookNodeUsecases() {
 
   if (!depsRef.current) {
     const threadRepo = new StoryThreadSQLiteRepository();
+    const contentRepo = createBookContentRepository();
     depsRef.current = {
       nodeRepo: createBookNodeSqliteRepository(PROJECT_ID),
       edgeRepo: createBookNodeEdgeSqliteRepository(PROJECT_ID),
       threadRepo,
+      contentRepo,
       getNodesState: () => store.getState().bookNodes,
       setNodesState: (nodes) => store.getState().setBookNodes(nodes),
       updateNodeState: (id, updates) => store.getState().updateBookNode(id, updates),
@@ -42,7 +45,7 @@ export function useBookNodeUsecases() {
   const ensureDb = useCallback((projectId?: string) => initDatabase(projectId ?? PROJECT_ID), []);
 
   return useMemo(() => ({
-    loadNodes: async (options?: { projectId?: string; type?: CreateBookNodeInput['type'] }) => {
+    loadNodes: async (options?: { projectId?: string }) => {
       await ensureDb(options?.projectId);
       return loadBookNodes(deps, options);
     },

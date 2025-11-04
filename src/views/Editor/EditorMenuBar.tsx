@@ -1,15 +1,11 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { useState, useEffect, useRef } from 'react';
 
 interface EditorMenuBarProps {
   editor: Editor | null;
 }
 
 export function EditorMenuBar({ editor }: EditorMenuBarProps) {
-  const [autoHide, setAutoHide] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const hideTimeoutRef = useRef<number | null>(null);
 
   const editorState = useEditorState({
     editor,
@@ -29,54 +25,18 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
     },
   });
 
-  // Auto-hide logic based on mouse position
-  useEffect(() => {
-    if (!autoHide) {
-      setIsVisible(true);
-      return;
-    }
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newMouseY = e.clientY;
-
-      // Show menu when mouse is near top (within 100px)
-      if (newMouseY < 100) {
-        setIsVisible(true);
-        // Clear any pending hide timeout
-        if (hideTimeoutRef.current !== null) {
-          window.clearTimeout(hideTimeoutRef.current);
-          hideTimeoutRef.current = null;
-        }
-      } else {
-        // When mouse moves away, start timeout to hide
-        if (hideTimeoutRef.current !== null) {
-          window.clearTimeout(hideTimeoutRef.current);
-        }
-        hideTimeoutRef.current = window.setTimeout(() => {
-          setIsVisible(false);
-        }, 1500); // Hide after 1.5 seconds
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      if (hideTimeoutRef.current !== null) {
-        window.clearTimeout(hideTimeoutRef.current);
-      }
-    };
-  }, [autoHide]);
-
   if (!editor || !editorState) {
     return null;
   }
+
+  const buttonClassName = (isActive: boolean) => 
+    isActive ? 'bg-button' : 'bg-gray-100';
 
   const buttonStyle = (isActive: boolean) => ({
     padding: '10px 12px',
     border: 'none',
     borderRadius: 8,
-    background: isActive ? '#6366f1' : '#f3f4f6',
-    color: isActive ? '#ffffff' : '#374151',
+    color: 'rgba(0, 0, 0, 0.75)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -90,19 +50,18 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
   const menuBarStyle = {
     position: 'fixed' as const,
-    top: isVisible ? 16 : -500,
+    top: 16,
     right: 24,
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 6,
     padding: '12px 8px',
-    background: 'rgba(255, 255, 255, 0.98)',
     borderRadius: 16,
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     backdropFilter: 'blur(12px)',
     zIndex: 100,
     transition: 'top 0.3s ease',
-    pointerEvents: isVisible ? 'auto' as const : 'none' as const,
+    pointerEvents: 'auto' as const,
     minWidth: 52,
   };
 
@@ -112,30 +71,15 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
     margin: '4px 0',
   };
 
-  const toggleButtonStyle = {
-    padding: '8px 12px',
-    border: 'none',
-    borderRadius: 8,
-    background: autoHide ? '#6366f1' : '#f3f4f6',
-    color: autoHide ? '#ffffff' : '#374151',
-    fontSize: 11,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    flexDirection: 'column' as const,
-  };
 
   return (
-    <div style={menuBarStyle}>
+    <div style={menuBarStyle} className="bg-mild">
       {/* Format Buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
       <button
         onClick={() => editor.chain().focus().toggleBold().run()}
         disabled={!editorState.canBold}
+        className={buttonClassName(editorState.isBold)}
         style={buttonStyle(editorState.isBold)}
         title="Bold (Cmd+B)"
       >
@@ -145,6 +89,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
       <button
         onClick={() => editor.chain().focus().toggleItalic().run()}
         disabled={!editorState.canItalic}
+        className={buttonClassName(editorState.isItalic)}
         style={buttonStyle(editorState.isItalic)}
         title="Italic (Cmd+I)"
       >
@@ -155,6 +100,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().setParagraph().run()}
+        className={buttonClassName(editorState.isParagraph)}
         style={buttonStyle(editorState.isParagraph)}
         title="Paragraph"
       >
@@ -163,6 +109,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+        className={buttonClassName(editorState.isHeading1)}
         style={buttonStyle(editorState.isHeading1)}
         title="Heading 1"
       >
@@ -171,6 +118,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        className={buttonClassName(editorState.isHeading2)}
         style={buttonStyle(editorState.isHeading2)}
         title="Heading 2"
       >
@@ -179,6 +127,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+        className={buttonClassName(editorState.isHeading3)}
         style={buttonStyle(editorState.isHeading3)}
         title="Heading 3"
       >
@@ -189,6 +138,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        className={buttonClassName(editorState.isBlockquote)}
         style={buttonStyle(editorState.isBlockquote)}
         title="Blockquote"
       >
@@ -197,6 +147,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
       <button
         onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        className={buttonClassName(false)}
         style={buttonStyle(false)}
         title="Horizontal Rule"
       >
@@ -204,17 +155,6 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
       </button>
       </div>
 
-      {/* Auto-hide Toggle */}
-      <div style={separatorStyle} />
-      
-      <button
-        onClick={() => setAutoHide(!autoHide)}
-        style={toggleButtonStyle}
-        title={autoHide ? 'Auto-hide enabled' : 'Auto-hide disabled'}
-      >
-        <span style={{ fontSize: 16 }}>{autoHide ? '👁️' : '�'}</span>
-        <span style={{ fontSize: 10 }}>{autoHide ? 'Auto' : 'Pin'}</span>
-      </button>
     </div>
   );
 }

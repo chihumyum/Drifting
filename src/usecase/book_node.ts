@@ -1,9 +1,9 @@
 // operations related to book nodes & node edges
 import type {BookNode, BookNodeEdge } from '../domain/book_node';
-import { DEFAULT_BOOK_NODE_STATUS } from '../repositories/book_node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
+import type { BookContentRepository } from '../repositories/book_content';
 import type { StoryThreadRepository } from '../repositories/story_thread';
-import type { NodeType } from '../schema/book_node';
+import { v7 as uuidv7 } from 'uuid';
 
 export {
   loadBookNodes,
@@ -21,6 +21,7 @@ export interface BookNodeUsecaseDeps {
   nodeRepo: BookNodeRepository;
   edgeRepo: BookNodeEdgeRepository;
   threadRepo: StoryThreadRepository;
+  contentRepo: BookContentRepository;
   // state related
   getNodesState: () => BookNode[];
   setNodesState: (nodes: BookNode[]) => void;
@@ -33,11 +34,11 @@ function getNow(deps: BookNodeUsecaseDeps) {
   return (deps.now ?? (() => new Date()))();
 }
 
-async function loadBookNodes(deps: BookNodeUsecaseDeps, options?: { projectId?: string; type?: NodeType }) {
-  const nodes = options?.type
-    ? await deps.nodeRepo.findAllByType(options.type, options?.projectId)
-    : await deps.nodeRepo.findAll(options?.projectId);
-  const sorted = nodes.slice().sort((a, b) => a.orderKey - b.orderKey);
+async function loadBookNodes(deps: BookNodeUsecaseDeps, options?: { projectId?: string }) {
+  console.log('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
+  const nodes = await deps.nodeRepo.findAll(options?.projectId);
+  console.log('[loadBookNodes] Loaded nodes count:', nodes.length, 'ids:', nodes.map(n => n.id));
+  const sorted = nodes.slice().sort((a, b) => a.start - b.start);
   deps.setNodesState(sorted);
   return sorted;
 }
@@ -50,34 +51,51 @@ async function loadBookNodeEdges(deps: BookNodeUsecaseDeps, projectId?: string) 
 
 export interface CreateBookNodeInput {
   title: string;
-  type?: NodeType;
-  parentId?: string | null;
   projectId?: string;
   summary?: string | null;
-  status?: BookNode['status'];
-  orderKey?: number;
+  storyStageId?: string | null;
+  start?: number;
+  end?: number | null;
   position?: BookNode['position'];
 }
 
 async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeInput) {
   const now = getNow(deps);
   const nodes = deps.getNodesState();
-  const filtered = input.type ? nodes.filter((n) => n.type === input.type) : nodes;
-  const maxOrder = filtered.reduce((max, node) => Math.max(max, node.orderKey), Number.NEGATIVE_INFINITY);
-  const nextOrder = Number.isFinite(maxOrder) ? maxOrder + 1 : 1;
+  const maxStart = nodes.reduce((max, node) => Math.max(max, node.start), Number.NEGATIVE_INFINITY);
+  const nextStart = Number.isFinite(maxStart) ? maxStart + 1 : 1;
 
   const created = await deps.nodeRepo.create({
     title: input.title,
-    type: input.type ?? 'chapter',
     projectId: input.projectId,
-    parentId: input.parentId ?? null,
-    orderKey: input.orderKey ?? nextOrder,
-    status: input.status ?? DEFAULT_BOOK_NODE_STATUS,
+    start: input.start ?? nextStart,
+    end: input.end ?? null,
     summary: input.summary ?? null,
+    storyStageId: input.storyStageId ?? null,
     position: input.position,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   });
+
+  // Create default empty content for the new node
+  const defaultDocJson = JSON.stringify({
+    type: 'doc',
+    content: [],
+  });
+  
+  try {
+    await deps.contentRepo.create({
+      id: uuidv7(),
+      nodeId: created.id,
+      pmJson: defaultDocJson,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
+    console.log('Created default content for new node:', created.id);
+  } catch (error) {
+    console.error('Failed to create default content for new node:', error);
+    // Don't fail the node creation if content creation fails
+  }
 
   // Assign main thread to new node
   const projectId = input.projectId ?? 'default-project';
@@ -99,7 +117,7 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
   }
 
   const node = created;
-  const nextNodes = [...nodes, node].sort((a, b) => a.orderKey - b.orderKey);
+  const nextNodes = [...nodes, node].sort((a, b) => a.start - b.start);
   deps.setNodesState(nextNodes);
   return node;
 }
@@ -121,7 +139,7 @@ async function renameBookNode(deps: BookNodeUsecaseDeps, id: string, title: stri
 }
 
 async function reorderBookNode(deps: BookNodeUsecaseDeps, id: string, direction: 'up' | 'down') {
-  const nodes = deps.getNodesState().slice().sort((a, b) => a.orderKey - b.orderKey);
+  const nodes = deps.getNodesState().slice().sort((a, b) => a.start - b.start);
   const index = nodes.findIndex((node) => node.id === id);
   if (index === -1) return;
 
@@ -130,25 +148,25 @@ async function reorderBookNode(deps: BookNodeUsecaseDeps, id: string, direction:
 
   const current = nodes[index];
   const target = nodes[swapIndex];
-  const currentOrder = current.orderKey;
-  const targetOrder = target.orderKey;
+  const currentStart = current.start;
+  const targetStart = target.start;
   const now = getNow(deps).toISOString();
 
   const nextNodes = nodes.map((node) => {
     if (node.id === current.id) {
-      return { ...node, orderKey: targetOrder, updatedAt: now };
+      return { ...node, start: targetStart, updatedAt: now };
     }
     if (node.id === target.id) {
-      return { ...node, orderKey: currentOrder, updatedAt: now };
+      return { ...node, start: currentStart, updatedAt: now };
     }
     return node;
-  }).sort((a, b) => a.orderKey - b.orderKey);
+  }).sort((a, b) => a.start - b.start);
 
   const prev = deps.getNodesState().slice();
   deps.setNodesState(nextNodes);
 
   try {
-    await deps.nodeRepo.swapOrder({ id: current.id, orderKey: currentOrder }, { id: target.id, orderKey: targetOrder });
+    await deps.nodeRepo.swapOrder({ id: current.id, start: currentStart }, { id: target.id, start: targetStart });
   } catch (error) {
     deps.setNodesState(prev);
     throw error;
@@ -209,17 +227,22 @@ async function updateBookNode(deps: BookNodeUsecaseDeps, id: string, updates: Pa
 }
 
 async function deleteBookNode(deps: BookNodeUsecaseDeps, id: string) {
+  console.log('[deleteBookNode] Starting delete for node:', id);
   const prevNodes = deps.getNodesState().slice();
   const existing = prevNodes.find((node) => node.id === id);
   if (!existing) throw new Error(`Book node ${id} not found`);
 
+  console.log('[deleteBookNode] Node found, removing from state optimistically');
   // Optimistically remove from state
   const nextNodes = prevNodes.filter((node) => node.id !== id);
   deps.setNodesState(nextNodes);
 
   try {
+    console.log('[deleteBookNode] Calling repository delete');
     await deps.nodeRepo.delete(id);
+    console.log('[deleteBookNode] Repository delete successful');
   } catch (error) {
+    console.error('[deleteBookNode] Repository delete failed, rolling back:', error);
     // Rollback on error
     deps.setNodesState(prevNodes);
     throw error;
