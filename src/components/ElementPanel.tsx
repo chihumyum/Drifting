@@ -90,7 +90,7 @@ export function ElementPanel() {
     }}>
       {/* Left: Elements List - This container handles scrolling */}
       <div style={{
-        height: '100%',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         padding: '20px',
@@ -578,7 +578,7 @@ export function ElementPanel() {
         position: 'absolute',
         right: -48, // Extend outside the panel
         top: 0,
-        height: '100%', // ⭐ 使用明确的高度而不是 bottom: 0
+        height: 'calc(100vh - 240px)', // Adjusted to fit within viewport minus other UI elements
         width: 48,
         display: 'flex',
         flexDirection: 'column',
@@ -695,7 +695,9 @@ export function ElementPanel() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 overflow: 'hidden',
-                border: `1px solid ${color}40`,
+                borderTop: `1px solid ${color}40`,
+                borderBottom: `1px solid ${color}40`,
+                borderLeft: `1px solid ${color}40`,
                 borderRight: 'none',
               }}
               onMouseEnter={e => {
