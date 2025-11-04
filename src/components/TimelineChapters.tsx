@@ -61,6 +61,43 @@ export function TimelineChapters() {
   } | null>(null);
   
   const timelineRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Save scroll position to localStorage
+  const saveScrollPosition = useCallback(() => {
+    if (scrollContainerRef.current) {
+      const scrollLeft = scrollContainerRef.current.scrollLeft;
+      localStorage.setItem('timeline-scroll-position', scrollLeft.toString());
+    }
+  }, []);
+  
+  // Restore scroll position from localStorage
+  useEffect(() => {
+    const savedPosition = localStorage.getItem('timeline-scroll-position');
+    if (savedPosition && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = parseInt(savedPosition, 10);
+    }
+  }, [threads.length]); // Restore after threads are loaded
+  
+  // Save scroll position on scroll
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    let timeoutId: number;
+    const handleScroll = () => {
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        saveScrollPosition();
+      }, 300); // Debounce saves
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, [saveScrollPosition]);
   
   // 提取重新加载节点数据的逻辑
   const reloadNodesWithThreads = useCallback(async () => {
@@ -491,7 +528,7 @@ export function TimelineChapters() {
           top: 0,
           width: nodeWidth,
           height: nodeHeight,
-          background: thread?.color || '#3B82F6',
+          background: `${thread?.color || '#A5B4FC'}20`,
           borderRadius: 6,
           padding: showText ? (isExpanded ? '8px 10px' : '4px 8px') : 0,
           display: 'flex',
@@ -500,15 +537,15 @@ export function TimelineChapters() {
           cursor: edgeHover ? 'ew-resize' : 'grab',
           opacity: isDragging ? 0.5 : 1,
           // 拆分 border 为单独的属性以避免冲突
-          borderTop: isSelected ? '2px solid #fff' : '2px solid transparent',
-          borderBottom: isSelected ? '2px solid #fff' : '2px solid transparent',
+          borderTop: isSelected ? `2px solid ${thread?.color || '#A5B4FC'}` : `1px solid ${thread?.color || '#A5B4FC'}40`,
+          borderBottom: isSelected ? `2px solid ${thread?.color || '#A5B4FC'}` : `1px solid ${thread?.color || '#A5B4FC'}40`,
           borderLeft: edgeHover === 'left' 
-            ? '3px solid rgba(255, 255, 255, 0.8)' 
-            : (isSelected ? '2px solid #fff' : '2px solid transparent'),
+            ? `3px solid ${thread?.color || '#A5B4FC'}` 
+            : (isSelected ? `2px solid ${thread?.color || '#A5B4FC'}` : `1px solid ${thread?.color || '#A5B4FC'}40`),
           borderRight: edgeHover === 'right' 
-            ? '3px solid rgba(255, 255, 255, 0.8)' 
-            : (isSelected ? '2px solid #fff' : '2px solid transparent'),
-          boxShadow: isSelected ? '0 0 0 2px rgba(255, 255, 255, 0.3)' : 'none',
+            ? `3px solid ${thread?.color || '#A5B4FC'}` 
+            : (isSelected ? `2px solid ${thread?.color || '#A5B4FC'}` : `1px solid ${thread?.color || '#A5B4FC'}40`),
+          boxShadow: isSelected ? `0 2px 8px ${thread?.color || '#A5B4FC'}40` : '0 1px 4px rgba(100, 90, 120, 0.08)',
           transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           overflow: 'visible',
         }}
@@ -519,7 +556,7 @@ export function TimelineChapters() {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#fff',
+                color: 'rgba(71, 71, 71, 0.85)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -533,7 +570,7 @@ export function TimelineChapters() {
               <div
                 style={{
                   fontSize: 9,
-                  color: 'rgba(255, 255, 255, 0.8)',
+                  color: 'rgba(71, 71, 71, 0.65)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   display: '-webkit-box',
@@ -559,8 +596,8 @@ export function TimelineChapters() {
               width: 20,
               height: 20,
               borderRadius: '50%',
-              background: isConfirmingDelete ? '#EF4444' : 'rgba(0, 0, 0, 0.8)',
-              border: '2px solid #fff',
+              background: isConfirmingDelete ? '#EF4444' : 'rgba(71, 71, 71, 0.85)',
+              border: `2px solid ${thread?.color || '#A5B4FC'}`,
               color: '#fff',
               fontSize: 12,
               fontWeight: 'bold',
@@ -634,7 +671,7 @@ export function TimelineChapters() {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: thread.color,
+            color: 'rgba(71, 71, 71, 0.85)',
             width: 60, // 固定宽度，确保所有 thread 对齐
             flexShrink: 0, // 防止被压缩
             textAlign: 'right',
@@ -656,7 +693,7 @@ export function TimelineChapters() {
             position: 'relative',
             flex: 1,
             height: nodeHeight,
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: 'rgba(200, 190, 220, 0.08)',
             borderRadius: 4,
             minWidth: timelineWidth,
           }}
@@ -670,8 +707,8 @@ export function TimelineChapters() {
                 top: 0,
                 width: 2,
                 height: nodeHeight,
-                background: '#fff',
-                opacity: 0.5,
+                background: thread.color || '#A5B4FC',
+                opacity: 0.7,
                 pointerEvents: 'none',
               }}
             />
@@ -689,8 +726,8 @@ export function TimelineChapters() {
                 width: 32,
                 height: 32,
                 borderRadius: '50%',
-                background: 'rgba(34, 197, 94, 0.9)',
-                border: '2px solid #fff',
+                background: thread.color || '#A5B4FC',
+                border: '2px solid rgba(240, 240, 245, 0.95)',
                 color: '#fff',
                 fontSize: 20,
                 fontWeight: 'bold',
@@ -701,7 +738,7 @@ export function TimelineChapters() {
                 zIndex: 102,
                 transition: 'all 0.2s',
                 padding: 0,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                boxShadow: '0 2px 8px rgba(100, 90, 120, 0.2)',
               }}
               title="Add selected node to this thread"
             >
@@ -721,7 +758,7 @@ export function TimelineChapters() {
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
                 fontSize: 11,
-                color: 'rgba(255, 255, 255, 0.3)',
+                color: 'rgba(71, 71, 71, 0.35)',
                 fontStyle: 'italic',
                 whiteSpace: 'nowrap',
               }}
@@ -749,8 +786,8 @@ export function TimelineChapters() {
         left: 0,
         right: 0,
         height: isExpanded ? 280 : 120,
-        background: 'linear-gradient(to top, rgba(45, 36, 56, 0.98), rgba(45, 36, 56, 0.95))',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'linear-gradient(to top, rgba(240, 240, 245, 0.98), rgba(245, 245, 250, 0.95))',
+        borderTop: '1px solid rgba(200, 190, 220, 0.25)',
         transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 20,
         overflow: 'hidden',
@@ -760,6 +797,8 @@ export function TimelineChapters() {
       }}
     >
       <div
+        ref={scrollContainerRef}
+        data-timeline-container
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -784,7 +823,7 @@ export function TimelineChapters() {
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: 'rgba(255, 255, 255, 0.5)',
+              color: 'rgba(71, 71, 71, 0.5)',
               fontSize: 14,
             }}
           >

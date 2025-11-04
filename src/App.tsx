@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
 import { EditorView } from './views/Editor/EditorView';
+import { ElementEditorView } from './views/Editor/ElementEditorView';
+import { CategoryEditorView } from './views/CategoryEditorView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/ElementPanel';
 import { AppSidebar } from './components/AppSidebar';
 import { TimelineChapters } from './components/TimelineChapters';
+import { BackButton } from './components/BackButton';
 import { DEFAULT_PROJECT } from './schema/table';
 
 
@@ -36,22 +39,26 @@ function Layout() {
         <div
           className="bg-mild"
           style={{
+            height: '100%', // ⭐ 关键！必须设置高度才能让内部 flex 正常工作
             display: 'flex',
             flexDirection: 'column',
             borderRight: '1px solid rgba(213, 213, 213, 0.3)',
+            position: 'relative',
+            overflow: 'visible', // Allow tabs to extend outside
           }}
         >
-          {/* App Menu Section - Top 1/4 */}
-          <div >
+          {/* App Menu Section - Fixed height */}
+          <div style={{ height: 120, flexShrink: 0 }}>
             <AppSidebar />
           </div>
 
-          {/* Element Panel Section - Bottom 3/4 */}
+          {/* Element Panel Section - Remaining space */}
           <div style={{ 
             flex: 1,
             minHeight: 0,
-            overflow: 'hidden',
             borderTop: '1px solid rgba(145, 145, 145, 0.25)',
+            position: 'relative',
+            overflow: 'visible', // Allow tabs to protrude
           }}>
             <ElementPanel />
           </div>
@@ -65,6 +72,7 @@ function Layout() {
             background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
           }}
         >
+          <BackButton />
           <Outlet />
         </main>
       </div>
@@ -81,6 +89,8 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route path="editor" element={<Navigate to="/" replace />} />
         <Route path="editor/:nodeId" element={<EditorView />} />
+        <Route path="element/:elementId" element={<ElementEditorView />} />
+        <Route path="category/:categoryName" element={<CategoryEditorView />} />
       </Route>
     </Routes>
   )

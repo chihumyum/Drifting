@@ -45,3 +45,8 @@
 .timeline-scroll-container::-webkit-scrollbar {
   display: none;
 }
+
+/* 隐藏 category tabs 滚动条 - Webkit (Chrome, Safari, Edge) */
+.category-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}

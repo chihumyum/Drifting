@@ -272,9 +272,22 @@ export function createCategorySqliteRepository(): BookElementCategoryRepository 
             );
             return toCategoryDomain(rec);
         },
-        async update(name: string, color: string): Promise<BookElementCategory | null> {
+        async update(name: string, updates: { color?: string; description_json?: string }): Promise<BookElementCategory | null> {
             const normalized = normalizeCategoryName(name);
-            await run(`UPDATE element_category SET color='${esc(color)}' WHERE name='${esc(normalized)}'`);
+            const setParts: string[] = [];
+            
+            if (updates.color !== undefined) {
+                setParts.push(`color='${esc(updates.color)}'`);
+            }
+            if (updates.description_json !== undefined) {
+                setParts.push(`description_json='${esc(updates.description_json)}'`);
+            }
+            
+            if (setParts.length === 0) {
+                return findByNameInternal(normalized);
+            }
+            
+            await run(`UPDATE element_category SET ${setParts.join(', ')} WHERE name='${esc(normalized)}'`);
             return findByNameInternal(normalized);
         },
         async delete(name: string): Promise<boolean> {

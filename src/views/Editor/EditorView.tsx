@@ -44,7 +44,6 @@ export function EditorView() {
   const [titleValue, setTitleValue] = useState('');
   const [summaryValue, setSummaryValue] = useState('');
 
-
   const isContentLoadedRef = useRef(false);
   const loadedNodeIdRef = useRef<string | null>(null);
 
@@ -223,36 +222,18 @@ export function EditorView() {
         overflow: 'hidden',
       }}
     >
-      {/* Back Button and Title Bubble Group */}
+      {/* Title Bubble Group */}
       <div
         style={{
           position: 'absolute',
           top: 16,
           left: 24,
           display: 'flex',
-          alignItems: 'flex-start', // Align to top, don't stretch
+          alignItems: 'flex-start',
           gap: 12,
           zIndex: 10,
         }}
       >
-        <button
-          type="button"
-          onClick={() => navigate('/graph')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 999,
-            border: 'none',
-            background: '#ffffff',
-            color: '#312a34',
-            fontSize: 13,
-            fontWeight: 600,
-            boxShadow: '0 8px 20px rgba(22,18,46,0.15)',
-            cursor: 'pointer',
-          }}
-        >
-          ← 返回章节
-        </button>
-
         {/* Title/Summary Bubble */}
         <TitleSummaryBubble 
           title={titleValue} 

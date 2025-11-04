@@ -27,7 +27,7 @@ export interface BookElementCategoryRepository {
     findAll(): Promise<BookElementCategory[]>;
     findByName(name: string): Promise<BookElementCategory | null>;
     create(name: string, color?: string): Promise<BookElementCategory>;
-    update(name: string, color: string): Promise<BookElementCategory | null>;
+    update(name: string, updates: { color?: string; description_json?: string }): Promise<BookElementCategory | null>;
     delete(name: string): Promise<boolean>;
     ensureCategory(name: string): Promise<void>;
 }
