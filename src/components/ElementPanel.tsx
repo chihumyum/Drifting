@@ -684,7 +684,8 @@ export function ElementPanel() {
               onClick={() => setFilterCategory(name)}
               title={name}
               style={{
-                height: 56,
+                minHeight: 56,
+                flexShrink: 0,
                 position: 'relative',
                 cursor: 'pointer',
                 borderRadius: '6px 0 0 6px', // Rounded on left side only
