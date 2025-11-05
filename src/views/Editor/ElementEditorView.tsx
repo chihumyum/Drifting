@@ -4,7 +4,8 @@ import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
-import { createDefaultSlashMenu } from '@chi-hum/tiptap-simple-slash-menu';
+import TextAlign from '@tiptap/extension-text-align';
+import { createDefaultSlashMenu } from '../../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
@@ -90,6 +91,11 @@ export function ElementEditorView() {
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right'],
+        defaultAlignment: 'left',
+      }),
       createDefaultSlashMenu(),
     ],
     content: getDefaultDoc(),

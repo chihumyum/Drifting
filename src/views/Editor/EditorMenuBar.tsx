@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
+import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 
 interface EditorMenuBarProps {
   editor: Editor | null;
@@ -21,6 +22,9 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
         isHeading2: ctx.editor.isActive('heading', { level: 2 }) ?? false,
         isHeading3: ctx.editor.isActive('heading', { level: 3 }) ?? false,
         isBlockquote: ctx.editor.isActive('blockquote') ?? false,
+        isAlignLeft: ctx.editor.isActive({ textAlign: 'left' }) ?? false,
+        isAlignCenter: ctx.editor.isActive({ textAlign: 'center' }) ?? false,
+        isAlignRight: ctx.editor.isActive({ textAlign: 'right' }) ?? false,
       };
     },
   });
@@ -152,6 +156,35 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
         title="Horizontal Rule"
       >
         ―
+      </button>
+
+      <div style={separatorStyle} />
+
+      <button
+        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+        className={buttonClassName(editorState.isAlignLeft)}
+        style={buttonStyle(editorState.isAlignLeft)}
+        title="Align Left"
+      >
+        <AlignLeft size={16} />
+      </button>
+
+      <button
+        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+        className={buttonClassName(editorState.isAlignCenter)}
+        style={buttonStyle(editorState.isAlignCenter)}
+        title="Align Center"
+      >
+        <AlignCenter size={16} />
+      </button>
+
+      <button
+        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+        className={buttonClassName(editorState.isAlignRight)}
+        style={buttonStyle(editorState.isAlignRight)}
+        title="Align Right"
+      >
+        <AlignRight size={16} />
       </button>
       </div>
 
