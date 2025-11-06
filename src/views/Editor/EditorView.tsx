@@ -445,7 +445,7 @@ export function EditorView() {
           zIndex: 9,
         }}
       >
-        {nodeId && <TagEditor nodeId={nodeId} />}
+        {nodeId && <TagEditor type="node" entityId={nodeId} />}
       </div>
       
       {/* Right Vertical Utility Buttons */}

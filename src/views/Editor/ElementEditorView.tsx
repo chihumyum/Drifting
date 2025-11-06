@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -12,7 +12,8 @@ import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
 import type { BookElement } from '../../domain/book_element';
 import { EditorMenuBar } from './EditorMenuBar';
 import { RightVerticalButtons } from '../../components/RightVerticalButtons';
-import { X } from 'lucide-react';
+import { TagEditor } from '../../components/TagEditor';
+import { EditorContextMenu } from '../../components/EditorContextMenu';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -29,7 +30,7 @@ export function ElementEditorView() {
   const { bookElements, bookElementCategories } = useAppStore();
 
   const { updateElement, loadInitial, _deps } = useBookElementUsecases();
-  const { categoryRepo } = _deps;
+  const elementUsecases = useBookElementUsecases();
   const [curElement, setCurElement] = useState<BookElement | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -37,11 +38,8 @@ export function ElementEditorView() {
   const [nameValue, setNameValue] = useState('');
   const [summaryValue, setSummaryValue] = useState('');
   const [categoryValue, setCategoryValue] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [newTagInput, setNewTagInput] = useState('');
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [filteredTags, setFilteredTags] = useState<string[]>([]);
 
   const isContentLoadedRef = useRef(false);
   const loadedElementIdRef = useRef<string | null>(null);
@@ -65,7 +63,6 @@ export function ElementEditorView() {
     setNameValue(element?.name || '');
     setSummaryValue(element?.summary_json || '');
     setCategoryValue(element?.category || 'others');
-    setTags(element?.tags || []);
     
     // Auto-enter edit mode for newly created elements
     if (element?.name === 'New Element') {
@@ -187,48 +184,23 @@ export function ElementEditorView() {
     setEditingCategory(false);
   };
 
-  // Get all existing tags from all elements
-  const getAllExistingTags = useCallback((): string[] => {
-    const allTags = new Set<string>();
-    bookElements.forEach(el => {
-      el.tags?.forEach(tag => allTags.add(tag));
-    });
-    return Array.from(allTags);
-  }, [bookElements]);
-
-  // Filter tags based on input - support any language, not just lowercase
-  useEffect(() => {
-    if (!newTagInput.trim()) {
-      setFilteredTags([]);
-      return;
+  const handleContextAction = async (action: string) => {
+    if (!elementId || !curElement) return;
+    
+    if (action === 'deleteElement') {
+      const confirmed = window.confirm(`Delete element "${curElement.name}"?`);
+      if (!confirmed) return;
+      
+      try {
+        await elementUsecases.removeElement(elementId);
+        navigate('/editor');
+      } catch (error) {
+        console.error('Failed to delete element:', error);
+        alert('Failed to delete element. Please try again.');
+      }
+    } else if (action === 'categoryPicker') {
+      setEditingCategory(true);
     }
-    
-    const existingTags = getAllExistingTags();
-    const input = newTagInput.trim();
-    const filtered = existingTags
-      .filter(tag => tag.startsWith(input) && !tags.includes(tag))
-      .slice(0, 5); // Limit to 5 suggestions
-    
-    setFilteredTags(filtered);
-  }, [newTagInput, tags, getAllExistingTags]);
-
-  const handleAddTag = async (tagToAdd?: string) => {
-    if (!elementId) return;
-    const trimmedTag = (tagToAdd || newTagInput).trim();
-    if (!trimmedTag || tags.includes(trimmedTag)) return; // Avoid duplicates
-    
-    const updatedTags = [...tags, trimmedTag];
-    setTags(updatedTags);
-    setNewTagInput('');
-    setFilteredTags([]);
-    await updateElement(elementId, { tags: updatedTags });
-  };
-
-  const handleRemoveTag = async (tagToRemove: string) => {
-    if (!elementId) return;
-    const updatedTags = tags.filter(t => t !== tagToRemove);
-    setTags(updatedTags);
-    await updateElement(elementId, { tags: updatedTags });
   };
 
   if (!elementId || !curElement) {
@@ -522,124 +494,8 @@ export function ElementEditorView() {
           </div>
 
           {/* Tags */}
-          <div style={{ flex: 2, position: 'relative' }}>
-            <div style={{ fontSize: 12, color: 'rgba(0, 0, 0, 0.45)', marginBottom: 4 }}>
-              Tags
-            </div>
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 6,
-              alignItems: 'center',
-              position: 'relative',
-            }}>
-              {tags.map(tag => (
-                <span
-                  key={tag}
-                  className="bg-paper-light border-accent-border"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: 13,
-                    color: '#5a4a3a',
-                    border: '1px solid var(--accent-border, #e8dcc8)',
-                  }}
-                >
-                  {tag}
-                  <button
-                    onClick={() => handleRemoveTag(tag)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      color: 'rgba(0, 0, 0, 0.5)',
-                    }}
-                    title="Remove tag"
-                  >
-                    <X size={14} />
-                  </button>
-                </span>
-              ))}
-              <div style={{ position: 'relative', display: 'inline-block' }}>
-                <input
-                  type="text"
-                  value={newTagInput}
-                  onChange={e => setNewTagInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void handleAddTag();
-                    } else if (e.key === 'Escape') {
-                      setNewTagInput('');
-                      setFilteredTags([]);
-                    }
-                  }}
-                  onBlur={() => {
-                    // Delay to allow clicking on suggestions
-                    setTimeout(() => setFilteredTags([]), 200);
-                  }}
-                  placeholder={tags.length === 0 ? 'Add tags...' : '+'}
-                  style={{
-                    minWidth: 100,
-                    border: '1px solid rgba(0, 0, 0, 0.1)',
-                    borderRadius: 4,
-                    outline: 'none',
-                    fontSize: 13,
-                    padding: '4px 8px',
-                    background: 'white',
-                  }}
-                />
-                
-                {/* Tag suggestions dropdown - positioned relative to input */}
-                {filteredTags.length > 0 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    marginTop: 4,
-                    background: 'white',
-                    border: '1px solid rgba(0, 0, 0, 0.1)',
-                    borderRadius: 6,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    zIndex: 100,
-                    minWidth: 200,
-                    maxWidth: 300,
-                    maxHeight: 150,
-                    overflow: 'auto',
-                  }}>
-                    {filteredTags.map(tag => (
-                      <div
-                        key={tag}
-                        onClick={() => void handleAddTag(tag)}
-                        style={{
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          transition: 'background 0.15s ease',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        {tag}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+          <div style={{ flex: 2 }}>
+            <TagEditor type="element" entityId={elementId} />
           </div>
         </div>
       </div>
@@ -655,6 +511,12 @@ export function ElementEditorView() {
 
       {/* Editor Menu Bar */}
       <EditorMenuBar editor={editor} />
+      
+      {/* Editor Context Menu */}
+      <EditorContextMenu 
+        editorType="element"
+        onAction={handleContextAction}
+      />
       
       {/* Right Vertical Buttons */}
       <RightVerticalButtons />

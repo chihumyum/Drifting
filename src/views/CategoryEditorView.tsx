@@ -11,6 +11,7 @@ import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElementCategory } from '../domain/book_element';
 import { EditorMenuBar } from './Editor/EditorMenuBar';
+import { EditorContextMenu } from '../components/EditorContextMenu';
 import { X, Eye } from 'lucide-react';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
@@ -26,7 +27,7 @@ export function CategoryEditorView() {
   const navigate = useNavigate();
   const { categoryName } = useParams<{ categoryName: string }>();
   const { bookElements, bookElementCategories } = useAppStore();
-  const { _deps, loadInitial } = useBookElementUsecases();
+  const { _deps, loadInitial, updateElement } = useBookElementUsecases();
 
   const [category, setCategory] = useState<BookElementCategory | null>(null);
   const [showElementsModal, setShowElementsModal] = useState(false);
@@ -130,6 +131,32 @@ export function CategoryEditorView() {
       await loadInitial();
     } catch (error) {
       console.error('Failed to save category description:', error);
+    }
+  };
+
+  const handleContextAction = async (action: string) => {
+    if (!category) return;
+    
+    if (action === 'deleteCategory') {
+      const confirmed = window.confirm(
+        `Delete category "${category.name}"?\n\nAll elements in this category will be moved to "others".`
+      );
+      if (!confirmed) return;
+      
+      try {
+        // Move all elements in this category to "others"
+        for (const element of categoryElements) {
+          await updateElement(element.id, { category: 'others' });
+        }
+        
+        // Delete the category
+        await _deps.categoryRepo.delete(category.name);
+        await loadInitial();
+        navigate('/editor');
+      } catch (error) {
+        console.error('Failed to delete category:', error);
+        alert('Failed to delete category. Please try again.');
+      }
     }
   };
 
@@ -281,6 +308,12 @@ export function CategoryEditorView() {
           <EditorContent editor={editor} />
         </div>
       </div>
+
+      {/* Editor Context Menu */}
+      <EditorContextMenu 
+        editorType="category"
+        onAction={handleContextAction}
+      />
 
       {/* Elements Modal */}
       {showElementsModal && (

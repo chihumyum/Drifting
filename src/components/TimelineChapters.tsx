@@ -53,7 +53,7 @@ export function TimelineChapters() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    type: 'thread-empty' | 'node' | 'thread-with-selected' | 'thread-label';
+    type: 'thread-empty' | 'node' | 'thread-with-selected';
     threadId?: string;
     nodeId?: string;
     position?: number;
@@ -468,66 +468,6 @@ export function TimelineChapters() {
               requestAnimationFrame(() => {
                 scrollContainer.scrollLeft = savedScrollLeft;
               });
-            }
-          }
-          break;
-          
-        case 'deleteThread':
-          if (contextMenu.type === 'thread-label' && contextMenu.threadId) {
-            const confirmed = window.confirm(
-              'Delete this thread? All nodes will be moved to another thread if available.'
-            );
-            
-            if (!confirmed) break;
-            
-            try {
-              // 获取该 thread 中的所有 nodes
-              const threadNodes = nodesWithThreads.filter(node =>
-                node.threads.some(t => t.id === contextMenu.threadId)
-              );
-              
-              // 获取其他可用的 threads
-              const otherThreads = threads.filter(t => t.id !== contextMenu.threadId);
-              
-              if (otherThreads.length > 0) {
-                const defaultThread = otherThreads[0];
-                
-                // 处理每个 node
-                for (const node of threadNodes) {
-                  const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
-                  
-                  if (nodeThreads.length === 1 && nodeThreads[0].id === contextMenu.threadId) {
-                    // 如果这是 node 的唯一 thread，移动到默认 thread
-                    await threadUsecases.addNodeToThread(node.id, defaultThread.id);
-                    await threadUsecases.removeNodeFromThread(node.id, contextMenu.threadId);
-                  } else {
-                    // 如果 node 有多个 threads，只删除这个 thread
-                    await threadUsecases.removeNodeFromThread(node.id, contextMenu.threadId);
-                  }
-                }
-              } else {
-                // 如果没有其他 thread，不允许删除
-                alert('Cannot delete the last thread. Create another thread first.');
-                break;
-              }
-              
-              // 删除 thread
-              await threadUsecases.deleteThread(contextMenu.threadId);
-              
-              // 重新加载数据
-              await nodeUsecases.loadNodes();
-              const updatedThreads = await threadUsecases.getThreadsByProject(PROJECT_ID);
-              setThreads(updatedThreads);
-              
-              // 恢复滚动
-              if (shouldRestoreScroll && scrollContainer) {
-                requestAnimationFrame(() => {
-                  scrollContainer.scrollLeft = savedScrollLeft;
-                });
-              }
-            } catch (error) {
-              console.error('Failed to delete thread:', error);
-              alert('Failed to delete thread. Please try again.');
             }
           }
           break;
@@ -1255,15 +1195,6 @@ export function TimelineChapters() {
               useAppStore.getState().setSelectedNodeId(null);
               navigate(`/editor/thread/${thread.id}`);
             }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setContextMenu({
-                x: e.clientX,
-                y: e.clientY,
-                type: 'thread-label',
-                threadId: thread.id,
-              });
-            }}
             style={{
               fontSize: 11,
               fontWeight: 600,
@@ -1643,34 +1574,6 @@ export function TimelineChapters() {
               }}
             >
               ➕ Add to Thread
-            </button>
-          )}
-          
-          {/* Thread 标签菜单 */}
-          {contextMenu.type === 'thread-label' && (
-            <button
-              onClick={() => handleContextMenuAction('deleteThread')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                padding: '8px 16px',
-                background: 'transparent',
-                border: 'none',
-                color: '#c04040',
-                fontSize: 14,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#fff0f0';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              🗑️ Delete Thread
             </button>
           )}
           </div>

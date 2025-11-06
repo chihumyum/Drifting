@@ -1,33 +1,55 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Plus } from 'lucide-react';
 import { useNodeTagUsecases } from '../hooks/useNodeTagUsecases';
+import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
+import { useAppStore } from '../store';
 import type { NodeTag } from '../domain/story_stage';
 
+type TagType = 'node' | 'element';
+
 interface TagEditorProps {
-  nodeId: string;
+  type: TagType;
+  entityId: string; // nodeId or elementId
   projectId?: string;
 }
 
-export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorProps) {
-  const tagUsecases = useNodeTagUsecases();
+export function TagEditor({ type, entityId, projectId = 'default-project' }: TagEditorProps) {
+  const nodeTagUsecases = useNodeTagUsecases();
+  const elementUsecases = useBookElementUsecases();
+  const bookElements = useAppStore(state => state.bookElements);
   const [allTags, setAllTags] = useState<NodeTag[]>([]);
-  const [nodeTags, setNodeTags] = useState<NodeTag[]>([]);
+  const [entityTags, setEntityTags] = useState<NodeTag[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
 
   const loadTags = useCallback(async () => {
     try {
-      const [all, node] = await Promise.all([
-        tagUsecases.loadTags(projectId),
-        tagUsecases.getTagsForNode(nodeId, projectId),
-      ]);
-      setAllTags(all);
-      setNodeTags(node);
+      if (type === 'node') {
+        const [all, entity] = await Promise.all([
+          nodeTagUsecases.loadTags(projectId),
+          nodeTagUsecases.getTagsForNode(entityId, projectId),
+        ]);
+        setAllTags(all);
+        setEntityTags(entity);
+      } else if (type === 'element') {
+        // For elements, we use the element's tags from the element data
+        const element = bookElements.find(el => el.id === entityId);
+        if (element) {
+          // Get all available tags
+          const allNodeTags = await nodeTagUsecases.loadTags(projectId);
+          setAllTags(allNodeTags);
+          // Element tags are stored as tag IDs array
+          const elementTags = allNodeTags.filter(tag => 
+            element.tags?.includes(tag.id)
+          );
+          setEntityTags(elementTags);
+        }
+      }
     } catch (error) {
       console.error('Failed to load tags:', error);
     }
-  }, [nodeId, projectId, tagUsecases]);
+  }, [type, entityId, projectId, nodeTagUsecases, bookElements]);
 
   useEffect(() => {
     loadTags();
@@ -35,7 +57,17 @@ export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorPr
 
   const handleAddTag = async (tagId: string) => {
     try {
-      await tagUsecases.addTagToNode(nodeId, tagId, projectId);
+      if (type === 'node') {
+        await nodeTagUsecases.addTagToNode(entityId, tagId, projectId);
+      } else if (type === 'element') {
+        const element = bookElements.find(el => el.id === entityId);
+        if (element) {
+          const updatedTags = [...(element.tags || []), tagId];
+          await elementUsecases.updateElement(entityId, {
+            tags: updatedTags,
+          });
+        }
+      }
       await loadTags();
       setShowDropdown(false);
     } catch (error) {
@@ -45,7 +77,17 @@ export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorPr
 
   const handleRemoveTag = async (tagId: string) => {
     try {
-      await tagUsecases.removeTagFromNode(nodeId, tagId, projectId);
+      if (type === 'node') {
+        await nodeTagUsecases.removeTagFromNode(entityId, tagId, projectId);
+      } else if (type === 'element') {
+        const element = bookElements.find(el => el.id === entityId);
+        if (element) {
+          const updatedTags = (element.tags || []).filter((id: string) => id !== tagId);
+          await elementUsecases.updateElement(entityId, {
+            tags: updatedTags,
+          });
+        }
+      }
       await loadTags();
     } catch (error) {
       console.error('Failed to remove tag:', error);
@@ -56,11 +98,28 @@ export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorPr
     if (!newTagName.trim()) return;
 
     try {
-      await tagUsecases.createAndAddTagToNode(nodeId, {
-        projectId,
-        name: newTagName.trim(),
-        color: generateRandomColor(),
-      });
+      if (type === 'node') {
+        await nodeTagUsecases.createAndAddTagToNode(entityId, {
+          projectId,
+          name: newTagName.trim(),
+          color: generateRandomColor(),
+        });
+      } else if (type === 'element') {
+        // Create tag and add to element
+        const newTag = await nodeTagUsecases.createTag({
+          projectId,
+          name: newTagName.trim(),
+          color: generateRandomColor(),
+        });
+        
+        const element = bookElements.find(el => el.id === entityId);
+        if (element) {
+          const updatedTags = [...(element.tags || []), newTag.id];
+          await elementUsecases.updateElement(entityId, {
+            tags: updatedTags,
+          });
+        }
+      }
       setNewTagName('');
       setIsCreating(false);
       await loadTags();
@@ -78,7 +137,7 @@ export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorPr
   };
 
   const availableTags = allTags.filter(
-    tag => !nodeTags.some(nt => nt.id === tag.id)
+    tag => !entityTags.some(nt => nt.id === tag.id)
   );
 
   return (
@@ -111,7 +170,7 @@ export function TagEditor({ nodeId, projectId = 'default-project' }: TagEditorPr
           marginBottom: 8,
         }}
       >
-        {nodeTags.map((tag) => (
+        {entityTags.map((tag) => (
           <div
             key={tag.id}
             style={{

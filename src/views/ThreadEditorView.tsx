@@ -1,12 +1,27 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
+import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import TextAlign from '@tiptap/extension-text-align';
+import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import type { StoryThread } from '../domain/story_thread';
 import { BackButton } from '../components/BackButton';
 import { EditorContextMenu } from '../components/EditorContextMenu';
+import { EditorMenuBar } from './Editor/EditorMenuBar';
+
+const DEFAULT_DOC_STRING = JSON.stringify({
+  type: 'doc',
+  content: [],
+});
+
+function getDefaultDoc(): JSONContent {
+  return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
+}
 
 export function ThreadEditorView() {
   const { threadId } = useParams<{ threadId: string }>();
@@ -17,6 +32,8 @@ export function ThreadEditorView() {
   const [isLoading, setIsLoading] = useState(true);
   const [allThreads, setAllThreads] = useState<StoryThread[]>([]);
   const saveTimeoutRef = useRef<number | null>(null);
+  const isContentLoadedRef = useRef(false);
+  const loadedThreadIdRef = useRef<string | null>(null);
   
   // Load thread data
   useEffect(() => {
@@ -55,32 +72,75 @@ export function ThreadEditorView() {
   // Initialize TipTap editor
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        bulletList: { keepMarks: true },
+        orderedList: { keepMarks: true },
+        codeBlock: {},
+      }),
+      Underline,
+      Link.configure({ openOnClick: false, autolink: true }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right'],
+        defaultAlignment: 'left',
+      }),
+      createDefaultSlashMenu(),
     ],
-    content: thread?.pmJson || { type: 'doc', content: [] },
+    content: getDefaultDoc(),
+    autofocus: 'end',
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none',
+        class: 'prose max-w-none focus:outline-none min-h-[400px]',
+        spellcheck: 'false',
       },
     },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor: ed }) => {
+      // Don't save until initial content is loaded
+      if (!isContentLoadedRef.current) {
+        console.log('Skipping save: content not yet loaded');
+        return;
+      }
+      
       // Auto-save after 1 second of inactivity
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
       
       saveTimeoutRef.current = window.setTimeout(() => {
-        handleSave(editor.getJSON());
+        handleSave(ed.getJSON());
       }, 1000);
     },
   });
   
   // Update editor content when thread loads
   useEffect(() => {
-    if (editor && thread?.pmJson && !editor.isDestroyed) {
-      editor.commands.setContent(thread.pmJson);
+    if (!editor || !thread || editor.isDestroyed) return;
+    
+    // If we're loading a different thread, reset the flag
+    if (loadedThreadIdRef.current !== threadId) {
+      isContentLoadedRef.current = false;
+      loadedThreadIdRef.current = null;
     }
-  }, [editor, thread?.pmJson]);
+    
+    // Load the thread content
+    try {
+      const content = thread.pmJson 
+        ? (typeof thread.pmJson === 'string' ? JSON.parse(thread.pmJson) : thread.pmJson)
+        : getDefaultDoc();
+      
+      editor.commands.setContent(content);
+      
+      // Mark content as loaded
+      isContentLoadedRef.current = true;
+      loadedThreadIdRef.current = threadId || null;
+    } catch (error) {
+      console.error('Failed to parse thread content', error);
+      editor.commands.setContent(getDefaultDoc());
+      isContentLoadedRef.current = true;
+      loadedThreadIdRef.current = threadId || null;
+    }
+  }, [editor, thread, threadId]);
   
   const handleSave = async (content: object) => {
     if (!threadId) return;
@@ -291,6 +351,9 @@ export function ThreadEditorView() {
           <EditorContent editor={editor} />
         </div>
       </div>
+      
+      {/* Editor Menu Bar */}
+      <EditorMenuBar editor={editor} />
       
       {/* Context Menu */}
       <EditorContextMenu 
