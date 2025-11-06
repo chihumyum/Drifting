@@ -42,6 +42,7 @@ export function TimelineChapters() {
   const [nodesWithThreads, setNodesWithThreads] = useState<TimelineNode[]>([]);
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isPinned, setIsPinned] = useState(false); // 是否固定展开状态
   const [isTransitioning, setIsTransitioning] = useState(false); // 动画过渡状态
   const [mouseEnterX, setMouseEnterX] = useState(0); // 记录鼠标进入时的 X 坐标
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; threadId: string } | null>(null);
@@ -1280,9 +1281,15 @@ export function TimelineChapters() {
       onClick={handleTimelineClick}
       onMouseEnter={(e) => {
         setMouseEnterX(e.clientX);
-        setIsExpanded(true);
+        if (!isPinned) {
+          setIsExpanded(true);
+        }
       }}
-      onMouseLeave={() => setIsExpanded(false)}
+      onMouseLeave={() => {
+        if (!isPinned) {
+          setIsExpanded(false);
+        }
+      }}
       style={{
         position: 'fixed',
         bottom: 0,
@@ -1299,6 +1306,41 @@ export function TimelineChapters() {
         padding: isExpanded ? '16px 0' : '0', // 收起时完全去掉 padding
       }}
     >
+      {/* Toggle Pin Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          const newPinned = !isPinned;
+          setIsPinned(newPinned);
+          if (newPinned) {
+            setIsExpanded(true);
+          }
+        }}
+        style={{
+          position: 'absolute',
+          top: 4,
+          right: 8,
+          width: 24,
+          height: 24,
+          borderRadius: 4,
+          border: '1px solid var(--accent-border, #e8dcc8)',
+          background: isPinned ? 'var(--accent, #b89968)' : '#fefdfb',
+          color: isPinned ? '#fefdfb' : '#5a4a3a',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 12,
+          transition: 'all 0.2s',
+          zIndex: 30,
+          opacity: isExpanded ? 1 : 0,
+          pointerEvents: isExpanded ? 'auto' : 'none',
+        }}
+        title={isPinned ? '取消固定展开' : '固定展开'}
+      >
+        📌
+      </button>
+      
       <div
         ref={scrollContainerRef}
         data-timeline-container
