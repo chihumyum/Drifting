@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
-import { EditorView } from './views/Editor/EditorView';
-import { ElementEditorView } from './views/Editor/ElementEditorView';
+import { NodeEditorView } from './views/NodeEditorView';
+import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { ThreadEditorView } from './views/ThreadEditorView';
 import { initDatabase } from './lib/db';
@@ -109,7 +109,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route path="editor" element={<Navigate to="/" replace />} />
-        <Route path="editor/:nodeId" element={<EditorView />} />
+        <Route path="editor/:nodeId" element={<NodeEditorView />} />
         <Route path="editor/thread/:threadId" element={<ThreadEditorView />} />
         <Route path="element/:elementId" element={<ElementEditorView />} />
         <Route path="category/:categoryName" element={<CategoryEditorView />} />

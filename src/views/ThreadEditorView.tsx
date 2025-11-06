@@ -12,7 +12,7 @@ import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import type { StoryThread } from '../domain/story_thread';
 import { BackButton } from '../components/BackButton';
 import { EditorContextMenu } from '../components/EditorContextMenu';
-import { EditorMenuBar } from './Editor/EditorMenuBar';
+import { EditorMenuBar } from '../components/EditorMenuBar';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',

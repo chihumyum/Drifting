@@ -5,18 +5,18 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
-import { createDefaultSlashMenu } from '../../lib/slash-menu';
-import { extractOutline, serializeOutline } from '../../lib/outline';
+import { createDefaultSlashMenu } from '../lib/slash-menu';
+import { extractOutline, serializeOutline } from '../lib/outline';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppStore } from '../../store';
-import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
-import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
-import type { BookNode } from '../../domain/book_node';
-import { EditorMenuBar } from './EditorMenuBar';
-import { RightVerticalButtons } from '../../components/RightVerticalButtons';
-import { TitleSummaryBubble } from '../../components/TitleSummaryBubble';
-import { TagEditor } from '../../components/TagEditor';
-import { EditorContextMenu } from '../../components/EditorContextMenu';
+import { useAppStore } from '../store';
+import { useBookContentUsecases } from '../hooks/useBookContentUsecases';
+import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
+import type { BookNode } from '../domain/book_node';
+import { EditorMenuBar } from '../components/EditorMenuBar';
+import { RightVerticalButtons } from '../components/RightVerticalButtons';
+import { TitleSummaryBubble } from '../components/TitleSummaryBubble';
+import { TagEditor } from '../components/TagEditor';
+import { EditorContextMenu } from '../components/EditorContextMenu';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -27,7 +27,7 @@ function getDefaultDoc(): JSONContent {
   return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
 }
 
-export function EditorView() {
+export function NodeEditorView() {
   const navigate = useNavigate();
   const { nodeId } = useParams<{ nodeId: string }>();
   const {

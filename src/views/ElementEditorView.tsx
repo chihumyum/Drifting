@@ -5,15 +5,15 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
-import { createDefaultSlashMenu } from '../../lib/slash-menu';
+import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppStore } from '../../store';
-import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
-import type { BookElement } from '../../domain/book_element';
-import { EditorMenuBar } from './EditorMenuBar';
-import { RightVerticalButtons } from '../../components/RightVerticalButtons';
-import { TagEditor } from '../../components/TagEditor';
-import { EditorContextMenu } from '../../components/EditorContextMenu';
+import { useAppStore } from '../store';
+import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
+import type { BookElement } from '../domain/book_element';
+import { EditorMenuBar } from '../components/EditorMenuBar';
+import { RightVerticalButtons } from '../components/RightVerticalButtons';
+import { TagEditor } from '../components/TagEditor';
+import { EditorContextMenu } from '../components/EditorContextMenu';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
