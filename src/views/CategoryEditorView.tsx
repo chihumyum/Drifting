@@ -4,10 +4,13 @@ import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
+import TextAlign from '@tiptap/extension-text-align';
+import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElementCategory } from '../domain/book_element';
+import { EditorMenuBar } from './Editor/EditorMenuBar';
 import { X, Eye } from 'lucide-react';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
@@ -27,10 +30,8 @@ export function CategoryEditorView() {
 
   const [category, setCategory] = useState<BookElementCategory | null>(null);
   const [showElementsModal, setShowElementsModal] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const isContentLoadedRef = useRef(false);
-  const saveTimeoutRef = useRef<number | null>(null);
 
   // Get category data
   useEffect(() => {
@@ -56,29 +57,48 @@ export function CategoryEditorView() {
   // Initialize editor
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        bulletList: { keepMarks: true },
+        orderedList: { keepMarks: true },
+        codeBlock: {},
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
+        autolink: true,
         HTMLAttributes: {
           class: 'text-blue-600 underline cursor-pointer',
         },
       }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right'],
+        defaultAlignment: 'left',
+      }),
+      createDefaultSlashMenu(),
     ],
     content: getDefaultDoc(),
+    autofocus: 'end',
     editorProps: {
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
+        spellcheck: 'false',
       },
     },
-    onUpdate: ({ editor }) => {
-      // Auto-save with debounce
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+    onUpdate: ({ editor: ed }) => {
+      if (!isContentLoadedRef.current) {
+        console.log('Skipping save: content not yet loaded');
+        return;
       }
-      saveTimeoutRef.current = setTimeout(() => {
-        handleSave(editor.getJSON());
-      }, 1000);
+
+      const json = ed.getJSON();
+      const contentJson = JSON.stringify(json);
+      if (contentJson === category?.description_json) return;
+
+      if (category) {
+        void handleSave(contentJson);
+      }
     },
   });
 
@@ -100,30 +120,18 @@ export function CategoryEditorView() {
   }, [editor, category]);
 
   // Save category description
-  const handleSave = async (content: JSONContent) => {
+  const handleSave = async (content: string) => {
     if (!category) return;
     
-    setIsSaving(true);
     try {
       await _deps.categoryRepo.update(category.name, {
-        description_json: JSON.stringify(content),
+        description_json: content,
       });
       await loadInitial();
     } catch (error) {
       console.error('Failed to save category description:', error);
-    } finally {
-      setIsSaving(false);
     }
   };
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
 
   if (!category) {
     return (
@@ -225,25 +233,18 @@ export function CategoryEditorView() {
         {/* View elements button */}
         <button
           onClick={() => setShowElementsModal(true)}
-          className="bg-button"
+          className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
             padding: '8px 16px',
             borderRadius: 8,
-            border: 'none',
-            color: 'rgba(0, 0, 0, 0.75)',
+            border: '1px solid var(--accent-border, #e8dcc8)',
+            color: '#5a4a3a',
             fontSize: 14,
             fontWeight: 600,
             cursor: 'pointer',
-            transition: 'opacity 0.2s ease',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.opacity = '0.8';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.opacity = '1';
           }}
         >
           <Eye size={16} />
@@ -266,16 +267,13 @@ export function CategoryEditorView() {
           border: '1px solid rgba(200, 190, 220, 0.25)',
           minHeight: 400,
         }}>
-          {/* Saving indicator */}
-          {isSaving && (
+          {/* Editor Menu Bar */}
+          {editor && (
             <div style={{
-              padding: '8px 16px',
               borderBottom: '1px solid rgba(200, 190, 220, 0.15)',
-              fontSize: 12,
-              color: 'rgba(102, 126, 234, 0.8)',
-              fontWeight: 500,
+              padding: '8px 12px',
             }}>
-              Saving...
+              <EditorMenuBar editor={editor} />
             </div>
           )}
 
@@ -393,28 +391,27 @@ export function CategoryEditorView() {
                         setShowElementsModal(false);
                         navigate(`/element/${el.id}`);
                       }}
-                      className="bg-card"
+                      className="bg-paper shadow-paper"
                       style={{
                         padding: '16px',
                         borderRadius: 12,
-                        border: '1px solid rgba(200, 190, 220, 0.25)',
+                        border: '1px solid var(--accent-border, #e8dcc8)',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.12)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 111, 71, 0.12)';
                         e.currentTarget.style.transform = 'translateY(-2px)';
                       }}
                       onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.06)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 111, 71, 0.06)';
                         e.currentTarget.style.transform = 'translateY(0)';
                       }}
                     >
                       <div style={{
                         fontSize: 15,
                         fontWeight: 600,
-                        color: 'rgba(0, 0, 0, 0.85)',
+                        color: '#3a2a1a',
                         marginBottom: 8,
                       }}>
                         {el.name}

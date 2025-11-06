@@ -11,6 +11,7 @@ export function recordToBookContent(record: BookContentRecord): BookContent {
     id: record.id,
     nodeId: record.node_id,
     pmJson: record.pm_json,
+    outlineJson: record.outline_json,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   };
@@ -21,6 +22,7 @@ export function bookContentToRecord(node: BookContent): BookContentRecord {
     id: node.id,
     node_id: node.nodeId,
     pm_json: node.pmJson,
+    outline_json: node.outlineJson,
     created_at: node.createdAt,
     updated_at: node.updatedAt,
   };
@@ -47,30 +49,35 @@ export function createBookContentRepository(): BookContentRepository {
         id: data.id || uuidv7(),
         node_id: data.nodeId!,
         pm_json: data.pmJson || '',
+        outline_json: data.outlineJson || '[]',
         created_at: now,
         updated_at: now,
       };
       await run(
-        `INSERT INTO book_content (id, node_id, pm_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [record.id, record.node_id, record.pm_json, record.created_at, record.updated_at]
+        `INSERT INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [record.id, record.node_id, record.pm_json, record.outline_json, record.created_at, record.updated_at]
       );
       return recordToBookContent(record);
     }
 
     const update = async (id: string, data: Partial<BookContent>): Promise<BookContent | null> => {
       const now = new Date().toISOString();
-      const createdAt = await findById(id).then(existing => existing ? existing.createdAt : now);
+      const existing = await findById(id);
+      if (!existing) {
+        return null;
+      }
       const record: BookContentRecord = {
         id,
-        node_id: data.nodeId!,
-        pm_json: data.pmJson || '',
-        created_at: createdAt,
+        node_id: data.nodeId ?? existing.nodeId,
+        pm_json: data.pmJson ?? existing.pmJson,
+        outline_json: data.outlineJson ?? existing.outlineJson,
+        created_at: existing.createdAt,
         updated_at: now,
       };
       await run(
-        `UPDATE book_content SET node_id = ?, pm_json = ?, updated_at = ? WHERE id = ?`,
-        [record.node_id, record.pm_json, record.updated_at, record.id]
+        `UPDATE book_content SET node_id = ?, pm_json = ?, outline_json = ?, updated_at = ? WHERE id = ?`,
+        [record.node_id, record.pm_json, record.outline_json, record.updated_at, record.id]
       );
       return recordToBookContent(record);
     }

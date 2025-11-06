@@ -34,6 +34,8 @@ export type AppEvents = {
   'ui:sidecar-toggled': { open: boolean };
   'ui:command-palette-toggled': { open: boolean };
   
+  'settings:open': void;
+  
   'nodes:changed': void;
 };
 

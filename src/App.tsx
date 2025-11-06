@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
 import { EditorView } from './views/Editor/EditorView';
 import { ElementEditorView } from './views/Editor/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
+import { ThreadEditorView } from './views/ThreadEditorView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/ElementPanel';
@@ -10,13 +11,21 @@ import { AppSidebar } from './components/AppSidebar';
 import { TimelineChapters } from './components/TimelineChapters';
 import { BackButton } from './components/BackButton';
 import { DEFAULT_PROJECT } from './schema/table';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { initAccentColor } from './lib/theme';
+import { useAppStore } from './store';
 
 
 function Layout() {
   const location = useLocation();
   const isEditorRoute = location.pathname.includes('/editor');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const timelineHeight = useAppStore((state) => state.timelineHeight);
   
   useEffect(() => {
+    // Initialize theme
+    initAccentColor();
+    
     initDatabase(DEFAULT_PROJECT.id).then(() => {
       events.emit('db:ready');
     }).catch(error => {
@@ -25,11 +34,20 @@ function Layout() {
     });
   }, []);
 
+  useEffect(() => {
+    // Listen for settings open event
+    const handleOpenSettings = () => setIsSettingsOpen(true);
+    events.on('settings:open', handleOpenSettings);
+    return () => {
+      events.off('settings:open', handleOpenSettings);
+    };
+  }, []);
+
   return (
     <div style={{ height: '100vh', overflow: 'hidden', background: 'rgba(251, 249, 243, 1)' }}>
       <div
         style={{
-          height: 'calc(100vh - 120px)', // Leave space for timeline at bottom
+          height: `calc(100vh - ${timelineHeight}px)`, // 动态计算，根据 timeline 实际高度
           display: 'grid',
           gridTemplateColumns: '280px 1fr',
           overflow: 'hidden',
@@ -37,7 +55,7 @@ function Layout() {
       >
         {/* Left Sidebar - Combined App Menu + Element Panel */}
         <div
-          className="bg-mild"
+          className="bg-paper-light border-r border-accent-border-light"
           style={{
             height: '100%', // ⭐ 关键！必须设置高度才能让内部 flex 正常工作
             display: 'flex',
@@ -79,6 +97,9 @@ function Layout() {
 
       {/* Timeline Chapters - Fixed at bottom, full width */}
       <TimelineChapters />
+      
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }
@@ -89,6 +110,7 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route path="editor" element={<Navigate to="/" replace />} />
         <Route path="editor/:nodeId" element={<EditorView />} />
+        <Route path="editor/thread/:threadId" element={<ThreadEditorView />} />
         <Route path="element/:elementId" element={<ElementEditorView />} />
         <Route path="category/:categoryName" element={<CategoryEditorView />} />
       </Route>

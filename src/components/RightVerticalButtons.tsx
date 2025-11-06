@@ -5,12 +5,12 @@ export function RightVerticalButtons() {
     width: 56,
     height: 56,
     borderRadius: 14,
-    border: 'none',
-    color: '#ffffff',
+    border: '1px solid var(--accent-border, #e8dcc8)',
+    color: '#5a4a3a',
     fontSize: 20,
     fontWeight: 600,
     cursor: 'pointer',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+    boxShadow: '0 4px 16px rgba(139, 115, 85, 0.15)',
     transition: 'all 0.2s ease',
     display: 'flex',
     alignItems: 'center',
@@ -40,15 +40,15 @@ export function RightVerticalButtons() {
           key={index}
           onClick={btn.action}
           style={buttonStyle}
-          className="bg-mild"
+          className="bg-paper-light hover:bg-paper-hover transition-colors"
           title={btn.label}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'scale(1.05)';
-            e.currentTarget.style.boxShadow = '0 6px 24px rgba(0, 0, 0, 0.25)';
+            e.currentTarget.style.boxShadow = '0 6px 24px rgba(139, 115, 85, 0.25)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.1)';
+            e.currentTarget.style.boxShadow = '0 4px 16px rgba(139, 115, 85, 0.15)';
           }}
         >
           {btn.icon}

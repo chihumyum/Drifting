@@ -22,11 +22,14 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
     decorationClass: 'tiptap-slash-decoration',
     items: ({ query, editor: ed }: Parameters<NonNullable<SuggestionOptions['items']>>[0]) => {
       const all = [
-        { id: 'h1', title: 'Heading 1', run: () => ed.chain().focus().setNode('heading', { level: 1 }).run() },
-        { id: 'h2', title: 'Heading 2', run: () => ed.chain().focus().setNode('heading', { level: 2 }).run() },
-        { id: 'h3', title: 'Heading 3', run: () => ed.chain().focus().setNode('heading', { level: 3 }).run() },
-        { id: 'blockquote', title: 'Blockquote', run: () => ed.chain().focus().toggleBlockquote().run() },
-        { id: 'hr', title: 'Horizontal Rule', run: () => ed.chain().focus().setHorizontalRule().run() },
+        { id: 'h1', title: '一级标题', run: () => ed.chain().focus().setNode('heading', { level: 1 }).run() },
+        { id: 'h2', title: '二级标题', run: () => ed.chain().focus().setNode('heading', { level: 2 }).run() },
+        { id: 'h3', title: '三级标题', run: () => ed.chain().focus().setNode('heading', { level: 3 }).run() },
+        { id: 'blockquote', title: '引用', run: () => ed.chain().focus().toggleBlockquote().run() },
+        { id: 'hr', title: '分隔线', run: () => ed.chain().focus().setHorizontalRule().run() },
+        { id: 'left', title: '左对齐', run: () => ed.chain().focus().setTextAlign('left').run() },
+        { id: 'center', title: '居中', run: () => ed.chain().focus().setTextAlign('center').run() },
+        { id: 'right', title: '右对齐', run: () => ed.chain().focus().setTextAlign('right').run() },
       ]
       const q = String(query ?? '')
         .trim()
@@ -55,20 +58,28 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
         const list = document.createElement('div')
         list.style.display = 'flex'
         list.style.flexDirection = 'column'
-        list.style.background = 'white'
-        list.style.border = '1px solid #ddd'
+        list.style.background = '#fefdfb'
+        list.style.border = '1px solid var(--accent-border, #e8dcc8)'
         list.style.borderRadius = '6px'
-        list.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'
+        list.style.boxShadow = '0 4px 16px rgba(139, 115, 85, 0.12)'
         list.style.overflow = 'hidden'
-        list.style.minWidth = '200px'
+        list.style.minWidth = '140px'
+        list.style.maxWidth = '140px'
+        list.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif'
+        list.style.fontSize = '13px'
         items.forEach((item, idx) => {
           const btn = document.createElement('button')
           btn.textContent = item.title
-          btn.style.padding = '8px 12px'
+          btn.style.padding = '6px 12px'
           btn.style.textAlign = 'left'
           btn.style.border = 'none'
-          btn.style.background = idx === selected ? '#f5f5f5' : 'white'
+          const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b89968'
+          btn.style.background = idx === selected ? accentColor : '#fefdfb'
+          btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a'
           btn.style.cursor = 'pointer'
+          btn.style.fontSize = '13px'
+          btn.style.fontFamily = 'Georgia, "Times New Roman", "Songti SC", SimSun, serif'
+          btn.style.transition = 'all 0.15s ease'
           btn.onmouseenter = () => {
             // Only update selection on hover if not in keyboard mode
             if (!keyboardMode) {

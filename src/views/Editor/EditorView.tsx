@@ -6,16 +6,17 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { createDefaultSlashMenu } from '../../lib/slash-menu';
+import { extractOutline, serializeOutline } from '../../lib/outline';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
-import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
 import type { BookNode } from '../../domain/book_node';
-import type { NodeTag } from '../../domain/story_stage';
 import { EditorMenuBar } from './EditorMenuBar';
 import { RightVerticalButtons } from '../../components/RightVerticalButtons';
 import { TitleSummaryBubble } from '../../components/TitleSummaryBubble';
+import { TagEditor } from '../../components/TagEditor';
+import { EditorContextMenu } from '../../components/EditorContextMenu';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -36,10 +37,8 @@ export function EditorView() {
   } = useAppStore();
 
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
-  const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
-  const { getTagsForNode } = useNodeTagUsecases();
+  const { renameNode, updateNodeSummary, loadNodes, deleteNode } = useBookNodeUsecases();
   const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
-  const [nodeTags, setNodeTags] = useState<NodeTag[]>([]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -68,16 +67,11 @@ export function EditorView() {
     setTitleValue(node?.title || '');
     setSummaryValue(node?.summary || '');
     
-    // Load tags for this node
-    if (nodeId) {
-      getTagsForNode(nodeId).then(tags => {
-        setNodeTags(tags);
-      }).catch(error => {
-        console.error('Failed to load tags for node:', error);
-        setNodeTags([]);
-      });
+    // Auto-enter edit mode for newly created nodes
+    if (node?.title === 'New Chapter') {
+      setEditingTitle(true);
     }
-  }, [bookNodes, nodeId, navigate, setSelectedNodeId, getTagsForNode]);
+  }, [bookNodes, nodeId, navigate, setSelectedNodeId]);
 
 
   // load content when nodeId changes
@@ -153,12 +147,17 @@ export function EditorView() {
       const pmJson = JSON.stringify(json);
       if (pmJson === bookContent?.pmJson) return;
       
+      // Extract outline from content
+      const outline = extractOutline(pmJson);
+      const outlineJson = serializeOutline(outline);
+      
       // If content exists, update it
       if (bookContent && bookContent.id) {
         void updateContent({
           id: bookContent.id,
           nodeId: bookContent.nodeId,
           pmJson,
+          outlineJson,
         });
       } else if (nodeId) {
         // Content doesn't exist - create it (fallback safety)
@@ -224,7 +223,7 @@ export function EditorView() {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fdfcfe',
+        background: '#fefdfb', // 使用温和的纸张色
         overflow: 'hidden',
       }}
     >
@@ -295,17 +294,18 @@ export function EditorView() {
                     setEditingTitle(false);
                   }
                 }}
+                onFocus={(e) => e.target.select()}
                 autoFocus
                 style={{
                   width: '100%',
                   fontSize: 28,
                   fontWeight: 700,
-                  color: '#1a1625',
-                  border: '2px solid #8b7fa8',
+                  color: '#2a1a0a',
+                  border: '2px solid var(--accent, #b89968)',
                   borderRadius: 8,
                   padding: '8px 12px',
                   outline: 'none',
-                  background: '#fff',
+                  background: '#fefdfb',
                 }}
               />
             ) : (
@@ -333,119 +333,73 @@ export function EditorView() {
             )}
           </div>
 
-          {/* Summary and Tags - Right */}
-          <div style={{ 
-            flex: 1, 
-            display: 'flex', 
-            gap: '16px',
-            alignItems: 'flex-start',
-          }}>
-            {/* Summary */}
-            <div style={{ flex: 1 }}>
-              {editingSummary ? (
-                <textarea
-                  value={summaryValue}
-                  onChange={(e) => setSummaryValue(e.target.value)}
-                  onBlur={() => {
+          {/* Summary - Right */}
+          <div style={{ flex: 1 }}>
+            {editingSummary ? (
+              <textarea
+                value={summaryValue}
+                onChange={(e) => setSummaryValue(e.target.value)}
+                onBlur={() => {
+                  setEditingSummary(false);
+                  if (curNode?.id && summaryValue !== (curNode.summary || '')) {
+                    void updateNodeSummary(curNode.id, summaryValue.trim() || null);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSummaryValue(curNode?.summary || '');
                     setEditingSummary(false);
-                    if (curNode?.id && summaryValue !== (curNode.summary || '')) {
-                      void updateNodeSummary(curNode.id, summaryValue.trim() || null);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setSummaryValue(curNode?.summary || '');
-                      setEditingSummary(false);
-                    }
-                  }}
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    minHeight: 80,
-                    fontSize: 14,
-                    fontWeight: 400,
-                    color: '#4a4358',
-                    border: '2px solid #8b7fa8',
-                    borderRadius: 8,
-                    padding: '8px 12px',
-                    outline: 'none',
-                    background: '#fff',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                  }}
-                />
-              ) : (
-                <div
-                  onClick={() => setEditingSummary(true)}
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 400,
-                    color: '#4a4358',
-                    cursor: 'pointer',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    transition: 'background 0.15s ease',
-                    minHeight: 48,
-                    lineHeight: 1.6,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  {summaryValue}
-                </div>
-              )}
-            </div>
-
-            {/* Tags */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '8px',
-              alignItems: 'flex-start',
-              minWidth: '200px',
-              padding: '8px 12px',
-            }}>
-              {nodeTags.length > 0 ? (
-                nodeTags.map(tag => (
-                  <span
-                    key={tag.id}
-                    style={{
-                      display: 'inline-block',
-                      padding: '4px 12px',
-                      borderRadius: '16px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      backgroundColor: tag.color || '#E5E7EB',
-                      color: '#1F2937',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              ) : (
-                <span style={{
-                  fontSize: '12px',
-                  color: '#9CA3AF',
-                  fontStyle: 'italic',
-                }}>
-                  无标签
-                </span>
-              )}
-            </div>
+                  }
+                }}
+                autoFocus
+                style={{
+                  width: '100%',
+                  minHeight: 80,
+                  fontSize: 14,
+                  fontWeight: 400,
+                  color: '#5a4a3a',
+                  border: '2px solid var(--accent, #b89968)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  outline: 'none',
+                  background: '#fefdfb',
+                  resize: 'vertical',
+                  fontFamily: 'inherit',
+                }}
+              />
+            ) : (
+              <div
+                onClick={() => setEditingSummary(true)}
+                style={{
+                  fontSize: 14,
+                  fontWeight: 400,
+                  color: '#4a4358',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  transition: 'background 0.15s ease',
+                  minHeight: 48,
+                  lineHeight: 1.6,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                {summaryValue}
+              </div>
+            )}
           </div>
         </div>
 
         <div
           style={{
             marginTop: 20,
-            background: '#ffffff',
+            background: '#fefdfb',
             borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(31, 26, 58, 0.08)',
+            boxShadow: '0 2px 8px rgba(139, 115, 85, 0.12)',
             padding: '32px 38px',
             minHeight: 'calc(100vh - 300px)',
           }}
@@ -459,6 +413,40 @@ export function EditorView() {
 
       {/* Menu Bar - Fixed at top right */}
       <EditorMenuBar editor={editor} />
+      
+      {/* Context Menu (Three Dots) */}
+      <EditorContextMenu 
+        editorType="node"
+        onAction={(action) => {
+          if (action === 'deleteNode' && curNode?.id) {
+            const confirmed = window.confirm('Delete this node?');
+            if (confirmed) {
+              void deleteNode(curNode.id);
+              navigate('/editor');
+            }
+          }
+          // Add more actions as needed
+        }}
+      />
+      
+      {/* Right Panel with TagEditor */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 80,
+          right: 16,
+          width: 280,
+          maxHeight: 'calc(100vh - 160px)',
+          background: '#fefdfb',
+          border: '1px solid rgba(213, 213, 213, 0.3)',
+          borderRadius: 8,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+          overflow: 'auto',
+          zIndex: 9,
+        }}
+      >
+        {nodeId && <TagEditor nodeId={nodeId} />}
+      </div>
       
       {/* Right Vertical Utility Buttons */}
       <RightVerticalButtons />

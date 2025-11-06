@@ -29,24 +29,6 @@ export class StoryThreadUsecases {
     return this.repo.deleteThread(id);
   }
 
-  async getMainThread(projectId: string): Promise<StoryThread | null> {
-    return this.repo.getMainThread(projectId);
-  }
-
-  async ensureMainThread(projectId: string): Promise<StoryThread> {
-    let mainThread = await this.repo.getMainThread(projectId);
-    if (!mainThread) {
-      mainThread = await this.repo.createThread({
-        projectId,
-        name: 'Main Story',
-        color: '#3B82F6', // Blue
-        summary: 'Main storyline',
-        isMain: true,
-      });
-    }
-    return mainThread;
-  }
-
   // Node-Thread relationships
   async addNodeToThread(nodeId: string, threadId: string): Promise<void> {
     return this.repo.addNodeToThread(nodeId, threadId);
@@ -66,10 +48,5 @@ export class StoryThreadUsecases {
 
   async setNodeThreads(nodeId: string, threadIds: string[]): Promise<void> {
     return this.repo.setNodeThreads(nodeId, threadIds);
-  }
-
-  async assignMainThreadToNode(nodeId: string, projectId: string): Promise<void> {
-    const mainThread = await this.ensureMainThread(projectId);
-    await this.repo.addNodeToThread(nodeId, mainThread.id);
   }
 }

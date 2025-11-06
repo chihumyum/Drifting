@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 全局移除滚动条 */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* TODO: 按照语言不同，调整不同样式 */
 .prose {
   /* 行距 (line-height) */

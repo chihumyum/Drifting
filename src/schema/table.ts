@@ -110,18 +110,18 @@ CREATE TABLE IF NOT EXISTS story_thread (
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   summary TEXT,
-  is_main INTEGER NOT NULL DEFAULT 0,  -- 0 or 1, only one main thread per project
+  pm_json TEXT,  -- ProseMirror document JSON for thread description/notes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_story_thread_project ON story_thread(project_id);
-CREATE INDEX IF NOT EXISTS idx_story_thread_main ON story_thread(project_id, is_main);
 
 -- Node to thread relationship (many-to-many)
 CREATE TABLE IF NOT EXISTS node_thread (
   node_id TEXT NOT NULL,
   thread_id TEXT NOT NULL,
+  thread_order INTEGER NOT NULL DEFAULT 0,  -- Determines node's primary thread (0 = primary)
   PRIMARY KEY(node_id, thread_id),
   FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
   FOREIGN KEY(thread_id) REFERENCES story_thread(id) ON DELETE CASCADE
@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS book_content (
   id TEXT PRIMARY KEY,
   node_id TEXT NOT NULL UNIQUE,
   pm_json TEXT NOT NULL DEFAULT '{}',
+  outline_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE
@@ -357,7 +358,6 @@ export const DEFAULT_STORY_THREAD: StoryThreadRecord = {
   name: 'Main Story',
   color: '#3B82F6',
   summary: 'Main storyline',
-  is_main: 1,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
@@ -370,7 +370,6 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
     name: 'John',
     color: '#60A5FA', // Light blue
     summary: "John's storyline",
-    is_main: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -380,7 +379,6 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
     name: 'Emma',
     color: '#FDE047', // Yellow
     summary: "Emma's storyline",
-    is_main: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -390,7 +388,6 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
     name: 'Vera',
     color: '#C084FC', // Purple
     summary: "Vera's storyline",
-    is_main: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -696,6 +693,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
         },
       ],
     }),
+    outline_json: JSON.stringify([
+      { id: 'outline_001_0', level: 1, text: '序章', position: 0 }
+    ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -708,14 +708,43 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
         {
           type: 'heading',
           attrs: { level: 1 },
-          content: [{ type: 'text', text: '第一章：John' }],
+          content: [{ type: 'text', text: '初遇' }],
         },
         {
           type: 'paragraph',
           content: [{ type: 'text', text: 'John在城市中漫步...' }],
         },
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: '咖啡店' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '他走进一家咖啡店...' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: '对话' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '陌生人主动搭讪...' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '离开' }],
+        },
       ],
     }),
+    outline_json: JSON.stringify([
+      { id: 'outline_002_0', level: 1, text: '初遇', position: 0 },
+      { id: 'outline_002_1', level: 2, text: '咖啡店', position: 1 },
+      { id: 'outline_002_2', level: 2, text: '对话', position: 2 },
+      { id: 'outline_002_3', level: 1, text: '离开', position: 3 }
+    ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -726,16 +755,12 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
       type: 'doc',
       content: [
         {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '第三章：Vera' }],
-        },
-        {
           type: 'paragraph',
           content: [{ type: 'text', text: 'Vera回忆起过去的片段...' }],
         },
       ],
     }),
+    outline_json: JSON.stringify([]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -748,14 +773,59 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
         {
           type: 'heading',
           attrs: { level: 1 },
-          content: [{ type: 'text', text: '第五章：Emma' }],
+          content: [{ type: 'text', text: '决定' }],
         },
         {
           type: 'paragraph',
           content: [{ type: 'text', text: 'Emma做出了重要的决定...' }],
         },
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: '考虑' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '她权衡利弊...' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: '家人' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '家人的意见...' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: '事业' }],
+        },
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: '事业的考量...' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: '行动' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '新的开始' }],
+        },
       ],
     }),
+    outline_json: JSON.stringify([
+      { id: 'outline_006_0', level: 1, text: '决定', position: 0 },
+      { id: 'outline_006_1', level: 2, text: '考虑', position: 1 },
+      { id: 'outline_006_2', level: 3, text: '家人', position: 2 },
+      { id: 'outline_006_3', level: 3, text: '事业', position: 3 },
+      { id: 'outline_006_4', level: 2, text: '行动', position: 4 },
+      { id: 'outline_006_5', level: 1, text: '新的开始', position: 5 }
+    ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -768,14 +838,29 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
         {
           type: 'heading',
           attrs: { level: 1 },
-          content: [{ type: 'text', text: '第七章：Emma' }],
+          content: [{ type: 'text', text: '相遇' }],
         },
         {
           type: 'paragraph',
           content: [{ type: 'text', text: 'Emma与Vera的相遇改变了一切...' }],
         },
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '对话' }],
+        },
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: '告别' }],
+        },
       ],
     }),
+    outline_json: JSON.stringify([
+      { id: 'outline_008_0', level: 1, text: '相遇', position: 0 },
+      { id: 'outline_008_1', level: 1, text: '对话', position: 1 },
+      { id: 'outline_008_2', level: 1, text: '告别', position: 2 }
+    ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -786,16 +871,12 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
       type: 'doc',
       content: [
         {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '第十章：John' }],
-        },
-        {
           type: 'paragraph',
           content: [{ type: 'text', text: 'John面临着艰难的抉择...' }],
         },
       ],
     }),
+    outline_json: JSON.stringify([]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },

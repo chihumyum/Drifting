@@ -5,7 +5,7 @@ export interface StoryThread {
   name: string;
   color: string;
   summary?: string;
-  isMain: boolean;
+  pmJson?: object; // ProseMirror document JSON
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +15,7 @@ export interface CreateStoryThreadInput {
   name: string;
   color: string;
   summary?: string;
-  isMain?: boolean;
+  pmJson?: object;
 }
 
 export interface UpdateStoryThreadInput {
@@ -23,5 +23,5 @@ export interface UpdateStoryThreadInput {
   name?: string;
   color?: string;
   summary?: string;
-  isMain?: boolean;
+  pmJson?: object;
 }

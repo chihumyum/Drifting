@@ -1,12 +1,21 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
-import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, ChevronRight, ChevronLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface EditorMenuBarProps {
   editor: Editor | null;
 }
 
 export function EditorMenuBar({ editor }: EditorMenuBarProps) {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    const saved = localStorage.getItem('editorMenuBarCollapsed');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('editorMenuBarCollapsed', String(isCollapsed));
+  }, [isCollapsed]);
 
   const editorState = useEditorState({
     editor,
@@ -34,18 +43,16 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
   }
 
   const buttonClassName = (isActive: boolean) => 
-    isActive ? 'bg-button' : 'bg-gray-100';
+    isActive ? 'bg-accent text-paper' : 'bg-paper-hover hover:bg-accent hover:text-paper transition-colors';
 
   const buttonStyle = (isActive: boolean) => ({
     padding: '10px 12px',
-    border: 'none',
+    border: isActive ? 'none' : '1px solid var(--accent-border, #e8dcc8)',
     borderRadius: 8,
-    color: 'rgba(0, 0, 0, 0.75)',
+    color: isActive ? '#fefdfb' : '#5a4a3a',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    boxShadow: isActive ? '0 4px 12px rgba(99, 102, 241, 0.3)' : 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -61,7 +68,8 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
     gap: 6,
     padding: '12px 8px',
     borderRadius: 16,
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+    boxShadow: '0 8px 32px rgba(139, 115, 85, 0.15)',
+    border: '1px solid var(--accent-border, #e8dcc8)',
     backdropFilter: 'blur(12px)',
     zIndex: 100,
     transition: 'top 0.3s ease',
@@ -71,15 +79,29 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
 
   const separatorStyle = {
     height: 1,
-    background: '#e5e7eb',
+    background: 'var(--accent-border, #e8dcc8)',
     margin: '4px 0',
   };
 
 
   return (
-    <div style={menuBarStyle} className="bg-mild">
-      {/* Format Buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
+    <div style={menuBarStyle} className="bg-paper-light">
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
+        style={{
+          ...buttonStyle(false),
+          marginBottom: isCollapsed ? 0 : 6,
+        }}
+        title={isCollapsed ? 'Expand Menu' : 'Collapse Menu'}
+      >
+        {isCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+      </button>
+
+      {/* Format Buttons - Hidden when collapsed */}
+      {!isCollapsed && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
       <button
         onClick={() => editor.chain().focus().toggleBold().run()}
         disabled={!editorState.canBold}
@@ -187,7 +209,7 @@ export function EditorMenuBar({ editor }: EditorMenuBarProps) {
         <AlignRight size={16} />
       </button>
       </div>
-
+      )}
     </div>
   );
 }

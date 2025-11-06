@@ -1,17 +1,33 @@
 import { Settings, User, HelpCircle, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
+import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
 import { useAppStore } from '../store';
+import { events } from '../lib/events';
+
+// Thread color palette
+const THREAD_COLORS = [
+  '#b89968', // gold
+  '#6b9080', // sage
+  '#a3b18a', // moss
+  '#bc6c25', // rust
+  '#588157', // forest
+  '#8b7355', // brown
+  '#7a9e9f', // teal
+  '#946b54', // terracotta
+];
 
 export function AppSidebar() {
   const navigate = useNavigate();
   const { createNode } = useBookNodeUsecases();
+  const threadUsecases = useStoryThreadUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
+  const selectedNodeId = useAppStore(state => state.selectedNodeId);
   
   const leftMenuItems = [
-    { icon: User, label: 'Account' },
-    { icon: Settings, label: 'Settings' },
-    { icon: HelpCircle, label: 'Help' },
+    { icon: User, label: 'Account', action: () => alert('Account clicked') },
+    { icon: Settings, label: 'Settings', action: () => events.emit('settings:open') },
+    { icon: HelpCircle, label: 'Help', action: () => alert('Help clicked') },
   ];
 
   const handleCreateChapter = async () => {
@@ -30,6 +46,33 @@ export function AppSidebar() {
         end: newEnd,
       });
       
+      // 分配默认 thread
+      let defaultThreadId: string | null = null;
+      
+      if (selectedNodeId) {
+        // 如果有选中的 node，获取它的主 thread（第一个 thread）
+        const selectedNodeThreads = await threadUsecases.getThreadsByNode(selectedNodeId);
+        if (selectedNodeThreads.length > 0) {
+          defaultThreadId = selectedNodeThreads[0].id;
+        }
+      }
+      
+      if (!defaultThreadId) {
+        // 如果没有选中 node 或选中的 node 没有 thread，随便选一个 thread
+        const allThreads = await threadUsecases.getThreadsByProject('default-project');
+        if (allThreads.length > 0) {
+          defaultThreadId = allThreads[0].id;
+        }
+      }
+      
+      // 将新 node 添加到 thread
+      if (defaultThreadId) {
+        await threadUsecases.addNodeToThread(newNode.id, defaultThreadId);
+      }
+      
+      // 设置为选中状态
+      useAppStore.getState().setSelectedNodeId(newNode.id);
+      
       // Navigate to the new chapter
       navigate(`/editor/${newNode.id}`);
       
@@ -47,6 +90,26 @@ export function AppSidebar() {
       }, 100);
     } catch (error) {
       console.error('Failed to create chapter:', error);
+    }
+  };
+
+  const handleCreateThread = async () => {
+    try {
+      // Generate random color
+      const randomColor = THREAD_COLORS[Math.floor(Math.random() * THREAD_COLORS.length)];
+      
+      // Create new thread
+      const newThread = await threadUsecases.createThread({
+        projectId: 'default-project',
+        name: 'New Thread',
+        color: randomColor,
+        summary: '',
+      });
+      
+      // Navigate to thread editor
+      navigate(`/editor/thread/${newThread.id}`);
+    } catch (error) {
+      console.error('Failed to create thread:', error);
     }
   };
 
@@ -71,7 +134,7 @@ export function AppSidebar() {
           {leftMenuItems.map((item, index) => (
             <button
               key={index}
-              onClick={() => alert(`${item.label} clicked`)}
+              onClick={item.action}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -110,7 +173,7 @@ export function AppSidebar() {
       }}>
         <button
           onClick={handleCreateChapter}
-          className="bg-button"
+          className="bg-accent hover:bg-accent-hover text-paper transition-colors"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -137,6 +200,37 @@ export function AppSidebar() {
         >
           <Plus size={16} />
           <span>Chapter</span>
+        </button>
+        
+        <button
+          onClick={handleCreateThread}
+          className="bg-accent hover:bg-accent-hover text-paper transition-colors"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            border: 'none',
+            color: 'rgba(0, 0, 0, 0.75)',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+          }}
+        >
+          <Plus size={16} />
+          <span>Thread</span>
         </button>
       </div>
     </div>

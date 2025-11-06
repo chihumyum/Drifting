@@ -97,24 +97,9 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
     // Don't fail the node creation if content creation fails
   }
 
-  // Assign main thread to new node
-  const projectId = input.projectId ?? 'default-project';
-  try {
-    let mainThread = await deps.threadRepo.getMainThread(projectId);
-    if (!mainThread) {
-      // Create main thread if it doesn't exist
-      mainThread = await deps.threadRepo.createThread({
-        projectId,
-        name: 'Main Story',
-        color: '#3B82F6',
-        summary: 'Main storyline',
-        isMain: true,
-      });
-    }
-    await deps.threadRepo.addNodeToThread(created.id, mainThread.id);
-  } catch (error) {
-    console.error('Failed to assign main thread to new node:', error);
-  }
+  // Note: Do not automatically assign any thread to the node
+  // The caller should explicitly add the node to the desired thread
+  // This allows flexibility in choosing which thread the node belongs to
 
   const node = created;
   const nextNodes = [...nodes, node].sort((a, b) => a.start - b.start);

@@ -17,6 +17,10 @@ type UiSlice = {
   rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai';
   setRightPanelOpen: (isOpen: boolean) => void;
   setRightPanelType: (rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai') => void;
+  
+  // Timeline 高度状态
+  timelineHeight: number;
+  setTimelineHeight: (height: number) => void;
 };
 
 type SelectionSlice = {
@@ -85,6 +89,10 @@ export const useAppStore = create<AppState>((set) => ({
   setBookElementPanelOpen: (open) => set({ elementPanelOpen: open }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setRightPanelType: (type) => set({ rightPanelType: type }),
+  
+  // Timeline 高度
+  timelineHeight: 30, // 默认高度（假设3个threads，收起状态）
+  setTimelineHeight: (height) => set({ timelineHeight: height }),
 
 
   selectedNodeId: null,

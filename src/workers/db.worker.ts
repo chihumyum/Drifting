@@ -191,15 +191,14 @@ async function seedDefaultProject() {
 
 async function seedDefaultThread() {
   await execute(
-    `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, is_main, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       DEFAULT_STORY_THREAD.id,
       DEFAULT_STORY_THREAD.project_id,
       DEFAULT_STORY_THREAD.name,
       DEFAULT_STORY_THREAD.color,
       DEFAULT_STORY_THREAD.summary ?? null,
-      DEFAULT_STORY_THREAD.is_main,
       DEFAULT_STORY_THREAD.created_at,
       DEFAULT_STORY_THREAD.updated_at,
     ]
@@ -209,15 +208,14 @@ async function seedDefaultThread() {
 async function seedMockThreads() {
   for (const thread of MOCK_STORY_THREADS) {
     await execute(
-      `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, is_main, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO story_thread (id, project_id, name, color, summary, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         thread.id,
         thread.project_id,
         thread.name,
         thread.color,
         thread.summary ?? null,
-        thread.is_main,
         thread.created_at,
         thread.updated_at,
       ]
@@ -329,12 +327,13 @@ async function seedMockNodeTagLinks() {
 async function seedMockBookContents() {
   for (const content of MOCK_BOOK_CONTENTS) {
     await execute(
-      `INSERT OR IGNORE INTO book_content (id, node_id, pm_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         content.id,
         content.node_id,
         content.pm_json,
+        content.outline_json,
         content.created_at,
         content.updated_at,
       ]

@@ -7,7 +7,6 @@ export interface StoryThreadRepository {
   getThreadsByProject(projectId: string): Promise<StoryThread[]>;
   updateThread(input: UpdateStoryThreadInput): Promise<StoryThread>;
   deleteThread(id: string): Promise<void>;
-  getMainThread(projectId: string): Promise<StoryThread | null>;
   
   // Node-Thread relationships
   addNodeToThread(nodeId: string, threadId: string): Promise<void>;

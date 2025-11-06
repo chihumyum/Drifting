@@ -22,20 +22,29 @@ const DEFAULT_CATEGORY_COLORS = [
 
 export function ElementPanel() {
   const navigate = useNavigate();
-  const { bookElements, bookElementCategories, selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId } = useAppStore();
-  const { createElement: create, removeElement: remove, loadInitial, _deps } = useBookElementUsecases();
+  const { bookElements, bookElementCategories, selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId, timelineHeight } = useAppStore();
+  const { createElement: create, removeElement: remove, loadInitial, updateElement, _deps } = useBookElementUsecases();
 
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [editingElementName, setEditingElementName] = useState('');
+  const [editingCategoryName, setEditingCategoryName] = useState<string | null>(null);
+  const [editingCategoryNewName, setEditingCategoryNewName] = useState('');
 
 
   const categoryNames = useMemo(() => {
-    const names = new Set<string>(['others']);
+    const names = new Set<string>();
     bookElementCategories.forEach(c => names.add(c.name));
     bookElements.forEach(e => names.add(e.category));
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
+    // 按名称排序，others 始终在最后
+    return Array.from(names).sort((a, b) => {
+      if (a === 'others') return 1;
+      if (b === 'others') return -1;
+      return a.localeCompare(b);
+    });
   }, [bookElementCategories, bookElements]);
 
   // Get color for a category, from database or fallback to default colors
@@ -57,24 +66,113 @@ export function ElementPanel() {
     if (selectedBookElementId === id) setSelectedBookElementId(null);
   }, [remove, selectedBookElementId, setSelectedBookElementId]);
 
-  const handleCreateCategory = async () => {
+  const handleNewCategory = async () => {
     if (!newCategoryName.trim()) return;
     await _deps.categoryRepo.create(newCategoryName.trim());
     await loadInitial();
     setShowNewCategoryModal(false);
     setNewCategoryName('');
   };
+  
+  // 创建新 category 并进入编辑模式
+  const handleCreateNewCategory = async () => {
+    // Generate a temporary name
+    const tempName = `New Category ${Date.now()}`;
+    try {
+      await _deps.categoryRepo.create(tempName);
+      await loadInitial();
+      // Switch to the new category tab and enter edit mode
+      setFilterCategory(tempName);
+      setEditingCategoryName(tempName);
+      setEditingCategoryNewName(tempName);
+    } catch (error) {
+      console.error('Failed to create new category:', error);
+    }
+  };
+  
+  // 处理 element 名称编辑
+  const handleSaveElementName = async (elementId: string) => {
+    if (!editingElementName.trim()) {
+      setEditingElementId(null);
+      return;
+    }
+    try {
+      // Use the usecase layer's updateElement which handles partial updates
+      await updateElement(elementId, { name: editingElementName.trim() });
+      await loadInitial();
+    } catch (error) {
+      console.error('Failed to update element name:', error);
+    } finally {
+      setEditingElementId(null);
+    }
+  };
+  
+  // 处理 category 名称编辑
+  const handleSaveCategoryName = async (oldName: string) => {
+    const newName = editingCategoryNewName.trim();
+    if (!newName || newName === oldName) {
+      setEditingCategoryName(null);
+      return;
+    }
+    try {
+      // Category rename requires:
+      // 1. Create new category with new name
+      // 2. Update all elements to use new category
+      // 3. Delete old category
+      
+      // Check if new name already exists
+      const categories = _deps.getCategories();
+      const existingNew = categories.find(c => c.name === newName);
+      if (existingNew) {
+        alert(`Category "${newName}" already exists`);
+        setEditingCategoryName(null);
+        return;
+      }
+      
+      // Create new category (copy color from old)
+      const oldCategory = categories.find(c => c.name === oldName);
+      await _deps.categoryRepo.create(newName, oldCategory?.color);
+      
+      // Update all elements that use this category
+      const elementsToUpdate = bookElements.filter((e: BookElement) => e.category === oldName);
+      for (const element of elementsToUpdate) {
+        await updateElement(element.id, { category: newName });
+      }
+      
+      // Delete old category
+      await _deps.categoryRepo.delete(oldName);
+      
+      // Reload to get updated data
+      await loadInitial();
+      
+      // Update filter if it was set to the old category
+      if (filterCategory === oldName) {
+        setFilterCategory(newName);
+      }
+    } catch (error) {
+      console.error('Failed to rename category:', error);
+      alert('Failed to rename category. Please try again.');
+    } finally {
+      setEditingCategoryName(null);
+    }
+  };
 
-  // Group elements by category for "all" view
+  // Group elements by category for "all" view - 显示所有 category，即使没有 elements
   const elementsByCategory = useMemo(() => {
     const grouped: Record<string, BookElement[]> = {};
+    // 初始化所有 category
+    categoryNames.forEach(cat => {
+      grouped[cat] = [];
+    });
+    // 填充 elements
     bookElements.forEach(el => {
       const cat = el.category || 'others';
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(el);
+      if (grouped[cat]) {
+        grouped[cat].push(el);
+      }
     });
     return grouped;
-  }, [bookElements]);
+  }, [bookElements, categoryNames]);
 
   useEffect(() => {
     console.log('Loading initial book elements');
@@ -90,11 +188,10 @@ export function ElementPanel() {
     }}>
       {/* Left: Elements List - This container handles scrolling */}
       <div style={{
-        height: '100vh',
+        height: `calc(100vh - 120px - ${timelineHeight}px)`, // 动态减去 AppSidebar (120px) 和 timeline 高度
         display: 'flex',
         flexDirection: 'column',
-        padding: '20px',
-        overflow: 'hidden',
+        padding: '5px',
       }}>
         {/* Category Header - Show when a specific category is selected */}
         {filterCategory !== 'all' && (
@@ -121,36 +218,65 @@ export function ElementPanel() {
                 background: getCategoryColor(filterCategory, categoryNames.indexOf(filterCategory)),
                 boxShadow: `0 2px 6px ${getCategoryColor(filterCategory, categoryNames.indexOf(filterCategory))}40`,
               }} />
-              <span style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: 'rgba(0, 0, 0, 0.75)',
-              }}>
-                {filterCategory}
-              </span>
+              {editingCategoryName === filterCategory ? (
+                <input
+                  type="text"
+                  value={editingCategoryNewName}
+                  onChange={(e) => setEditingCategoryNewName(e.target.value)}
+                  onBlur={() => handleSaveCategoryName(filterCategory)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveCategoryName(filterCategory);
+                    } else if (e.key === 'Escape') {
+                      setEditingCategoryName(null);
+                      setEditingCategoryNewName('');
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  autoFocus
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'rgba(0, 0, 0, 0.75)',
+                    border: '1px solid var(--accent-border, #e8dcc8)',
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                    background: 'var(--bg-paper)',
+                    outline: 'none',
+                  }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={() => {
+                    setEditingCategoryName(filterCategory);
+                    setEditingCategoryNewName(filterCategory);
+                  }}
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'rgba(0, 0, 0, 0.75)',
+                    cursor: 'text',
+                  }}
+                >
+                  {filterCategory}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => navigate(`/category/${encodeURIComponent(filterCategory)}`)}
-                className="bg-button"
+                className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
                   padding: '6px 14px',
                   borderRadius: 8,
-                  border: 'none',
-                  color: 'rgba(0, 0, 0, 0.75)',
+                  border: '1px solid var(--accent-border, #e8dcc8)',
+                  color: '#5a4a3a',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'opacity 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.opacity = '1';
                 }}
               >
                 <Edit3 size={14} />
@@ -174,7 +300,7 @@ export function ElementPanel() {
                     console.error('Failed to create element:', error);
                   }
                 }}
-                className="bg-button"
+                className="bg-accent hover:bg-accent-hover text-paper transition-colors"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -182,17 +308,9 @@ export function ElementPanel() {
                   padding: '6px 14px',
                   borderRadius: 8,
                   border: 'none',
-                  color: 'rgba(0, 0, 0, 0.75)',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'opacity 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.opacity = '1';
                 }}
               >
                 <Plus size={14} />
@@ -205,9 +323,7 @@ export function ElementPanel() {
         {/* Elements List Content */}
         <div style={{
           flex: 1,
-          minHeight: 0, // Critical: allows scrolling in flex layout
           overflowY: 'auto',
-          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
@@ -232,25 +348,18 @@ export function ElementPanel() {
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => navigate(`/category/${encodeURIComponent(category)}`)}
-                      className="bg-button"
+                      className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                       style={{
                         padding: '4px 12px',
                         borderRadius: 6,
-                        border: 'none',
+                        border: '1px solid var(--accent-border, #e8dcc8)',
                         fontSize: 11,
                         fontWeight: 600,
-                        color: 'rgba(0, 0, 0, 0.75)',
+                        color: '#5a4a3a',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
-                        transition: 'opacity 0.2s ease',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.opacity = '0.8';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.opacity = '1';
                       }}
                     >
                       <Edit3 size={11} />
@@ -270,25 +379,17 @@ export function ElementPanel() {
                         });
                         navigate(`/element/${newElement.id}`);
                       }}
-                      className="bg-button"
+                      className="bg-accent hover:bg-accent-hover text-paper transition-colors"
                       style={{
                         padding: '4px 12px',
                         borderRadius: 6,
                         border: 'none',
                         fontSize: 11,
                         fontWeight: 600,
-                        color: 'rgba(0, 0, 0, 0.75)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
-                      transition: 'opacity 0.2s ease',
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.opacity = '0.8';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.opacity = '1';
                     }}
                   >
                     <Plus size={12} />
@@ -301,32 +402,20 @@ export function ElementPanel() {
                   return (
                     <div
                       key={el.id}
-                      className="bg-card"
+                      className="bg-paper shadow-paper hover:shadow-paper-lg transition-shadow"
                       style={{
-                        border: selected ? '2px solid rgba(255, 214, 189, 1)' : '1px solid rgba(200, 190, 220, 0.25)',
+                        border: selected ? '1px solid var(--accent, #b89968)' : '1px solid var(--accent-border, #e8dcc8)',
                         padding: '14px 16px',
                         borderRadius: 12,
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 10,
                         marginBottom: 8,
-                        boxShadow: selected ? '0 4px 16px rgba(102, 126, 234, 0.15)' : '0 2px 8px rgba(100, 90, 120, 0.08)',
-                        transition: 'all 0.2s ease',
                         cursor: 'pointer',
                       }}
                       onClick={() => {
                         setSelectedBookElementId(el.id);
                         navigate(`/element/${el.id}`);
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!selected) {
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 90, 120, 0.12)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!selected) {
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(100, 90, 120, 0.08)';
-                        }
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -334,17 +423,55 @@ export function ElementPanel() {
                           flex: 1,
                           fontSize: 14,
                           fontWeight: 600,
-                          color: 'rgba(71, 71, 71, 1)',
+                          color: '#3a2a1a',
                         }}>
-                          {el.name}
+                          {editingElementId === el.id ? (
+                            <input
+                              type="text"
+                              value={editingElementName}
+                              onChange={(e) => setEditingElementName(e.target.value)}
+                              onBlur={() => handleSaveElementName(el.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveElementName(el.id);
+                                } else if (e.key === 'Escape') {
+                                  setEditingElementId(null);
+                                  setEditingElementName('');
+                                }
+                              }}
+                              onFocus={(e) => e.target.select()}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                width: '100%',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                padding: '2px 4px',
+                                border: '1px solid var(--accent-border, #e8dcc8)',
+                                borderRadius: 4,
+                                background: 'var(--bg-paper)',
+                                color: '#3a2a1a',
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingElementId(el.id);
+                                setEditingElementName(el.name);
+                              }}
+                              style={{ cursor: 'text' }}
+                            >
+                              {el.name}
+                            </span>
+                          )}
                         </div>
                         <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => setOpenMenuId(openMenuId === el.id ? null : el.id)}
-                            className="bg-button"
+                            className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                             style={{
-                              color: 'rgba(0, 0, 0, 0.75)',
-                              border: 'none',
+                              border: '1px solid var(--accent-border, #e8dcc8)',
                               borderRadius: 6,
                               padding: '6px',
                               cursor: 'pointer',
@@ -372,10 +499,10 @@ export function ElementPanel() {
                                   top: '100%',
                                   right: 0,
                                   marginTop: 4,
-                                  background: 'white',
-                                  border: '1px solid rgba(0, 0, 0, 0.1)',
+                                  background: '#fefdfb',
+                                  border: '1px solid var(--accent-border, #e8dcc8)',
                                   borderRadius: 8,
-                                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                  boxShadow: '0 4px 12px rgba(139, 115, 85, 0.15)',
                                   minWidth: 120,
                                   zIndex: 20,
                                   overflow: 'hidden',
@@ -417,7 +544,7 @@ export function ElementPanel() {
                       </div>
                       <div style={{
                         fontSize: 11,
-                        color: '#8a7d9a',
+                        color: '#8b7355',
                       }}>
                         {new Date(el.updatedAt).toLocaleDateString()}
                       </div>
@@ -433,31 +560,19 @@ export function ElementPanel() {
               return (
                 <div
                   key={el.id}
-                  className="bg-card"
+                  className="bg-paper shadow-paper hover:shadow-paper-lg transition-shadow"
                   style={{
-                    border: selected ? '2px solid rgba(255, 214, 189, 1)' : '1px solid rgba(200, 190, 220, 0.25)',
+                    border: selected ? '1px solid var(--accent, #b89968)' : '1px solid var(--accent-border, #e8dcc8)',
                     padding: '14px 16px',
                     borderRadius: 12,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 10,
-                    boxShadow: selected ? '0 4px 16px rgba(102, 126, 234, 0.15)' : '0 2px 8px rgba(100, 90, 120, 0.08)',
-                    transition: 'all 0.2s ease',
                     cursor: 'pointer',
                   }}
                   onClick={() => {
                     setSelectedBookElementId(el.id);
                     navigate(`/element/${el.id}`);
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!selected) {
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 90, 120, 0.12)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!selected) {
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(100, 90, 120, 0.08)';
-                    }
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -465,17 +580,16 @@ export function ElementPanel() {
                       flex: 1,
                       fontSize: 14,
                       fontWeight: 600,
-                      color: 'rgba(71, 71, 71, 1)',
+                      color: '#3a2a1a',
                     }}>
                       {el.name}
                     </div>
                     <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setOpenMenuId(openMenuId === el.id ? null : el.id)}
-                        className="bg-button"
+                        className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                         style={{
-                          color: 'rgba(0, 0, 0, 0.75)',
-                          border: 'none',
+                          border: '1px solid var(--accent-border, #e8dcc8)',
                           borderRadius: 6,
                           padding: '6px',
                           cursor: 'pointer',
@@ -497,21 +611,21 @@ export function ElementPanel() {
                             }}
                             onClick={() => setOpenMenuId(null)}
                           />
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '100%',
-                              right: 0,
-                              marginTop: 4,
-                              background: 'white',
-                              border: '1px solid rgba(0, 0, 0, 0.1)',
-                              borderRadius: 8,
-                              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                              minWidth: 120,
-                              zIndex: 20,
-                              overflow: 'hidden',
-                            }}
-                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: 4,
+                                background: '#fefdfb',
+                                border: '1px solid var(--accent-border, #e8dcc8)',
+                                borderRadius: 8,
+                                boxShadow: '0 4px 12px rgba(139, 115, 85, 0.15)',
+                                minWidth: 120,
+                                zIndex: 20,
+                                overflow: 'hidden',
+                              }}
+                            >
                             <button
                               onClick={() => {
                                 deleteElement(el.id);
@@ -548,7 +662,7 @@ export function ElementPanel() {
                   </div>
                   <div style={{
                     fontSize: 11,
-                    color: '#8a7d9a',
+                    color: '#8b7355',
                   }}>
                     {new Date(el.updatedAt).toLocaleDateString()}
                   </div>
@@ -560,12 +674,12 @@ export function ElementPanel() {
           {((filterCategory === 'all' && bookElements.length === 0) || (filterCategory !== 'all' && filtered.length === 0)) && (
             <div style={{
               fontSize: 13,
-              color: '#9b8ea8',
+              color: '#8b7355',
               padding: '32px 20px',
               textAlign: 'center',
-              background: 'rgba(255, 255, 255, 0.5)',
+              background: '#f9f6f1',
               borderRadius: 12,
-              border: '1px dashed rgba(150, 140, 180, 0.3)',
+              border: '1px dashed var(--accent-border, #e8dcc8)',
             }}>
               No elements yet.
             </div>
@@ -578,13 +692,13 @@ export function ElementPanel() {
         position: 'absolute',
         right: -48, // Extend outside the panel
         top: 0,
-        height: 'calc(100vh - 240px)', // Adjusted to fit within viewport minus other UI elements
+        height: `calc(100vh - 120px - ${timelineHeight}px)`, // 动态减去 AppSidebar 和 timeline 高度
         width: 48,
         display: 'flex',
         flexDirection: 'column',
         padding: '12px 0',
         gap: 4,
-        background: 'transparent', // No background since it's outside
+        background: 'transparent',
         zIndex: 10,
       }}>
         {/* Show All Tab - Fixed at top */}
@@ -599,27 +713,30 @@ export function ElementPanel() {
             cursor: 'pointer',
             fontSize: 11,
             fontWeight: 600,
-            color: filterCategory === 'all' ? '#fff' : 'rgba(0, 0, 0, 0.6)',
+            color: filterCategory === 'all' ? '#fefdfb' : '#5a4a3a',
             background: filterCategory === 'all' 
               ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-              : 'rgba(240, 240, 245, 0.95)',
-            borderRadius: '8px 0 0 8px', // Rounded on left side only
+              : '#f5f0e8',
+            borderRadius: '0 6px 6px 0',
             marginRight: 0,
             transition: 'all 0.2s ease',
             boxShadow: filterCategory === 'all' 
               ? '0 2px 8px rgba(102, 126, 234, 0.3)' 
-              : '0 2px 4px rgba(0, 0, 0, 0.1)',
-            border: '1px solid rgba(200, 190, 220, 0.25)',
+              : '0 2px 4px rgba(139, 115, 85, 0.1)',
+            border: '1px solid var(--accent-border, #e8dcc8)',
             borderRight: 'none',
           }}
           onMouseEnter={e => {
             if (filterCategory !== 'all') {
-              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.08)';
+              const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b89968';
+              e.currentTarget.style.background = accentColor;
+              e.currentTarget.style.color = '#fefdfb';
             }
           }}
           onMouseLeave={e => {
             if (filterCategory !== 'all') {
-              e.currentTarget.style.background = 'rgba(240, 240, 245, 0.95)';
+              e.currentTarget.style.background = '#f5f0e8';
+              e.currentTarget.style.color = '#5a4a3a';
             }
           }}
         >
@@ -628,7 +745,7 @@ export function ElementPanel() {
 
         {/* Add New Category Tab - Fixed below "All" */}
         <div
-          onClick={() => setShowNewCategoryModal(true)}
+          onClick={handleCreateNewCategory}
           style={{
             height: 40,
             flexShrink: 0, // Don't shrink
@@ -636,22 +753,26 @@ export function ElementPanel() {
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            border: '2px dashed rgba(0, 0, 0, 0.2)',
-            borderRadius: '8px 0 0 8px', // Rounded on left side only
+            border: '1px dashed var(--accent-border, #e8dcc8)',
+            borderRadius: '0 6px 6px 0',
             borderRight: 'none',
-            color: 'rgba(0, 0, 0, 0.5)',
-            background: 'rgba(240, 240, 245, 0.95)',
+            color: '#8b7355',
+            background: '#f5f0e8',
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.borderColor = 'rgba(102, 126, 234, 0.6)';
-            e.currentTarget.style.color = 'rgba(102, 126, 234, 0.8)';
-            e.currentTarget.style.background = 'rgba(102, 126, 234, 0.1)';
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#b89968';
+            e.currentTarget.style.borderColor = accentColor;
+            e.currentTarget.style.color = accentColor;
+            e.currentTarget.style.background = accentColor.startsWith('hsl') 
+              ? accentColor.replace(')', ', 0.1)').replace('hsl', 'hsla')
+              : 'rgba(139, 111, 71, 0.1)';
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.2)';
-            e.currentTarget.style.color = 'rgba(0, 0, 0, 0.5)';
-            e.currentTarget.style.background = 'rgba(240, 240, 245, 0.95)';
+            const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-border').trim() || '#e8dcc8';
+            e.currentTarget.style.borderColor = borderColor;
+            e.currentTarget.style.color = '#8b7355';
+            e.currentTarget.style.background = '#f5f0e8';
           }}
         >
           <Plus size={16} />
@@ -684,11 +805,11 @@ export function ElementPanel() {
               onClick={() => setFilterCategory(name)}
               title={name}
               style={{
-                minHeight: 56,
+                minHeight: 60,
                 flexShrink: 0,
                 position: 'relative',
                 cursor: 'pointer',
-                borderRadius: '6px 0 0 6px', // Rounded on left side only
+                borderRadius: '0 6px 6px 0', // Rounded on left side only
                 background: isActive ? color : `${color}80`, // 80 = 50% opacity
                 boxShadow: isActive ? `0 3px 12px ${color}60` : '0 2px 4px rgba(0, 0, 0, 0.1)',
                 transition: 'all 0.2s ease',
@@ -725,7 +846,7 @@ export function ElementPanel() {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                maxHeight: 48,
+                maxHeight: 60,
               }}>
                 {name}
               </div>
@@ -755,15 +876,15 @@ export function ElementPanel() {
         }}
         >
           <div style={{
-            background: 'white',
+            background: '#fefdfb',
             borderRadius: 12,
             padding: 24,
             minWidth: 320,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            boxShadow: '0 8px 32px rgba(139, 115, 85, 0.3)',
           }}
           onClick={e => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600 }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#2a1a0a' }}>
               New Category
             </h3>
             <input
@@ -771,7 +892,7 @@ export function ElementPanel() {
               value={newCategoryName}
               onChange={e => setNewCategoryName(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter') handleCreateCategory();
+                if (e.key === 'Enter') handleNewCategory();
                 if (e.key === 'Escape') {
                   setShowNewCategoryModal(false);
                   setNewCategoryName('');
@@ -782,11 +903,13 @@ export function ElementPanel() {
               style={{
                 width: '100%',
                 fontSize: 14,
-                border: '1px solid rgba(0, 0, 0, 0.2)',
+                border: '1px solid var(--accent-border, #e8dcc8)',
                 borderRadius: 6,
                 padding: '8px 12px',
                 outline: 'none',
                 marginBottom: 16,
+                color: '#3a2a1a',
+                background: '#fefdfb',
               }}
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -795,25 +918,25 @@ export function ElementPanel() {
                   setShowNewCategoryModal(false);
                   setNewCategoryName('');
                 }}
+                className="bg-paper-hover hover:bg-paper-light transition-colors"
                 style={{
                   padding: '6px 16px',
                   borderRadius: 6,
-                  border: '1px solid rgba(0, 0, 0, 0.2)',
-                  background: 'white',
+                  border: '1px solid var(--accent-border, #e8dcc8)',
                   cursor: 'pointer',
                   fontSize: 14,
+                  color: '#5a4a3a',
                 }}
               >
                 Cancel
               </button>
               <button
-                onClick={handleCreateCategory}
-                className="bg-button"
+                onClick={handleNewCategory}
+                className="bg-accent hover:bg-accent-hover text-paper transition-colors"
                 style={{
                   padding: '6px 16px',
                   borderRadius: 6,
                   border: 'none',
-                  color: 'rgba(0, 0, 0, 0.75)',
                   cursor: 'pointer',
                   fontSize: 14,
                   fontWeight: 600,

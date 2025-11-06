@@ -66,6 +66,11 @@ export function ElementEditorView() {
     setSummaryValue(element?.summary_json || '');
     setCategoryValue(element?.category || 'others');
     setTags(element?.tags || []);
+    
+    // Auto-enter edit mode for newly created elements
+    if (element?.name === 'New Element') {
+      setEditingName(true);
+    }
   }, [bookElements, elementId, navigate]);
 
   // Load content when elementId changes
@@ -267,6 +272,7 @@ export function ElementEditorView() {
                   setEditingName(false);
                 }
               }}
+              onFocus={(e) => e.target.select()}
               autoFocus
               style={{
                 width: '100%',
@@ -479,12 +485,11 @@ export function ElementEditorView() {
                         </button>
                         <button
                           onClick={handleCreateNewCategory}
-                          className="bg-button"
+                          className="bg-accent hover:bg-accent-hover text-paper transition-colors"
                           style={{
                             padding: '6px 16px',
                             borderRadius: 6,
                             border: 'none',
-                            color: 'rgba(0, 0, 0, 0.75)',
                             cursor: 'pointer',
                             fontSize: 14,
                             fontWeight: 600,
@@ -500,21 +505,15 @@ export function ElementEditorView() {
             ) : (
               <div
                 onClick={() => setEditingCategory(true)}
-                className="bg-button"
+                className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                 style={{
                   fontSize: 14,
-                  color: 'rgba(0, 0, 0, 0.75)',
+                  color: '#5a4a3a',
                   padding: '6px 12px',
                   borderRadius: 6,
                   cursor: 'pointer',
                   display: 'inline-block',
-                  transition: 'opacity 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.opacity = '1';
+                  border: '1px solid var(--accent-border, #e8dcc8)',
                 }}
               >
                 {curElement.category || 'others'}
@@ -537,7 +536,7 @@ export function ElementEditorView() {
               {tags.map(tag => (
                 <span
                   key={tag}
-                  className="bg-button"
+                  className="bg-paper-light border-accent-border"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -545,7 +544,8 @@ export function ElementEditorView() {
                     padding: '2px 8px',
                     borderRadius: 4,
                     fontSize: 13,
-                    color: 'rgba(0, 0, 0, 0.75)',
+                    color: '#5a4a3a',
+                    border: '1px solid var(--accent-border, #e8dcc8)',
                   }}
                 >
                   {tag}
