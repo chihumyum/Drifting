@@ -19,6 +19,7 @@
     "@tiptap/starter-kit": "^3.10.2",
     "@tiptap/suggestion": "^3.10.2",
     "autoprefixer": "^10.4.21",
+    "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.540.0",
     "mitt": "^3.0.1",
