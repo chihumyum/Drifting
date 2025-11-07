@@ -13,6 +13,10 @@ export interface BookNodeRecord {
   pos_y?: number | null;
   created_at: string;
   updated_at: string;
+  // 同步字段
+  sync_status?: string;              // 'synced' | 'pending' | 'syncing' | 'failed'
+  last_modified?: number | null;     // 最后修改时间戳
+  is_deleted?: number;               // 软删除标记 (0=未删除, 1=已删除)
 }
 
 // relations between nodes on the same level

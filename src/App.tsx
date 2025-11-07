@@ -4,6 +4,9 @@ import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { ThreadEditorView } from './views/ThreadEditorView';
+import { LoginPage } from './views/LoginPage';
+import { RegisterPage } from './views/RegisterPage';
+import { ProtectedRoute, PublicOnlyRoute } from './components/ProtectedRoute';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/ElementPanel';
@@ -107,7 +110,33 @@ function Layout() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      {/* Public Routes - Login/Register */}
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <PublicOnlyRoute>
+            <RegisterPage />
+          </PublicOnlyRoute>
+        }
+      />
+
+      {/* Protected Routes - Main App */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="editor" element={<Navigate to="/" replace />} />
         <Route path="editor/:nodeId" element={<NodeEditorView />} />
         <Route path="editor/thread/:threadId" element={<ThreadEditorView />} />
@@ -115,5 +144,5 @@ export default function App() {
         <Route path="category/:categoryName" element={<CategoryEditorView />} />
       </Route>
     </Routes>
-  )
+  );
 }

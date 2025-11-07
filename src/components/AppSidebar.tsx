@@ -1,4 +1,4 @@
-import { Settings, User, HelpCircle, Plus } from 'lucide-react';
+import { Settings, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
@@ -23,12 +23,6 @@ export function AppSidebar() {
   const threadUsecases = useStoryThreadUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
   const selectedNodeId = useAppStore(state => state.selectedNodeId);
-  
-  const leftMenuItems = [
-    { icon: User, label: 'Account', action: () => alert('Account clicked') },
-    { icon: Settings, label: 'Settings', action: () => events.emit('settings:open') },
-    { icon: HelpCircle, label: 'Help', action: () => alert('Help clicked') },
-  ];
 
   const handleCreateChapter = async () => {
     try {
@@ -123,7 +117,7 @@ export function AppSidebar() {
         background: 'rgba(213, 213, 213, 0.2)',
       }}
     >
-      {/* Left Column - App Settings */}
+      {/* Left Column - Settings Button */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -131,35 +125,32 @@ export function AppSidebar() {
         background: 'transparent',
       }}>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {leftMenuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={item.action}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '10px',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'transparent',
-                color: '#000000b1',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(234, 168, 102, 0.15)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-              title={item.label}
-            >
-              <item.icon size={18} />
-            </button>
-          ))}
+          <button
+            onClick={() => events.emit('settings:open')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'transparent',
+              color: '#000000b1',
+              fontSize: '13px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(234, 168, 102, 0.15)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+            title="Settings"
+          >
+            <Settings size={18} />
+          </button>
         </nav>
       </div>
 

@@ -226,8 +226,9 @@ async function seedMockThreads() {
 async function seedMockChapters() {
   for (const chapter of MOCK_CHAPTERS) {
     await execute(
-      `INSERT OR IGNORE INTO story_node (id, title, project_id, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO story_node 
+       (id, title, project_id, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at, sync_status, last_modified, is_deleted)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chapter.id,
         chapter.title,
@@ -240,6 +241,9 @@ async function seedMockChapters() {
         chapter.pos_y ?? null,
         chapter.created_at,
         chapter.updated_at,
+        'synced',           // sync_status
+        Date.now(),         // last_modified
+        0,                  // is_deleted
       ]
     );
   }

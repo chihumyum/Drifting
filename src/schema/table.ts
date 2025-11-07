@@ -96,12 +96,17 @@ CREATE TABLE IF NOT EXISTS story_node (
   pos_y REAL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  -- 同步字段
+  sync_status TEXT NOT NULL DEFAULT 'synced',  -- 'synced' | 'pending' | 'syncing' | 'failed'
+  last_modified INTEGER,                       -- 最后修改时间戳（用于冲突解决）
+  is_deleted INTEGER NOT NULL DEFAULT 0,       -- 软删除标记（0=未删除, 1=已删除）
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
   FOREIGN KEY(story_stage_id) REFERENCES story_stage(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_story_node_project ON story_node(project_id);
 CREATE INDEX IF NOT EXISTS idx_story_node_stage ON story_node(story_stage_id);
 CREATE INDEX IF NOT EXISTS idx_story_node_timeline ON story_node(project_id, start, end);
+CREATE INDEX IF NOT EXISTS idx_story_node_sync ON story_node(sync_status) WHERE is_deleted = 0;
 
 -- Story threads (narrative threads/storylines)
 CREATE TABLE IF NOT EXISTS story_thread (
@@ -113,9 +118,14 @@ CREATE TABLE IF NOT EXISTS story_thread (
   pm_json TEXT,  -- ProseMirror document JSON for thread description/notes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  -- 同步字段
+  sync_status TEXT NOT NULL DEFAULT 'synced',
+  last_modified INTEGER,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_story_thread_project ON story_thread(project_id);
+CREATE INDEX IF NOT EXISTS idx_story_thread_sync ON story_thread(sync_status) WHERE is_deleted = 0;
 
 -- Node to thread relationship (many-to-many)
 CREATE TABLE IF NOT EXISTS node_thread (
@@ -154,9 +164,14 @@ CREATE TABLE IF NOT EXISTS book_content (
   outline_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  -- 同步字段
+  sync_status TEXT NOT NULL DEFAULT 'synced',
+  last_modified INTEGER,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_book_content_node ON book_content(node_id);
+CREATE INDEX IF NOT EXISTS idx_book_content_sync ON book_content(sync_status) WHERE is_deleted = 0;
 
 -- Core element (element) table
 CREATE TABLE IF NOT EXISTS element (
@@ -169,10 +184,15 @@ CREATE TABLE IF NOT EXISTS element (
   summary_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  -- 同步字段
+  sync_status TEXT NOT NULL DEFAULT 'synced',
+  last_modified INTEGER,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(category_id) REFERENCES element_category(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_element_project ON element(project_id);
 CREATE INDEX IF NOT EXISTS idx_element_category ON element(category_id);
+CREATE INDEX IF NOT EXISTS idx_element_sync ON element(sync_status) WHERE is_deleted = 0;
 CREATE INDEX IF NOT EXISTS idx_element_type ON element(type);
 
 -- Element tags
@@ -237,6 +257,28 @@ CREATE TABLE IF NOT EXISTS element_occurrence (
 );
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
+
+-- =============================
+-- 同步队列表 (Sync Queue)
+-- =============================
+CREATE TABLE IF NOT EXISTS sync_queue (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,                      -- 'create' | 'update' | 'delete'
+  entity TEXT NOT NULL,                    -- 'node' | 'thread' | 'element' | etc.
+  local_id TEXT NOT NULL,                  -- 本地实体的 ID
+  project_id TEXT,                         -- 关联的项目 ID（可选）
+  data TEXT,                               -- JSON 序列化的数据
+  priority TEXT NOT NULL,                  -- 'high' | 'normal' | 'low'
+  retry_count INTEGER NOT NULL DEFAULT 0,  -- 重试次数
+  max_retries INTEGER NOT NULL DEFAULT 3,  -- 最大重试次数
+  status TEXT NOT NULL,                    -- 'pending' | 'syncing' | 'completed' | 'failed'
+  error TEXT,                              -- 错误信息
+  created_at INTEGER NOT NULL,             -- 创建时间戳
+  updated_at INTEGER NOT NULL              -- 更新时间戳
+);
+CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
+CREATE INDEX IF NOT EXISTS idx_sync_queue_priority ON sync_queue(priority, created_at);
+CREATE INDEX IF NOT EXISTS idx_sync_queue_entity ON sync_queue(entity, local_id);
 
 -- Seed default categories (id generated at runtime if not present); name uniqueness prevents duplication
 -- INSERT OR IGNORE INTO element_category (id, name, description_json, color) VALUES (...)
@@ -407,6 +449,9 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
     pos_y: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'chapter_002',

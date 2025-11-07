@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, User, Mail, Calendar, LogOut } from 'lucide-react';
 import { applyAccentColor } from '../../lib/theme';
+import { useAuthStore } from '../../store/auth';
+import { syncPullService } from '../../lib/sync/sync-pull.service';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -28,6 +30,9 @@ const ACCENT_COLORS: AccentColorOption[] = [
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [selectedColor, setSelectedColor] = useState<string>('brown');
   const [activeTab, setActiveTab] = useState<'appearance' | 'account' | 'advanced'>('appearance');
+  const { user, logout } = useAuthStore();
+  const [lastSyncTime, setLastSyncTime] = useState<string>('从未同步');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     // Load saved accent color from localStorage
@@ -47,7 +52,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     };
 
     document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    
+    // 更新同步时间
+    const updateSyncTime = () => {
+      setLastSyncTime(syncPullService.getLastSyncTimeFormatted());
+      setIsSyncing(syncPullService.isSyncInProgress());
+    };
+    
+    updateSyncTime();
+    const interval = setInterval(updateSyncTime, 10000);
+    
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      clearInterval(interval);
+    };
   }, [isOpen, onClose]);
 
   const handleColorChange = (colorName: string) => {
@@ -64,6 +82,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       // Trigger a custom event for other components to react
       window.dispatchEvent(new CustomEvent('accentColorChange', { detail: { hue: colorOption.hue } }));
     }
+  };
+  
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await syncPullService.initialSync();
+      setLastSyncTime(syncPullService.getLastSyncTimeFormatted());
+    } catch (error) {
+      console.error('Manual sync failed:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+  
+  const handleLogout = () => {
+    logout();
+    onClose();
   };
 
   useEffect(() => {
@@ -457,69 +492,138 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             {activeTab === 'account' && (
               <div>
-                <div
-                  style={{
-                    padding: '24px',
-                    background: '#f9f6f1',
-                    borderRadius: '8px',
-                    border: '1px solid #e8dcc8',
-                    marginBottom: '24px',
-                  }}
-                >
-                  <div style={{ marginBottom: '16px' }}>
+                {user ? (
+                  <>
                     <div
                       style={{
-                        fontSize: '13px',
-                        color: '#8b7355',
-                        marginBottom: '4px',
+                        padding: '24px',
+                        background: '#f9f6f1',
+                        borderRadius: '8px',
+                        border: '1px solid #e8dcc8',
+                        marginBottom: '24px',
                       }}
                     >
-                      Name
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <User size={16} style={{ color: '#8b7355' }} />
+                          <div style={{ fontSize: '13px', color: '#8b7355' }}>
+                            Name
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '15px', color: '#3a2a1a', fontWeight: 600 }}>
+                          {user.name}
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <Mail size={16} style={{ color: '#8b7355' }} />
+                          <div style={{ fontSize: '13px', color: '#8b7355' }}>
+                            Email
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '15px', color: '#3a2a1a' }}>
+                          {user.email}
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <Calendar size={16} style={{ color: '#8b7355' }} />
+                          <div style={{ fontSize: '13px', color: '#8b7355' }}>
+                            Joined
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '15px', color: '#3a2a1a' }}>
+                          {new Date(user.createdAt).toLocaleDateString('zh-CN')}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div style={{ fontSize: '13px', color: '#8b7355', marginBottom: '4px' }}>
+                          Subscription
+                        </div>
+                        <div style={{ fontSize: '15px', color: '#3a2a1a', fontWeight: 600, textTransform: 'capitalize' }}>
+                          {user.subscriptionTier || 'Free'}
+                        </div>
+                      </div>
                     </div>
+                    
+                    {/* Sync Section */}
                     <div
                       style={{
-                        fontSize: '15px',
-                        color: '#3a2a1a',
+                        padding: '16px',
+                        background: '#f9f6f1',
+                        borderRadius: '8px',
+                        border: '1px solid #e8dcc8',
+                        marginBottom: '24px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontSize: '13px', color: '#8b7355' }}>
+                          Last Sync
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#3a2a1a' }}>
+                          {lastSyncTime}
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleManualSync}
+                        disabled={isSyncing}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          background: isSyncing ? '#e8dcc8' : 'var(--accent, #b89968)',
+                          color: isSyncing ? '#8b7355' : '#fefdfb',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          cursor: isSyncing ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        {isSyncing ? 'Syncing...' : 'Manual Sync'}
+                      </button>
+                    </div>
+                    
+                    <button
+                      onClick={handleLogout}
+                      style={{
+                        width: '100%',
+                        padding: '10px 20px',
+                        background: 'rgba(220, 38, 38, 0.1)',
+                        color: '#dc2626',
+                        border: '1px solid rgba(220, 38, 38, 0.3)',
+                        borderRadius: '6px',
+                        fontSize: '14px',
                         fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
                       }}
                     >
-                      John Yang
-                    </div>
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      padding: '40px 24px',
+                      textAlign: 'center',
+                      color: '#8b7355',
+                    }}
+                  >
+                    Not logged in
                   </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        color: '#8b7355',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      Email
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '15px',
-                        color: '#3a2a1a',
-                      }}
-                    >
-                      108172547+chihumyum@users.noreply.github.com
-                    </div>
-                  </div>
-                </div>
-                <button
-                  style={{
-                    padding: '10px 20px',
-                    background: 'var(--accent, #b89968)',
-                    color: '#fefdfb',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Sign Out
-                </button>
+                )}
               </div>
             )}
 
