@@ -55,32 +55,28 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
   const loadSQLiteData = async () => {
     setLoading(true);
     try {
-      // 直接查询所有表
-      const [nodes, threads, elements, categories, stages, tags] = await Promise.all([
+      // 直接查询所有表，使用 Promise.allSettled 避免单个表失败导致整体失败
+      const results = await Promise.allSettled([
         query('SELECT * FROM story_node'),
         query('SELECT * FROM story_thread'),
         query('SELECT * FROM element'),
         query('SELECT * FROM element_category'),
-        query('SELECT * FROM story_stage'),
-        query('SELECT * FROM story_tag'),
       ]);
 
       const data = {
         user: user,
         projects: [], // SQLite 没有存储 projects
-        nodes: nodes,
-        threads: threads,
-        elements: elements,
-        categories: categories,
-        stages: stages,
-        tags: tags,
+        nodes: results[0].status === 'fulfilled' ? results[0].value : [],
+        threads: results[1].status === 'fulfilled' ? results[1].value : [],
+        elements: results[2].status === 'fulfilled' ? results[2].value : [],
+        categories: results[3].status === 'fulfilled' ? results[3].value : [],
       };
 
       setSqliteData(data);
       console.log('[Debug] SQLite data loaded:', data);
     } catch (error) {
       console.error('[Debug] Failed to load SQLite data:', error);
-      alert('加载 SQLite 数据失败');
+      alert('加载 SQLite 数据失败: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }

@@ -4,9 +4,7 @@
  * 用于获取服务器端和 SQLite 端的所有用户数据
  */
 
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { apiClient } from '../../lib/axios-config';
 
 export interface DebugData {
   serverData: {
@@ -28,7 +26,7 @@ export const debugApi = {
    * GET /api/debug/my-data
    */
   async getServerData(): Promise<DebugData['serverData']> {
-    const response = await axios.get(`${BASE_URL}/api/debug/my-data`);
+    const response = await apiClient.get('/api/debug/my-data');
     return response.data;
   },
 };

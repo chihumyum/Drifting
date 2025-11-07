@@ -216,21 +216,34 @@ export class SyncManager {
    */
   private async executeTask(task: SyncTask): Promise<void> {
     // 动态导入 API services（避免循环依赖）
-    const { nodeApi } = await import('../../services/api/node-api');
+    const apis = await import('../../services/api');
+    
+    // 验证 projectId
+    if (!task.projectId && task.entity !== 'project') {
+      throw new Error(`[SyncManager] projectId is required for ${task.entity} sync`);
+    }
     
     // 根据 entity 类型调用对应的 API
     switch (task.entity) {
       case 'node':
-        await this.executeNodeTask(task, nodeApi);
+        await this.executeNodeTask(task, apis.nodeApi);
         break;
       
-      // TODO: 添加其他实体类型
-      // case 'thread':
-      //   await this.executeThreadTask(task, threadApi);
-      //   break;
-      // case 'element':
-      //   await this.executeElementTask(task, elementApi);
-      //   break;
+      case 'thread':
+        await this.executeThreadTask(task, apis.threadsApi);
+        break;
+      
+      case 'element':
+        await this.executeElementTask(task, apis.elementsApi);
+        break;
+      
+      case 'element_category':
+        await this.executeCategoryTask(task, apis.elementsApi);
+        break;
+      
+      case 'project':
+        await this.executeProjectTask(task, apis.projectsApi);
+        break;
       
       default:
         console.warn('[SyncManager] 未知的实体类型:', task.entity);
@@ -243,12 +256,13 @@ export class SyncManager {
    * 执行节点同步任务
    */
   private async executeNodeTask(task: SyncTask, nodeApi: typeof import('../../services/api/node-api').nodeApi): Promise<void> {
+    const projectId = task.projectId!;
+    
     switch (task.type) {
       case 'create':
         if (task.data && typeof task.data === 'object' && 'title' in task.data) {
-          // 类型断言为 CreateNodeDto
           const createData = task.data as import('../../services/api/node-api').CreateNodeDto;
-          await nodeApi.createNode(createData);
+          await nodeApi.create(projectId, createData);
         } else {
           throw new Error('Invalid node data for create');
         }
@@ -257,18 +271,148 @@ export class SyncManager {
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/node-api').UpdateNodeDto;
-          await nodeApi.updateNode(task.localId, updateData);
+          await nodeApi.update(projectId, task.localId, updateData);
         } else {
           throw new Error('Invalid node data for update');
         }
         break;
       
       case 'delete':
-        await nodeApi.deleteNode(task.localId);
+        await nodeApi.delete(projectId, task.localId);
         break;
     }
     
     console.log('[SyncManager] Node API 调用成功:', task.type, task.localId);
+  }
+
+  /**
+   * 执行线程同步任务
+   */
+  private async executeThreadTask(task: SyncTask, threadsApi: typeof import('../../services/api/threads-api').threadsApi): Promise<void> {
+    const projectId = task.projectId!;
+    
+    switch (task.type) {
+      case 'create':
+        if (task.data && typeof task.data === 'object' && 'name' in task.data) {
+          const createData = task.data as import('../../services/api/threads-api').CreateThreadDto;
+          await threadsApi.create(projectId, createData);
+        } else {
+          throw new Error('Invalid thread data for create');
+        }
+        break;
+      
+      case 'update':
+        if (task.data && typeof task.data === 'object') {
+          const updateData = task.data as import('../../services/api/threads-api').UpdateThreadDto;
+          await threadsApi.update(projectId, task.localId, updateData);
+        } else {
+          throw new Error('Invalid thread data for update');
+        }
+        break;
+      
+      case 'delete':
+        await threadsApi.delete(projectId, task.localId);
+        break;
+    }
+    
+    console.log('[SyncManager] Thread API 调用成功:', task.type, task.localId);
+  }
+
+  /**
+   * 执行元素同步任务
+   */
+  private async executeElementTask(task: SyncTask, elementsApi: typeof import('../../services/api/elements-api').elementsApi): Promise<void> {
+    const projectId = task.projectId!;
+    
+    switch (task.type) {
+      case 'create':
+        if (task.data && typeof task.data === 'object' && 'name' in task.data) {
+          const createData = task.data as import('../../services/api/elements-api').CreateElementDto;
+          await elementsApi.create(projectId, createData);
+        } else {
+          throw new Error('Invalid element data for create');
+        }
+        break;
+      
+      case 'update':
+        if (task.data && typeof task.data === 'object') {
+          const updateData = task.data as import('../../services/api/elements-api').UpdateElementDto;
+          await elementsApi.update(projectId, task.localId, updateData);
+        } else {
+          throw new Error('Invalid element data for update');
+        }
+        break;
+      
+      case 'delete':
+        await elementsApi.delete(projectId, task.localId);
+        break;
+    }
+    
+    console.log('[SyncManager] Element API 调用成功:', task.type, task.localId);
+  }
+
+  /**
+   * 执行分类同步任务
+   */
+  private async executeCategoryTask(task: SyncTask, elementsApi: typeof import('../../services/api/elements-api').elementsApi): Promise<void> {
+    const projectId = task.projectId!;
+    
+    switch (task.type) {
+      case 'create':
+        if (task.data && typeof task.data === 'object' && 'name' in task.data) {
+          const createData = task.data as import('../../services/api/elements-api').CreateCategoryDto;
+          await elementsApi.createCategory(projectId, createData);
+        } else {
+          throw new Error('Invalid category data for create');
+        }
+        break;
+      
+      case 'update':
+        if (task.data && typeof task.data === 'object') {
+          const updateData = task.data as import('../../services/api/elements-api').UpdateCategoryDto;
+          await elementsApi.updateCategory(projectId, task.localId, updateData);
+        } else {
+          throw new Error('Invalid category data for update');
+        }
+        break;
+      
+      case 'delete':
+        await elementsApi.deleteCategory(projectId, task.localId);
+        break;
+    }
+    
+    console.log('[SyncManager] Category API 调用成功:', task.type, task.localId);
+  }
+
+  /**
+   * 执行项目同步任务
+   */
+  private async executeProjectTask(task: SyncTask, projectsApi: typeof import('../../services/api/projects-api').projectsApi): Promise<void> {
+    switch (task.type) {
+      case 'create':
+        if (task.data && typeof task.data === 'object' && 'projectName' in task.data) {
+          const createData = task.data as import('../../services/api/projects-api').CreateProjectDto;
+          await projectsApi.create(createData);
+        } else {
+          throw new Error('Invalid project data for create');
+        }
+        break;
+      
+      case 'update':
+        if (task.data && typeof task.data === 'object') {
+          const updateData = task.data as import('../../services/api/projects-api').UpdateProjectDto;
+          await projectsApi.update(task.localId, updateData);
+        } else {
+          throw new Error('Invalid project data for update');
+        }
+        break;
+      
+      case 'delete':
+        await projectsApi.delete(task.localId);
+        break;
+    }
+    
+    console.log('[SyncManager] Project API 调用成功:', task.type, task.localId);
   }
 
   /**
