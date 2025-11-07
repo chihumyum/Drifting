@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, User, Mail, Calendar, LogOut } from 'lucide-react';
+import { X, User, Mail, Calendar, LogOut, Bug } from 'lucide-react';
 import { applyAccentColor } from '../../lib/theme';
 import { useAuthStore } from '../../store/auth';
 import { syncPullService } from '../../lib/sync/sync-pull.service';
+import { DebugModal } from './DebugModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { user, logout } = useAuthStore();
   const [lastSyncTime, setLastSyncTime] = useState<string>('从未同步');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showDebugModal, setShowDebugModal] = useState(false);
 
   useEffect(() => {
     // Load saved accent color from localStorage
@@ -629,19 +631,76 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             {activeTab === 'advanced' && (
               <div>
-                <p
+                <h3
                   style={{
-                    fontSize: '13px',
-                    color: '#8b7355',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: '#2a1a0a',
+                    marginBottom: '16px',
                   }}
                 >
-                  Advanced settings will be available soon.
-                </p>
+                  开发者工具
+                </h3>
+                
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  {/* Debug 按钮 */}
+                  <button
+                    onClick={() => setShowDebugModal(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 16px',
+                      backgroundColor: '#f5f1ed',
+                      border: '1px solid #d4c4b0',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontSize: '14px',
+                      color: '#2a1a0a',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ebe5dd';
+                      e.currentTarget.style.borderColor = '#b89968';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f5f1ed';
+                      e.currentTarget.style.borderColor = '#d4c4b0';
+                    }}
+                  >
+                    <Bug size={18} style={{ color: '#b89968' }} />
+                    <div style={{ textAlign: 'left', flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>数据调试工具</div>
+                      <div style={{ fontSize: '12px', color: '#8b7355', marginTop: '4px' }}>
+                        查看服务器和本地 SQLite 数据对比
+                      </div>
+                    </div>
+                  </button>
+
+                  <p
+                    style={{
+                      fontSize: '12px',
+                      color: '#8b7355',
+                      marginTop: '8px',
+                    }}
+                  >
+                    更多高级功能开发中...
+                  </p>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+      
+      {/* Debug Modal */}
+      <DebugModal isOpen={showDebugModal} onClose={() => setShowDebugModal(false)} />
     </div>
   );
 }
