@@ -1,9 +1,12 @@
 // operations related to book nodes & node edges
-import type {BookNode, BookNodeEdge } from '../domain/book_node';
+import type { BookNode, BookNodeEdge } from '../domain/book_node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
 import type { BookContentRepository } from '../repositories/book_content';
 import type { StoryThreadRepository } from '../repositories/story_thread';
 import { v7 as uuidv7 } from 'uuid';
+import { syncManager } from '../lib/sync/sync-manager';
+import { useAuthStore } from '../store/auth';
+import type { SyncTaskType } from '../lib/sync/types';
 
 export {
   loadBookNodes,
@@ -33,6 +36,27 @@ export interface BookNodeUsecaseDeps {
 function getNow(deps: BookNodeUsecaseDeps) {
   return (deps.now ?? (() => new Date()))();
 }
+
+const canSync = () => {
+  const { isAuthenticated } = useAuthStore.getState();
+  return isAuthenticated;
+};
+
+const enqueueNodeTask = (
+  type: SyncTaskType,
+  node: Pick<BookNode, 'id' | 'projectId'>,
+  data?: Partial<BookNode>
+) => {
+  if (!canSync()) return;
+  syncManager.enqueue({
+    type,
+    entity: 'node',
+    localId: node.id,
+    projectId: node.projectId,
+    data,
+    priority: 'normal',
+  });
+};
 
 async function loadBookNodes(deps: BookNodeUsecaseDeps, options?: { projectId?: string }) {
   console.log('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
@@ -104,6 +128,7 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
   const node = created;
   const nextNodes = [...nodes, node].sort((a, b) => a.start - b.start);
   deps.setNodesState(nextNodes);
+  enqueueNodeTask('create', node, node);
   return node;
 }
 
@@ -117,6 +142,7 @@ async function renameBookNode(deps: BookNodeUsecaseDeps, id: string, title: stri
 
   try {
     await deps.nodeRepo.update(id, { title, updatedAt: now });
+    enqueueNodeTask('update', existing, { title, updatedAt: now });
   } catch (error) {
     deps.setNodesState(prevNodes);
     throw error;
@@ -152,6 +178,8 @@ async function reorderBookNode(deps: BookNodeUsecaseDeps, id: string, direction:
 
   try {
     await deps.nodeRepo.swapOrder({ id: current.id, start: currentStart }, { id: target.id, start: targetStart });
+    enqueueNodeTask('update', current, { start: targetStart, updatedAt: now });
+    enqueueNodeTask('update', target, { start: currentStart, updatedAt: now });
   } catch (error) {
     deps.setNodesState(prev);
     throw error;
@@ -172,6 +200,7 @@ async function updateBookNodePosition(
 
   try {
     await deps.nodeRepo.update(id, { position, updatedAt: nowIso });
+    enqueueNodeTask('update', existing, { position, updatedAt: nowIso });
   } catch (error) {
     deps.setNodesState(prevNodes);
     throw error;
@@ -188,6 +217,7 @@ async function updateBookNodeSummary(deps: BookNodeUsecaseDeps, id: string, summ
 
   try {
     await deps.nodeRepo.update(id, { summary, updatedAt: now });
+    enqueueNodeTask('update', existing, { summary: summary ?? '', updatedAt: now });
   } catch (error) {
     deps.setNodesState(prevNodes);
     throw error;
@@ -205,6 +235,7 @@ async function updateBookNode(deps: BookNodeUsecaseDeps, id: string, updates: Pa
 
   try {
     await deps.nodeRepo.update(id, updatesWithTimestamp);
+    enqueueNodeTask('update', existing, updatesWithTimestamp);
   } catch (error) {
     deps.setNodesState(prevNodes);
     throw error;
@@ -226,6 +257,7 @@ async function deleteBookNode(deps: BookNodeUsecaseDeps, id: string) {
     console.log('[deleteBookNode] Calling repository delete');
     await deps.nodeRepo.delete(id);
     console.log('[deleteBookNode] Repository delete successful');
+    enqueueNodeTask('delete', existing);
   } catch (error) {
     console.error('[deleteBookNode] Repository delete failed, rolling back:', error);
     // Rollback on error

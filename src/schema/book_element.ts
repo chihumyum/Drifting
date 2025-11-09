@@ -10,6 +10,10 @@ export interface ElementRecord {
     summary_json: string; // description for display in the list
     created_at: string;
     updated_at: string;
+    // 同步字段
+    sync_status?: string;
+    last_modified?: number | null;
+    is_deleted?: number;
 }
 
 // element belongs to some categories
@@ -19,6 +23,10 @@ export interface ElementCategoryRecord {
     name: string;
     description_json: string;
     color?: string;
+    // 同步字段
+    sync_status?: string;
+    last_modified?: number | null;
+    is_deleted?: number;
 }
 
 // element has tags

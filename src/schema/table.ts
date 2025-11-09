@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS element_category (
   id TEXT PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   description_json TEXT NOT NULL DEFAULT '{}',
-  color TEXT NULL
+  color TEXT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'synced',
+  last_modified INTEGER,
+  is_deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Story stages (higher level than nodes/chapters)

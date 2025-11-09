@@ -263,8 +263,8 @@ async function seedDefaultCategories() {
   const categories = [DEFAULT_ELEMENT_CATEGORY, ...MOCK_ELEMENT_CATEGORIES];
   for (const category of categories) {
     await execute(
-      `INSERT OR IGNORE INTO element_category (id, name, description_json, color)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO element_category (id, name, description_json, color, sync_status, last_modified, is_deleted)
+       VALUES (?, ?, ?, ?, 'synced', strftime('%s','now') * 1000, 0)`,
       [
         category.id,
         category.name,

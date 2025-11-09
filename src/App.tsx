@@ -17,6 +17,7 @@ import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
+import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 
 
 function Layout() {
@@ -100,9 +101,10 @@ function Layout() {
 
       {/* Timeline Chapters - Fixed at bottom, full width */}
       <TimelineChapters />
-      
+
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SyncStatusHUD />
     </div>
   );
 }

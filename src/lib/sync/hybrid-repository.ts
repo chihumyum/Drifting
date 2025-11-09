@@ -93,14 +93,17 @@ export abstract class HybridRepository<T, CreateInput, UpdateInput> {
     // 优先从本地读取
     const localEntity = await this.findByIdLocal(id);
 
-    // TODO: 如果本地没有，且在线，则从服务器拉取
-    // if (!localEntity && this.shouldSync()) {
-    //   const remoteEntity = await this.findByIdRemote(id);
-    //   if (remoteEntity) {
-    //     await this.createLocal(remoteEntity);
-    //     return remoteEntity;
-    //   }
-    // }
+    if (!localEntity && this.shouldSync()) {
+      try {
+        const remoteEntity = await this.fetchRemoteById(id);
+        if (remoteEntity) {
+          await this.mergeRemoteEntity(remoteEntity);
+          return remoteEntity;
+        }
+      } catch (error) {
+        console.warn('[HybridRepository] Failed to fetch remote entity by id:', error);
+      }
+    }
 
     return localEntity;
   }
@@ -112,10 +115,16 @@ export abstract class HybridRepository<T, CreateInput, UpdateInput> {
     // 1. 先返回本地数据（快速响应）
     const localEntities = await this.findAllLocal(projectId);
 
-    // 2. TODO: 后台从服务器增量同步
-    // if (this.shouldSync()) {
-    //   this.syncFromServer(projectId);
-    // }
+    if (this.shouldSync()) {
+      this.fetchRemoteAll(projectId)
+        .then(async (remoteEntities) => {
+          if (remoteEntities.length === 0) return;
+          await this.mergeRemoteEntities(remoteEntities);
+        })
+        .catch((error) => {
+          console.warn('[HybridRepository] Failed to fetch remote collection:', error);
+        });
+    }
 
     return localEntities;
   }
@@ -169,4 +178,38 @@ export abstract class HybridRepository<T, CreateInput, UpdateInput> {
    * 获取实体关联的 projectId（如果有）
    */
   protected abstract getProjectId(entity: T): string | undefined;
+
+  /**
+   * 可选：从服务器加载单个实体
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected async fetchRemoteById(_id: string): Promise<T | null> {
+    return null;
+  }
+
+  /**
+   * 可选：从服务器加载指定项目的实体集合
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected async fetchRemoteAll(_projectId: string): Promise<T[]> {
+    return [];
+  }
+
+  /**
+   * 合并单个远程实体到本地（子类可覆盖实现）
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected async mergeRemoteEntity(_entity: T): Promise<void> {
+    // 默认不做处理，由子类实现具体合并逻辑
+  }
+
+  /**
+   * 合并多个远程实体到本地（子类可覆盖实现）
+   */
+  protected async mergeRemoteEntities(entities: T[]): Promise<void> {
+    for (const entity of entities) {
+      // eslint-disable-next-line no-await-in-loop
+      await this.mergeRemoteEntity(entity);
+    }
+  }
 }
