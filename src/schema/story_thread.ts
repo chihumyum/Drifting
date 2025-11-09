@@ -8,6 +8,10 @@ export interface StoryThreadRecord {
   pm_json?: string | null; // ProseMirror document JSON
   created_at: string;
   updated_at: string;
+  // 同步字段
+  sync_status?: string;
+  last_modified?: number | null;
+  is_deleted?: number;
 }
 
 export interface NodeThreadRecord {

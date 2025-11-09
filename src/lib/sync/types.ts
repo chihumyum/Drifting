@@ -15,7 +15,7 @@ export type SyncTaskEntity =
 
 export type SyncTaskPriority = 'high' | 'normal' | 'low';
 export type SyncTaskStatus = 'pending' | 'syncing' | 'completed' | 'failed';
-export type SyncStatus = 'synced' | 'pending' | 'failed';
+export type SyncStatus = 'synced' | 'pending' | 'failed' | 'syncing';
 
 /**
  * 同步任务接口

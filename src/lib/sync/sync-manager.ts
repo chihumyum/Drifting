@@ -10,11 +10,14 @@
  */
 
 import { nanoid } from 'nanoid';
+import type { BookNode } from '../../domain/book_node';
+import type { CreateNodeDto, UpdateNodeDto } from '../../services/api/node-api';
 import type {
   SyncTask,
   SyncTaskInput,
   SyncManagerStatus,
   SyncEventType,
+  SyncStatus,
 } from './types';
 
 type SyncEventHandler = (...args: unknown[]) => void;
@@ -29,6 +32,10 @@ export class SyncManager {
   private retryDelays = [1000, 5000, 15000]; // 1s, 5s, 15s
   private eventHandlers: Map<SyncEventType, Set<SyncEventHandler>> = new Map();
   private lastSyncTime: number | null = null;
+  private readonly handleOnlineListener = () => this.handleOnline();
+  private readonly handleOfflineListener = () => this.handleOffline();
+  private predictiveCleanup: (() => void) | null = null;
+  private history: Array<{ timestamp: number; type: 'push' | 'pull'; task?: SyncTask; detail?: string }> = [];
 
   constructor() {
     this.initialize();
@@ -39,11 +46,14 @@ export class SyncManager {
    */
   private initialize() {
     // 监听网络状态变化
-    window.addEventListener('online', this.handleOnline.bind(this));
-    window.addEventListener('offline', this.handleOffline.bind(this));
+    window.addEventListener('online', this.handleOnlineListener);
+    window.addEventListener('offline', this.handleOfflineListener);
 
     // 从 SQLite 恢复未完成的任务
     this.restoreSyncQueue();
+
+    // 预测性同步调度
+    this.schedulePredictiveSync();
   }
 
   /**
@@ -75,6 +85,44 @@ export class SyncManager {
     } catch (error) {
       console.error('[SyncManager] 恢复队列失败:', error);
     }
+  }
+
+  private recordHistoryEntry(entry: { type: 'push' | 'pull'; task?: SyncTask; detail?: string }) {
+    this.history.push({ timestamp: Date.now(), ...entry });
+    if (this.history.length > 200) {
+      this.history.splice(0, this.history.length - 200);
+    }
+  }
+
+  /**
+   * 设置预测性同步（定时与前台事件驱动）
+   */
+  private schedulePredictiveSync() {
+    const triggerSync = () => {
+      if (!this.isOnline || this.isSyncing || this.queue.length === 0) return;
+      if (document.visibilityState !== 'visible') return;
+      this.processSyncQueue();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        triggerSync();
+      }
+    };
+
+    const handleFocus = () => {
+      triggerSync();
+    };
+
+    const intervalId = window.setInterval(triggerSync, 60_000);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
+    this.predictiveCleanup = () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
   }
 
   /**
@@ -183,10 +231,11 @@ export class SyncManager {
       try {
         console.log('[SyncManager] 开始同步任务:', task);
         task.status = 'syncing';
+        await this.updateLocalSyncStatus(task, 'syncing');
         this.emit('sync:start', task);
 
         // 执行同步任务
-        await this.executeTask(task);
+        const result = await this.executeTask(task);
 
         // 成功：移除任务
         task.status = 'completed';
@@ -194,13 +243,26 @@ export class SyncManager {
         this.lastSyncTime = Date.now();
 
         // 更新本地 SQLite 的同步状态
-        await this.updateLocalSyncStatus(task);
+        const updatedAt =
+          result && typeof result === 'object' && 'updatedAt' in result && typeof result.updatedAt === 'string'
+            ? result.updatedAt
+            : undefined;
+        const metadataOptions = {
+          ...(updatedAt ? { updatedAt } : {}),
+          ...(task.type === 'delete' ? { isDeleted: true } : {}),
+        } as { updatedAt?: string; isDeleted?: boolean };
+        await this.updateLocalSyncStatus(
+          task,
+          'synced',
+          Object.keys(metadataOptions).length > 0 ? metadataOptions : undefined,
+        );
 
         // 从持久化队列中删除
         await this.deleteTaskFromDB(task.id);
 
         console.log('[SyncManager] 任务同步成功:', task);
         this.emit('sync:success', task);
+        this.recordHistoryEntry({ type: 'push', task: { ...task } });
       } catch (error) {
         console.error('[SyncManager] 任务同步失败:', task, error);
         await this.handleTaskFailure(task, error as Error);
@@ -214,7 +276,7 @@ export class SyncManager {
   /**
    * 执行同步任务
    */
-  private async executeTask(task: SyncTask): Promise<void> {
+  private async executeTask(task: SyncTask): Promise<{ updatedAt?: string } | void> {
     // 动态导入 API services（避免循环依赖）
     const apis = await import('../../services/api');
     
@@ -226,8 +288,7 @@ export class SyncManager {
     // 根据 entity 类型调用对应的 API
     switch (task.entity) {
       case 'node':
-        await this.executeNodeTask(task, apis.nodeApi);
-        break;
+        return this.executeNodeTask(task, apis.nodeApi);
       
       case 'thread':
         await this.executeThreadTask(task, apis.threadsApi);
@@ -249,40 +310,45 @@ export class SyncManager {
         console.warn('[SyncManager] 未知的实体类型:', task.entity);
         // 模拟 API 调用
         await new Promise((resolve) => setTimeout(resolve, 100));
+        return undefined;
     }
   }
 
   /**
    * 执行节点同步任务
    */
-  private async executeNodeTask(task: SyncTask, nodeApi: typeof import('../../services/api/node-api').nodeApi): Promise<void> {
+  private async executeNodeTask(
+    task: SyncTask,
+    nodeApi: typeof import('../../services/api/node-api').nodeApi
+  ): Promise<BookNode | void> {
     const projectId = task.projectId!;
-    
+
     switch (task.type) {
       case 'create':
-        if (task.data && typeof task.data === 'object' && 'title' in task.data) {
-          const createData = task.data as import('../../services/api/node-api').CreateNodeDto;
-          await nodeApi.create(projectId, createData);
+        if (task.data && typeof task.data === 'object') {
+          const createData = this.toCreateNodeDto(task.data as Partial<BookNode>);
+          return nodeApi.create(projectId, createData);
         } else {
           throw new Error('Invalid node data for create');
         }
         break;
-      
+
       case 'update':
         if (task.data && typeof task.data === 'object') {
-          const updateData = task.data as import('../../services/api/node-api').UpdateNodeDto;
-          await nodeApi.update(projectId, task.localId, updateData);
+          const updateData = this.toUpdateNodeDto(task.data as Partial<BookNode>);
+          return nodeApi.update(projectId, task.localId, updateData);
         } else {
           throw new Error('Invalid node data for update');
         }
         break;
-      
+
       case 'delete':
         await nodeApi.delete(projectId, task.localId);
         break;
     }
-    
+
     console.log('[SyncManager] Node API 调用成功:', task.type, task.localId);
+    return undefined;
   }
 
   /**
@@ -457,14 +523,34 @@ export class SyncManager {
    */
   private async updateLocalSyncStatus(
     task: SyncTask,
-    status: 'synced' | 'failed' = 'synced'
+    status: SyncStatus = 'synced',
+    options?: { updatedAt?: string; isDeleted?: boolean }
   ) {
     try {
-      // TODO: 更新本地 SQLite 对应表的 sync_status 字段
-      // await db[task.entity].update({
-      //   where: { id: task.localId },
-      //   data: { syncStatus: status }
-      // });
+      switch (task.entity) {
+        case 'node': {
+          const { markNodeSyncStatus } = await import('../../repositories/book_node_sqlite');
+          await markNodeSyncStatus(task.localId, status, options);
+          break;
+        }
+        case 'thread': {
+          const { markThreadSyncStatus } = await import('../../repositories/story_thread_sqlite');
+          await markThreadSyncStatus(task.localId, status, options);
+          break;
+        }
+        case 'element': {
+          const { markElementSyncStatus } = await import('../../repositories/book_element_sqlite');
+          await markElementSyncStatus(task.localId, status, options);
+          break;
+        }
+        case 'element_category': {
+          const { markElementCategorySyncStatus } = await import('../../repositories/book_element_sqlite');
+          await markElementCategorySyncStatus(task.localId, status, options);
+          break;
+        }
+        default:
+          console.log('[SyncManager] 未实现的本地状态更新实体:', task.entity);
+      }
       console.log('[SyncManager] 本地状态已更新:', task.entity, task.localId, status);
     } catch (error) {
       console.error('[SyncManager] 更新本地状态失败:', error);
@@ -509,6 +595,77 @@ export class SyncManager {
       isOnline: this.isOnline,
       lastSyncTime: this.lastSyncTime,
     };
+  }
+
+  reportConflict(conflict: { entity: SyncTask['entity']; localId: string; description?: string }) {
+    const payload = { ...conflict, timestamp: Date.now() };
+    this.recordHistoryEntry({
+      type: 'push',
+      detail: `conflict:${conflict.entity}:${conflict.localId}`,
+    });
+    this.emit('sync:conflict', payload);
+  }
+
+  recordPull(detail: string) {
+    this.recordHistoryEntry({ type: 'pull', detail });
+    this.emit('status:change', this.getStatus());
+  }
+
+  getHistory(limit = 50) {
+    return this.history.slice(-limit);
+  }
+
+  getAnalytics() {
+    const totalsByEntity: Record<string, number> = {};
+    for (const task of this.queue) {
+      totalsByEntity[task.entity] = (totalsByEntity[task.entity] ?? 0) + 1;
+    }
+    const averageRetryCount = this.queue.length
+      ? this.queue.reduce((sum, t) => sum + t.retryCount, 0) / this.queue.length
+      : 0;
+
+    return {
+      status: this.getStatus(),
+      queueByEntity: totalsByEntity,
+      averageRetryCount,
+      history: this.getHistory(10),
+    };
+  }
+
+  async exportBackup() {
+    const { query } = await import('../db');
+    const [nodes, threads, elements, categories] = await Promise.all([
+      query<Record<string, unknown>>('SELECT * FROM story_node'),
+      query<Record<string, unknown>>('SELECT * FROM story_thread'),
+      query<Record<string, unknown>>('SELECT * FROM element'),
+      query<Record<string, unknown>>('SELECT * FROM element_category'),
+    ]);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      status: this.getStatus(),
+      counts: {
+        nodes: nodes.length,
+        threads: threads.length,
+        elements: elements.length,
+        categories: categories.length,
+      },
+      nodes,
+      threads,
+      elements,
+      categories,
+    };
+  }
+
+  async triggerBackupDownload(filename = 'drifting-backup.json') {
+    const backup = await this.exportBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   /**
@@ -558,9 +715,51 @@ export class SyncManager {
    * 销毁 SyncManager
    */
   destroy() {
-    window.removeEventListener('online', this.handleOnline.bind(this));
-    window.removeEventListener('offline', this.handleOffline.bind(this));
+    window.removeEventListener('online', this.handleOnlineListener);
+    window.removeEventListener('offline', this.handleOfflineListener);
+    this.predictiveCleanup?.();
     this.eventHandlers.clear();
+  }
+
+  private toCreateNodeDto(node: Partial<BookNode>): CreateNodeDto {
+    if (!node.title) {
+      throw new Error('Create node payload missing title');
+    }
+
+    const dto: CreateNodeDto = {
+      id: node.id,
+      title: node.title,
+      start: node.start ?? Date.now(),
+    };
+
+    if (typeof node.end === 'number') dto.end = node.end;
+    if (typeof node.summary === 'string') dto.summary = node.summary;
+    if (node.summary === '') dto.summary = '';
+    if (typeof node.storyStageId === 'string') dto.storyStageId = node.storyStageId;
+    if (node.position) {
+      if (typeof node.position.x === 'number') dto.posX = node.position.x;
+      if (typeof node.position.y === 'number') dto.posY = node.position.y;
+    }
+
+    return dto;
+  }
+
+  private toUpdateNodeDto(node: Partial<BookNode>): UpdateNodeDto {
+    const dto: UpdateNodeDto = {};
+
+    if (typeof node.title === 'string') dto.title = node.title;
+    if (typeof node.start === 'number') dto.start = node.start;
+    if (typeof node.end === 'number') dto.end = node.end;
+    if (typeof node.summary === 'string') dto.summary = node.summary;
+    if (node.summary === '') dto.summary = '';
+    if (node.summary === null) dto.summary = '';
+    if (typeof node.storyStageId === 'string') dto.storyStageId = node.storyStageId;
+    if (node.position) {
+      if (typeof node.position.x === 'number') dto.posX = node.position.x;
+      if (typeof node.position.y === 'number') dto.posY = node.position.y;
+    }
+
+    return dto;
   }
 }
 

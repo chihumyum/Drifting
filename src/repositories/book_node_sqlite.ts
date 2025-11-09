@@ -9,6 +9,14 @@ import type {
   BookNodeEdgeCreateData,
 } from './book_node';
 
+type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';
+
+interface SyncMetadata {
+  syncStatus: SyncStatus;
+  lastModified: number;
+  isDeleted: number;
+}
+
 const esc = (v: string) => v.replaceAll("'", "''");
 
 const ensureProjectId = (candidate: string | undefined, fallback: string) => candidate ?? fallback;
@@ -21,9 +29,25 @@ const mergePosition = (
   y: incoming?.y ?? base.y,
 });
 
-const insertNodeRecord = async (record: BookNodeRecord) => {
+const ensureSyncMetadata = (metadata?: Partial<SyncMetadata>): SyncMetadata => ({
+  syncStatus: metadata?.syncStatus ?? 'synced',
+  lastModified: metadata?.lastModified ?? Date.now(),
+  isDeleted: metadata?.isDeleted ?? 0,
+});
+
+const getNodeRecordById = async (id: string) => {
+  const rows = await query<BookNodeRecord & {
+    sync_status?: SyncStatus;
+    last_modified?: number | null;
+    is_deleted?: number;
+  }>(`SELECT * FROM story_node WHERE id='${esc(id)}' LIMIT 1`);
+  return rows[0];
+};
+
+const insertNodeRecord = async (record: BookNodeRecord, metadata?: Partial<SyncMetadata>) => {
+  const sync = ensureSyncMetadata(metadata);
   await run(
-    `INSERT INTO story_node (id, project_id, title, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at)
+    `INSERT INTO story_node (id, project_id, title, start, end, summary, story_stage_id, pos_x, pos_y, created_at, updated_at, sync_status, last_modified, is_deleted)
      VALUES (
        '${esc(record.id)}',
        '${esc(record.project_id)}',
@@ -35,12 +59,16 @@ const insertNodeRecord = async (record: BookNodeRecord) => {
        ${record.pos_x ?? 'NULL'},
        ${record.pos_y ?? 'NULL'},
        '${esc(record.created_at)}',
-       '${esc(record.updated_at)}'
+       '${esc(record.updated_at)}',
+       '${sync.syncStatus}',
+       ${sync.lastModified},
+       ${sync.isDeleted}
      )`,
   );
 };
 
-const updateNodeRecord = async (record: BookNodeRecord) => {
+const updateNodeRecord = async (record: BookNodeRecord, metadata?: Partial<SyncMetadata>) => {
+  const sync = ensureSyncMetadata(metadata);
   await run(
     `UPDATE story_node SET
        project_id='${esc(record.project_id)}',
@@ -52,7 +80,10 @@ const updateNodeRecord = async (record: BookNodeRecord) => {
        pos_x=${record.pos_x ?? 'NULL'},
        pos_y=${record.pos_y ?? 'NULL'},
        created_at='${esc(record.created_at)}',
-       updated_at='${esc(record.updated_at)}'
+       updated_at='${esc(record.updated_at)}',
+       sync_status='${sync.syncStatus}',
+       last_modified=${sync.lastModified},
+       is_deleted=${sync.isDeleted}
      WHERE id='${esc(record.id)}'`,
   );
 };
@@ -77,7 +108,9 @@ const insertEdgeRecord = async (record: NodeEdgeRecord) => {
 export function createBookNodeSqliteRepository(defaultProjectId: string): BookNodeRepository {
   return {
     async findById(id: string) {
-      const rows = await query<BookNodeRecord>(`SELECT * FROM story_node WHERE id='${esc(id)}' LIMIT 1`);
+      const rows = await query<BookNodeRecord>(
+        `SELECT * FROM story_node WHERE id='${esc(id)}' AND is_deleted = 0 LIMIT 1`
+      );
       const record = rows[0];
       return record ? toBookNode(record) : null;
     },
@@ -85,13 +118,14 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
     async findAll(projectId?: string) {
       const targetProject = ensureProjectId(projectId, defaultProjectId);
       const rows = await query<BookNodeRecord>(
-        `SELECT * FROM story_node WHERE project_id='${esc(targetProject)}' ORDER BY start ASC`,
+        `SELECT * FROM story_node WHERE project_id='${esc(targetProject)}' AND is_deleted = 0 ORDER BY start ASC`,
       );
       return rows.map(toBookNode);
     },
 
     async create(data: BookNodeCreateData) {
       const nowIso = new Date().toISOString();
+      const lastModified = Date.now();
       const baseNode: BookNode = {
         id: data.id ?? crypto.randomUUID(),
         projectId: ensureProjectId(data.projectId, defaultProjectId),
@@ -106,7 +140,11 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       };
 
       const record = fromBookNode(baseNode);
-      await insertNodeRecord(record);
+      await insertNodeRecord(record, {
+        syncStatus: 'pending',
+        lastModified,
+        isDeleted: 0,
+      });
       return baseNode;
     },
 
@@ -130,27 +168,87 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       };
 
       const record = fromBookNode(nextNode);
-      await updateNodeRecord(record);
+      await updateNodeRecord(record, {
+        syncStatus: 'pending',
+        lastModified: Date.now(),
+        isDeleted: 0,
+      });
       return nextNode;
     },
 
     async delete(id: string) {
-      console.log('[BookNodeRepository] Deleting node:', id);
-      const changes = await run(`DELETE FROM story_node WHERE id='${esc(id)}'`);
-      console.log('[BookNodeRepository] Delete result - changes:', changes);
+      console.log('[BookNodeRepository] Soft deleting node:', id);
+      const nowIso = new Date().toISOString();
+      const lastModified = Date.now();
+      await run(
+        `UPDATE story_node SET is_deleted = 1, sync_status = 'pending', last_modified = ${lastModified}, updated_at='${esc(
+          nowIso,
+        )}' WHERE id='${esc(id)}'`
+      );
       return true;
     },
 
     async swapOrder(first, second) {
       const nowIso = new Date().toISOString();
+      const lastModified = Date.now();
       await run(
-        `UPDATE story_node SET start=${second.start}, updated_at='${esc(nowIso)}' WHERE id='${esc(first.id)}'`,
+        `UPDATE story_node SET start=${second.start}, updated_at='${esc(nowIso)}', sync_status='pending', last_modified=${lastModified} WHERE id='${esc(first.id)}'`,
       );
       await run(
-        `UPDATE story_node SET start=${first.start}, updated_at='${esc(nowIso)}' WHERE id='${esc(second.id)}'`,
+        `UPDATE story_node SET start=${first.start}, updated_at='${esc(nowIso)}', sync_status='pending', last_modified=${lastModified} WHERE id='${esc(second.id)}'`,
       );
     },
   };
+}
+
+export async function markNodeSyncStatus(
+  id: string,
+  status: SyncStatus,
+  options?: { updatedAt?: string }
+): Promise<void> {
+  const record = await getNodeRecordById(id);
+  if (!record) return;
+
+  const updatedAtClause = options?.updatedAt ? `, updated_at='${esc(options.updatedAt)}'` : '';
+  const parsedLastModified = options?.updatedAt ? Date.parse(options.updatedAt) : undefined;
+  const lastModifiedClause = parsedLastModified && !Number.isNaN(parsedLastModified)
+    ? `, last_modified=${parsedLastModified}`
+    : '';
+  await run(
+    `UPDATE story_node SET sync_status='${status}'${updatedAtClause}${lastModifiedClause} WHERE id='${esc(id)}'`
+  );
+
+  if (status === 'synced' && record.is_deleted === 1) {
+    await run(`DELETE FROM story_node WHERE id='${esc(id)}'`);
+  }
+}
+
+export async function applyRemoteNode(node: BookNode): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
+  const remoteUpdatedAt = Date.parse(node.updatedAt);
+  if (Number.isNaN(remoteUpdatedAt)) {
+    return 'skipped';
+  }
+
+  const existing = await getNodeRecordById(node.id);
+  const record = fromBookNode(node);
+  if (!existing) {
+    await insertNodeRecord(record, { syncStatus: 'synced', lastModified: remoteUpdatedAt, isDeleted: 0 });
+    return 'inserted';
+  }
+
+  const localStatus = (existing.sync_status ?? 'synced') as SyncStatus;
+  const localLastModified = existing.last_modified ?? 0;
+
+  if (localStatus === 'pending' && localLastModified > remoteUpdatedAt) {
+    return 'conflict';
+  }
+
+  await updateNodeRecord(record, { syncStatus: 'synced', lastModified: remoteUpdatedAt, isDeleted: 0 });
+  return 'updated';
+}
+
+export async function cleanupSyncedDeletedNodes(): Promise<void> {
+  await run(`DELETE FROM story_node WHERE is_deleted = 1 AND sync_status = 'synced'`);
 }
 
 export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): BookNodeEdgeRepository {

@@ -8,7 +8,39 @@ const esc = (v: string) => v.replaceAll("'", "''");
 const DEFAULT_CATEGORY_NAME = 'others';
 const DEFAULT_ELEMENT_TYPE = 'generic';
 
+type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';
+
+interface SyncMetadata {
+  syncStatus: SyncStatus;
+  lastModified: number;
+  isDeleted: number;
+}
+
+const ensureSyncMetadata = (metadata?: Partial<SyncMetadata>): SyncMetadata => ({
+  syncStatus: metadata?.syncStatus ?? 'synced',
+  lastModified: metadata?.lastModified ?? Date.now(),
+  isDeleted: metadata?.isDeleted ?? 0,
+});
+
 type ElementRow = ElementRecord & { category_name: string | null };
+
+const ensureElementRecord = (
+    record: ElementRecord,
+): ElementRecord & Required<Pick<ElementRecord, 'sync_status' | 'last_modified' | 'is_deleted'>> => ({
+    ...record,
+    sync_status: record.sync_status ?? 'synced',
+    last_modified: record.last_modified ?? Date.parse(record.updated_at) || Date.now(),
+    is_deleted: record.is_deleted ?? 0,
+});
+
+const ensureCategoryRecord = (
+    record: ElementCategoryRecord,
+): ElementCategoryRecord & Required<Pick<ElementCategoryRecord, 'sync_status' | 'last_modified' | 'is_deleted'>> => ({
+    ...record,
+    sync_status: record.sync_status ?? 'synced',
+    last_modified: record.last_modified ?? Date.now(),
+    is_deleted: record.is_deleted ?? 0,
+});
 
 const toCategoryDomain = (row: ElementCategoryRecord): BookElementCategory => ({
     id: row.id,
@@ -20,6 +52,76 @@ const toCategoryDomain = (row: ElementCategoryRecord): BookElementCategory => ({
 const normalizeCategoryName = (name?: string): string => {
     const trimmed = name?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_CATEGORY_NAME;
+};
+
+const getElementRecordById = async (id: string) => {
+    const rows = await query<ElementRecord & { sync_status?: SyncStatus; last_modified?: number | null; is_deleted?: number }>(
+        `SELECT * FROM element WHERE id='${esc(id)}' LIMIT 1`
+    );
+    return rows[0] ? ensureElementRecord(rows[0]) : undefined;
+};
+
+const insertElementRecord = async (record: ElementRecord, metadata?: Partial<SyncMetadata>) => {
+    const sync = ensureSyncMetadata(metadata);
+    await run(
+        `INSERT INTO element (id, project_id, category_id, type, name, content_json, summary_json, created_at, updated_at, sync_status, last_modified, is_deleted)
+         VALUES ('${esc(record.id)}','${esc(record.project_id)}',${record.category_id ? `'${esc(record.category_id)}'` : 'NULL'},'${esc(record.type)}','${esc(record.name)}','${esc(record.content_json)}','${esc(record.summary_json)}','${esc(record.created_at)}','${esc(record.updated_at)}','${sync.syncStatus}',${sync.lastModified},${sync.isDeleted})`
+    );
+};
+
+const updateElementRecord = async (record: ElementRecord, metadata?: Partial<SyncMetadata>) => {
+    const sync = ensureSyncMetadata(metadata);
+    await run(
+        `UPDATE element SET
+            project_id='${esc(record.project_id)}',
+            category_id=${record.category_id ? `'${esc(record.category_id)}'` : 'NULL'},
+            type='${esc(record.type)}',
+            name='${esc(record.name)}',
+            content_json='${esc(record.content_json)}',
+            summary_json='${esc(record.summary_json)}',
+            created_at='${esc(record.created_at)}',
+            updated_at='${esc(record.updated_at)}',
+            sync_status='${sync.syncStatus}',
+            last_modified=${sync.lastModified},
+            is_deleted=${sync.isDeleted}
+         WHERE id='${esc(record.id)}'`
+    );
+};
+
+const getCategoryRecordById = async (id: string) => {
+    const rows = await query<ElementCategoryRecord & { sync_status?: SyncStatus; last_modified?: number | null; is_deleted?: number }>(
+        `SELECT * FROM element_category WHERE id='${esc(id)}' LIMIT 1`
+    );
+    return rows[0] ? ensureCategoryRecord(rows[0]) : undefined;
+};
+
+const getCategoryRecordByName = async (name: string) => {
+    const rows = await query<ElementCategoryRecord & { sync_status?: SyncStatus; last_modified?: number | null; is_deleted?: number }>(
+        `SELECT * FROM element_category WHERE name='${esc(name)}' LIMIT 1`
+    );
+    return rows[0] ? ensureCategoryRecord(rows[0]) : undefined;
+};
+
+const insertCategoryRecord = async (record: ElementCategoryRecord, metadata?: Partial<SyncMetadata>) => {
+    const sync = ensureSyncMetadata(metadata);
+    await run(
+        `INSERT INTO element_category (id, name, description_json, color, sync_status, last_modified, is_deleted)
+         VALUES ('${esc(record.id)}','${esc(record.name)}','${esc(record.description_json)}',${record.color ? `'${esc(record.color)}'` : 'NULL'},'${sync.syncStatus}',${sync.lastModified},${sync.isDeleted})`
+    );
+};
+
+const updateCategoryRecord = async (record: ElementCategoryRecord, metadata?: Partial<SyncMetadata>) => {
+    const sync = ensureSyncMetadata(metadata);
+    await run(
+        `UPDATE element_category SET
+            name='${esc(record.name)}',
+            description_json='${esc(record.description_json)}',
+            color=${record.color ? `'${esc(record.color)}'` : 'NULL'},
+            sync_status='${sync.syncStatus}',
+            last_modified=${sync.lastModified},
+            is_deleted=${sync.isDeleted}
+         WHERE id='${esc(record.id)}'`
+    );
 };
 
 const toDomain = (row: ElementRow, tags: string[]): BookElement => ({
@@ -57,19 +159,40 @@ async function mapRowsToDomain(rows: ElementRow[]): Promise<BookElement[]> {
 
 async function ensureCategoryId(categoryName: string): Promise<string> {
     const normalized = normalizeCategoryName(categoryName);
-    const existing = await query<{ id: string }>(
-        `SELECT id FROM element_category WHERE name='${esc(normalized)}' LIMIT 1`
-    );
-    if (existing[0]) return existing[0].id;
+    const existing = await getCategoryRecordByName(normalized);
+    const lastModified = Date.now();
+
+    if (existing) {
+        await updateCategoryRecord(
+            {
+                id: existing.id,
+                name: normalized,
+                description_json: existing.description_json ?? '{}',
+                color: existing.color ?? null,
+                sync_status: existing.sync_status,
+                last_modified: existing.last_modified,
+                is_deleted: 0,
+            },
+            { syncStatus: 'pending', lastModified, isDeleted: 0 }
+        );
+        return existing.id;
+    }
+
     const newId = crypto.randomUUID();
-    await run(
-        `INSERT OR IGNORE INTO element_category (id, name, description_json, color)
-         VALUES ('${esc(newId)}','${esc(normalized)}','{}', NULL)`
+    await insertCategoryRecord(
+        {
+            id: newId,
+            name: normalized,
+            description_json: '{}',
+            color: undefined,
+            sync_status: 'pending',
+            last_modified: lastModified,
+            is_deleted: 0,
+        },
+        { syncStatus: 'pending', lastModified, isDeleted: 0 }
     );
-    const rows = await query<{ id: string }>(
-        `SELECT id FROM element_category WHERE name='${esc(normalized)}' LIMIT 1`
-    );
-    return rows[0]?.id ?? newId;
+
+    return newId;
 }
 
 async function replaceTags(elementId: string, tags: string[]): Promise<void> {
@@ -90,21 +213,23 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         LEFT JOIN element_category c ON e.category_id = c.id`;
 
     const findById = async (id: string): Promise<BookElement | null> => {
-        const rows = await query<ElementRow>(`${selectBase} WHERE e.id='${esc(id)}' LIMIT 1`);
+        const rows = await query<ElementRow>(
+            `${selectBase} WHERE e.id='${esc(id)}' AND e.is_deleted = 0 LIMIT 1`
+        );
         const mapped = await mapRowsToDomain(rows);
         return mapped[0] ?? null;
     };
 
     const findAll = async (): Promise<BookElement[]> => {
         const rows = await query<ElementRow>(
-            `${selectBase} WHERE e.project_id='${esc(projectId)}' ORDER BY e.updated_at DESC`
+            `${selectBase} WHERE e.project_id='${esc(projectId)}' AND e.is_deleted = 0 ORDER BY e.updated_at DESC`
         );
         return mapRowsToDomain(rows);
     };
 
     const findAllByProject = async (pid: string): Promise<BookElement[]> => {
         const rows = await query<ElementRow>(
-            `${selectBase} WHERE e.project_id='${esc(pid)}' ORDER BY e.updated_at DESC`
+            `${selectBase} WHERE e.project_id='${esc(pid)}' AND e.is_deleted = 0 ORDER BY e.updated_at DESC`
         );
         return mapRowsToDomain(rows);
     };
@@ -112,7 +237,7 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
     const findAllByCategory = async (pid: string, category: string): Promise<BookElement[]> => {
         const normalized = normalizeCategoryName(category);
         const rows = await query<ElementRow>(
-            `${selectBase} WHERE e.project_id='${esc(pid)}' AND c.name='${esc(normalized)}'
+            `${selectBase} WHERE e.project_id='${esc(pid)}' AND e.is_deleted = 0 AND c.name='${esc(normalized)}'
              ORDER BY e.updated_at DESC`
         );
         return mapRowsToDomain(rows);
@@ -122,7 +247,7 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         const rows = await query<ElementRow>(
             `${selectBase}
              JOIN element_tag t ON e.id = t.element_id
-             WHERE e.project_id='${esc(pid)}' AND t.name='${esc(tag)}'
+             WHERE e.project_id='${esc(pid)}' AND e.is_deleted = 0 AND t.name='${esc(tag)}'
              ORDER BY e.updated_at DESC`
         );
         return mapRowsToDomain(rows);
@@ -133,12 +258,23 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         const categoryId = await ensureCategoryId(normalizedCategory);
         const createdAt = element.createdAt ?? new Date().toISOString();
         const updatedAt = element.updatedAt ?? createdAt;
-        await run(
-            `INSERT INTO element (id, project_id, category_id, type, name, content_json, summary_json, created_at, updated_at)
-             VALUES ('${esc(element.id)}','${esc(projectId)}','${esc(categoryId)}','${esc(DEFAULT_ELEMENT_TYPE)}',
-                     '${esc(element.name)}','${esc(element.content_json ?? '{}')}','${esc(element.summary_json ?? '{}')}',
-                     '${esc(createdAt)}','${esc(updatedAt)}')`
-        );
+        const lastModified = Date.now();
+        const record: ElementRecord = {
+            id: element.id,
+            project_id: projectId,
+            category_id: categoryId,
+            type: DEFAULT_ELEMENT_TYPE,
+            name: element.name,
+            content_json: element.content_json ?? '{}',
+            summary_json: element.summary_json ?? '{}',
+            created_at: createdAt,
+            updated_at: updatedAt,
+            sync_status: 'pending',
+            last_modified: lastModified,
+            is_deleted: 0,
+        };
+
+        await insertElementRecord(record, { syncStatus: 'pending', lastModified, isDeleted: 0 });
         await replaceTags(element.id, element.tags ?? []);
         const persisted = await findById(element.id);
         if (!persisted) throw new Error('Failed to load element after creation');
@@ -148,24 +284,37 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
     const update = async (id: string, element: BookElement): Promise<BookElement | null> => {
         const existing = await findById(id);
         if (!existing) return null;
+        const existingRecord = await getElementRecordById(id);
+        if (!existingRecord) return null;
+
         const normalizedCategory = normalizeCategoryName(element.category);
         const categoryId = await ensureCategoryId(normalizedCategory);
         const updatedAt = element.updatedAt ?? new Date().toISOString();
-        await run(
-            `UPDATE element SET
-                category_id='${esc(categoryId)}',
-                name='${esc(element.name)}',
-                content_json='${esc(element.content_json ?? '{}')}',
-                summary_json='${esc(element.summary_json ?? '{}')}',
-                updated_at='${esc(updatedAt)}'
-             WHERE id='${esc(id)}'`
-        );
+        const lastModified = Date.now();
+
+        const record: ElementRecord = {
+            id,
+            project_id: existingRecord.project_id,
+            category_id: categoryId,
+            type: existingRecord.type ?? DEFAULT_ELEMENT_TYPE,
+            name: element.name ?? existing.name,
+            content_json: element.content_json ?? existing.content_json ?? existingRecord.content_json,
+            summary_json: element.summary_json ?? existing.summary_json ?? existingRecord.summary_json,
+            created_at: existingRecord.created_at,
+            updated_at: updatedAt,
+        };
+
+        await updateElementRecord(record, { syncStatus: 'pending', lastModified, isDeleted: 0 });
         await replaceTags(id, element.tags ?? existing.tags ?? []);
         return findById(id);
     };
 
     const remove = async (id: string): Promise<boolean> => {
-        await run(`DELETE FROM element WHERE id='${esc(id)}'`);
+        const now = new Date().toISOString();
+        const lastModified = Date.now();
+        await run(
+            `UPDATE element SET is_deleted = 1, sync_status = 'pending', last_modified = ${lastModified}, updated_at='${esc(now)}' WHERE id='${esc(id)}'`
+        );
         return true;
     };
 
@@ -177,14 +326,18 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         const rows = await query<{ name: string | null }>(
             `SELECT c.name FROM element e
              LEFT JOIN element_category c ON e.category_id = c.id
-             WHERE e.id='${esc(elementId)}' LIMIT 1`
+             WHERE e.id='${esc(elementId)}' AND e.is_deleted = 0 AND (c.is_deleted = 0 OR c.is_deleted IS NULL) LIMIT 1`
         );
         return rows[0]?.name ?? null;
     };
 
     const updateElementCategory = async (elementId: string, categoryName: string): Promise<void> => {
         const categoryId = await ensureCategoryId(categoryName);
-        await run(`UPDATE element SET category_id='${esc(categoryId)}' WHERE id='${esc(elementId)}'`);
+        const now = new Date().toISOString();
+        const lastModified = Date.now();
+        await run(
+            `UPDATE element SET category_id='${esc(categoryId)}', sync_status='pending', last_modified=${lastModified}, updated_at='${esc(now)}' WHERE id='${esc(elementId)}'`
+        );
     };
 
     const getElementTags = async (elementId: string): Promise<string[]> => {
@@ -240,6 +393,198 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         getElementContent,
         setElementContent,
     };
+}
+
+export interface RemoteElementPayload {
+    id: string;
+    projectId: string;
+    name: string;
+    categoryId?: string | null;
+    categoryName?: string | null;
+    type?: string | null;
+    contentJson?: string | null;
+    summaryJson?: string | null;
+    tags?: string[];
+    createdAt: string;
+    updatedAt: string;
+    isDeleted?: boolean;
+}
+
+export interface RemoteElementCategoryPayload {
+    id: string;
+    name: string;
+    descriptionJson?: string | null;
+    color?: string | null;
+    updatedAt: string;
+    isDeleted?: boolean;
+}
+
+export async function markElementSyncStatus(
+    id: string,
+    status: SyncStatus,
+    options?: { updatedAt?: string; isDeleted?: boolean }
+): Promise<void> {
+    const record = await getElementRecordById(id);
+    if (!record) return;
+
+    const updatedAtClause = options?.updatedAt ? `, updated_at='${esc(options.updatedAt)}'` : '';
+    const parsed = options?.updatedAt ? Date.parse(options.updatedAt) : undefined;
+    const lastModifiedClause = parsed && !Number.isNaN(parsed) ? `, last_modified=${parsed}` : '';
+    const isDeletedClause = options?.isDeleted !== undefined ? `, is_deleted=${options.isDeleted ? 1 : 0}` : '';
+
+    await run(
+        `UPDATE element SET sync_status='${status}'${updatedAtClause}${lastModifiedClause}${isDeletedClause} WHERE id='${esc(id)}'`
+    );
+
+    if (status === 'synced' && ((options?.isDeleted && options.isDeleted) || record.is_deleted === 1)) {
+        await run(`DELETE FROM element WHERE id='${esc(id)}'`);
+    }
+}
+
+export async function markElementCategorySyncStatus(
+    id: string,
+    status: SyncStatus,
+    options?: { updatedAt?: string; isDeleted?: boolean }
+): Promise<void> {
+    const record = await getCategoryRecordById(id);
+    if (!record) return;
+
+    const parsed = options?.updatedAt ? Date.parse(options.updatedAt) : undefined;
+    const lastModifiedClause = parsed && !Number.isNaN(parsed) ? `, last_modified=${parsed}` : '';
+    const isDeletedClause = options?.isDeleted !== undefined ? `, is_deleted=${options.isDeleted ? 1 : 0}` : '';
+
+    await run(
+        `UPDATE element_category SET sync_status='${status}'${lastModifiedClause}${isDeletedClause} WHERE id='${esc(id)}'`
+    );
+
+    if (status === 'synced' && ((options?.isDeleted && options.isDeleted) || record.is_deleted === 1)) {
+        await run(`DELETE FROM element_category WHERE id='${esc(id)}'`);
+    }
+}
+
+export async function cleanupSyncedDeletedElements(): Promise<void> {
+    await run(`DELETE FROM element WHERE is_deleted = 1 AND sync_status = 'synced'`);
+}
+
+export async function cleanupSyncedDeletedCategories(): Promise<void> {
+    await run(`DELETE FROM element_category WHERE is_deleted = 1 AND sync_status = 'synced'`);
+}
+
+export async function applyRemoteElement(element: RemoteElementPayload): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
+    const remoteUpdatedAt = Date.parse(element.updatedAt);
+    if (Number.isNaN(remoteUpdatedAt)) {
+        return 'skipped';
+    }
+
+    const existing = await getElementRecordById(element.id);
+    const metadata: Partial<SyncMetadata> = {
+        syncStatus: 'synced',
+        lastModified: remoteUpdatedAt,
+        isDeleted: element.isDeleted ? 1 : 0,
+    };
+
+    if (element.isDeleted) {
+        if (!existing) {
+            return 'skipped';
+        }
+
+        if (existing.sync_status === 'pending' && (existing.last_modified ?? 0) > remoteUpdatedAt) {
+            return 'conflict';
+        }
+
+        await run(
+            `UPDATE element SET is_deleted = 1, sync_status = 'synced', last_modified = ${remoteUpdatedAt}, updated_at='${esc(
+                element.updatedAt
+            )}' WHERE id='${esc(element.id)}'`
+        );
+        await cleanupSyncedDeletedElements();
+        return 'updated';
+    }
+
+    let categoryId = element.categoryId ?? null;
+    if (!categoryId && element.categoryName) {
+        categoryId = await ensureCategoryId(element.categoryName);
+    }
+
+    const record: ElementRecord = {
+        id: element.id,
+        project_id: element.projectId,
+        category_id: categoryId ?? null,
+        type: element.type ?? existing?.type ?? DEFAULT_ELEMENT_TYPE,
+        name: element.name,
+        content_json: element.contentJson ?? existing?.content_json ?? '{}',
+        summary_json: element.summaryJson ?? existing?.summary_json ?? '{}',
+        created_at: element.createdAt,
+        updated_at: element.updatedAt,
+    };
+
+    if (!existing) {
+        await insertElementRecord(record, metadata);
+    } else {
+        if (existing.sync_status === 'pending' && (existing.last_modified ?? 0) > remoteUpdatedAt) {
+            return 'conflict';
+        }
+        await updateElementRecord(record, metadata);
+    }
+
+    if (element.tags) {
+        await replaceTags(element.id, element.tags);
+    }
+
+    return existing ? 'updated' : 'inserted';
+}
+
+export async function applyRemoteElementCategory(
+    category: RemoteElementCategoryPayload
+): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
+    const remoteUpdatedAt = Date.parse(category.updatedAt);
+    if (Number.isNaN(remoteUpdatedAt)) {
+        return 'skipped';
+    }
+
+    const existing = await getCategoryRecordById(category.id);
+    const metadata: Partial<SyncMetadata> = {
+        syncStatus: 'synced',
+        lastModified: remoteUpdatedAt,
+        isDeleted: category.isDeleted ? 1 : 0,
+    };
+
+    if (category.isDeleted) {
+        if (!existing) {
+            return 'skipped';
+        }
+
+        if (existing.sync_status === 'pending' && (existing.last_modified ?? 0) > remoteUpdatedAt) {
+            return 'conflict';
+        }
+
+        await run(
+            `UPDATE element_category SET is_deleted = 1, sync_status = 'synced', last_modified = ${remoteUpdatedAt} WHERE id='${esc(
+                category.id
+            )}'`
+        );
+        await cleanupSyncedDeletedCategories();
+        return 'updated';
+    }
+
+    const record: ElementCategoryRecord = {
+        id: category.id,
+        name: category.name,
+        description_json: category.descriptionJson ?? '{}',
+        color: category.color ?? null,
+    };
+
+    if (!existing) {
+        await insertCategoryRecord(record, metadata);
+        return 'inserted';
+    }
+
+    if (existing.sync_status === 'pending' && (existing.last_modified ?? 0) > remoteUpdatedAt) {
+        return 'conflict';
+    }
+
+    await updateCategoryRecord(record, metadata);
+    return 'updated';
 }
 
 export function createCategorySqliteRepository(): BookElementCategoryRepository {

@@ -4,9 +4,7 @@
  * 调用后端 /api/projects 相关接口
  */
 
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import apiClient from '../../lib/axios-config';
 
 // DTO 类型定义
 export interface CreateProjectDto {
@@ -45,7 +43,7 @@ export const projectsApi = {
    * GET /api/projects
    */
   async getAll(): Promise<Project[]> {
-    const response = await axios.get(`${BASE_URL}/api/projects`);
+    const response = await apiClient.get('/api/projects');
     return response.data;
   },
 
@@ -54,7 +52,7 @@ export const projectsApi = {
    * POST /api/projects
    */
   async create(dto: CreateProjectDto): Promise<Project> {
-    const response = await axios.post(`${BASE_URL}/api/projects`, dto);
+    const response = await apiClient.post('/api/projects', dto);
     return response.data;
   },
 
@@ -63,7 +61,7 @@ export const projectsApi = {
    * GET /api/projects/:id
    */
   async getById(id: string): Promise<Project> {
-    const response = await axios.get(`${BASE_URL}/api/projects/${id}`);
+    const response = await apiClient.get(`/api/projects/${id}`);
     return response.data;
   },
 
@@ -72,7 +70,7 @@ export const projectsApi = {
    * PATCH /api/projects/:id
    */
   async update(id: string, dto: UpdateProjectDto): Promise<Project> {
-    const response = await axios.patch(`${BASE_URL}/api/projects/${id}`, dto);
+    const response = await apiClient.patch(`/api/projects/${id}`, dto);
     return response.data;
   },
 
@@ -81,7 +79,7 @@ export const projectsApi = {
    * DELETE /api/projects/:id
    */
   async delete(id: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/api/projects/${id}`);
+    await apiClient.delete(`/api/projects/${id}`);
   },
 
   /**
@@ -89,7 +87,7 @@ export const projectsApi = {
    * POST /api/projects/:id/collaborators
    */
   async addCollaborator(projectId: string, dto: UpdateCollaboratorDto): Promise<void> {
-    await axios.post(`${BASE_URL}/api/projects/${projectId}/collaborators`, dto);
+    await apiClient.post(`/api/projects/${projectId}/collaborators`, dto);
   },
 
   /**
@@ -97,6 +95,6 @@ export const projectsApi = {
    * DELETE /api/projects/:id/collaborators/:collaboratorId
    */
   async removeCollaborator(projectId: string, collaboratorId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/api/projects/${projectId}/collaborators/${collaboratorId}`);
+    await apiClient.delete(`/api/projects/${projectId}/collaborators/${collaboratorId}`);
   },
 };
