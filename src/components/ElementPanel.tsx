@@ -39,7 +39,7 @@ export function ElementPanel() {
     const names = new Set<string>();
     bookElementCategories.forEach(c => names.add(c.name));
     bookElements.forEach(e => names.add(e.category));
-    // 按名称排序，others 始终在最后
+    // others always stays last
     return Array.from(names).sort((a, b) => {
       if (a === 'others') return 1;
       if (b === 'others') return -1;
@@ -175,7 +175,7 @@ export function ElementPanel() {
   }, [bookElements, categoryNames]);
 
   useEffect(() => {
-    console.log('Loading initial book elements');
+    console.log('Loading initial book elements in ElementPanel');
     loadInitial().catch(err => {
       console.error('Failed to load book elements', err);
     });

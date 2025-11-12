@@ -3,6 +3,7 @@ import { syncManager } from '../../lib/sync/sync-manager';
 import { syncPullService } from '../../lib/sync/sync-pull.service';
 import type { SyncManagerStatus, SyncTask } from '../../lib/sync/types';
 import { useSyncStatusStore } from '../../store/sync-status';
+import { useShallow } from 'zustand/react/shallow'
 
 const containerStyle: React.CSSProperties = {
   position: 'fixed',
@@ -71,7 +72,8 @@ export function SyncStatusHUD() {
     dismissToast,
     reportConflict,
     clearConflict,
-  } = useSyncStatusStore((state) => ({
+} = useSyncStatusStore(
+  useShallow((state) => ({
     status: state.status,
     offline: state.offline,
     isPulling: state.isPulling,
@@ -84,7 +86,7 @@ export function SyncStatusHUD() {
     dismissToast: state.dismissToast,
     reportConflict: state.reportConflict,
     clearConflict: state.clearConflict,
-  }));
+  })));
 
   useEffect(() => {
     const handleStatusChange = (payload: unknown) => {

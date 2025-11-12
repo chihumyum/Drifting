@@ -19,7 +19,7 @@ export function getDbWorker() {
 
 export function initDatabase(projectId?: string): Promise<void> {
   if (dbInitialized) return Promise.resolve();
-  console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
+  // console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
   if (initPromise) return initPromise;
 
   initPromise = new Promise<void>((resolve, reject) => {
@@ -58,7 +58,7 @@ export function initDatabase(projectId?: string): Promise<void> {
     };
 
     w.addEventListener('message', handler);
-    console.log(`Project id is ${projectId}`);
+    // console.log(`Project id is ${projectId}`);
     w.postMessage({
       id: msgId,
       type: 'init',

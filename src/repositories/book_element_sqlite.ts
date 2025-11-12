@@ -29,7 +29,7 @@ const ensureElementRecord = (
 ): ElementRecord & Required<Pick<ElementRecord, 'sync_status' | 'last_modified' | 'is_deleted'>> => ({
     ...record,
     sync_status: record.sync_status ?? 'synced',
-    last_modified: record.last_modified ?? Date.parse(record.updated_at) || Date.now(),
+    last_modified: record.last_modified ?? (Date.parse(record.updated_at) || Date.now()),
     is_deleted: record.is_deleted ?? 0,
 });
 

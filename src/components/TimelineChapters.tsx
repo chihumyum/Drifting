@@ -213,7 +213,11 @@ export function TimelineChapters() {
   // 更新全局 timeline 高度
   useEffect(() => {
     const height = getTimelineHeight();
-    useAppStore.getState().setTimelineHeight(height);
+    const currentHeight = useAppStore.getState().timelineHeight;
+    // Only update if height actually changed to prevent infinite loops
+    if (height !== currentHeight) {
+      useAppStore.getState().setTimelineHeight(height);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded, threads.length, nodeHeight]);
 

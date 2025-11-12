@@ -29,8 +29,8 @@ export function ElementEditorView() {
   const { elementId } = useParams<{ elementId: string }>();
   const { bookElements, bookElementCategories } = useAppStore();
 
-  const { updateElement, loadInitial, _deps } = useBookElementUsecases();
   const elementUsecases = useBookElementUsecases();
+  const { updateElement, loadInitial, _deps } = elementUsecases;
   const [curElement, setCurElement] = useState<BookElement | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -49,7 +49,8 @@ export function ElementEditorView() {
     if (bookElements.length === 0) {
       void loadInitial();
     }
-  }, [bookElements.length, loadInitial]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookElements.length]); // Only depend on length, not loadInitial to avoid loops
 
   // Get element from URL and update current element
   useEffect(() => {

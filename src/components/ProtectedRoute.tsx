@@ -24,7 +24,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     // 保存用户尝试访问的路径，登录后可以重定向回来
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-
   return <>{children}</>;
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import { useAppStore } from '../store';
 import { createBookElement, updateBookElement, deleteBookElement, loadInitialBookElements, type CreateBookElementInput, type BookElementUsecaseDeps } from '../usecase/book_element';
 import { createBookElementSqliteRepository, createCategorySqliteRepository } from '../repositories/book_element_sqlite';
@@ -6,7 +6,7 @@ import { createBookElementSqliteRepository, createCategorySqliteRepository } fro
 const PROJECT_ID = 'default-project';
 
 export function useBookElementUsecases() {
-    const storeApi = useAppStore; // we use .getState() below to avoid re-renders
+    const storeApi = useAppStore;
     const depsRef = useRef<BookElementUsecaseDeps | undefined>(undefined);
 
     if (!depsRef.current) {
@@ -22,14 +22,16 @@ export function useBookElementUsecases() {
     }
 
     const deps = depsRef.current;
-    const loadInitialElementsAndCategories = useCallback(() => loadInitialBookElements(deps, PROJECT_ID), [deps]);
-
-    return {
-        loadInitial: loadInitialElementsAndCategories,
-        createElement: (input: CreateBookElementInput) => createBookElement(deps, input),
-        updateElement: (id: string, updates: Partial<CreateBookElementInput>) => updateBookElement(deps, id, updates),
-        removeElement: (id: string) => deleteBookElement(deps, id),
+    const loadInitial = useCallback(() => loadInitialBookElements(deps, PROJECT_ID), [deps]);
+    const createElement = useCallback((input: CreateBookElementInput) => createBookElement(deps, input), [deps]);
+    const updateElement = useCallback((id: string, updates: Partial<CreateBookElementInput>) => updateBookElement(deps, id, updates), [deps]);
+    const removeElement = useCallback((id: string) => deleteBookElement(deps, id), [deps]);
+    return useMemo(() => ({
+        loadInitial,
+        createElement,
+        updateElement,
+        removeElement,
         // expose raw deps if advanced usage is needed
         _deps: deps,
-    };
+    }), [loadInitial, createElement, updateElement, removeElement, deps]);
 }

@@ -25,7 +25,6 @@ function Layout() {
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const timelineHeight = useAppStore((state) => state.timelineHeight);
-  
   useEffect(() => {
     // Initialize theme
     initAccentColor();
