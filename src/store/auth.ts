@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { authApi } from '../services/api/auth-api';
 import type { LoginDto, RegisterDto } from '../services/api/auth-api';
+import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 
 // 用户信息类型（与后端返回一致）
 export interface User {
@@ -43,6 +44,9 @@ export const useAuthStore = create<AuthState>()(
       // 登录
       login: async (dto: LoginDto) => {
         try {
+          if (isAppClosedForPublic) {
+            throw new Error(APP_CLOSED_MESSAGE);
+          }
           const response = await authApi.login(dto);
           
           set({
@@ -72,6 +76,9 @@ export const useAuthStore = create<AuthState>()(
       // 注册
       register: async (dto: RegisterDto) => {
         try {
+          if (isAppClosedForPublic) {
+            throw new Error(APP_CLOSED_MESSAGE);
+          }
           const response = await authApi.register(dto);
           
           // 注册成功后自动登录
