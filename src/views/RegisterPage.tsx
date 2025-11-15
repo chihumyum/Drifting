@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, NotebookPen, Sparkles, UserRound, Mail, Lock } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 
 const heroFeatures = [
@@ -29,6 +30,7 @@ export function RegisterPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(isAppClosedForPublic ? APP_CLOSED_MESSAGE : null);
+  const [showClosedDialog, setShowClosedDialog] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,6 +38,7 @@ export function RegisterPage() {
 
     if (isAppClosedForPublic) {
       setError(APP_CLOSED_MESSAGE);
+      setShowClosedDialog(true);
       return;
     }
 
@@ -170,6 +173,7 @@ export function RegisterPage() {
           </a>
         </div>
       </div>
+      <BetaClosedDialog open={showClosedDialog} onClose={() => setShowClosedDialog(false)} />
     </AuthLayout>
   );
 }
