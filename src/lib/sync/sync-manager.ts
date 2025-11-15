@@ -22,8 +22,6 @@ import type {
 
 type SyncEventHandler = (...args: unknown[]) => void;
 
-const RETRY_DELAYS = [1000, 5000, 15000]; // 1s, 5s, 15s
-
 export class SyncManager {
   private queue: SyncTask[] = [];
   private isSyncing = false;
@@ -456,7 +454,7 @@ export class SyncManager {
   private async executeProjectTask(task: SyncTask, projectsApi: typeof import('../../services/api/projects-api').projectsApi): Promise<void> {
     switch (task.type) {
       case 'create':
-        if (task.data && typeof task.data === 'object' && 'projectName' in task.data) {
+        if (task.data && typeof task.data === 'object' && 'title' in task.data) {
           const createData = task.data as import('../../services/api/projects-api').CreateProjectDto;
           await projectsApi.create(createData);
         } else {

@@ -3,7 +3,7 @@
 export interface ElementRecord {
     id: string;
     project_id: string;
-    category_id: string;
+    category_id: string | null;
     type: string;
     name: string;
     content_json: string; // tiptap JSON content
@@ -22,7 +22,7 @@ export interface ElementCategoryRecord {
     id: string;
     name: string;
     description_json: string;
-    color?: string;
+    color?: string | null;
     // 同步字段
     sync_status?: string;
     last_modified?: number | null;

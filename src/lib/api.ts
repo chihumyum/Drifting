@@ -4,6 +4,36 @@ import type { AuthStore } from '../store/auth';
 
 // API 基础配置
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const TOKEN_STORAGE_KEY = 'drifting:access-token';
+
+const getStorage = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
+export const tokenManager = {
+  setToken(token: string) {
+    const storage = getStorage();
+    if (storage) {
+      storage.setItem(TOKEN_STORAGE_KEY, token);
+    }
+  },
+  getToken(): string | null {
+    const storage = getStorage();
+    if (!storage) return null;
+    return storage.getItem(TOKEN_STORAGE_KEY);
+  },
+  removeToken() {
+    const storage = getStorage();
+    if (storage) {
+      storage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  },
+};
 
 // 创建 axios 实例
 export const apiClient: AxiosInstance = axios.create({
