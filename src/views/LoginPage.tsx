@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, LogIn, Sparkles, NotebookPen } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { AuthLayout } from '../components/auth/AuthLayout';
+import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 
 const heroFeatures = [
@@ -76,6 +77,7 @@ export function LoginPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(isAppClosedForPublic ? APP_CLOSED_MESSAGE : null);
+  const [showClosedDialog, setShowClosedDialog] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -83,6 +85,7 @@ export function LoginPage() {
 
     if (isAppClosedForPublic) {
       setError(APP_CLOSED_MESSAGE);
+      setShowClosedDialog(true);
       return;
     }
 
@@ -101,6 +104,7 @@ export function LoginPage() {
   const handleGoogleLogin = () => {
     if (isAppClosedForPublic) {
       setError(APP_CLOSED_MESSAGE);
+      setShowClosedDialog(true);
       return;
     }
     window.location.href = buildGoogleOAuthUrl();
@@ -109,6 +113,7 @@ export function LoginPage() {
   const handleWeChatLogin = () => {
     if (isAppClosedForPublic) {
       setError(APP_CLOSED_MESSAGE);
+      setShowClosedDialog(true);
       return;
     }
     window.location.href = buildWeChatOAuthUrl();
@@ -237,6 +242,7 @@ export function LoginPage() {
           </a>
         </div>
       </div>
+      <BetaClosedDialog open={showClosedDialog} onClose={() => setShowClosedDialog(false)} />
     </AuthLayout>
   );
 }
