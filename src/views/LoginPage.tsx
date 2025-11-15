@@ -131,7 +131,7 @@ export function LoginPage() {
         <div className="space-y-3 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-[#f2e7d7] px-3 py-1 text-xs font-semibold text-[#8b6f47]">
             <Sparkles className="h-3.5 w-3.5" />
-            受邀内测中
+            Beta is coming soon!
           </div>
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">登录 Drifting</h2>
