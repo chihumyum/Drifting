@@ -21,6 +21,11 @@ interface NodeResponse {
   updatedAt: string;
 }
 
+interface ListNodesResponse {
+  items: NodeResponse[];
+  nextCursor: string | null;
+}
+
 const toBookNode = (node: NodeResponse): BookNode => ({
   id: node.id,
   projectId: node.projectId,
@@ -76,10 +81,29 @@ export const nodeApi = {
    * GET /api/projects/:projectId/nodes
    */
   async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<BookNode[]> {
-    const response = await apiClient.get<NodeResponse[]>(`/api/projects/${projectId}/nodes`, {
-      params: options?.updatedAfter ? { updatedAfter: options.updatedAfter } : undefined,
-    });
-    return response.data.map(toBookNode);
+    const items: BookNode[] = [];
+    let cursor: string | undefined;
+
+    // page through results (backend returns {items,nextCursor})
+    // keep page size conservative to avoid large payloads
+    for (let i = 0; i < 20; i++) {
+      const response = await apiClient.get<ListNodesResponse>(`/api/projects/${projectId}/nodes`, {
+        params: {
+          ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
+          ...(cursor ? { cursor } : {}),
+          limit: 500,
+          includeDeleted: true,
+        },
+      });
+
+      const page = response.data.items.map(toBookNode);
+      items.push(...page);
+
+      if (!response.data.nextCursor) break;
+      cursor = response.data.nextCursor;
+    }
+
+    return items;
   },
 
   /**

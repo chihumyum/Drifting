@@ -1,37 +1,45 @@
 /**
  * Threads API Service
- * 
+ *
  * 调用后端 /api/projects/:projectId/threads 相关接口
  */
 
-import axios from 'axios';
+import apiClient from '../../lib/axios-config';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-// DTO 类型定义
 export interface CreateThreadDto {
+  id?: string;
   name: string;
-  description?: string;
-  color?: string;
-  icon?: string;
+  color: string;
+  summary?: string;
+  pmJson?: Record<string, unknown>;
+  nodeIds?: string[];
 }
 
 export interface UpdateThreadDto {
   name?: string;
-  description?: string;
   color?: string;
-  icon?: string;
+  summary?: string;
+  pmJson?: Record<string, unknown>;
+  nodeIds?: string[];
 }
 
 export interface Thread {
   id: string;
   projectId: string;
   name: string;
-  description?: string;
-  color?: string;
-  icon?: string;
+  color: string;
+  summary?: string;
+  pmJson?: Record<string, unknown>;
+  nodeIds: string[];
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  isDeleted?: boolean;
+}
+
+export interface ListThreadsResponse {
+  items: Thread[];
+  nextCursor: string | null;
 }
 
 /**
@@ -42,8 +50,18 @@ export const threadsApi = {
    * 获取项目的所有线程
    * GET /api/projects/:projectId/threads
    */
-  async getAll(projectId: string): Promise<Thread[]> {
-    const response = await axios.get(`${BASE_URL}/api/projects/${projectId}/threads`);
+  async list(
+    projectId: string,
+    options?: { updatedAfter?: number; cursor?: string; limit?: number; includeDeleted?: boolean }
+  ): Promise<ListThreadsResponse> {
+    const response = await apiClient.get<ListThreadsResponse>(`/api/projects/${projectId}/threads`, {
+      params: {
+        ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
+        ...(options?.cursor ? { cursor: options.cursor } : {}),
+        ...(options?.limit ? { limit: options.limit } : {}),
+        ...(options?.includeDeleted ? { includeDeleted: true } : {}),
+      },
+    });
     return response.data;
   },
 
@@ -52,7 +70,7 @@ export const threadsApi = {
    * POST /api/projects/:projectId/threads
    */
   async create(projectId: string, dto: CreateThreadDto): Promise<Thread> {
-    const response = await axios.post(`${BASE_URL}/api/projects/${projectId}/threads`, dto);
+    const response = await apiClient.post<Thread>(`/api/projects/${projectId}/threads`, dto);
     return response.data;
   },
 
@@ -61,7 +79,7 @@ export const threadsApi = {
    * PATCH /api/projects/:projectId/threads/:threadId
    */
   async update(projectId: string, threadId: string, dto: UpdateThreadDto): Promise<Thread> {
-    const response = await axios.patch(`${BASE_URL}/api/projects/${projectId}/threads/${threadId}`, dto);
+    const response = await apiClient.patch<Thread>(`/api/projects/${projectId}/threads/${threadId}`, dto);
     return response.data;
   },
 
@@ -70,6 +88,6 @@ export const threadsApi = {
    * DELETE /api/projects/:projectId/threads/:threadId
    */
   async delete(projectId: string, threadId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/api/projects/${projectId}/threads/${threadId}`);
+    await apiClient.delete(`/api/projects/${projectId}/threads/${threadId}`);
   },
 };

@@ -3,8 +3,15 @@ import type { StoryThreadRepository } from './story_thread';
 import type { StoryThread, CreateStoryThreadInput, UpdateStoryThreadInput } from '../domain/story_thread';
 import type { StoryThreadRecord } from '../schema/story_thread';
 import { TABLES } from '../schema/table';
+import { syncManager } from '../lib/sync/sync-manager';
+import { useAuthStore } from '../store/auth';
 
 const esc = (v: string) => v.replaceAll("'", "''");
+
+const canSync = () => {
+  const { isAuthenticated } = useAuthStore.getState();
+  return isAuthenticated && navigator.onLine;
+};
 
 type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';
 
@@ -120,6 +127,24 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
       isDeleted: 0,
     });
 
+    if (canSync()) {
+      syncManager.enqueue({
+        type: 'create',
+        entity: 'thread',
+        localId: id,
+        projectId: input.projectId,
+        data: {
+          id,
+          name: input.name,
+          color: input.color,
+          summary: input.summary,
+          pmJson: input.pmJson,
+          nodeIds: [],
+        },
+        priority: 'normal',
+      });
+    }
+
     return recordToDomain(record);
   }
 
@@ -163,6 +188,22 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
       isDeleted: 0,
     });
 
+    if (canSync()) {
+      syncManager.enqueue({
+        type: 'update',
+        entity: 'thread',
+        localId: input.id,
+        projectId: existing.projectId,
+        data: {
+          name: input.name,
+          color: input.color,
+          summary: input.summary,
+          pmJson: input.pmJson,
+        },
+        priority: 'normal',
+      });
+    }
+
     const updated = await this.getThreadById(input.id);
     if (!updated) {
       throw new Error(`Failed to retrieve updated thread ${input.id}`);
@@ -171,6 +212,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
   }
 
   async deleteThread(id: string): Promise<void> {
+    const existing = await this.getThreadById(id);
     const now = new Date().toISOString();
     const lastModified = Date.now();
     await run(
@@ -181,6 +223,16 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
            updated_at = '${esc(now)}'
        WHERE id = '${esc(id)}'`
     );
+
+    if (existing && canSync()) {
+      syncManager.enqueue({
+        type: 'delete',
+        entity: 'thread',
+        localId: id,
+        projectId: existing.projectId,
+        priority: 'normal',
+      });
+    }
   }
 
   async addNodeToThread(nodeId: string, threadId: string): Promise<void> {

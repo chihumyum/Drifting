@@ -34,6 +34,30 @@ export interface Project {
   updatedAt: string;
 }
 
+type ServerProject = {
+  id: string;
+  ownerId: string;
+  name?: string;
+  title?: string;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  coverImage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const mapProjectFromServer = (data: ServerProject): Project => {
+  return {
+    id: data.id,
+    ownerId: data.ownerId,
+    title: data.name ?? data.title ?? '',
+    description: data.description ?? undefined,
+    coverImage: data.coverImageUrl ?? data.coverImage ?? undefined,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+};
+
 /**
  * Projects API 客户端
  */
@@ -44,7 +68,7 @@ export const projectsApi = {
    */
   async getAll(): Promise<Project[]> {
     const response = await apiClient.get('/api/projects');
-    return response.data;
+    return (response.data as ServerProject[]).map(mapProjectFromServer);
   },
 
   /**
@@ -52,8 +76,13 @@ export const projectsApi = {
    * POST /api/projects
    */
   async create(dto: CreateProjectDto): Promise<Project> {
-    const response = await apiClient.post('/api/projects', dto);
-    return response.data;
+    const payload = {
+      name: dto.title,
+      description: dto.description,
+      coverImageUrl: dto.coverImage,
+    };
+    const response = await apiClient.post('/api/projects', payload);
+    return mapProjectFromServer(response.data as ServerProject);
   },
 
   /**
@@ -62,7 +91,7 @@ export const projectsApi = {
    */
   async getById(id: string): Promise<Project> {
     const response = await apiClient.get(`/api/projects/${id}`);
-    return response.data;
+    return mapProjectFromServer(response.data as ServerProject);
   },
 
   /**
@@ -70,8 +99,12 @@ export const projectsApi = {
    * PATCH /api/projects/:id
    */
   async update(id: string, dto: UpdateProjectDto): Promise<Project> {
-    const response = await apiClient.patch(`/api/projects/${id}`, dto);
-    return response.data;
+    const payload: Record<string, unknown> = {};
+    if (dto.title !== undefined) payload.name = dto.title;
+    if (dto.description !== undefined) payload.description = dto.description;
+    if (dto.coverImage !== undefined) payload.coverImageUrl = dto.coverImage;
+    const response = await apiClient.patch(`/api/projects/${id}`, payload);
+    return mapProjectFromServer(response.data as ServerProject);
   },
 
   /**

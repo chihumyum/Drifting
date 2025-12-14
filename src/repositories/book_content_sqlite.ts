@@ -4,6 +4,7 @@ import type { BookContentRecord } from '../schema/book_content';
 import type { BookContentRepository } from './book_content';
 import { v7 as uuidv7 } from 'uuid';
 import { run, query } from '../lib/db';
+import type { SyncStatus } from '../lib/sync/types';
 
 
 export function recordToBookContent(record: BookContentRecord): BookContent {
@@ -25,7 +26,15 @@ export function bookContentToRecord(node: BookContent): BookContentRecord {
     outline_json: node.outlineJson,
     created_at: node.createdAt,
     updated_at: node.updatedAt,
+    sync_status: 'synced',
+    last_modified: null,
+    is_deleted: 0,
   };
+}
+
+async function getContentRecordByNodeId(nodeId: string): Promise<BookContentRecord | null> {
+  const rows = await query<BookContentRecord>(`SELECT * FROM book_content WHERE node_id = ?`, [nodeId]);
+  return rows.length ? rows[0] : null;
 }
 
 export function createBookContentRepository(): BookContentRepository {
@@ -45,6 +54,7 @@ export function createBookContentRepository(): BookContentRepository {
 
     const create = async (data: Partial<BookContent>): Promise<BookContent> => {
       const now = new Date().toISOString();
+      const lastModified = Date.now();
       const record: BookContentRecord = {
         id: data.id || uuidv7(),
         node_id: data.nodeId!,
@@ -52,11 +62,24 @@ export function createBookContentRepository(): BookContentRepository {
         outline_json: data.outlineJson || '[]',
         created_at: now,
         updated_at: now,
+        sync_status: 'pending',
+        last_modified: lastModified,
+        is_deleted: 0,
       };
       await run(
-        `INSERT INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [record.id, record.node_id, record.pm_json, record.outline_json, record.created_at, record.updated_at]
+        `INSERT OR REPLACE INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at, sync_status, last_modified, is_deleted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          record.id,
+          record.node_id,
+          record.pm_json,
+          record.outline_json,
+          record.created_at,
+          record.updated_at,
+          record.sync_status,
+          record.last_modified,
+          record.is_deleted,
+        ]
       );
       return recordToBookContent(record);
     }
@@ -67,6 +90,7 @@ export function createBookContentRepository(): BookContentRepository {
       if (!existing) {
         return null;
       }
+      const lastModified = Date.now();
       const record: BookContentRecord = {
         id,
         node_id: data.nodeId ?? existing.nodeId,
@@ -74,10 +98,15 @@ export function createBookContentRepository(): BookContentRepository {
         outline_json: data.outlineJson ?? existing.outlineJson,
         created_at: existing.createdAt,
         updated_at: now,
+        sync_status: 'pending',
+        last_modified: lastModified,
+        is_deleted: 0,
       };
       await run(
-        `UPDATE book_content SET node_id = ?, pm_json = ?, outline_json = ?, updated_at = ? WHERE id = ?`,
-        [record.node_id, record.pm_json, record.outline_json, record.updated_at, record.id]
+        `UPDATE book_content
+         SET node_id = ?, pm_json = ?, outline_json = ?, updated_at = ?, sync_status = 'pending', last_modified = ?, is_deleted = 0
+         WHERE id = ?`,
+        [record.node_id, record.pm_json, record.outline_json, record.updated_at, record.last_modified, record.id]
       );
       return recordToBookContent(record);
     }
@@ -108,4 +137,93 @@ export function createBookContentRepository(): BookContentRepository {
       deleteById,
       deleteByNodeId,
     };
+}
+
+export async function markContentSyncStatus(
+  nodeId: string,
+  status: SyncStatus,
+  options?: { updatedAt?: string },
+): Promise<void> {
+  const existing = await getContentRecordByNodeId(nodeId);
+  if (!existing) return;
+
+  const updatedAtClause = options?.updatedAt ? `, updated_at = ?` : '';
+  const parsedLastModified = options?.updatedAt ? Date.parse(options.updatedAt) : undefined;
+  const lastModifiedClause = parsedLastModified && !Number.isNaN(parsedLastModified) ? `, last_modified = ?` : '';
+
+  const params: Array<string | number> = [status];
+  if (options?.updatedAt) params.push(options.updatedAt);
+  if (parsedLastModified && !Number.isNaN(parsedLastModified)) params.push(parsedLastModified);
+  params.push(nodeId);
+
+  await run(
+    `UPDATE book_content SET sync_status = ?${updatedAtClause}${lastModifiedClause} WHERE node_id = ?`,
+    params,
+  );
+
+  if (status === 'synced' && existing.is_deleted === 1) {
+    await run(`DELETE FROM book_content WHERE node_id = ?`, [nodeId]);
+  }
+}
+
+export async function applyRemoteContent(remote: {
+  nodeId: string;
+  pmJson: string;
+  outlineJson: string;
+  createdAt: string;
+  updatedAt: string;
+}): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
+  const remoteUpdatedAt = Date.parse(remote.updatedAt);
+  if (Number.isNaN(remoteUpdatedAt)) {
+    return 'skipped';
+  }
+
+  const existing = await getContentRecordByNodeId(remote.nodeId);
+  if (!existing) {
+    const record: BookContentRecord = {
+      id: uuidv7(),
+      node_id: remote.nodeId,
+      pm_json: remote.pmJson,
+      outline_json: remote.outlineJson,
+      created_at: remote.createdAt,
+      updated_at: remote.updatedAt,
+      sync_status: 'synced',
+      last_modified: remoteUpdatedAt,
+      is_deleted: 0,
+    };
+    await run(
+      `INSERT INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at, sync_status, last_modified, is_deleted)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        record.id,
+        record.node_id,
+        record.pm_json,
+        record.outline_json,
+        record.created_at,
+        record.updated_at,
+        record.sync_status,
+        record.last_modified,
+        record.is_deleted,
+      ],
+    );
+    return 'inserted';
+  }
+
+  const localStatus = (existing.sync_status ?? 'synced') as SyncStatus;
+  const localLastModified = existing.last_modified ?? 0;
+  if (localStatus === 'pending' && localLastModified > remoteUpdatedAt) {
+    return 'conflict';
+  }
+
+  await run(
+    `UPDATE book_content
+     SET pm_json = ?, outline_json = ?, updated_at = ?, sync_status = 'synced', last_modified = ?, is_deleted = 0
+     WHERE node_id = ?`,
+    [remote.pmJson, remote.outlineJson, remote.updatedAt, remoteUpdatedAt, remote.nodeId],
+  );
+  return 'updated';
+}
+
+export async function cleanupSyncedDeletedContents(): Promise<void> {
+  await run(`DELETE FROM book_content WHERE is_deleted = 1 AND sync_status = 'synced'`);
 }

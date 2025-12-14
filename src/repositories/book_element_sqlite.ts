@@ -2,8 +2,15 @@ import type { BookElement, BookElementCategory } from '../domain/book_element';
 import type { ElementRecord, ElementCategoryRecord } from '../schema/book_element';
 import type { BookElementRepository, BookElementCategoryRepository } from './book_element';
 import { run, query } from '../lib/db';
+import { syncManager } from '../lib/sync/sync-manager';
+import { useAuthStore } from '../store/auth';
 
 const esc = (v: string) => v.replaceAll("'", "''");
+
+const canSync = () => {
+    const { isAuthenticated } = useAuthStore.getState();
+    return isAuthenticated && navigator.onLine;
+};
 
 const DEFAULT_CATEGORY_NAME = 'others';
 const DEFAULT_ELEMENT_TYPE = 'generic';
@@ -276,6 +283,36 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
         await insertElementRecord(record, { syncStatus: 'pending', lastModified, isDeleted: 0 });
         await replaceTags(element.id, element.tags ?? []);
+
+        if (canSync()) {
+            syncManager.enqueue({
+                type: 'create',
+                entity: 'element',
+                localId: element.id,
+                projectId,
+                data: {
+                    id: element.id,
+                    name: element.name,
+                    categoryName: normalizedCategory,
+                    description: (() => {
+                        try {
+                            const parsed = element.summary_json ? JSON.parse(element.summary_json) : undefined;
+                            return typeof parsed?.description === 'string' ? parsed.description : undefined;
+                        } catch {
+                            return undefined;
+                        }
+                    })(),
+                    metadata: (() => {
+                        try {
+                            return element.content_json ? JSON.parse(element.content_json) : undefined;
+                        } catch {
+                            return undefined;
+                        }
+                    })(),
+                },
+                priority: 'normal',
+            });
+        }
         const persisted = await findById(element.id);
         if (!persisted) throw new Error('Failed to load element after creation');
         return persisted;
@@ -306,6 +343,35 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
         await updateElementRecord(record, { syncStatus: 'pending', lastModified, isDeleted: 0 });
         await replaceTags(id, element.tags ?? existing.tags ?? []);
+
+        if (canSync()) {
+            syncManager.enqueue({
+                type: 'update',
+                entity: 'element',
+                localId: id,
+                projectId,
+                data: {
+                    name: element.name,
+                    categoryName: normalizedCategory,
+                    description: (() => {
+                        try {
+                            const parsed = element.summary_json ? JSON.parse(element.summary_json) : undefined;
+                            return typeof parsed?.description === 'string' ? parsed.description : undefined;
+                        } catch {
+                            return undefined;
+                        }
+                    })(),
+                    metadata: (() => {
+                        try {
+                            return element.content_json ? JSON.parse(element.content_json) : undefined;
+                        } catch {
+                            return undefined;
+                        }
+                    })(),
+                },
+                priority: 'normal',
+            });
+        }
         return findById(id);
     };
 
@@ -315,6 +381,16 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         await run(
             `UPDATE element SET is_deleted = 1, sync_status = 'pending', last_modified = ${lastModified}, updated_at='${esc(now)}' WHERE id='${esc(id)}'`
         );
+
+        if (canSync()) {
+            syncManager.enqueue({
+                type: 'delete',
+                entity: 'element',
+                localId: id,
+                projectId,
+                priority: 'normal',
+            });
+        }
         return true;
     };
 

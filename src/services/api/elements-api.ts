@@ -1,41 +1,37 @@
 /**
  * Elements API Service
- * 
+ *
  * 调用后端 /api/projects/:projectId/elements 相关接口
  */
 
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import apiClient from '../../lib/axios-config';
 
 // DTO 类型定义
 export interface CreateElementDto {
+  id?: string;
   name: string;
-  categoryId: string;
+  categoryId?: string;
+  categoryName?: string;
   description?: string;
-  attributes?: Record<string, unknown>;
-  imageUrl?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateElementDto {
   name?: string;
   categoryId?: string;
+  categoryName?: string;
   description?: string;
-  attributes?: Record<string, unknown>;
-  imageUrl?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateCategoryDto {
+  id?: string;
   name: string;
-  description?: string;
-  icon?: string;
   color?: string;
 }
 
 export interface UpdateCategoryDto {
   name?: string;
-  description?: string;
-  icon?: string;
   color?: string;
 }
 
@@ -47,23 +43,35 @@ export interface Element {
   id: string;
   projectId: string;
   name: string;
-  categoryId: string;
+  categoryId?: string;
   description?: string;
-  attributes?: Record<string, unknown>;
-  imageUrl?: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  isDeleted?: boolean;
 }
 
 export interface Category {
   id: string;
   projectId: string;
   name: string;
-  description?: string;
-  icon?: string;
+  descriptionJson?: Record<string, unknown> | null;
   color?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  isDeleted?: boolean;
+}
+
+export interface ListElementsResponse {
+  items: Element[];
+  nextCursor: string | null;
+}
+
+export interface ListCategoriesResponse {
+  items: Category[];
+  nextCursor: string | null;
 }
 
 /**
@@ -74,8 +82,18 @@ export const elementsApi = {
    * 获取项目的所有元素
    * GET /api/projects/:projectId/elements
    */
-  async getAll(projectId: string): Promise<Element[]> {
-    const response = await axios.get(`${BASE_URL}/api/projects/${projectId}/elements`);
+  async list(
+    projectId: string,
+    options?: { updatedAfter?: number; cursor?: string; limit?: number; includeDeleted?: boolean }
+  ): Promise<ListElementsResponse> {
+    const response = await apiClient.get<ListElementsResponse>(`/api/projects/${projectId}/elements`, {
+      params: {
+        ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
+        ...(options?.cursor ? { cursor: options.cursor } : {}),
+        ...(options?.limit ? { limit: options.limit } : {}),
+        ...(options?.includeDeleted ? { includeDeleted: true } : {}),
+      },
+    });
     return response.data;
   },
 
@@ -84,7 +102,7 @@ export const elementsApi = {
    * POST /api/projects/:projectId/elements
    */
   async create(projectId: string, dto: CreateElementDto): Promise<Element> {
-    const response = await axios.post(`${BASE_URL}/api/projects/${projectId}/elements`, dto);
+    const response = await apiClient.post<Element>(`/api/projects/${projectId}/elements`, dto);
     return response.data;
   },
 
@@ -93,7 +111,7 @@ export const elementsApi = {
    * GET /api/projects/:projectId/elements/:elementId
    */
   async getById(projectId: string, elementId: string): Promise<Element> {
-    const response = await axios.get(`${BASE_URL}/api/projects/${projectId}/elements/${elementId}`);
+    const response = await apiClient.get<Element>(`/api/projects/${projectId}/elements/${elementId}`);
     return response.data;
   },
 
@@ -102,7 +120,7 @@ export const elementsApi = {
    * PATCH /api/projects/:projectId/elements/:elementId
    */
   async update(projectId: string, elementId: string, dto: UpdateElementDto): Promise<Element> {
-    const response = await axios.patch(`${BASE_URL}/api/projects/${projectId}/elements/${elementId}`, dto);
+    const response = await apiClient.patch<Element>(`/api/projects/${projectId}/elements/${elementId}`, dto);
     return response.data;
   },
 
@@ -111,7 +129,7 @@ export const elementsApi = {
    * DELETE /api/projects/:projectId/elements/:elementId
    */
   async delete(projectId: string, elementId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/api/projects/${projectId}/elements/${elementId}`);
+    await apiClient.delete(`/api/projects/${projectId}/elements/${elementId}`);
   },
 
   // ==================== Categories ====================
@@ -120,8 +138,18 @@ export const elementsApi = {
    * 获取项目的所有分类
    * GET /api/projects/:projectId/elements/categories/list
    */
-  async listCategories(projectId: string): Promise<Category[]> {
-    const response = await axios.get(`${BASE_URL}/api/projects/${projectId}/elements/categories/list`);
+  async listCategories(
+    projectId: string,
+    options?: { updatedAfter?: number; cursor?: string; limit?: number; includeDeleted?: boolean }
+  ): Promise<ListCategoriesResponse> {
+    const response = await apiClient.get<ListCategoriesResponse>(`/api/projects/${projectId}/elements/categories/list`, {
+      params: {
+        ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
+        ...(options?.cursor ? { cursor: options.cursor } : {}),
+        ...(options?.limit ? { limit: options.limit } : {}),
+        ...(options?.includeDeleted ? { includeDeleted: true } : {}),
+      },
+    });
     return response.data;
   },
 
@@ -130,7 +158,7 @@ export const elementsApi = {
    * POST /api/projects/:projectId/elements/categories
    */
   async createCategory(projectId: string, dto: CreateCategoryDto): Promise<Category> {
-    const response = await axios.post(`${BASE_URL}/api/projects/${projectId}/elements/categories`, dto);
+    const response = await apiClient.post<Category>(`/api/projects/${projectId}/elements/categories`, dto);
     return response.data;
   },
 
@@ -139,7 +167,7 @@ export const elementsApi = {
    * PATCH /api/projects/:projectId/elements/categories/:categoryId
    */
   async updateCategory(projectId: string, categoryId: string, dto: UpdateCategoryDto): Promise<Category> {
-    const response = await axios.patch(`${BASE_URL}/api/projects/${projectId}/elements/categories/${categoryId}`, dto);
+    const response = await apiClient.patch<Category>(`/api/projects/${projectId}/elements/categories/${categoryId}`, dto);
     return response.data;
   },
 
@@ -148,7 +176,7 @@ export const elementsApi = {
    * DELETE /api/projects/:projectId/elements/categories/:categoryId
    */
   async deleteCategory(projectId: string, categoryId: string): Promise<void> {
-    await axios.delete(`${BASE_URL}/api/projects/${projectId}/elements/categories/${categoryId}`);
+    await apiClient.delete(`/api/projects/${projectId}/elements/categories/${categoryId}`);
   },
 
   /**
@@ -156,7 +184,7 @@ export const elementsApi = {
    * POST /api/projects/:projectId/elements/categories/ensure
    */
   async ensureCategory(projectId: string, dto: EnsureCategoryDto): Promise<Category> {
-    const response = await axios.post(`${BASE_URL}/api/projects/${projectId}/elements/categories/ensure`, dto);
+    const response = await apiClient.post<Category>(`/api/projects/${projectId}/elements/categories/ensure`, dto);
     return response.data;
   },
 };

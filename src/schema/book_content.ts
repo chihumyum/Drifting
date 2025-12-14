@@ -15,4 +15,8 @@ export interface BookContentRecord {
   outline_json: string;    // JSON array of OutlineItem[] - extracted heading structure
   created_at: string;
   updated_at: string;
+  // sync metadata
+  sync_status: 'synced' | 'pending' | 'failed' | 'syncing';
+  last_modified: number | null;
+  is_deleted: 0 | 1;
 }

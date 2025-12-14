@@ -746,6 +746,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'content_002',
@@ -795,6 +798,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'content_004',
@@ -811,6 +817,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     outline_json: JSON.stringify([]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'content_006',
@@ -876,6 +885,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'content_008',
@@ -911,6 +923,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     ]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
   {
     id: 'content_010',
@@ -927,6 +942,9 @@ export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
     outline_json: JSON.stringify([]),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    sync_status: 'synced',
+    last_modified: Date.now(),
+    is_deleted: 0,
   },
 ];
 

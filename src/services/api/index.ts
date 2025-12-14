@@ -7,6 +7,7 @@
 export * from './auth-api';
 export * from './projects-api';
 export * from './node-api';
+export * from './content-api';
 export * from './threads-api';
 export * from './elements-api';
 export * from './sync-api';

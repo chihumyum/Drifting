@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import type { AuthStore } from '../store/auth';
+import { getActiveTraceId } from './trace';
 
 // API 基础配置
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -58,6 +59,9 @@ const loadAuthStore = async (): Promise<AuthStore> => {
 // 请求拦截器：添加 JWT token
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    if (config.headers && !('x-trace-id' in config.headers)) {
+      config.headers['x-trace-id'] = getActiveTraceId();
+    }
     try {
       const authStore = await loadAuthStore();
       const token = authStore.accessToken;

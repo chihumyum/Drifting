@@ -1,6 +1,9 @@
 import { v7 as uuidv7 } from 'uuid';
 import type { BookContentRepository } from "../repositories/book_content";
 import type { BookContent } from "../domain/book_content";
+import { syncManager } from '../lib/sync/sync-manager';
+import { useAuthStore } from '../store/auth';
+import type { SyncTaskType } from '../lib/sync/types';
 
 export {
     loadBookContent,
@@ -14,8 +17,45 @@ export interface BookContentUsecaseDeps {
     getContentState: () => BookContent | null;
     setContentState: (content: BookContent | null) => void;
     updateContentState: (updates: Partial<BookContent>) => void;
+    getProjectIdForNodeId: (nodeId: string) => string | null;
     now?: () => Date;
 }
+const canSync = () => {
+    const { isAuthenticated } = useAuthStore.getState();
+    return isAuthenticated;
+};
+
+const enqueueContentTask = (
+    type: SyncTaskType,
+    nodeId: string,
+    projectId: string,
+    data: { pmJson?: string; outlineJson?: string },
+) => {
+    if (!canSync()) return;
+
+    let pmJson: unknown = undefined;
+    if (data.pmJson !== undefined) {
+        try {
+            pmJson = JSON.parse(data.pmJson);
+        } catch {
+            // If parsing fails, still send string; backend will ignore/overwrite if it can't use it.
+            pmJson = data.pmJson;
+        }
+    }
+
+    syncManager.enqueue({
+        type,
+        entity: 'content',
+        localId: nodeId,
+        projectId,
+        data: {
+            ...(pmJson !== undefined ? { pmJson } : {}),
+            ...(data.outlineJson !== undefined ? { outline: data.outlineJson } : {}),
+        },
+        priority: 'normal',
+    });
+};
+
 
 
 
@@ -30,10 +70,22 @@ async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<
     const now = (deps.now ?? (() => new Date()))();
     const updatedData = {
         ...updates,
-        updatedAt: now.toString(),
+                updatedAt: now.toISOString(),
     };
     deps.updateContentState(updatedData);
-    deps.contentRepo.update(updatedData.id!, updatedData);
+
+        const nodeId = updatedData.nodeId ?? deps.getContentState()?.nodeId;
+        if (nodeId) {
+            const projectId = deps.getProjectIdForNodeId(nodeId);
+            if (projectId) {
+                enqueueContentTask('update', nodeId, projectId, {
+                    pmJson: updatedData.pmJson,
+                    outlineJson: updatedData.outlineJson,
+                });
+            }
+        }
+
+        await deps.contentRepo.update(updatedData.id!, updatedData);
 }
 
 async function newBookContent(deps: BookContentUsecaseDeps, nodeId: string, pmJson: string) {
@@ -43,11 +95,20 @@ async function newBookContent(deps: BookContentUsecaseDeps, nodeId: string, pmJs
         id,
         nodeId,
         pmJson: pmJson,
-        createdAt: now.toString(),
-        updatedAt: now.toString(),
+                outlineJson: '[]',
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
     };
     const created = await deps.contentRepo.create(newContent);
     deps.setContentState(created);
+
+        const projectId = deps.getProjectIdForNodeId(nodeId);
+        if (projectId) {
+            enqueueContentTask('create', nodeId, projectId, {
+                pmJson: created.pmJson,
+                outlineJson: created.outlineJson,
+            });
+        }
     return created;
 }
 

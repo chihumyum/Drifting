@@ -24,6 +24,10 @@ export function useBookContentUsecases() {
             getContentState: () => store.getState().bookContent,
             setContentState: (content) => store.getState().setBookContent(content),
             updateContentState: (updates) => store.getState().updateBookContent(updates),
+                        getProjectIdForNodeId: (nodeId: string) => {
+                            const node = store.getState().bookNodes.find((n) => n.id === nodeId);
+                            return node?.projectId ?? null;
+                        },
             now: () => new Date(),
         };
     }

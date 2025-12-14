@@ -14,8 +14,10 @@ import { projectsApi } from '../../services/api/projects-api';
 import { nodeApi } from '../../services/api/node-api';
 import { threadsApi } from '../../services/api/threads-api';
 import { elementsApi } from '../../services/api/elements-api';
+import { contentApi } from '../../services/api/content-api';
 import { initDatabase } from '../db';
 import { applyRemoteNode, cleanupSyncedDeletedNodes } from '../../repositories/book_node_sqlite';
+import { applyRemoteContent, cleanupSyncedDeletedContents } from '../../repositories/book_content_sqlite';
 import {
   applyRemoteThread,
   cleanupSyncedDeletedThreads,
@@ -27,6 +29,7 @@ import {
   cleanupSyncedDeletedCategories,
 } from '../../repositories/book_element_sqlite';
 import { syncManager } from './sync-manager';
+import { createTraceId, runWithSyncTraceId } from '../trace';
 
 // 同步状态
 interface SyncStats {
@@ -102,30 +105,33 @@ class SyncPullService {
       errors: 0,
     };
 
+    const traceId = createTraceId();
     try {
-      console.log('[SyncPull] Starting initial sync from server...');
+      return await runWithSyncTraceId(traceId, async () => {
+        console.log('[SyncPull] Starting initial sync from server...');
 
-      const projects = await projectsApi.getAll();
-      if (!projects.length) {
-        console.log('[SyncPull] No remote projects found, skipping.');
-      }
-
-      for (const project of projects) {
-        try {
-          const projectStats = await this.syncProject(project.id);
-          stats.totalPulled += projectStats.totalPulled;
-          stats.conflicts += projectStats.conflicts;
-          stats.errors += projectStats.errors;
-        } catch (error) {
-          console.error(`[SyncPull] Failed to sync project ${project.id}:`, error);
-          stats.errors++;
+        const projects = await projectsApi.getAll();
+        if (!projects.length) {
+          console.log('[SyncPull] No remote projects found, skipping.');
         }
-      }
 
-      this.lastSyncTime = Date.now();
-      console.log('[SyncPull] Initial sync completed ✅', stats);
+        for (const project of projects) {
+          try {
+            const projectStats = await this.syncProject(project.id);
+            stats.totalPulled += projectStats.totalPulled;
+            stats.conflicts += projectStats.conflicts;
+            stats.errors += projectStats.errors;
+          } catch (error) {
+            console.error(`[SyncPull] Failed to sync project ${project.id}:`, error);
+            stats.errors++;
+          }
+        }
 
-      return stats;
+        this.lastSyncTime = Date.now();
+        console.log('[SyncPull] Initial sync completed ✅', stats);
+
+        return stats;
+      });
     } catch (error) {
       console.error('[SyncPull] Initial sync failed:', error);
       stats.errors++;
@@ -193,14 +199,17 @@ class SyncPullService {
     const since = options?.fullSync ? null : getLastPullAt(projectId);
     this.emitEvent('pull:start', { projectId, since });
 
+    const traceId = createTraceId();
     try {
-      const projectStats = await this.syncProject(projectId, { since });
-      stats.totalPulled += projectStats.totalPulled;
-      stats.totalPushed += projectStats.totalPushed;
-      stats.conflicts += projectStats.conflicts;
-      stats.errors += projectStats.errors;
-      this.lastSyncTime = Date.now();
-      this.emitEvent('pull:success', { projectId, stats });
+      await runWithSyncTraceId(traceId, async () => {
+        const projectStats = await this.syncProject(projectId, { since });
+        stats.totalPulled += projectStats.totalPulled;
+        stats.totalPushed += projectStats.totalPushed;
+        stats.conflicts += projectStats.conflicts;
+        stats.errors += projectStats.errors;
+        this.lastSyncTime = Date.now();
+        this.emitEvent('pull:success', { projectId, stats });
+      });
     } catch (error) {
       stats.errors += 1;
       console.error('[SyncPull] pullFromServer failed:', error);
@@ -219,11 +228,12 @@ class SyncPullService {
       await initDatabase(projectId);
       const since = options?.since ?? getLastPullAt(projectId);
 
-      const [nodes, threads, elements, categories] = await Promise.all([
+      const [nodes, contentsResponse, threadsResponse, elementsResponse, categoriesResponse] = await Promise.all([
         nodeApi.getAll(projectId, since ? { updatedAfter: since } : undefined),
-        threadsApi.getAll(projectId),
-        elementsApi.getAll(projectId),
-        elementsApi.listCategories(projectId),
+        contentApi.list(projectId, since ? { updatedAfter: since } : undefined),
+        threadsApi.list(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
+        elementsApi.list(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
+        elementsApi.listCategories(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
       ]);
 
       for (const node of nodes) {
@@ -237,16 +247,77 @@ class SyncPullService {
       }
       await cleanupSyncedDeletedNodes();
 
+      for (const content of contentsResponse.items) {
+        const pmJsonString = JSON.stringify(content.pmJson ?? {});
+        const outlineJsonString = content.outline ?? '';
+        const outcome = await applyRemoteContent({
+          nodeId: content.nodeId,
+          pmJson: pmJsonString,
+          outlineJson: outlineJsonString,
+          createdAt: new Date(content.createdAt).toISOString(),
+          updatedAt: new Date(content.updatedAt).toISOString(),
+        });
+
+        if (outcome === 'conflict') {
+          stats.conflicts++;
+          syncManager.reportConflict({ entity: 'content', localId: content.nodeId, description: 'Remote content older than local change' });
+        } else if (outcome !== 'skipped') {
+          stats.totalPulled++;
+        }
+      }
+      await cleanupSyncedDeletedContents();
+
+      // page through threads/elements/categories if needed
+      const threads: typeof threadsResponse.items = [...threadsResponse.items];
+      let threadCursor = threadsResponse.nextCursor ?? null;
+      for (let i = 0; threadCursor && i < 20; i++) {
+        const next = await threadsApi.list(projectId, {
+          updatedAfter: since ?? undefined,
+          includeDeleted: true,
+          limit: 500,
+          cursor: threadCursor,
+        });
+        threads.push(...next.items);
+        threadCursor = next.nextCursor;
+      }
+
+      const elements: typeof elementsResponse.items = [...elementsResponse.items];
+      let elementCursor = elementsResponse.nextCursor ?? null;
+      for (let i = 0; elementCursor && i < 20; i++) {
+        const next = await elementsApi.list(projectId, {
+          updatedAfter: since ?? undefined,
+          includeDeleted: true,
+          limit: 500,
+          cursor: elementCursor,
+        });
+        elements.push(...next.items);
+        elementCursor = next.nextCursor;
+      }
+
+      const categories: typeof categoriesResponse.items = [...categoriesResponse.items];
+      let categoryCursor = categoriesResponse.nextCursor ?? null;
+      for (let i = 0; categoryCursor && i < 20; i++) {
+        const next = await elementsApi.listCategories(projectId, {
+          updatedAfter: since ?? undefined,
+          includeDeleted: true,
+          limit: 500,
+          cursor: categoryCursor,
+        });
+        categories.push(...next.items);
+        categoryCursor = next.nextCursor;
+      }
+
       for (const thread of threads) {
         const outcome = await applyRemoteThread({
           id: thread.id,
           projectId: thread.projectId,
           name: thread.name,
           color: thread.color ?? '#b89968',
-          summary: thread.description ?? null,
-          pmJson: null,
+          summary: thread.summary ?? null,
+          pmJson: thread.pmJson ?? null,
           createdAt: thread.createdAt,
           updatedAt: thread.updatedAt,
+          isDeleted: Boolean(thread.isDeleted || thread.deletedAt),
         });
 
         if (outcome === 'conflict') {
@@ -264,12 +335,12 @@ class SyncPullService {
           projectId: element.projectId,
           name: element.name,
           categoryId: element.categoryId ?? null,
-          type: element.attributes?.type ? String(element.attributes.type) : element.attributes?.kind ? String(element.attributes.kind) : null,
-          contentJson: element.attributes ? JSON.stringify(element.attributes) : '{}',
+          type: element.metadata?.type ? String(element.metadata.type) : element.metadata?.kind ? String(element.metadata.kind) : null,
+          contentJson: element.metadata ? JSON.stringify(element.metadata) : '{}',
           summaryJson: element.description ? JSON.stringify({ description: element.description }) : '{}',
-          tags: Array.isArray((element as { tags?: string[] }).tags) ? (element as { tags?: string[] }).tags : undefined,
           createdAt: element.createdAt,
           updatedAt: element.updatedAt,
+          isDeleted: Boolean(element.isDeleted || element.deletedAt),
         });
 
         if (outcome === 'conflict') {
@@ -285,9 +356,13 @@ class SyncPullService {
         const outcome = await applyRemoteElementCategory({
           id: category.id,
           name: category.name,
-          descriptionJson: category.description ?? null,
+          descriptionJson:
+            category.descriptionJson === undefined || category.descriptionJson === null
+              ? null
+              : JSON.stringify(category.descriptionJson),
           color: category.color ?? null,
           updatedAt: category.updatedAt ?? new Date().toISOString(),
+          isDeleted: Boolean(category.isDeleted || category.deletedAt),
         });
 
         if (outcome === 'conflict') {

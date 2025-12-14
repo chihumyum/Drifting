@@ -5,6 +5,7 @@
 export type SyncTaskType = 'create' | 'update' | 'delete';
 export type SyncTaskEntity =
   | 'node'
+  | 'content'
   | 'thread'
   | 'element'
   | 'element_category'

@@ -10,6 +10,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/auth';
 import { authApi } from '../services/api/auth-api';
+import { getActiveTraceId } from './trace';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -47,6 +48,10 @@ const processQueue = (error: Error | null, token: string | null = null) => {
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (config.headers && !('x-trace-id' in config.headers)) {
+      config.headers['x-trace-id'] = getActiveTraceId();
+    }
+
     // 获取 accessToken
     const { accessToken } = useAuthStore.getState();
     

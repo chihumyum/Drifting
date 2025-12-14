@@ -12,6 +12,7 @@
 import { nanoid } from 'nanoid';
 import type { BookNode } from '../../domain/book_node';
 import type { CreateNodeDto, UpdateNodeDto } from '../../services/api/node-api';
+import { createTraceId, runWithSyncTraceId } from '../trace';
 import type {
   SyncTask,
   SyncTaskInput,
@@ -222,50 +223,53 @@ export class SyncManager {
     this.isSyncing = true;
     this.emit('status:change', this.getStatus());
 
-    // 处理队列中的任务
-    while (this.queue.length > 0 && this.isOnline) {
-      const task = this.queue[0];
+    const traceId = createTraceId();
+    await runWithSyncTraceId(traceId, async () => {
+      // 处理队列中的任务
+      while (this.queue.length > 0 && this.isOnline) {
+        const task = this.queue[0];
 
-      try {
-        console.log('[SyncManager] 开始同步任务:', task);
-        task.status = 'syncing';
-        await this.updateLocalSyncStatus(task, 'syncing');
-        this.emit('sync:start', task);
+        try {
+          console.log('[SyncManager] 开始同步任务:', task);
+          task.status = 'syncing';
+          await this.updateLocalSyncStatus(task, 'syncing');
+          this.emit('sync:start', task);
 
-        // 执行同步任务
-        const result = await this.executeTask(task);
+          // 执行同步任务
+          const result = await this.executeTask(task);
 
-        // 成功：移除任务
-        task.status = 'completed';
-        this.queue.shift();
-        this.lastSyncTime = Date.now();
+          // 成功：移除任务
+          task.status = 'completed';
+          this.queue.shift();
+          this.lastSyncTime = Date.now();
 
-        // 更新本地 SQLite 的同步状态
-        const updatedAt =
-          result && typeof result === 'object' && 'updatedAt' in result && typeof result.updatedAt === 'string'
-            ? result.updatedAt
-            : undefined;
-        const metadataOptions = {
-          ...(updatedAt ? { updatedAt } : {}),
-          ...(task.type === 'delete' ? { isDeleted: true } : {}),
-        } as { updatedAt?: string; isDeleted?: boolean };
-        await this.updateLocalSyncStatus(
-          task,
-          'synced',
-          Object.keys(metadataOptions).length > 0 ? metadataOptions : undefined,
-        );
+          // 更新本地 SQLite 的同步状态
+          const updatedAt =
+            result && typeof result === 'object' && 'updatedAt' in result && typeof result.updatedAt === 'string'
+              ? result.updatedAt
+              : undefined;
+          const metadataOptions = {
+            ...(updatedAt ? { updatedAt } : {}),
+            ...(task.type === 'delete' ? { isDeleted: true } : {}),
+          } as { updatedAt?: string; isDeleted?: boolean };
+          await this.updateLocalSyncStatus(
+            task,
+            'synced',
+            Object.keys(metadataOptions).length > 0 ? metadataOptions : undefined,
+          );
 
-        // 从持久化队列中删除
-        await this.deleteTaskFromDB(task.id);
+          // 从持久化队列中删除
+          await this.deleteTaskFromDB(task.id);
 
-        console.log('[SyncManager] 任务同步成功:', task);
-        this.emit('sync:success', task);
-        this.recordHistoryEntry({ type: 'push', task: { ...task } });
-      } catch (error) {
-        console.error('[SyncManager] 任务同步失败:', task, error);
-        await this.handleTaskFailure(task, error as Error);
+          console.log('[SyncManager] 任务同步成功:', task);
+          this.emit('sync:success', task);
+          this.recordHistoryEntry({ type: 'push', task: { ...task } });
+        } catch (error) {
+          console.error('[SyncManager] 任务同步失败:', task, error);
+          await this.handleTaskFailure(task, error as Error);
+        }
       }
-    }
+    });
 
     this.isSyncing = false;
     this.emit('status:change', this.getStatus());
@@ -287,6 +291,10 @@ export class SyncManager {
     switch (task.entity) {
       case 'node':
         return this.executeNodeTask(task, apis.nodeApi);
+
+      case 'content':
+        await this.executeContentTask(task, apis.nodeApi);
+        break;
       
       case 'thread':
         await this.executeThreadTask(task, apis.threadsApi);
@@ -310,6 +318,30 @@ export class SyncManager {
         await new Promise((resolve) => setTimeout(resolve, 100));
         return undefined;
     }
+  }
+
+  private async executeContentTask(
+    task: SyncTask,
+    nodeApi: typeof import('../../services/api/node-api').nodeApi,
+  ): Promise<void> {
+    const projectId = task.projectId!;
+    const nodeId = task.localId;
+
+    if (task.type === 'delete') {
+      // Content is currently not deletable independently; skip.
+      return;
+    }
+
+    if (!task.data || typeof task.data !== 'object') {
+      throw new Error('Invalid content data');
+    }
+
+    const data = task.data as { pmJson?: unknown; outline?: string; contentText?: string };
+    await nodeApi.updateContent(projectId, nodeId, {
+      ...(data.pmJson !== undefined ? { pmJson: data.pmJson } : {}),
+      ...(data.outline !== undefined ? { outline: data.outline } : {}),
+      ...(data.contentText !== undefined ? { contentText: data.contentText } : {}),
+    });
   }
 
   /**
@@ -529,6 +561,11 @@ export class SyncManager {
         case 'node': {
           const { markNodeSyncStatus } = await import('../../repositories/book_node_sqlite');
           await markNodeSyncStatus(task.localId, status, options);
+          break;
+        }
+        case 'content': {
+          const { markContentSyncStatus } = await import('../../repositories/book_content_sqlite');
+          await markContentSyncStatus(task.localId, status, options);
           break;
         }
         case 'thread': {
