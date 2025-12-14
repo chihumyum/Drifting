@@ -13,6 +13,7 @@ import type { StoryThread } from '../domain/story_thread';
 import { BackButton } from '../components/BackButton';
 import { EditorContextMenu } from '../components/EditorContextMenu';
 import { EditorMenuBar } from '../components/EditorMenuBar';
+import { useAuthStore, getProjectId } from '../store/auth';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -26,6 +27,7 @@ function getDefaultDoc(): JSONContent {
 export function ThreadEditorView() {
   const { threadId } = useParams<{ threadId: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
   const threadUsecases = useStoryThreadUsecases();
   const nodeUsecases = useBookNodeUsecases();
   const [thread, setThread] = useState<StoryThread | null>(null);
@@ -45,10 +47,15 @@ export function ThreadEditorView() {
       
       try {
         setIsLoading(true);
+        const projectId = getProjectId(user?.id);
+        console.log('[ThreadEditorView] Loading thread:', threadId, 'projectId:', projectId, 'userId:', user?.id);
         const [threadData, threads] = await Promise.all([
           threadUsecases.getThreadById(threadId),
-          threadUsecases.getThreadsByProject('default-project'),
+          threadUsecases.getThreadsByProject(projectId),
         ]);
+        
+        console.log('[ThreadEditorView] Thread data:', threadData);
+        console.log('[ThreadEditorView] All threads:', threads.length);
         
         if (!threadData) {
           console.error(`Thread ${threadId} not found`);
@@ -67,7 +74,7 @@ export function ThreadEditorView() {
     }
     
     loadThread();
-  }, [threadId, threadUsecases, navigate]);
+  }, [threadId, threadUsecases, navigate, user]);
   
   // Initialize TipTap editor
   const editor = useEditor({

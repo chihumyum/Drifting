@@ -15,8 +15,12 @@ import {
   type UpdateStoryStageInput,
 } from '../usecase/story_stage';
 import { initDatabase } from '../lib/db';
+import { useAuthStore, getProjectId } from '../store/auth';
 
-const PROJECT_ID = 'default-project';
+const getProjectIdForUser = () => {
+  const user = useAuthStore.getState().user;
+  return getProjectId(user?.id);
+};
 
 export function useStoryStageUsecases() {
   const depsRef = useRef<StoryStageUsecaseDeps | null>(null);
@@ -31,30 +35,30 @@ export function useStoryStageUsecases() {
   const deps = depsRef.current!;
 
   return useMemo(() => ({
-    loadStages: async (projectId: string = PROJECT_ID) => {
+    loadStages: async (projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return loadStoryStages(deps, projectId);
     },
-    getStageById: async (id: string, projectId: string = PROJECT_ID) => {
+    getStageById: async (id: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return getStoryStageById(deps, id);
     },
     createStage: async (input: CreateStoryStageInput) => {
-      await initDatabase(input.projectId ?? PROJECT_ID);
+      await initDatabase(input.projectId ?? getProjectIdForUser());
       return createStoryStage(deps, {
         ...input,
-        projectId: input.projectId ?? PROJECT_ID,
+        projectId: input.projectId ?? getProjectIdForUser(),
       });
     },
-    updateStage: async (id: string, input: UpdateStoryStageInput, projectId: string = PROJECT_ID) => {
+    updateStage: async (id: string, input: UpdateStoryStageInput, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return updateStoryStage(deps, id, input);
     },
-    deleteStage: async (id: string, projectId: string = PROJECT_ID) => {
+    deleteStage: async (id: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return deleteStoryStage(deps, id);
     },
-    reorderStage: async (id: string, direction: 'up' | 'down', projectId: string = PROJECT_ID) => {
+    reorderStage: async (id: string, direction: 'up' | 'down', projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return reorderStoryStage(deps, projectId, id, direction);
     },

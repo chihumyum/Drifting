@@ -19,8 +19,12 @@ import {
   type CreateNodeTagInput,
 } from '../usecase/story_stage';
 import { initDatabase } from '../lib/db';
+import { useAuthStore, getProjectId } from '../store/auth';
 
-const PROJECT_ID = 'default-project';
+const getProjectIdForUser = () => {
+  const user = useAuthStore.getState().user;
+  return getProjectId(user?.id);
+};
 
 export function useNodeTagUsecases() {
   const depsRef = useRef<NodeTagUsecaseDeps | null>(null);
@@ -37,52 +41,52 @@ export function useNodeTagUsecases() {
 
   return useMemo(() => ({
     // Tag CRUD operations
-    loadTags: async (projectId: string = PROJECT_ID) => {
+    loadTags: async (projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return loadNodeTags(deps, projectId);
     },
-    getTagById: async (id: string, projectId: string = PROJECT_ID) => {
+    getTagById: async (id: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return getNodeTagById(deps, id);
     },
     createTag: async (input: CreateNodeTagInput) => {
-      await initDatabase(input.projectId ?? PROJECT_ID);
+      await initDatabase(input.projectId ?? getProjectIdForUser());
       return createNodeTag(deps, {
         ...input,
-        projectId: input.projectId ?? PROJECT_ID,
+        projectId: input.projectId ?? getProjectIdForUser(),
       });
     },
-    deleteTag: async (id: string, projectId: string = PROJECT_ID) => {
+    deleteTag: async (id: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return deleteNodeTag(deps, id);
     },
     
     // Node-Tag link operations
-    getTagsForNode: async (nodeId: string, projectId: string = PROJECT_ID) => {
+    getTagsForNode: async (nodeId: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return getTagsForNode(deps, nodeId);
     },
-    getNodesWithTag: async (tagId: string, projectId: string = PROJECT_ID) => {
+    getNodesWithTag: async (tagId: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return getNodesWithTag(deps, tagId);
     },
-    addTagToNode: async (nodeId: string, tagId: string, projectId: string = PROJECT_ID) => {
+    addTagToNode: async (nodeId: string, tagId: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return addTagToNode(deps, nodeId, tagId);
     },
-    removeTagFromNode: async (nodeId: string, tagId: string, projectId: string = PROJECT_ID) => {
+    removeTagFromNode: async (nodeId: string, tagId: string, projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return removeTagFromNode(deps, nodeId, tagId);
     },
-    setNodeTags: async (nodeId: string, tagIds: string[], projectId: string = PROJECT_ID) => {
+    setNodeTags: async (nodeId: string, tagIds: string[], projectId: string = getProjectIdForUser()) => {
       await initDatabase(projectId);
       return setNodeTags(deps, nodeId, tagIds);
     },
     createAndAddTagToNode: async (nodeId: string, input: CreateNodeTagInput) => {
-      await initDatabase(input.projectId ?? PROJECT_ID);
+      await initDatabase(input.projectId ?? getProjectIdForUser());
       return createAndAddTagToNode(deps, nodeId, {
         ...input,
-        projectId: input.projectId ?? PROJECT_ID,
+        projectId: input.projectId ?? getProjectIdForUser(),
       });
     },
     

@@ -8,8 +8,7 @@ import { parseOutline } from '../lib/outline';
 import type { OutlineItem } from '../schema/book_content';
 import type { StoryThread } from '../domain/story_thread';
 import type { BookNode } from '../domain/book_node';
-
-const PROJECT_ID = 'default-project';
+import { useAuthStore, getProjectId } from '../store/auth';
 
 // Timeline 配置
 const TIMELINE_CONFIG = {
@@ -34,6 +33,7 @@ interface TimelineNode extends BookNode {
 export function TimelineChapters() {
   const navigate = useNavigate();
   const { bookNodes, selectedNodeId } = useAppStore();
+  const user = useAuthStore(state => state.user);
   const threadUsecases = useStoryThreadUsecases();
   const nodeUsecases = useBookNodeUsecases();
   const contentRepo = useRef(createBookContentRepository()).current;
@@ -271,7 +271,10 @@ export function TimelineChapters() {
   useEffect(() => {
     async function loadData() {
       try {
-        const allThreads = await threadUsecases.getThreadsByProject(PROJECT_ID);
+        const projectId = getProjectId(user?.id);
+        console.log('[TimelineChapters] Loading threads for projectId:', projectId, 'userId:', user?.id);
+        const allThreads = await threadUsecases.getThreadsByProject(projectId);
+        console.log('[TimelineChapters] Loaded threads:', allThreads.length, allThreads);
         setThreads(allThreads);
 
         // Load thread info for each node
@@ -297,7 +300,7 @@ export function TimelineChapters() {
     if (bookNodes.length > 0) {
       loadData();
     }
-  }, [bookNodes, threadUsecases]);
+  }, [bookNodes, threadUsecases, user]);
 
   // Load outlines for all nodes
   useEffect(() => {

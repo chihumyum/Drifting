@@ -18,6 +18,7 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
+import { useAuthStore } from './store/auth';
 
 
 function Layout() {
@@ -25,17 +26,28 @@ function Layout() {
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const timelineHeight = useAppStore((state) => state.timelineHeight);
+  const { isAuthenticated, user } = useAuthStore();
+  
   useEffect(() => {
     // Initialize theme
     initAccentColor();
     
-    initDatabase(DEFAULT_PROJECT.id).then(() => {
+    // Initialize database based on auth state:
+    // - If logged in: use user-specific database ({userId}_{projectId}.db)
+    // - If not logged in: use anonymous database ({projectId}.db)
+    const projectId = DEFAULT_PROJECT.id;
+    const userId = isAuthenticated && user ? user.id : undefined;
+    
+    console.log(`[App] Initializing database for user: ${userId ?? 'anonymous'}`);
+    
+    initDatabase(projectId, userId).then(() => {
       events.emit('db:ready');
+      console.log('[App] Database ready');
     }).catch(error => {
       console.error('Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
     });
-  }, []);
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     // Listen for settings open event

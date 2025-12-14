@@ -5,10 +5,12 @@ export type DbWorkerRequest =
   | { id?: number; type: 'run'; payload: { sql: string, params?: BindParams } }
   | { id?: number; type: 'query'; payload: { sql: string, params?: BindParams } }
   | { id?: number; type: 'migrate'; payload?: Record<string, never> }
+  | { id?: number; type: 'close' }
 
 let worker: Worker | null = null;
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
+let currentDbName: string | null = null;
 
 export function getDbWorker() {
   if (!worker) {
@@ -17,9 +19,34 @@ export function getDbWorker() {
   return worker;
 }
 
-export function initDatabase(projectId?: string): Promise<void> {
-  if (dbInitialized) return Promise.resolve();
-  // console.log('initDatabase called with projectId =', projectId, 'dbInitialized =', dbInitialized, 'initPromise =', !!initPromise);
+/**
+ * Generate the database filename based on userId and projectId.
+ * Format: {userId}_{projectId}.db or {projectId}.db if no userId (offline demo mode)
+ */
+export function getDbName(userId?: string, projectId?: string): string {
+  const pid = projectId ?? 'default-project';
+  return userId ? `${userId}_${pid}.db` : `${pid}.db`;
+}
+
+/**
+ * Initialize database for a specific user and project.
+ * If the database is already initialized with the same name, returns immediately.
+ * If initialized with a different name, resets and reinitializes.
+ */
+export function initDatabase(projectId?: string, userId?: string): Promise<void> {
+  const targetDbName = getDbName(userId, projectId);
+  
+  // If already initialized with the same database, return immediately
+  if (dbInitialized && currentDbName === targetDbName) {
+    return Promise.resolve();
+  }
+  
+  // If initialized with a different database, need to close first
+  if (dbInitialized && currentDbName !== targetDbName) {
+    console.log(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
+    return resetDatabase().then(() => initDatabase(projectId, userId));
+  }
+  
   if (initPromise) return initPromise;
 
   initPromise = new Promise<void>((resolve, reject) => {
@@ -50,6 +77,7 @@ export function initDatabase(projectId?: string): Promise<void> {
       cleanup();
 
       if (ev.data?.type === 'ready') {
+        currentDbName = targetDbName;
         handleReady();
       } else if (ev.data?.type === 'error') {
         initPromise = null;
@@ -58,15 +86,61 @@ export function initDatabase(projectId?: string): Promise<void> {
     };
 
     w.addEventListener('message', handler);
-    // console.log(`Project id is ${projectId}`);
+    console.log(`[DB] Initializing database: ${targetDbName}`);
     w.postMessage({
       id: msgId,
       type: 'init',
-      payload: { dbName: projectId ? `${projectId}.db` : 'default-project.db' }
+      payload: { dbName: targetDbName }
     } as DbWorkerRequest);
   });
 
   return initPromise;
+}
+
+/**
+ * Reset the database connection.
+ * This closes the current database and allows switching to a different one.
+ */
+export async function resetDatabase(): Promise<void> {
+  if (!dbInitialized) return;
+  
+  const w = getDbWorker();
+  const msgId = Date.now() + Math.random();
+  
+  return new Promise<void>((resolve, reject) => {
+    const handler = (ev: MessageEvent) => {
+      if (ev.data?.id !== msgId) return;
+      w.removeEventListener('message', handler);
+      
+      if (ev.data?.type === 'ready' || ev.data?.type === 'closed') {
+        dbInitialized = false;
+        currentDbName = null;
+        initPromise = null;
+        console.log('[DB] Database connection reset');
+        resolve();
+      } else if (ev.data?.type === 'error') {
+        reject(new Error(ev.data.error));
+      }
+    };
+    
+    w.addEventListener('message', handler);
+    w.postMessage({ id: msgId, type: 'close' } as DbWorkerRequest);
+    
+    // Fallback: resolve after timeout in case worker doesn't respond
+    setTimeout(() => {
+      dbInitialized = false;
+      currentDbName = null;
+      initPromise = null;
+      resolve();
+    }, 500);
+  });
+}
+
+/**
+ * Get the current database name (for debugging/info).
+ */
+export function getCurrentDbName(): string | null {
+  return currentDbName;
 }
 
 export async function migrate(): Promise<void> {

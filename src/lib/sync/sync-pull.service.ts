@@ -225,7 +225,12 @@ class SyncPullService {
     const stats: SyncStats = { totalPulled: 0, totalPushed: 0, conflicts: 0, errors: 0 };
 
     try {
-      await initDatabase(projectId);
+      // Get the current user's ID for user-specific database
+      const authModule = await import('../../store/auth');
+      const authStore = authModule.useAuthStore.getState();
+      const userId = authStore.user?.id;
+      
+      await initDatabase(projectId, userId);
       const since = options?.since ?? getLastPullAt(projectId);
 
       const [nodes, contentsResponse, threadsResponse, elementsResponse, categoriesResponse] = await Promise.all([

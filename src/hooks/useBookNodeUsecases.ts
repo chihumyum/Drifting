@@ -18,8 +18,12 @@ import {
   type CreateBookNodeInput,
 } from '../usecase/book_node';
 import { initDatabase } from '../lib/db';
+import { useAuthStore, getProjectId } from '../store/auth';
 
-const PROJECT_ID = 'default-project';
+const getProjectIdForUser = () => {
+  const user = useAuthStore.getState().user;
+  return getProjectId(user?.id);
+};
 
 export function useBookNodeUsecases() {
   const store = useAppStore;
@@ -29,8 +33,8 @@ export function useBookNodeUsecases() {
     const threadRepo = new StoryThreadSQLiteRepository();
     const contentRepo = createBookContentRepository();
     depsRef.current = {
-      nodeRepo: createBookNodeSqliteRepository(PROJECT_ID),
-      edgeRepo: createBookNodeEdgeSqliteRepository(PROJECT_ID),
+      nodeRepo: createBookNodeSqliteRepository(getProjectIdForUser()),
+      edgeRepo: createBookNodeEdgeSqliteRepository(getProjectIdForUser()),
       threadRepo,
       contentRepo,
       getNodesState: () => store.getState().bookNodes,
@@ -42,7 +46,7 @@ export function useBookNodeUsecases() {
   }
 
   const deps = depsRef.current!;
-  const ensureDb = useCallback((projectId?: string) => initDatabase(projectId ?? PROJECT_ID), []);
+  const ensureDb = useCallback((projectId?: string) => initDatabase(projectId ?? getProjectIdForUser()), []);
 
   return useMemo(() => ({
     loadNodes: async (options?: { projectId?: string }) => {

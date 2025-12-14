@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
 import { useAppStore } from '../store';
+import { useAuthStore, getProjectId } from '../store/auth';
 import { events } from '../lib/events';
 
 // Thread color palette
@@ -19,6 +20,7 @@ const THREAD_COLORS = [
 
 export function AppSidebar() {
   const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
   const { createNode } = useBookNodeUsecases();
   const threadUsecases = useStoryThreadUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
@@ -53,7 +55,8 @@ export function AppSidebar() {
       
       if (!defaultThreadId) {
         // 如果没有选中 node 或选中的 node 没有 thread，随便选一个 thread
-        const allThreads = await threadUsecases.getThreadsByProject('default-project');
+        const projectId = getProjectId(user?.id);
+        const allThreads = await threadUsecases.getThreadsByProject(projectId);
         if (allThreads.length > 0) {
           defaultThreadId = allThreads[0].id;
         }
@@ -89,12 +92,14 @@ export function AppSidebar() {
 
   const handleCreateThread = async () => {
     try {
+      const projectId = getProjectId(user?.id);
+      
       // Generate random color
       const randomColor = THREAD_COLORS[Math.floor(Math.random() * THREAD_COLORS.length)];
       
       // Create new thread
       const newThread = await threadUsecases.createThread({
-        projectId: 'default-project',
+        projectId,
         name: 'New Thread',
         color: randomColor,
         summary: '',

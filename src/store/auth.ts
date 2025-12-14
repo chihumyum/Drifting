@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { authApi } from '../services/api/auth-api';
 import type { LoginDto, RegisterDto } from '../services/api/auth-api';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
+import { initDatabase, resetDatabase } from '../lib/db';
+import { events } from '../lib/events';
 
 // 用户信息类型（与后端返回一致）
 export interface User {
@@ -13,6 +15,14 @@ export interface User {
   subscriptionTier: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// 获取用户的 project ID
+export function getProjectId(userId?: string): string {
+  if (!userId) {
+    return 'default-project'; // 匿名用户
+  }
+  return `default-project-${userId}`;
 }
 
 // Auth Store 状态接口
@@ -58,15 +68,24 @@ export const useAuthStore = create<AuthState>()(
 
           console.log('[Auth] Login successful:', response.user.email);
           
-          // 登录成功后触发初始同步
-          setTimeout(async () => {
-            try {
-              const { syncPullService } = await import('../lib/sync/sync-pull.service');
-              await syncPullService.initialSync();
-            } catch (error) {
-              console.error('[Auth] Failed to trigger initial sync:', error);
-            }
-          }, 1000); // 延迟 1 秒，避免阻塞登录流程
+          // 登录成功后：切换到用户专属数据库，然后从服务器拉取数据
+          try {
+            // 1. 重置当前数据库连接
+            await resetDatabase();
+            
+            // 2. 初始化用户专属数据库
+            const projectId = getProjectId(response.user.id);
+            await initDatabase(projectId, response.user.id);
+            events.emit('db:ready');
+            
+            console.log('[Auth] User database initialized:', response.user.id);
+            
+            // 3. 从服务器拉取数据到本地数据库
+            const { syncPullService } = await import('../lib/sync/sync-pull.service');
+            await syncPullService.initialSync();
+          } catch (error) {
+            console.error('[Auth] Failed to initialize user database or sync:', error);
+          }
         } catch (error) {
           console.error('[Auth] Login failed:', error);
           throw error;
@@ -91,15 +110,20 @@ export const useAuthStore = create<AuthState>()(
 
           console.log('[Auth] Registration successful:', response.user.email);
           
-          // 注册成功后触发初始同步
-          setTimeout(async () => {
-            try {
-              const { syncPullService } = await import('../lib/sync/sync-pull.service');
-              await syncPullService.initialSync();
-            } catch (error) {
-              console.error('[Auth] Failed to trigger initial sync:', error);
-            }
-          }, 1000);
+          // 注册成功后：切换到用户专属数据库，然后从服务器拉取数据
+          try {
+            await resetDatabase();
+            const projectId = getProjectId(response.user.id);
+            await initDatabase(projectId, response.user.id);
+            events.emit('db:ready');
+            
+            console.log('[Auth] User database initialized:', response.user.id);
+            
+            const { syncPullService } = await import('../lib/sync/sync-pull.service');
+            await syncPullService.initialSync();
+          } catch (error) {
+            console.error('[Auth] Failed to initialize user database or sync:', error);
+          }
         } catch (error) {
           console.error('[Auth] Registration failed:', error);
           throw error;
@@ -107,7 +131,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // 登出
-      logout: () => {
+      logout: async () => {
         const state = get();
         
         // 调用后端登出接口（可选，失败不影响本地登出）
@@ -124,6 +148,16 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           user: null,
         });
+
+        // 重置数据库连接，切换回匿名/demo模式的数据库
+        try {
+          await resetDatabase();
+          await initDatabase(getProjectId()); // 无userId，使用匿名数据库
+          events.emit('db:ready');
+          console.log('[Auth] Switched to anonymous database');
+        } catch (error) {
+          console.error('[Auth] Failed to reset database on logout:', error);
+        }
 
         console.log('[Auth] Logout successful');
       },
