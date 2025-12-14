@@ -83,6 +83,13 @@ export const authApi = {
    * POST /api/auth/logout
    */
   async logout(): Promise<void> {
-    await axios.post(`${BASE_URL}/api/auth/logout`);
+    try {
+      await axios.post(`${BASE_URL}/api/auth/logout`);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // Backend may not implement this endpoint; treat as a no-op.
+      if (status === 404) return;
+      throw error;
+    }
   },
 };
