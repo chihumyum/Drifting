@@ -419,6 +419,46 @@ export class SyncManager {
    */
   private async executeElementTask(task: SyncTask, elementsApi: typeof import('../../services/api/elements-api').elementsApi): Promise<void> {
     const projectId = task.projectId!;
+
+    const getErrorStatus = (error: unknown): number | undefined => {
+      if (!error || typeof error !== 'object') return undefined;
+      const maybeAny = error as { response?: { status?: unknown } };
+      const status = maybeAny.response?.status;
+      return typeof status === 'number' ? status : undefined;
+    };
+
+    const createFromLocalIfPossible = async (): Promise<boolean> => {
+      const { createBookElementSqliteRepository } = await import('../../repositories/book_element_sqlite');
+      const localRepo = createBookElementSqliteRepository(projectId);
+      const local = await localRepo.findById(task.localId);
+      if (!local) return false;
+
+      const description = (() => {
+        try {
+          const parsed = local.summary_json ? JSON.parse(local.summary_json) : undefined;
+          return typeof parsed?.description === 'string' ? parsed.description : undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
+      const metadata = (() => {
+        try {
+          return local.content_json ? JSON.parse(local.content_json) : undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
+      await elementsApi.create(projectId, {
+        id: local.id,
+        name: local.name,
+        categoryName: local.category ?? undefined,
+        description,
+        metadata,
+      });
+      return true;
+    };
     
     switch (task.type) {
       case 'create':
@@ -433,14 +473,30 @@ export class SyncManager {
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/elements-api').UpdateElementDto;
-          await elementsApi.update(projectId, task.localId, updateData);
+          try {
+            await elementsApi.update(projectId, task.localId, updateData);
+          } catch (error) {
+            const status = getErrorStatus(error);
+            if (status === 404) {
+              // Local-first: if server doesn't have the element yet (seeded locally / lost create), create it from local state.
+              const created = await createFromLocalIfPossible();
+              if (created) return;
+            }
+            throw error;
+          }
         } else {
           throw new Error('Invalid element data for update');
         }
         break;
       
       case 'delete':
-        await elementsApi.delete(projectId, task.localId);
+        try {
+          await elementsApi.delete(projectId, task.localId);
+        } catch (error) {
+          const status = getErrorStatus(error);
+          // Idempotent delete: if already missing on server, treat as success.
+          if (status !== 404) throw error;
+        }
         break;
     }
     
