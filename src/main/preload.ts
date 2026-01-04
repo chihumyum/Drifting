@@ -1,0 +1,37 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electronAPI', {
+  // App info
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),
+
+  // Database operations
+  db: {
+    init: (dbName: string) => ipcRenderer.invoke('db:init', dbName),
+    run: (sql: string, params?: any[]) => ipcRenderer.invoke('db:run', sql, params),
+    query: (sql: string, params?: any[]) => ipcRenderer.invoke('db:query', sql, params),
+    get: (sql: string, params?: any[]) => ipcRenderer.invoke('db:get', sql, params),
+    close: () => ipcRenderer.invoke('db:close'),
+  },
+});
+
+// Type definitions for TypeScript
+export interface ElectronAPI {
+  getVersion: () => Promise<string>;
+  getPath: (name: string) => Promise<string>;
+  db: {
+    init: (dbName: string) => Promise<void>;
+    run: (sql: string, params?: any[]) => Promise<{ changes: number; lastInsertRowid: number }>;
+    query: (sql: string, params?: any[]) => Promise<any[]>;
+    get: (sql: string, params?: any[]) => Promise<any | undefined>;
+    close: () => Promise<void>;
+  };
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
