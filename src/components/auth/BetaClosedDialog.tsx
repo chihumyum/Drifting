@@ -26,7 +26,7 @@ export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
         </div>
         <div className="space-y-2">
           <h3 id="beta-dialog-title" className="text-lg font-semibold text-slate-900">
-            Drifting 正在内测
+            Drifting 正在开发中
           </h3>
           <p id="beta-dialog-description" className="text-sm leading-relaxed text-slate-500">
             我们尚未开放新的注册与登录。请留下您的信息或关注后续通知，感谢您的期待与支持。

@@ -1,6 +1,6 @@
 export const isAppClosedForPublic = import.meta.env.MODE === 'production';
 
-export const APP_CLOSED_MESSAGE = 'Drifting 正在内测，暂未开放测试，敬请期待。';
+export const APP_CLOSED_MESSAGE = 'Drifting 仍在开发中，敬请期待内测。';
 
 export function withClosedBetaGuard<T>(action: () => Promise<T> | T): Promise<T> | T {
   if (isAppClosedForPublic) {
