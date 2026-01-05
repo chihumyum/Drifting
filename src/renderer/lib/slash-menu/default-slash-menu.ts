@@ -22,6 +22,22 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
     decorationClass: 'tiptap-slash-decoration',
     items: ({ query, editor: ed }: Parameters<NonNullable<SuggestionOptions['items']>>[0]) => {
       const all = [
+        { 
+          id: 'paragraph', 
+          title: '正文', 
+          run: () => {
+            // 清除格式但保留 elementLink
+            ed.chain()
+              .focus()
+              .clearNodes() // 清除节点格式（heading, blockquote等）
+              .unsetBold() // 清除粗体
+              .unsetItalic() // 清除斜体
+              .unsetStrike() // 清除删除线（如果有）
+              .unsetCode() // 清除行内代码（如果有）
+              .setParagraph() // 设置为段落
+              .run()
+          }
+        },
         { id: 'h1', title: '一级标题', run: () => ed.chain().focus().setNode('heading', { level: 1 }).run() },
         { id: 'h2', title: '二级标题', run: () => ed.chain().focus().setNode('heading', { level: 2 }).run() },
         { id: 'h3', title: '三级标题', run: () => ed.chain().focus().setNode('heading', { level: 3 }).run() },
