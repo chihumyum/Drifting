@@ -91,3 +91,45 @@ button,
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Element Link Styles - 持久化的元素链接 */
+.element-link {
+  color: #3b82f6;
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  border-radius: 2px;
+  padding: 0 2px;
+  transition: all 0.2s;
+}
+
+.element-link:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  text-decoration-thickness: 2px;
+}
+
+/* Category-specific colors */
+.element-link-character {
+  color: #10b981;
+}
+
+.element-link-character:hover {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.element-link-location {
+  color: #8b5cf6;
+}
+
+.element-link-location:hover {
+  background-color: rgba(139, 92, 246, 0.1);
+}
+
+.element-link-item {
+  color: #f59e0b;
+}
+
+.element-link-item:hover {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+

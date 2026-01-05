@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -13,10 +13,13 @@ import { useBookContentUsecases } from '../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import type { BookNode } from '../domain/book_node';
 import { EditorMenuBar } from '../components/EditorMenuBar';
-import { RightVerticalButtons } from '../components/RightVerticalButtons';
 import { TitleSummaryBubble } from '../components/TitleSummaryBubble';
 import { TagEditor } from '../components/TagEditor';
 import { EditorContextMenu } from '../components/EditorContextMenu';
+import { EditorTopBar } from '../components/EditorTopBar';
+import { ElementAutoLink, elementAutoLinkConfig } from '../lib/extensions/element-auto-link';
+import { ElementParserService } from '../services/element-parser.service';
+import { ElementOccurrenceRepository } from '../repositories/element-occurrence.repository';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -34,6 +37,8 @@ export function NodeEditorView() {
     setSelectedNodeId,
     bookContent,
     bookNodes,
+    bookElements,
+    autoElementLinkEnabled,
   } = useAppStore();
 
   const { loadContent, updateContent, newContent } = useBookContentUsecases();
@@ -46,6 +51,65 @@ export function NodeEditorView() {
 
   const isContentLoadedRef = useRef(false);
   const loadedNodeIdRef = useRef<string | null>(null);
+  const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 构建元素名称映射表，用于自动链接
+  const elementNamesMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; category: string }>();
+    bookElements.forEach((element) => {
+      map.set(element.name, {
+        id: element.id,
+        name: element.name,
+        category: element.category,
+      });
+    });
+    return map;
+  }, [bookElements]);
+
+  // 去抖解析元素出现位置
+  const parseAndSaveElementOccurrences = useCallback(
+    (content: JSONContent) => {
+      if (!autoElementLinkEnabled || !nodeId) return;
+
+      // 清除之前的定时器
+      if (parseTimeoutRef.current) {
+        clearTimeout(parseTimeoutRef.current);
+      }
+
+      // 设置新的定时器（1秒去抖）
+      parseTimeoutRef.current = setTimeout(async () => {
+        try {
+          // 解析内容中的元素匹配
+          const matches = ElementParserService.parseElementsFromContent(
+            content,
+            bookElements
+          );
+
+          // 保存到数据库（通过 IPC）
+          const repo = new ElementOccurrenceRepository();
+          await repo.saveOccurrencesForNode(
+            nodeId,
+            matches.map((m) => ({
+              elementId: m.elementId,
+              matches: m.matches,
+            }))
+          );
+          console.log(`Saved ${matches.length} element occurrences for node ${nodeId}`);
+        } catch (error) {
+          console.error('Failed to parse and save element occurrences:', error);
+        }
+      }, 1000);
+    },
+    [autoElementLinkEnabled, nodeId, bookElements]
+  );
+
+  // 点击元素链接时的处理
+  const handleElementClick = useCallback(
+    (elementId: string) => {
+      navigate(`/element/${elementId}`);
+    },
+    [navigate]
+  );
 
   // Load nodes on mount if not already loaded
   useEffect(() => {
@@ -127,6 +191,11 @@ export function NodeEditorView() {
         defaultAlignment: 'left',
       }),
       createDefaultSlashMenu(),
+      ElementAutoLink.configure({
+        elementNames: elementNamesMap,
+        autoDetectEnabled: autoElementLinkEnabled,
+        onClick: handleElementClick,
+      }),
     ],
     content: getDefaultDoc(),
     autofocus: 'end', // Focus at the end instead of selecting all
@@ -151,6 +220,9 @@ export function NodeEditorView() {
       const outline = extractOutline(pmJson);
       const outlineJson = serializeOutline(outline);
       
+      // 解析并保存元素出现位置（去抖）
+      parseAndSaveElementOccurrences(json);
+      
       // If content exists, update it
       if (bookContent && bookContent.id) {
         void updateContent({
@@ -166,6 +238,18 @@ export function NodeEditorView() {
       }
     },
   });
+
+  // 动态更新 ElementAutoLink 共享配置
+  useEffect(() => {
+    // 直接修改共享配置对象
+    elementAutoLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
+    elementAutoLinkConfig.elementNames = elementNamesMap;
+    
+    console.log('[NodeEditorView] Updated elementAutoLinkConfig:', {
+      autoDetectEnabled: autoElementLinkEnabled,
+      elementNamesCount: elementNamesMap.size,
+    });
+  }, [autoElementLinkEnabled, elementNamesMap]);
 
   // initial load, set book content into editor ONLY when nodeId changes
   useEffect(() => {
@@ -236,7 +320,7 @@ export function NodeEditorView() {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fefdfb', // 使用温和的纸张色
+        background: '#fefdfb',
         overflow: 'hidden',
       }}
     >
@@ -461,8 +545,6 @@ export function NodeEditorView() {
         {nodeId && <TagEditor type="node" entityId={nodeId} />}
       </div>
       
-      {/* Right Vertical Utility Buttons */}
-      <RightVerticalButtons />
     </div>
   );
 }

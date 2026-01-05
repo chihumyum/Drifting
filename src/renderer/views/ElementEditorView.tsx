@@ -11,9 +11,9 @@ import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElement } from '../domain/book_element';
 import { EditorMenuBar } from '../components/EditorMenuBar';
-import { RightVerticalButtons } from '../components/RightVerticalButtons';
 import { TagEditor } from '../components/TagEditor';
 import { EditorContextMenu } from '../components/EditorContextMenu';
+import { BacklinksPanel } from '../components/BacklinksPanel';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -499,6 +499,13 @@ export function ElementEditorView() {
             <TagEditor type="element" entityId={elementId} />
           </div>
         </div>
+
+        {/* Backlinks Panel */}
+        {elementId && (
+          <div className="mt-4">
+            <BacklinksPanel elementId={elementId} />
+          </div>
+        )}
       </div>
 
       {/* Editor Content */}
@@ -520,7 +527,6 @@ export function ElementEditorView() {
       />
       
       {/* Right Vertical Buttons */}
-      <RightVerticalButtons />
     </div>
   );
 }

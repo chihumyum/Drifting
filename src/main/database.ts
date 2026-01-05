@@ -280,6 +280,19 @@ CREATE TABLE IF NOT EXISTS chapter_element_stage (
   PRIMARY KEY(chapter_id, element_stage_id),
   FOREIGN KEY(element_stage_id) REFERENCES element_stage(id) ON DELETE CASCADE
 );
+
+-- Element occurrence inside text blocks (for auto-linking)
+CREATE TABLE IF NOT EXISTS element_occurrence (
+  id TEXT PRIMARY KEY,
+  element_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  block_id TEXT NOT NULL,
+  spans_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
+CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
   `);
 
   // Insert default project if not exists
@@ -314,6 +327,28 @@ CREATE TABLE IF NOT EXISTS chapter_element_stage (
       'others',
       JSON.stringify({ description: 'Default category' }),
       '#CCCCCC',
+      'synced',
+      Date.now(),
+      0
+    );
+  }
+
+  // Insert default story thread if not exists
+  const defaultThread = db.prepare('SELECT id FROM story_thread WHERE id = ?').get('thread_main');
+  
+  if (!defaultThread) {
+    console.log('[Database] Creating default story thread');
+    db.prepare(`
+      INSERT INTO story_thread (id, project_id, name, color, summary, created_at, updated_at, sync_status, last_modified, is_deleted)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'thread_main',
+      'default-project',
+      'Main Story',
+      '#3B82F6',
+      'Main storyline',
+      now,
+      now,
       'synced',
       Date.now(),
       0

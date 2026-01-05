@@ -12,6 +12,8 @@ import { TimelineChapters } from './components/TimelineChapters';
 import { BackButton } from './components/BackButton';
 import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { SidebarTopBar } from './components/SidebarTopBar';
+import { MainTopBar } from './components/MainTopBar';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
 
@@ -72,8 +74,11 @@ function Layout() {
             overflow: 'visible',
           }}
         >
-          {/* App Menu Section - Fixed height */}
-          <div style={{ height: 120, flexShrink: 0 }}>
+          {/* 侧栏 TopBar - 第一段 */}
+          <SidebarTopBar />
+          
+          {/* App Menu Section */}
+          <div style={{ flexShrink: 0 }}>
             <AppSidebar />
           </div>
 
@@ -95,10 +100,24 @@ function Layout() {
             position: 'relative',
             overflow: 'hidden',
             background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <BackButton />
-          <Outlet />
+          {/* 主区域 TopBar - 第二段（可拖拽） */}
+          <MainTopBar>
+            {/* 这里可以放面包屑或标题 */}
+          </MainTopBar>
+          
+          {/* 内容区域 */}
+          <div style={{
+            flex: 1,
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <BackButton />
+            <Outlet />
+          </div>
         </main>
       </div>
 

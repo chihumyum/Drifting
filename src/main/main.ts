@@ -18,6 +18,12 @@ const createWindow = () => {
     minWidth: 1000,
     minHeight: 700,
     title: 'Drifting',
+    // 自定义窗口栏配置
+    titleBarStyle: 'hiddenInset', // macOS: 隐藏标题栏但保留交通灯按钮
+    // titleBarStyle: 'hidden', // 完全隐藏标题栏（包括交通灯）
+    trafficLightPosition: { x: 16, y: 16 }, // macOS 交通灯按钮位置
+    frame: process.platform !== 'darwin', // 非 macOS 显示边框
+    // frame: false, // 如果要在所有平台完全无边框，取消注释这行
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -77,6 +83,27 @@ ipcMain.handle('app:getVersion', () => {
 
 ipcMain.handle('app:getPath', (_event, name: 'home' | 'appData' | 'userData' | 'temp' | 'documents') => {
   return app.getPath(name);
+});
+
+// Window control handlers
+ipcMain.handle('window:minimize', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.handle('window:toggleMaximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow?.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+
+ipcMain.handle('window:close', () => {
+  mainWindow?.close();
+});
+
+ipcMain.handle('window:isMaximized', () => {
+  return mainWindow?.isMaximized() ?? false;
 });
 
 // Prevent multiple instances

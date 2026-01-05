@@ -21,7 +21,7 @@ const THREAD_COLORS = [
 export function AppSidebar() {
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
-  const { createNode } = useBookNodeUsecases();
+  const { createNode, loadNodes } = useBookNodeUsecases();
   const threadUsecases = useStoryThreadUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
   const selectedNodeId = useAppStore(state => state.selectedNodeId);
@@ -29,10 +29,13 @@ export function AppSidebar() {
   const handleCreateChapter = async () => {
     try {
       // Find the maximum end position among all nodes
-      const maxEnd = bookNodes.reduce((max, node) => {
-        const nodeEnd = node.end ?? node.start;
-        return Math.max(max, nodeEnd);
-      }, 0);
+      // If no nodes exist, start from position 1
+      const maxEnd = bookNodes.length > 0 
+        ? bookNodes.reduce((max, node) => {
+            const nodeEnd = node.end ?? node.start;
+            return Math.max(max, nodeEnd);
+          }, 0)
+        : 0; // Start from 0 so first node begins at 1
       const newStart = maxEnd + 1;
       const newEnd = newStart + 10; // Default chapter length
       
@@ -66,6 +69,9 @@ export function AppSidebar() {
       if (defaultThreadId) {
         await threadUsecases.addNodeToThread(newNode.id, defaultThreadId);
       }
+      
+      // Reload nodes to ensure timeline picks up the new node with its thread relationship
+      await loadNodes();
       
       // 设置为选中状态
       useAppStore.getState().setSelectedNodeId(newNode.id);
@@ -112,6 +118,10 @@ export function AppSidebar() {
     }
   };
 
+  const handleOpenSettings = () => {
+    events.emit('settings:open');
+  };
+
   return (
     <div
       style={{
@@ -120,53 +130,9 @@ export function AppSidebar() {
         gridTemplateColumns: '1fr 1fr',
         gap: '1px',
         background: 'rgba(213, 213, 213, 0.2)',
+        padding: '8px',
       }}
     >
-      {/* Left Column - Settings Button */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '16px 8px',
-        background: 'transparent',
-      }}>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <button
-            onClick={() => events.emit('settings:open')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '10px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'transparent',
-              color: '#000000b1',
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(234, 168, 102, 0.15)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-            title="Settings"
-          >
-            <Settings size={18} />
-          </button>
-        </nav>
-      </div>
-
-      {/* Right Column - Action Buttons */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '16px 8px',
-        gap: '8px',
-        background: 'transparent',
-      }}>
         <button
           onClick={handleCreateChapter}
           className="bg-accent hover:bg-accent-hover text-paper transition-colors"
@@ -175,7 +141,7 @@ export function AppSidebar() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            padding: '10px 12px',
+            padding: '12px',
             borderRadius: '8px',
             border: 'none',
             color: 'rgba(0, 0, 0, 0.75)',
@@ -206,7 +172,7 @@ export function AppSidebar() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            padding: '10px 12px',
+            padding: '12px',
             borderRadius: '8px',
             border: 'none',
             color: 'rgba(0, 0, 0, 0.75)',
@@ -229,6 +195,6 @@ export function AppSidebar() {
           <span>Thread</span>
         </button>
       </div>
-    </div>
   );
 }
+

@@ -7,6 +7,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),
 
+  // Window controls
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  },
+
   // Database operations
   db: {
     init: (dbName: string) => ipcRenderer.invoke('db:init', dbName),
@@ -21,6 +29,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 export interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPath: (name: string) => Promise<string>;
+  window: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<void>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+  };
   db: {
     init: (dbName: string) => Promise<void>;
     run: (sql: string, params?: any[]) => Promise<{ changes: number; lastInsertRowid: number }>;

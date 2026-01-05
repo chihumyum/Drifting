@@ -6,8 +6,11 @@ import { useState, useEffect } from 'react';
 interface EditorMenuBarProps {
   editor: Editor | null;
 }
-
+// 暂时不要这个
 export function EditorMenuBar({ editor }: EditorMenuBarProps) {
+  return <div></div>
+}
+export function EditorMenuBarOld({ editor }: EditorMenuBarProps) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('editorMenuBarCollapsed');
     return saved === 'true';

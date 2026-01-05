@@ -73,7 +73,13 @@ type JobsSlice = {
   setJobResult: (jobId: string, result: unknown) => void;
 };
 
-export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookContentSlice & BookNodeSlice & JobsSlice;
+type SettingsSlice = {
+  // 自动元素链接功能开关
+  autoElementLinkEnabled: boolean;
+  setAutoElementLinkEnabled: (enabled: boolean) => void;
+};
+
+export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookContentSlice & BookNodeSlice & JobsSlice & SettingsSlice;
 
 
 export const useAppStore = create<AppState>((set) => ({
@@ -163,4 +169,8 @@ export const useAppStore = create<AppState>((set) => ({
   setJobResult: (jobId, result) => set((state) => ({
     jobResults: { ...state.jobResults, [jobId]: result }
   })),
+
+  // Settings
+  autoElementLinkEnabled: true, // 默认开启
+  setAutoElementLinkEnabled: (enabled) => set({ autoElementLinkEnabled: enabled }),
 }));

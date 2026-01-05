@@ -297,9 +297,8 @@ export function TimelineChapters() {
       }
     }
     
-    if (bookNodes.length > 0) {
-      loadData();
-    }
+    // Always load threads, even if there are no nodes yet
+    loadData();
   }, [bookNodes, threadUsecases, user]);
 
   // Load outlines for all nodes

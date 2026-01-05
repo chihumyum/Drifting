@@ -3,6 +3,7 @@ import { X, Bug } from 'lucide-react';
 import { applyAccentColor } from '../../lib/theme';
 import { DebugModal } from './DebugModal';
 import { APP_CONFIG } from '../../lib/config';
+import { EditorSettings } from '../EditorSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ const ACCENT_COLORS: AccentColorOption[] = [
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [selectedColor, setSelectedColor] = useState<string>('brown');
-  const [activeTab, setActiveTab] = useState<'appearance' | 'advanced'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced'>('appearance');
   const [showDebugModal, setShowDebugModal] = useState(false);
 
   useEffect(() => {
@@ -230,6 +231,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <span>Appearance</span>
             </button>
             <button
+              onClick={() => setActiveTab('editor')}
+              style={{
+                width: '100%',
+                padding: '10px 24px',
+                textAlign: 'left',
+                border: 'none',
+                background: activeTab === 'editor' ? '#fefdfb' : 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: activeTab === 'editor' ? '#2a1a0a' : '#5a4a3a',
+                fontWeight: activeTab === 'editor' ? 600 : 400,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderLeft: activeTab === 'editor' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+              }}
+            >
+              <span>✏️</span>
+              <span>Editor</span>
+            </button>
+            <button
               onClick={() => setActiveTab('advanced')}
               style={{
                 width: '100%',
@@ -274,6 +296,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               }}
             >
               {activeTab === 'appearance' && 'Appearance'}
+              {activeTab === 'editor' && 'Editor Settings'}
               {activeTab === 'account' && 'Account Settings'}
               {activeTab === 'advanced' && 'Advanced'}
             </h3>
@@ -437,6 +460,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     Adjust the default font size for the editor. (Coming soon)
                   </p>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'editor' && (
+              <div>
+                <EditorSettings />
               </div>
             )}
 
