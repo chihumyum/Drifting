@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { BookElement, BookElementCategory } from '../domain/book_element';
 import type { BookNode, BookNodeEdge } from '../domain/book_node';
 import type { BookContent } from '../domain/book_content';
+import type { Storyline } from '../domain/storyline';
 
 type UiSlice = {
   theme: 'light' | 'dark';
@@ -17,10 +18,14 @@ type UiSlice = {
   rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai';
   setRightPanelOpen: (isOpen: boolean) => void;
   setRightPanelType: (rightPanelType: 'snippet' | 'todo' | 'statistics' | 'format' | 'ai') => void;
-  
+
   // Timeline 高度状态
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
+
+  // Graph View
+  isGraphViewOpen: boolean;
+  setGraphViewOpen: (isOpen: boolean) => void;
 };
 
 type SelectionSlice = {
@@ -35,7 +40,7 @@ type SelectionSlice = {
   setSelectedElement: (element: BookElement | null) => void;
   setSelectedElementCategory: (category: BookElementCategory | null) => void;
   setMultiSelectedNodeIds: (ids: string[]) => void;
-  
+
   clearSelection: () => void;
 };
 
@@ -47,6 +52,14 @@ type BookNodeSlice = {
   updateBookNode: (id: string, updates: Partial<BookNode>) => void;
   removeBookNode: (id: string) => void;
   setNodeEdges: (edges: BookNodeEdge[]) => void;
+};
+
+type StorylineSlice = {
+  storylines: Storyline[];
+  // Map of storyline ID -> Ordered list of Node IDs
+  storylineNodeMapping: Record<string, string[]>;
+  setStorylines: (storylines: Storyline[]) => void;
+  setStorylineNodeMapping: (mapping: Record<string, string[]>) => void;
 };
 
 type BookContentSlice = { // book content 根据当前的 node Id拿
@@ -79,7 +92,7 @@ type SettingsSlice = {
   setAutoElementLinkEnabled: (enabled: boolean) => void;
 };
 
-export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookContentSlice & BookNodeSlice & JobsSlice & SettingsSlice;
+export type AppState = UiSlice & SelectionSlice & BookElementSlice & BookContentSlice & BookNodeSlice & StorylineSlice & JobsSlice & SettingsSlice;
 
 
 export const useAppStore = create<AppState>((set) => ({
@@ -95,10 +108,14 @@ export const useAppStore = create<AppState>((set) => ({
   setBookElementPanelOpen: (open) => set({ elementPanelOpen: open }),
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setRightPanelType: (type) => set({ rightPanelType: type }),
-  
+
   // Timeline 高度
   timelineHeight: 30, // 默认高度（假设3个 storylines，收起状态）
   setTimelineHeight: (height) => set({ timelineHeight: height }),
+
+  // Graph View
+  isGraphViewOpen: false,
+  setGraphViewOpen: (isOpen) => set({ isGraphViewOpen: isOpen }),
 
 
   selectedNodeId: null,
@@ -150,6 +167,10 @@ export const useAppStore = create<AppState>((set) => ({
   removeBookNode: (id) => set((state) => ({ bookNodes: state.bookNodes.filter((node) => node.id !== id) })),
   setNodeEdges: (edges) => set({ nodeEdges: edges }),
 
+  storylines: [],
+  storylineNodeMapping: {},
+  setStorylines: (storylines) => set({ storylines }),
+  setStorylineNodeMapping: (mapping) => set({ storylineNodeMapping: mapping }),
 
   runningJobs: [],
   completedJobs: [],

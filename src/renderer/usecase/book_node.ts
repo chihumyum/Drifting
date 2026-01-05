@@ -96,7 +96,10 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
     end: input.end ?? null,
     summary: input.summary ?? null,
     storyStageId: input.storyStageId ?? null,
-    position: input.position,
+    position: input.position ?? {
+      x: (Math.random() - 0.5) * 600,
+      y: (Math.random() - 0.5) * 600,
+    },
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   });
@@ -106,7 +109,7 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
     type: 'doc',
     content: [],
   });
-  
+
   try {
     await deps.contentRepo.create({
       id: uuidv7(),
@@ -264,4 +267,11 @@ async function deleteBookNode(deps: BookNodeUsecaseDeps, id: string) {
     deps.setNodesState(prevNodes);
     throw error;
   }
+}
+
+export async function updateBookNodeEdge(deps: BookNodeUsecaseDeps, id: string, updates: Partial<BookNodeEdge>) {
+  const now = getNow(deps).toISOString();
+  // TODO: Add optimistic update for edges in BookNodeUsecaseDeps?
+  const result = await deps.edgeRepo.update(id, { ...updates, updatedAt: now });
+  return result;
 }

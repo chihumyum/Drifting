@@ -28,6 +28,8 @@ export interface NodeEdgeRecord {
   kind: NodeEdgeKind;
   label?: string | null;
   weight: number;
+  style?: string; // JSON
+  data?: string; // JSON
   created_at: string;
   updated_at: string;
 }

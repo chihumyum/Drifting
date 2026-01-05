@@ -33,7 +33,19 @@ export interface BookNodeEdge {
   kind: NodeEdgeKind;
   label: string | null;
   weight: number;
+  isDirected?: boolean; // Default true if undefined
   createdAt: string;
+  // Freeform Styling & Geometry
+  style?: {
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+    strokeDasharray?: string;
+    filter?: string;
+  };
+  controlPointOffset?: { x: number; y: number }; // Offset from the midpoint for curvature
+  sourceAnchor?: { x: number; y: number }; // Relative to node top-left
+  targetAnchor?: { x: number; y: number }; // Relative to node top-left
 }
 
 export interface BookNodeElementLink {

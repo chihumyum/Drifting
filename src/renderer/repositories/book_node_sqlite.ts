@@ -7,6 +7,7 @@ import type {
   BookNodeCreateData,
   BookNodeUpdateData,
   BookNodeEdgeCreateData,
+  BookNodeEdgeUpdateData,
 } from './book_node';
 
 type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';
@@ -90,7 +91,7 @@ const updateNodeRecord = async (record: BookNodeRecord, metadata?: Partial<SyncM
 
 const insertEdgeRecord = async (record: NodeEdgeRecord) => {
   await run(
-    `INSERT INTO node_edge (id, project_id, src_node_id, dst_node_id, kind, label, weight, created_at, updated_at)
+    `INSERT INTO node_edge (id, project_id, src_node_id, dst_node_id, kind, label, weight, style, data, created_at, updated_at)
      VALUES (
        '${esc(record.id)}',
        '${esc(record.project_id)}',
@@ -99,9 +100,27 @@ const insertEdgeRecord = async (record: NodeEdgeRecord) => {
        '${esc(record.kind)}',
        ${record.label ? `'${esc(record.label)}'` : 'NULL'},
        ${record.weight},
+       ${record.style ? `'${esc(record.style)}'` : 'NULL'},
+       ${record.data ? `'${esc(record.data)}'` : 'NULL'},
        '${esc(record.created_at)}',
        '${esc(record.updated_at)}'
      )`,
+  );
+};
+
+const updateEdgeRecord = async (record: NodeEdgeRecord) => {
+  await run(
+    `UPDATE node_edge SET
+       project_id='${esc(record.project_id)}',
+       src_node_id='${esc(record.src_node_id)}',
+       dst_node_id='${esc(record.dst_node_id)}',
+       kind='${esc(record.kind)}',
+       label=${record.label ? `'${esc(record.label)}'` : 'NULL'},
+       weight=${record.weight},
+       style=${record.style ? `'${esc(record.style)}'` : 'NULL'},
+       data=${record.data ? `'${esc(record.data)}'` : 'NULL'},
+       updated_at='${esc(record.updated_at)}'
+     WHERE id='${esc(record.id)}'`
   );
 };
 
@@ -271,12 +290,74 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
         kind: data.kind ?? 'chronology',
         label: data.label ?? null,
         weight: data.weight ?? 1,
+        style: data.style ? JSON.stringify(data.style) : undefined,
+        data: (data.controlPointOffset || data.sourceAnchor || data.targetAnchor) ? JSON.stringify({
+          controlPointOffset: data.controlPointOffset,
+          sourceAnchor: data.sourceAnchor,
+          targetAnchor: data.targetAnchor
+        }) : undefined,
         created_at: data.createdAt ?? nowIso,
         updated_at: data.updatedAt ?? nowIso,
       };
 
       await insertEdgeRecord(record);
       return toBookNodeEdge(record);
+    },
+
+    async update(id: string, updates: BookNodeEdgeUpdateData) {
+      const rows = await query<NodeEdgeRecord>(`SELECT * FROM node_edge WHERE id='${esc(id)}' LIMIT 1`);
+      const existingRecord = rows[0];
+      if (!existingRecord) return null;
+
+      const existingEdge = toBookNodeEdge(existingRecord);
+
+      const geometricData = (updates.controlPointOffset || updates.sourceAnchor || updates.targetAnchor) ? {
+        controlPointOffset: updates.controlPointOffset ?? existingEdge.controlPointOffset,
+        sourceAnchor: updates.sourceAnchor ?? existingEdge.sourceAnchor,
+        targetAnchor: updates.targetAnchor ?? existingEdge.targetAnchor
+      } : (existingRecord.data ? JSON.parse(existingRecord.data) : {});
+
+      // If style is updated, merge or replace? Let's replace for now based on input interface usually taking full object or partial merge.
+      // But here input style is BookNodeEdge['style'] which is the whole object.
+      // If we want merge, we need to do it here. Let's assume input provides the new state for that field if present.
+
+      const nextEdge: BookNodeEdge = {
+        id: existingEdge.id,
+        projectId: updates.projectId ?? existingEdge.projectId,
+        sourceNodeId: updates.sourceNodeId ?? existingEdge.sourceNodeId,
+        targetNodeId: updates.targetNodeId ?? existingEdge.targetNodeId,
+        kind: updates.kind ?? existingEdge.kind,
+        label: updates.label !== undefined ? updates.label : existingEdge.label,
+        weight: updates.weight ?? existingEdge.weight,
+        style: updates.style ?? existingEdge.style,
+        controlPointOffset: geometricData.controlPointOffset,
+        sourceAnchor: geometricData.sourceAnchor,
+        targetAnchor: geometricData.targetAnchor,
+        createdAt: existingEdge.createdAt,
+        // updatedAt: updates.updatedAt ?? new Date().toISOString()
+      };
+
+      const nowIso = new Date().toISOString();
+      const record: NodeEdgeRecord = {
+        id: nextEdge.id,
+        project_id: nextEdge.projectId,
+        src_node_id: nextEdge.sourceNodeId,
+        dst_node_id: nextEdge.targetNodeId,
+        kind: nextEdge.kind,
+        label: nextEdge.label,
+        weight: nextEdge.weight,
+        style: nextEdge.style ? JSON.stringify(nextEdge.style) : undefined,
+        data: JSON.stringify({
+          controlPointOffset: nextEdge.controlPointOffset,
+          sourceAnchor: nextEdge.sourceAnchor,
+          targetAnchor: nextEdge.targetAnchor
+        }),
+        created_at: nextEdge.createdAt,
+        updated_at: updates.updatedAt ?? nowIso
+      };
+
+      await updateEdgeRecord(record);
+      return nextEdge;
     },
 
     async delete(id: string) {
@@ -321,6 +402,7 @@ function fromBookNode(node: BookNode): BookNodeRecord {
 }
 
 function toBookNodeEdge(record: NodeEdgeRecord): BookNodeEdge {
+  const geometricData = record.data ? JSON.parse(record.data) : {};
   return {
     id: record.id,
     projectId: record.project_id,
@@ -329,6 +411,10 @@ function toBookNodeEdge(record: NodeEdgeRecord): BookNodeEdge {
     kind: record.kind,
     label: record.label ?? null,
     weight: record.weight,
+    style: record.style ? JSON.parse(record.style) : undefined,
+    controlPointOffset: geometricData.controlPointOffset,
+    sourceAnchor: geometricData.sourceAnchor,
+    targetAnchor: geometricData.targetAnchor,
     createdAt: record.created_at,
   };
 }

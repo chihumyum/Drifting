@@ -4,6 +4,7 @@ import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
+import { GraphView } from './views/GraphView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/ElementPanel';
@@ -23,17 +24,17 @@ function Layout() {
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const timelineHeight = useAppStore((state) => state.timelineHeight);
-  
+
   useEffect(() => {
     // Initialize theme
     initAccentColor();
-    
+
     // Initialize database in local-only mode (Electron/Obsidian style)
     // Always use anonymous/local database for better offline experience
     const projectId = DEFAULT_PROJECT.id;
-    
+
     console.log('[App] Initializing local database (offline-first mode)');
-    
+
     initDatabase(projectId).then(() => {
       events.emit('db:ready');
       console.log('[App] Local database ready');
@@ -51,6 +52,23 @@ function Layout() {
       events.off('settings:open', handleOpenSettings);
     };
   }, []);
+
+  // Global Shortcut for Graph View (Cmd + Shift + \)
+  const isGraphViewOpen = useAppStore((state) => state.isGraphViewOpen);
+  const setGraphViewOpen = useAppStore((state) => state.setGraphViewOpen);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd + Shift + \ (Backslash)
+      if (e.metaKey && e.shiftKey && e.code === 'Backslash') {
+        e.preventDefault();
+        setGraphViewOpen(!isGraphViewOpen);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isGraphViewOpen, setGraphViewOpen]);
 
   return (
     <div style={{ height: '100vh', overflow: 'hidden', background: 'rgba(251, 249, 243, 1)' }}>
@@ -76,14 +94,14 @@ function Layout() {
         >
           {/* 侧栏 TopBar - 第一段 */}
           <SidebarTopBar />
-          
+
           {/* App Menu Section */}
           <div style={{ flexShrink: 0 }}>
             <AppSidebar />
           </div>
 
           {/* Element Panel Section - Remaining space */}
-          <div style={{ 
+          <div style={{
             flex: 1,
             minHeight: 0,
             borderTop: '1px solid rgba(145, 145, 145, 0.25)',
@@ -108,7 +126,7 @@ function Layout() {
           <MainTopBar>
             {/* 这里可以放面包屑或标题 */}
           </MainTopBar>
-          
+
           {/* 内容区域 */}
           <div style={{
             flex: 1,
@@ -123,6 +141,9 @@ function Layout() {
 
       {/* Timeline Chapters - Fixed at bottom, full width */}
       <TimelineChapters />
+
+      {/* Graph View Overlay */}
+      {isGraphViewOpen && <GraphView />}
 
       {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />

@@ -19,4 +19,4 @@ export interface NodeStorylineRecord {
   storyline_id: string;
   storyline_order: number; // Determines which storyline is primary for a node (0 = primary)
 }
-}
+

@@ -35,7 +35,25 @@ export interface BookNodeEdgeCreateData {
   kind?: BookNodeEdge['kind'];
   label?: string | null;
   weight?: number;
+  style?: BookNodeEdge['style'];
+  controlPointOffset?: BookNodeEdge['controlPointOffset'];
+  sourceAnchor?: BookNodeEdge['sourceAnchor'];
+  targetAnchor?: BookNodeEdge['targetAnchor'];
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BookNodeEdgeUpdateData {
+  projectId?: string;
+  sourceNodeId?: string;
+  targetNodeId?: string;
+  kind?: BookNodeEdge['kind'];
+  label?: string | null;
+  weight?: number;
+  style?: BookNodeEdge['style'];
+  controlPointOffset?: BookNodeEdge['controlPointOffset'];
+  sourceAnchor?: BookNodeEdge['sourceAnchor'];
+  targetAnchor?: BookNodeEdge['targetAnchor'];
   updatedAt?: string;
 }
 
@@ -51,6 +69,7 @@ export interface BookNodeRepository {
 export interface BookNodeEdgeRepository {
   findAll(projectId?: string): Promise<BookNodeEdge[]>;
   create(data: BookNodeEdgeCreateData): Promise<BookNodeEdge>;
+  update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
   delete(id: string): Promise<boolean>;
 }
 

@@ -4,7 +4,7 @@ import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } fr
 import { createBookContentRepository } from '../repositories/book_content_sqlite';
 import { StorylineSQLiteRepository } from '../repositories/storyline_sqlite';
 import type { BookNodeUsecaseDeps } from '../usecase/book_node';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode, BookNodeEdge } from '../domain/book_node';
 import {
   createBookNode,
   loadBookNodeEdges,
@@ -15,6 +15,7 @@ import {
   updateBookNodeSummary,
   updateBookNode,
   deleteBookNode,
+  updateBookNodeEdge,
   type CreateBookNodeInput,
 } from '../usecase/book_node';
 import { initDatabase } from '../lib/db';
@@ -85,6 +86,10 @@ export function useBookNodeUsecases() {
     deleteNode: async (id: string) => {
       await ensureDb();
       return deleteBookNode(deps, id);
+    },
+    updateEdge: async (id: string, updates: Partial<BookNodeEdge>) => {
+      await ensureDb();
+      return updateBookNodeEdge(deps, id, updates);
     },
     _deps: deps,
   }), [deps, ensureDb]);

@@ -11,12 +11,12 @@ let db: Database.Database | null = null;
 function getDbDirectory(): string {
   const userDataPath = app.getPath('userData');
   const dbDir = path.join(userDataPath, 'databases');
-  
+
   // Ensure directory exists
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
-  
+
   return dbDir;
 }
 
@@ -33,17 +33,17 @@ function initDatabase(dbName: string): void {
 
     const dbDir = getDbDirectory();
     const dbPath = path.join(dbDir, dbName);
-    
+
     console.log(`[Database] Opening database: ${dbPath}`);
-    
+
     db = new Database(dbPath);
-    
+
     // Enable WAL mode for better concurrent performance
     db.pragma('journal_mode = WAL');
-    
+
     // Run migrations
     runMigrations();
-    
+
     console.log('[Database] Database initialized successfully');
   } catch (error) {
     console.error('[Database] Failed to initialize database:', error);
@@ -186,6 +186,8 @@ CREATE TABLE IF NOT EXISTS node_edge (
   kind TEXT NOT NULL,
   label TEXT,
   weight INTEGER NOT NULL DEFAULT 1,
+  style TEXT,  -- JSON for style props
+  data TEXT,   -- JSON for freeform geometry (control points, anchors)
   created_at TEXT NOT NULL, 
   updated_at TEXT NOT NULL,
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
@@ -193,6 +195,10 @@ CREATE TABLE IF NOT EXISTS node_edge (
 CREATE INDEX IF NOT EXISTS idx_node_edge_project ON node_edge(project_id);
 CREATE INDEX IF NOT EXISTS idx_node_edge_src ON node_edge(src_node_id);
 CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
+
+
+
+-- Book content table
 
 -- Book content table 
 CREATE TABLE IF NOT EXISTS book_content (
@@ -295,10 +301,20 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
   `);
 
+  // Migration for existing databases
+  // We try to add columns if they don't exist
+  try {
+    db.prepare("ALTER TABLE node_edge ADD COLUMN style TEXT").run();
+  } catch (e) { /* ignore if exists */ }
+
+  try {
+    db.prepare("ALTER TABLE node_edge ADD COLUMN data TEXT").run();
+  } catch (e) { /* ignore if exists */ }
+
   // Insert default project if not exists
   const now = new Date().toISOString();
   const defaultProject = db.prepare('SELECT id FROM project WHERE id = ?').get('default-project');
-  
+
   if (!defaultProject) {
     console.log('[Database] Creating default project');
     db.prepare(`
@@ -316,7 +332,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
 
   // Insert default element category if not exists
   const defaultCategory = db.prepare('SELECT id FROM element_category WHERE id = ?').get('cat_default');
-  
+
   if (!defaultCategory) {
     console.log('[Database] Creating default element category');
     db.prepare(`
@@ -335,7 +351,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
 
   // Insert default storyline if not exists
   const defaultStoryline = db.prepare('SELECT id FROM storyline WHERE id = ?').get('storyline_main');
-  
+
   if (!defaultStoryline) {
     console.log('[Database] Creating default storyline');
     db.prepare(`
@@ -368,7 +384,7 @@ export function setupDatabase(): void {
   // Run a query (INSERT, UPDATE, DELETE)
   ipcMain.handle('db:run', async (_event, sql: string, params?: any[]) => {
     if (!db) throw new Error('Database not initialized');
-    
+
     try {
       const stmt = db.prepare(sql);
       const result = stmt.run(...(params || []));
@@ -385,7 +401,7 @@ export function setupDatabase(): void {
   // Execute a query and return all rows
   ipcMain.handle('db:query', async (_event, sql: string, params?: any[]) => {
     if (!db) throw new Error('Database not initialized');
-    
+
     try {
       const stmt = db.prepare(sql);
       return stmt.all(...(params || []));
@@ -398,7 +414,7 @@ export function setupDatabase(): void {
   // Execute a query and return first row
   ipcMain.handle('db:get', async (_event, sql: string, params?: any[]) => {
     if (!db) throw new Error('Database not initialized');
-    
+
     try {
       const stmt = db.prepare(sql);
       return stmt.get(...(params || []));
