@@ -11,7 +11,7 @@ export interface DebugData {
     user: unknown;
     projects: unknown[];
     nodes: unknown[];
-    threads: unknown[];
+    storylines: unknown[];
     elements: unknown[];
     categories: unknown[];
   };

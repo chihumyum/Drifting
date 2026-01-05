@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '../store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/book_node_sqlite';
 import { createBookContentRepository } from '../repositories/book_content_sqlite';
-import { StoryThreadSQLiteRepository } from '../repositories/story_thread_sqlite';
+import { StorylineSQLiteRepository } from '../repositories/storyline_sqlite';
 import type { BookNodeUsecaseDeps } from '../usecase/book_node';
 import type { BookNode } from '../domain/book_node';
 import {
@@ -30,12 +30,12 @@ export function useBookNodeUsecases() {
   const depsRef = useRef<BookNodeUsecaseDeps | null>(null);
 
   if (!depsRef.current) {
-    const threadRepo = new StoryThreadSQLiteRepository();
+    const storylineRepo = new StorylineSQLiteRepository();
     const contentRepo = createBookContentRepository();
     depsRef.current = {
       nodeRepo: createBookNodeSqliteRepository(getProjectIdForUser()),
       edgeRepo: createBookNodeEdgeSqliteRepository(getProjectIdForUser()),
-      threadRepo,
+      storylineRepo,
       contentRepo,
       getNodesState: () => store.getState().bookNodes,
       setNodesState: (nodes) => store.getState().setBookNodes(nodes),

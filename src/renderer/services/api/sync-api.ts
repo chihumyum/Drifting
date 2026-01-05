@@ -10,7 +10,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // 操作类型
 export type OperationType = 'CREATE' | 'UPDATE' | 'DELETE';
-export type EntityType = 'node' | 'thread' | 'element' | 'category' | 'tag' | 'stage';
+export type EntityType = 'node' | 'storyline' | 'element' | 'category' | 'tag' | 'stage';
 
 // 同步操作
 export interface SyncOperation {

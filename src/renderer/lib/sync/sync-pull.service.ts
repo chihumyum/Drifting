@@ -12,16 +12,16 @@
 
 import { projectsApi } from '../../services/api/projects-api';
 import { nodeApi } from '../../services/api/node-api';
-import { threadsApi } from '../../services/api/threads-api';
+import { storylinesApi } from '../../services/api/storylines-api';
 import { elementsApi } from '../../services/api/elements-api';
 import { contentApi } from '../../services/api/content-api';
 import { initDatabase } from '../db';
 import { applyRemoteNode, cleanupSyncedDeletedNodes } from '../../repositories/book_node_sqlite';
 import { applyRemoteContent, cleanupSyncedDeletedContents } from '../../repositories/book_content_sqlite';
 import {
-  applyRemoteThread,
-  cleanupSyncedDeletedThreads,
-} from '../../repositories/story_thread_sqlite';
+  applyRemoteStoryline,
+  cleanupSyncedDeletedStorylines,
+} from '../../repositories/storyline_sqlite';
 import {
   applyRemoteElement,
   applyRemoteElementCategory,
@@ -233,10 +233,10 @@ class SyncPullService {
       await initDatabase(projectId, userId);
       const since = options?.since ?? getLastPullAt(projectId);
 
-      const [nodes, contentsResponse, threadsResponse, elementsResponse, categoriesResponse] = await Promise.all([
+      const [nodes, contentsResponse, storylinesResponse, elementsResponse, categoriesResponse] = await Promise.all([
         nodeApi.getAll(projectId, since ? { updatedAfter: since } : undefined),
         contentApi.list(projectId, since ? { updatedAfter: since } : undefined),
-        threadsApi.list(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
+        storylinesApi.list(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
         elementsApi.list(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
         elementsApi.listCategories(projectId, since ? { updatedAfter: since, includeDeleted: true, limit: 500 } : { includeDeleted: true, limit: 500 }),
       ]);
@@ -272,18 +272,18 @@ class SyncPullService {
       }
       await cleanupSyncedDeletedContents();
 
-      // page through threads/elements/categories if needed
-      const threads: typeof threadsResponse.items = [...threadsResponse.items];
-      let threadCursor = threadsResponse.nextCursor ?? null;
-      for (let i = 0; threadCursor && i < 20; i++) {
-        const next = await threadsApi.list(projectId, {
+      // page through storylines/elements/categories if needed
+      const storylines: typeof storylinesResponse.items = [...storylinesResponse.items];
+      let storylineCursor = storylinesResponse.nextCursor ?? null;
+      for (let i = 0; storylineCursor && i < 20; i++) {
+        const next = await storylinesApi.list(projectId, {
           updatedAfter: since ?? undefined,
           includeDeleted: true,
           limit: 500,
-          cursor: threadCursor,
+          cursor: storylineCursor,
         });
-        threads.push(...next.items);
-        threadCursor = next.nextCursor;
+        storylines.push(...next.items);
+        storylineCursor = next.nextCursor;
       }
 
       const elements: typeof elementsResponse.items = [...elementsResponse.items];
@@ -312,27 +312,27 @@ class SyncPullService {
         categoryCursor = next.nextCursor;
       }
 
-      for (const thread of threads) {
-        const outcome = await applyRemoteThread({
-          id: thread.id,
-          projectId: thread.projectId,
-          name: thread.name,
-          color: thread.color ?? '#b89968',
-          summary: thread.summary ?? null,
-          pmJson: thread.pmJson ?? null,
-          createdAt: thread.createdAt,
-          updatedAt: thread.updatedAt,
-          isDeleted: Boolean(thread.isDeleted || thread.deletedAt),
+      for (const storyline of storylines) {
+        const outcome = await applyRemoteStoryline({
+          id: storyline.id,
+          projectId: storyline.projectId,
+          name: storyline.name,
+          color: storyline.color ?? '#b89968',
+          summary: storyline.summary ?? null,
+          pmJson: storyline.pmJson ?? null,
+          createdAt: storyline.createdAt,
+          updatedAt: storyline.updatedAt,
+          isDeleted: Boolean(storyline.isDeleted || storyline.deletedAt),
         });
 
         if (outcome === 'conflict') {
           stats.conflicts++;
-          syncManager.reportConflict({ entity: 'thread', localId: thread.id, description: 'Remote thread older than local change' });
+          syncManager.reportConflict({ entity: 'storyline', localId: storyline.id, description: 'Remote storyline older than local change' });
         } else if (outcome !== 'skipped') {
           stats.totalPulled++;
         }
       }
-      await cleanupSyncedDeletedThreads();
+      await cleanupSyncedDeletedStorylines();
 
       for (const element of elements) {
         const outcome = await applyRemoteElement({

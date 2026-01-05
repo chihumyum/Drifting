@@ -1,7 +1,7 @@
 import { MoreVertical } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
-export type EditorType = 'node' | 'element' | 'category' | 'thread';
+export type EditorType = 'node' | 'element' | 'category' | 'storyline';
 
 interface EditorContextMenuProps {
   editorType: EditorType;
@@ -30,7 +30,7 @@ export function EditorContextMenu({ editorType, onAction }: EditorContextMenuPro
       case 'node':
         return [
           { action: 'deleteNode', label: '🗑️ Delete Node', color: '#c04040' },
-          { action: 'threadPicker', label: '🔀 Manage Threads', color: '#2a1a0a' },
+          { action: 'threadPicker', label: '🔀 Manage Storylines', color: '#2a1a0a' },
         ];
       case 'element':
         return [
@@ -41,10 +41,10 @@ export function EditorContextMenu({ editorType, onAction }: EditorContextMenuPro
         return [
           { action: 'deleteCategory', label: '🗑️ Delete Category', color: '#c04040' },
         ];
-      case 'thread':
+      case 'storyline':
         return [
-          { action: 'deleteThread', label: '🗑️ Delete Thread', color: '#c04040' },
-          { action: 'mergeThread', label: '🔀 Merge Into...', color: '#2a1a0a' },
+          { action: 'deleteStoryline', label: '🗑️ Delete Storyline', color: '#c04040' },
+          { action: 'mergeStoryline', label: '🔀 Merge Into...', color: '#2a1a0a' },
         ];
       default:
         return [];

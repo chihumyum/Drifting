@@ -117,14 +117,14 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
         key: ElementAutoLinkPluginKey,
         appendTransaction: (transactions, oldState, newState) => {
           // 从共享配置读取最新值
-          console.log('[ElementAutoLink Plugin] appendTransaction called:', {
-            autoDetectEnabled: elementAutoLinkConfig.autoDetectEnabled,
-            elementNamesSize: elementAutoLinkConfig.elementNames.size,
-          });
+          // console.log('[ElementAutoLink Plugin] appendTransaction called:', {
+          //   autoDetectEnabled: elementAutoLinkConfig.autoDetectEnabled,
+          //   elementNamesSize: elementAutoLinkConfig.elementNames.size,
+          // });
           
           // 只有在自动检测开启时才自动添加链接
           if (!elementAutoLinkConfig.autoDetectEnabled || elementAutoLinkConfig.elementNames.size === 0) {
-            console.log('[ElementAutoLink Plugin] Skipping');
+            // console.log('[ElementAutoLink Plugin] Skipping');
             return null;
           }
 
@@ -152,7 +152,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
                 // newStart 到 newEnd 是新插入/修改的内容范围
                 if (newStart === newEnd) return; // 没有新内容
                 
-                console.log('[ElementAutoLink] Processing changed range:', { from: newStart, to: newEnd });
+                // console.log('[ElementAutoLink] Processing changed range:', { from: newStart, to: newEnd });
 
                 // 在这个范围内查找匹配的元素
                 newState.doc.nodesBetween(newStart, newEnd, (node, pos) => {
@@ -185,7 +185,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
                       const hasElementLink = node.marks.some(mark => mark.type === markType);
 
                       if (!hasElementLink) {
-                        console.log('[ElementAutoLink] Found match in changed range:', element.name, matchStart, matchEnd);
+                        // console.log('[ElementAutoLink] Found match in changed range:', element.name, matchStart, matchEnd);
                         marksToAdd.push({ from: matchStart, to: matchEnd, element });
                       }
                     }

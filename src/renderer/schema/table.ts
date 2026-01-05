@@ -1,6 +1,6 @@
 import type { Project, NodeTagRecord, NodeTagLinkRecord } from "./book_general";
 import type { ElementRecord, ElementCategoryRecord } from "./book_element";
-import type { StoryThreadRecord } from "./story_thread";
+import type { StorylineRecord } from "./storyline";
 import type { BookNodeRecord } from "./book_node";
 import type { BookContentRecord } from "./book_content";
 
@@ -16,8 +16,8 @@ export const TABLES = {
   bookContent: 'book_content',
   element: 'element',
   elementStage: 'element_stage',
-  storyThread: 'story_thread',
-  nodeThread: 'node_thread',
+  storyline: 'storyline',
+  nodeStoryline: 'node_storyline',
 } as const
 
 
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS story_thread (
   name TEXT NOT NULL,
   color TEXT NOT NULL,
   summary TEXT,
-  pm_json TEXT,  -- ProseMirror document JSON for thread description/notes
+  pm_json TEXT,  -- ProseMirror document JSON for storyline description/notes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   -- 同步字段
@@ -130,11 +130,11 @@ CREATE TABLE IF NOT EXISTS story_thread (
 CREATE INDEX IF NOT EXISTS idx_story_thread_project ON story_thread(project_id);
 CREATE INDEX IF NOT EXISTS idx_story_thread_sync ON story_thread(sync_status) WHERE is_deleted = 0;
 
--- Node to thread relationship (many-to-many)
+-- Node to storyline relationship (many-to-many)
 CREATE TABLE IF NOT EXISTS node_thread (
   node_id TEXT NOT NULL,
   thread_id TEXT NOT NULL,
-  thread_order INTEGER NOT NULL DEFAULT 0,  -- Determines node's primary thread (0 = primary)
+  thread_order INTEGER NOT NULL DEFAULT 0,  -- Determines node's primary storyline (0 = primary)
   PRIMARY KEY(node_id, thread_id),
   FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
   FOREIGN KEY(thread_id) REFERENCES story_thread(id) ON DELETE CASCADE
@@ -267,7 +267,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
 CREATE TABLE IF NOT EXISTS sync_queue (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,                      -- 'create' | 'update' | 'delete'
-  entity TEXT NOT NULL,                    -- 'node' | 'thread' | 'element' | etc.
+  entity TEXT NOT NULL,                    -- 'node' | 'storyline' | 'element' | etc.
   local_id TEXT NOT NULL,                  -- 本地实体的 ID
   project_id TEXT,                         -- 关联的项目 ID（可选）
   data TEXT,                               -- JSON 序列化的数据
@@ -396,9 +396,9 @@ export const MOCK_ELEMENTS: ElementRecord[] = [
   },
 ];
 
-// Default main story thread
-export const DEFAULT_STORY_THREAD: StoryThreadRecord = {
-  id: 'thread_main',
+// Default main storyline
+export const DEFAULT_STORYLINE: StorylineRecord = {
+  id: 'storyline_main',
   project_id: 'default-project',
   name: 'Main Story',
   color: '#3B82F6',
@@ -407,10 +407,10 @@ export const DEFAULT_STORY_THREAD: StoryThreadRecord = {
   updated_at: new Date().toISOString(),
 };
 
-// Mock story threads
-export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
+// Mock storylines
+export const MOCK_STORYLINES: StorylineRecord[] = [
   {
-    id: 'thread_john',
+    id: 'storyline_john',
     project_id: 'default-project',
     name: 'John',
     color: '#60A5FA', // Light blue
@@ -419,7 +419,7 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'thread_emma',
+    id: 'storyline_emma',
     project_id: 'default-project',
     name: 'Emma',
     color: '#FDE047', // Yellow
@@ -428,7 +428,7 @@ export const MOCK_STORY_THREADS: StoryThreadRecord[] = [
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'thread_vera',
+    id: 'storyline_vera',
     project_id: 'default-project',
     name: 'Vera',
     color: '#C084FC', // Purple
@@ -601,7 +601,7 @@ export const MOCK_CHAPTERS: BookNodeRecord[] = [
   },
 ];
 
-// Mock node-thread relationships
+// Mock node-storyline relationships
 export const MOCK_NODE_THREADS = [
   // 序章 - 主线
   { node_id: 'chapter_001', thread_id: 'thread_main' },

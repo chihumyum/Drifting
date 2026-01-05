@@ -19,7 +19,7 @@ interface LocalDebugData {
   user: unknown;
   projects: unknown[];
   nodes: unknown[];
-  threads: unknown[];
+  storylines: unknown[];
   elements: unknown[];
   categories: unknown[];
   stages?: unknown[];
@@ -67,7 +67,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         user: user,
         projects: [], // SQLite 没有存储 projects
         nodes: results[0].status === 'fulfilled' ? results[0].value : [],
-        threads: results[1].status === 'fulfilled' ? results[1].value : [],
+        storylines: results[1].status === 'fulfilled' ? results[1].value : [],
         elements: results[2].status === 'fulfilled' ? results[2].value : [],
         categories: results[3].status === 'fulfilled' ? results[3].value : [],
       };
@@ -135,8 +135,8 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
             <div className="text-green-900">{Array.isArray((data as LocalDebugData).nodes) ? (data as LocalDebugData).nodes.length : 0} 个</div>
           </div>
           <div className="bg-purple-50 p-2 rounded">
-            <div className="text-purple-600 font-medium">线程</div>
-            <div className="text-purple-900">{Array.isArray((data as LocalDebugData).threads) ? (data as LocalDebugData).threads.length : 0} 个</div>
+            <div className="text-purple-600 font-medium">故事线</div>
+            <div className="text-purple-900">{Array.isArray((data as LocalDebugData).storylines) ? (data as LocalDebugData).storylines.length : 0} 个</div>
           </div>
           <div className="bg-yellow-50 p-2 rounded">
             <div className="text-yellow-600 font-medium">元素</div>
@@ -191,7 +191,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
           {[
             { label: '项目', key: 'projects' as const },
             { label: '节点', key: 'nodes' as const },
-            { label: '线程', key: 'threads' as const },
+            { label: '故事线', key: 'storylines' as const },
             { label: '元素', key: 'elements' as const },
             { label: '分类', key: 'categories' as const },
           ].map(({ label, key }) => {

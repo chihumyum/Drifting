@@ -308,8 +308,8 @@ export class SyncManager {
         await this.executeContentTask(task, apis.nodeApi);
         break;
       
-      case 'thread':
-        await this.executeThreadTask(task, apis.threadsApi);
+      case 'storyline':
+        await this.executeStorylineTask(task, apis.storylinesApi);
         break;
       
       case 'element':
@@ -394,36 +394,36 @@ export class SyncManager {
   }
 
   /**
-   * 执行线程同步任务
+   * 执行故事线同步任务
    */
-  private async executeThreadTask(task: SyncTask, threadsApi: typeof import('../../services/api/threads-api').threadsApi): Promise<void> {
+  private async executeStorylineTask(task: SyncTask, storylinesApi: typeof import('../../services/api/storylines-api').storylinesApi): Promise<void> {
     const projectId = task.projectId!;
     
     switch (task.type) {
       case 'create':
         if (task.data && typeof task.data === 'object' && 'name' in task.data) {
-          const createData = task.data as import('../../services/api/threads-api').CreateThreadDto;
-          await threadsApi.create(projectId, createData);
+          const createData = task.data as import('../../services/api/storylines-api').CreateStorylineDto;
+          await storylinesApi.create(projectId, createData);
         } else {
-          throw new Error('Invalid thread data for create');
+          throw new Error('Invalid storyline data for create');
         }
         break;
       
       case 'update':
         if (task.data && typeof task.data === 'object') {
-          const updateData = task.data as import('../../services/api/threads-api').UpdateThreadDto;
-          await threadsApi.update(projectId, task.localId, updateData);
+          const updateData = task.data as import('../../services/api/storylines-api').UpdateStorylineDto;
+          await storylinesApi.update(projectId, task.localId, updateData);
         } else {
-          throw new Error('Invalid thread data for update');
+          throw new Error('Invalid storyline data for update');
         }
         break;
       
       case 'delete':
-        await threadsApi.delete(projectId, task.localId);
+        await storylinesApi.delete(projectId, task.localId);
         break;
     }
     
-    console.log('[SyncManager] Thread API 调用成功:', task.type, task.localId);
+    console.log('[SyncManager] Storyline API 调用成功:', task.type, task.localId);
   }
 
   /**
@@ -636,9 +636,9 @@ export class SyncManager {
           await markContentSyncStatus(task.localId, status, options);
           break;
         }
-        case 'thread': {
-          const { markThreadSyncStatus } = await import('../../repositories/story_thread_sqlite');
-          await markThreadSyncStatus(task.localId, status, options);
+        case 'storyline': {
+          const { markStorylineSyncStatus } = await import('../../repositories/storyline_sqlite');
+          await markStorylineSyncStatus(task.localId, status, options);
           break;
         }
         case 'element': {
@@ -737,7 +737,7 @@ export class SyncManager {
 
   async exportBackup() {
     const { query } = await import('../db');
-    const [nodes, threads, elements, categories] = await Promise.all([
+    const [nodes, storylines, elements, categories] = await Promise.all([
       query<Record<string, unknown>>('SELECT * FROM story_node'),
       query<Record<string, unknown>>('SELECT * FROM story_thread'),
       query<Record<string, unknown>>('SELECT * FROM element'),
@@ -749,12 +749,12 @@ export class SyncManager {
       status: this.getStatus(),
       counts: {
         nodes: nodes.length,
-        threads: threads.length,
+        storylines: storylines.length,
         elements: elements.length,
         categories: categories.length,
       },
       nodes,
-      threads,
+      storylines,
       elements,
       categories,
     };

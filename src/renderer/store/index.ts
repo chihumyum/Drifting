@@ -97,7 +97,7 @@ export const useAppStore = create<AppState>((set) => ({
   setRightPanelType: (type) => set({ rightPanelType: type }),
   
   // Timeline 高度
-  timelineHeight: 30, // 默认高度（假设3个threads，收起状态）
+  timelineHeight: 30, // 默认高度（假设3个 storylines，收起状态）
   setTimelineHeight: (height) => set({ timelineHeight: height }),
 
 

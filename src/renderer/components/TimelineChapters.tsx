@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
+import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import { createBookContentRepository } from '../repositories/book_content_sqlite';
 import { parseOutline } from '../lib/outline';
 import type { OutlineItem } from '../schema/book_content';
-import type { StoryThread } from '../domain/story_thread';
+import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book_node';
 import { useAuthStore, getProjectId } from '../store/auth';
 
@@ -18,35 +18,35 @@ const TIMELINE_CONFIG = {
   NODE_MIN_HEIGHT: 18, // 节点最小高度 - 隐藏时只显示标题
   NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
   NODE_COMPACT_HEIGHT: 6, // 收起时节点高度 - 极简模式，更扁（从8改为6）
-  THREAD_PADDING: 4, // 每个 thread 行的上下内边距（展开时）
-  THREAD_PADDING_COMPACT: 0, // 每个 thread 行的上下内边距（收起时，无内边距）
-  THREAD_GAP: 2, // thread 之间的间隔（展开时）
-  THREAD_GAP_COMPACT: 0, // thread 之间的间隔（收起时，无间隔）
+  STORYLINE_PADDING: 4, // 每个 storyline 行的上下内边距（展开时）
+  STORYLINE_PADDING_COMPACT: 0, // 每个 storyline 行的上下内边距（收起时，无内边距）
+  STORYLINE_GAP: 2, // storyline 之间的间隔（展开时）
+  STORYLINE_GAP_COMPACT: 0, // storyline 之间的间隔（收起时，无间隔）
   TIMELINE_PADDING: 16, // Timeline 左右内边距
   RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
 
 interface TimelineNode extends BookNode {
-  threads: StoryThread[];
+  storylines: Storyline[];
 }
 
 export function TimelineChapters() {
   const navigate = useNavigate();
   const { bookNodes, selectedNodeId } = useAppStore();
   const user = useAuthStore(state => state.user);
-  const threadUsecases = useStoryThreadUsecases();
+  const storylineUsecases = useStorylineUsecases();
   const nodeUsecases = useBookNodeUsecases();
   const contentRepo = useRef(createBookContentRepository()).current;
   
-  const [threads, setThreads] = useState<StoryThread[]>([]);
-  const [nodesWithThreads, setNodesWithThreads] = useState<TimelineNode[]>([]);
+  const [storylines, setStorylines] = useState<Storyline[]>([]);
+  const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPinned, setIsPinned] = useState(false); // 是否固定展开状态
   const [isTransitioning, setIsTransitioning] = useState(false); // 动画过渡状态
   const [mouseEnterX, setMouseEnterX] = useState(0); // 记录鼠标进入时的 X 坐标
-  const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; threadId: string } | null>(null);
-  const [dragOverPosition, setDragOverPosition] = useState<{ threadId: string; start: number; x: number } | null>(null);
+  const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; storylineId: string } | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<{ storylineId: string; start: number; x: number } | null>(null);
   const [nodeHeight, setNodeHeight] = useState(TIMELINE_CONFIG.NODE_COMPACT_HEIGHT);
   const [needsScroll, setNeedsScroll] = useState(false);
   
@@ -54,14 +54,14 @@ export function TimelineChapters() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    type: 'thread-empty' | 'node' | 'thread-with-selected';
-    threadId?: string;
+    type: 'storyline-empty' | 'node' | 'storyline-with-selected';
+    storylineId?: string;
     nodeId?: string;
     position?: number;
     // Node 预览信息
     nodeTitle?: string;
     nodeSummary?: string | null;
-    nodeThreads?: StoryThread[];
+    nodeStorylines?: Storyline[];
   } | null>(null);
   
   // 节点边缘 hover 状态
@@ -73,7 +73,7 @@ export function TimelineChapters() {
   // 调整大小的状态
   const [resizingNode, setResizingNode] = useState<{
     nodeId: string;
-    threadId: string;
+    storylineId: string;
     edge: 'left' | 'right';
     startX: number;
     startStart: number;
@@ -98,7 +98,7 @@ export function TimelineChapters() {
     if (savedPosition && scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = parseInt(savedPosition, 10);
     }
-  }, [threads.length]); // Restore after threads are loaded
+  }, [storylines.length]); // Restore after storylines are loaded
   
   // Save scroll position on scroll
   useEffect(() => {
@@ -123,7 +123,7 @@ export function TimelineChapters() {
   // 提取重新加载节点数据的逻辑
   // 获取节点宽度（像素）- 考虑缩放
   const getNodeWidth = (nodeId: string): number => {
-    const node = nodesWithThreads.find(n => n.id === nodeId);
+    const node = nodesWithStorylines.find(n => n.id === nodeId);
     if (!node) return TIMELINE_CONFIG.NODE_DEFAULT_WIDTH * TIMELINE_CONFIG.GRID_UNIT * scaleFactor;
     
     const end = nodeEnds.get(nodeId) ?? node.end;
@@ -137,9 +137,9 @@ export function TimelineChapters() {
 
   // 计算 timeline 范围
   // 收起时和展开时都显示所有节点，但收起时会通过缩放来适应窗口
-  const minStart = nodesWithThreads.length > 0 ? Math.min(...nodesWithThreads.map(n => n.start)) : 0;
-  const maxEnd = nodesWithThreads.length > 0 
-    ? Math.max(...nodesWithThreads.map(n => n.end ?? (n.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH))) 
+  const minStart = nodesWithStorylines.length > 0 ? Math.min(...nodesWithStorylines.map(n => n.start)) : 0;
+  const maxEnd = nodesWithStorylines.length > 0 
+    ? Math.max(...nodesWithStorylines.map(n => n.end ?? (n.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH))) 
     : 0;
   
   // 收起时：计算缩放比例，让所有节点适应窗口宽度
@@ -159,19 +159,19 @@ export function TimelineChapters() {
 
   // 计算 timeline 的总高度
   const getTimelineHeight = () => {
-    if (threads.length === 0) return 120;
+    if (storylines.length === 0) return 120;
     
     if (isExpanded) {
       // 展开时：使用正常的 padding 和 gap
-      const rowHeight = nodeHeight + TIMELINE_CONFIG.THREAD_PADDING * 2;
-      const totalThreadsHeight = rowHeight * threads.length + TIMELINE_CONFIG.THREAD_GAP * (threads.length - 1);
+      const rowHeight = nodeHeight + TIMELINE_CONFIG.STORYLINE_PADDING * 2;
+      const totalStorylinesHeight = rowHeight * storylines.length + TIMELINE_CONFIG.STORYLINE_GAP * (storylines.length - 1);
       const padding = 32; // 上下 padding
-      return Math.max(280, totalThreadsHeight + padding);
+      return Math.max(280, totalStorylinesHeight + padding);
     } else {
       // 隐藏时：最小化 padding 和 gap，无上下 padding
-      const rowHeight = nodeHeight + TIMELINE_CONFIG.THREAD_PADDING_COMPACT * 2;
-      const totalThreadsHeight = rowHeight * threads.length + TIMELINE_CONFIG.THREAD_GAP_COMPACT * (threads.length - 1);
-      return totalThreadsHeight; // 完全去掉额外 padding
+      const rowHeight = nodeHeight + TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT * 2;
+      const totalStorylinesHeight = rowHeight * storylines.length + TIMELINE_CONFIG.STORYLINE_GAP_COMPACT * (storylines.length - 1);
+      return totalStorylinesHeight; // 完全去掉额外 padding
     }
   };
 
@@ -219,7 +219,7 @@ export function TimelineChapters() {
       useAppStore.getState().setTimelineHeight(height);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, threads.length, nodeHeight]);
+  }, [isExpanded, storylines.length, nodeHeight]);
 
   // 处理展开时的滚动位置调整 - 以鼠标位置为中心展开
   useEffect(() => {
@@ -230,8 +230,8 @@ export function TimelineChapters() {
     requestAnimationFrame(() => {
       if (!container) return;
       
-      // Thread 标签的宽度（仅展开时存在）
-      const THREAD_LABEL_WIDTH = 68; // 60px width + 8px paddingRight
+      // Storyline 标签的宽度（仅展开时存在）
+      const STORYLINE_LABEL_WIDTH = 68; // 60px width + 8px paddingRight
       
       // 计算鼠标在收起状态下对应的时间轴位置（考虑收起时的缩放）
       // mouseEnterX 是相对于视口的，需要转换为相对于容器的位置
@@ -244,11 +244,11 @@ export function TimelineChapters() {
       const collapsedScaleFactor = Math.min(1, availableWidth / (timelineRange * TIMELINE_CONFIG.GRID_UNIT));
       
       // 鼠标位置对应的时间轴坐标（start 值）
-      // 收起时没有 thread 标签，所以直接使用 mouseXInContainer
+      // 收起时没有 storyline 标签，所以直接使用 mouseXInContainer
       const startAtMouse = minStart + (mouseXInContainer / (TIMELINE_CONFIG.GRID_UNIT * collapsedScaleFactor));
       
-      // 展开后，该 start 值对应的像素位置（需要加上 thread 标签宽度）
-      const expandedPositionAtMouse = (startAtMouse - minStart) * TIMELINE_CONFIG.GRID_UNIT + THREAD_LABEL_WIDTH;
+      // 展开后，该 start 值对应的像素位置（需要加上 storyline 标签宽度）
+      const expandedPositionAtMouse = (startAtMouse - minStart) * TIMELINE_CONFIG.GRID_UNIT + STORYLINE_LABEL_WIDTH;
       
       // 调整滚动位置，使得该位置保持在鼠标下方
       container.scrollLeft = expandedPositionAtMouse - mouseXInContainer;
@@ -267,24 +267,24 @@ export function TimelineChapters() {
     loadChapters();
   }, [nodeUsecases]);
 
-  // Load threads and node-thread relationships
+  // Load storylines and node-storyline relationships
   useEffect(() => {
     async function loadData() {
       try {
         const projectId = getProjectId(user?.id);
-        console.log('[TimelineChapters] Loading threads for projectId:', projectId, 'userId:', user?.id);
-        const allThreads = await threadUsecases.getThreadsByProject(projectId);
-        console.log('[TimelineChapters] Loaded threads:', allThreads.length, allThreads);
-        setThreads(allThreads);
+        console.log('[TimelineChapters] Loading storylines for projectId:', projectId, 'userId:', user?.id);
+        const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+        console.log('[TimelineChapters] Loaded storylines:', allStorylines.length, allStorylines);
+        setStorylines(allStorylines);
 
-        // Load thread info for each node
-        const nodesWithThreadInfo = await Promise.all(
+        // Load storyline info for each node
+        const nodesWithStorylineInfo = await Promise.all(
           bookNodes.map(async (node) => {
-            const nodeThreads = await threadUsecases.getThreadsByNode(node.id);
-            return { ...node, threads: nodeThreads };
+            const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+            return { ...node, storylines: nodeStorylines };
           })
         );
-        setNodesWithThreads(nodesWithThreadInfo);
+        setNodesWithStorylines(nodesWithStorylineInfo);
         
         // Initialize end state from database
         const endsMap = new Map<string, number | null>();
@@ -297,9 +297,9 @@ export function TimelineChapters() {
       }
     }
     
-    // Always load threads, even if there are no nodes yet
+    // Always load storylines, even if there are no nodes yet
     loadData();
-  }, [bookNodes, threadUsecases, user]);
+  }, [bookNodes, storylineUsecases, user]);
 
   // Load outlines for all nodes
   useEffect(() => {
@@ -307,7 +307,7 @@ export function TimelineChapters() {
       try {
         const outlinesMap = new Map<string, OutlineItem[]>();
         
-        for (const node of nodesWithThreads) {
+        for (const node of nodesWithStorylines) {
           const content = await contentRepo.findByNodeId(node.id);
           if (content && content.outlineJson) {
             try {
@@ -325,10 +325,10 @@ export function TimelineChapters() {
       }
     }
     
-    if (nodesWithThreads.length > 0) {
+    if (nodesWithStorylines.length > 0) {
       loadOutlines();
     }
-  }, [nodesWithThreads, contentRepo]);
+  }, [nodesWithStorylines, contentRepo]);
 
   // 计算 Context Menu 的位置，防止溢出视口
   const getContextMenuPosition = (x: number, y: number, menuWidth: number, menuHeight: number) => {
@@ -374,7 +374,7 @@ export function TimelineChapters() {
     try {
       switch (action) {
         case 'createChapter':
-          if (contextMenu.type === 'thread-empty' && contextMenu.threadId && contextMenu.position) {
+          if (contextMenu.type === 'storyline-empty' && contextMenu.storylineId && contextMenu.position) {
             // 创建新章节
             const newNode = await nodeUsecases.createNode({
               title: 'New Chapter',
@@ -382,9 +382,9 @@ export function TimelineChapters() {
               end: contextMenu.position + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
             });
             
-            // 将 node 添加到用户指定的 thread
-            // 因为这是第一个 thread，thread_order=0，它将成为此 node 的 primary thread
-            await threadUsecases.addNodeToThread(newNode.id, contextMenu.threadId);
+            // 将 node 添加到用户指定的 storyline
+            // 因为这是第一个 storyline，storyline_order=0，它将成为此 node 的 primary storyline
+            await storylineUsecases.addNodeToStoryline(newNode.id, contextMenu.storylineId);
             
             // 设置为选中状态并导航
             useAppStore.getState().setSelectedNodeId(newNode.id);
@@ -402,13 +402,13 @@ export function TimelineChapters() {
           }
           break;
           
-        case 'removeFromThread':
-          if (contextMenu.type === 'node' && contextMenu.nodeId && contextMenu.threadId) {
-            // 获取当前 node 的所有 threads
-            const nodeThreads = await threadUsecases.getThreadsByNode(contextMenu.nodeId);
+        case 'removeFromStoryline':
+          if (contextMenu.type === 'node' && contextMenu.nodeId && contextMenu.storylineId) {
+            // 获取当前 node 的所有 storylines
+            const nodeStorylines = await storylineUsecases.getStorylinesByNode(contextMenu.nodeId);
             
-            // 如果这是唯一的 thread，删除整个 node
-            if (nodeThreads.length === 1) {
+            // 如果这是唯一的 storyline，删除整个 node
+            if (nodeStorylines.length === 1) {
               await nodeUsecases.deleteNode(contextMenu.nodeId);
               // 如果删除的是当前选中的节点，清除选中并导航
               if (selectedNodeId === contextMenu.nodeId) {
@@ -416,20 +416,20 @@ export function TimelineChapters() {
                 navigate('/editor');
               }
             } else {
-              // 检查是否删除的是主 thread（第一个 thread）
-              const isRemovingPrimaryThread = nodeThreads.length > 0 && nodeThreads[0].id === contextMenu.threadId;
+              // 检查是否删除的是主 storyline（第一个 storyline）
+              const isRemovingPrimaryStoryline = nodeStorylines.length > 0 && nodeStorylines[0].id === contextMenu.storylineId;
               
-              if (isRemovingPrimaryThread) {
-                // 如果删除主 thread 且还有其他 threads，将剩余的 threads 重新排序
-                const remainingThreadIds = nodeThreads
-                  .filter(t => t.id !== contextMenu.threadId)
+              if (isRemovingPrimaryStoryline) {
+                // 如果删除主 storyline 且还有其他 storylines，将剩余的 storylines 重新排序
+                const remainingStorylineIds = nodeStorylines
+                  .filter(t => t.id !== contextMenu.storylineId)
                   .map(t => t.id);
                 
-                // 第一个剩余的 thread 会成为新的主 thread
-                await threadUsecases.setNodeThreads(contextMenu.nodeId, remainingThreadIds);
+                // 第一个剩余的 storyline 会成为新的主 storyline
+                await storylineUsecases.setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
               } else {
-                // 如果不是主 thread，直接删除
-                await threadUsecases.removeNodeFromThread(contextMenu.nodeId, contextMenu.threadId);
+                // 如果不是主 storyline，直接删除
+                await storylineUsecases.removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
               }
             }
             
@@ -464,10 +464,10 @@ export function TimelineChapters() {
           }
           break;
           
-        case 'addToThread':
-          if (contextMenu.type === 'thread-with-selected' && contextMenu.threadId && selectedNodeId) {
-            // 添加选中的节点到此 thread
-            await threadUsecases.addNodeToThread(selectedNodeId, contextMenu.threadId);
+        case 'addToStoryline':
+          if (contextMenu.type === 'storyline-with-selected' && contextMenu.storylineId && selectedNodeId) {
+            // 添加选中的节点到此 storyline
+            await storylineUsecases.addNodeToStoryline(selectedNodeId, contextMenu.storylineId);
             // 重新加载数据
             await nodeUsecases.loadNodes();
             // 恢复滚动
@@ -509,13 +509,13 @@ export function TimelineChapters() {
   };
 
   // Handle drag start
-  const handleDragStart = (e: React.DragEvent, node: TimelineNode, threadId: string) => {
-    setDraggedNode({ node, threadId });
+  const handleDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
+    setDraggedNode({ node, storylineId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   // Handle drag over - 计算应该放在哪个 start 位置
-  const handleDragOver = (e: React.DragEvent, threadId: string) => {
+  const handleDragOver = (e: React.DragEvent, storylineId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     
@@ -534,52 +534,52 @@ export function TimelineChapters() {
     // 考虑缩放和偏移：将像素位置转换回 start 值
     const start = Math.max(minStart, Math.round(nodeLeftX / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minStart);
     
-    setDragOverPosition({ threadId, start, x: mouseX });
+    setDragOverPosition({ storylineId, start, x: mouseX });
   };
 
   // Handle drop
-  const handleDrop = async (e: React.DragEvent, targetThreadId: string) => {
+  const handleDrop = async (e: React.DragEvent, targetStorylineId: string) => {
     e.preventDefault();
     if (!draggedNode || !dragOverPosition) return;
 
-    const { node, threadId: sourceThreadId } = draggedNode;
+    const { node, storylineId: sourceStorylineId } = draggedNode;
     const targetStart = dragOverPosition.start;
     
     try {
-      // Check if this is a primary thread (first thread in node.threads)
-      const isPrimaryThread = node.threads.length > 0 && node.threads[0].id === sourceThreadId;
-      const isTargetInNodeThreads = node.threads.some(t => t.id === targetThreadId);
+      // Check if this is a primary storyline (first storyline in node.storylines)
+      const isPrimaryStoryline = node.storylines.length > 0 && node.storylines[0].id === sourceStorylineId;
+      const isTargetInNodeStorylines = node.storylines.some(t => t.id === targetStorylineId);
       
-      // Only allow dragging from primary thread
-      if (!isPrimaryThread) {
-        console.warn('Can only drag from primary thread');
+      // Only allow dragging from primary storyline
+      if (!isPrimaryStoryline) {
+        console.warn('Can only drag from primary storyline');
         return;
       }
       
-      // If dropped in a different thread
-      if (sourceThreadId !== targetThreadId) {
-        if (isTargetInNodeThreads) {
-          // Target thread already belongs to this node
-          // Keep source thread, but make target thread the new primary
-          const newThreadOrder = [
-            targetThreadId,
-            ...node.threads.filter(t => t.id !== targetThreadId).map(t => t.id)
+      // If dropped in a different storyline
+      if (sourceStorylineId !== targetStorylineId) {
+        if (isTargetInNodeStorylines) {
+          // Target storyline already belongs to this node
+          // Keep source storyline, but make target storyline the new primary
+          const newStorylineOrder = [
+            targetStorylineId,
+            ...node.storylines.filter(t => t.id !== targetStorylineId).map(t => t.id)
           ];
-          await threadUsecases.setNodeThreads(node.id, newThreadOrder);
+          await storylineUsecases.setNodeStorylines(node.id, newStorylineOrder);
         } else {
-          // Target thread is new to this node
-          // Remove old primary thread and add target as new primary
-          await threadUsecases.removeNodeFromThread(node.id, sourceThreadId);
+          // Target storyline is new to this node
+          // Remove old primary storyline and add target as new primary
+          await storylineUsecases.removeNodeFromStoryline(node.id, sourceStorylineId);
           
-          // Add target thread as the first (primary) thread
-          const remainingThreadIds = node.threads
-            .filter(t => t.id !== sourceThreadId)
+          // Add target storyline as the first (primary) storyline
+          const remainingStorylineIds = node.storylines
+            .filter(t => t.id !== sourceStorylineId)
             .map(t => t.id);
-          await threadUsecases.setNodeThreads(node.id, [targetThreadId, ...remainingThreadIds]);
+          await storylineUsecases.setNodeStorylines(node.id, [targetStorylineId, ...remainingStorylineIds]);
         }
       }
 
-      // Update start position if changed (and maintain position regardless of thread changes)
+      // Update start position if changed (and maintain position regardless of storyline changes)
       if (targetStart !== node.start) {
         // Calculate new end to maintain width
         const currentEnd = nodeEnds.get(node.id) ?? node.end;
@@ -605,18 +605,18 @@ export function TimelineChapters() {
   };
 
   // Handle resize start
-  const handleResizeStart = (e: React.MouseEvent, nodeId: string, threadId: string, edge: 'left' | 'right') => {
+  const handleResizeStart = (e: React.MouseEvent, nodeId: string, storylineId: string, edge: 'left' | 'right') => {
     e.stopPropagation();
     e.preventDefault();
     
-    const node = nodesWithThreads.find((n) => n.id === nodeId);
+    const node = nodesWithStorylines.find((n) => n.id === nodeId);
     if (!node) return;
     
     const end = nodeEnds.get(nodeId) ?? node.end ?? (node.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
     
     setResizingNode({
       nodeId,
-      threadId,
+      storylineId,
       edge,
       startX: e.clientX,
       startStart: node.start,
@@ -657,7 +657,7 @@ export function TimelineChapters() {
         const validStart = Math.min(newStart, originalEnd - 1);
         
         // 只更新节点位置，end 保持不变
-        setNodesWithThreads((prev) => 
+        setNodesWithStorylines((prev) => 
           prev.map((n) => 
             n.id === resizingNode.nodeId ? { ...n, start: validStart } : n
           )
@@ -667,7 +667,7 @@ export function TimelineChapters() {
     
     const handleResizeEnd = async () => {
       if (resizingNode) {
-        const node = nodesWithThreads.find((n) => n.id === resizingNode.nodeId);
+        const node = nodesWithStorylines.find((n) => n.id === resizingNode.nodeId);
         if (!node) {
           setResizingNode(null);
           return;
@@ -721,7 +721,7 @@ export function TimelineChapters() {
         document.removeEventListener('mouseup', handleResizeEnd);
       };
     }
-  }, [resizingNode, nodeUsecases, nodesWithThreads, nodeEnds]);
+  }, [resizingNode, nodeUsecases, nodesWithStorylines, nodeEnds]);
 
   // Handle node click
   const handleNodeClick = (nodeId: string, e: React.MouseEvent) => {
@@ -738,45 +738,45 @@ export function TimelineChapters() {
     useAppStore.getState().setSelectedNodeId(null);
   };
 
-  // 判断一个 node 是否应该在当前 thread 上作为"主显示"
-  // 规则：在 node 的第一个 thread 上完整显示，其他 threads 上显示连接点
-  const isPrimaryThreadForNode = (node: TimelineNode, threadId: string): boolean => {
-    if (node.threads.length === 0) return false;
-    return node.threads[0].id === threadId;
+  // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
+  // 规则：在 node 的第一个 storyline 上完整显示，其他 storylines 上显示连接点
+  const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
+    if (node.storylines.length === 0) return false;
+    return node.storylines[0].id === storylineId;
   };
 
-  // 渲染连接线和标记点（用于跨多个 threads 的 node）
-  const renderNodeConnections = (node: TimelineNode, currentThreadIndex: number) => {
-    // 只有当 node 在多个 threads 中时才渲染连接
-    if (node.threads.length <= 1) return null;
+  // 渲染连接线和标记点（用于跨多个 storylines 的 node）
+  const renderNodeConnections = (node: TimelineNode, currentStorylineIndex: number) => {
+    // 只有当 node 在多个 storylines 中时才渲染连接
+    if (node.storylines.length <= 1) return null;
     
-    // 找到主 thread 的索引（第一个 thread）
-    const primaryThreadId = node.threads[0].id;
-    const primaryThreadIndex = threads.findIndex(t => t.id === primaryThreadId);
+    // 找到主 storyline 的索引（第一个 storyline）
+    const primaryStorylineId = node.storylines[0].id;
+    const primaryStorylineIndex = storylines.findIndex(t => t.id === primaryStorylineId);
     
-    if (primaryThreadIndex === -1) return null;
+    if (primaryStorylineIndex === -1) return null;
     
     // 计算连接线的位置
-    const rowHeight = nodeHeight + (isExpanded ? TIMELINE_CONFIG.THREAD_PADDING : TIMELINE_CONFIG.THREAD_PADDING_COMPACT) * 2;
-    const rowGap = isExpanded ? TIMELINE_CONFIG.THREAD_GAP : TIMELINE_CONFIG.THREAD_GAP_COMPACT;
+    const rowHeight = nodeHeight + (isExpanded ? TIMELINE_CONFIG.STORYLINE_PADDING : TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT) * 2;
+    const rowGap = isExpanded ? TIMELINE_CONFIG.STORYLINE_GAP : TIMELINE_CONFIG.STORYLINE_GAP_COMPACT;
     
-    // 收集需要绘制连接线的所有 thread 索引
+    // 收集需要绘制连接线的所有 storyline 索引
     const connectionLines: React.ReactElement[] = [];
     
-    node.threads.forEach((thread, idx) => {
-      if (idx === 0) return; // 跳过主 thread（第一个）
+    node.storylines.forEach((storyline, idx) => {
+      if (idx === 0) return; // 跳过主 storyline（第一个）
       
-      const targetThreadIndex = threads.findIndex(t => t.id === thread.id);
-      if (targetThreadIndex === -1) return;
+      const targetStorylineIndex = storylines.findIndex(t => t.id === storyline.id);
+      if (targetStorylineIndex === -1) return;
       
-      // 只在主 thread 上绘制所有连接线
-      if (currentThreadIndex === primaryThreadIndex) {
-        const verticalDistance = Math.abs(targetThreadIndex - primaryThreadIndex) * (rowHeight + rowGap);
-        const isBelow = targetThreadIndex > primaryThreadIndex;
+      // 只在主 storyline 上绘制所有连接线
+      if (currentStorylineIndex === primaryStorylineIndex) {
+        const verticalDistance = Math.abs(targetStorylineIndex - primaryStorylineIndex) * (rowHeight + rowGap);
+        const isBelow = targetStorylineIndex > primaryStorylineIndex;
         
         connectionLines.push(
           <div
-            key={`connection-${thread.id}`}
+            key={`connection-${storyline.id}`}
             style={{
               position: 'absolute',
               left: '50%',
@@ -784,7 +784,7 @@ export function TimelineChapters() {
               top: isBelow ? nodeHeight : -verticalDistance,
               width: isExpanded ? 2 : 1,
               height: verticalDistance,
-              background: threads.find(t => t.id === primaryThreadId)?.color || '#b89968',
+              background: storylines.find(t => t.id === primaryStorylineId)?.color || '#b89968',
               opacity: isExpanded ? 0.5 : 0.3,
               pointerEvents: 'none',
               zIndex: 0,
@@ -798,23 +798,23 @@ export function TimelineChapters() {
   };
 
   // Render a single node card
-  const renderNodeCard = (node: TimelineNode, threadId: string) => {
-    const thread = threads.find((t) => t.id === threadId);
+  const renderNodeCard = (node: TimelineNode, storylineId: string) => {
+    const storyline = storylines.find((t) => t.id === storylineId);
     const isDragging = draggedNode?.node.id === node.id;
     const isSelected = selectedNodeId === node.id;
-    const isPrimary = isPrimaryThreadForNode(node, threadId);
-    const currentThreadIndex = threads.findIndex(t => t.id === threadId);
+    const isPrimary = isPrimaryStorylineForNode(node, storylineId);
+    const currentStorylineIndex = storylines.findIndex(t => t.id === storylineId);
     
     // startToPosition 已经处理了 minStart 偏移和缩放
     const leftPosition = startToPosition(node.start);
     const nodeWidth = getNodeWidth(node.id);
     
-    // 如果不是主 thread，显示标记点而不是完整 node
-    if (!isPrimary && node.threads.length > 1) {
+    // 如果不是主 storyline，显示标记点而不是完整 node
+    if (!isPrimary && node.storylines.length > 1) {
       const markerSize = isExpanded ? 12 : 6;
       return (
         <div
-          key={`${node.id}-${threadId}-marker`}
+          key={`${node.id}-${storylineId}-marker`}
           onClick={(e) => handleNodeClick(node.id, e)}
           style={{
             position: 'absolute',
@@ -823,22 +823,22 @@ export function TimelineChapters() {
             width: markerSize,
             height: markerSize,
             borderRadius: '50%',
-            background: thread?.color || '#b89968',
-            border: isExpanded ? `2px solid ${thread?.color || '#b89968'}` : 'none',
+            background: storyline?.color || '#b89968',
+            border: isExpanded ? `2px solid ${storyline?.color || '#b89968'}` : 'none',
             boxShadow: isSelected 
-              ? `0 0 0 ${isExpanded ? 3 : 2}px rgba(255, 255, 255, 0.8), 0 0 0 ${isExpanded ? 5 : 3}px ${thread?.color || '#b89968'}`
-              : isExpanded ? `0 2px 4px ${thread?.color}60` : 'none',
+              ? `0 0 0 ${isExpanded ? 3 : 2}px rgba(255, 255, 255, 0.8), 0 0 0 ${isExpanded ? 5 : 3}px ${storyline?.color || '#b89968'}`
+              : isExpanded ? `0 2px 4px ${storyline?.color}60` : 'none',
             cursor: 'pointer',
             opacity: isSelected ? 1 : (isExpanded ? 0.9 : 0.7),
             transition: 'all 0.2s',
             zIndex: isSelected ? 10 : 5,
           }}
-          title={isExpanded ? `${node.title} (from ${node.threads[0]?.name || 'another thread'})` : undefined}
+          title={isExpanded ? `${node.title} (from ${node.storylines[0]?.name || 'another storyline'})` : undefined}
         />
       );
     }
     
-    // 主 thread 上显示完整 node
+    // 主 storyline 上显示完整 node
     // 检测当前节点是否有边缘 hover
     const edgeHover = hoveredEdge?.nodeId === node.id ? hoveredEdge.edge : null;
     
@@ -858,9 +858,9 @@ export function TimelineChapters() {
 
     return (
       <div
-        key={`${node.id}-${threadId}`}
+        key={`${node.id}-${storylineId}`}
         draggable={!edgeHover && isPrimary}
-        onDragStart={(e) => handleDragStart(e, node, threadId)}
+        onDragStart={(e) => handleDragStart(e, node, storylineId)}
         onDragEnd={handleDragEnd}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => {
@@ -868,7 +868,7 @@ export function TimelineChapters() {
         }}
         onMouseDown={(e) => {
           if (edgeHover) {
-            handleResizeStart(e, node.id, threadId, edgeHover);
+            handleResizeStart(e, node.id, storylineId, edgeHover);
           }
         }}
         onClick={(e) => {
@@ -882,28 +882,28 @@ export function TimelineChapters() {
           top: 0,
           width: nodeWidth,
           height: nodeHeight,
-          background: isExpanded ? '#fefdfb' : (thread?.color || '#b89968'), // 收起时用 thread 颜色填充
+          background: isExpanded ? '#fefdfb' : (storyline?.color || '#b89968'), // 收起时用 storyline 颜色填充
           borderRadius: isExpanded ? 6 : 3, // 收起时更小的圆角
           cursor: edgeHover ? 'ew-resize' : (isPrimary ? 'grab' : 'default'),
           opacity: isTransitioning ? 0 : (isDragging ? 0.5 : (isExpanded ? 1 : (isSelected ? 1 : 0.8))), // 过渡时透明，收起时未选中的节点略微透明
           // 展开时使用边框，收起时无边框（因为已经是实色填充）
-          borderTop: isExpanded ? (isSelected ? `2px solid ${thread?.color || '#b89968'}` : `1px solid ${thread?.color || '#b89968'}`) : 'none',
-          borderBottom: isExpanded ? (isSelected ? `2px solid ${thread?.color || '#b89968'}` : `1px solid ${thread?.color || '#b89968'}`) : 'none',
+          borderTop: isExpanded ? (isSelected ? `2px solid ${storyline?.color || '#b89968'}` : `1px solid ${storyline?.color || '#b89968'}`) : 'none',
+          borderBottom: isExpanded ? (isSelected ? `2px solid ${storyline?.color || '#b89968'}` : `1px solid ${storyline?.color || '#b89968'}`) : 'none',
           borderLeft: isExpanded ? (edgeHover === 'left' 
-            ? `3px solid ${thread?.color || '#b89968'}` 
-            : (isSelected ? `2px solid ${thread?.color || '#b89968'}` : `1px solid ${thread?.color || '#b89968'}`)) : 'none',
+            ? `3px solid ${storyline?.color || '#b89968'}` 
+            : (isSelected ? `2px solid ${storyline?.color || '#b89968'}` : `1px solid ${storyline?.color || '#b89968'}`)) : 'none',
           borderRight: isExpanded ? (edgeHover === 'right' 
-            ? `3px solid ${thread?.color || '#b89968'}` 
-            : (isSelected ? `2px solid ${thread?.color || '#b89968'}` : `1px solid ${thread?.color || '#b89968'}`)) : 'none',
+            ? `3px solid ${storyline?.color || '#b89968'}` 
+            : (isSelected ? `2px solid ${storyline?.color || '#b89968'}` : `1px solid ${storyline?.color || '#b89968'}`)) : 'none',
           boxShadow: isExpanded 
-            ? (isSelected ? `0 2px 8px ${thread?.color || '#b89968'}40` : '0 1px 4px rgba(90, 74, 58, 0.1)') 
-            : (isSelected ? `0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 0 3px ${thread?.color || '#b89968'}` : 'none'), // 收起时选中节点用外发光高亮
+            ? (isSelected ? `0 2px 8px ${storyline?.color || '#b89968'}40` : '0 1px 4px rgba(90, 74, 58, 0.1)') 
+            : (isSelected ? `0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 0 3px ${storyline?.color || '#b89968'}` : 'none'), // 收起时选中节点用外发光高亮
           transition: 'opacity 0.2s ease-in-out, box-shadow 0.2s',
           overflow: 'visible',
         }}
       >
-        {/* 连接线 - 如果node在多个threads中 */}
-        {node.threads.length > 1 && renderNodeConnections(node, currentThreadIndex)}
+        {/* 连接线 - 如果node在多个storylines中 */}
+        {node.storylines.length > 1 && renderNodeConnections(node, currentStorylineIndex)}
         
         {/* Outline 刻度线背景层 - 仅展开时显示 */}
         {isExpanded && (() => {
@@ -918,10 +918,12 @@ export function TimelineChapters() {
 
             if (isExpanded) {
               // 展开状态：显示所有层级，均匀分布
-              const positions: { left: string; level: number }[] = [];
+              const positions: { left: string; level: number; isParagraph?: boolean }[] = [];
 
               // H1 均分整个宽度
               h1Items.forEach((h1, index) => {
+                const h1Start = (index / h1Items.length) * 100;
+                const h1End = ((index + 1) / h1Items.length) * 100;
                 const position = ((index + 0.5) / h1Items.length) * 100;
                 positions.push({ left: `${position}%`, level: 1 });
 
@@ -938,10 +940,9 @@ export function TimelineChapters() {
                 });
 
                 if (h2InThisH1.length > 0) {
-                  const h1Start = (index / h1Items.length) * 100;
-                  const h1End = ((index + 1) / h1Items.length) * 100;
-                  
                   h2InThisH1.forEach((h2, h2Index) => {
+                    const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
+                    const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
                     const h2Position = h1Start + ((h2Index + 0.5) / h2InThisH1.length) * (h1End - h1Start);
                     positions.push({ left: `${h2Position}%`, level: 2 });
 
@@ -958,25 +959,53 @@ export function TimelineChapters() {
                     });
 
                     if (h3InThisH2.length > 0) {
-                      const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
-                      const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
-                      
-                      h3InThisH2.forEach((_, h3Index) => {
+                      h3InThisH2.forEach((h3, h3Index) => {
+                        const h3Start = h2Start + (h3Index / h3InThisH2.length) * (h2End - h2Start);
+                        const h3End = h2Start + ((h3Index + 1) / h3InThisH2.length) * (h2End - h2Start);
                         const h3Position = h2Start + ((h3Index + 0.5) / h3InThisH2.length) * (h2End - h2Start);
                         positions.push({ left: `${h3Position}%`, level: 3 });
+                        
+                        // 添加 H3 后的 paragraph 次级刻度
+                        const h3ParagraphCount = h3.paragraphsAfter || 0;
+                        if (h3ParagraphCount > 0) {
+                          for (let p = 0; p < h3ParagraphCount; p++) {
+                            const pPosition = h3Start + ((p + 1) / (h3ParagraphCount + 1)) * (h3End - h3Start);
+                            positions.push({ left: `${pPosition}%`, level: 3, isParagraph: true });
+                          }
+                        }
                       });
+                    } else {
+                      // H2 后没有 H3，添加 H2 的 paragraph 次级刻度
+                      const h2ParagraphCount = h2.paragraphsAfter || 0;
+                      if (h2ParagraphCount > 0) {
+                        for (let p = 0; p < h2ParagraphCount; p++) {
+                          const pPosition = h2Start + ((p + 1) / (h2ParagraphCount + 1)) * (h2End - h2Start);
+                          positions.push({ left: `${pPosition}%`, level: 2, isParagraph: true });
+                        }
+                      }
                     }
                   });
+                } else {
+                  // H1 后没有 H2，添加 H1 的 paragraph 次级刻度
+                  const h1ParagraphCount = h1.paragraphsAfter || 0;
+                  if (h1ParagraphCount > 0) {
+                    for (let p = 0; p < h1ParagraphCount; p++) {
+                      const pPosition = h1Start + ((p + 1) / (h1ParagraphCount + 1)) * (h1End - h1Start);
+                      positions.push({ left: `${pPosition}%`, level: 1, isParagraph: true });
+                    }
+                  }
                 }
               });
 
               return positions;
             } else {
               // 收起状态：显示所有层级，均匀分布（和展开时相同）
-              const positions: { left: string; level: number }[] = [];
+              const positions: { left: string; level: number; isParagraph?: boolean }[] = [];
 
               // H1 均分整个宽度
               h1Items.forEach((h1, index) => {
+                const h1Start = (index / h1Items.length) * 100;
+                const h1End = ((index + 1) / h1Items.length) * 100;
                 const position = ((index + 0.5) / h1Items.length) * 100;
                 positions.push({ left: `${position}%`, level: 1 });
 
@@ -993,10 +1022,9 @@ export function TimelineChapters() {
                 });
 
                 if (h2InThisH1.length > 0) {
-                  const h1Start = (index / h1Items.length) * 100;
-                  const h1End = ((index + 1) / h1Items.length) * 100;
-                  
                   h2InThisH1.forEach((h2, h2Index) => {
+                    const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
+                    const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
                     const h2Position = h1Start + ((h2Index + 0.5) / h2InThisH1.length) * (h1End - h1Start);
                     positions.push({ left: `${h2Position}%`, level: 2 });
 
@@ -1013,15 +1041,41 @@ export function TimelineChapters() {
                     });
 
                     if (h3InThisH2.length > 0) {
-                      const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
-                      const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
-                      
-                      h3InThisH2.forEach((_, h3Index) => {
+                      h3InThisH2.forEach((h3, h3Index) => {
+                        const h3Start = h2Start + (h3Index / h3InThisH2.length) * (h2End - h2Start);
+                        const h3End = h2Start + ((h3Index + 1) / h3InThisH2.length) * (h2End - h2Start);
                         const h3Position = h2Start + ((h3Index + 0.5) / h3InThisH2.length) * (h2End - h2Start);
                         positions.push({ left: `${h3Position}%`, level: 3 });
+                        
+                        // 添加 H3 后的 paragraph 次级刻度
+                        const h3ParagraphCount = h3.paragraphsAfter || 0;
+                        if (h3ParagraphCount > 0) {
+                          for (let p = 0; p < h3ParagraphCount; p++) {
+                            const pPosition = h3Start + ((p + 1) / (h3ParagraphCount + 1)) * (h3End - h3Start);
+                            positions.push({ left: `${pPosition}%`, level: 3, isParagraph: true });
+                          }
+                        }
                       });
+                    } else {
+                      // H2 后没有 H3，添加 H2 的 paragraph 次级刻度
+                      const h2ParagraphCount = h2.paragraphsAfter || 0;
+                      if (h2ParagraphCount > 0) {
+                        for (let p = 0; p < h2ParagraphCount; p++) {
+                          const pPosition = h2Start + ((p + 1) / (h2ParagraphCount + 1)) * (h2End - h2Start);
+                          positions.push({ left: `${pPosition}%`, level: 2, isParagraph: true });
+                        }
+                      }
                     }
                   });
+                } else {
+                  // H1 后没有 H2，添加 H1 的 paragraph 次级刻度
+                  const h1ParagraphCount = h1.paragraphsAfter || 0;
+                  if (h1ParagraphCount > 0) {
+                    for (let p = 0; p < h1ParagraphCount; p++) {
+                      const pPosition = h1Start + ((p + 1) / (h1ParagraphCount + 1)) * (h1End - h1Start);
+                      positions.push({ left: `${pPosition}%`, level: 1, isParagraph: true });
+                    }
+                  }
                 }
               });
 
@@ -1052,16 +1106,24 @@ export function TimelineChapters() {
                     transform: 'translateX(-50%)', // 居中对齐
                     bottom: 0,
                     width: isExpanded 
-                      ? 1 // 展开时统一细线
-                      : (pos.level === 1 ? 4 : pos.level === 2 ? 2 : 1), // 收起时根据层级区分宽度
+                      ? (pos.isParagraph ? 0.5 : 1) // 展开时：paragraph 更细
+                      : (pos.isParagraph 
+                          ? 0.5 // 收起时 paragraph 也更细
+                          : (pos.level === 1 ? 4 : pos.level === 2 ? 2 : 1)), // 收起时根据层级区分宽度
                     height: isExpanded 
-                      ? (pos.level === 1 ? 8 : pos.level === 2 ? 6 : 4) // 展开时不同高度
+                      ? (pos.isParagraph 
+                          ? 4 // 展开时 paragraph 刻度高度
+                          : (pos.level === 1 ? 8 : pos.level === 2 ? 6 : 4)) // 展开时不同高度
                       : '100%', // 收起时和 node 一样高
                     backgroundColor: isExpanded
-                      ? (thread?.color || '#b89968') // 展开时用 thread 颜色
-                      : 'rgba(0, 0, 0, 0.39)', // 收起时用半透明灰色
+                      ? (pos.isParagraph 
+                          ? 'rgba(128, 128, 128, 0.4)' // 展开时 paragraph 用灰色
+                          : (storyline?.color || '#b89968')) // 展开时 heading 用 storyline 颜色
+                      : (pos.isParagraph 
+                          ? 'rgba(0, 0, 0, 0.2)' // 收起时 paragraph 用浅灰色
+                          : 'rgba(0, 0, 0, 0.39)'), // 收起时 heading 用半透明灰色
                     borderRadius: isExpanded ? 0.5 : 0,
-                    opacity: isExpanded ? 0.5 : 1, // 收起时完全不透明
+                    opacity: isExpanded ? (pos.isParagraph ? 0.6 : 0.5) : 1, // 收起时完全不透明
                   }}
                 />
               ))}
@@ -1118,23 +1180,23 @@ export function TimelineChapters() {
     );
   };
 
-  // Render a single thread row using absolute positioning
-  const renderThreadRow = (thread: StoryThread) => {
-    const nodesInThread = nodesWithThreads.filter((n) => n.threads.some((t) => t.id === thread.id));
+  // Render a single storyline row using absolute positioning
+  const renderStorylineRow = (storyline: Storyline) => {
+    const nodesInStoryline = nodesWithStorylines.filter((n) => n.storylines.some((t) => t.id === storyline.id));
     
     // 根据展开状态使用不同的 padding
-    const threadPadding = isExpanded ? TIMELINE_CONFIG.THREAD_PADDING : TIMELINE_CONFIG.THREAD_PADDING_COMPACT;
-    const rowHeight = nodeHeight + threadPadding * 2;
+    const storylinePadding = isExpanded ? TIMELINE_CONFIG.STORYLINE_PADDING : TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT;
+    const rowHeight = nodeHeight + storylinePadding * 2;
     
-    // 检查选中的节点是否属于当前 thread
-    const selectedNode = nodesWithThreads.find((n) => n.id === selectedNodeId);
-    const selectedNodeBelongsToThread = selectedNode?.threads.some((t) => t.id === thread.id);
+    // 检查选中的节点是否属于当前 storyline
+    const selectedNode = nodesWithStorylines.find((n) => n.id === selectedNodeId);
+    const selectedNodeBelongsToStoryline = selectedNode?.storylines.some((t) => t.id === storyline.id);
 
     return (
       <div
-        key={thread.id}
-        onDragOver={(e) => handleDragOver(e, thread.id)}
-        onDrop={(e) => handleDrop(e, thread.id)}
+        key={storyline.id}
+        onDragOver={(e) => handleDragOver(e, storyline.id)}
+        onDrop={(e) => handleDrop(e, storyline.id)}
         onClick={handleTimelineClick}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -1148,7 +1210,7 @@ export function TimelineChapters() {
           const position = Math.max(1, Math.round(x / TIMELINE_CONFIG.GRID_UNIT) + 1);
           
           // 检查是否点击在某个 node 上
-          const clickedNode = nodesInThread.find(node => {
+          const clickedNode = nodesInStoryline.find(node => {
             const nodeLeft = startToPosition(node.start);
             const nodeRight = nodeLeft + getNodeWidth(node.id);
             return x >= nodeLeft && x <= nodeRight;
@@ -1162,26 +1224,26 @@ export function TimelineChapters() {
               y: e.clientY - 2,
               type: 'node',
               nodeId: clickedNode.id,
-              threadId: thread.id,
+              storylineId: storyline.id,
               nodeTitle: clickedNode.title,
               nodeSummary: clickedNode.summary,
-              nodeThreads: clickedNode.threads,
+              nodeStorylines: clickedNode.storylines,
             });
-          } else if (selectedNodeId && !selectedNodeBelongsToThread) {
-            // 选中了某个 node，且点击在空白处，可以添加 node 到此 thread
+          } else if (selectedNodeId && !selectedNodeBelongsToStoryline) {
+            // 选中了某个 node，且点击在空白处，可以添加 node 到此 storyline
             setContextMenu({
               x: e.clientX + 2,
               y: e.clientY - 2,
-              type: 'thread-with-selected',
-              threadId: thread.id,
+              type: 'storyline-with-selected',
+              storylineId: storyline.id,
             });
           } else {
-            // Thread 空白处，可以新增 chapter
+            // Storyline 空白处，可以新增 chapter
             setContextMenu({
               x: e.clientX + 2,
               y: e.clientY - 2,
-              type: 'thread-empty',
-              threadId: thread.id,
+              type: 'storyline-empty',
+              storylineId: storyline.id,
               position,
             });
           }
@@ -1191,22 +1253,22 @@ export function TimelineChapters() {
           display: 'flex',
           alignItems: 'center',
           height: rowHeight,
-          marginBottom: isExpanded ? TIMELINE_CONFIG.THREAD_GAP : TIMELINE_CONFIG.THREAD_GAP_COMPACT,
+          marginBottom: isExpanded ? TIMELINE_CONFIG.STORYLINE_GAP : TIMELINE_CONFIG.STORYLINE_GAP_COMPACT,
           gap: isExpanded ? 12 : 8, // 收起时减小 gap
         }}
       >
-        {/* Thread label - 仅展开时显示 */}
+        {/* Storyline label - 仅展开时显示 */}
         {isExpanded && (
           <div
             onClick={() => {
               useAppStore.getState().setSelectedNodeId(null);
-              navigate(`/editor/thread/${thread.id}`);
+              navigate(`/editor/storyline/${storyline.id}`);
             }}
             style={{
               fontSize: 11,
               fontWeight: 600,
               color: 'rgba(71, 71, 71, 0.85)',
-              width: 60, // 固定宽度，确保所有 thread 对齐
+              width: 60, // 固定宽度，确保所有 storyline 对齐
               flexShrink: 0, // 防止被压缩
               textAlign: 'right',
               paddingRight: 8,
@@ -1218,13 +1280,13 @@ export function TimelineChapters() {
               cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = thread.color || '#b89968';
+              e.currentTarget.style.color = storyline.color || '#b89968';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = 'rgba(71, 71, 71, 0.85)';
             }}
           >
-            {thread.name}
+            {storyline.name}
           </div>
         )}
 
@@ -1241,7 +1303,7 @@ export function TimelineChapters() {
           }}
         >
           {/* Render drop indicator */}
-          {dragOverPosition?.threadId === thread.id && (
+          {dragOverPosition?.storylineId === storyline.id && (
             <div
               style={{
                 position: 'absolute',
@@ -1249,7 +1311,7 @@ export function TimelineChapters() {
                 top: 0,
                 width: 2,
                 height: nodeHeight,
-                background: thread.color || 'var(--accent, #b89968)',
+                background: storyline.color || 'var(--accent, #b89968)',
                 opacity: 0.7,
                 pointerEvents: 'none',
               }}
@@ -1257,10 +1319,10 @@ export function TimelineChapters() {
           )}
 
           {/* Render nodes */}
-          {nodesInThread.map((node) => renderNodeCard(node, thread.id))}
+          {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
 
           {/* Empty state */}
-          {nodesInThread.length === 0 && !draggedNode && (
+          {nodesInStoryline.length === 0 && !draggedNode && (
             <div
               style={{
                 position: 'absolute',
@@ -1273,7 +1335,7 @@ export function TimelineChapters() {
                 whiteSpace: 'nowrap',
               }}
             >
-              No chapters in this thread
+              No chapters in this storyline
             </div>
           )}
         </div>
@@ -1366,8 +1428,8 @@ export function TimelineChapters() {
         // 隐藏滚动条 - Webkit (Chrome, Safari)
         className="timeline-scroll-container"
       >
-        {threads.length > 0 ? (
-          threads.map((thread) => renderThreadRow(thread))
+        {storylines.length > 0 ? (
+          storylines.map((storyline) => renderStorylineRow(storyline))
         ) : (
           <div
             style={{
@@ -1379,7 +1441,7 @@ export function TimelineChapters() {
               fontSize: 14,
             }}
           >
-            Loading story threads...
+            Loading storylines...
           </div>
         )}
       </div>
@@ -1393,8 +1455,8 @@ export function TimelineChapters() {
         if (contextMenu.type === 'node') {
           menuHeight = 200; // 预览区域 + 按钮
           if (contextMenu.nodeSummary) menuHeight += 40;
-          if (contextMenu.nodeThreads && contextMenu.nodeThreads.length > 0) menuHeight += 30;
-          if (contextMenu.nodeThreads && contextMenu.nodeThreads.length > 1) menuHeight += 40; // Remove from thread button
+          if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0) menuHeight += 30;
+          if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1) menuHeight += 40; // Remove from storyline button
         }
         
         const position = getContextMenuPosition(contextMenu.x, contextMenu.y, menuWidth, menuHeight);
@@ -1417,8 +1479,8 @@ export function TimelineChapters() {
               overflow: 'hidden',
             }}
           >
-          {/* Thread 空白处菜单 */}
-          {contextMenu.type === 'thread-empty' && (
+          {/* Storyline 空白处菜单 */}
+          {contextMenu.type === 'storyline-empty' && (
             <button
               onClick={() => handleContextMenuAction('createChapter')}
               style={{
@@ -1488,8 +1550,8 @@ export function TimelineChapters() {
                   </div>
                 )}
                 
-                {/* Thread 标签 */}
-                {contextMenu.nodeThreads && contextMenu.nodeThreads.length > 0 && (
+                {/* Storyline 标签 */}
+                {contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0 && (
                   <div
                     style={{
                       display: 'flex',
@@ -1498,7 +1560,7 @@ export function TimelineChapters() {
                       flexWrap: 'wrap',
                     }}
                   >
-                    {contextMenu.nodeThreads.map((t) => (
+                    {contextMenu.nodeStorylines.map((t) => (
                       <span
                         key={t.id}
                         style={{
@@ -1543,9 +1605,9 @@ export function TimelineChapters() {
                 ✏️ Edit Chapter
               </button>
               
-              {contextMenu.nodeThreads && contextMenu.nodeThreads.length > 1 && (
+              {contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1 && (
                 <button
-                  onClick={() => handleContextMenuAction('removeFromThread')}
+                  onClick={() => handleContextMenuAction('removeFromStoryline')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1566,7 +1628,7 @@ export function TimelineChapters() {
                     e.currentTarget.style.background = 'transparent';
                   }}
                 >
-                  ➖ Remove Node from Thread
+                  ➖ Remove Node from Storyline
                 </button>
               )}
               
@@ -1597,10 +1659,10 @@ export function TimelineChapters() {
             </>
           )}
           
-          {/* 添加到 Thread 菜单 */}
-          {contextMenu.type === 'thread-with-selected' && (
+          {/* 添加到 Storyline 菜单 */}
+          {contextMenu.type === 'storyline-with-selected' && (
             <button
-              onClick={() => handleContextMenuAction('addToThread')}
+              onClick={() => handleContextMenuAction('addToStoryline')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1621,7 +1683,7 @@ export function TimelineChapters() {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              ➕ Add to Thread
+              ➕ Add to Storyline
             </button>
           )}
           </div>

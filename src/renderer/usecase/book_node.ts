@@ -2,7 +2,7 @@
 import type { BookNode, BookNodeEdge } from '../domain/book_node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
 import type { BookContentRepository } from '../repositories/book_content';
-import type { StoryThreadRepository } from '../repositories/story_thread';
+import type { StorylineRepository } from '../repositories/storyline';
 import { v7 as uuidv7 } from 'uuid';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
@@ -23,7 +23,7 @@ export {
 export interface BookNodeUsecaseDeps {
   nodeRepo: BookNodeRepository;
   edgeRepo: BookNodeEdgeRepository;
-  threadRepo: StoryThreadRepository;
+  storylineRepo: StorylineRepository;
   contentRepo: BookContentRepository;
   // state related
   getNodesState: () => BookNode[];
@@ -121,9 +121,9 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
     // Don't fail the node creation if content creation fails
   }
 
-  // Note: Do not automatically assign any thread to the node
-  // The caller should explicitly add the node to the desired thread
-  // This allows flexibility in choosing which thread the node belongs to
+  // Note: Do not automatically assign any storyline to the node
+  // The caller should explicitly add the node to the desired storyline
+  // This allows flexibility in choosing which storyline the node belongs to
 
   const node = created;
   const nextNodes = [...nodes, node].sort((a, b) => a.start - b.start);

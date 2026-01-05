@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, Outlet, useLocation } from 'react-router-dom';
 import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
-import { ThreadEditorView } from './views/ThreadEditorView';
+import { StorylineEditorView } from './views/StorylineEditorView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/ElementPanel';
@@ -138,7 +138,7 @@ export default function App() {
       <Route path="/" element={<Layout />}>
         <Route path="editor" element={<Navigate to="/" replace />} />
         <Route path="editor/:nodeId" element={<NodeEditorView />} />
-        <Route path="editor/thread/:threadId" element={<ThreadEditorView />} />
+        <Route path="editor/storyline/:storylineId" element={<StorylineEditorView />} />
         <Route path="element/:elementId" element={<ElementEditorView />} />
         <Route path="category/:categoryName" element={<CategoryEditorView />} />
       </Route>

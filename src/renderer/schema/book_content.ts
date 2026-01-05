@@ -4,10 +4,10 @@ export interface OutlineItem {
   level: 1 | 2 | 3;        // Heading level (h1/h2/h3)
   text: string;            // Heading text content
   position: number;        // Position in the document (for ordering)
+  paragraphsAfter?: number; // Number of paragraphs after this heading (before next heading or end)
 }
 
 // minimal text block for editing 
-// TODO: 后续支持一下yjs的东西，现在先简单存储
 export interface BookContentRecord {
   id: string;
   node_id: string;         // link to BookNode it belongs to

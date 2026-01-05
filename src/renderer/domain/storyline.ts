@@ -1,5 +1,5 @@
-// Story Thread Domain Model
-export interface StoryThread {
+// Storyline Domain Model
+export interface Storyline {
   id: string;
   projectId: string;
   name: string;
@@ -10,7 +10,7 @@ export interface StoryThread {
   updatedAt: Date;
 }
 
-export interface CreateStoryThreadInput {
+export interface CreateStorylineInput {
   projectId: string;
   name: string;
   color: string;
@@ -18,7 +18,7 @@ export interface CreateStoryThreadInput {
   pmJson?: object;
 }
 
-export interface UpdateStoryThreadInput {
+export interface UpdateStorylineInput {
   id: string;
   name?: string;
   color?: string;

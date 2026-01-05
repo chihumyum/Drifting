@@ -1,13 +1,13 @@
 import { Settings, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import { useStoryThreadUsecases } from '../hooks/useStoryThreadUsecases';
+import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useAppStore } from '../store';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { events } from '../lib/events';
 
-// Thread color palette
-const THREAD_COLORS = [
+// Storyline color palette
+const STORYLINE_COLORS = [
   '#b89968', // gold
   '#6b9080', // sage
   '#a3b18a', // moss
@@ -22,7 +22,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const { createNode, loadNodes } = useBookNodeUsecases();
-  const threadUsecases = useStoryThreadUsecases();
+  const storylineUsecases = useStorylineUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
   const selectedNodeId = useAppStore(state => state.selectedNodeId);
 
@@ -45,32 +45,32 @@ export function AppSidebar() {
         end: newEnd,
       });
       
-      // 分配默认 thread
-      let defaultThreadId: string | null = null;
+      // 分配默认 storyline
+      let defaultStorylineId: string | null = null;
       
       if (selectedNodeId) {
-        // 如果有选中的 node，获取它的主 thread（第一个 thread）
-        const selectedNodeThreads = await threadUsecases.getThreadsByNode(selectedNodeId);
-        if (selectedNodeThreads.length > 0) {
-          defaultThreadId = selectedNodeThreads[0].id;
+        // 如果有选中的 node，获取它的主 storyline（第一个 storyline）
+        const selectedNodeStorylines = await storylineUsecases.getStorylinesByNode(selectedNodeId);
+        if (selectedNodeStorylines.length > 0) {
+          defaultStorylineId = selectedNodeStorylines[0].id;
         }
       }
       
-      if (!defaultThreadId) {
-        // 如果没有选中 node 或选中的 node 没有 thread，随便选一个 thread
+      if (!defaultStorylineId) {
+        // 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
         const projectId = getProjectId(user?.id);
-        const allThreads = await threadUsecases.getThreadsByProject(projectId);
-        if (allThreads.length > 0) {
-          defaultThreadId = allThreads[0].id;
+        const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+        if (allStorylines.length > 0) {
+          defaultStorylineId = allStorylines[0].id;
         }
       }
       
-      // 将新 node 添加到 thread
-      if (defaultThreadId) {
-        await threadUsecases.addNodeToThread(newNode.id, defaultThreadId);
+      // 将新 node 添加到 storyline
+      if (defaultStorylineId) {
+        await storylineUsecases.addNodeToStoryline(newNode.id, defaultStorylineId);
       }
       
-      // Reload nodes to ensure timeline picks up the new node with its thread relationship
+      // Reload nodes to ensure timeline picks up the new node with its storyline relationship
       await loadNodes();
       
       // 设置为选中状态
@@ -96,25 +96,25 @@ export function AppSidebar() {
     }
   };
 
-  const handleCreateThread = async () => {
+  const handleCreateStoryline = async () => {
     try {
       const projectId = getProjectId(user?.id);
       
       // Generate random color
-      const randomColor = THREAD_COLORS[Math.floor(Math.random() * THREAD_COLORS.length)];
+      const randomColor = STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
       
-      // Create new thread
-      const newThread = await threadUsecases.createThread({
+      // Create new storyline
+      const newStoryline = await storylineUsecases.createStoryline({
         projectId,
-        name: 'New Thread',
+        name: 'New Storyline',
         color: randomColor,
         summary: '',
       });
       
-      // Navigate to thread editor
-      navigate(`/editor/thread/${newThread.id}`);
+      // Navigate to storyline editor
+      navigate(`/editor/storyline/${newStoryline.id}`);
     } catch (error) {
-      console.error('Failed to create thread:', error);
+      console.error('Failed to create storyline:', error);
     }
   };
 
@@ -165,7 +165,7 @@ export function AppSidebar() {
         </button>
         
         <button
-          onClick={handleCreateThread}
+          onClick={handleCreateStoryline}
           className="bg-accent hover:bg-accent-hover text-paper transition-colors"
           style={{
             display: 'flex',
@@ -192,7 +192,7 @@ export function AppSidebar() {
           }}
         >
           <Plus size={16} />
-          <span>Thread</span>
+          <span>Storyline</span>
         </button>
       </div>
   );

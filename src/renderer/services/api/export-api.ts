@@ -12,7 +12,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 export interface CreateExportDto {
   format: 'pdf' | 'markdown' | 'docx' | 'epub';
   includeElements?: boolean;
-  includeThreads?: boolean;
+  includeStorylines?: boolean;
   customTemplate?: string;
 }
 

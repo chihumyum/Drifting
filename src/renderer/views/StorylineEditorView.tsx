@@ -25,8 +25,8 @@ function getDefaultDoc(): JSONContent {
   return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
 }
 
-export function ThreadEditorView() {
-  const { threadId } = useParams<{ threadId: string }>();
+export function StorylineEditorView() {
+  const { storylineId } = useParams<{ storylineId: string }>();
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const { bookNodes } = useAppStore();
@@ -41,7 +41,7 @@ export function ThreadEditorView() {
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryValue, setSummaryValue] = useState('');
   const isContentLoadedRef = useRef(false);
-  const loadedThreadIdRef = useRef<string | null>(null);
+  const loadedStorylineIdRef = useRef<string | null>(null);
   
   // Initialize TipTap editor for description (pmJson)
   const editor = useEditor({
@@ -69,7 +69,7 @@ export function ThreadEditorView() {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      if (!isContentLoadedRef.current || !threadId) {
+      if (!isContentLoadedRef.current || !storylineId) {
         return;
       }
       
@@ -77,7 +77,7 @@ export function ThreadEditorView() {
       
       // Auto-save description (pmJson)
       void storylineUsecases.updateStoryline({
-        id: threadId,
+        id: storylineId,
         pmJson: json,
       });
     },
@@ -86,7 +86,7 @@ export function ThreadEditorView() {
   // Load storyline data and nodes
   useEffect(() => {
     async function loadStoryline() {
-      if (!threadId) {
+      if (!storylineId) {
         navigate('/editor');
         return;
       }
@@ -95,13 +95,13 @@ export function ThreadEditorView() {
         setIsLoading(true);
         const projectId = getProjectId(user?.id);
         const [storylineData, storylines, nodeIds] = await Promise.all([
-          storylineUsecases.getStorylineById(threadId),
+          storylineUsecases.getStorylineById(storylineId),
           storylineUsecases.getStorylinesByProject(projectId),
-          storylineUsecases.getNodeIdsByStoryline(threadId),
+          storylineUsecases.getNodeIdsByStoryline(storylineId),
         ]);
         
         if (!storylineData) {
-          console.error(`Storyline ${threadId} not found`);
+          console.error(`Storyline ${storylineId} not found`);
           navigate('/editor');
           return;
         }
@@ -125,64 +125,65 @@ export function ThreadEditorView() {
     }
     
     loadStoryline();
-  }, [threadId, storylineUsecases, navigate, user, bookNodes]);
+  }, [storylineId, storylineUsecases, navigate, user, bookNodes]);
   
   // Update editor content when storyline loads
   useEffect(() => {
     if (!editor || !storyline) return;
     
     // If we're loading a different storyline, reset the flag
-    if (loadedThreadIdRef.current !== threadId) {
+    if (loadedStorylineIdRef.current !== storylineId) {
       isContentLoadedRef.current = false;
-      loadedThreadIdRef.current = null;
+      loadedStorylineIdRef.current = null;
     }
     
     // Load the storyline description content
     try {
       const content = storyline.pmJson 
-        ? (typeof thread.pmJson === 'string' ? JSON.parse(thread.pmJson as string) : thread.pmJson)
+        ? (typeof storyline.pmJson === 'string' ? JSON.parse(storyline.pmJson as string) : storyline.pmJson)
         : getDefaultDoc();
       
       editor.commands.setContent(content);
       
       // Mark content as loaded
       isContentLoadedRef.current = true;
-      loadedThreadIdRef.current = threadId || null;
+      loadedStorylineIdRef.current = storylineId || null;
     } catch (error) {
       console.error('Failed to parse storyline description content', error);
       editor.commands.setContent(getDefaultDoc());
       isContentLoadedRef.current = true;
-      loadedThreadIdRef.current = threadId || null;
+      loadedStorylineIdRef.current = storylineId || null;
     }
-  }, [editor, storyline, threadId]);
+  }, [editor, storyline, storylineId]);
   
   const handleSaveName = async () => {
-    if (!threadId || !nameValue.trim()) return;
+    if (!storylineId || !nameValue.trim()) return;
     await storylineUsecases.updateStoryline({
-      id: threadId,
+      id: storylineId,
       name: nameValue.trim(),
     });
     setEditingName(false);
     // Reload storyline to update state
-    const updated = await storylineUsecases.getStorylineById(threadId);
+    const updated = await storylineUsecases.getStorylineById(storylineId);
     if (updated) setStoryline(updated);
   };
 
   const handleSaveSummary = async () => {
-    if (!threadId) return;
+    if (!storylineId) return;
     await storylineUsecases.updateStoryline({
-      id: threadId,
+      id: storylineId,
       summary: summaryValue,
     });
     setEditingSummary(false);
     // Reload storyline to update state
-    const updated = await storylineUsecases.getStorylineById(threadId);
+    const updated = await storylineUsecases.getStorylineById(storylineId);
     if (updated) setStoryline(updated);
   };
+  
   const handleContextAction = async (action: string) => {
     if (!storyline) return;
     
-    if (action === 'deleteThread') {
+    if (action === 'deleteStoryline') {
       const otherStorylines = allStorylines.filter(t => t.id !== storyline.id);
       
       if (otherStorylines.length === 0) {
@@ -280,7 +281,7 @@ export function ThreadEditorView() {
               onKeyDown={e => {
                 if (e.key === 'Enter') handleSaveName();
                 if (e.key === 'Escape') {
-                  setNameValue(thread.name);
+                  setNameValue(storyline.name);
                   setEditingName(false);
                 }
               }}
@@ -493,7 +494,7 @@ export function ThreadEditorView() {
       
       {/* Editor Context Menu */}
       <EditorContextMenu 
-        editorType="thread"
+        editorType="storyline"
         onAction={handleContextAction}
       />
     </div>

@@ -1,5 +1,5 @@
-// Story Thread Schema
-export interface StoryThreadRecord {
+// Storyline Schema
+export interface StorylineRecord {
   id: string;
   project_id: string;
   name: string;
@@ -14,8 +14,9 @@ export interface StoryThreadRecord {
   is_deleted?: number;
 }
 
-export interface NodeThreadRecord {
+export interface NodeStorylineRecord {
   node_id: string;
-  thread_id: string;
-  thread_order: number; // Determines which thread is primary for a node (0 = primary)
+  storyline_id: string;
+  storyline_order: number; // Determines which storyline is primary for a node (0 = primary)
+}
 }

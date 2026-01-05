@@ -147,8 +147,8 @@ CREATE INDEX IF NOT EXISTS idx_story_node_stage ON story_node(story_stage_id);
 CREATE INDEX IF NOT EXISTS idx_story_node_timeline ON story_node(project_id, start, end);
 CREATE INDEX IF NOT EXISTS idx_story_node_sync ON story_node(sync_status) WHERE is_deleted = 0;
 
--- Story threads (narrative threads/storylines)
-CREATE TABLE IF NOT EXISTS story_thread (
+-- Storylines (narrative threads/storylines)
+CREATE TABLE IF NOT EXISTS storyline (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -162,20 +162,20 @@ CREATE TABLE IF NOT EXISTS story_thread (
   is_deleted INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_story_thread_project ON story_thread(project_id);
-CREATE INDEX IF NOT EXISTS idx_story_thread_sync ON story_thread(sync_status) WHERE is_deleted = 0;
+CREATE INDEX IF NOT EXISTS idx_storyline_project ON storyline(project_id);
+CREATE INDEX IF NOT EXISTS idx_storyline_sync ON storyline(sync_status) WHERE is_deleted = 0;
 
--- Node to thread relationship (many-to-many)
-CREATE TABLE IF NOT EXISTS node_thread (
+-- Node to storyline relationship (many-to-many)
+CREATE TABLE IF NOT EXISTS node_storyline (
   node_id TEXT NOT NULL,
-  thread_id TEXT NOT NULL,
-  thread_order INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY(node_id, thread_id),
+  storyline_id TEXT NOT NULL,
+  storyline_order INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(node_id, storyline_id),
   FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
-  FOREIGN KEY(thread_id) REFERENCES story_thread(id) ON DELETE CASCADE
+  FOREIGN KEY(storyline_id) REFERENCES storyline(id) ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_node_thread_node ON node_thread(node_id);
-CREATE INDEX IF NOT EXISTS idx_node_thread_thread ON node_thread(thread_id);
+CREATE INDEX IF NOT EXISTS idx_node_storyline_node ON node_storyline(node_id);
+CREATE INDEX IF NOT EXISTS idx_node_storyline_storyline ON node_storyline(storyline_id);
 
 -- Edges between nodes 
 CREATE TABLE IF NOT EXISTS node_edge (
@@ -333,16 +333,16 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
     );
   }
 
-  // Insert default story thread if not exists
-  const defaultThread = db.prepare('SELECT id FROM story_thread WHERE id = ?').get('thread_main');
+  // Insert default storyline if not exists
+  const defaultStoryline = db.prepare('SELECT id FROM storyline WHERE id = ?').get('storyline_main');
   
-  if (!defaultThread) {
-    console.log('[Database] Creating default story thread');
+  if (!defaultStoryline) {
+    console.log('[Database] Creating default storyline');
     db.prepare(`
-      INSERT INTO story_thread (id, project_id, name, color, summary, created_at, updated_at, sync_status, last_modified, is_deleted)
+      INSERT INTO storyline (id, project_id, name, color, summary, created_at, updated_at, sync_status, last_modified, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      'thread_main',
+      'storyline_main',
       'default-project',
       'Main Story',
       '#3B82F6',

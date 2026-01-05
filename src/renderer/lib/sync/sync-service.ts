@@ -44,7 +44,7 @@ class SyncService {
    * 通用创建方法 - 立即写本地 + 后台同步
    * 
    * @param localRepo - 本地 SQLite repository
-   * @param entity - 实体类型 ('node' | 'element' | 'thread' | 'content')
+   * @param entity - 实体类型 ('node' | 'element' | 'storyline' | 'content')
    * @param data - 创建数据
    * @param remoteCreate - 远程 API 创建函数（可选，用于同步）
    * @returns 本地创建的实体

@@ -1,7 +1,7 @@
 import { query, run } from '../lib/db';
-import type { StoryThreadRepository } from './story_thread';
-import type { StoryThread, CreateStoryThreadInput, UpdateStoryThreadInput } from '../domain/story_thread';
-import type { StoryThreadRecord } from '../schema/story_thread';
+import type { StorylineRepository } from './storyline';
+import type { Storyline, CreateStorylineInput, UpdateStorylineInput } from '../domain/storyline';
+import type { StorylineRecord } from '../schema/storyline';
 import { TABLES } from '../schema/table';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
@@ -32,12 +32,12 @@ const parsePmJson = (json: string | null | undefined): object | undefined => {
   try {
     return JSON.parse(json);
   } catch (error) {
-    console.warn('[StoryThreadRepository] Failed to parse pm_json:', error);
+    console.warn('[StorylineRepository] Failed to parse pm_json:', error);
     return undefined;
   }
 };
 
-const recordToDomain = (record: StoryThreadRecord): StoryThread => ({
+const recordToDomain = (record: StorylineRecord): Storyline => ({
   id: record.id,
   projectId: record.project_id,
   name: record.name,
@@ -48,24 +48,24 @@ const recordToDomain = (record: StoryThreadRecord): StoryThread => ({
   updatedAt: new Date(record.updated_at),
 });
 
-const ensureThreadRecord = (record: StoryThreadRecord): StoryThreadRecord & Required<Pick<StoryThreadRecord, 'sync_status' | 'last_modified' | 'is_deleted'>> => ({
+const ensureStorylineRecord = (record: StorylineRecord): StorylineRecord & Required<Pick<StorylineRecord, 'sync_status' | 'last_modified' | 'is_deleted'>> => ({
   ...record,
   sync_status: record.sync_status ?? 'synced',
   last_modified: record.last_modified ?? (Date.parse(record.updated_at) || Date.now()),
   is_deleted: record.is_deleted ?? 0,
 });
 
-const getThreadRecordById = async (id: string) => {
-  const rows = await query<StoryThreadRecord & { sync_status?: SyncStatus; last_modified?: number | null; is_deleted?: number }>(
-    `SELECT * FROM ${TABLES.storyThread} WHERE id='${esc(id)}' LIMIT 1`
+const getStorylineRecordById = async (id: string) => {
+  const rows = await query<StorylineRecord & { sync_status?: SyncStatus; last_modified?: number | null; is_deleted?: number }>(
+    `SELECT * FROM ${TABLES.storyline} WHERE id='${esc(id)}' LIMIT 1`
   );
-  return rows[0] ? ensureThreadRecord(rows[0]) : undefined;
+  return rows[0] ? ensureStorylineRecord(rows[0]) : undefined;
 };
 
-const insertThreadRecord = async (record: StoryThreadRecord, metadata?: Partial<SyncMetadata>) => {
+const insertStorylineRecord = async (record: StorylineRecord, metadata?: Partial<SyncMetadata>) => {
   const sync = ensureSyncMetadata(metadata);
   await run(
-    `INSERT INTO ${TABLES.storyThread}
+    `INSERT INTO ${TABLES.storyline}
      (id, project_id, name, color, summary, pm_json, created_at, updated_at, sync_status, last_modified, is_deleted)
      VALUES (
        '${esc(record.id)}',
@@ -83,10 +83,10 @@ const insertThreadRecord = async (record: StoryThreadRecord, metadata?: Partial<
   );
 };
 
-const updateThreadRecord = async (record: StoryThreadRecord, metadata?: Partial<SyncMetadata>) => {
+const updateStorylineRecord = async (record: StorylineRecord, metadata?: Partial<SyncMetadata>) => {
   const sync = ensureSyncMetadata(metadata);
   await run(
-    `UPDATE ${TABLES.storyThread} SET
+    `UPDATE ${TABLES.storyline} SET
        project_id='${esc(record.project_id)}',
        name='${esc(record.name)}',
        color='${esc(record.color)}',
@@ -101,13 +101,13 @@ const updateThreadRecord = async (record: StoryThreadRecord, metadata?: Partial<
   );
 };
 
-export class StoryThreadSQLiteRepository implements StoryThreadRepository {
-  async createThread(input: CreateStoryThreadInput): Promise<StoryThread> {
+export class StorylineSQLiteRepository implements StorylineRepository {
+  async createStoryline(input: CreateStorylineInput): Promise<Storyline> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const lastModified = Date.now();
 
-    const record: StoryThreadRecord = {
+    const record: StorylineRecord = {
       id,
       project_id: input.projectId,
       name: input.name,
@@ -121,7 +121,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
       is_deleted: 0,
     };
 
-    await insertThreadRecord(record, {
+    await insertStorylineRecord(record, {
       syncStatus: 'pending',
       lastModified,
       isDeleted: 0,
@@ -130,7 +130,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
     if (canSync()) {
       syncManager.enqueue({
         type: 'create',
-        entity: 'thread',
+        entity: 'storyline',
         localId: id,
         projectId: input.projectId,
         data: {
@@ -148,30 +148,30 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
     return recordToDomain(record);
   }
 
-  async getThreadById(id: string): Promise<StoryThread | null> {
-    const records = await query<StoryThreadRecord>(
-      `SELECT * FROM ${TABLES.storyThread} WHERE id = '${esc(id)}' AND is_deleted = 0`
+  async getStorylineById(id: string): Promise<Storyline | null> {
+    const records = await query<StorylineRecord>(
+      `SELECT * FROM ${TABLES.storyline} WHERE id = '${esc(id)}' AND is_deleted = 0`
     );
     return records.length > 0 ? recordToDomain(records[0]) : null;
   }
 
-  async getThreadsByProject(projectId: string): Promise<StoryThread[]> {
-    const records = await query<StoryThreadRecord>(
-      `SELECT * FROM ${TABLES.storyThread} WHERE project_id = '${esc(projectId)}' AND is_deleted = 0 ORDER BY name ASC`
+  async getStorylinesByProject(projectId: string): Promise<Storyline[]> {
+    const records = await query<StorylineRecord>(
+      `SELECT * FROM ${TABLES.storyline} WHERE project_id = '${esc(projectId)}' AND is_deleted = 0 ORDER BY name ASC`
     );
     return records.map((r) => recordToDomain(r));
   }
 
-  async updateThread(input: UpdateStoryThreadInput): Promise<StoryThread> {
-    const existing = await this.getThreadById(input.id);
+  async updateStoryline(input: UpdateStorylineInput): Promise<Storyline> {
+    const existing = await this.getStorylineById(input.id);
     if (!existing) {
-      throw new Error(`Thread ${input.id} not found`);
+      throw new Error(`Storyline ${input.id} not found`);
     }
 
     const now = new Date().toISOString();
     const lastModified = Date.now();
 
-    const record: StoryThreadRecord = {
+    const record: StorylineRecord = {
       id: existing.id,
       project_id: existing.projectId,
       name: input.name ?? existing.name,
@@ -182,7 +182,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
       updated_at: now,
     };
 
-    await updateThreadRecord(record, {
+    await updateStorylineRecord(record, {
       syncStatus: 'pending',
       lastModified,
       isDeleted: 0,
@@ -191,7 +191,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
     if (canSync()) {
       syncManager.enqueue({
         type: 'update',
-        entity: 'thread',
+        entity: 'storyline',
         localId: input.id,
         projectId: existing.projectId,
         data: {
@@ -204,19 +204,19 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
       });
     }
 
-    const updated = await this.getThreadById(input.id);
+    const updated = await this.getStorylineById(input.id);
     if (!updated) {
-      throw new Error(`Failed to retrieve updated thread ${input.id}`);
+      throw new Error(`Failed to retrieve updated storyline ${input.id}`);
     }
     return updated;
   }
 
-  async deleteThread(id: string): Promise<void> {
-    const existing = await this.getThreadById(id);
+  async deleteStoryline(id: string): Promise<void> {
+    const existing = await this.getStorylineById(id);
     const now = new Date().toISOString();
     const lastModified = Date.now();
     await run(
-      `UPDATE ${TABLES.storyThread}
+      `UPDATE ${TABLES.storyline}
        SET is_deleted = 1,
            sync_status = 'pending',
            last_modified = ${lastModified},
@@ -227,7 +227,7 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
     if (existing && canSync()) {
       syncManager.enqueue({
         type: 'delete',
-        entity: 'thread',
+        entity: 'storyline',
         localId: id,
         projectId: existing.projectId,
         priority: 'normal',
@@ -235,57 +235,57 @@ export class StoryThreadSQLiteRepository implements StoryThreadRepository {
     }
   }
 
-  async addNodeToThread(nodeId: string, threadId: string): Promise<void> {
+  async addNodeToStoryline(nodeId: string, storylineId: string): Promise<void> {
     // Get the current max order for this node
     const maxOrderResult = await query<{ max_order: number | null }>(
-      `SELECT MAX(thread_order) as max_order FROM ${TABLES.nodeThread} WHERE node_id = '${esc(nodeId)}'`
+      `SELECT MAX(storyline_order) as max_order FROM ${TABLES.nodeStoryline} WHERE node_id = '${esc(nodeId)}'`
     );
     const nextOrder = (maxOrderResult[0]?.max_order ?? -1) + 1;
     
     await run(
-      `INSERT OR IGNORE INTO ${TABLES.nodeThread} (node_id, thread_id, thread_order) 
-       VALUES ('${esc(nodeId)}', '${esc(threadId)}', ${nextOrder})`
+      `INSERT OR IGNORE INTO ${TABLES.nodeStoryline} (node_id, storyline_id, storyline_order) 
+       VALUES ('${esc(nodeId)}', '${esc(storylineId)}', ${nextOrder})`
     );
   }
 
-  async removeNodeFromThread(nodeId: string, threadId: string): Promise<void> {
+  async removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void> {
     await run(
-      `DELETE FROM ${TABLES.nodeThread} WHERE node_id = '${esc(nodeId)}' AND thread_id = '${esc(threadId)}'`
+      `DELETE FROM ${TABLES.nodeStoryline} WHERE node_id = '${esc(nodeId)}' AND storyline_id = '${esc(storylineId)}'`
     );
   }
 
-  async getThreadsByNode(nodeId: string): Promise<StoryThread[]> {
-    const records = await query<StoryThreadRecord>(
-      `SELECT st.* FROM ${TABLES.storyThread} st
-       INNER JOIN ${TABLES.nodeThread} nt ON nt.thread_id = st.id
+  async getStorylinesByNode(nodeId: string): Promise<Storyline[]> {
+    const records = await query<StorylineRecord>(
+      `SELECT st.* FROM ${TABLES.storyline} st
+       INNER JOIN ${TABLES.nodeStoryline} nt ON nt.storyline_id = st.id
        WHERE nt.node_id = '${esc(nodeId)}' AND st.is_deleted = 0
-       ORDER BY nt.thread_order ASC`
+       ORDER BY nt.storyline_order ASC`
     );
     return records.map((r) => recordToDomain(r));
   }
 
-  async getNodeIdsByThread(threadId: string): Promise<string[]> {
+  async getNodeIdsByStoryline(storylineId: string): Promise<string[]> {
     const records = await query<{ node_id: string }>(
-      `SELECT node_id FROM ${TABLES.nodeThread} WHERE thread_id = '${esc(threadId)}'`
+      `SELECT node_id FROM ${TABLES.nodeStoryline} WHERE storyline_id = '${esc(storylineId)}'`
     );
     return records.map((r) => r.node_id);
   }
 
-  async setNodeThreads(nodeId: string, threadIds: string[]): Promise<void> {
-    // Remove all existing threads for this node
-    await run(`DELETE FROM ${TABLES.nodeThread} WHERE node_id = '${esc(nodeId)}'`);
+  async setNodeStorylines(nodeId: string, storylineIds: string[]): Promise<void> {
+    // Remove all existing storylines for this node
+    await run(`DELETE FROM ${TABLES.nodeStoryline} WHERE node_id = '${esc(nodeId)}'`);
 
-    // Add new threads with explicit order
-    for (let i = 0; i < threadIds.length; i++) {
+    // Add new storylines with explicit order
+    for (let i = 0; i < storylineIds.length; i++) {
       await run(
-        `INSERT INTO ${TABLES.nodeThread} (node_id, thread_id, thread_order)
-         VALUES ('${esc(nodeId)}', '${esc(threadIds[i])}', ${i})`
+        `INSERT INTO ${TABLES.nodeStoryline} (node_id, storyline_id, storyline_order)
+         VALUES ('${esc(nodeId)}', '${esc(storylineIds[i])}', ${i})`
       );
     }
   }
 }
 
-export interface RemoteThreadPayload {
+export interface RemoteStorylinePayload {
   id: string;
   projectId: string;
   name: string;
@@ -297,12 +297,12 @@ export interface RemoteThreadPayload {
   isDeleted?: boolean;
 }
 
-export async function markThreadSyncStatus(
+export async function markStorylineSyncStatus(
   id: string,
   status: SyncStatus,
   options?: { updatedAt?: string; isDeleted?: boolean }
 ): Promise<void> {
-  const record = await getThreadRecordById(id);
+  const record = await getStorylineRecordById(id);
   if (!record) return;
 
   const updatedAtClause = options?.updatedAt ? `, updated_at='${esc(options.updatedAt)}'` : '';
@@ -311,34 +311,34 @@ export async function markThreadSyncStatus(
   const isDeletedClause = options?.isDeleted !== undefined ? `, is_deleted=${options.isDeleted ? 1 : 0}` : '';
 
   await run(
-    `UPDATE ${TABLES.storyThread} SET sync_status='${status}'${updatedAtClause}${lastModifiedClause}${isDeletedClause} WHERE id='${esc(
+    `UPDATE ${TABLES.storyline} SET sync_status='${status}'${updatedAtClause}${lastModifiedClause}${isDeletedClause} WHERE id='${esc(
       id,
     )}'`
   );
 
   if (status === 'synced' && ((options?.isDeleted && options.isDeleted) || record.is_deleted === 1)) {
-    await run(`DELETE FROM ${TABLES.storyThread} WHERE id='${esc(id)}'`);
+    await run(`DELETE FROM ${TABLES.storyline} WHERE id='${esc(id)}'`);
   }
 }
 
-export async function cleanupSyncedDeletedThreads(): Promise<void> {
-  await run(`DELETE FROM ${TABLES.storyThread} WHERE is_deleted = 1 AND sync_status = 'synced'`);
+export async function cleanupSyncedDeletedStorylines(): Promise<void> {
+  await run(`DELETE FROM ${TABLES.storyline} WHERE is_deleted = 1 AND sync_status = 'synced'`);
 }
 
-export async function applyRemoteThread(thread: RemoteThreadPayload): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
-  const remoteUpdatedAt = Date.parse(thread.updatedAt);
+export async function applyRemoteStoryline(storyline: RemoteStorylinePayload): Promise<'inserted' | 'updated' | 'skipped' | 'conflict'> {
+  const remoteUpdatedAt = Date.parse(storyline.updatedAt);
   if (Number.isNaN(remoteUpdatedAt)) {
     return 'skipped';
   }
 
-  const existing = await getThreadRecordById(thread.id);
+  const existing = await getStorylineRecordById(storyline.id);
   const metadata: Partial<SyncMetadata> = {
     syncStatus: 'synced',
     lastModified: remoteUpdatedAt,
-    isDeleted: thread.isDeleted ? 1 : 0,
+    isDeleted: storyline.isDeleted ? 1 : 0,
   };
 
-  if (thread.isDeleted) {
+  if (storyline.isDeleted) {
     if (!existing) {
       return 'skipped';
     }
@@ -348,30 +348,30 @@ export async function applyRemoteThread(thread: RemoteThreadPayload): Promise<'i
     }
 
     await run(
-      `UPDATE ${TABLES.storyThread}
+      `UPDATE ${TABLES.storyline}
        SET is_deleted = 1,
            sync_status = 'synced',
            last_modified = ${remoteUpdatedAt},
-           updated_at = '${esc(thread.updatedAt)}'
-       WHERE id='${esc(thread.id)}'`
+           updated_at = '${esc(storyline.updatedAt)}'
+       WHERE id='${esc(storyline.id)}'`
     );
-    await cleanupSyncedDeletedThreads();
+    await cleanupSyncedDeletedStorylines();
     return 'updated';
   }
 
-  const baseRecord: StoryThreadRecord = {
-    id: thread.id,
-    project_id: thread.projectId,
-    name: thread.name,
-    color: thread.color ?? '#8b7355',
-    summary: thread.summary ?? null,
-    pm_json: thread.pmJson ? JSON.stringify(thread.pmJson) : null,
-    created_at: thread.createdAt,
-    updated_at: thread.updatedAt,
+  const baseRecord: StorylineRecord = {
+    id: storyline.id,
+    project_id: storyline.projectId,
+    name: storyline.name,
+    color: storyline.color ?? '#8b7355',
+    summary: storyline.summary ?? null,
+    pm_json: storyline.pmJson ? JSON.stringify(storyline.pmJson) : null,
+    created_at: storyline.createdAt,
+    updated_at: storyline.updatedAt,
   };
 
   if (!existing) {
-    await insertThreadRecord(baseRecord, metadata);
+    await insertStorylineRecord(baseRecord, metadata);
     return 'inserted';
   }
 
@@ -379,7 +379,7 @@ export async function applyRemoteThread(thread: RemoteThreadPayload): Promise<'i
     return 'conflict';
   }
 
-  await updateThreadRecord(baseRecord, metadata);
+  await updateStorylineRecord(baseRecord, metadata);
   return existing.is_deleted === 1 ? 'inserted' : 'updated';
 }
 

@@ -11,6 +11,7 @@ export function extractOutline(pmJson: string): OutlineItem[] {
     const doc = JSON.parse(pmJson) as JSONContent;
     const outline: OutlineItem[] = [];
     let position = 0;
+    let currentHeadingIndex = -1;
 
     const traverse = (node: JSONContent) => {
       if (node.type === 'heading' && node.attrs?.level && (node.attrs.level === 1 || node.attrs.level === 2 || node.attrs.level === 3)) {
@@ -21,8 +22,13 @@ export function extractOutline(pmJson: string): OutlineItem[] {
             level: node.attrs.level as 1 | 2 | 3,
             text: text.trim(),
             position: position++,
+            paragraphsAfter: 0,
           });
+          currentHeadingIndex = outline.length - 1;
         }
+      } else if (node.type === 'paragraph' && currentHeadingIndex >= 0) {
+        // Count paragraphs after the current heading
+        outline[currentHeadingIndex].paragraphsAfter = (outline[currentHeadingIndex].paragraphsAfter || 0) + 1;
       }
 
       // Traverse child nodes
