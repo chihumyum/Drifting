@@ -55,12 +55,17 @@ export function GraphView() {
     const [dragState, setDragState] = useState<DragState | null>(null);
     const [tempEdgeEnd, setTempEdgeEnd] = useState<{ x: number, y: number } | null>(null);
     const [hasLayoutRun, setHasLayoutRun] = useState(false);
+    const [isSimulationActive, setIsSimulationActive] = useState(false);
+    const [draggedNodeIds, setDraggedNodeIds] = useState<Set<string>>(new Set()); // Track manually positioned nodes
+    const [highlightedStorylineId, setHighlightedStorylineId] = useState<string | null>(null);
+    const [summaryEditor, setSummaryEditor] = useState<{ nodeId: string; summary: string } | null>(null);
 
     // Edge Editing State
     const [isEdgeEditOpen, setIsEdgeEditOpen] = useState(false);
     const [editingEdge, setEditingEdge] = useState<BookNodeEdge | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
     const loadedRef = useRef(false);
 
     // Load Data
@@ -127,30 +132,60 @@ export function GraphView() {
 
     const allEdges = useMemo(() => [...nodeEdges, ...derivedEdges], [nodeEdges, derivedEdges]);
 
+    // Helper function: Calculate anchor position on node border
+    const getAnchorOnBorder = (nodePos: { x: number, y: number }, anchor: { x: number, y: number }) => {
+        const nodeW = 240;
+        const nodeH = 160;
+        const halfW = nodeW / 2;
+        const halfH = nodeH / 2;
 
-    // Auto Layout Effect
+        // Clamp to border
+        const clampedX = Math.max(-halfW, Math.min(halfW, anchor.x));
+        const clampedY = Math.max(-halfH, Math.min(halfH, anchor.y));
+
+        // Determine which edge is closest
+        const distToLeft = Math.abs(clampedX + halfW);
+        const distToRight = Math.abs(clampedX - halfW);
+        const distToTop = Math.abs(clampedY + halfH);
+        const distToBottom = Math.abs(clampedY - halfH);
+
+        const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+
+        if (minDist === distToLeft) return { x: -halfW, y: clampedY };
+        if (minDist === distToRight) return { x: halfW, y: clampedY };
+        if (minDist === distToTop) return { x: clampedX, y: -halfH };
+        return { x: clampedX, y: halfH };
+    };
+
+    // Helper: Check if point is inside node
+    const isPointInNode = (worldX: number, worldY: number, node: BookNode) => {
+        if (!node.position) return false;
+        const nodeW = 240;
+        const nodeH = 160;
+        const halfW = nodeW / 2;
+        const halfH = nodeH / 2;
+        const dx = worldX - node.position.x;
+        const dy = worldY - node.position.y;
+        return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+    };
+
+    // Helper: Find node at world position
+    const findNodeAtPosition = (worldX: number, worldY: number) => {
+        return bookNodes.find(node => isPointInNode(worldX, worldY, node));
+    };
+
+
+    // Force-Directed Layout with Real-time Simulation
     useEffect(() => {
-        // Wait for nodes to load
-        if (bookNodes.length === 0 || hasLayoutRun) return;
+        if (bookNodes.length === 0) return;
 
-        // Check if we need layout: if many nodes are at 0,0
-        // We define "many" as > 50%
-        const nodesAtZero = bookNodes.filter(n => !n.position || (Math.abs(n.position.x ?? 0) < 5 && Math.abs(n.position.y ?? 0) < 5));
-
-
-        // If we have nodes and most are properly positioned, just center the view
-        if (bookNodes.length > 0 && nodesAtZero.length < bookNodes.length * 0.5) {
-            centerView(bookNodes);
-            setHasLayoutRun(true);
-            return;
-        }
-
-        // Run d3 force layout for initial positioning
-        // Clone nodes to avoid mutating state directly during simulation
+        // Create simulation nodes with current positions
         const simulationNodes = bookNodes.map(n => ({
             ...n,
-            x: n.position?.x || (Math.random() - 0.5) * 1000, // Increase jitter
-            y: n.position?.y || (Math.random() - 0.5) * 1000
+            x: n.position?.x ?? (Math.random() - 0.5) * 1000,
+            y: n.position?.y ?? (Math.random() - 0.5) * 1000,
+            vx: 0, // Initialize velocity
+            vy: 0
         })) as (BookNode & d3.SimulationNodeDatum)[];
 
         const simulationEdges = allEdges.map(e => ({
@@ -159,31 +194,78 @@ export function GraphView() {
             target: e.targetNodeId
         }));
 
+        // Create or update simulation with dynamic charge based on whether node was dragged
         const simulation = d3.forceSimulation(simulationNodes)
-            .force("charge", d3.forceManyBody().strength(-3000)) // Increase repulsion
-            .force("collide", d3.forceCollide().radius(200).strength(0.7)) // Add collision
-            .force("link", d3.forceLink(simulationEdges).id((d: any) => d.id).distance(400))
-            .force("center", d3.forceCenter(0, 0))
-            .stop();
+            .force("charge", d3.forceManyBody().strength((d: any) => {
+                // Dragged nodes have minimal repulsion, new nodes have gentle repulsion
+                return draggedNodeIds.has(d.id) ? -150 : -600;
+            }).distanceMax(500))
+            .force("collide", d3.forceCollide().radius((d: any) => {
+                // Dragged nodes can be very close together
+                return draggedNodeIds.has(d.id) ? 50 : 90;
+            }).strength(0.5))
+            .force("link", d3.forceLink(simulationEdges)
+                .id((d: any) => d.id)
+                .distance(250)
+                .strength(0.005) // Almost no pull, edges are purely visual
+            )
+            .force("center", d3.forceCenter(0, 0).strength(0.01)) // Very weak centering
+            .alphaDecay(0.03) // Faster decay
+            .velocityDecay(0.5); // High damping
 
-        // Run layout synchronously (faster for initial load than animating)
-        for (let i = 0; i < 300; ++i) simulation.tick();
+        simulationRef.current = simulation;
 
-        // Apply positions back to store
-        simulationNodes.forEach(n => {
-            if (n.x !== undefined && n.y !== undefined) {
-                // Use the store update directly to reflect changes in UI immediately
-                updateBookNode(n.id, { position: { x: n.x, y: n.y } });
-                // Also persist to backend (debounced or fire-and-forget)
-                nodeUsecases.updateNodePosition(n.id, { x: n.x, y: n.y });
+        // Update positions on each tick
+        simulation.on("tick", () => {
+            simulationNodes.forEach(n => {
+                if (n.x !== undefined && n.y !== undefined) {
+                    // Only update if not being dragged
+                    const isDragging = dragState?.type === 'node' && dragState.id === n.id;
+                    if (!isDragging) {
+                        updateBookNode(n.id, { position: { x: n.x, y: n.y } });
+                    }
+                }
+            });
+        });
+
+        // Initial run for better positioning
+        if (!hasLayoutRun) {
+            for (let i = 0; i < 200; ++i) simulation.tick();
+            setHasLayoutRun(true);
+            centerView(simulationNodes);
+        }
+
+        setIsSimulationActive(true);
+
+        // Cleanup
+        return () => {
+            simulation.stop();
+            simulationRef.current = null;
+        };
+    }, [bookNodes.length, allEdges.length, draggedNodeIds]); // Re-run when node/edge count or dragged status changes
+
+    // Update simulation when nodes are dragged
+    useEffect(() => {
+        if (!simulationRef.current) return;
+        
+        bookNodes.forEach(node => {
+            const simNode = simulationRef.current!.nodes().find((n: any) => n.id === node.id) as any;
+            if (simNode && node.position) {
+                // Update simulation node position if it changed externally
+                if (Math.abs(simNode.x - node.position.x) > 1 || Math.abs(simNode.y - node.position.y) > 1) {
+                    simNode.x = node.position.x;
+                    simNode.y = node.position.y;
+                    simNode.fx = dragState?.type === 'node' && dragState.id === node.id ? node.position.x : null;
+                    simNode.fy = dragState?.type === 'node' && dragState.id === node.id ? node.position.y : null;
+                }
             }
         });
 
-        // Center view after layout
-        centerView(simulationNodes);
-        setHasLayoutRun(true);
-
-    }, [bookNodes, allEdges, hasLayoutRun, nodeUsecases, updateBookNode]);
+        // Reheat simulation slightly when dragging
+        if (dragState?.type === 'node') {
+            simulationRef.current.alpha(0.3).restart();
+        }
+    }, [bookNodes, dragState]);
 
     // Helper to center the view
     const centerView = (nodes: any[]) => {
@@ -335,13 +417,17 @@ export function GraphView() {
                 y: dragState.initialPos.y + dy
             };
 
-            // Optimistic update via store
-            // Note: useBookNodeUsecases.updateNode usually saves to DB. 
-            // For smooth dragging we might want local state or debounced save.
-            // But user wanted "Graph View" so simple functional update is acceptable.
-            // We'll update via usecase for now (it updates store immediately).
-            nodeUsecases.updateNodePosition(dragState.id, { x: newPos.x, y: newPos.y });
-
+            // Update both store and simulation
+            updateBookNode(dragState.id, { position: { x: newPos.x, y: newPos.y } });
+            
+            // Update simulation node position while dragging
+            if (simulationRef.current) {
+                const simNode = simulationRef.current.nodes().find((n: any) => n.id === dragState.id) as any;
+                if (simNode) {
+                    simNode.fx = newPos.x;
+                    simNode.fy = newPos.y;
+                }
+            }
         } else if (dragState.type === 'edge-create') {
             // Update temp line end
             const rect = containerRef.current?.getBoundingClientRect();
@@ -363,22 +449,14 @@ export function GraphView() {
             ));
         } else if (dragState.type === 'edge-anchor' && dragState.id && dragState.anchorType) {
             const edgeId = dragState.id;
-            const deltaX = (e.clientX - dragState.startX) / viewport.scale;
-            const deltaY = (e.clientY - dragState.startY) / viewport.scale;
-
-            const newAnchor = {
-                x: (dragState.initialAnchor?.x ?? 0) + deltaX,
-                y: (dragState.initialAnchor?.y ?? 0) + deltaY
-            };
-
-            setNodeEdges(nodeEdges.map(edge => {
-                if (edge.id !== edgeId) return edge;
-                if (dragState.anchorType === 'source') {
-                    return { ...edge, sourceAnchor: newAnchor };
-                } else {
-                    return { ...edge, targetAnchor: newAnchor };
-                }
-            }));
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            
+            // Get world position of cursor
+            const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            
+            // Store the temp position for rendering
+            setTempEdgeEnd(worldPos);
         }
     };
 
@@ -395,13 +473,52 @@ export function GraphView() {
         }
         if (dragState?.type === 'edge-anchor' && dragState.id) {
             const edge = nodeEdges.find(e => e.id === dragState.id);
-            if (edge) {
-                if (dragState.anchorType === 'source' && edge.sourceAnchor) {
-                    nodeUsecases.updateEdge(dragState.id, { sourceAnchor: edge.sourceAnchor });
-                } else if (dragState.anchorType === 'target' && edge.targetAnchor) {
-                    nodeUsecases.updateEdge(dragState.id, { targetAnchor: edge.targetAnchor });
+            if (edge && tempEdgeEnd) {
+                // Find node at drop position
+                const targetNode = findNodeAtPosition(tempEdgeEnd.x, tempEdgeEnd.y);
+                
+                if (targetNode) {
+                    // Calculate anchor on target node border
+                    const originalNodeId = dragState.anchorType === 'source' ? edge.sourceNodeId : edge.targetNodeId;
+                    const originalNode = bookNodes.find(n => n.id === originalNodeId);
+                    
+                    if (originalNode?.position) {
+                        const dx = tempEdgeEnd.x - targetNode.position.x;
+                        const dy = tempEdgeEnd.y - targetNode.position.y;
+                        const newAnchor = getAnchorOnBorder(targetNode.position, { x: dx, y: dy });
+                        
+                        // Update edge connection and anchor
+                        if (dragState.anchorType === 'source') {
+                            const updatedEdge = { ...edge, sourceNodeId: targetNode.id, sourceAnchor: newAnchor };
+                            setNodeEdges(nodeEdges.map(e => e.id === dragState.id ? updatedEdge : e));
+                            nodeUsecases.updateEdge(dragState.id, { sourceNodeId: targetNode.id, sourceAnchor: newAnchor });
+                        } else {
+                            const updatedEdge = { ...edge, targetNodeId: targetNode.id, targetAnchor: newAnchor };
+                            setNodeEdges(nodeEdges.map(e => e.id === dragState.id ? updatedEdge : e));
+                            nodeUsecases.updateEdge(dragState.id, { targetNodeId: targetNode.id, targetAnchor: newAnchor });
+                        }
+                    }
+                } else {
+                    // Dropped outside any node - delete edge
+                    setNodeEdges(nodeEdges.filter(e => e.id !== dragState.id));
+                    // TODO: Call API to delete edge from backend
                 }
             }
+        }
+
+        // Release node from fixed position in simulation
+        if (dragState?.type === 'node' && dragState.id && simulationRef.current) {
+            const simNode = simulationRef.current.nodes().find((n: any) => n.id === dragState.id) as any;
+            if (simNode) {
+                simNode.fx = null;
+                simNode.fy = null;
+                // Mark node as manually positioned (dragged)
+                setDraggedNodeIds(prev => new Set(prev).add(dragState.id!));
+                // Persist final position
+                nodeUsecases.updateNodePosition(dragState.id, { x: simNode.x, y: simNode.y });
+            }
+            // Reheat simulation slightly to let nodes settle
+            simulationRef.current.alpha(0.1).restart();
         }
 
         setDragState(null);
@@ -412,6 +529,15 @@ export function GraphView() {
     const handleNodeMouseDown = (e: React.MouseEvent, id: string) => {
         const node = bookNodes.find(n => n.id === id);
         if (!node) return;
+
+        // Fix node position in simulation while dragging
+        if (simulationRef.current) {
+            const simNode = simulationRef.current.nodes().find((n: any) => n.id === id) as any;
+            if (simNode) {
+                simNode.fx = simNode.x;
+                simNode.fy = simNode.y;
+            }
+        }
 
         setDragState({
             type: 'node',
@@ -519,6 +645,100 @@ export function GraphView() {
                 Close (Esc)
             </button>
 
+            {/* Layout Controls */}
+            <div className="absolute top-16 right-4 z-50 flex flex-col gap-2">
+                <button 
+                    className="bg-white/90 px-3 py-2 rounded shadow hover:bg-white text-sm"
+                    onClick={() => {
+                        if (simulationRef.current) {
+                            simulationRef.current.alpha(1).restart();
+                        }
+                    }}
+                    title="Reheat simulation to reorganize nodes"
+                >
+                    🔄 Re-layout
+                </button>
+                <button 
+                    className={`px-3 py-2 rounded shadow text-sm ${isSimulationActive ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    onClick={() => {
+                        if (simulationRef.current) {
+                            if (isSimulationActive) {
+                                simulationRef.current.stop();
+                                setIsSimulationActive(false);
+                            } else {
+                                simulationRef.current.alpha(0.3).restart();
+                                setIsSimulationActive(true);
+                            }
+                        }
+                    }}
+                    title={isSimulationActive ? "Pause physics simulation" : "Resume physics simulation"}
+                >
+                    {isSimulationActive ? '⏸️ Pause' : '▶️ Resume'}
+                </button>
+            </div>
+
+            {/* UI Overlay - Zoom Controls */}
+            <div className="absolute bottom-4 right-4 flex gap-2 z-50">
+                <button className="bg-white p-2 rounded shadow hover:bg-gray-50" onClick={() => setViewport(v => ({ ...v, scale: v.scale * 1.2 }))}>+</button>
+                <button className="bg-white p-2 rounded shadow hover:bg-gray-50" onClick={() => setViewport(v => ({ ...v, scale: v.scale / 1.2 }))}>-</button>
+            </div>
+
+            {/* Highlighted Storyline Name */}
+            {highlightedStorylineId && (() => {
+                const storyline = storylines.find(s => s.id === highlightedStorylineId);
+                if (!storyline) return null;
+                return (
+                    <div className="absolute top-16 left-4 z-50 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-200">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: storyline.color }} />
+                            <span className="text-sm font-semibold text-gray-800">{storyline.name}</span>
+                            <button 
+                                onClick={() => setHighlightedStorylineId(null)}
+                                className="ml-2 text-gray-400 hover:text-gray-600 text-xs"
+                            >×</button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Summary Editor */}
+            {summaryEditor && (
+                <div className="absolute bottom-4 left-4 z-50 w-96 bg-white/95 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-800">Edit Summary</h3>
+                        <button 
+                            onClick={() => setSummaryEditor(null)}
+                            className="text-gray-400 hover:text-gray-600"
+                        >×</button>
+                    </div>
+                    <textarea
+                        className="w-full h-32 p-2 text-xs border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={summaryEditor.summary}
+                        onChange={(e) => setSummaryEditor({ ...summaryEditor, summary: e.target.value })}
+                        placeholder="Enter summary..."
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                        <button
+                            className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+                            onClick={() => setSummaryEditor(null)}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded"
+                            onClick={async () => {
+                                if (summaryEditor) {
+                                    await nodeUsecases.updateNode(summaryEditor.nodeId, { summary: summaryEditor.summary });
+                                    setSummaryEditor(null);
+                                }
+                            }}
+                        >
+                            Save
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div
                 style={{
                     transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`,
@@ -532,22 +752,44 @@ export function GraphView() {
                 {/* Edges Layer */}
                 <svg id="graph-bg" className="absolute top-0 left-0 w-full h-full overflow-visible">
                     <defs>
-                        <marker id="arrowhead-default" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
+                        <marker id="arrowhead-default" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                             <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
                         </marker>
-                        <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
+                        <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                             <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
                         </marker>
+                        {/* Dynamic markers for each storyline */}
+                        {storylines.map(storyline => (
+                            <marker 
+                                key={`marker-${storyline.id}`}
+                                id={`arrowhead-storyline-${storyline.id}`} 
+                                markerWidth="10" 
+                                markerHeight="7" 
+                                refX="9" 
+                                refY="3.5" 
+                                orient="auto"
+                            >
+                                <polygon points="0 0, 10 3.5, 0 7" fill={storyline.color || '#b89968'} />
+                            </marker>
+                        ))}
                     </defs>
                     {/* Render Derived (Storyline) Edges first (bottom layer) */}
                     {derivedEdges.map(edge => {
                         const source = bookNodes.find(n => n.id === edge.sourceNodeId);
                         const target = bookNodes.find(n => n.id === edge.targetNodeId);
-                        // Extract storyline ID and get Color
-                        // ID Format: storyline-{id}-source-target
-                        const storylineId = edge.id.split('-')[1];
+                        // Extract storyline ID from edge ID
+                        // ID Format: storyline-{storylineId}-{sourceId}-{targetId}
+                        // Remove 'storyline-' prefix, then remove '-{sourceId}-{targetId}' suffix
+                        const prefix = 'storyline-';
+                        const suffix = `-${edge.sourceNodeId}-${edge.targetNodeId}`;
+                        const storylineId = edge.id.substring(prefix.length, edge.id.length - suffix.length);
                         const storyline = storylines.find(s => s.id === storylineId);
-                        const color = storyline?.color || '#3b82f6';
+                        
+                        // Get color with proper fallback
+                        let color = '#b89968'; // Default color
+                        if (storyline && storyline.color) {
+                            color = storyline.color;
+                        }
 
                         const sPos = source?.position ? { x: source.position.x ?? 0, y: source.position.y ?? 0 } : null;
                         const tPos = target?.position ? { x: target.position.x ?? 0, y: target.position.y ?? 0 } : null;
@@ -560,9 +802,20 @@ export function GraphView() {
                                 edge={edge}
                                 sourcePos={sPos}
                                 targetPos={tPos}
-                                isSelected={false}
-                                onSelect={() => { }}
-                                style={{ stroke: color, strokeWidth: 5, opacity: 1.0, strokeDasharray: 'none', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.1))' }}
+                                isSelected={highlightedStorylineId === storylineId}
+                                onSelect={() => {
+                                    setHighlightedStorylineId(storylineId);
+                                    setSelectedNodeIds(new Set());
+                                    setSelectedEdgeId(null);
+                                }}
+                                customMarkerId={`arrowhead-storyline-${storylineId}`}
+                                style={{ 
+                                    stroke: color, 
+                                    strokeWidth: highlightedStorylineId === storylineId ? 6 : 5, 
+                                    opacity: highlightedStorylineId === storylineId ? 1.0 : 0.7,
+                                    strokeDasharray: 'none', 
+                                    filter: highlightedStorylineId === storylineId ? 'drop-shadow(0 0 4px rgba(0,0,0,0.2))' : 'drop-shadow(0 0 2px rgba(0,0,0,0.1))'
+                                }}
                             />
                         );
                     })}
@@ -576,6 +829,11 @@ export function GraphView() {
                         const tPos = target?.position ? { x: target.position.x ?? 0, y: target.position.y ?? 0 } : null;
 
                         if (!sPos || !tPos) return null;
+
+                        // Hide edge being dragged by anchor
+                        if (dragState?.type === 'edge-anchor' && dragState.id === edge.id) {
+                            return null;
+                        }
 
                         return (
                             <GraphEdge
@@ -609,6 +867,28 @@ export function GraphView() {
                         />
                     )}
 
+                    {/* Dragging Anchor Line */}
+                    {dragState?.type === 'edge-anchor' && dragState.id && tempEdgeEnd && (() => {
+                        const edge = nodeEdges.find(e => e.id === dragState.id);
+                        if (!edge) return null;
+                        const anchorType = dragState.anchorType;
+                        const otherNodeId = anchorType === 'source' ? edge.targetNodeId : edge.sourceNodeId;
+                        const otherNode = bookNodes.find(n => n.id === otherNodeId);
+                        if (!otherNode?.position) return null;
+                        
+                        return (
+                            <line
+                                x1={anchorType === 'source' ? tempEdgeEnd.x : otherNode.position.x}
+                                y1={anchorType === 'source' ? tempEdgeEnd.y : otherNode.position.y}
+                                x2={anchorType === 'target' ? tempEdgeEnd.x : otherNode.position.x}
+                                y2={anchorType === 'target' ? tempEdgeEnd.y : otherNode.position.y}
+                                stroke="#3b82f6"
+                                strokeWidth="2"
+                                strokeDasharray="5,5"
+                            />
+                        );
+                    })()}
+
                 </svg>
 
                 {/* Nodes Layer */}
@@ -619,9 +899,11 @@ export function GraphView() {
                             storylines={getStorylinesForNode(node.id)}
                             elements={[]} // TODO
                             isSelected={selectedNodeIds.has(node.id)}
+                            isHighlighted={highlightedStorylineId ? getStorylinesForNode(node.id).some(s => s.id === highlightedStorylineId) : false}
                             scale={viewport.scale}
                             onSelect={(id, multi) => {
                                 setSelectedEdgeId(null);
+                                setHighlightedStorylineId(null);
                                 if (multi) {
                                     const newSet = new Set(selectedNodeIds);
                                     if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
@@ -634,6 +916,13 @@ export function GraphView() {
                                 setGraphViewOpen(false); // Close graph on navigate
                                 navigate(`/editor/${id}`);
                             }}
+                            onTitleClick={(id) => {
+                                setGraphViewOpen(false);
+                                navigate(`/editor/${id}`);
+                            }}
+                            onSummaryClick={(id, summary) => {
+                                setSummaryEditor({ nodeId: id, summary: summary || '' });
+                            }}
                             onElementClick={(id) => {
                                 setGraphViewOpen(false);
                                 navigate(`/element/${id}`);
@@ -643,12 +932,6 @@ export function GraphView() {
                         />
                     </div>
                 ))}
-            </div>
-
-            {/* UI Overlay */}
-            <div className="absolute top-4 right-4 flex gap-2 z-50">
-                <button className="bg-white p-2 rounded shadow hover:bg-gray-50" onClick={() => setViewport(v => ({ ...v, scale: v.scale * 1.2 }))}>+</button>
-                <button className="bg-white p-2 rounded shadow hover:bg-gray-50" onClick={() => setViewport(v => ({ ...v, scale: v.scale / 1.2 }))}>-</button>
             </div>
 
             {/* Edge Edit Modal */}

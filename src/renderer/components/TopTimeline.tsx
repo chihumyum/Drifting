@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { useAppStore } from '../store';
 import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import type { Storyline } from '../domain/storyline';
@@ -43,6 +44,8 @@ export function TopTimeline() {
 
         if (storylineId) {
           // In storyline editor: directly load the storyline
+          // Clear selected node to avoid highlighting it
+          useAppStore.getState().setSelectedNodeId(null);
           targetStoryline = await storylineUsecases.getStorylineById(storylineId);
         } else if (nodeId) {
           // In node editor: get storylines for current node
@@ -79,9 +82,9 @@ export function TopTimeline() {
             })
           );
 
-          // Filter nodes that belong to the target storyline and sort by start position
+          // Filter nodes where the target storyline is the primary storyline (first one) and sort by start position
           const nodesInStoryline = nodesWithStorylines
-            .filter(n => n.storylines.some(s => s.id === targetStoryline.id))
+            .filter(n => n.storylines.length > 0 && n.storylines[0].id === targetStoryline.id)
             .sort((a, b) => a.start - b.start);
 
           setStorylineNodes(nodesInStoryline);
@@ -583,6 +586,83 @@ export function TopTimeline() {
                 )}
               </div>
             ))}
+            
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(0, 0, 0, 0.1)', margin: '4px 0' }} />
+            
+            {/* New Storyline Button */}
+            <div
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  // Extended storyline color palette with better distinction
+                  const STORYLINE_COLORS = [
+                    // Earth tones
+                    '#b89968', '#8b7355', '#946b54', '#bc6c25', '#a0522d',
+                    // Green tones
+                    '#6b9080', '#588157', '#a3b18a', '#4a7c59', '#6d9773',
+                    // Blue/Teal tones
+                    '#7a9e9f', '#5b8a8f', '#4682b4', '#5f9ea0', '#4a7c8c',
+                    // Purple/Mauve tones
+                    '#9b7e9b', '#8b7b9b', '#a98d9b', '#9a7e9e', '#b19cd9',
+                    // Warm tones
+                    '#c17c5c', '#d4956c', '#b8805f', '#cf8d6f', '#a67c52',
+                    // Cool grays
+                    '#7d8491', '#8b939e', '#6d7684', '#858c99', '#75808a',
+                  ];
+                  
+                  // Get current storylines to check for used colors
+                  const currentStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+                  const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
+                  
+                  // Find unused colors first
+                  const unusedColors = STORYLINE_COLORS.filter(c => !usedColors.has(c.toLowerCase()));
+                  
+                  // Select color: prefer unused, otherwise pick randomly
+                  const selectedColor = unusedColors.length > 0
+                    ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
+                    : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
+                  
+                  const newStoryline = await storylineUsecases.createStoryline({
+                    projectId,
+                    name: 'New Storyline',
+                    color: selectedColor,
+                    summary: '',
+                  });
+                  
+                  const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+                  useAppStore.getState().setStorylines(allStorylines);
+                  
+                  setShowStorylineDropdown(false);
+                  setStorylineDropdownPosition(null);
+                  navigate(`/editor/storyline/${newStoryline.id}`);
+                } catch (error) {
+                  console.error('Failed to create storyline:', error);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: 'transparent',
+                transition: 'all 0.2s',
+                color: 'rgba(0, 0, 0, 0.65)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(184, 153, 104, 0.1)';
+                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.85)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.65)';
+              }}
+            >
+              <Plus size={16} />
+              <div style={{ fontSize: 13, fontWeight: 500 }}>New Storyline</div>
+            </div>
           </div>
         )
       }

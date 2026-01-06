@@ -8,9 +8,12 @@ interface GraphNodeProps {
     storylines: Storyline[];
     elements: BookElement[];
     isSelected: boolean;
+    isHighlighted?: boolean;
     scale: number;
     onSelect: (id: string, multi: boolean) => void;
     onNavigate: (id: string) => void;
+    onTitleClick?: (id: string) => void;
+    onSummaryClick?: (id: string, summary: string) => void;
     onElementClick: (id: string) => void;
     onMouseDown: (e: React.MouseEvent, id: string) => void;
     onOutputMouseDown: (e: React.MouseEvent, id: string) => void; // For creating edges
@@ -21,9 +24,12 @@ export const GraphNode = memo(({
     storylines,
     elements,
     isSelected,
+    isHighlighted = false,
     // scale,
     onSelect,
     onNavigate,
+    onTitleClick,
+    onSummaryClick,
     onElementClick,
     onMouseDown,
     onOutputMouseDown
@@ -35,14 +41,23 @@ export const GraphNode = memo(({
 
     return (
         <div
-            className={`absolute flex flex-col rounded-xl bg-white shadow-sm transition-shadow duration-200 overflow-hidden group select-none ${isSelected ? 'ring-2 ring-blue-500 shadow-md' : 'hover:shadow-md'}`}
+            className={`absolute flex flex-col rounded-xl bg-white shadow-sm transition-shadow duration-200 overflow-hidden group select-none ${
+                isSelected ? 'ring-2 ring-blue-500 shadow-md' : 
+                isHighlighted ? 'ring-2 ring-opacity-50 shadow-md' : 
+                'hover:shadow-md'
+            }`}
             style={{
                 left: node.position?.x || 0,
                 top: node.position?.y || 0,
                 width: 240,
                 height: 160,
                 transform: 'translate(-50%, -50%)', // Centered
-                cursor: 'grab'
+                cursor: 'grab',
+                ...(isHighlighted && storylines[0] ? {
+                    borderColor: storylines[0].color,
+                    borderWidth: 2,
+                    borderStyle: 'solid'
+                } : {})
             }}
             onMouseDown={(e) => {
                 e.stopPropagation();
@@ -82,7 +97,16 @@ export const GraphNode = memo(({
                 className="px-3 py-2 border-b border-gray-100 flex items-center justify-between"
             >
                 <div className="flex items-center gap-2 overflow-hidden">
-                    <span className="font-semibold text-gray-800 text-sm truncate" title={node.title}>
+                    <span 
+                        className="font-semibold text-gray-800 text-sm truncate cursor-pointer hover:text-blue-600 transition-colors" 
+                        title={node.title}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onTitleClick) {
+                                onTitleClick(node.id);
+                            }
+                        }}
+                    >
                         {node.title}
                     </span>
                 </div>
@@ -108,7 +132,16 @@ export const GraphNode = memo(({
             <div className="flex-1 p-3 flex flex-col gap-2 overflow-hidden bg-gray-50/50">
 
                 {/* Summary */}
-                <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
+                <p 
+                    className="text-xs text-gray-500 line-clamp-3 leading-relaxed cursor-pointer hover:text-gray-700 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onSummaryClick) {
+                            onSummaryClick(node.id, node.summary || '');
+                        }
+                    }}
+                    title="Click to edit summary"
+                >
                     {node.summary || "No summary..."}
                 </p>
 

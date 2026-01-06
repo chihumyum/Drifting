@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
@@ -33,6 +33,7 @@ interface TimelineNode extends BookNode {
 export function BottomTimeline() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { storylineId } = useParams<{ storylineId?: string }>();
   const { bookNodes, selectedNodeId } = useAppStore();
   const storedStorylines = useAppStore(state => state.storylines); // Get storylines from store
   const user = useAuthStore(state => state.user);
@@ -827,6 +828,7 @@ export function BottomTimeline() {
       return (
         <div
           key={`${node.id}-${storylineId}-marker`}
+          data-node-card
           onClick={(e) => handleNodeClick(node.id, e)}
           style={{
             position: 'absolute',
@@ -871,6 +873,7 @@ export function BottomTimeline() {
     return (
       <div
         key={`${node.id}-${storylineId}`}
+        data-node-card
         draggable={!edgeHover && isPrimary}
         onDragStart={(e) => handleDragStart(e, node, storylineId)}
         onDragEnd={handleDragEnd}
@@ -1209,7 +1212,19 @@ export function BottomTimeline() {
         key={storyline.id}
         onDragOver={(e) => handleDragOver(e, storyline.id)}
         onDrop={(e) => handleDrop(e, storyline.id)}
-        onClick={handleTimelineClick}
+        onClick={(e) => {
+          // 检查是否点击在节点上
+          const target = e.target as HTMLElement;
+          const isNodeClick = target.closest('[data-node-card]');
+          
+          if (!isNodeClick) {
+            // 点击在空白区域，导航到 storyline editor
+            useAppStore.getState().setSelectedNodeId(null);
+            if (location.pathname !== `/editor/storyline/${storyline.id}`) {
+              navigate(`/editor/storyline/${storyline.id}`);
+            }
+          }
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
@@ -1272,7 +1287,8 @@ export function BottomTimeline() {
         {/* Storyline label - 仅展开时显示 */}
         {isExpanded && (
           <div
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               useAppStore.getState().setSelectedNodeId(null);
               // 避免重复导航到同一页面
               if (location.pathname !== `/editor/storyline/${storyline.id}`) {
@@ -1312,9 +1328,12 @@ export function BottomTimeline() {
             position: 'relative',
             flex: 1,
             height: nodeHeight,
-            background: isExpanded ? 'rgba(90, 74, 58, 0.04)' : 'transparent', // 温暖的淡棕色背景（仅展开时）
+            background: storylineId === storyline.id
+              ? (isExpanded ? `${storyline.color || '#b89968'}15` : 'transparent')
+              : (isExpanded ? 'rgba(90, 74, 58, 0.04)' : 'transparent'),
             borderRadius: 4,
             minWidth: timelineWidth,
+            cursor: 'pointer',
           }}
         >
           {/* Render drop indicator */}

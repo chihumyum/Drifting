@@ -14,6 +14,7 @@ import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { LeftSidebarTopBar } from './components/topBars/LeftSidebarTopBar';
 import { MainTopBar } from './components/topBars/MainTopBar';
+import { CreateChapterButton } from './components/topBars/CreateChapterButton';
 import { TopTimeline } from './components/TopTimeline';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
@@ -133,7 +134,7 @@ function Layout() {
           }}
         >
           {/* 主区域 TopBar - 第二段（可拖拽） */}
-          <MainTopBar>
+          <MainTopBar rightContent={<CreateChapterButton />}>
             <TopTimeline />
           </MainTopBar>
 

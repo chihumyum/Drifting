@@ -9,23 +9,63 @@ interface GraphEdgeProps {
     isSelected: boolean;
     onSelect: (id: string) => void;
     style?: React.CSSProperties; // Add style prop
+    customMarkerId?: string; // Custom marker for storyline edges
     onControlMouseDown?: (e: React.MouseEvent, edgeId: string) => void;
     onAnchorMouseDown?: (e: React.MouseEvent, edgeId: string, type: 'source' | 'target') => void;
 }
 
-export const GraphEdge = memo(({ edge, sourcePos, targetPos, isSelected, onSelect, style, onControlMouseDown, onAnchorMouseDown }: GraphEdgeProps) => {
+export const GraphEdge = memo(({ edge, sourcePos, targetPos, isSelected, onSelect, style, customMarkerId, onControlMouseDown, onAnchorMouseDown }: GraphEdgeProps) => {
     if (!sourcePos.x || !sourcePos.y || !targetPos.x || !targetPos.y) return null;
 
-    // Resolve Anchors (relative to node center/top-left? Let's assume relative to node Position provided in props)
-    // sourcePos/targetPos passed here are usually the node positions (top-left or center depending on GraphView logic)
-    // GraphView passed: { x: pos.x, y: pos.y }. Assuming node positions are center-based or top-left.
-    // GraphNode renders with `transform: translate(-50%, -50%)`, so position is CENTER.
+    // Check if this is a storyline edge (has customMarkerId)
+    const isStorylineEdge = !!customMarkerId;
+    
+    // Debug: log style for storyline edges
+    if (isStorylineEdge && style) {
+        console.log('GraphEdge - isStorylineEdge:', isStorylineEdge, 'customMarkerId:', customMarkerId, 'style.stroke:', style.stroke);
+    }
 
-    // Anchors in `edge` are offsets from the node position.
-    const sx = sourcePos.x + (edge.sourceAnchor?.x ?? 0);
-    const sy = sourcePos.y + (edge.sourceAnchor?.y ?? 0);
-    const tx = targetPos.x + (edge.targetAnchor?.x ?? 0);
-    const ty = targetPos.y + (edge.targetAnchor?.y ?? 0);
+    // Node dimensions
+    const nodeW = 240;
+    const nodeH = 160;
+    const halfW = nodeW / 2;
+    const halfH = nodeH / 2;
+
+    // Helper: Calculate point on border
+    const getPointOnBorder = (centerX: number, centerY: number, targetX: number, targetY: number, anchor?: { x: number, y: number }) => {
+        if (anchor) {
+            // Use stored anchor (already on border)
+            return { x: centerX + anchor.x, y: centerY + anchor.y };
+        }
+        
+        // Calculate intersection with node border
+        const dx = targetX - centerX;
+        const dy = targetY - centerY;
+        
+        if (dx === 0 && dy === 0) return { x: centerX + halfW, y: centerY };
+        
+        // Calculate ratios to reach each edge
+        const tLeft = dx < 0 ? -halfW / dx : Infinity;
+        const tRight = dx > 0 ? halfW / dx : Infinity;
+        const tTop = dy < 0 ? -halfH / dy : Infinity;
+        const tBottom = dy > 0 ? halfH / dy : Infinity;
+        
+        const t = Math.min(tLeft, tRight, tTop, tBottom);
+        
+        return {
+            x: centerX + dx * t,
+            y: centerY + dy * t
+        };
+    };
+
+    // Calculate edge endpoints on borders
+    const sourcePoint = getPointOnBorder(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, edge.sourceAnchor);
+    const targetPoint = getPointOnBorder(targetPos.x, targetPos.y, sourcePos.x, sourcePos.y, edge.targetAnchor);
+    
+    const sx = sourcePoint.x;
+    const sy = sourcePoint.y;
+    const tx = targetPoint.x;
+    const ty = targetPoint.y;
 
     // Calculate Control Point for Quadratic Bezier
     // Base is midpoint
@@ -66,12 +106,14 @@ export const GraphEdge = memo(({ edge, sourcePos, targetPos, isSelected, onSelec
             {/* Visible Path */}
             <path
                 d={pathD}
-                stroke={isSelected ? '#3b82f6' : '#94a3b8'}
-                strokeWidth={isSelected ? 3 : 2}
                 fill="none"
-                markerEnd={isDirected ? `url(#arrowhead-${isSelected ? 'selected' : 'default'})` : undefined}
+                markerEnd={isDirected ? `url(#${customMarkerId || (isSelected ? 'arrowhead-selected' : 'arrowhead-default')})` : undefined}
                 className="transition-colors duration-200"
-                style={style} // Apply custom style
+                stroke={isStorylineEdge ? (style?.stroke as string || '#94a3b8') : (isSelected ? '#3b82f6' : '#94a3b8')}
+                strokeWidth={isStorylineEdge ? (style?.strokeWidth as number || 5) : (isSelected ? 3 : 2)}
+                opacity={style?.opacity}
+                strokeDasharray={style?.strokeDasharray as string}
+                style={{ filter: style?.filter as string }}
             />
 
             {/* Control Handle (Middle) - Only if selected or hovering? Let's show if selected */}
@@ -124,7 +166,7 @@ export const GraphEdge = memo(({ edge, sourcePos, targetPos, isSelected, onSelec
             )}
 
             {/* Label */}
-            {edge.label && (
+            {edge.label && !edge.id.startsWith('storyline-') && (
                 <foreignObject x={lx - 50} y={ly - 12} width="100" height="24" style={{ overflow: 'visible' }}>
                     <div className="flex justify-center items-center">
                         <span className={`px-2 py-0.5 text-[10px] rounded-full border shadow-sm truncate max-w-full ${isSelected ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500'}`}>
