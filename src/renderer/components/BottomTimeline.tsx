@@ -806,6 +806,7 @@ export function BottomTimeline() {
     // 如果不是主 storyline，显示标记点而不是完整 node
     if (!isPrimary && node.storylines.length > 1) {
       const markerSize = isExpanded ? 12 : 6;
+      const isHovered = hoveredNodeId === node.id;
       return (
         <div
           key={`${node.id}-${storylineId}-marker`}
@@ -817,17 +818,23 @@ export function BottomTimeline() {
             position: 'absolute',
             left: leftPosition + nodeWidth / 2 - markerSize / 2,
             top: '50%',
-            transform: 'translateY(-50%)',
+            transform: isExpanded ? 'translateY(-50%)' : `translateY(-50%) scale(${isHovered ? 1.3 : 1})`,
             width: markerSize,
             height: markerSize,
             borderRadius: '50%',
-            background: storyline?.color || defaultColor,
+            background: isSelected && !isExpanded
+              ? `radial-gradient(circle, ${storyline?.color || defaultColor}, ${storyline?.color || defaultColor}dd)`
+              : (storyline?.color || defaultColor),
             border: isExpanded ? `2px solid ${storyline?.color || defaultColor}` : 'none',
             boxShadow: isSelected 
-              ? `0 0 0 ${isExpanded ? 3 : 2}px rgba(255, 255, 255, 0.8), 0 0 0 ${isExpanded ? 5 : 3}px ${storyline?.color || defaultColor}`
+              ? (isExpanded 
+                ? `0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 5px ${storyline?.color || defaultColor}` 
+                : `0 0 8px 2px ${storyline?.color || defaultColor}80, 0 0 16px 4px ${storyline?.color || defaultColor}40`)
               : isExpanded ? `0 2px 4px ${storyline?.color}60` : 'none',
             cursor: 'pointer',
-            opacity: isSelected ? 1 : (isExpanded ? 0.9 : 0.7),
+            opacity: isExpanded ? (isSelected ? 1 : 0.9) : (isSelected ? 1 : (isHovered ? 0.95 : 0.7)),
+            filter: !isExpanded && isSelected ? 'brightness(1.3) saturate(1.2)' : 'none',
+            transition: isExpanded ? 'none' : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease',
             zIndex: isSelected ? 10 : 5,
           }}
           title={isExpanded ? `${node.title} (from ${node.storylines[0]?.name || 'another storyline'})` : undefined}
@@ -861,6 +868,8 @@ export function BottomTimeline() {
       }
     };
 
+    const isHovered = hoveredNodeId === node.id;
+
     return (
       <div
         key={`${node.id}-${storylineId}`}
@@ -889,17 +898,26 @@ export function BottomTimeline() {
           top: 0,
           width: nodeWidth,
           height: '100%',
-          background: isExpanded ? '#fefdfb' : (storyline?.color || defaultColor), // 收起时用 storyline 颜色填充
-          borderRadius: isExpanded ? 6 : 3, // 收起时更小的圆角
-          cursor: edgeHover ? 'ew-resize' : (isPrimary ? 'grab' : 'default'),
-          // 展开时使用边框，收起时无边框（因为已经是实色填充）
+          background: isExpanded 
+            ? '#fefdfb' 
+            : (isSelected 
+              ? `linear-gradient(135deg, ${storyline?.color || defaultColor} 0%, ${storyline?.color || defaultColor}dd 50%, ${storyline?.color || defaultColor} 100%)`
+              : (storyline?.color || defaultColor)),
+          borderRadius: isExpanded ? 6 : 3,
+          cursor: edgeHover ? 'ew-resize' : (isPrimary && isExpanded ? 'grab' : 'pointer'),
           borderTop: isExpanded ? (`1px solid ${storyline?.color || defaultColor}`) : 'none',
           borderBottom: isExpanded ? (`1px solid ${storyline?.color || defaultColor}`) : 'none',
           borderLeft: isExpanded ? (`1px solid ${storyline?.color || defaultColor}`) : 'none',
           borderRight: isExpanded ? (`1px solid ${storyline?.color || defaultColor}`) : 'none',
           boxShadow: isExpanded 
             ? (isSelected ? `0 2px 8px ${storyline?.color || defaultColor}40` : '0 1px 4px rgba(90, 74, 58, 0.1)') 
-            : (isSelected ? `0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 0 3px ${storyline?.color || defaultColor}` : 'none'), // 收起时选中节点用外发光高亮
+            : (isSelected 
+              ? `0 0 12px 3px ${storyline?.color || defaultColor}60, 0 0 24px 6px ${storyline?.color || defaultColor}30, inset 0 0 20px ${storyline?.color || defaultColor}20`
+              : 'none'),
+          opacity: isExpanded ? 1 : (isHovered ? 0.95 : 0.85),
+          filter: !isExpanded && isSelected ? 'brightness(1.2) saturate(1.3) contrast(1.1)' : 'none',
+          transform: isExpanded ? 'none' : `scale(${isHovered ? 1.05 : 1})`,
+          transition: isExpanded ? 'none' : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.3s ease',
         }}
       >
         {/* 连接线 - 如果node在多个storylines中 */}
