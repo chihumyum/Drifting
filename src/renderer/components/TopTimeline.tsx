@@ -108,7 +108,7 @@ export function TopTimeline() {
       }
     }
     loadAllStorylines();
-  }, [projectId, storylineUsecases]);
+  }, [projectId, storylineUsecases, showStorylineDropdown]);
 
   // Monitor container width
   useEffect(() => {
@@ -501,7 +501,6 @@ export function TopTimeline() {
               flexDirection: 'column',
               gap: 6,
               minWidth: 200,
-              WebkitAppRegion: 'no-drag',
             }}
             onMouseEnter={() => {
               if (hideDropdownTimeoutRef.current) {
