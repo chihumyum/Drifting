@@ -45,9 +45,7 @@ export function BottomTimeline() {
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isPinned, setIsPinned] = useState(true); // 是否固定展开状态
   const [isTransitioning, setIsTransitioning] = useState(false); // 动画过渡状态
-  const [mouseEnterX, setMouseEnterX] = useState(0); // 记录鼠标进入时的 X 坐标
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; storylineId: string } | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<{ storylineId: string; start: number; x: number } | null>(null);
   const [nodeHeight, setNodeHeight] = useState(TIMELINE_CONFIG.NODE_COMPACT_HEIGHT);
@@ -102,6 +100,19 @@ export function BottomTimeline() {
       scrollContainerRef.current.scrollLeft = parseInt(savedPosition, 10);
     }
   }, [storylines.length]); // Restore after storylines are loaded
+  
+  // 添加全局快捷键 Cmd+J 来切换展开/收起
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault();
+        setIsExpanded(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   
   // Save scroll position on scroll
   useEffect(() => {
@@ -223,40 +234,6 @@ export function BottomTimeline() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded, storylines.length, nodeHeight]);
-
-  // 处理展开时的滚动位置调整 - 以鼠标位置为中心展开
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !isExpanded || mouseEnterX === 0) return;
-    
-    // 使用 requestAnimationFrame 确保在 DOM 更新后执行
-    requestAnimationFrame(() => {
-      if (!container) return;
-      
-      // Storyline 标签的宽度（仅展开时存在）
-      const STORYLINE_LABEL_WIDTH = 68; // 60px width + 8px paddingRight
-      
-      // 计算鼠标在收起状态下对应的时间轴位置（考虑收起时的缩放）
-      // mouseEnterX 是相对于视口的，需要转换为相对于容器的位置
-      const containerRect = container.getBoundingClientRect();
-      const mouseXInContainer = mouseEnterX - containerRect.left;
-      
-      // 收起时的缩放因子（这里需要重新计算，因为 scaleFactor 已经变成 1 了）
-      const timelineRange = maxEnd - minStart;
-      const availableWidth = typeof window !== 'undefined' ? window.innerWidth - 40 : 1200;
-      const collapsedScaleFactor = Math.min(1, availableWidth / (timelineRange * TIMELINE_CONFIG.GRID_UNIT));
-      
-      // 鼠标位置对应的时间轴坐标（start 值）
-      // 收起时没有 storyline 标签，所以直接使用 mouseXInContainer
-      const startAtMouse = minStart + (mouseXInContainer / (TIMELINE_CONFIG.GRID_UNIT * collapsedScaleFactor));
-      
-      // 展开后，该 start 值对应的像素位置（需要加上 storyline 标签宽度）
-      const expandedPositionAtMouse = (startAtMouse - minStart) * TIMELINE_CONFIG.GRID_UNIT + STORYLINE_LABEL_WIDTH;
-      
-      // 调整滚动位置，使得该位置保持在鼠标下方
-      container.scrollLeft = expandedPositionAtMouse - mouseXInContainer;
-    });
-  }, [isExpanded, mouseEnterX, minStart, maxEnd]);
 
   // Load chapters first
   useEffect(() => {
@@ -1381,17 +1358,6 @@ export function BottomTimeline() {
     <div
       ref={timelineRef}
       onClick={handleTimelineClick}
-      onMouseEnter={(e) => {
-        setMouseEnterX(e.clientX);
-        if (!isPinned) {
-          setIsExpanded(true);
-        }
-      }}
-      onMouseLeave={() => {
-        if (!isPinned) {
-          setIsExpanded(false);
-        }
-      }}
       style={{
         position: 'fixed',
         bottom: 0,
@@ -1400,7 +1366,6 @@ export function BottomTimeline() {
         height: getTimelineHeight(),
         background: 'linear-gradient(to top, #f9f6f1, #fefdfb)',
         borderTop: '1px solid var(--accent-border, #e8dcc8)',
-        transition: 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 20,
         overflow: 'hidden',
         display: 'flex',
@@ -1408,41 +1373,6 @@ export function BottomTimeline() {
         padding: isExpanded ? '16px 0' : '0', // 收起时完全去掉 padding
       }}
     >
-      {/* Toggle Pin Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          const newPinned = !isPinned;
-          setIsPinned(newPinned);
-          if (newPinned) {
-            setIsExpanded(true);
-          }
-        }}
-        style={{
-          position: 'absolute',
-          top: 4,
-          right: 8,
-          width: 24,
-          height: 24,
-          borderRadius: 4,
-          border: '1px solid var(--accent-border, #e8dcc8)',
-          background: isPinned ? 'var(--accent, #b89968)' : '#fefdfb',
-          color: isPinned ? '#fefdfb' : '#5a4a3a',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 12,
-          transition: 'all 0.2s',
-          zIndex: 30,
-          opacity: isExpanded ? 1 : 0,
-          pointerEvents: isExpanded ? 'auto' : 'none',
-        }}
-        title={isPinned ? '取消固定展开' : '固定展开'}
-      >
-        📌
-      </button>
-      
       <div
         ref={scrollContainerRef}
         data-timeline-container
