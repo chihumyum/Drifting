@@ -9,6 +9,7 @@ import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/leftBars/ElementPanel';
 import { LeftQuickButtons } from './components/leftBars/LeftQuickButtons';
+import { LeftSidebar } from './components/leftBars/LeftSidebar';
 import { BottomTimeline } from './components/BottomTimeline';
 import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './components/modals/SettingsModal';
@@ -90,22 +91,12 @@ function Layout() {
           gridTemplateColumns: '280px 1fr',
           overflow: 'hidden',
         }}
-      >
-        {/* Left Sidebar - Combined App Menu + Element Panel */}
-        <div
-          className="bg-paper-light border-r border-accent-border-light"
-          style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            borderRight: '1px solid rgba(213, 213, 213, 0.3)',
-            position: 'relative',
-            overflow: 'visible',
-          }}
+      >        {/* Left Sidebar - 使用抽象的 LeftSidebar 组件 */}
+        <LeftSidebar
+          topBar={<LeftSidebarTopBar />}
+          collapsible={true}
         >
-          {/* 侧栏 TopBar - 第一段 */}
-          <LeftSidebarTopBar />
-
+          {/* 可插拔的内容区域 */}
           {/* App Menu Section */}
           <div style={{ flexShrink: 0 }}>
             <LeftQuickButtons />
@@ -121,7 +112,7 @@ function Layout() {
           }}>
             <ElementPanel />
           </div>
-        </div>
+        </LeftSidebar>
 
         {/* Main Content Area */}
         <main

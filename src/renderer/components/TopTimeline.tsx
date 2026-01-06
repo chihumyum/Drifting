@@ -6,6 +6,7 @@ import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book_node';
 import { useAuthStore, getProjectId } from '../store/auth';
+import { NodeHoverPreview } from './NodeHoverPreview';
 
 interface TimelineNode extends BookNode {
   storylines: Storyline[];
@@ -123,7 +124,7 @@ export function TopTimeline() {
     const container = containerRef.current;
     // console.log(`ContainerRef: ${containerRef.current}`);
     if (!container) {
-      console.error('Container element not found');
+      // console.log('Container element not found');
       return;
     }
 
@@ -194,7 +195,7 @@ export function TopTimeline() {
   const calculateNodeWidths = (): number[] => {
     // Safety check
     if (storylineNodes.length === 0 || containerWidth === 0) {
-      console.log(`calculateNodeWidths: storylineNodes.length: ${storylineNodes.length}, containerWidth: ${containerWidth}`);
+      // console.log(`calculateNodeWidths: storylineNodes.length: ${storylineNodes.length}, containerWidth: ${containerWidth}`);
       return storylineNodes.map(() => MAX_WIDTH);
     }
 
@@ -668,71 +669,10 @@ export function TopTimeline() {
       }
 
       {/* Hover Preview */}
-      {
-        hoveredNodeId && hoverPosition && (() => {
-          const hoveredNode = storylineNodes.find(n => n.id === hoveredNodeId);
-          if (!hoveredNode) return null;
-
-          return (
-            <div
-              style={{
-                position: 'fixed',
-                left: hoverPosition.x,
-                top: hoverPosition.y,
-                transform: 'translateX(-50%)',
-                width: 280,
-                background: '#fff',
-                border: '1px solid rgba(0, 0, 0, 0.1)',
-                borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08)',
-                padding: 12,
-                zIndex: 10000,
-                pointerEvents: 'none',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'rgba(0, 0, 0, 0.85)',
-                  marginBottom: 6,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {hoveredNode.title || 'Untitled Chapter'}
-              </div>
-              {hoveredNode.summary && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: 'rgba(0, 0, 0, 0.6)',
-                    lineHeight: 1.5,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {hoveredNode.summary}
-                </div>
-              )}
-              {!hoveredNode.summary && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: 'rgba(0, 0, 0, 0.35)',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  No summary
-                </div>
-              )}
-            </div>
-          );
-        })()
-      }
+      <NodeHoverPreview 
+        node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
+        position={hoverPosition}
+      />
 
       <style>{`
         .top-timeline-container::-webkit-scrollbar {
