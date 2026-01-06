@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-
+/*
+global BackButton
+*/
 export function BackButton() {
   const navigate = useNavigate();
   const location = useLocation();

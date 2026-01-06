@@ -21,7 +21,7 @@ const createWindow = () => {
     // 自定义窗口栏配置
     titleBarStyle: 'hiddenInset', // macOS: 隐藏标题栏但保留交通灯按钮
     // titleBarStyle: 'hidden', // 完全隐藏标题栏（包括交通灯）
-    trafficLightPosition: { x: 16, y: 16 }, // macOS 交通灯按钮位置
+    trafficLightPosition: { x: 12, y: 12 }, // macOS 交通灯按钮位置
     frame: process.platform !== 'darwin', // 非 macOS 显示边框
     // frame: false, // 如果要在所有平台完全无边框，取消注释这行
     webPreferences: {

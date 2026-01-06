@@ -3,7 +3,7 @@ import { X, Bug } from 'lucide-react';
 import { applyAccentColor } from '../../lib/theme';
 import { DebugModal } from './DebugModal';
 import { APP_CONFIG } from '../../lib/config';
-import { EditorSettings } from '../EditorSettings';
+import { EditorSettings } from '../settings/EditorSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;

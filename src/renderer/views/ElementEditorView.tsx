@@ -10,10 +10,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElement } from '../domain/book_element';
-import { EditorMenuBar } from '../components/EditorMenuBar';
-import { TagEditor } from '../components/TagEditor';
-import { EditorContextMenu } from '../components/EditorContextMenu';
-import { BacklinksPanel } from '../components/BacklinksPanel';
+import { EditorMenuBar } from '../components/editor/EditorMenuBar';
+import { TagEditor } from '../components/editor/TagEditor';
+import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { BacklinksPanel } from '../components/editor/BacklinksPanel';
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',

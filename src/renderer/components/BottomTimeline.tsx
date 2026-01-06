@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
@@ -30,9 +30,11 @@ interface TimelineNode extends BookNode {
   storylines: Storyline[];
 }
 
-export function TimelineChapters() {
+export function BottomTimeline() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { bookNodes, selectedNodeId } = useAppStore();
+  const storedStorylines = useAppStore(state => state.storylines); // Get storylines from store
   const user = useAuthStore(state => state.user);
   const storylineUsecases = useStorylineUsecases();
   const nodeUsecases = useBookNodeUsecases();
@@ -41,8 +43,8 @@ export function TimelineChapters() {
   const [storylines, setStorylines] = useState<Storyline[]>([]);
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isPinned, setIsPinned] = useState(false); // 是否固定展开状态
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [isPinned, setIsPinned] = useState(true); // 是否固定展开状态
   const [isTransitioning, setIsTransitioning] = useState(false); // 动画过渡状态
   const [mouseEnterX, setMouseEnterX] = useState(0); // 记录鼠标进入时的 X 坐标
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; storylineId: string } | null>(null);
@@ -272,9 +274,17 @@ export function TimelineChapters() {
     async function loadData() {
       try {
         const projectId = getProjectId(user?.id);
-        console.log('[TimelineChapters] Loading storylines for projectId:', projectId, 'userId:', user?.id);
-        const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
-        console.log('[TimelineChapters] Loaded storylines:', allStorylines.length, allStorylines);
+        
+        // If store has storylines, use them; otherwise load from database
+        let allStorylines: Storyline[];
+        if (storedStorylines.length > 0) {
+          allStorylines = storedStorylines;
+        } else {
+          allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+          // Sync to store so other components can access it
+          useAppStore.getState().setStorylines(allStorylines);
+        }
+        
         setStorylines(allStorylines);
 
         // Load storyline info for each node
@@ -299,7 +309,7 @@ export function TimelineChapters() {
     
     // Always load storylines, even if there are no nodes yet
     loadData();
-  }, [bookNodes, storylineUsecases, user]);
+  }, [bookNodes, storylineUsecases, user, storedStorylines]);
 
   // Load outlines for all nodes
   useEffect(() => {
@@ -728,8 +738,10 @@ export function TimelineChapters() {
     e.stopPropagation(); // 阻止事件冒泡到 timeline 背景
     // 设置选中状态
     useAppStore.getState().setSelectedNodeId(nodeId);
-    // 导航到编辑器
-    navigate(`/editor/${nodeId}`);
+    // 避免重复导航到同一页面
+    if (location.pathname !== `/editor/${nodeId}`) {
+      navigate(`/editor/${nodeId}`);
+    }
   };
 
   // Handle timeline background click (deselect)
@@ -1262,7 +1274,10 @@ export function TimelineChapters() {
           <div
             onClick={() => {
               useAppStore.getState().setSelectedNodeId(null);
-              navigate(`/editor/storyline/${storyline.id}`);
+              // 避免重复导航到同一页面
+              if (location.pathname !== `/editor/storyline/${storyline.id}`) {
+                navigate(`/editor/storyline/${storyline.id}`);
+              }
             }}
             style={{
               fontSize: 11,

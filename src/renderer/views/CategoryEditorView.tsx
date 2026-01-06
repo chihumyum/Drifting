@@ -10,8 +10,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElementCategory } from '../domain/book_element';
-import { EditorMenuBar } from '../components/EditorMenuBar';
-import { EditorContextMenu } from '../components/EditorContextMenu';
+import { EditorMenuBar } from '../components/editor/EditorMenuBar';
+import { EditorContextMenu } from '../components/editor/EditorContextMenu';
 import { X, Eye } from 'lucide-react';
 
 const DEFAULT_DOC_STRING = JSON.stringify({

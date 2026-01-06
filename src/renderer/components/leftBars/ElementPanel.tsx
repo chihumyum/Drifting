@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
+import { useAppStore } from '../../store';
+import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
-import type { BookElement } from '../domain/book_element';
+import type { BookElement } from '../../domain/book_element';
 
 // Default category colors as fallback
 const DEFAULT_CATEGORY_COLORS = [

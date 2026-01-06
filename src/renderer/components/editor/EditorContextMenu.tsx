@@ -7,7 +7,9 @@ interface EditorContextMenuProps {
   editorType: EditorType;
   onAction: (action: string) => void;
 }
-
+/*
+  small context menu for editor views (node, element, category, storyline)
+*/
 export function EditorContextMenu({ editorType, onAction }: EditorContextMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

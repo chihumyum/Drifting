@@ -1,4 +1,4 @@
-import { useAppStore } from '../store';
+import { useAppStore } from '../../store';
 
 /**
  * 编辑器设置面板

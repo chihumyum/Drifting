@@ -7,14 +7,14 @@ import { StorylineEditorView } from './views/StorylineEditorView';
 import { GraphView } from './views/GraphView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
-import { ElementPanel } from './components/ElementPanel';
-import { AppSidebar } from './components/AppSidebar';
-import { TimelineChapters } from './components/TimelineChapters';
-import { BackButton } from './components/BackButton';
+import { ElementPanel } from './components/leftBars/ElementPanel';
+import { LeftQuickButtons } from './components/leftBars/LeftQuickButtons';
+import { BottomTimeline } from './components/BottomTimeline';
 import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './components/modals/SettingsModal';
-import { SidebarTopBar } from './components/SidebarTopBar';
-import { MainTopBar } from './components/MainTopBar';
+import { LeftSidebarTopBar } from './components/topBars/LeftSidebarTopBar';
+import { MainTopBar } from './components/topBars/MainTopBar';
+import { TopTimeline } from './components/TopTimeline';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
 
@@ -23,6 +23,8 @@ function Layout() {
   const location = useLocation();
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const timelineHeight = useAppStore((state) => state.timelineHeight);
 
   useEffect(() => {
@@ -44,13 +46,21 @@ function Layout() {
     });
   }, []); // No dependencies - init once on mount
 
+  // listen for left topbar events
   useEffect(() => {
-    // Listen for settings open event
     const handleOpenSettings = () => setIsSettingsOpen(true);
     events.on('settings:open', handleOpenSettings);
+    const handleOpenSearch = () => setIsSearchOpen(true);
+    events.on('search:open', handleOpenSearch);
+    const handleToggleLeftSidebar = () => { setIsLeftSidebarOpen(prev => !prev)};
+    events.on('left-sidebar:toggle', handleToggleLeftSidebar);
+    
     return () => {
+      events.off('left-sidebar:toggle', handleToggleLeftSidebar);
       events.off('settings:open', handleOpenSettings);
+      events.off('search:open', handleOpenSearch);
     };
+
   }, []);
 
   // Global Shortcut for Graph View (Cmd + Shift + \)
@@ -93,11 +103,11 @@ function Layout() {
           }}
         >
           {/* 侧栏 TopBar - 第一段 */}
-          <SidebarTopBar />
+          <LeftSidebarTopBar />
 
           {/* App Menu Section */}
           <div style={{ flexShrink: 0 }}>
-            <AppSidebar />
+            <LeftQuickButtons />
           </div>
 
           {/* Element Panel Section - Remaining space */}
@@ -124,7 +134,7 @@ function Layout() {
         >
           {/* 主区域 TopBar - 第二段（可拖拽） */}
           <MainTopBar>
-            {/* 这里可以放面包屑或标题 */}
+            <TopTimeline />
           </MainTopBar>
 
           {/* 内容区域 */}
@@ -133,14 +143,13 @@ function Layout() {
             position: 'relative',
             overflow: 'hidden',
           }}>
-            <BackButton />
             <Outlet />
           </div>
         </main>
       </div>
 
       {/* Timeline Chapters - Fixed at bottom, full width */}
-      <TimelineChapters />
+      <BottomTimeline />
 
       {/* Graph View Overlay */}
       {isGraphViewOpen && <GraphView />}

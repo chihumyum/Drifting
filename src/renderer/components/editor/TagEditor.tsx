@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Plus } from 'lucide-react';
-import { useNodeTagUsecases } from '../hooks/useNodeTagUsecases';
-import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
-import { useAppStore } from '../store';
-import type { NodeTag } from '../domain/story_stage';
+import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
+import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
+import { useAppStore } from '../../store';
+import type { NodeTag } from '../../domain/story_stage';
 
 type TagType = 'node' | 'element';
 
@@ -12,7 +12,9 @@ interface TagEditorProps {
   entityId: string; // nodeId or elementId
   projectId?: string;
 }
-
+/*
+  Tag Editor Component used in NodeEditorView and ElementEditorView
+*/
 export function TagEditor({ type, entityId, projectId = 'default-project' }: TagEditorProps) {
   const nodeTagUsecases = useNodeTagUsecases();
   const elementUsecases = useBookElementUsecases();

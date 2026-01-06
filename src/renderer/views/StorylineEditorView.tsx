@@ -11,8 +11,8 @@ import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book_node';
-import { EditorContextMenu } from '../components/EditorContextMenu';
-import { EditorMenuBar } from '../components/EditorMenuBar';
+import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { EditorMenuBar } from '../components/editor/EditorMenuBar';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { useAppStore } from '../store';
 

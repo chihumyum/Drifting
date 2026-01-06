@@ -1,10 +1,9 @@
-import { Settings, Plus } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
-import { useAppStore } from '../store';
-import { useAuthStore, getProjectId } from '../store/auth';
-import { events } from '../lib/events';
+import { Plus } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
+import { useStorylineUsecases } from '../../hooks/useStorylineUsecases';
+import { useAppStore } from '../../store';
+import { useAuthStore, getProjectId } from '../../store/auth';
 
 // Storyline color palette
 const STORYLINE_COLORS = [
@@ -18,13 +17,20 @@ const STORYLINE_COLORS = [
   '#946b54', // terracotta
 ];
 
-export function AppSidebar() {
+export function LeftQuickButtons() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore(state => state.user);
   const { createNode, loadNodes } = useBookNodeUsecases();
   const storylineUsecases = useStorylineUsecases();
   const bookNodes = useAppStore(state => state.bookNodes);
   const selectedNodeId = useAppStore(state => state.selectedNodeId);
+
+  // Check if we're currently in a storyline editor
+  const getCurrentStorylineId = (): string | null => {
+    const match = location.pathname.match(/^\/editor\/storyline\/([^/]+)$/);
+    return match ? match[1] : null;
+  };
 
   const handleCreateChapter = async () => {
     try {
@@ -45,19 +51,24 @@ export function AppSidebar() {
         end: newEnd,
       });
       
-      // 分配默认 storyline
+      // 确定要添加到哪个 storyline
       let defaultStorylineId: string | null = null;
       
-      if (selectedNodeId) {
-        // 如果有选中的 node，获取它的主 storyline（第一个 storyline）
+      // 优先级1: 如果当前在 storyline editor 中，使用当前 storyline
+      const currentStorylineId = getCurrentStorylineId();
+      if (currentStorylineId) {
+        defaultStorylineId = currentStorylineId;
+      }
+      // 优先级2: 如果有选中的 node，获取它的主 storyline（第一个 storyline）
+      else if (selectedNodeId) {
         const selectedNodeStorylines = await storylineUsecases.getStorylinesByNode(selectedNodeId);
         if (selectedNodeStorylines.length > 0) {
           defaultStorylineId = selectedNodeStorylines[0].id;
         }
       }
       
+      // 优先级3: 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
       if (!defaultStorylineId) {
-        // 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
         const projectId = getProjectId(user?.id);
         const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
         if (allStorylines.length > 0) {
@@ -111,15 +122,15 @@ export function AppSidebar() {
         summary: '',
       });
       
+      // Reload all storylines to update the store and trigger timeline refresh
+      const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+      useAppStore.getState().setStorylines(allStorylines);
+      
       // Navigate to storyline editor
       navigate(`/editor/storyline/${newStoryline.id}`);
     } catch (error) {
       console.error('Failed to create storyline:', error);
     }
-  };
-
-  const handleOpenSettings = () => {
-    events.emit('settings:open');
   };
 
   return (

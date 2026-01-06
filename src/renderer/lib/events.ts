@@ -36,7 +36,12 @@ export type AppEvents = {
   'ui:sidecar-toggled': { open: boolean };
   'ui:command-palette-toggled': { open: boolean };
   
+  // topbar related
   'settings:open': void;
+  'search:open': void;
+  'left-sidebar:toggle': void;
+  'right-sidebar:toggle': void;
+
   
   'nodes:changed': void;
 };

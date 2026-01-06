@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ElementOccurrenceRepository } from '../repositories/element-occurrence.repository';
+import { ElementOccurrenceRepository } from '../../repositories/element-occurrence.repository';
 
 interface BacklinksPanelProps {
   elementId: string;
@@ -15,7 +15,7 @@ interface Backlink {
 }
 
 /**
- * 反向链接面板
+ * 反向链接面板, used in ElementEditorView
  * 显示某个元素在哪些章节中被引用
  */
 export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
