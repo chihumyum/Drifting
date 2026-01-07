@@ -1,5 +1,8 @@
 // Database interface for Electron
 // This replaces the web worker-based implementation with IPC to main process
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
@@ -21,30 +24,30 @@ export function getDbName(userId?: string, projectId?: string): string {
  */
 export async function initDatabase(projectId?: string, userId?: string): Promise<void> {
   const targetDbName = getDbName(userId, projectId);
-  
+
   // If already initialized with the same database, return immediately
   if (dbInitialized && currentDbName === targetDbName) {
     return Promise.resolve();
   }
-  
+
   // If initialized with a different database, need to close first
   if (dbInitialized && currentDbName !== targetDbName) {
-    console.log(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
+    log.info(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
     await resetDatabase();
     return initDatabase(projectId, userId);
   }
-  
+
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
-      console.log(`[DB] Initializing database: ${targetDbName}`);
+      log.info(`[DB] Initializing database: ${targetDbName}`);
       await window.electronAPI.db.init(targetDbName);
       currentDbName = targetDbName;
       dbInitialized = true;
-      console.log('[DB] Database initialized successfully');
+      log.info('[DB] Database initialized successfully');
     } catch (error) {
-      console.error('[DB] Failed to initialize database:', error);
+      log.error('[DB] Failed to initialize database:', error);
       throw error;
     } finally {
       initPromise = null;
@@ -60,15 +63,15 @@ export async function initDatabase(projectId?: string, userId?: string): Promise
  */
 export async function resetDatabase(): Promise<void> {
   if (!dbInitialized) return;
-  
+
   try {
     await window.electronAPI.db.close();
     dbInitialized = false;
     currentDbName = null;
     initPromise = null;
-    console.log('[DB] Database connection reset');
+    log.info('[DB] Database connection reset');
   } catch (error) {
-    console.error('[DB] Error resetting database:', error);
+    log.error('[DB] Error resetting database:', error);
     // Reset state anyway
     dbInitialized = false;
     currentDbName = null;
@@ -98,7 +101,7 @@ export async function run(sql: string, params?: any[]): Promise<number> {
     const result = await window.electronAPI.db.run(sql, params);
     return result.changes;
   } catch (error) {
-    console.error('[DB] Run error:', error);
+    log.error('[DB] Run error:', error);
     throw error;
   }
 }
@@ -117,7 +120,7 @@ export async function query<T = Record<string, unknown>>(sql: string, params?: a
   try {
     return await window.electronAPI.db.query(sql, params);
   } catch (error) {
-    console.error('[DB] Query error:', error);
+    log.error('[DB] Query error:', error);
     throw error;
   }
 }
@@ -136,7 +139,7 @@ export async function get<T = Record<string, unknown>>(sql: string, params?: any
   try {
     return await window.electronAPI.db.get(sql, params);
   } catch (error) {
-    console.error('[DB] Get error:', error);
+    log.error('[DB] Get error:', error);
     throw error;
   }
 }

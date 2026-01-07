@@ -4,6 +4,9 @@ import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 import { useStorylineUsecases } from '../../hooks/useStorylineUsecases';
 import { useAppStore } from '../../store';
 import { useAuthStore, getProjectId } from '../../store/auth';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 // Storyline color palette
 const STORYLINE_COLORS = [
@@ -103,7 +106,7 @@ export function LeftQuickButtons() {
         }
       }, 100);
     } catch (error) {
-      console.error('Failed to create chapter:', error);
+      log.error('Failed to create chapter:', error);
     }
   };
 
@@ -129,7 +132,7 @@ export function LeftQuickButtons() {
       // Navigate to storyline editor
       navigate(`/editor/storyline/${newStoryline.id}`);
     } catch (error) {
-      console.error('Failed to create storyline:', error);
+      log.error('Failed to create storyline:', error);
     }
   };
 

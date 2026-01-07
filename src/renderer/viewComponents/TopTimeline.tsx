@@ -7,6 +7,9 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book_node';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { NodeHoverPreview } from './NodeHoverPreview';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 interface TimelineNode extends BookNode {
   storylines: Storyline[];
@@ -94,7 +97,7 @@ export function TopTimeline() {
           setStorylineNodes([]);
         }
       } catch (error) {
-        console.error('Failed to load storyline data:', error);
+        log.error('Failed to load storyline data:', error);
       }
     }
 
@@ -108,7 +111,7 @@ export function TopTimeline() {
         const lines = await storylineUsecases.getStorylinesByProject(projectId);
         setAllStorylines(lines);
       } catch (error) {
-        console.error('Failed to load all storylines:', error);
+        log.error('Failed to load all storylines:', error);
       }
     }
     loadAllStorylines();
@@ -135,7 +138,7 @@ export function TopTimeline() {
     });
 
     resizeObserver.observe(container);
-    console.log('Container element found, observering...');
+    log.debug('Container element found, observering...');
     return () => {
       resizeObserver.disconnect();
     };
@@ -315,7 +318,7 @@ export function TopTimeline() {
         }
       }
     } catch (error) {
-      console.error('Failed to switch storyline:', error);
+      log.error('Failed to switch storyline:', error);
     }
   };
 
@@ -638,7 +641,7 @@ export function TopTimeline() {
                   setStorylineDropdownPosition(null);
                   navigate(`/editor/storyline/${newStoryline.id}`);
                 } catch (error) {
-                  console.error('Failed to create storyline:', error);
+                  log.error('Failed to create storyline:', error);
                 }
               }}
               style={{

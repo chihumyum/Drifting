@@ -10,10 +10,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElement } from '../domain/book_element';
-import { EditorMenuBar } from '../components/editor/EditorMenuBar';
-import { TagEditor } from '../components/editor/TagEditor';
-import { EditorContextMenu } from '../components/editor/EditorContextMenu';
-import { BacklinksPanel } from '../components/editor/BacklinksPanel';
+import { TagEditor } from '../viewComponents/editor/TagEditor';
+import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
+import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -91,6 +93,7 @@ export function ElementEditorView() {
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
         codeBlock: {},
+        link: false, // 禁用 StarterKit 自带的 link，使用自定义配置
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
@@ -111,7 +114,7 @@ export function ElementEditorView() {
     },
     onUpdate: ({ editor: ed }) => {
       if (!isContentLoadedRef.current) {
-        console.log('Skipping save: content not yet loaded');
+        log.debug('Skipping save: content not yet loaded');
         return;
       }
       
@@ -146,7 +149,7 @@ export function ElementEditorView() {
         editor.commands.setContent(json);
       }
     } catch (error) {
-      console.error('Failed to parse element content', error);
+      log.error('Failed to parse element content', error);
       editor.commands.setContent(getDefaultDoc());
     }
   }, [editor, curElement]);
@@ -196,7 +199,7 @@ export function ElementEditorView() {
         await elementUsecases.removeElement(elementId);
         navigate('/editor');
       } catch (error) {
-        console.error('Failed to delete element:', error);
+        log.error('Failed to delete element:', error);
         alert('Failed to delete element. Please try again.');
       }
     } else if (action === 'categoryPicker') {
@@ -517,9 +520,6 @@ export function ElementEditorView() {
         <EditorContent editor={editor} />
       </div>
 
-      {/* Editor Menu Bar */}
-      <EditorMenuBar editor={editor} />
-      
       {/* Editor Context Menu */}
       <EditorContextMenu 
         editorType="element"

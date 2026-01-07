@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { StoryStage, NodeTag } from '../domain/story_stage';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * 故事阶段服务
@@ -14,7 +17,7 @@ export const stageService = {
       const response = await apiClient.get<StoryStage>(`/stages/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch stage:', handleApiError(error));
+      log.error('Failed to fetch stage:', handleApiError(error));
       return null;
     }
   },
@@ -29,7 +32,7 @@ export const stageService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch stages:', handleApiError(error));
+      log.error('Failed to fetch stages:', handleApiError(error));
       return [];
     }
   },
@@ -54,7 +57,7 @@ export const stageService = {
       const response = await apiClient.patch<StoryStage>(`/stages/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Failed to update stage:', handleApiError(error));
+      log.error('Failed to update stage:', handleApiError(error));
       return null;
     }
   },
@@ -67,7 +70,7 @@ export const stageService = {
       await apiClient.delete(`/stages/${id}`);
       return true;
     } catch (error) {
-      console.error('Failed to delete stage:', handleApiError(error));
+      log.error('Failed to delete stage:', handleApiError(error));
       return false;
     }
   },
@@ -86,7 +89,7 @@ export const nodeTagService = {
       const response = await apiClient.get<NodeTag>(`/tags/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch tag:', handleApiError(error));
+      log.error('Failed to fetch tag:', handleApiError(error));
       return null;
     }
   },
@@ -101,7 +104,7 @@ export const nodeTagService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch tags:', handleApiError(error));
+      log.error('Failed to fetch tags:', handleApiError(error));
       return [];
     }
   },
@@ -116,7 +119,7 @@ export const nodeTagService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch tag by name:', handleApiError(error));
+      log.error('Failed to fetch tag by name:', handleApiError(error));
       return null;
     }
   },
@@ -141,7 +144,7 @@ export const nodeTagService = {
       await apiClient.delete(`/tags/${id}`);
       return true;
     } catch (error) {
-      console.error('Failed to delete tag:', handleApiError(error));
+      log.error('Failed to delete tag:', handleApiError(error));
       return false;
     }
   },
@@ -154,7 +157,7 @@ export const nodeTagService = {
       const response = await apiClient.get<NodeTag[]>(`/nodes/${nodeId}/tags`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch tags by node:', handleApiError(error));
+      log.error('Failed to fetch tags by node:', handleApiError(error));
       return [];
     }
   },

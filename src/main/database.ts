@@ -2,6 +2,9 @@ import { ipcMain, app } from 'electron';
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 let db: Database.Database | null = null;
 
@@ -34,7 +37,7 @@ function initDatabase(dbName: string): void {
     const dbDir = getDbDirectory();
     const dbPath = path.join(dbDir, dbName);
 
-    console.log(`[Database] Opening database: ${dbPath}`);
+    log.info(`[Database] Opening database: ${dbPath}`);
 
     db = new Database(dbPath);
 
@@ -44,9 +47,9 @@ function initDatabase(dbName: string): void {
     // Run migrations
     runMigrations();
 
-    console.log('[Database] Database initialized successfully');
+    log.info('[Database] Database initialized successfully');
   } catch (error) {
-    console.error('[Database] Failed to initialize database:', error);
+    log.error('[Database] Failed to initialize database:', error);
     throw error;
   }
 }
@@ -316,7 +319,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
   const defaultProject = db.prepare('SELECT id FROM project WHERE id = ?').get('default-project');
 
   if (!defaultProject) {
-    console.log('[Database] Creating default project');
+    log.info('[Database] Creating default project');
     db.prepare(`
       INSERT INTO project (id, project_name, author, description, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -334,7 +337,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
   const defaultCategory = db.prepare('SELECT id FROM element_category WHERE id = ?').get('cat_default');
 
   if (!defaultCategory) {
-    console.log('[Database] Creating default element category');
+    log.info('[Database] Creating default element category');
     db.prepare(`
       INSERT INTO element_category (id, name, description_json, color, sync_status, last_modified, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -353,7 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
   const defaultStoryline = db.prepare('SELECT id FROM storyline WHERE id = ?').get('storyline_main');
 
   if (!defaultStoryline) {
-    console.log('[Database] Creating default storyline');
+    log.info('[Database] Creating default storyline');
     db.prepare(`
       INSERT INTO storyline (id, project_id, name, color, summary, created_at, updated_at, sync_status, last_modified, is_deleted)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -393,7 +396,7 @@ export function setupDatabase(): void {
         lastInsertRowid: result.lastInsertRowid,
       };
     } catch (error) {
-      console.error('[Database] Run error:', error);
+      log.error('[Database] Run error:', error);
       throw error;
     }
   });
@@ -406,7 +409,7 @@ export function setupDatabase(): void {
       const stmt = db.prepare(sql);
       return stmt.all(...(params || []));
     } catch (error) {
-      console.error('[Database] Query error:', error);
+      log.error('[Database] Query error:', error);
       throw error;
     }
   });
@@ -419,7 +422,7 @@ export function setupDatabase(): void {
       const stmt = db.prepare(sql);
       return stmt.get(...(params || []));
     } catch (error) {
-      console.error('[Database] Get error:', error);
+      log.error('[Database] Get error:', error);
       throw error;
     }
   });

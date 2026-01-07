@@ -1,5 +1,9 @@
 import type { JSONContent } from '@tiptap/core';
 import type { OutlineItem } from '../schema/book_content';
+import { uuidv7 } from 'uuidv7';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * Extract outline structure from TipTap JSON content
@@ -18,7 +22,7 @@ export function extractOutline(pmJson: string): OutlineItem[] {
         const text = extractTextFromNode(node);
         if (text.trim()) {
           outline.push({
-            id: `outline_${Date.now()}_${position}`,
+            id: `outline_${uuidv7()}_${position}`,
             level: node.attrs.level as 1 | 2 | 3,
             text: text.trim(),
             position: position++,
@@ -40,7 +44,7 @@ export function extractOutline(pmJson: string): OutlineItem[] {
     traverse(doc);
     return outline;
   } catch (error) {
-    console.error('Failed to extract outline:', error);
+    log.error('Failed to extract outline:', error);
     return [];
   }
 }
@@ -74,7 +78,7 @@ export function parseOutline(outlineJson: string): OutlineItem[] {
   try {
     return JSON.parse(outlineJson) as OutlineItem[];
   } catch (error) {
-    console.error('Failed to parse outline:', error);
+    log.error('Failed to parse outline:', error);
     return [];
   }
 }

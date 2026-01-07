@@ -4,6 +4,9 @@ import { useAppStore } from '../../store';
 import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
 import type { BookElement } from '../../domain/book_element';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 // Default category colors as fallback
 const DEFAULT_CATEGORY_COLORS = [
@@ -86,7 +89,7 @@ export function ElementPanel() {
       setEditingCategoryName(tempName);
       setEditingCategoryNewName(tempName);
     } catch (error) {
-      console.error('Failed to create new category:', error);
+      log.error('Failed to create new category:', error);
     }
   };
   
@@ -101,7 +104,7 @@ export function ElementPanel() {
       await updateElement(elementId, { name: editingElementName.trim() });
       await loadInitial();
     } catch (error) {
-      console.error('Failed to update element name:', error);
+      log.error('Failed to update element name:', error);
     } finally {
       setEditingElementId(null);
     }
@@ -150,7 +153,7 @@ export function ElementPanel() {
         setFilterCategory(newName);
       }
     } catch (error) {
-      console.error('Failed to rename category:', error);
+      log.error('Failed to rename category:', error);
       alert('Failed to rename category. Please try again.');
     } finally {
       setEditingCategoryName(null);
@@ -175,9 +178,9 @@ export function ElementPanel() {
   }, [bookElements, categoryNames]);
 
   useEffect(() => {
-    console.log('Loading initial book elements in ElementPanel');
+    log.debug('Loading initial book elements in ElementPanel');
     loadInitial().catch(err => {
-      console.error('Failed to load book elements', err);
+      log.error('Failed to load book elements', err);
     });
   }, [loadInitial]);
 
@@ -297,7 +300,7 @@ export function ElementPanel() {
                     });
                     navigate(`/element/${newElement.id}`);
                   } catch (error) {
-                    console.error('Failed to create element:', error);
+                    log.error('Failed to create element:', error);
                   }
                 }}
                 className="bg-accent hover:bg-accent-hover text-paper transition-colors"

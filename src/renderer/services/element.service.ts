@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookElement, BookElementCategory } from '../domain/book_element';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * 元素服务 - 对应后端 /elements API
@@ -13,7 +16,7 @@ export const elementService = {
       const response = await apiClient.get<BookElement>(`/elements/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch element:', handleApiError(error));
+      log.error('Failed to fetch element:', handleApiError(error));
       return null;
     }
   },
@@ -32,7 +35,7 @@ export const elementService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch elements:', handleApiError(error));
+      log.error('Failed to fetch elements:', handleApiError(error));
       return [];
     }
   },
@@ -78,7 +81,7 @@ export const elementService = {
       const response = await apiClient.patch<BookElement>(`/elements/${id}`, element);
       return response.data;
     } catch (error) {
-      console.error('Failed to update element:', handleApiError(error));
+      log.error('Failed to update element:', handleApiError(error));
       return null;
     }
   },
@@ -91,7 +94,7 @@ export const elementService = {
       await apiClient.delete(`/elements/${id}`);
       return true;
     } catch (error) {
-      console.error('Failed to delete element:', handleApiError(error));
+      log.error('Failed to delete element:', handleApiError(error));
       return false;
     }
   },
@@ -115,7 +118,7 @@ export const elementService = {
       const response = await apiClient.get<{ category: string }>(`/elements/${elementId}/category`);
       return response.data.category;
     } catch (error) {
-      console.error('Failed to get element category:', handleApiError(error));
+      log.error('Failed to get element category:', handleApiError(error));
       return null;
     }
   },
@@ -135,7 +138,7 @@ export const elementService = {
       const response = await apiClient.get<string[]>(`/elements/${elementId}/tags`);
       return response.data;
     } catch (error) {
-      console.error('Failed to get element tags:', handleApiError(error));
+      log.error('Failed to get element tags:', handleApiError(error));
       return [];
     }
   },
@@ -181,7 +184,7 @@ export const elementService = {
       const response = await apiClient.get<{ content: string }>(`/elements/${elementId}/content`);
       return response.data.content || '{}';
     } catch (error) {
-      console.error('Failed to get element content:', handleApiError(error));
+      log.error('Failed to get element content:', handleApiError(error));
       return '{}';
     }
   },
@@ -210,7 +213,7 @@ export const elementCategoryService = {
       const response = await apiClient.get<BookElementCategory[]>('/elements/categories');
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch categories:', handleApiError(error));
+      log.error('Failed to fetch categories:', handleApiError(error));
       return [];
     }
   },
@@ -223,7 +226,7 @@ export const elementCategoryService = {
       const response = await apiClient.get<BookElementCategory>(`/elements/categories/${name}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch category:', handleApiError(error));
+      log.error('Failed to fetch category:', handleApiError(error));
       return null;
     }
   },
@@ -257,7 +260,7 @@ export const elementCategoryService = {
       );
       return response.data;
     } catch (error) {
-      console.error('Failed to update category:', handleApiError(error));
+      log.error('Failed to update category:', handleApiError(error));
       return null;
     }
   },
@@ -270,7 +273,7 @@ export const elementCategoryService = {
       await apiClient.delete(`/elements/categories/${name}`);
       return true;
     } catch (error) {
-      console.error('Failed to delete category:', handleApiError(error));
+      log.error('Failed to delete category:', handleApiError(error));
       return false;
     }
   },

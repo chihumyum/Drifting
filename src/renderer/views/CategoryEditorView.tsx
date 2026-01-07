@@ -10,9 +10,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
 import type { BookElementCategory } from '../domain/book_element';
-import { EditorMenuBar } from '../components/editor/EditorMenuBar';
-import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { X, Eye } from 'lucide-react';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
@@ -45,7 +47,7 @@ export function CategoryEditorView() {
     if (cat) {
       setCategory(cat);
     } else {
-      console.warn('Category not found:', categoryName);
+      log.warn('Category not found:', categoryName);
     }
   }, [bookElementCategories, categoryName, navigate]);
 
@@ -63,6 +65,7 @@ export function CategoryEditorView() {
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
         codeBlock: {},
+        link: false, // 禁用 StarterKit 自带的 link，使用自定义配置
       }),
       Underline,
       Link.configure({
@@ -89,7 +92,7 @@ export function CategoryEditorView() {
     },
     onUpdate: ({ editor: ed }) => {
       if (!isContentLoadedRef.current) {
-        console.log('Skipping save: content not yet loaded');
+        log.debug('Skipping save: content not yet loaded');
         return;
       }
 
@@ -114,7 +117,7 @@ export function CategoryEditorView() {
       editor.commands.setContent(content);
       isContentLoadedRef.current = true;
     } catch (error) {
-      console.error('Failed to parse category description:', error);
+      log.error('Failed to parse category description:', error);
       editor.commands.setContent(getDefaultDoc());
       isContentLoadedRef.current = true;
     }
@@ -130,7 +133,7 @@ export function CategoryEditorView() {
       });
       await loadInitial();
     } catch (error) {
-      console.error('Failed to save category description:', error);
+      log.error('Failed to save category description:', error);
     }
   };
 
@@ -154,7 +157,7 @@ export function CategoryEditorView() {
         await loadInitial();
         navigate('/editor');
       } catch (error) {
-        console.error('Failed to delete category:', error);
+        log.error('Failed to delete category:', error);
         alert('Failed to delete category. Please try again.');
       }
     }
@@ -294,16 +297,6 @@ export function CategoryEditorView() {
           border: '1px solid rgba(200, 190, 220, 0.25)',
           minHeight: 400,
         }}>
-          {/* Editor Menu Bar */}
-          {editor && (
-            <div style={{
-              borderBottom: '1px solid rgba(200, 190, 220, 0.15)',
-              padding: '8px 12px',
-            }}>
-              <EditorMenuBar editor={editor} />
-            </div>
-          )}
-
           {/* Tiptap Editor */}
           <EditorContent editor={editor} />
         </div>

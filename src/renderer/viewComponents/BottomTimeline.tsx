@@ -8,6 +8,9 @@ import { parseOutline } from '../lib/outline';
 import type { OutlineItem } from '../schema/book_content';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book_node';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 import { useAuthStore, getProjectId } from '../store/auth';
 import { NodeHoverPreview } from './NodeHoverPreview';
 
@@ -17,7 +20,6 @@ const TIMELINE_CONFIG = {
   NODE_MIN_WIDTH: 40, // 节点最小宽度（2个网格单位）
   NODE_DEFAULT_WIDTH: 4, // 节点默认宽度（以网格单位计）
   NODE_MIN_HEIGHT: 18, // 节点最小高度 - 隐藏时只显示标题
-  NODE_EXPANDED_HEIGHT: 60, // 展开时节点理想高度
   NODE_COMPACT_HEIGHT: 6, // 收起时节点高度
   STORYLINE_PADDING: 2, // 每个 storyline 行的上下内边距（展开时）
   STORYLINE_PADDING_COMPACT: 0, // 每个 storyline 行的上下内边距（收起时，无内边距）
@@ -215,8 +217,8 @@ export function BottomTimeline() {
   // 计算 timeline 的总高度
   const getTimelineHeight = () => {
     if (storylines.length === 0) {
-      console.error('No storylines found, should not happen');
-      return 120;
+      // console.error('No storylines found, should not happen');
+      return 80;
     }
     
     if (isExpanded) {
@@ -245,7 +247,7 @@ export function BottomTimeline() {
       try {
         await nodeUsecases.loadNodes();
       } catch (error) {
-        console.error('Failed to load chapters:', error);
+        log.error('Failed to load chapters:', error);
       }
     }
     loadChapters();
@@ -285,7 +287,7 @@ export function BottomTimeline() {
         });
         setNodeEnds(endsMap);
       } catch (error) {
-        console.error('Failed to load timeline data:', error);
+        log.error('Failed to load timeline data:', error);
       }
     }
     
@@ -306,14 +308,14 @@ export function BottomTimeline() {
               const outline = parseOutline(content.outlineJson);
               outlinesMap.set(node.id, outline);
             } catch (error) {
-              console.error(`Failed to parse outline for node ${node.id}:`, error);
+              log.error(`Failed to parse outline for node ${node.id}:`, error);
             }
           }
         }
         
         setNodeOutlines(outlinesMap);
       } catch (error) {
-        console.error('Failed to load outlines:', error);
+        log.error('Failed to load outlines:', error);
       }
     }
     
@@ -472,7 +474,7 @@ export function BottomTimeline() {
           break;
       }
     } catch (error) {
-      console.error('Context menu action failed:', error);
+      log.error('Context menu action failed:', error);
     } finally {
       setContextMenu(null);
     }
@@ -544,7 +546,7 @@ export function BottomTimeline() {
       
       // Only allow dragging from primary storyline
       if (!isPrimaryStoryline) {
-        console.warn('Can only drag from primary storyline');
+        log.warn('Can only drag from primary storyline');
         return;
       }
       
@@ -584,7 +586,7 @@ export function BottomTimeline() {
       // Reload data - 不恢复滚动位置，让浏览器保持自然状态
       await nodeUsecases.loadNodes();
     } catch (error) {
-      console.error('Failed to handle drop:', error);
+      log.error('Failed to handle drop:', error);
     } finally {
       setDraggedNode(null);
       setDragOverPosition(null);
@@ -912,7 +914,7 @@ export function BottomTimeline() {
           boxShadow: isExpanded 
             ? (isSelected ? `0 2px 8px ${storyline?.color || defaultColor}40` : '0 1px 4px rgba(90, 74, 58, 0.1)') 
             : (isSelected 
-              ? `0 0 12px 3px ${storyline?.color || defaultColor}60, 0 0 24px 6px ${storyline?.color || defaultColor}30, inset 0 0 20px ${storyline?.color || defaultColor}20`
+              ? `0 0 12px 3px ${storyline?.color || defaultColor}60, inset 0 0 20px ${storyline?.color || defaultColor}20`
               : 'none'),
           opacity: isExpanded ? 1 : (isHovered ? 0.95 : 0.85),
           filter: !isExpanded && isSelected ? 'brightness(1.2) saturate(1.3) contrast(1.1)' : 'none',

@@ -1,6 +1,9 @@
 import { memo } from 'react';
 import { BookNodeEdge } from '../../domain/book_node';
 import { BookNodePosition } from '../../domain/book_node';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 interface GraphEdgeProps {
     edge: BookNodeEdge;
@@ -22,7 +25,7 @@ export const GraphEdge = memo(({ edge, sourcePos, targetPos, isSelected, onSelec
     
     // Debug: log style for storyline edges
     if (isStorylineEdge && style) {
-        console.log('GraphEdge - isStorylineEdge:', isStorylineEdge, 'customMarkerId:', customMarkerId, 'style.stroke:', style.stroke);
+        log.debug('GraphEdge - isStorylineEdge:', isStorylineEdge, 'customMarkerId:', customMarkerId, 'style.stroke:', style.stroke);
     }
 
     // Node dimensions

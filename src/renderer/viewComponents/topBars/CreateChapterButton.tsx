@@ -4,6 +4,9 @@ import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
 import { useStorylineUsecases } from '../../hooks/useStorylineUsecases';
 import { useAppStore } from '../../store';
 import { useAuthStore, getProjectId } from '../../store/auth';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export function CreateChapterButton() {
   const navigate = useNavigate();
@@ -180,7 +183,7 @@ export function CreateChapterButton() {
         }
       }, 100);
     } catch (error) {
-      console.error('Failed to create chapter:', error);
+      log.error('Failed to create chapter:', error);
     }
   };
 

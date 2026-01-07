@@ -28,6 +28,9 @@ import {
   cleanupSyncedDeletedElements,
   cleanupSyncedDeletedCategories,
 } from '../../repositories/book_element_sqlite';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 import { syncManager } from './sync-manager';
 import { createTraceId, runWithSyncTraceId } from '../trace';
 
@@ -50,7 +53,7 @@ const getLastPullAt = (projectId: string): number | null => {
     const value = Number(raw);
     return Number.isNaN(value) ? null : value;
   } catch (error) {
-    console.warn('[SyncPull] Failed to read last pull timestamp:', error);
+    log.warn('[SyncPull] Failed to read last pull timestamp:', error);
     return null;
   }
 };
@@ -59,7 +62,7 @@ const setLastPullAt = (projectId: string, timestamp: number) => {
   try {
     window.localStorage.setItem(`${SYNC_STORAGE_PREFIX}${projectId}`, String(timestamp));
   } catch (error) {
-    console.warn('[SyncPull] Failed to persist last pull timestamp:', error);
+    log.warn('[SyncPull] Failed to persist last pull timestamp:', error);
   }
 };
 
@@ -78,7 +81,7 @@ class SyncPullService {
       const authStore = authModule.useAuthStore.getState();
       return authStore.isAuthenticated && navigator.onLine;
     } catch (error) {
-      console.error('[SyncPull] Failed to check auth status:', error);
+      log.error('[SyncPull] Failed to check auth status:', error);
       return false;
     }
   }
@@ -88,12 +91,12 @@ class SyncPullService {
    */
   async initialSync(): Promise<SyncStats> {
     if (this.isSyncing) {
-      console.log('[SyncPull] Sync already in progress, skipping...');
+      log.debug('[SyncPull] Sync already in progress, skipping...');
       return { totalPulled: 0, totalPushed: 0, conflicts: 0, errors: 0 };
     }
 
     if (!(await this.shouldPull())) {
-      console.log('[SyncPull] Conditions not met for sync');
+      log.debug('[SyncPull] Conditions not met for sync');
       return { totalPulled: 0, totalPushed: 0, conflicts: 0, errors: 0 };
     }
 
@@ -108,11 +111,11 @@ class SyncPullService {
     const traceId = createTraceId();
     try {
       return await runWithSyncTraceId(traceId, async () => {
-        console.log('[SyncPull] Starting initial sync from server...');
+        log.debug('[SyncPull] Starting initial sync from server...');
 
         const projects = await projectsApi.getAll();
         if (!projects.length) {
-          console.log('[SyncPull] No remote projects found, skipping.');
+          log.debug('[SyncPull] No remote projects found, skipping.');
         }
 
         for (const project of projects) {
@@ -122,18 +125,18 @@ class SyncPullService {
             stats.conflicts += projectStats.conflicts;
             stats.errors += projectStats.errors;
           } catch (error) {
-            console.error(`[SyncPull] Failed to sync project ${project.id}:`, error);
+            log.error(`[SyncPull] Failed to sync project ${project.id}:`, error);
             stats.errors++;
           }
         }
 
         this.lastSyncTime = Date.now();
-        console.log('[SyncPull] Initial sync completed ✅', stats);
+        log.debug('[SyncPull] Initial sync completed ✅', stats);
 
         return stats;
       });
     } catch (error) {
-      console.error('[SyncPull] Initial sync failed:', error);
+      log.error('[SyncPull] Initial sync failed:', error);
       stats.errors++;
       return stats;
     } finally {
@@ -184,12 +187,12 @@ class SyncPullService {
 
   async pullFromServer(projectId: string, options?: { fullSync?: boolean }): Promise<SyncStats> {
     if (this.isSyncing) {
-      console.log('[SyncPull] Sync already in progress, skipping...');
+      log.debug('[SyncPull] Sync already in progress, skipping...');
       return { totalPulled: 0, totalPushed: 0, conflicts: 0, errors: 0 };
     }
 
     if (!(await this.shouldPull())) {
-      console.log('[SyncPull] Conditions not met for sync');
+      log.debug('[SyncPull] Conditions not met for sync');
       return { totalPulled: 0, totalPushed: 0, conflicts: 0, errors: 0 };
     }
 
@@ -212,7 +215,7 @@ class SyncPullService {
       });
     } catch (error) {
       stats.errors += 1;
-      console.error('[SyncPull] pullFromServer failed:', error);
+      log.error('[SyncPull] pullFromServer failed:', error);
       this.emitEvent('pull:error', { projectId, error });
     } finally {
       this.isSyncing = false;
@@ -383,7 +386,7 @@ class SyncPullService {
       syncManager.recordPull(`project:${projectId}`);
     } catch (error) {
       stats.errors++;
-      console.error(`[SyncPull] syncProject error for ${projectId}:`, error);
+      log.error(`[SyncPull] syncProject error for ${projectId}:`, error);
     }
 
     return stats;

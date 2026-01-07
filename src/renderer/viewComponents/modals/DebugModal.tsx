@@ -8,6 +8,9 @@ import { useState } from 'react';
 import { X, Database, Server, RefreshCw, Copy, Check } from 'lucide-react';
 import { debugApi, type DebugData } from '../../services/api/debug-api';
 import { useAuthStore } from '../../store/auth';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 import { query } from '../../lib/db';
 
 interface DebugModalProps {
@@ -42,9 +45,9 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
     try {
       const data = await debugApi.getServerData();
       setServerData(data);
-      console.log('[Debug] Server data loaded:', data);
+      log.debug('[Debug] Server data loaded:', data);
     } catch (error) {
-      console.error('[Debug] Failed to load server data:', error);
+      log.error('[Debug] Failed to load server data:', error);
       alert('加载服务器数据失败');
     } finally {
       setLoading(false);
@@ -73,9 +76,9 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
       };
 
       setSqliteData(data);
-      console.log('[Debug] SQLite data loaded:', data);
+      log.debug('[Debug] SQLite data loaded:', data);
     } catch (error) {
-      console.error('[Debug] Failed to load SQLite data:', error);
+      log.error('[Debug] Failed to load SQLite data:', error);
       alert('加载 SQLite 数据失败: ' + (error as Error).message);
     } finally {
       setLoading(false);

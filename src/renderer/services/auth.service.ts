@@ -1,4 +1,7 @@
 import apiClient, { handleApiError, tokenManager } from '../lib/api';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export interface User {
   id: string;
@@ -70,7 +73,7 @@ export const authService = {
     try {
       await apiClient.post('/auth/logout');
     } catch (error) {
-      console.error('Logout error:', handleApiError(error));
+      log.error('Logout error:', handleApiError(error));
     } finally {
       // 无论是否成功，都清除本地 token
       tokenManager.removeToken();

@@ -1,5 +1,8 @@
 // Configuration for local-first development
 // This file controls whether the app uses online features or runs fully offline
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * Local-first mode configuration (Obsidian-style)
@@ -8,19 +11,19 @@
 export const APP_CONFIG = {
   // Local-first mode: disable all network features
   LOCAL_ONLY_MODE: true,
-  
+
   // Sync configuration
   ENABLE_SYNC: false,  // Disable automatic sync to server
-  
+
   // Authentication
   REQUIRE_AUTH: false,  // Skip authentication, work directly with local data
-  
+
   // API endpoints (not used in local-only mode)
   API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
-  
+
   // Database
   DEFAULT_DB_NAME: 'default-project.db',
-  
+
   // Development
   ENABLE_DEBUG_LOGS: true,
 } as const;
@@ -51,6 +54,6 @@ export function isAuthRequired(): boolean {
  */
 export function debugLog(message: string, ...args: any[]): void {
   if (APP_CONFIG.ENABLE_DEBUG_LOGS) {
-    console.log(`[DEBUG] ${message}`, ...args);
+    log.debug(`[DEBUG] ${message}`, ...args);
   }
 }

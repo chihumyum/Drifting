@@ -2,6 +2,9 @@ import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import type { AuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 // API 基础配置
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -69,7 +72,7 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.error('[API] Failed to get auth token:', error);
+      log.error('[API] Failed to get auth token:', error);
     }
     return config;
   },
@@ -125,12 +128,12 @@ apiClient.interceptors.response.use(
 
     // 403 错误：权限不足
     if (error.response?.status === 403) {
-      console.error('[API] Permission denied:', error.response.data);
+      log.error('[API] Permission denied:', error.response.data);
     }
 
     // 500 错误：服务器错误
     if (error.response?.status === 500) {
-      console.error('[API] Server error:', error.response.data);
+      log.error('[API] Server error:', error.response.data);
     }
 
     return Promise.reject(error);

@@ -5,6 +5,9 @@ import type { LoginDto, RegisterDto } from '../services/api/auth-api';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
 import { events } from '../lib/events';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 // 用户信息类型（与后端返回一致）
 export interface User {
@@ -66,7 +69,7 @@ export const useAuthStore = create<AuthState>()(
             user: response.user,
           });
 
-          console.log('[Auth] Login successful:', response.user.email);
+          log.info('[Auth] Login successful:', response.user.email);
           
           // 登录成功后：切换到用户专属数据库，然后从服务器拉取数据
           try {
@@ -78,16 +81,16 @@ export const useAuthStore = create<AuthState>()(
             await initDatabase(projectId, response.user.id);
             events.emit('db:ready');
             
-            console.log('[Auth] User database initialized:', response.user.id);
+            log.info('[Auth] User database initialized:', response.user.id);
             
             // 3. 从服务器拉取数据到本地数据库
             const { syncPullService } = await import('../lib/sync/sync-pull.service');
             await syncPullService.initialSync();
           } catch (error) {
-            console.error('[Auth] Failed to initialize user database or sync:', error);
+            log.error('[Auth] Failed to initialize user database or sync:', error);
           }
         } catch (error) {
-          console.error('[Auth] Login failed:', error);
+          log.error('[Auth] Login failed:', error);
           throw error;
         }
       },
@@ -108,7 +111,7 @@ export const useAuthStore = create<AuthState>()(
             user: response.user,
           });
 
-          console.log('[Auth] Registration successful:', response.user.email);
+          log.info('[Auth] Registration successful:', response.user.email);
           
           // 注册成功后：切换到用户专属数据库，然后从服务器拉取数据
           try {
@@ -117,15 +120,15 @@ export const useAuthStore = create<AuthState>()(
             await initDatabase(projectId, response.user.id);
             events.emit('db:ready');
             
-            console.log('[Auth] User database initialized:', response.user.id);
+            log.info('[Auth] User database initialized:', response.user.id);
             
             const { syncPullService } = await import('../lib/sync/sync-pull.service');
             await syncPullService.initialSync();
           } catch (error) {
-            console.error('[Auth] Failed to initialize user database or sync:', error);
+            log.error('[Auth] Failed to initialize user database or sync:', error);
           }
         } catch (error) {
-          console.error('[Auth] Registration failed:', error);
+          log.error('[Auth] Registration failed:', error);
           throw error;
         }
       },
@@ -137,7 +140,7 @@ export const useAuthStore = create<AuthState>()(
         // 调用后端登出接口（可选，失败不影响本地登出）
         if (state.accessToken) {
           authApi.logout().catch((error) => {
-            console.error('[Auth] Logout API call failed:', error);
+            log.error('[Auth] Logout API call failed:', error);
           });
         }
 
@@ -154,18 +157,18 @@ export const useAuthStore = create<AuthState>()(
           await resetDatabase();
           await initDatabase(getProjectId()); // 无userId，使用匿名数据库
           events.emit('db:ready');
-          console.log('[Auth] Switched to anonymous database');
+          log.info('[Auth] Switched to anonymous database');
         } catch (error) {
-          console.error('[Auth] Failed to reset database on logout:', error);
+          log.error('[Auth] Failed to reset database on logout:', error);
         }
 
-        console.log('[Auth] Logout successful');
+        log.info('[Auth] Logout successful');
       },
 
       // 设置 Access Token（用于 Token 刷新）
       setAccessToken: (token: string) => {
         set({ accessToken: token });
-        console.log('[Auth] Access token updated');
+        log.info('[Auth] Access token updated');
       },
 
       // 刷新用户信息
@@ -173,9 +176,9 @@ export const useAuthStore = create<AuthState>()(
         try {
           const user = await authApi.getCurrentUser();
           set({ user });
-          console.log('[Auth] User info refreshed:', user.email);
+          log.info('[Auth] User info refreshed:', user.email);
         } catch (error) {
-          console.error('[Auth] Failed to refresh user info:', error);
+          log.error('[Auth] Failed to refresh user info:', error);
           // 如果刷新失败，可能是 token 过期，登出用户
           get().logout();
           throw error;

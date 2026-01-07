@@ -8,6 +8,9 @@
  */
 
 import { syncManager } from './sync-manager';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 import type { SyncTaskEntity } from './types';
 
 export interface HybridRepositoryConfig {
@@ -101,7 +104,7 @@ export abstract class HybridRepository<T, CreateInput, UpdateInput> {
           return remoteEntity;
         }
       } catch (error) {
-        console.warn('[HybridRepository] Failed to fetch remote entity by id:', error);
+        log.warn('[HybridRepository] Failed to fetch remote entity by id:', error);
       }
     }
 
@@ -122,7 +125,7 @@ export abstract class HybridRepository<T, CreateInput, UpdateInput> {
           await this.mergeRemoteEntities(remoteEntities);
         })
         .catch((error) => {
-          console.warn('[HybridRepository] Failed to fetch remote collection:', error);
+          log.warn('[HybridRepository] Failed to fetch remote collection:', error);
         });
     }
 

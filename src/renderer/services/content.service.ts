@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookContent } from '../domain/book_content';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * 内容服务 - 对应后端 /nodes/:nodeId/content API
@@ -13,7 +16,7 @@ export const contentService = {
       const response = await apiClient.get<BookContent>(`/nodes/content/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch content:', handleApiError(error));
+      log.error('Failed to fetch content:', handleApiError(error));
       return null;
     }
   },
@@ -26,7 +29,7 @@ export const contentService = {
       const response = await apiClient.get<BookContent>(`/nodes/${nodeId}/content`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch content by node ID:', handleApiError(error));
+      log.error('Failed to fetch content by node ID:', handleApiError(error));
       return null;
     }
   },
@@ -54,7 +57,7 @@ export const contentService = {
       const response = await apiClient.patch<BookContent>(`/nodes/content/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Failed to update content:', handleApiError(error));
+      log.error('Failed to update content:', handleApiError(error));
       return null;
     }
   },
@@ -67,7 +70,7 @@ export const contentService = {
       const response = await apiClient.patch<BookContent>(`/nodes/${nodeId}/content`, data);
       return response.data;
     } catch (error) {
-      console.error('Failed to update content by node ID:', handleApiError(error));
+      log.error('Failed to update content by node ID:', handleApiError(error));
       return null;
     }
   },
@@ -80,7 +83,7 @@ export const contentService = {
       await apiClient.delete(`/nodes/content/${id}`);
       return true;
     } catch (error) {
-      console.error('Failed to delete content:', handleApiError(error));
+      log.error('Failed to delete content:', handleApiError(error));
       return false;
     }
   },
@@ -93,7 +96,7 @@ export const contentService = {
       await apiClient.delete(`/nodes/${nodeId}/content`);
       return true;
     } catch (error) {
-      console.error('Failed to delete content by node ID:', handleApiError(error));
+      log.error('Failed to delete content by node ID:', handleApiError(error));
       return false;
     }
   },

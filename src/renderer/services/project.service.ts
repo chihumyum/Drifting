@@ -1,4 +1,7 @@
 import apiClient, { handleApiError } from '../lib/api';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export interface Project {
   id: string;
@@ -31,7 +34,7 @@ export const projectService = {
       const response = await apiClient.get<Project>(`/projects/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch project:', handleApiError(error));
+      log.error('Failed to fetch project:', handleApiError(error));
       return null;
     }
   },
@@ -45,7 +48,7 @@ export const projectService = {
       const response = await apiClient.get<Project[]>('/projects', { params });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch projects:', handleApiError(error));
+      log.error('Failed to fetch projects:', handleApiError(error));
       return [];
     }
   },

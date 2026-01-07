@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import log from 'loglevel';
+log.setLevel(log.levels.ERROR);
 import { useNavigate } from 'react-router-dom';
 import { ElementOccurrenceRepository } from '../../repositories/element-occurrence.repository';
 
@@ -35,7 +37,7 @@ export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
         const occurrences = await repo.getOccurrencesByElement(elementId);
         setBacklinks(occurrences);
       } catch (error) {
-        console.error('Failed to load backlinks:', error);
+        log.error('Failed to load backlinks:', error);
       } finally {
         setLoading(false);
       }

@@ -46,9 +46,7 @@ export function createBookContentRepository(): BookContentRepository {
     };
 
     const findByNodeId = async (nodeId: string): Promise<BookContent | null> => {
-        console.log("Incoming nodeId:", nodeId);
         const result = await query<BookContentRecord>(`${selectBase} WHERE bc.node_id = ?`, [nodeId]);
-        console.log("Query result:", result);
         return result.length ? recordToBookContent(result[0]) : null;
     };
 

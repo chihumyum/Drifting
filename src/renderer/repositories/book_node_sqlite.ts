@@ -196,7 +196,7 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
     },
 
     async delete(id: string) {
-      console.log('[BookNodeRepository] Soft deleting node:', id);
+      log.debug('[BookNodeRepository] Soft deleting node:', id);
       const nowIso = new Date().toISOString();
       const lastModified = Date.now();
       await run(

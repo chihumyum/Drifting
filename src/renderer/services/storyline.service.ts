@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { Storyline } from '../domain/storyline';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export interface CreateStorylineInput {
   projectId: string;
@@ -41,7 +44,7 @@ export const storylineService = {
       const response = await apiClient.get<Storyline>(`/storylines/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch storyline:', handleApiError(error));
+      log.error('Failed to fetch storyline:', handleApiError(error));
       return null;
     }
   },
@@ -56,7 +59,7 @@ export const storylineService = {
       });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch storylines:', handleApiError(error));
+      log.error('Failed to fetch storylines:', handleApiError(error));
       return [];
     }
   },
@@ -115,7 +118,7 @@ export const storylineService = {
       const response = await apiClient.get<Storyline[]>(`/storylines/by-node/${nodeId}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch storylines by node:', handleApiError(error));
+      log.error('Failed to fetch storylines by node:', handleApiError(error));
       return [];
     }
   },
@@ -128,7 +131,7 @@ export const storylineService = {
       const response = await apiClient.get<string[]>(`/storylines/${storylineId}/nodes`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch node IDs by storyline:', handleApiError(error));
+      log.error('Failed to fetch node IDs by storyline:', handleApiError(error));
       return [];
     }
   },

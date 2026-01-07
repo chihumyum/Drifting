@@ -1,4 +1,7 @@
 import { nanoid } from 'nanoid';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 /**
  * Element Occurrence 记录接口
@@ -54,7 +57,7 @@ export class ElementOccurrenceRepository {
         }
       }
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error saving occurrences:', error);
+      log.error('[ElementOccurrenceRepository] Error saving occurrences:', error);
       throw error;
     }
   }
@@ -70,7 +73,7 @@ export class ElementOccurrenceRepository {
       );
       return results as ElementOccurrenceRecord[];
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error getting occurrences by node:', error);
+      log.error('[ElementOccurrenceRepository] Error getting occurrences by node:', error);
       return [];
     }
   }
@@ -110,7 +113,7 @@ export class ElementOccurrenceRepository {
         created_at: string;
       }>;
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error getting occurrences by element:', error);
+      log.error('[ElementOccurrenceRepository] Error getting occurrences by element:', error);
       return [];
     }
   }
@@ -125,7 +128,7 @@ export class ElementOccurrenceRepository {
         [nodeId]
       );
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error deleting occurrences by node:', error);
+      log.error('[ElementOccurrenceRepository] Error deleting occurrences by node:', error);
       throw error;
     }
   }
@@ -140,7 +143,7 @@ export class ElementOccurrenceRepository {
         [elementId]
       );
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error deleting occurrences by element:', error);
+      log.error('[ElementOccurrenceRepository] Error deleting occurrences by element:', error);
       throw error;
     }
   }
@@ -156,7 +159,7 @@ export class ElementOccurrenceRepository {
       );
       return (result as { count: number })?.count ?? 0;
     } catch (error) {
-      console.error('[ElementOccurrenceRepository] Error counting occurrences:', error);
+      log.error('[ElementOccurrenceRepository] Error counting occurrences:', error);
       return 0;
     }
   }

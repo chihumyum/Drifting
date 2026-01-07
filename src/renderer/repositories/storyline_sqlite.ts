@@ -5,6 +5,9 @@ import type { StorylineRecord } from '../schema/storyline';
 import { TABLES } from '../schema/table';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 const esc = (v: string) => v.replaceAll("'", "''");
 
@@ -32,7 +35,7 @@ const parsePmJson = (json: string | null | undefined): object | undefined => {
   try {
     return JSON.parse(json);
   } catch (error) {
-    console.warn('[StorylineRepository] Failed to parse pm_json:', error);
+    log.warn('[StorylineRepository] Failed to parse pm_json:', error);
     return undefined;
   }
 };

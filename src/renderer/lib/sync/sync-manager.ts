@@ -21,6 +21,9 @@ import type {
   SyncEventType,
   SyncStatus,
 } from './types';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 type SyncEventHandler = (...args: unknown[]) => void;
 
@@ -65,7 +68,7 @@ export class SyncManager {
    * 网络恢复在线
    */
   private handleOnline() {
-    console.log('[SyncManager] 网络已连接');
+    log.debug('[SyncManager] 网络已连接');
     this.isOnline = true;
     this.processSyncQueue();
   }
@@ -74,21 +77,21 @@ export class SyncManager {
    * 网络断开
    */
   private handleOffline() {
-    console.log('[SyncManager] 网络已断开');
+    log.debug('[SyncManager] 网络已断开');
     this.isOnline = false;
   }
 
-    /**
-   * 从 SQLite 恢复队列
-   */
+  /**
+ * 从 SQLite 恢复队列
+ */
   private async restoreSyncQueue(): Promise<void> {
     try {
       const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
       const tasks = await syncQueueRepository.getPendingTasks();
       this.queue = tasks;
-      console.log(`[SyncManager] 恢复了 ${tasks.length} 个待同步任务`);
+      log.debug(`[SyncManager] 恢复了 ${tasks.length} 个待同步任务`);
     } catch (error) {
-      console.error('[SyncManager] 恢复队列失败:', error);
+      log.error('[SyncManager] 恢复队列失败:', error);
     }
   }
 
@@ -139,7 +142,7 @@ export class SyncManager {
       debugLog('SyncManager.enqueue: skipped in local-only mode', input);
       return 'local-' + nanoid();
     }
-    
+
     const task: SyncTask = {
       id: nanoid(),
       type: input.type,
@@ -166,7 +169,7 @@ export class SyncManager {
       // 更新现有任务
       this.queue[existingIndex].data = task.data;
       this.queue[existingIndex].createdAt = task.createdAt;
-      console.log('[SyncManager] 更新现有任务:', task.entity, task.localId);
+      log.debug('[SyncManager] 更新现有任务:', task.entity, task.localId);
       return this.queue[existingIndex].id;
     }
 
@@ -176,7 +179,7 @@ export class SyncManager {
     // 持久化到 SQLite
     this.persistTask(task);
 
-    console.log('[SyncManager] 任务已入队:', task);
+    log.debug('[SyncManager] 任务已入队:', task);
 
     // 触发处理
     this.processSyncQueue();
@@ -209,7 +212,7 @@ export class SyncManager {
       const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
       await syncQueueRepository.saveTask(task);
     } catch (error) {
-      console.error('[SyncManager] 持久化任务失败:', error);
+      log.error('[SyncManager] 持久化任务失败:', error);
     }
   }  /**
    * 处理同步队列（消费者）
@@ -222,7 +225,7 @@ export class SyncManager {
 
     // 检查网络状态
     if (!this.isOnline) {
-      console.log('[SyncManager] 离线状态，暂停同步');
+      log.debug('[SyncManager] 离线状态，暂停同步');
       return;
     }
 
@@ -242,7 +245,7 @@ export class SyncManager {
         const task = this.queue[0];
 
         try {
-          console.log('[SyncManager] 开始同步任务:', task);
+          log.debug('[SyncManager] 开始同步任务:', task);
           task.status = 'syncing';
           await this.updateLocalSyncStatus(task, 'syncing');
           this.emit('sync:start', task);
@@ -273,11 +276,11 @@ export class SyncManager {
           // 从持久化队列中删除
           await this.deleteTaskFromDB(task.id);
 
-          console.log('[SyncManager] 任务同步成功:', task);
+          log.debug('[SyncManager] 任务同步成功:', task);
           this.emit('sync:success', task);
           this.recordHistoryEntry({ type: 'push', task: { ...task } });
         } catch (error) {
-          console.error('[SyncManager] 任务同步失败:', task, error);
+          log.error('[SyncManager] 任务同步失败:', task, error);
           await this.handleTaskFailure(task, error as Error);
         }
       }
@@ -293,12 +296,12 @@ export class SyncManager {
   private async executeTask(task: SyncTask): Promise<{ updatedAt?: string } | void> {
     // 动态导入 API services（避免循环依赖）
     const apis = await import('../../services/api');
-    
+
     // 验证 projectId
     if (!task.projectId && task.entity !== 'project') {
       throw new Error(`[SyncManager] projectId is required for ${task.entity} sync`);
     }
-    
+
     // 根据 entity 类型调用对应的 API
     switch (task.entity) {
       case 'node':
@@ -307,25 +310,25 @@ export class SyncManager {
       case 'content':
         await this.executeContentTask(task, apis.nodeApi);
         break;
-      
+
       case 'storyline':
         await this.executeStorylineTask(task, apis.storylinesApi);
         break;
-      
+
       case 'element':
         await this.executeElementTask(task, apis.elementsApi);
         break;
-      
+
       case 'element_category':
         await this.executeCategoryTask(task, apis.elementsApi);
         break;
-      
+
       case 'project':
         await this.executeProjectTask(task, apis.projectsApi);
         break;
-      
+
       default:
-        console.warn('[SyncManager] 未知的实体类型:', task.entity);
+        log.warn('[SyncManager] 未知的实体类型:', task.entity);
         // 模拟 API 调用
         await new Promise((resolve) => setTimeout(resolve, 100));
         return undefined;
@@ -389,7 +392,7 @@ export class SyncManager {
         break;
     }
 
-    console.log('[SyncManager] Node API 调用成功:', task.type, task.localId);
+    log.debug('[SyncManager] Node API 调用成功:', task.type, task.localId);
     return undefined;
   }
 
@@ -398,7 +401,7 @@ export class SyncManager {
    */
   private async executeStorylineTask(task: SyncTask, storylinesApi: typeof import('../../services/api/storylines-api').storylinesApi): Promise<void> {
     const projectId = task.projectId!;
-    
+
     switch (task.type) {
       case 'create':
         if (task.data && typeof task.data === 'object' && 'name' in task.data) {
@@ -408,7 +411,7 @@ export class SyncManager {
           throw new Error('Invalid storyline data for create');
         }
         break;
-      
+
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/storylines-api').UpdateStorylineDto;
@@ -417,13 +420,13 @@ export class SyncManager {
           throw new Error('Invalid storyline data for update');
         }
         break;
-      
+
       case 'delete':
         await storylinesApi.delete(projectId, task.localId);
         break;
     }
-    
-    console.log('[SyncManager] Storyline API 调用成功:', task.type, task.localId);
+
+    log.debug('[SyncManager] Storyline API 调用成功:', task.type, task.localId);
   }
 
   /**
@@ -471,7 +474,7 @@ export class SyncManager {
       });
       return true;
     };
-    
+
     switch (task.type) {
       case 'create':
         if (task.data && typeof task.data === 'object' && 'name' in task.data) {
@@ -481,7 +484,7 @@ export class SyncManager {
           throw new Error('Invalid element data for create');
         }
         break;
-      
+
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/elements-api').UpdateElementDto;
@@ -500,7 +503,7 @@ export class SyncManager {
           throw new Error('Invalid element data for update');
         }
         break;
-      
+
       case 'delete':
         try {
           await elementsApi.delete(projectId, task.localId);
@@ -511,8 +514,8 @@ export class SyncManager {
         }
         break;
     }
-    
-    console.log('[SyncManager] Element API 调用成功:', task.type, task.localId);
+
+    log.debug('[SyncManager] Element API 调用成功:', task.type, task.localId);
   }
 
   /**
@@ -520,7 +523,7 @@ export class SyncManager {
    */
   private async executeCategoryTask(task: SyncTask, elementsApi: typeof import('../../services/api/elements-api').elementsApi): Promise<void> {
     const projectId = task.projectId!;
-    
+
     switch (task.type) {
       case 'create':
         if (task.data && typeof task.data === 'object' && 'name' in task.data) {
@@ -530,7 +533,7 @@ export class SyncManager {
           throw new Error('Invalid category data for create');
         }
         break;
-      
+
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/elements-api').UpdateCategoryDto;
@@ -539,13 +542,13 @@ export class SyncManager {
           throw new Error('Invalid category data for update');
         }
         break;
-      
+
       case 'delete':
         await elementsApi.deleteCategory(projectId, task.localId);
         break;
     }
-    
-    console.log('[SyncManager] Category API 调用成功:', task.type, task.localId);
+
+    log.debug('[SyncManager] Category API 调用成功:', task.type, task.localId);
   }
 
   /**
@@ -561,7 +564,7 @@ export class SyncManager {
           throw new Error('Invalid project data for create');
         }
         break;
-      
+
       case 'update':
         if (task.data && typeof task.data === 'object') {
           const updateData = task.data as import('../../services/api/projects-api').UpdateProjectDto;
@@ -570,13 +573,13 @@ export class SyncManager {
           throw new Error('Invalid project data for update');
         }
         break;
-      
+
       case 'delete':
         await projectsApi.delete(task.localId);
         break;
     }
-    
-    console.log('[SyncManager] Project API 调用成功:', task.type, task.localId);
+
+    log.debug('[SyncManager] Project API 调用成功:', task.type, task.localId);
   }
 
   /**
@@ -597,7 +600,7 @@ export class SyncManager {
       // 更新持久化队列
       await this.updateTaskInDB(task);
 
-      console.error('[SyncManager] 任务最终失败:', task);
+      log.error('[SyncManager] 任务最终失败:', task);
       this.emit('sync:failed', { task, error });
     } else {
       // 重试：延迟后重新加入队列
@@ -610,7 +613,7 @@ export class SyncManager {
         this.processSyncQueue();
       }, delay);
 
-      console.log(
+      log.debug(
         `[SyncManager] 将在 ${delay}ms 后重试 (${task.retryCount}/${this.maxRetries})`
       );
     }
@@ -652,11 +655,11 @@ export class SyncManager {
           break;
         }
         default:
-          console.log('[SyncManager] 未实现的本地状态更新实体:', task.entity);
+          log.debug('[SyncManager] 未实现的本地状态更新实体:', task.entity);
       }
-      console.log('[SyncManager] 本地状态已更新:', task.entity, task.localId, status);
+      log.debug('[SyncManager] 本地状态已更新:', task.entity, task.localId, status);
     } catch (error) {
-      console.error('[SyncManager] 更新本地状态失败:', error);
+      log.error('[SyncManager] 更新本地状态失败:', error);
     }
   }
 
@@ -668,7 +671,7 @@ export class SyncManager {
       const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
       await syncQueueRepository.deleteTask(taskId);
     } catch (error) {
-      console.error('[SyncManager] 删除任务失败:', error);
+      log.error('[SyncManager] 删除任务失败:', error);
     }
   }
 
@@ -680,7 +683,7 @@ export class SyncManager {
       const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
       await syncQueueRepository.updateTask(task);
     } catch (error) {
-      console.error('[SyncManager] 更新任务失败:', error);
+      log.error('[SyncManager] 更新任务失败:', error);
     }
   }
 
@@ -777,7 +780,7 @@ export class SyncManager {
   async clearQueue() {
     this.queue = [];
     // TODO: await db.syncQueue.deleteMany({ where: { status: 'pending' } });
-    console.log('[SyncManager] 队列已清空');
+    log.debug('[SyncManager] 队列已清空');
   }
 
   /**

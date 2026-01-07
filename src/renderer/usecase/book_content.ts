@@ -4,6 +4,8 @@ import type { BookContent } from "../domain/book_content";
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
 import type { SyncTaskType } from '../lib/sync/types';
+import log from 'loglevel';
+log.setLevel(log.levels.ERROR);
 
 export {
     loadBookContent,
@@ -31,7 +33,10 @@ const enqueueContentTask = (
     projectId: string,
     data: { pmJson?: string; outlineJson?: string },
 ) => {
-    if (!canSync()) return;
+    if (!canSync()) {
+        log.warn('User is not authenticated, cannot sync content');
+        return;
+    }
 
     let pmJson: unknown = undefined;
     if (data.pmJson !== undefined) {
@@ -63,29 +68,29 @@ const enqueueContentTask = (
 async function loadBookContent(deps: BookContentUsecaseDeps, nodeId: string) {
     const content = await deps.contentRepo.findByNodeId(nodeId);
     deps.setContentState(content);
-    console.log('Loaded content for nodeId', nodeId, ':', content);
+    // console.log('Loaded content for nodeId', nodeId, ':', content);
 }
 
 async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<BookContent>) {
     const now = (deps.now ?? (() => new Date()))();
     const updatedData = {
         ...updates,
-                updatedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
     };
     deps.updateContentState(updatedData);
 
-        const nodeId = updatedData.nodeId ?? deps.getContentState()?.nodeId;
-        if (nodeId) {
-            const projectId = deps.getProjectIdForNodeId(nodeId);
-            if (projectId) {
-                enqueueContentTask('update', nodeId, projectId, {
-                    pmJson: updatedData.pmJson,
-                    outlineJson: updatedData.outlineJson,
-                });
-            }
+    const nodeId = updatedData.nodeId ?? deps.getContentState()?.nodeId;
+    if (nodeId) {
+        const projectId = deps.getProjectIdForNodeId(nodeId);
+        if (projectId) {
+            enqueueContentTask('update', nodeId, projectId, {
+                pmJson: updatedData.pmJson,
+                outlineJson: updatedData.outlineJson,
+            });
         }
+    }
 
-        await deps.contentRepo.update(updatedData.id!, updatedData);
+    await deps.contentRepo.update(updatedData.id!, updatedData);
 }
 
 async function newBookContent(deps: BookContentUsecaseDeps, nodeId: string, pmJson: string) {
@@ -95,20 +100,20 @@ async function newBookContent(deps: BookContentUsecaseDeps, nodeId: string, pmJs
         id,
         nodeId,
         pmJson: pmJson,
-                outlineJson: '[]',
-                createdAt: now.toISOString(),
-                updatedAt: now.toISOString(),
+        outlineJson: '[]',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
     };
     const created = await deps.contentRepo.create(newContent);
     deps.setContentState(created);
 
-        const projectId = deps.getProjectIdForNodeId(nodeId);
-        if (projectId) {
-            enqueueContentTask('create', nodeId, projectId, {
-                pmJson: created.pmJson,
-                outlineJson: created.outlineJson,
-            });
-        }
+    const projectId = deps.getProjectIdForNodeId(nodeId);
+    if (projectId) {
+        enqueueContentTask('create', nodeId, projectId, {
+            pmJson: created.pmJson,
+            outlineJson: created.outlineJson,
+        });
+    }
     return created;
 }
 

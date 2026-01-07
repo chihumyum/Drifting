@@ -10,6 +10,8 @@
  * 3. 入队后台同步任务到 SyncManager
  */
 
+import log from 'loglevel';
+log.setLevel(log.levels.ERROR);
 import { syncManager } from './sync-manager';
 import type { SyncTaskInput, SyncTaskEntity, SyncEventType } from './types';
 
@@ -35,7 +37,7 @@ class SyncService {
       const authStore = await loadAuthStore();
       return authStore.isAuthenticated && navigator.onLine;
     } catch (error) {
-      console.error('[SyncService] Failed to check auth status:', error);
+      log.error('[SyncService] Failed to check auth status:', error);
       return false;
     }
   }
@@ -57,7 +59,7 @@ class SyncService {
   ): Promise<T> {
     // 1. 立即写本地 SQLite（instant response）
     const localEntity = await localRepo.create(data);
-    
+
     // 2. 判断是否需要同步
     if (remoteCreate && (await this.shouldSync())) {
       // 3. 入队后台同步任务
@@ -68,10 +70,10 @@ class SyncService {
         data: data as unknown,
         priority: 'normal',
       };
-      
+
       syncManager.enqueue(taskInput);
     }
-    
+
     return localEntity;
   }
 
@@ -94,7 +96,7 @@ class SyncService {
   ): Promise<T | null> {
     // 1. 立即写本地 SQLite
     const localEntity = await localRepo.update(id, data);
-    
+
     // 2. 判断是否需要同步
     if (localEntity && remoteUpdate && (await this.shouldSync())) {
       // 3. 入队后台同步任务
@@ -105,10 +107,10 @@ class SyncService {
         data: data as unknown,
         priority: 'normal',
       };
-      
+
       syncManager.enqueue(taskInput);
     }
-    
+
     return localEntity;
   }
 
@@ -129,7 +131,7 @@ class SyncService {
   ): Promise<boolean> {
     // 1. 立即删除本地
     const success = await localRepo.delete(id);
-    
+
     // 2. 判断是否需要同步
     if (success && remoteDelete && (await this.shouldSync())) {
       // 3. 入队后台同步任务
@@ -140,7 +142,7 @@ class SyncService {
         data: null,
         priority: 'normal',
       };
-      
+
       syncManager.enqueue(taskInput);
     }
 
@@ -164,7 +166,7 @@ class SyncService {
   ): Promise<T[]> {
     // 1. 立即批量写本地
     const localEntities = await createFn(dataList);
-    
+
     // 2. 判断是否需要同步
     if (remoteBulkCreate && (await this.shouldSync())) {
       // 3. 入队后台同步任务（高优先级，因为是批量操作）
@@ -175,10 +177,10 @@ class SyncService {
         data: dataList as unknown,
         priority: 'high',
       };
-      
+
       syncManager.enqueue(taskInput);
     }
-    
+
     return localEntities;
   }
 

@@ -7,6 +7,9 @@ import { v7 as uuidv7 } from 'uuid';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
 import type { SyncTaskType } from '../lib/sync/types';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export {
   loadBookNodes,
@@ -59,9 +62,9 @@ const enqueueNodeTask = (
 };
 
 async function loadBookNodes(deps: BookNodeUsecaseDeps, options?: { projectId?: string }) {
-  console.log('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
+  log.debug('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
   const nodes = await deps.nodeRepo.findAll(options?.projectId);
-  console.log('[loadBookNodes] Loaded nodes count:', nodes.length, 'ids:', nodes.map(n => n.id));
+  log.debug('[loadBookNodes] Loaded nodes count:', nodes.length, 'ids:', nodes.map(n => n.id));
   const sorted = nodes.slice().sort((a, b) => a.start - b.start);
   deps.setNodesState(sorted);
   return sorted;
@@ -118,9 +121,9 @@ async function createBookNode(deps: BookNodeUsecaseDeps, input: CreateBookNodeIn
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     });
-    console.log('Created default content for new node:', created.id);
+    log.debug('Created default content for new node:', created.id);
   } catch (error) {
-    console.error('Failed to create default content for new node:', error);
+    log.error('Failed to create default content for new node:', error);
     // Don't fail the node creation if content creation fails
   }
 
@@ -246,23 +249,23 @@ async function updateBookNode(deps: BookNodeUsecaseDeps, id: string, updates: Pa
 }
 
 async function deleteBookNode(deps: BookNodeUsecaseDeps, id: string) {
-  console.log('[deleteBookNode] Starting delete for node:', id);
+  log.debug('[deleteBookNode] Starting delete for node:', id);
   const prevNodes = deps.getNodesState().slice();
   const existing = prevNodes.find((node) => node.id === id);
   if (!existing) throw new Error(`Book node ${id} not found`);
 
-  console.log('[deleteBookNode] Node found, removing from state optimistically');
+  log.debug('[deleteBookNode] Node found, removing from state optimistically');
   // Optimistically remove from state
   const nextNodes = prevNodes.filter((node) => node.id !== id);
   deps.setNodesState(nextNodes);
 
   try {
-    console.log('[deleteBookNode] Calling repository delete');
+    log.debug('[deleteBookNode] Calling repository delete');
     await deps.nodeRepo.delete(id);
-    console.log('[deleteBookNode] Repository delete successful');
+    log.debug('[deleteBookNode] Repository delete successful');
     enqueueNodeTask('delete', existing);
   } catch (error) {
-    console.error('[deleteBookNode] Repository delete failed, rolling back:', error);
+    log.error('[deleteBookNode] Repository delete failed, rolling back:', error);
     // Rollback on error
     deps.setNodesState(prevNodes);
     throw error;

@@ -7,16 +7,19 @@ import { StorylineEditorView } from './views/StorylineEditorView';
 import { GraphView } from './views/GraphView';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
-import { ElementPanel } from './components/leftBars/ElementPanel';
-import { LeftQuickButtons } from './components/leftBars/LeftQuickButtons';
-import { LeftSidebar } from './components/leftBars/LeftSidebar';
-import { BottomTimeline } from './components/BottomTimeline';
+import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
+import { LeftQuickButtons } from './viewComponents/leftBars/LeftQuickButtons';
+import { LeftSidebar } from './viewComponents/leftBars/LeftSidebar';
+import { BottomTimeline } from './viewComponents/BottomTimeline';
 import { DEFAULT_PROJECT } from './schema/table';
-import { SettingsModal } from './components/modals/SettingsModal';
-import { LeftSidebarTopBar } from './components/topBars/LeftSidebarTopBar';
-import { MainTopBar } from './components/topBars/MainTopBar';
-import { CreateChapterButton } from './components/topBars/CreateChapterButton';
-import { TopTimeline } from './components/TopTimeline';
+import { SettingsModal } from './viewComponents/modals/SettingsModal';
+import { LeftSidebarTopBar } from './viewComponents/topBars/LeftSidebarTopBar';
+import { MainTopBar } from './viewComponents/topBars/MainTopBar';
+import { CreateChapterButton } from './viewComponents/topBars/CreateChapterButton';
+import { TopTimeline } from './viewComponents/TopTimeline';
 import { initAccentColor } from './lib/theme';
 import { useAppStore } from './store';
 
@@ -37,13 +40,13 @@ function Layout() {
     // Always use anonymous/local database for better offline experience
     const projectId = DEFAULT_PROJECT.id;
 
-    console.log('[App] Initializing local database (offline-first mode)');
+    log.info('[App] Initializing local database (offline-first mode)');
 
     initDatabase(projectId).then(() => {
       events.emit('db:ready');
-      console.log('[App] Local database ready');
+      log.info('[App] Local database ready');
     }).catch(error => {
-      console.error('Failed to initialize database:', error);
+      log.error('Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
     });
   }, []); // No dependencies - init once on mount

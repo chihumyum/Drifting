@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookNode } from '../domain/book_node';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export interface BookNodeCreateData {
   projectId: string;
@@ -40,7 +43,7 @@ export const nodeService = {
       const response = await apiClient.get<BookNode>(`/nodes/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch node:', handleApiError(error));
+      log.error('Failed to fetch node:', handleApiError(error));
       return null;
     }
   },
@@ -54,7 +57,7 @@ export const nodeService = {
       const response = await apiClient.get<BookNode[]>('/nodes', { params });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch nodes:', handleApiError(error));
+      log.error('Failed to fetch nodes:', handleApiError(error));
       return [];
     }
   },
@@ -117,7 +120,7 @@ export const nodeService = {
       const response = await apiClient.get<{ content: string }>(`/nodes/${nodeId}/content`);
       return response.data.content || '';
     } catch (error) {
-      console.error('Failed to fetch node content:', handleApiError(error));
+      log.error('Failed to fetch node content:', handleApiError(error));
       return '';
     }
   },
@@ -148,7 +151,7 @@ export const nodeEdgeService = {
       const response = await apiClient.get<BookNodeEdge[]>('/nodes/edges', { params });
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch node edges:', handleApiError(error));
+      log.error('Failed to fetch node edges:', handleApiError(error));
       return [];
     }
   },

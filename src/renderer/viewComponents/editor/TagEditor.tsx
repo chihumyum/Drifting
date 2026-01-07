@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import log from 'loglevel';
+log.setLevel(log.levels.ERROR);
 import { X, Plus } from 'lucide-react';
 import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
 import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
@@ -49,7 +51,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         }
       }
     } catch (error) {
-      console.error('Failed to load tags:', error);
+      log.error('Failed to load tags:', error);
     }
   }, [type, entityId, projectId, nodeTagUsecases, bookElements]);
 
@@ -73,7 +75,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       await loadTags();
       setShowDropdown(false);
     } catch (error) {
-      console.error('Failed to add tag:', error);
+      log.error('Failed to add tag:', error);
     }
   };
 
@@ -92,7 +94,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       }
       await loadTags();
     } catch (error) {
-      console.error('Failed to remove tag:', error);
+      log.error('Failed to remove tag:', error);
     }
   };
 
@@ -126,7 +128,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       setIsCreating(false);
       await loadTags();
     } catch (error) {
-      console.error('Failed to create tag:', error);
+      log.error('Failed to create tag:', error);
     }
   };
 

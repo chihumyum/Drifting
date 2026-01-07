@@ -1,5 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { User } from './auth.service';
+import log from "loglevel";
+
+log.setLevel(log.levels.ERROR);
 
 export interface UpdateUserInput {
   username?: string;
@@ -18,7 +21,7 @@ export const userService = {
       const response = await apiClient.get<User>(`/users/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch user:', handleApiError(error));
+      log.error('Failed to fetch user:', handleApiError(error));
       return null;
     }
   },
@@ -31,7 +34,7 @@ export const userService = {
       const response = await apiClient.get<User>(`/users/by-email/${email}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch user by email:', handleApiError(error));
+      log.error('Failed to fetch user by email:', handleApiError(error));
       return null;
     }
   },
