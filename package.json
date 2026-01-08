@@ -33,6 +33,7 @@
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
     "@electron/fuses": "^1.8.0",
+    "@electron/rebuild": "^4.0.2",
     "@eslint/js": "^9.33.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/better-sqlite3": "^7.6.13",
@@ -46,7 +47,6 @@
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.21",
     "electron": "^39.2.7",
-    "electron-rebuild": "^3.2.9",
     "eslint": "^9.33.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -60,16 +60,15 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.85.5",
-    "@tiptap/core": "^3.10.2",
+    "@tiptap/core": "^3.15.3",
     "@tiptap/extension-link": "^3.10.2",
     "@tiptap/extension-text-align": "^3.10.2",
     "@tiptap/extension-underline": "^3.10.2",
-    "@tiptap/extensions": "^3.15.1",
-    "@tiptap/pm": "^3.10.2",
+    "@tiptap/extensions": "^3.15.3",
+    "@tiptap/pm": "^3.15.3",
     "@tiptap/react": "^3.10.2",
     "@tiptap/starter-kit": "^3.10.2",
     "@tiptap/suggestion": "^3.10.2",
-    "@types/react-window": "^2.0.0",
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
     "clsx": "^2.1.1",
@@ -84,6 +83,7 @@
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.1",
     "react-window": "^2.2.4",
+    "uuid": "^13.0.0",
     "zustand": "^5.0.8"
   }
 }
