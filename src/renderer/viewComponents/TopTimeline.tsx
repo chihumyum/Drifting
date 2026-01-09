@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useDataStore } from '../store/data-store';
-import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
+import { useStoryline } from '../usecase/useStoryline';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { useAuthStore, getProjectId } from '../store/auth';
@@ -21,14 +22,13 @@ interface TimelineNode extends BookNode {
 }
 
 export function TopTimeline() {
-  const navigate = useNavigate();
   const { nodeId, storylineId } = useParams<{ nodeId?: string; storylineId?: string }>();
-  const { bookNodes } = useAppStore();
+  const location = useLocation();
+  const bookNodes = useDataStore(state => state.bookNodes);
   const user = useAuthStore(state => state.user);
   const projectId = getProjectId(user?.id);
-  const storylineUsecases = useStorylineUsecases();
-  // use url params to get selected node id
-  const selectedNodeId = useAppStore(state => state.selectedNodeId);
+  const { getStorylineById, getStorylinesByNode, createStoryline, loadStorylines } = useStoryline();
+  const { navigateToStoryline, navigateToNode } = useProjectNavigation();
 
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
   const [storylineNodes, setStorylineNodes] = useState<TimelineNode[]>([]);
@@ -54,28 +54,20 @@ export function TopTimeline() {
 
         if (storylineId) {
           // In storyline editor: directly load the storyline
-          // Clear selected node to avoid highlighting it
-          useAppStore.getState().setSelectedNodeId(null);
-          targetStoryline = await storylineUsecases.getStorylineById(storylineId);
+          targetStoryline = await getStorylineById(storylineId);
         } else if (nodeId) {
           // In node editor: get storylines for current node
-          const nodeStorylines = await storylineUsecases.getStorylinesByNode(nodeId);
+          const nodeStorylines = await getStorylinesByNode(nodeId);
           if (nodeStorylines.length > 0) {
             // Use the primary storyline (first one)
             targetStoryline = nodeStorylines[0];
-          }
-        } else if (selectedNodeId) {
-          // In element editor or other views: use selected node's storyline
-          const selectedNodeStorylines = await storylineUsecases.getStorylinesByNode(selectedNodeId);
-          if (selectedNodeStorylines.length > 0) {
-            targetStoryline = selectedNodeStorylines[0];
           }
         }
 
         // If still no storyline found, load the first storyline to keep timeline visible
         // This ensures timeline is visible on app startup
         if (!targetStoryline) {
-          const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+          const allStorylines = await loadStorylines(projectId);
           if (allStorylines.length > 0) {
             targetStoryline = allStorylines[0];
           }
@@ -87,7 +79,7 @@ export function TopTimeline() {
           // Load all nodes with their storylines (even if bookNodes is empty initially)
           const nodesWithStorylines = await Promise.all(
             bookNodes.map(async (node) => {
-              const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+              const nodeStorylines = await getStorylinesByNode(node.id);
               return { ...node, storylines: nodeStorylines };
             })
           );
@@ -108,29 +100,22 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, selectedNodeId, bookNodes, storylineUsecases, projectId]);
+  }, [nodeId, storylineId, bookNodes, getStorylineById, getStorylinesByNode, loadStorylines, projectId]);
 
   // Load all stuff for dropdown
   useEffect(() => {
     async function loadAllStorylines() {
       try {
-        const lines = await storylineUsecases.getStorylinesByProject(projectId);
+        const lines = await loadStorylines(projectId);
         setAllStorylines(lines);
       } catch (error) {
         log.error('Failed to load all storylines:', error);
       }
     }
-    loadAllStorylines();
-    async function loadAllElementCategories() {
-      // Placeholder for future element category loading
+    if (showStorylineDropdown) {
+      loadAllStorylines();
     }
-    async function loadAllNodeTags() {
-      // Placeholder for future node tag loading
-    }
-    async function loadAllElementTags() {
-      // Placeholder for future element tag loading
-    }
-  }, [projectId, storylineUsecases, showStorylineDropdown]);
+  }, [projectId, loadStorylines, showStorylineDropdown]);
 
   // Monitor container width
   useEffect(() => {
@@ -181,7 +166,7 @@ export function TopTimeline() {
         });
       }
     }
-  }, [nodeId, selectedNodeId, storylineNodes]);
+  }, [nodeId, storylineNodes]);
 
   // Don't render if no storyline exists at all
   if (!currentStoryline) {
@@ -292,7 +277,7 @@ export function TopTimeline() {
 
   const handleStorylineClick = () => {
     if (currentStoryline) {
-      navigate(`/editor/storyline/${currentStoryline.id}`);
+      navigateToStoryline(currentStoryline.id);
     }
   };
 
@@ -301,19 +286,19 @@ export function TopTimeline() {
 
     // If navigateToEditor is true, directly navigate to storyline editor
     if (navigateToEditor) {
-      navigate(`/editor/storyline/${storylineId}`);
+      navigateToStoryline(storylineId);
       return;
     }
 
     // Load the new storyline and its nodes
     try {
-      const targetStoryline = await storylineUsecases.getStorylineById(storylineId);
+      const targetStoryline = await getStorylineById(storylineId);
       setCurrentStoryline(targetStoryline);
 
       // Load all nodes with their storylines
       const nodesWithStorylines = await Promise.all(
         bookNodes.map(async (node) => {
-          const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+          const nodeStorylines = await getStorylinesByNode(node.id);
           return { ...node, storylines: nodeStorylines };
         })
       );
@@ -325,13 +310,8 @@ export function TopTimeline() {
 
       setStorylineNodes(nodesInStoryline);
 
-      // Navigate to the first node in the storyline if there are nodes
-      if (nodesInStoryline.length > 0) {
-        // 避免重复导航到同一页面
-        if (location.pathname !== `/editor/${nodesInStoryline[0].id}`) {
-          navigate(`/editor/${nodesInStoryline[0].id}`);
-        }
-      }
+      // Don't navigate automatically when switching storylines
+      // User can click on a node to navigate
     } catch (error) {
       log.error('Failed to switch storyline:', error);
     }
@@ -357,10 +337,10 @@ export function TopTimeline() {
     }, 150);
   };
 
-  const handleNodeClick = (nodeId: string) => {
+  const handleNodeClick = (clickedNodeId: string) => {
     // 避免重复导航到同一页面
-    if (location.pathname !== `/editor/${nodeId}`) {
-      navigate(`/editor/${nodeId}`);
+    if (location.pathname !== `/project/${projectId}/editor/${clickedNodeId}`) {
+      navigateToNode(clickedNodeId);
     }
   };
 
@@ -537,7 +517,7 @@ export function TopTimeline() {
                 key={storyline.id}
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate(`/editor/storyline/${storyline.id}`);
+                  navigateToStoryline(storyline.id);
                   setShowStorylineDropdown(false);
                   setStorylineDropdownPosition(null);
                 }}
@@ -631,7 +611,7 @@ export function TopTimeline() {
                   ];
                   
                   // Get current storylines to check for used colors
-                  const currentStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+                  const currentStorylines = await loadStorylines(projectId);
                   const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
                   
                   // Find unused colors first
@@ -642,19 +622,19 @@ export function TopTimeline() {
                     ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
                     : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
                   
-                  const newStoryline = await storylineUsecases.createStoryline({
+                  const newStoryline = await createStoryline({
                     projectId,
                     name: 'New Storyline',
                     color: selectedColor,
                     summary: '',
                   });
                   
-                  const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
-                  useAppStore.getState().setStorylines(allStorylines);
+                  // Reload all storylines to update store
+                  await loadStorylines(projectId);
                   
                   setShowStorylineDropdown(false);
                   setStorylineDropdownPosition(null);
-                  navigate(`/editor/storyline/${newStoryline.id}`);
+                  navigateToStoryline(newStoryline.id);
                 } catch (error) {
                   log.error('Failed to create storyline:', error);
                 }

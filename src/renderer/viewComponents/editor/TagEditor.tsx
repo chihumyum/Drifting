@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import log from 'loglevel';
 log.setLevel(log.levels.ERROR);
 import { X, Plus } from 'lucide-react';
-import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
-import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
-import { useAppStore } from '../../store';
+import { useNodeTag } from '../../usecase/useNodeTag';
+import { useBookElement } from '../../usecase/useBookElement';
+import { useDataStore } from '../../store/data-store';
 import type { NodeTag } from '../../domain/node-tag';
 
 type TagType = 'node' | 'element';
@@ -18,9 +18,9 @@ interface TagEditorProps {
   Tag Editor Component used in NodeEditorView and ElementEditorView
 */
 export function TagEditor({ type, entityId, projectId = 'default-project' }: TagEditorProps) {
-  const nodeTagUsecases = useNodeTagUsecases();
-  const elementUsecases = useBookElementUsecases();
-  const bookElements = useAppStore(state => state.bookElements);
+  const nodeTagUsecases = useNodeTag();
+  const elementUsecases = useBookElement();
+  const bookElements = useDataStore(state => state.bookElements);
   const [allTags, setAllTags] = useState<NodeTag[]>([]);
   const [entityTags, setEntityTags] = useState<NodeTag[]>([]);
   const [isCreating, setIsCreating] = useState(false);

@@ -25,6 +25,9 @@ interface DataState {
 
   bookElementCategories: BookElementCategory[];
   setBookElementCategories: (categories: BookElementCategory[]) => void;
+  addBookElementCategory: (category: BookElementCategory) => void;
+  updateBookElementCategory: (id: string, updates: Partial<BookElementCategory>) => void;
+  removeBookElementCategory: (id: string) => void;
 
   bookElements: BookElement[];
   setBookElements: (elements: BookElement[]) => void;
@@ -73,6 +76,11 @@ export const useDataStore = create<DataState>((set) => ({
   
   bookElementCategories: [],
   setBookElementCategories: (elementCategories) => set({ bookElementCategories: elementCategories }),
+  addBookElementCategory: (category) => set((state) => ({ bookElementCategories: [...state.bookElementCategories, category] })),
+  updateBookElementCategory: (id, updates) => set((state) => ({
+    bookElementCategories: state.bookElementCategories.map((category) => category.id === id ? { ...category, ...updates } : category),
+  })),
+  removeBookElementCategory: (id) => set((state) => ({ bookElementCategories: state.bookElementCategories.filter((category) => category.id !== id) })),
   
   bookElements: [],
   setBookElements: (bookElements) => set({ bookElements }),

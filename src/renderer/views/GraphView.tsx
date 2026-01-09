@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '../store';
+import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import { BookNodeEdge, BookNode } from '../domain/book-node';
 import { GraphNode } from '../viewComponents/Graph/GraphNode';
 import { GraphEdge } from '../viewComponents/Graph/GraphEdge';
-import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
+import { useBookNode } from '../usecase/useBookNode';
+import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { nanoid } from 'nanoid';
 import * as d3 from 'd3-force';
@@ -36,15 +37,14 @@ export function GraphView() {
         nodeEdges,
         updateBookNode,
         setNodeEdges,
-        setGraphViewOpen,
         storylines,
         storylineNodeMapping,
-        setStorylines,
-        setStorylineNodeMapping
-    } = useAppStore();
+        setStorylineNodeMapping,
+    } = useDataStore();
+    const { setGraphViewOpen } = useUiStore();
 
-    const nodeUsecases = useBookNodeUsecases();
-    const storylineUsecases = useStorylineUsecases();
+    const nodeUsecases = useBookNode();
+    const storylineUsecases = useStoryline();
     const { user } = useAuthStore();
     const projectId = getProjectId(user?.id);
 
@@ -68,27 +68,29 @@ export function GraphView() {
     const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
     const loadedRef = useRef(false);
 
-    // Load Data
+    // Load Mappings 
     useEffect(() => {
-        if (!loadedRef.current) {
-            nodeUsecases.loadNodes({ projectId });
-            loadedRef.current = true;
-        }
+        if (storylines.length === 0) return;
+        
+        // Check if we need to load mappings
+        const needsLoading = storylines.some(s => !storylineNodeMapping[s.id]);
+        
+        if (!needsLoading) return;
 
-        const loadStorylines = async () => {
-            const lines = await storylineUsecases.getStorylinesByProject(projectId);
-            setStorylines(lines);
-
-            const mapping: Record<string, string[]> = {};
-            for (const line of lines) {
-                const nodeIds = await storylineUsecases.getNodeIdsByStoryline(line.id);
-                mapping[line.id] = nodeIds;
+        const loadMappings = async () => {
+            const mapping: Record<string, string[]> = { ...storylineNodeMapping };
+            
+            for (const line of storylines) {
+                if (!mapping[line.id]) {
+                     mapping[line.id] = await storylineUsecases.getNodeIdsByStoryline(line.id);
+                }
             }
             setStorylineNodeMapping(mapping);
         };
-        loadStorylines();
+        
+        void loadMappings();
 
-    }, [nodeUsecases, storylineUsecases, projectId, setStorylines, setStorylineNodeMapping, bookNodes.length]);
+    }, [storylines, storylineUsecases, setStorylineNodeMapping, storylineNodeMapping]);
 
     const derivedEdges = useMemo(() => {
         const edges: BookNodeEdge[] = [];

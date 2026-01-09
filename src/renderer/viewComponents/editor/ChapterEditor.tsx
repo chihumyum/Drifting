@@ -11,9 +11,10 @@ import { extractOutline, serializeOutline } from '../../lib/outline';
 import { ElementAutoLink, elementAutoLinkConfig } from '../../lib/extensions/element-auto-link';
 import { ElementParserService } from '../../services/element-parser.service';
 import { ElementOccurrenceRepository } from '../../repositories/element-occurrence.repository';
-import { useAppStore } from '../../store';
+import { useSettingsStore } from '@/renderer/store/settings-store';
 import { TagEditor } from './TagEditor';
 import log from 'loglevel';
+import { useDataStore } from '@/renderer/store/data-store';
 log.setLevel(log.levels.ERROR);
 
 // editor component with built-in element tracking and outline extraction, and more
@@ -71,7 +72,8 @@ export function ChapterEditor({
   minHeight = '300px',
   compact = false,
 }: ChapterEditorProps) {
-  const { bookElements, autoElementLinkEnabled } = useAppStore();
+  const { bookElements } = useDataStore();
+  const { autoElementLinkEnabled }= useSettingsStore();
   const isContentLoadedRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadedNodeIdRef = useRef<string | null>(null);

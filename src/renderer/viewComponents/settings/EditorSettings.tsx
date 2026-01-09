@@ -1,11 +1,11 @@
-import { useAppStore } from '../../store';
+import { useSettingsStore } from '../../store/settings-store';
 
 /**
  * 编辑器设置面板
  * 包含自动元素链接等功能的开关
  */
 export function EditorSettings() {
-  const { autoElementLinkEnabled, setAutoElementLinkEnabled } = useAppStore();
+  const { autoElementLinkEnabled, setAutoElementLinkEnabled } = useSettingsStore();
 
   return (
     <div className="editor-settings p-4 bg-gray-800 rounded-lg">

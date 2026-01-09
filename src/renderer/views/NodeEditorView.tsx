@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
+import { useBookNode } from '../usecase/useBookNode';
+import { useBookContent } from '../usecase/useBookContent';
 import type { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
 import log from "loglevel";
 import { Loader2 } from 'lucide-react';
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
-import { NodeTag } from '../domain/node-tag';
 
 log.setLevel(log.levels.ERROR);
 
@@ -18,61 +18,50 @@ export function NodeEditorView() {
   const { bookNodes } = useDataStore();
   // this component only render one node
   const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
-  const [currentContent, setCurrentContent] = useState<null | NodeContent>(null);
-  const [curTags, setCurTags] = useState<NodeTag[]>([]);
-  // other usecases
-  const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
+  const [bookContent, setBookContent] = useState<NodeContent | null>(null);
+  // usecases
+  const { renameNode, updateNodeSummary, loadNodes } = useBookNode();
+  const { getContentById, getContentByNodeId, updateContent, createContent } = useBookContent();
+  // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
   // Loading state to prevent rendering editor with empty content during fetch
   const [isLoading, setIsLoading] = useState(false);
 
+  // get nodeId from url params
+  useEffect(() => {
+    if (!nodeId) {
+      navigate('/', { replace: true });
+      return;
+    }
 
+    const node = bookNodes.find(n => n.id === nodeId) || null;
+    setCurNode(node);
+  }, [bookNodes, nodeId, navigate]);
 
+  // load content when node changes
+  useEffect(() => {
+    if (!nodeId) {
+      log.error('[NodeEditor] No nodeId provided in URL params');
+      return;
+    }
 
-  const handleElementClick = useCallback(
-    (elementId: string) => {
-      navigate(`/element/${elementId}`);
-    },
-    [navigate]
-  );
-
-  const handleContentUpdate = useCallback(
-    async (targetNodeId: string, pmJson: string, outlineJson: string) => {
+    const fetchContent = async () => {
+      setIsLoading(true);
       try {
-
-        // Safety Check 1: Ensure we have content in store - we don't need the content
-        if (!currentContent) {
-          log.warn('[NodeEditor] Store content is null, cannot update. Node:', targetNodeId);
-          return;
+        const cont = await getContentByNodeId(nodeId);
+        if (!cont) {
+          log.error('[NodeEditor] No content found for nodeId', nodeId);
         }
-
-        // Safety Check 2: Critical! Ensure we are updating the correct node.
-        if (currentContent.nodeId !== targetNodeId) {
-          log.warn(
-            '[NodeEditor] ID Mismatch during update. Store:',
-            currentContent.nodeId,
-            'Target:',
-            targetNodeId,
-            ' - Aborting save.'
-          );
-          return;
-        }
-
-        // log.info('Updating existing content for node', targetNodeId);
-        await updateContent({
-          id: currentContent.id,
-          nodeId: targetNodeId,
-          pmJson,
-          outlineJson,
-        });
+        setBookContent(cont);
       } catch (error) {
-        log.error('[NodeEditor] Failed to update content:', error);
+        log.error('[NodeEditor] Failed to load/create chapter content', error);
       }
-    },
-    [updateContent]
-  );
+    };
 
-  // 标题更新处理
+    void fetchContent();
+  }, [nodeId, getContentById]);
+
+
   const handleTitleUpdate = useCallback(
     async (targetNodeId: string, title: string) => {
       try {
@@ -84,7 +73,6 @@ export function NodeEditorView() {
     [renameNode]
   );
 
-  // 摘要更新处理
   const handleSummaryUpdate = useCallback(
     async (targetNodeId: string, summary: string | null) => {
       try {
@@ -96,66 +84,30 @@ export function NodeEditorView() {
     [updateNodeSummary]
   );
 
-  // Load nodes on mount if not already loaded
-  useEffect(() => {
-    if (bookNodes.length === 0) {
-      void loadNodes();
-    }
-  }, [bookNodes.length, loadNodes]);
-
-  // get nodeId from url and update current node
-  useEffect(() => {
-    if (!nodeId) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    setSelectedNodeId(nodeId);
-    const node = bookNodes.find(n => n.id === nodeId) || null;
-    setCurNode(node);
-  }, [bookNodes, nodeId, navigate, setSelectedNodeId]);
-
-  // load content when nodeId changes
-  useEffect(() => {
-    if (!nodeId) return;
-
-    let isMounted = true;
-
-    const fetchContent = async () => {
-      setIsLoading(true);
+  const handleContentUpdate = useCallback(
+    async (targetNodeId: string, pmJson: string, outlineJson: string) => {
       try {
-        await loadContent(nodeId);
-
-        if (!isMounted) return;
-
-        // Check store for loaded content
-        const state = useAppStore.getState();
-        const loadedContent = state.bookContent;
-
-        // If no content exists for this node, ONLY THEN initialize new content
-        if (!loadedContent || loadedContent.nodeId !== nodeId) {
-          log.info('[NodeEditor] No existing content found for node', nodeId, '- initializing new content');
-          const defaultDocJson = JSON.stringify({
-            type: 'doc',
-            content: [],
-          });
-          await newContent(nodeId, defaultDocJson);
-        }
+        // Check if content exists
+        setBookContent((prev) => {
+          if (prev && prev.nodeId === targetNodeId) {
+            return {...prev, pmJson, outlineJson};
+          }
+          return prev;
+        });
+        updateContent({ nodeId: targetNodeId, pmJson, outlineJson });
       } catch (error) {
-        log.error('[NodeEditor] Failed to load/create chapter content', error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        log.error('[NodeEditor] Failed to update content:', error);
       }
-    };
+    },
+    [updateContent]
+  );
 
-    void fetchContent();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [loadContent, newContent, nodeId]);
+  const handleElementClick = useCallback(
+    (elementId: string) => {
+      navigate(`/element/${elementId}`);
+    },
+    [navigate]
+  );
 
   return (
     <div

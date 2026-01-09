@@ -7,10 +7,11 @@ import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
+import { useBookElement } from '../usecase/useBookElement';
+import { useDataStore } from '../store/data-store';
 import type { BookElementCategory } from '../domain/book-element';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { X, Eye } from 'lucide-react';
 import log from "loglevel";
 
@@ -27,35 +28,36 @@ function getDefaultDoc(): JSONContent {
 
 export function CategoryEditorView() {
   const navigate = useNavigate();
-  const { categoryName } = useParams<{ categoryName: string }>();
-  const { bookElements, bookElementCategories } = useAppStore();
-  const { _deps, loadInitial, updateElement } = useBookElementUsecases();
+  const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
+  const { bookElementCategories, bookElements, updateBookElementCategory, removeBookElementCategory } = useDataStore();
+  // TODO: allow delete element from this view
+  const { updateElement, createElement, removeElement } = useBookElement();
+  const { navigateToHome } = useProjectNavigation();
 
-  const [category, setCategory] = useState<BookElementCategory | null>(null);
+  const [curCategory, setCurCategory] = useState<BookElementCategory | null>(null);
   const [showElementsModal, setShowElementsModal] = useState(false);
 
   const isContentLoadedRef = useRef(false);
 
   // Get category data
   useEffect(() => {
-    if (!categoryName) {
-      navigate('/', { replace: true });
+    if (!projectId) {
+      log.error('Project ID is missing');
       return;
     }
-
-    const cat = bookElementCategories.find(c => c.name === categoryName);
-    if (cat) {
-      setCategory(cat);
-    } else {
-      log.warn('Category not found:', categoryName);
+    if (!categoryId) {
+      navigateToHome();
+      return;
     }
-  }, [bookElementCategories, categoryName, navigate]);
+    const category = bookElementCategories.find(cat => cat.id === categoryId) || null;
+    setCurCategory(category);
+  }, [bookElementCategories, categoryId, navigateToHome, projectId]);
 
   // Get elements belonging to this category
   const categoryElements = useMemo(() => {
-    if (!categoryName) return [];
-    return bookElements.filter(el => el.category === categoryName);
-  }, [bookElements, categoryName]);
+    if (!categoryId) return [];
+    return bookElements.filter(el => el.category === categoryId);
+  }, [bookElements, categoryId]);
 
   // Initialize editor
   const editor = useEditor({
@@ -98,22 +100,20 @@ export function CategoryEditorView() {
 
       const json = ed.getJSON();
       const contentJson = JSON.stringify(json);
-      if (contentJson === category?.description_json) return;
+      if (contentJson === curCategory?.pm_json) return;
 
-      if (category) {
-        void handleSave(contentJson);
+      if (curCategory) {
+        void handleSaveContent(contentJson);
       }
     },
   });
 
   // Load content into editor
   useEffect(() => {
-    if (!editor || !category || isContentLoadedRef.current) return;
+    if (!editor || !curCategory || isContentLoadedRef.current) return;
 
     try {
-      const content = category.description_json 
-        ? JSON.parse(category.description_json) 
-        : getDefaultDoc();
+      const content = curCategory.pm_json ? JSON.parse(curCategory.pm_json) : getDefaultDoc();
       editor.commands.setContent(content);
       isContentLoadedRef.current = true;
     } catch (error) {
@@ -121,28 +121,22 @@ export function CategoryEditorView() {
       editor.commands.setContent(getDefaultDoc());
       isContentLoadedRef.current = true;
     }
-  }, [editor, category]);
+  }, [editor, curCategory]);
 
   // Save category description
-  const handleSave = async (content: string) => {
-    if (!category) return;
-    
-    try {
-      await _deps.categoryRepo.update(category.name, {
-        description_json: content,
-      });
-      await loadInitial();
-    } catch (error) {
-      log.error('Failed to save category description:', error);
-    }
+  const handleSaveContent = async (content: string) => {
+    if (!curCategory) return;
+    updateBookElementCategory(curCategory.id, {
+      pm_json: content,
+    });
   };
 
   const handleContextAction = async (action: string) => {
-    if (!category) return;
+    if (!curCategory) return;
     
     if (action === 'deleteCategory') {
       const confirmed = window.confirm(
-        `Delete category "${category.name}"?\n\nAll elements in this category will be moved to "others".`
+        `Delete category "${curCategory.name}"?\n\nAll elements in this category will be moved to "others".`
       );
       if (!confirmed) return;
       
@@ -151,11 +145,9 @@ export function CategoryEditorView() {
         for (const element of categoryElements) {
           await updateElement(element.id, { category: 'others' });
         }
-        
         // Delete the category
-        await _deps.categoryRepo.delete(category.name);
-        await loadInitial();
-        navigate('/editor');
+        removeBookElementCategory(curCategory.id);
+        navigateToHome();
       } catch (error) {
         log.error('Failed to delete category:', error);
         alert('Failed to delete category. Please try again.');
@@ -163,7 +155,7 @@ export function CategoryEditorView() {
     }
   };
 
-  if (!category) {
+  if (!curCategory) {
     return (
       <div style={{
         height: '100%',
@@ -197,44 +189,20 @@ export function CategoryEditorView() {
         gap: 16,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-          {/* Back button */}
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              border: '1px solid rgba(0, 0, 0, 0.1)',
-              background: 'white',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'white';
-            }}
-          >
-            <X size={18} />
-          </button>
 
-          {/* Category name */}
+        {/* TODO: make this editable */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
           }}>
-            {category.color && (
+            {curCategory.color && (
               <div style={{
                 width: 24,
                 height: 24,
                 borderRadius: 6,
-                background: category.color,
-                boxShadow: `0 2px 8px ${category.color}40`,
+                background: curCategory.color,
+                boxShadow: `0 2px 8px ${curCategory.color}40`,
               }} />
             )}
             <h1 style={{
@@ -243,7 +211,7 @@ export function CategoryEditorView() {
               color: 'rgba(0, 0, 0, 0.85)',
               margin: 0,
             }}>
-              {category.name}
+              {curCategory.name}
             </h1>
           </div>
 
@@ -354,7 +322,7 @@ export function CategoryEditorView() {
                   color: 'rgba(0, 0, 0, 0.85)',
                   margin: '0 0 4px 0',
                 }}>
-                  Elements in "{category.name}"
+                  Elements in "{curCategory.name}"
                 </h2>
                 <p style={{
                   fontSize: 14,

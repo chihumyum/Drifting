@@ -1,9 +1,10 @@
 import { Plus } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
-import { useStorylineUsecases } from '../../hooks/useStorylineUsecases';
-import { useAppStore } from '../../store';
+import { useLocation, useParams } from 'react-router-dom';
+import { useBookNode } from '../../usecase/useBookNode';
+import { useStoryline } from '../../usecase/useStoryline';
+import { useDataStore } from '../../store/data-store';
 import { useAuthStore, getProjectId } from '../../store/auth';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);
@@ -21,13 +22,13 @@ const STORYLINE_COLORS = [
 ];
 
 export function LeftQuickButtons() {
-  const navigate = useNavigate();
   const location = useLocation();
+  const { nodeId } = useParams<{ nodeId?: string }>();
   const user = useAuthStore(state => state.user);
-  const { createNode, loadNodes } = useBookNodeUsecases();
-  const storylineUsecases = useStorylineUsecases();
-  const bookNodes = useAppStore(state => state.bookNodes);
-  const selectedNodeId = useAppStore(state => state.selectedNodeId);
+  const { createNode, loadNodes } = useBookNode();
+  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines } = useStoryline();
+  const bookNodes = useDataStore(state => state.bookNodes);
+  const { navigateToNode, navigateToStoryline } = useProjectNavigation();
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -81,17 +82,14 @@ export function LeftQuickButtons() {
       
       // 将新 node 添加到 storyline
       if (defaultStorylineId) {
-        await storylineUsecases.addNodeToStoryline(newNode.id, defaultStorylineId);
+        await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
       
       // Reload nodes to ensure timeline picks up the new node with its storyline relationship
       await loadNodes();
       
-      // 设置为选中状态
-      useAppStore.getState().setSelectedNodeId(newNode.id);
-      
       // Navigate to the new chapter
-      navigate(`/editor/${newNode.id}`);
+      navigateToNode(newNode.id);
       
       // Scroll timeline to the new chapter position
       setTimeout(() => {
@@ -118,7 +116,7 @@ export function LeftQuickButtons() {
       const randomColor = STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
       
       // Create new storyline
-      const newStoryline = await storylineUsecases.createStoryline({
+      const newStoryline = await createStoryline({
         projectId,
         name: 'New Storyline',
         color: randomColor,
@@ -126,11 +124,10 @@ export function LeftQuickButtons() {
       });
       
       // Reload all storylines to update the store and trigger timeline refresh
-      const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
-      useAppStore.getState().setStorylines(allStorylines);
+      await loadStorylines(projectId);
       
       // Navigate to storyline editor
-      navigate(`/editor/storyline/${newStoryline.id}`);
+      navigateToStoryline(newStoryline.id);
     } catch (error) {
       log.error('Failed to create storyline:', error);
     }

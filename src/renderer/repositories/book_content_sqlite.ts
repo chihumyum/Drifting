@@ -5,12 +5,14 @@ import type { BookContentRepository } from './book_content';
 import { v7 as uuidv7 } from 'uuid';
 import { run, query } from '../lib/db';
 import type { SyncStatus } from '../lib/sync/types';
-
+import log from 'loglevel';
+log.setLevel(log.levels.ERROR);
 
 export function recordToBookContent(record: BookContentRecord): NodeContent {
   return {
     id: record.id,
     nodeId: record.node_id,
+    projectId: record.project_id,
     pmJson: record.pm_json,
     outlineJson: record.outline_json,
     createdAt: record.created_at,
@@ -22,6 +24,7 @@ export function bookContentToRecord(node: NodeContent): BookContentRecord {
   return {
     id: node.id,
     node_id: node.nodeId,
+    project_id: node.projectId,
     pm_json: node.pmJson,
     outline_json: node.outlineJson,
     created_at: node.createdAt,
@@ -56,6 +59,7 @@ export function createBookContentRepository(): BookContentRepository {
       const record: BookContentRecord = {
         id: data.id || uuidv7(),
         node_id: data.nodeId!,
+        project_id: data.projectId!,
         pm_json: data.pmJson || '',
         outline_json: data.outlineJson || '[]',
         created_at: now,
@@ -65,11 +69,12 @@ export function createBookContentRepository(): BookContentRepository {
         is_deleted: 0,
       };
       await run(
-        `INSERT OR REPLACE INTO book_content (id, node_id, pm_json, outline_json, created_at, updated_at, sync_status, last_modified, is_deleted)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO book_content (id, node_id, project_id, pm_json, outline_json, created_at, updated_at, sync_status, last_modified, is_deleted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           record.id,
           record.node_id,
+          record.project_id,
           record.pm_json,
           record.outline_json,
           record.created_at,
@@ -92,6 +97,7 @@ export function createBookContentRepository(): BookContentRepository {
       const record: BookContentRecord = {
         id,
         node_id: data.nodeId ?? existing.nodeId,
+        project_id: data.projectId ?? existing.projectId,
         pm_json: data.pmJson ?? existing.pmJson,
         outline_json: data.outlineJson ?? existing.outlineJson,
         created_at: existing.createdAt,
@@ -102,9 +108,9 @@ export function createBookContentRepository(): BookContentRepository {
       };
       await run(
         `UPDATE book_content
-         SET node_id = ?, pm_json = ?, outline_json = ?, updated_at = ?, sync_status = 'pending', last_modified = ?, is_deleted = 0
+         SET node_id = ?, project_id = ?, pm_json = ?, outline_json = ?, updated_at = ?, sync_status = 'pending', last_modified = ?, is_deleted = 0
          WHERE id = ?`,
-        [record.node_id, record.pm_json, record.outline_json, record.updated_at, record.last_modified, record.id]
+        [record.node_id, record.project_id, record.pm_json, record.outline_json, record.updated_at, record.last_modified, record.id]
       );
       return recordToBookContent(record);
     }
@@ -178,9 +184,11 @@ export async function applyRemoteContent(remote: {
 
   const existing = await getContentRecordByNodeId(remote.nodeId);
   if (!existing) {
+    log.error(`No existing content found for nodeId ${remote.nodeId} when applying remote content.`);
     const record: BookContentRecord = {
       id: uuidv7(),
       node_id: remote.nodeId,
+      project_id: '', // TODO: fix later
       pm_json: remote.pmJson,
       outline_json: remote.outlineJson,
       created_at: remote.createdAt,

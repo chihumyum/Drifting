@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { JSONContent } from '@tiptap/core';
@@ -8,13 +8,10 @@ import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extensions';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
-import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
-import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book-node';
+import { useStoryline } from '../usecase/useStoryline';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useAuthStore, getProjectId } from '../store/auth';
-import { useAppStore } from '../store';
+import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import log from "loglevel";
 
@@ -29,20 +26,48 @@ function getDefaultDoc(): JSONContent {
 }
 
 export function StorylineEditorView() {
-  const { storylineId } = useParams<{ storylineId: string }>();
+  const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
-  const { bookNodes } = useAppStore();
-  const storylineUsecases = useStorylineUsecases();
-  const nodeUsecases = useBookNodeUsecases();
-  const [storyline, setStoryline] = useState<Storyline | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [allStorylines, setAllStorylines] = useState<Storyline[]>([]);
-  const [storylineNodes, setStorylineNodes] = useState<BookNode[]>([]);
+  const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
+  const storylineUsecases = useStoryline();
+  
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const isContentLoadedRef = useRef(false);
   const loadedStorylineIdRef = useRef<string | null>(null);
+
+  const activeStoryline = storylines.find(s => s.id === storylineId);
+  const activeStorylineNodeIds = storylineNodeMapping[storylineId || ''] || [];
+  
+  const storylineNodes = useMemo(() => {
+    if (!storylineId) return [];
+    return bookNodes
+      .filter(n => activeStorylineNodeIds.includes(n.id))
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  }, [bookNodes, activeStorylineNodeIds, storylineId]);
+
+  useEffect(() => {
+    async function checkData() {
+      if (!projectId || !storylineId) {
+        log.error('No projectId or storylineId provided in URL');
+        navigate('/editor');
+        return;
+      }
+      
+      
+      if (projectId && (!storylineNodeMapping[storylineId] || storylineNodeMapping[storylineId].length === 0)) {
+         void storylineUsecases.getNodeIdsByStoryline(storylineId);
+      }
+    }
+    checkData();
+  }, [projectId, storylineId, user, storylineUsecases, navigate, storylineNodeMapping]);
+
+  useEffect(() => {
+    if (activeStoryline) {
+      setNameValue(activeStoryline.name);
+    }
+  }, [activeStoryline]);
 
   const editor = useEditor({
     extensions: [
@@ -87,69 +112,26 @@ export function StorylineEditorView() {
     },
   });
 
-  // Load storyline data and nodes
-  useEffect(() => {
-    async function loadStoryline() {
-      if (!storylineId) {
-        log.error('No storylineId provided in URL');
-        navigate('/editor');
-        return;
-      }
-      log.info(`Loading storyline ${storylineId}...`);
-      try {
-        setIsLoading(true);
-        const projectId = getProjectId(user?.id);
-        const [storylineData, storylines, nodeIds] = await Promise.all([
-          storylineUsecases.getStorylineById(storylineId),
-          storylineUsecases.getStorylinesByProject(projectId),
-          storylineUsecases.getNodeIdsByStoryline(storylineId),
-        ]);
-
-        if (!storylineData) {
-          log.error(`Storyline ${storylineId} not found`);
-          navigate('/editor');
-          return;
-        }
-
-        setStoryline(storylineData);
-        setAllStorylines(storylines);
-        setNameValue(storylineData.name);
-
-        // Get full node data for these nodeIds
-        const nodes = bookNodes.filter(n => nodeIds.includes(n.id));
-        // Sort by node.start or node.order
-        nodes.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
-        setStorylineNodes(nodes);
-      } catch (error) {
-        log.error('Failed to load storyline:', error);
-        navigate('/editor');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadStoryline();
-  }, [storylineId, storylineUsecases, navigate, user, bookNodes]);
-
   // Update editor content when storyline loads
   useEffect(() => {
-    if (!editor || !storyline) return;
+    if (!editor || !activeStoryline) return;
 
-    // If we're loading a different storyline, reset the flag
     if (loadedStorylineIdRef.current !== storylineId) {
       isContentLoadedRef.current = false;
       loadedStorylineIdRef.current = null;
     }
+    
+    if (loadedStorylineIdRef.current === storylineId && isContentLoadedRef.current) {
+        return;
+    }
 
-    // Load the storyline description content
     try {
-      const content = storyline.pmJson
-        ? (typeof storyline.pmJson === 'string' ? JSON.parse(storyline.pmJson as string) : storyline.pmJson)
+      const content = activeStoryline.pmJson
+        ? (typeof activeStoryline.pmJson === 'string' ? JSON.parse(activeStoryline.pmJson as string) : activeStoryline.pmJson)
         : getDefaultDoc();
 
       editor.commands.setContent(content);
 
-      // Mark content as loaded
       isContentLoadedRef.current = true;
       loadedStorylineIdRef.current = storylineId || null;
     } catch (error) {
@@ -158,7 +140,7 @@ export function StorylineEditorView() {
       isContentLoadedRef.current = true;
       loadedStorylineIdRef.current = storylineId || null;
     }
-  }, [editor, storyline, storylineId]);
+  }, [editor, activeStoryline, storylineId]);
 
   const handleSaveName = async () => {
     if (!storylineId || !nameValue.trim()) return;
@@ -167,17 +149,14 @@ export function StorylineEditorView() {
       name: nameValue.trim(),
     });
     setEditingName(false);
-    // Reload storyline to update state
-    const updated = await storylineUsecases.getStorylineById(storylineId);
-    if (updated) setStoryline(updated);
   };
 
 
   const handleContextAction = async (action: string) => {
-    if (!storyline) return;
+    if (!activeStoryline) return;
 
     if (action === 'deleteStoryline') {
-      const otherStorylines = allStorylines.filter(t => t.id !== storyline.id);
+      const otherStorylines = storylines.filter(t => t.id !== activeStoryline.id);
 
       if (otherStorylines.length === 0) {
         alert('Cannot delete the last storyline. Create another storyline first.');
@@ -191,21 +170,21 @@ export function StorylineEditorView() {
       if (!confirmed) return;
 
       try {
-        const nodes = await nodeUsecases.loadNodes();
         const defaultStoryline = otherStorylines[0];
+        const nodesInThisStoryline = storylineNodes;
 
-        for (const node of nodes) {
+        for (const node of nodesInThisStoryline) {
           const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
 
-          if (nodeStorylines.some(t => t.id === storyline.id)) {
+          if (nodeStorylines.some(t => t.id === activeStoryline.id)) {
             if (nodeStorylines.length === 1) {
               await storylineUsecases.addNodeToStoryline(node.id, defaultStoryline.id);
             }
-            await storylineUsecases.removeNodeFromStoryline(node.id, storyline.id);
+            await storylineUsecases.removeNodeFromStoryline(node.id, activeStoryline.id);
           }
         }
 
-        await storylineUsecases.deleteStoryline(storyline.id);
+        await storylineUsecases.deleteStoryline(activeStoryline.id);
         navigate('/editor');
       } catch (error) {
         log.error('Failed to delete storyline:', error);
@@ -214,7 +193,9 @@ export function StorylineEditorView() {
     }
   };
 
-  if (isLoading) {
+  const isGlobalLoading = (bookNodes.length === 0 && storylines.length === 0);
+
+  if (isGlobalLoading) {
     return (
       <div style={{
         display: 'flex',
@@ -228,7 +209,7 @@ export function StorylineEditorView() {
     );
   }
 
-  if (!storyline) {
+  if (!activeStoryline) {
     return (
       <div style={{
         display: 'flex',
@@ -242,7 +223,6 @@ export function StorylineEditorView() {
     );
   }
 
-  // Check if editor has content
   const hasEditorContent = (editor?.getText().trim().length ?? 0) > 0;
 
   return (
@@ -271,7 +251,7 @@ export function StorylineEditorView() {
               onKeyDown={e => {
                 if (e.key === 'Enter') handleSaveName();
                 if (e.key === 'Escape') {
-                  setNameValue(storyline.name);
+                  setNameValue(activeStoryline.name);
                   setEditingName(false);
                 }
               }}
@@ -308,7 +288,7 @@ export function StorylineEditorView() {
                 e.currentTarget.style.color = 'rgba(0, 0, 0, 0.85)';
               }}
             >
-              {storyline.name || 'Untitled Storyline'}
+              {activeStoryline.name || 'Untitled Storyline'}
             </h1>
           )}
         </div>

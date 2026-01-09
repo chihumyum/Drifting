@@ -1,8 +1,6 @@
-import type { Project, NodeTagRecord, NodeTagLinkRecord } from "./book_general";
+import type { Project } from "./book_general";
 import type { ElementRecord, ElementCategoryRecord } from "./book_element";
 import type { StorylineRecord } from "./storyline";
-import type { BookNodeRecord } from "./book_node";
-import type { BookContentRecord } from "./book_content";
 
 
 
@@ -15,6 +13,8 @@ export const TABLES = {
   nodeEdge: 'node_edge',
   bookContent: 'book_content',
   element: 'element',
+  elementCategory: 'element_category',
+  projectElementCategory: 'project_element_category',
   elementStage: 'element_stage',
   storyline: 'storyline',
   nodeStoryline: 'node_storyline',
@@ -37,15 +37,29 @@ CREATE TABLE IF NOT EXISTS project (
 CREATE INDEX IF NOT EXISTS idx_project_name ON project(project_name);
 
 -- Category table (element categories)
+-- Now global/shared across projects, linked via project_element_category
 CREATE TABLE IF NOT EXISTS element_category (
   id TEXT PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
   description_json TEXT NOT NULL DEFAULT '{}',
   color TEXT NULL,
   sync_status TEXT NOT NULL DEFAULT 'synced',
   last_modified INTEGER,
   is_deleted INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS idx_element_category_name ON element_category(name);
+
+-- Project to Element Category relationship (many-to-many)
+CREATE TABLE IF NOT EXISTS project_element_category (
+  project_id TEXT NOT NULL,
+  category_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(project_id, category_id),
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
+  FOREIGN KEY(category_id) REFERENCES element_category(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_project_element_category_project ON project_element_category(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_element_category_category ON project_element_category(category_id);
 
 -- Story stages (higher level than nodes/chapters)
 CREATE TABLE IF NOT EXISTS story_stage (
@@ -163,6 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
 CREATE TABLE IF NOT EXISTS book_content (
   id TEXT PRIMARY KEY,
   node_id TEXT NOT NULL UNIQUE,
+  project_id TEXT NOT NULL,
   pm_json TEXT NOT NULL DEFAULT '{}',
   outline_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
@@ -171,9 +186,11 @@ CREATE TABLE IF NOT EXISTS book_content (
   sync_status TEXT NOT NULL DEFAULT 'synced',
   last_modified INTEGER,
   is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_book_content_node ON book_content(node_id);
+CREATE INDEX IF NOT EXISTS idx_book_content_project ON book_content(project_id);
 CREATE INDEX IF NOT EXISTS idx_book_content_sync ON book_content(sync_status) WHERE is_deleted = 0;
 
 -- Core element (element) table
@@ -250,13 +267,17 @@ CREATE TABLE IF NOT EXISTS chapter_element_stage (
 
 -- Element occurrence inside text blocks
 CREATE TABLE IF NOT EXISTS element_occurrence (
-  id TEXT PRIMARY KEY,
-  element_id TEXT NOT NULL,
-  node_id TEXT NOT NULL,             -- story node id
+  project_id TEXT NOT NULL,          -- denormalized for performance
   block_id TEXT NOT NULL,            -- text block id
   spans_json TEXT NOT NULL,          -- serialized spans / ranges
   created_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE
+  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
+CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
+CREATE INDEX IF NOT EXISTS idx_element_occurrence_project ON element_occurrence(project
 );
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
 CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
@@ -406,545 +427,3 @@ export const DEFAULT_STORYLINE: StorylineRecord = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
-
-// Mock storylines
-export const MOCK_STORYLINES: StorylineRecord[] = [
-  {
-    id: 'storyline_john',
-    project_id: 'default-project',
-    name: 'John',
-    color: '#60A5FA', // Light blue
-    summary: "John's storyline",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'storyline_emma',
-    project_id: 'default-project',
-    name: 'Emma',
-    color: '#FDE047', // Yellow
-    summary: "Emma's storyline",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'storyline_vera',
-    project_id: 'default-project',
-    name: 'Vera',
-    color: '#C084FC', // Purple
-    summary: "Vera's storyline",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-// Mock chapters
-export const MOCK_CHAPTERS: BookNodeRecord[] = [
-  {
-    id: 'chapter_001',
-    title: '序章',
-    project_id: 'default-project',
-    start: 1,
-    end: 8,
-    summary: '故事的开端，介绍世界观和主要角色',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'chapter_002',
-    title: '第一章：John',
-    project_id: 'default-project',
-    start: 10,
-    end: 16,
-    summary: 'John在城市中的日常生活',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_003',
-    title: '第二章：Emma',
-    project_id: 'default-project',
-    start: 12,
-    end: 19,
-    summary: 'Emma的背景故事',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_004',
-    title: '第三章：Vera',
-    project_id: 'default-project',
-    start: 15,
-    end: 22,
-    summary: 'Vera的神秘过去',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_005',
-    title: '第四章：John',
-    project_id: 'default-project',
-    start: 25,
-    end: 30,
-    summary: 'John遇到了第一个挑战',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_006',
-    title: '第五章：Emma',
-    project_id: 'default-project',
-    start: 28,
-    end: 35,
-    summary: 'Emma的决定',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_007',
-    title: '第六章：Vera',
-    project_id: 'default-project',
-    start: 32,
-    end: 38,
-    summary: 'Vera的秘密被揭露',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_008',
-    title: '第七章：Emma',
-    project_id: 'default-project',
-    start: 40,
-    end: 47,
-    summary: 'Emma与Vera的相遇',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_009',
-    title: '第九章：所有人',
-    project_id: 'default-project',
-    start: 50,
-    end: 58,
-    summary: '三条故事线汇聚',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_010',
-    title: '第十章：John',
-    project_id: 'default-project',
-    start: 60,
-    end: 66,
-    summary: 'John做出了艰难的选择',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_011',
-    title: '第十一章：Emma',
-    project_id: 'default-project',
-    start: 68,
-    end: 75,
-    summary: 'Emma的牺牲',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'chapter_012',
-    title: '第十二章：John & Emma',
-    project_id: 'default-project',
-    start: 78,
-    end: 86,
-    summary: 'John和Emma的最终对决',
-    story_stage_id: null,
-    pos_x: null,
-    pos_y: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-// Mock node-storyline relationships
-export const MOCK_NODE_THREADS = [
-  // 序章 - 主线
-  { node_id: 'chapter_001', thread_id: 'thread_main' },
-  
-  // 第一章 - John线
-  { node_id: 'chapter_002', thread_id: 'thread_main' },
-  { node_id: 'chapter_002', thread_id: 'thread_john' },
-  
-  // 第二章 - Emma线
-  { node_id: 'chapter_003', thread_id: 'thread_main' },
-  { node_id: 'chapter_003', thread_id: 'thread_emma' },
-  
-  // 第三章 - Vera线
-  { node_id: 'chapter_004', thread_id: 'thread_main' },
-  { node_id: 'chapter_004', thread_id: 'thread_vera' },
-  
-  // 第四章 - John线
-  { node_id: 'chapter_005', thread_id: 'thread_john' },
-  
-  // 第五章 - Emma线
-  { node_id: 'chapter_006', thread_id: 'thread_emma' },
-  
-  // 第六章 - Vera线
-  { node_id: 'chapter_007', thread_id: 'thread_vera' },
-  
-  // 第七章 - Emma和Vera
-  { node_id: 'chapter_008', thread_id: 'thread_emma' },
-  { node_id: 'chapter_008', thread_id: 'thread_vera' },
-  
-  // 第九章 - 所有人
-  { node_id: 'chapter_009', thread_id: 'thread_main' },
-  { node_id: 'chapter_009', thread_id: 'thread_john' },
-  { node_id: 'chapter_009', thread_id: 'thread_emma' },
-  { node_id: 'chapter_009', thread_id: 'thread_vera' },
-  
-  // 第十章 - John线
-  { node_id: 'chapter_010', thread_id: 'thread_john' },
-  
-  // 第十一章 - Emma线
-  { node_id: 'chapter_011', thread_id: 'thread_emma' },
-  
-  // 第十二章 - John和Emma
-  { node_id: 'chapter_012', thread_id: 'thread_main' },
-  { node_id: 'chapter_012', thread_id: 'thread_john' },
-  { node_id: 'chapter_012', thread_id: 'thread_emma' },
-];
-
-// Mock node tags
-export const MOCK_NODE_TAGS: NodeTagRecord[] = [
-  {
-    id: 'tag_action',
-    project_id: 'default-project',
-    name: '动作',
-    color: '#EF4444',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tag_dialogue',
-    project_id: 'default-project',
-    name: '对话',
-    color: '#3B82F6',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tag_flashback',
-    project_id: 'default-project',
-    name: '回忆',
-    color: '#8B5CF6',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tag_climax',
-    project_id: 'default-project',
-    name: '高潮',
-    color: '#F59E0B',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tag_resolution',
-    project_id: 'default-project',
-    name: '结局',
-    color: '#10B981',
-    created_at: new Date().toISOString(),
-  },
-];
-
-// Mock node-tag relationships
-export const MOCK_NODE_TAG_LINKS: NodeTagLinkRecord[] = [
-  // chapter_001 - 对话
-  { node_id: 'chapter_001', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
-  
-  // chapter_002 - 对话
-  { node_id: 'chapter_002', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
-  
-  // chapter_003 - 对话, 回忆
-  { node_id: 'chapter_003', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
-  { node_id: 'chapter_003', tag_id: 'tag_flashback', created_at: new Date().toISOString() },
-  
-  // chapter_004 - 回忆
-  { node_id: 'chapter_004', tag_id: 'tag_flashback', created_at: new Date().toISOString() },
-  
-  // chapter_005 - 动作
-  { node_id: 'chapter_005', tag_id: 'tag_action', created_at: new Date().toISOString() },
-  
-  // chapter_007 - 对话, 动作
-  { node_id: 'chapter_007', tag_id: 'tag_dialogue', created_at: new Date().toISOString() },
-  { node_id: 'chapter_007', tag_id: 'tag_action', created_at: new Date().toISOString() },
-  
-  // chapter_009 - 高潮
-  { node_id: 'chapter_009', tag_id: 'tag_climax', created_at: new Date().toISOString() },
-  
-  // chapter_010 - 动作, 高潮
-  { node_id: 'chapter_010', tag_id: 'tag_action', created_at: new Date().toISOString() },
-  { node_id: 'chapter_010', tag_id: 'tag_climax', created_at: new Date().toISOString() },
-  
-  // chapter_012 - 高潮, 结局
-  { node_id: 'chapter_012', tag_id: 'tag_climax', created_at: new Date().toISOString() },
-  { node_id: 'chapter_012', tag_id: 'tag_resolution', created_at: new Date().toISOString() },
-];
-
-// Mock book contents (for half of the chapters)
-export const MOCK_BOOK_CONTENTS: BookContentRecord[] = [
-  {
-    id: 'content_001',
-    node_id: 'chapter_001',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '序章' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '这是故事的开端...' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([
-      { id: 'outline_001_0', level: 1, text: '序章', position: 0 }
-    ]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'content_002',
-    node_id: 'chapter_002',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '初遇' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'John在城市中漫步...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 2 },
-          content: [{ type: 'text', text: '咖啡店' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '他走进一家咖啡店...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 2 },
-          content: [{ type: 'text', text: '对话' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '陌生人主动搭讪...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '离开' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([
-      { id: 'outline_002_0', level: 1, text: '初遇', position: 0 },
-      { id: 'outline_002_1', level: 2, text: '咖啡店', position: 1 },
-      { id: 'outline_002_2', level: 2, text: '对话', position: 2 },
-      { id: 'outline_002_3', level: 1, text: '离开', position: 3 }
-    ]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'content_004',
-    node_id: 'chapter_004',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'Vera回忆起过去的片段...' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'content_006',
-    node_id: 'chapter_006',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '决定' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'Emma做出了重要的决定...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 2 },
-          content: [{ type: 'text', text: '考虑' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '她权衡利弊...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 3 },
-          content: [{ type: 'text', text: '家人' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '家人的意见...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 3 },
-          content: [{ type: 'text', text: '事业' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: '事业的考量...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 2 },
-          content: [{ type: 'text', text: '行动' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '新的开始' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([
-      { id: 'outline_006_0', level: 1, text: '决定', position: 0 },
-      { id: 'outline_006_1', level: 2, text: '考虑', position: 1 },
-      { id: 'outline_006_2', level: 3, text: '家人', position: 2 },
-      { id: 'outline_006_3', level: 3, text: '事业', position: 3 },
-      { id: 'outline_006_4', level: 2, text: '行动', position: 4 },
-      { id: 'outline_006_5', level: 1, text: '新的开始', position: 5 }
-    ]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'content_008',
-    node_id: 'chapter_008',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '相遇' }],
-        },
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'Emma与Vera的相遇改变了一切...' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '对话' }],
-        },
-        {
-          type: 'heading',
-          attrs: { level: 1 },
-          content: [{ type: 'text', text: '告别' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([
-      { id: 'outline_008_0', level: 1, text: '相遇', position: 0 },
-      { id: 'outline_008_1', level: 1, text: '对话', position: 1 },
-      { id: 'outline_008_2', level: 1, text: '告别', position: 2 }
-    ]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-  {
-    id: 'content_010',
-    node_id: 'chapter_010',
-    pm_json: JSON.stringify({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'John面临着艰难的抉择...' }],
-        },
-      ],
-    }),
-    outline_json: JSON.stringify([]),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    sync_status: 'synced',
-    last_modified: Date.now(),
-    is_deleted: 0,
-  },
-];
-

@@ -1,21 +1,22 @@
 import { Plus } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useBookNodeUsecases } from '../../hooks/useBookNodeUsecases';
-import { useStorylineUsecases } from '../../hooks/useStorylineUsecases';
-import { useAppStore } from '../../store';
+import { useLocation, useParams } from 'react-router-dom';
+import { useBookNode } from '../../usecase/useBookNode';
+import { useStoryline } from '../../usecase/useStoryline';
+import { useDataStore } from '../../store/data-store';
 import { useAuthStore, getProjectId } from '../../store/auth';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);
 
-export function CreateChapterButton() {
-  const navigate = useNavigate();
+export function NewEntityButton() {
   const location = useLocation();
+  const { nodeId } = useParams<{ nodeId?: string }>();
   const user = useAuthStore(state => state.user);
-  const { createNode, loadNodes, updateNode } = useBookNodeUsecases();
-  const storylineUsecases = useStorylineUsecases();
-  const bookNodes = useAppStore(state => state.bookNodes);
-  const selectedNodeId = useAppStore(state => state.selectedNodeId);
+  const { createNode, loadNodes, updateNode } = useBookNode();
+  const { getStorylinesByNode, getStorylinesByProject, addNodeToStoryline } = useStoryline();
+  const bookNodes = useDataStore(state => state.bookNodes);
+  const { navigateToNode } = useProjectNavigation();
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -34,8 +35,8 @@ export function CreateChapterButton() {
         defaultStorylineId = currentStorylineId;
       }
       // Priority 2: Use selected node's primary storyline
-      else if (selectedNodeId) {
-        const selectedNodeStorylines = await storylineUsecases.getStorylinesByNode(selectedNodeId);
+      else if (nodeId) {
+        const selectedNodeStorylines = await getStorylinesByNode(nodeId);
         if (selectedNodeStorylines.length > 0) {
           defaultStorylineId = selectedNodeStorylines[0].id;
         }
@@ -44,7 +45,7 @@ export function CreateChapterButton() {
       // Priority 3: Use first available storyline
       if (!defaultStorylineId) {
         const projectId = getProjectId(user?.id);
-        const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+        const allStorylines = await getStorylinesByProject(projectId);
         if (allStorylines.length > 0) {
           defaultStorylineId = allStorylines[0].id;
         }
@@ -61,7 +62,7 @@ export function CreateChapterButton() {
         // Insert after last node in the current storyline
         const nodesWithStorylines = await Promise.all(
           bookNodes.map(async (node) => {
-            const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+              const nodeStorylines = await getStorylinesByNode(node.id);
             return { ...node, storylines: nodeStorylines };
           })
         );
@@ -80,20 +81,12 @@ export function CreateChapterButton() {
           newStart = 1;
           newEnd = newStart + newLength;
         }
-      } else if (selectedNodeId) {
-        // Insert after selected node (when not in storyline editor)
-        const selectedNode = bookNodes.find(n => n.id === selectedNodeId);
-        if (selectedNode) {
-          const selectedEnd = selectedNode.end ?? selectedNode.start;
-          newStart = selectedEnd + 1;
-          newEnd = newStart + newLength;
-        }
       } else if (defaultStorylineId) {
         // Insert after last node in the target storyline
         // Get all nodes with their storylines
         const nodesWithStorylines = await Promise.all(
           bookNodes.map(async (node) => {
-            const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+            const nodeStorylines = await getStorylinesByNode(node.id);
             return { ...node, storylines: nodeStorylines };
           })
         );
@@ -122,7 +115,7 @@ export function CreateChapterButton() {
         // Get all nodes with their storylines
         const nodesWithStorylines = await Promise.all(
           bookNodes.map(async (node) => {
-            const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
+            const nodeStorylines = await getStorylinesByNode(node.id);
             return { ...node, storylines: nodeStorylines };
           })
         );
@@ -163,12 +156,11 @@ export function CreateChapterButton() {
       });
       
       if (defaultStorylineId) {
-        await storylineUsecases.addNodeToStoryline(newNode.id, defaultStorylineId);
+        await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
       
       await loadNodes();
-      useAppStore.getState().setSelectedNodeId(newNode.id);
-      navigate(`/editor/${newNode.id}`);
+      navigateToNode(newNode.id);
       
       // Scroll timeline to the new chapter
       setTimeout(() => {

@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '../../store';
-import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
+import { useDataStore } from '../../store/data-store';
+import { useUiStore } from '../../store/ui-store';
+import { useBookElement } from '../../usecase/useBookElement';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
 import type { BookElement } from '../../domain/book-element';
 import log from "loglevel";
@@ -25,8 +26,9 @@ const DEFAULT_CATEGORY_COLORS = [
 
 export function ElementPanel() {
   const navigate = useNavigate();
-  const { bookElements, bookElementCategories, selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId, timelineHeight } = useAppStore();
-  const { createElement: create, removeElement: remove, loadInitial, updateElement, _deps } = useBookElementUsecases();
+  const { bookElements, bookElementCategories } = useDataStore();
+  const { selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId, timelineHeight } = useUiStore();
+  const { createElement: create, removeElement: remove, loadInitial, updateElement, _deps } = useBookElement();
 
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);

@@ -26,7 +26,7 @@ export interface BookElementStage {
 export interface BookElementCategory {
   id: string;
   name: string;
-  description_json: string;
+  pm_json: string;
   color?: string;
 }
 

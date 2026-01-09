@@ -5,7 +5,7 @@ import { run, query } from '../lib/db';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
 
-const esc = (v: string) => v.replaceAll("'", "''");
+const esc = (v: string) => v.replace(/'/g, "''");
 
 const canSync = () => {
     const { isAuthenticated } = useAuthStore.getState();
@@ -52,7 +52,7 @@ const ensureCategoryRecord = (
 const toCategoryDomain = (row: ElementCategoryRecord): BookElementCategory => ({
     id: row.id,
     name: row.name,
-    description_json: row.description_json,
+    pm_json: row.description_json,
     color: row.color ?? undefined,
 });
 

@@ -9,6 +9,9 @@ import type {
   BookNodeEdgeCreateData,
   BookNodeEdgeUpdateData,
 } from './book_node';
+import log from 'loglevel';
+log.setDefaultLevel(log.levels.DEBUG);
+
 
 type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';
 
@@ -18,7 +21,7 @@ interface SyncMetadata {
   isDeleted: number;
 }
 
-const esc = (v: string) => v.replaceAll("'", "''");
+const esc = (v: string) => v.replace(/'/g, "''");
 
 const ensureProjectId = (candidate: string | undefined, fallback: string) => candidate ?? fallback;
 

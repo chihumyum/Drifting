@@ -12,6 +12,7 @@ export interface OutlineItem {
 export interface BookContentRecord {
   id: string;
   node_id: string;         // link to BookNode it belongs to
+  project_id: string;      // denormalized for performance
   pm_json: string;         // prosemirror json (TipTap content)
   outline_json: string;    // JSON array of OutlineItem[] - extracted heading structure
   created_at: string;

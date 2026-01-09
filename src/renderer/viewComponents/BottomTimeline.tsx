@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
-import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import { createBookContentRepository } from '../repositories/book_content_sqlite';
+import { useLocation, useParams } from 'react-router-dom';
+import { useStoryline } from '../usecase/useStoryline';
+import { useBookNode } from '../usecase/useBookNode';
+import { useBookContent } from '../usecase/useBookContent';
 import { parseOutline } from '../lib/outline';
 import type { OutlineItem } from '../schema/book_content';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
-import log from "loglevel";
-
-log.setLevel(log.levels.ERROR);
 import { useAuthStore, getProjectId } from '../store/auth';
 import { NodeHoverPreview } from './NodeHoverPreview';
+import { useDataStore } from '../store/data-store';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import log from "loglevel";
+log.setLevel(log.levels.ERROR);
 
 // Timeline 配置
 const TIMELINE_CONFIG = {
@@ -33,24 +33,98 @@ interface TimelineNode extends BookNode {
 }
 
 export function BottomTimeline() {
-  const navigate = useNavigate();
+  const { projectId, storylineId, nodeId } = useParams<{ projectId: string; storylineId?: string; nodeId?: string }>();
   const location = useLocation();
-  const { storylineId } = useParams<{ storylineId?: string }>();
-  const { bookNodes, selectedNodeId } = useAppStore();
-  const storedStorylines = useAppStore(state => state.storylines); // Get storylines from store
   const user = useAuthStore(state => state.user);
-  const storylineUsecases = useStorylineUsecases();
-  const nodeUsecases = useBookNodeUsecases();
-  const contentRepo = useRef(createBookContentRepository()).current;
+  const { bookNodes, storylines } = useDataStore();
+  const { loadNodes, createNode, updateNode, deleteNode } = useBookNode();
+  const { loadStorylines, addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline, setNodeStorylines } = useStoryline();
+  const { getOutlineByNodeId } = useBookContent();
+  const { navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
 
-  const [storylines, setStorylines] = useState<Storyline[]>([]);
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
+
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
+
   const [isExpanded, setIsExpanded] = useState(true);
-  const [isResizingHeight, setIsResizingHeight] = useState(false); // 是否正在调整高度
+  const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; storylineId: string } | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<{ storylineId: string; start: number; x: number } | null>(null);
   const [customTotalHeight, setCustomTotalHeight] = useState<number | null>(null); // 用户自定义的bottomTimeline总高度
+
+  // Load all nodes
+  useEffect(() => {
+    async function loadChapters() {
+      try {
+        loadNodes();
+      } catch (error) {
+        log.error('Failed to load chapters:', error);
+      }
+    }
+    loadChapters();
+  }, [loadNodes, user]);
+
+  // Load storylines and node-storyline relationships
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const projectId = getProjectId(user?.id);
+
+        // Load storylines from database and update store
+        await loadStorylines(projectId);
+
+        // Load storyline info for each node
+        const nodesWithStorylineInfo = await Promise.all(
+          bookNodes.map(async (node) => {
+            const nodeStorylines = await getStorylinesByNode(node.id);
+            return { ...node, storylines: nodeStorylines };
+          })
+        );
+        setNodesWithStorylines(nodesWithStorylineInfo);
+
+        // Initialize end state from database
+        const endsMap = new Map<string, number | null>();
+        bookNodes.forEach((node) => {
+          endsMap.set(node.id, node.end ?? null);
+        });
+        setNodeEnds(endsMap);
+      } catch (error) {
+        log.error('Failed to load timeline data:', error);
+      }
+    }
+
+    // Always load storylines, even if there are no nodes yet
+    loadData();
+  }, [bookNodes, loadStorylines, user, getStorylinesByNode]);
+
+  // Load outlines for all nodes
+  useEffect(() => {
+    async function loadOutlines() {
+      try {
+        const outlinesMap = new Map<string, OutlineItem[]>();
+
+        for (const node of nodesWithStorylines) {
+          const outlineJson = await getOutlineByNodeId(node.id);
+          if (outlineJson) {
+            try {
+              const outline = parseOutline(outlineJson);
+              outlinesMap.set(node.id, outline);
+            } catch (error) {
+              log.error(`Failed to parse outline for node ${node.id}:`, error);
+            }
+          }
+        }
+
+        setNodeOutlines(outlinesMap);
+      } catch (error) {
+        log.error('Failed to load outlines:', error);
+      }
+    }
+
+    if (nodesWithStorylines.length > 0) {
+      loadOutlines();
+    }
+  }, [nodesWithStorylines, getOutlineByNodeId]);
 
   // Context Menu 状态
   const [contextMenu, setContextMenu] = useState<{
@@ -228,102 +302,6 @@ export function BottomTimeline() {
     }
   };
 
-
-
-  // 更新全局 timeline 高度
-  useEffect(() => {
-    const height = getTimelineHeight();
-    const currentHeight = useAppStore.getState().timelineHeight;
-    // Only update if height actually changed to prevent infinite loops
-    if (height !== currentHeight) {
-      useAppStore.getState().setTimelineHeight(height);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, storylines.length, customTotalHeight]);
-
-  // Load chapters first
-  useEffect(() => {
-    async function loadChapters() {
-      try {
-        await nodeUsecases.loadNodes();
-      } catch (error) {
-        log.error('Failed to load chapters:', error);
-      }
-    }
-    loadChapters();
-  }, [nodeUsecases]);
-
-  // Load storylines and node-storyline relationships
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const projectId = getProjectId(user?.id);
-
-        // If store has storylines, use them; otherwise load from database
-        let allStorylines: Storyline[];
-        if (storedStorylines.length > 0) {
-          allStorylines = storedStorylines;
-        } else {
-          allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
-          // Sync to store so other components can access it
-          useAppStore.getState().setStorylines(allStorylines);
-        }
-
-        setStorylines(allStorylines);
-
-        // Load storyline info for each node
-        const nodesWithStorylineInfo = await Promise.all(
-          bookNodes.map(async (node) => {
-            const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
-            return { ...node, storylines: nodeStorylines };
-          })
-        );
-        setNodesWithStorylines(nodesWithStorylineInfo);
-
-        // Initialize end state from database
-        const endsMap = new Map<string, number | null>();
-        bookNodes.forEach((node) => {
-          endsMap.set(node.id, node.end ?? null);
-        });
-        setNodeEnds(endsMap);
-      } catch (error) {
-        log.error('Failed to load timeline data:', error);
-      }
-    }
-
-    // Always load storylines, even if there are no nodes yet
-    loadData();
-  }, [bookNodes, storylineUsecases, user, storedStorylines]);
-
-  // Load outlines for all nodes
-  useEffect(() => {
-    async function loadOutlines() {
-      try {
-        const outlinesMap = new Map<string, OutlineItem[]>();
-
-        for (const node of nodesWithStorylines) {
-          const content = await contentRepo.findByNodeId(node.id);
-          if (content && content.outlineJson) {
-            try {
-              const outline = parseOutline(content.outlineJson);
-              outlinesMap.set(node.id, outline);
-            } catch (error) {
-              log.error(`Failed to parse outline for node ${node.id}:`, error);
-            }
-          }
-        }
-
-        setNodeOutlines(outlinesMap);
-      } catch (error) {
-        log.error('Failed to load outlines:', error);
-      }
-    }
-
-    if (nodesWithStorylines.length > 0) {
-      loadOutlines();
-    }
-  }, [nodesWithStorylines, contentRepo]);
-
   // 计算 Context Menu 的位置，防止溢出视口
   const getContextMenuPosition = (x: number, y: number, menuWidth: number, menuHeight: number) => {
     const viewportWidth = window.innerWidth;
@@ -370,7 +348,7 @@ export function BottomTimeline() {
         case 'createChapter':
           if (contextMenu.type === 'storyline-empty' && contextMenu.storylineId && contextMenu.position) {
             // 创建新章节
-            const newNode = await nodeUsecases.createNode({
+            const newNode = await createNode({
               title: 'New Chapter',
               start: contextMenu.position,
               end: contextMenu.position + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
@@ -378,36 +356,30 @@ export function BottomTimeline() {
 
             // 将 node 添加到用户指定的 storyline
             // 因为这是第一个 storyline，storyline_order=0，它将成为此 node 的 primary storyline
-            await storylineUsecases.addNodeToStoryline(newNode.id, contextMenu.storylineId);
+            await addNodeToStoryline(newNode.id, contextMenu.storylineId);
 
             // 设置为选中状态并导航
-            useAppStore.getState().setSelectedNodeId(newNode.id);
-            navigate(`/editor/${newNode.id}`);
-            // 重新加载数据
-            await nodeUsecases.loadNodes();
+            navigateToNode(newNode.id);
           }
           break;
 
         case 'editChapter':
           if (contextMenu.type === 'node' && contextMenu.nodeId) {
-            // 导航到编辑器
-            useAppStore.getState().setSelectedNodeId(contextMenu.nodeId);
-            navigate(`/editor/${contextMenu.nodeId}`);
+            navigateToNode(contextMenu.nodeId);
           }
           break;
 
         case 'removeFromStoryline':
           if (contextMenu.type === 'node' && contextMenu.nodeId && contextMenu.storylineId) {
             // 获取当前 node 的所有 storylines
-            const nodeStorylines = await storylineUsecases.getStorylinesByNode(contextMenu.nodeId);
+            const nodeStorylines = await getStorylinesByNode(contextMenu.nodeId);
 
             // 如果这是唯一的 storyline，删除整个 node
             if (nodeStorylines.length === 1) {
-              await nodeUsecases.deleteNode(contextMenu.nodeId);
-              // 如果删除的是当前选中的节点，清除选中并导航
-              if (selectedNodeId === contextMenu.nodeId) {
-                useAppStore.getState().setSelectedNodeId(null);
-                navigate('/editor');
+              await deleteNode(contextMenu.nodeId);
+              // 如果删除的是当前选中的节点，导航到 home
+              if (nodeId === contextMenu.nodeId) {
+                navigateToHome();
               }
             } else {
               // 检查是否删除的是主 storyline（第一个 storyline）
@@ -420,15 +392,13 @@ export function BottomTimeline() {
                   .map(t => t.id);
 
                 // 第一个剩余的 storyline 会成为新的主 storyline
-                await storylineUsecases.setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
+                await setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
               } else {
                 // 如果不是主 storyline，直接删除
-                await storylineUsecases.removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
+                await removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
               }
             }
 
-            // 重新加载数据
-            await nodeUsecases.loadNodes();
             // 恢复滚动
             if (shouldRestoreScroll && scrollContainer) {
               requestAnimationFrame(() => {
@@ -441,14 +411,11 @@ export function BottomTimeline() {
         case 'deleteNode':
           if (contextMenu.type === 'node' && contextMenu.nodeId) {
             // 删除整个节点
-            await nodeUsecases.deleteNode(contextMenu.nodeId);
-            // 如果删除的是当前选中的节点，清除选中并导航
-            if (selectedNodeId === contextMenu.nodeId) {
-              useAppStore.getState().setSelectedNodeId(null);
-              navigate('/editor');
+            await deleteNode(contextMenu.nodeId);
+            // 如果删除的是当前选中的节点，导航到 home
+            if (nodeId === contextMenu.nodeId) {
+              navigateToHome();
             }
-            // 重新加载数据
-            await nodeUsecases.loadNodes();
             // 恢复滚动
             if (shouldRestoreScroll && scrollContainer) {
               requestAnimationFrame(() => {
@@ -459,11 +426,9 @@ export function BottomTimeline() {
           break;
 
         case 'addToStoryline':
-          if (contextMenu.type === 'storyline-with-selected' && contextMenu.storylineId && selectedNodeId) {
+          if (contextMenu.type === 'storyline-with-selected' && contextMenu.storylineId && nodeId) {
             // 添加选中的节点到此 storyline
-            await storylineUsecases.addNodeToStoryline(selectedNodeId, contextMenu.storylineId);
-            // 重新加载数据
-            await nodeUsecases.loadNodes();
+            await addNodeToStoryline(nodeId, contextMenu.storylineId);
             // 恢复滚动
             if (shouldRestoreScroll && scrollContainer) {
               requestAnimationFrame(() => {
@@ -559,17 +524,16 @@ export function BottomTimeline() {
             targetStorylineId,
             ...node.storylines.filter(t => t.id !== targetStorylineId).map(t => t.id)
           ];
-          await storylineUsecases.setNodeStorylines(node.id, newStorylineOrder);
+          await setNodeStorylines(node.id, newStorylineOrder);
         } else {
           // Target storyline is new to this node
           // Remove old primary storyline and add target as new primary
-          await storylineUsecases.removeNodeFromStoryline(node.id, sourceStorylineId);
-
+          await removeNodeFromStoryline(node.id, sourceStorylineId);
           // Add target storyline as the first (primary) storyline
           const remainingStorylineIds = node.storylines
             .filter(t => t.id !== sourceStorylineId)
             .map(t => t.id);
-          await storylineUsecases.setNodeStorylines(node.id, [targetStorylineId, ...remainingStorylineIds]);
+          await setNodeStorylines(node.id, [targetStorylineId, ...remainingStorylineIds]);
         }
       }
 
@@ -580,11 +544,9 @@ export function BottomTimeline() {
         const width = currentEnd !== null ? currentEnd - node.start : TIMELINE_CONFIG.NODE_DEFAULT_WIDTH;
         const newEnd = targetStart + width;
 
-        await nodeUsecases.updateNode(node.id, { start: targetStart, end: newEnd });
+        await updateNode(node.id, { start: targetStart, end: newEnd });
       }
 
-      // Reload data - 不恢复滚动位置，让浏览器保持自然状态
-      await nodeUsecases.loadNodes();
     } catch (error) {
       log.error('Failed to handle drop:', error);
     } finally {
@@ -685,15 +647,12 @@ export function BottomTimeline() {
 
         // 如果有任何更新，写入数据库
         if (Object.keys(updates).length > 0) {
-          await nodeUsecases.updateNode(resizingNode.nodeId, updates);
+          await updateNode(resizingNode.nodeId, updates);
         }
 
         // 保存滚动位置
         const scrollContainer = scrollContainerRef.current;
         const savedScrollLeft = scrollContainer?.scrollLeft || 0;
-
-        // 重新加载数据确保同步
-        await nodeUsecases.loadNodes();
 
         // 恢复滚动位置
         if (scrollContainer) {
@@ -715,16 +674,13 @@ export function BottomTimeline() {
         document.removeEventListener('mouseup', handleNodeResizeEnd);
       };
     }
-  }, [resizingNode, nodeUsecases, nodesWithStorylines, nodeEnds]);
+  }, [resizingNode, nodesWithStorylines, nodeEnds]);
 
   // Handle node click
   const handleNodeClick = (nodeId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止事件冒泡到 timeline 背景
-    // 设置选中状态
-    useAppStore.getState().setSelectedNodeId(nodeId);
-    // 避免重复导航到同一页面
-    if (location.pathname !== `/editor/${nodeId}`) {
-      navigate(`/editor/${nodeId}`);
+    e.stopPropagation();
+    if (location.pathname !== `/${projectId}/editor/${nodeId}`) {
+      navigateToNode(nodeId);
     }
   };
 
@@ -748,8 +704,10 @@ export function BottomTimeline() {
   const handleTimelineClick = () => {
     // 只在展开时响应点击
     if (!isExpanded) return;
-    // 点击任何空白处都取消选择（事件会被节点和按钮拦截）
-    useAppStore.getState().setSelectedNodeId(null);
+    // 点击任何空白处都导航到 home（事件会被节点和按钮拦截）
+    if (nodeId || storylineId) {
+      navigateToHome();
+    }
   };
 
   // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
@@ -796,7 +754,7 @@ export function BottomTimeline() {
   // Render a single node card
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylines.find((t) => t.id === storylineId);
-    const isSelected = selectedNodeId === node.id;
+    const isSelected = nodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
     const currentStorylineIndex = storylines.findIndex(t => t.id === storylineId);
     const defaultColor = '#00355bff';
@@ -1113,8 +1071,8 @@ export function BottomTimeline() {
     const nodesInStoryline = nodesWithStorylines.filter((n) => n.storylines.some((t) => t.id === storyline.id));
 
     // 检查选中的节点是否属于当前 storyline
-    const selectedNode = nodesWithStorylines.find((n) => n.id === selectedNodeId);
-    const selectedNodeBelongsToStoryline = selectedNode?.storylines.some((t) => t.id === storyline.id);
+    const selectedNode = nodeId ? nodesWithStorylines.find((n) => n.id === nodeId) : null;
+    const selectedNodeBelongsToStoryline = selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
     return (
       <div
@@ -1127,10 +1085,8 @@ export function BottomTimeline() {
           const isNodeClick = target.closest('[data-node-card]');
 
           if (!isNodeClick) {
-            // 点击在空白区域，导航到 storyline editor
-            useAppStore.getState().setSelectedNodeId(null);
-            if (location.pathname !== `/editor/storyline/${storyline.id}`) {
-              navigate(`/editor/storyline/${storyline.id}`);
+            if (location.pathname !== `/${projectId}/editor/storyline/${storyline.id}`) {
+              navigateToStoryline(storyline.id);
             }
           }
         }}
@@ -1168,7 +1124,7 @@ export function BottomTimeline() {
               nodeSummary: clickedNode.summary,
               nodeStorylines: clickedNode.storylines,
             });
-          } else if (selectedNodeId && !selectedNodeBelongsToStoryline) {
+          } else if (nodeId && !selectedNodeBelongsToStoryline) {
             // 选中了某个 node，且点击在空白处，可以添加 node 到此 storyline
             setContextMenu({
               x: e.clientX + 2,

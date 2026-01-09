@@ -207,6 +207,7 @@ CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
 CREATE TABLE IF NOT EXISTS book_content (
   id TEXT PRIMARY KEY,
   node_id TEXT NOT NULL UNIQUE,
+  project_id TEXT NOT NULL,
   pm_json TEXT NOT NULL DEFAULT '{}',
   outline_json TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL,
@@ -214,9 +215,11 @@ CREATE TABLE IF NOT EXISTS book_content (
   sync_status TEXT NOT NULL DEFAULT 'synced',
   last_modified INTEGER,
   is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE
+  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
+  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_book_content_node ON book_content(node_id);
+CREATE INDEX IF NOT EXISTS idx_book_content_project ON book_content(project_id);
 CREATE INDEX IF NOT EXISTS idx_book_content_sync ON book_content(sync_status) WHERE is_deleted = 0;
 
 -- Core element (element) table
@@ -313,6 +316,30 @@ CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(nod
   try {
     db.prepare("ALTER TABLE node_edge ADD COLUMN data TEXT").run();
   } catch (e) { /* ignore if exists */ }
+
+  // Add project_id to book_content if it doesn't exist
+  try {
+    db.prepare("ALTER TABLE book_content ADD COLUMN project_id TEXT NOT NULL DEFAULT 'default-project'").run();
+    log.info('[Database] Added project_id column to book_content table');
+  } catch (e) { 
+    // Column already exists, ignore
+  }
+
+  // Update existing book_content records to have project_id from their node
+  try {
+    db.prepare(`
+      UPDATE book_content 
+      SET project_id = (
+        SELECT sn.project_id 
+        FROM story_node sn 
+        WHERE sn.id = book_content.node_id
+      )
+      WHERE project_id IS NULL OR project_id = ''
+    `).run();
+    log.info('[Database] Updated book_content records with project_id from nodes');
+  } catch (e) {
+    log.error('[Database] Failed to update book_content project_id:', e);
+  }
 
   // Insert default project if not exists
   const now = new Date().toISOString();

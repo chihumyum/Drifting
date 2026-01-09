@@ -7,8 +7,8 @@ import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
+import { useDataStore } from '../store/data-store';
+import { useBookElement } from '../usecase/useBookElement';
 import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../viewComponents/editor/TagEditor';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
@@ -29,10 +29,10 @@ function getDefaultDoc(): JSONContent {
 export function ElementEditorView() {
   const navigate = useNavigate();
   const { elementId } = useParams<{ elementId: string }>();
-  const { bookElements, bookElementCategories } = useAppStore();
+  const { bookElements, bookElementCategories } = useDataStore();
 
-  const elementUsecases = useBookElementUsecases();
-  const { updateElement, loadInitial, _deps } = elementUsecases;
+  const elementUsecases = useBookElement();
+  const { updateElement, loadInitial } = elementUsecases;
   const [curElement, setCurElement] = useState<BookElement | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -45,14 +45,6 @@ export function ElementEditorView() {
 
   const isContentLoadedRef = useRef(false);
   const loadedElementIdRef = useRef<string | null>(null);
-
-  // Load elements on mount if not already loaded
-  useEffect(() => {
-    if (bookElements.length === 0) {
-      void loadInitial();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookElements.length]); // Only depend on length, not loadInitial to avoid loops
 
   // Get element from URL and update current element
   useEffect(() => {
