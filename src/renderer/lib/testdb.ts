@@ -1,6 +1,7 @@
 // Debug utility to check database content
-import log from 'loglevel';
-log.setLevel(log.levels.ERROR);
+import loglevel from 'loglevel';
+const log = loglevel.getLogger("TestDbLib");
+log.setLevel(loglevel.levels.ERROR);
 import { query } from './db';
 
 export async function debugDatabase() {

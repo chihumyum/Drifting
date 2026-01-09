@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import log from 'loglevel';
-log.setLevel(log.levels.ERROR);
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("StorylineAllChapterEditor");
+log.setLevel(loglevel.levels.ERROR);
 import type { BookNode } from '../../domain/book-node';
 import { useBookContent } from '../../usecase/useBookContent';
 import { ChapterSection } from './ChapterSection';
@@ -17,7 +19,7 @@ interface ChapterData {
 }
 
 export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: StorylineAllChapterProps) {
-  const { updateContent, createContent, getContentByNodeId } = useBookContent();
+  const { updateContentById, updateContentByNodeId, createContent, getContentByNodeId } = useBookContent();
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,8 +72,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
       const existingContent = await getContentByNodeId(nodeId);
 
       if (existingContent?.id) {
-        await updateContent({
-          id: existingContent.id,
+        await updateContentById(existingContent.id, {
           pmJson,
           outlineJson,
         });
@@ -93,7 +94,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
         )
       );
     },
-    [nodes, getContentByNodeId, updateContent, createContent]
+    [nodes, getContentByNodeId, updateContentById, updateContentByNodeId, createContent]
   );
 
   // 滚动到指定章节

@@ -1,7 +1,8 @@
 import apiClient, { handleApiError, tokenManager } from '../lib/api';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("AuthService");
+log.setLevel(loglevel.levels.ERROR);
 
 export interface User {
   id: string;

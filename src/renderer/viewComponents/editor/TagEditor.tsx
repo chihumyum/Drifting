@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import log from 'loglevel';
-log.setLevel(log.levels.ERROR);
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("TagEditor");
+log.setLevel(loglevel.levels.ERROR);
 import { X, Plus } from 'lucide-react';
 import { useNodeTag } from '../../usecase/useNodeTag';
 import { useBookElement } from '../../usecase/useBookElement';

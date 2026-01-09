@@ -5,9 +5,10 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
 import { useAuthStore, getProjectId } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("LeftQuickButtons");
+log.setLevel(loglevel.levels.ERROR);
 
 // Storyline color palette
 const STORYLINE_COLORS = [

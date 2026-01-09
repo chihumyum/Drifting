@@ -8,8 +8,9 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { NodeHoverPreview } from './NodeHoverPreview';
-import log from "loglevel";
-log.setLevel(log.levels.ERROR);
+import loglevel from "loglevel";
+const log = loglevel.getLogger("TopTimeline");
+log.setLevel(loglevel.levels.ERROR);
 
 /* A flexible component for showing all types of stuff in safari compact tab style
   storyline -> nodes 

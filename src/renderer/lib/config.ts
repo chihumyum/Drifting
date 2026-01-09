@@ -1,8 +1,9 @@
 // Configuration for local-first development
 // This file controls whether the app uses online features or runs fully offline
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ConfigLib");
+log.setLevel(loglevel.levels.ERROR);
 
 /**
  * Local-first mode configuration (Obsidian-style)

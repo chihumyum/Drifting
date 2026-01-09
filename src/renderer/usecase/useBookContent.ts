@@ -5,9 +5,10 @@ import type { NodeContent } from '../domain/node-content';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
 import type { SyncTaskType } from '../lib/sync/types';
-import log from 'loglevel';
+import loglevel from 'loglevel';
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("UseBookContent");
+log.setLevel(loglevel.levels.DEBUG);
 
 const canSync = () => {
     const { isAuthenticated } = useAuthStore.getState();
@@ -48,43 +49,71 @@ const enqueueContentTask = (
 };
 
 export function useBookContent() {
-    const repoRef = useRef(createBookContentRepository());
-    const repo = repoRef.current;
+    const contentRepoRef = useRef(createBookContentRepository());
+    const contentRepo = contentRepoRef.current;
     
     const getContentByNodeId = useCallback(
-        (nodeId: string) => repo.findByNodeId(nodeId),
-        [repo]
+        (nodeId: string) => contentRepo.findByNodeId(nodeId),
+        [contentRepo]
     );
     
     const getContentById = useCallback(
-        (id: string) => repo.findById(id),
-        [repo]
+        (id: string) => contentRepo.findById(id),
+        [contentRepo]
+    );
+
+    const updateContentByNodeId = useCallback(
+        async (nodeId: string, updates: Partial<NodeContent>) => {
+            const cont = await contentRepo.findByNodeId(nodeId);
+            if (!cont) {
+                throw new Error(`Content with nodeId: ${nodeId} not found`);
+            }
+            const now = new Date().toISOString();
+            const updatedData = {
+                ...cont,
+                ...updates,
+                updatedAt: now,
+            };
+
+            // Use projectId and nodeId from existing content for sync
+            if (canSync()) {
+                enqueueContentTask('update', cont.nodeId, cont.projectId, {
+                    pmJson: updatedData.pmJson,
+                    outlineJson: updatedData.outlineJson,
+                });
+            }
+
+            return contentRepo.update(cont.id, updatedData);
+        },
+        [contentRepo]
+    );
+
+    const updateContentById = useCallback(
+        async (id: string, updates: Partial<NodeContent>) => {
+            const cont = await contentRepo.findById(id);
+            if (!cont) {
+                throw new Error(`Content with id: ${id} not found`);
+            }
+            const now = new Date().toISOString();
+            const updatedData = {
+                ...cont,
+                ...updates,
+                updatedAt: now,
+            };
+
+            // Use projectId and nodeId from existing content for sync
+            if (canSync()) {
+                enqueueContentTask('update', cont.nodeId, cont.projectId, {
+                    pmJson: updatedData.pmJson,
+                    outlineJson: updatedData.outlineJson,
+                });
+            }
+
+            return contentRepo.update(id, updatedData);
+        },
+        [contentRepo]
     );
     
-    const updateContent = useCallback(async (updates: Partial<NodeContent>) => {
-        const now = new Date().toISOString();
-        
-        // First get existing content to retrieve projectId and nodeId
-        const existing = await repo.findById(updates.id!);
-        if (!existing) {
-            throw new Error(`Content ${updates.id} not found`);
-        }
-        
-        const updatedData = {
-            ...updates,
-            updatedAt: now,
-        };
-
-        // Use projectId and nodeId from existing content for sync
-        if (canSync()) {
-            enqueueContentTask('update', existing.nodeId, existing.projectId, {
-                pmJson: updatedData.pmJson,
-                outlineJson: updatedData.outlineJson,
-            });
-        }
-
-        await repo.update(updatedData.id!, updatedData);
-    }, [repo]);
     
     const createContent = useCallback(async (
         nodeId: string, 
@@ -104,7 +133,7 @@ export function useBookContent() {
             updatedAt: now,
         };
         
-        const created = await repo.create(newContent);
+        const created = await contentRepo.create(newContent);
 
         if (canSync()) {
             enqueueContentTask('create', nodeId, projectId, {
@@ -114,18 +143,19 @@ export function useBookContent() {
         }
         
         return created;
-    }, [repo]);
+    }, [contentRepo]);
     
     const getOutlineByNodeId = useCallback(async (nodeId: string) => {
-        const content = await repo.findByNodeId(nodeId);
+        const content = await contentRepo.findByNodeId(nodeId);
         return content?.outlineJson;
-    }, [repo]);
+    }, [contentRepo]);
     
     return useMemo(() => ({
         getContentByNodeId,
         getContentById,
-        updateContent,
+        updateContentById,
+        updateContentByNodeId,
         createContent,
         getOutlineByNodeId,
-    }), [getContentByNodeId, getContentById, updateContent, createContent, getOutlineByNodeId]);
+    }), [getContentByNodeId, getContentById, updateContentById, updateContentByNodeId, createContent, getOutlineByNodeId]);
 }

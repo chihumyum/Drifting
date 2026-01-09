@@ -5,9 +5,10 @@ import { useUiStore } from '../../store/ui-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
 import type { BookElement } from '../../domain/book-element';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ElementPanel");
+log.setLevel(loglevel.levels.ERROR);
 
 // Default category colors as fallback
 const DEFAULT_CATEGORY_COLORS = [

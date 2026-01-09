@@ -13,12 +13,13 @@ import { ElementParserService } from '../../services/element-parser.service';
 import { ElementOccurrenceRepository } from '../../repositories/element-occurrence.repository';
 import { useSettingsStore } from '@/renderer/store/settings-store';
 import { TagEditor } from './TagEditor';
-import log from 'loglevel';
+import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
+const log = loglevel.getLogger('ChapterEditor');
+// log.setLevel(loglevel.levels.DEBUG);
 log.setLevel(log.levels.ERROR);
 
 // editor component with built-in element tracking and outline extraction, and more
-const DEFAULT_DOC: JSONContent = { type: 'doc', content: [] };
 
 interface ChapterEditorProps {
   nodeId: string;
@@ -76,12 +77,11 @@ export function ChapterEditor({
   const { autoElementLinkEnabled }= useSettingsStore();
   const isContentLoadedRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const loadedNodeIdRef = useRef<string | null>(null);
 
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [editingSummary, setEditingSummary] = useState(false);
   const [titleValue, setTitleValue] = useState(title);
   const [summaryValue, setSummaryValue] = useState(summary);
+
+
 
   // 同步外部 title/summary 变化
   useEffect(() => {
@@ -155,7 +155,7 @@ export function ChapterEditor({
       }),
       createDefaultSlashMenu(),
     ],
-    content: DEFAULT_DOC,
+    content: null,
     autofocus: autoFocus ? 'end' : false,
     editorProps: {
       attributes: {
@@ -165,10 +165,6 @@ export function ChapterEditor({
       },
     },
     onUpdate: ({ editor: ed }) => {
-      if (!isContentLoadedRef.current) {
-        log.warn('isContentLoadedRef is false');
-        return;
-      }
 
       const json = ed.getJSON();
       const pmJson = JSON.stringify(json);
@@ -179,10 +175,22 @@ export function ChapterEditor({
       const outlineJson = serializeOutline(outline);
       log.debug('Outline JSON:', outlineJson);
       parseAndSaveElementOccurrences(json);
-      log.trace('Updating node', nodeId, 'with content:', pmJson);
+      log.debug('Updating node', nodeId, 'with content:', pmJson);
       onContentUpdate(nodeId, pmJson, outlineJson);
     },
   });
+
+  // load content into editor
+  useEffect(() => {
+    if (editor && content && !isContentLoadedRef.current) {
+      editor.commands.setContent(JSON.parse(content));
+      isContentLoadedRef.current = true;
+    } else {
+      if (!isContentLoadedRef.current) {
+        log.error('Editor not ready');
+      }
+    }
+  }, [editor, content]);
 
   // 暴露方法给父组件
   useImperativeHandle(forwardedRef, () => ({
@@ -198,44 +206,6 @@ export function ChapterEditor({
     elementAutoLinkConfig.elementNames = elementNamesMap;
   }, [autoElementLinkEnabled, elementNamesMap]);
 
-  // 加载内容到编辑器
-  useEffect(() => {
-    if (!editor) return;
-
-    // 阻止在内容加载期间触发 onContentChange
-    isContentLoadedRef.current = false;
-
-    try {
-      const json = content ? JSON.parse(content) : DEFAULT_DOC;
-
-      // 只有当内容真的不同时才更新（避免不必要的渲染）
-      const currentContent = editor.getJSON();
-      if (JSON.stringify(currentContent) === JSON.stringify(json)) {
-        isContentLoadedRef.current = true;
-        loadedNodeIdRef.current = nodeId;
-        return;
-      }
-
-      editor.commands.setContent(json);
-
-      if (autoFocus && loadedNodeIdRef.current !== nodeId) {
-        setTimeout(() => {
-          if (editor.view) {
-            editor.commands.focus('end');
-            editor.commands.setTextSelection(editor.state.doc.content.size);
-          }
-        }, 0);
-      }
-    } catch (error) {
-      log.error('Failed to parse chapter content', error);
-      editor.commands.setContent(DEFAULT_DOC);
-    }
-
-    setTimeout(() => {
-      isContentLoadedRef.current = true;
-      loadedNodeIdRef.current = nodeId;
-    }, 0);
-  }, [editor, content, nodeId, autoFocus]);
 
   // 清理定时器
   useEffect(() => {
@@ -246,23 +216,20 @@ export function ChapterEditor({
     };
   }, []);
 
-  // 处理标题保存
   const handleTitleSave = () => {
-    setEditingTitle(false);
     if (onTitleUpdate && titleValue.trim() && titleValue !== title) {
       onTitleUpdate(nodeId, titleValue.trim());
     }
   };
 
-  // 处理摘要保存
   const handleSummarySave = () => {
-    setEditingSummary(false);
     if (onSummaryUpdate && summaryValue !== summary) {
       onSummaryUpdate(nodeId, summaryValue.trim() || null);
     }
   };
 
   if (!editor) {
+    log.error('Editor not initialized');
     return null;
   }
 
@@ -301,43 +268,24 @@ export function ChapterEditor({
                       editor?.commands.focus('start');
                     } else if (e.key === 'Escape') {
                       setTitleValue(title);
-                      setEditingTitle(false);
+                      e.currentTarget.blur();
                     }
                   }}
                   onFocus={(e) => e.target.select()}
-                  autoFocus
                   style={{
                     width: '100%',
                     fontSize: compact ? 20 : 28,
                     fontWeight: 700,
-                    color: '#2a1a0a',
-                    border: '2px solid var(--accent, #b89968)',
-                    borderRadius: 8,
-                    padding: '8px 12px',
+                    background: 'transparent',
                     outline: 'none',
-                    background: '#fefdfb',
                   }}
                 />
               ) : (
                 <div
-                  onClick={() => editableTitle && setEditingTitle(true)}
                   style={{
                     fontSize: compact ? 20 : 28,
                     fontWeight: 600,
-                    color: '#1a1625',
-                    cursor: editableTitle ? 'pointer' : 'default',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    transition: 'background 0.15s ease',
-                    minHeight: compact ? 36 : 48,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (editableTitle) {
-                      e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
+                    background: 'transparent',
                   }}
                 >
                   {titleValue || 'Untitled Chapter'}
@@ -346,10 +294,22 @@ export function ChapterEditor({
             </div>
           )}
 
+          {/* Tags */}
+          {showTags && (
+            <div
+              style={{
+                padding: compact ? '12px 24px' : '0',
+                borderLeft: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
+              }}
+            >
+              <TagEditor type="node" entityId={nodeId} />
+            </div>
+          )}
           {/* Summary */}
+          {/* TODO: remove to outline panel */}
           {showSummary && (
             <div style={{ flex: 1 }}>
-              {editingSummary && editableSummary ? (
+              {editableSummary ? (
                 <textarea
                   value={summaryValue}
                   onChange={(e) => setSummaryValue(e.target.value)}
@@ -357,47 +317,26 @@ export function ChapterEditor({
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
                       setSummaryValue(summary);
-                      setEditingSummary(false);
+                      e.currentTarget.blur();
                     }
                   }}
-                  autoFocus
                   style={{
                     width: '100%',
-                    minHeight: compact ? 60 : 80,
                     fontSize: 14,
                     fontWeight: 400,
+                    background: 'transparent',
                     color: '#5a4a3a',
-                    border: '2px solid var(--accent, #b89968)',
-                    borderRadius: 8,
-                    padding: '8px 12px',
+                    resize: 'none',
+                    overflow: 'hidden',
                     outline: 'none',
-                    background: '#fefdfb',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
                   }}
                 />
               ) : (
                 <div
-                  onClick={() => editableSummary && setEditingSummary(true)}
                   style={{
                     fontSize: 14,
                     fontWeight: 400,
-                    color: compact ? 'rgba(0, 0, 0, 0.55)' : '#4a4358',
-                    fontStyle: compact ? 'italic' : 'normal',
-                    cursor: editableSummary ? 'pointer' : 'default',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    transition: 'background 0.15s ease',
-                    minHeight: compact ? 36 : 48,
-                    lineHeight: 1.6,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (editableSummary) {
-                      e.currentTarget.style.background = 'rgba(139, 127, 168, 0.08)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
+                    background: 'transparent',
                   }}
                 >
                   {summaryValue || (editableSummary ? 'Click to add summary...' : '')}
@@ -413,18 +352,6 @@ export function ChapterEditor({
         <EditorContent editor={editor} />
       </div>
 
-      {/* Tags */}
-      {showTags && (
-        <div
-          style={{
-            marginTop: compact ? 12 : 20,
-            padding: compact ? '12px 24px' : '0',
-            borderTop: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
-          }}
-        >
-          <TagEditor type="node" entityId={nodeId} />
-        </div>
-      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { User } from './auth.service';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("UserService");
+log.setLevel(loglevel.levels.ERROR);
 
 export interface UpdateUserInput {
   username?: string;

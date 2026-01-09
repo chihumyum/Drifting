@@ -10,8 +10,9 @@
  * 3. 入队后台同步任务到 SyncManager
  */
 
-import log from 'loglevel';
-log.setLevel(log.levels.ERROR);
+import loglevel from 'loglevel';
+const log = loglevel.getLogger("SyncService");
+log.setLevel(loglevel.levels.ERROR);
 import { syncManager } from './sync-manager';
 import type { SyncTaskInput, SyncTaskEntity, SyncEventType } from './types';
 

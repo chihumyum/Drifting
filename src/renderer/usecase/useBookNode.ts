@@ -8,9 +8,10 @@ import { initDatabase } from '../lib/db';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { syncManager } from '../lib/sync/sync-manager';
 import type { SyncTaskType } from '../lib/sync/types';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("UseBookNode");
+log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateBookNodeInput {
   title: string;

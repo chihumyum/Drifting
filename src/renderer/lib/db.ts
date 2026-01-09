@@ -1,8 +1,9 @@
 // Database interface for Electron
 // This replaces the web worker-based implementation with IPC to main process
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("DbLib");
+log.setLevel(loglevel.levels.ERROR);
 
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;

@@ -28,9 +28,10 @@ import {
   cleanupSyncedDeletedElements,
   cleanupSyncedDeletedCategories,
 } from '../../repositories/book_element_sqlite';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("SyncPullService");
+log.setLevel(loglevel.levels.ERROR);
 import { syncManager } from './sync-manager';
 import { createTraceId, runWithSyncTraceId } from '../trace';
 

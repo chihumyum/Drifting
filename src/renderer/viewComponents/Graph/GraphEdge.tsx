@@ -1,9 +1,10 @@
 import { memo } from 'react';
 import { BookNodeEdge } from '../../domain/book-node';
 import { BookNodePosition } from '../../domain/book-node';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("GraphEdge");
+log.setLevel(loglevel.levels.ERROR);
 
 interface GraphEdgeProps {
     edge: BookNodeEdge;

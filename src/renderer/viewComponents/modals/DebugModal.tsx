@@ -8,9 +8,10 @@ import { useState } from 'react';
 import { X, Database, Server, RefreshCw, Copy, Check } from 'lucide-react';
 import { debugApi, type DebugData } from '../../services/api/debug-api';
 import { useAuthStore } from '../../store/auth';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("DebugModal");
+log.setLevel(loglevel.levels.ERROR);
 import { query } from '../../lib/db';
 
 interface DebugModalProps {

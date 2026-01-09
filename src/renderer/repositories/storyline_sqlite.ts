@@ -5,9 +5,10 @@ import type { StorylineRecord } from '../schema/storyline';
 import { TABLES } from '../schema/table';
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("StorylineSqliteRepository");
+log.setLevel(loglevel.levels.ERROR);
 
 const esc = (v: string) => v.replaceAll("'", "''");
 

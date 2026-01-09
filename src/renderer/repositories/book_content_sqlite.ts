@@ -5,8 +5,10 @@ import type { BookContentRepository } from './book_content';
 import { v7 as uuidv7 } from 'uuid';
 import { run, query } from '../lib/db';
 import type { SyncStatus } from '../lib/sync/types';
-import log from 'loglevel';
-log.setLevel(log.levels.ERROR);
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("BookContentSqliteRepository");
+log.setLevel(loglevel.levels.TRACE);
 
 export function recordToBookContent(record: BookContentRecord): NodeContent {
   return {

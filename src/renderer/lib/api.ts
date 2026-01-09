@@ -2,9 +2,10 @@ import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import type { AuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ApiLib");
+log.setLevel(loglevel.levels.ERROR);
 
 // API 基础配置
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';

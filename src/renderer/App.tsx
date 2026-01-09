@@ -9,21 +9,18 @@ import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
 import { LeftQuickButtons } from './viewComponents/leftBars/LeftQuickButtons';
-import { LeftSidebar } from './viewComponents/leftBars/LeftSidebar';
-import { BottomTimeline } from './viewComponents/BottomTimeline';
+import { Sidebar } from './viewComponents/Sidebar';
+import { BottomTimeline } from './viewComponents/BottomTimeline/BottomTimeline';
 import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './viewComponents/modals/SettingsModal';
-import { LeftSidebarTopBar } from './viewComponents/topBars/LeftSidebarTopBar';
-import { MainTopBar } from './viewComponents/topBars/MainTopBar';
-import { NewEntityButton } from './viewComponents/topBars/NewEntityButton';
-import { TopTimeline } from './viewComponents/TopTimeline';
 import { initAccentColor } from './lib/theme';
-import { useDataStore } from './store/data-store';
-import { useSettingsStore } from './store/settings-store';
 import { useUiStore } from './store/ui-store';
 import { useProject } from './usecase/useProject';
-import log from "loglevel";
-log.setLevel(log.levels.ERROR);
+import { AppTopbar } from './viewComponents/AppTopbar';
+import loglevel from "loglevel";
+
+const log = loglevel.getLogger("App");
+log.setLevel(loglevel.levels.ERROR);
 
 function Layout() {
   const location = useLocation();
@@ -31,7 +28,6 @@ function Layout() {
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const { initializeProject } = useProject();
 
   useEffect(() => {
@@ -40,14 +36,17 @@ function Layout() {
 
     // Initialize database for the current project
     // Use projectId from URL params
-    const currentProjectId = projectId || DEFAULT_PROJECT.id;
+    if (!projectId) {
+      log.error('No projectId found in URL params');
+      return;
+    }
 
-    log.info('[App] Initializing database for project:', currentProjectId);
+    log.info('[App] Initializing database for project:', projectId);
 
-    initDatabase(currentProjectId).then(async () => {
+    initDatabase(projectId).then(async () => {
       events.emit('db:ready');
-      log.info('[App] Database ready for project:', currentProjectId);
-      await initializeProject(currentProjectId);
+      log.info('[App] Database ready for project:', projectId);
+      await initializeProject(projectId);
     }).catch(error => {
       log.error('Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
@@ -60,11 +59,8 @@ function Layout() {
     events.on('settings:open', handleOpenSettings);
     const handleOpenSearch = () => setIsSearchOpen(true);
     events.on('search:open', handleOpenSearch);
-    const handleToggleLeftSidebar = () => { setIsLeftSidebarOpen(prev => !prev)};
-    events.on('left-sidebar:toggle', handleToggleLeftSidebar);
     
     return () => {
-      events.off('left-sidebar:toggle', handleToggleLeftSidebar);
       events.off('settings:open', handleOpenSettings);
       events.off('search:open', handleOpenSearch);
     };
@@ -87,74 +83,83 @@ function Layout() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isGraphViewOpen, setGraphViewOpen]);
-
-  return (
-    <div style={{ height: '100vh', overflow: 'hidden', background: 'rgba(251, 249, 243, 1)' }}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '280px 1fr',
-          overflow: 'hidden',
-        }}
-      >       
-      {/* Left Sidebar - 使用抽象的 LeftSidebar 组件 */}
-        <LeftSidebar
-          topBar={<LeftSidebarTopBar />}
-          collapsible={true}
-        >
-          {/* 可插拔的内容区域 */}
-          {/* App Menu Section */}
+return (
+    // 1. 最外层容器：占满屏幕，垂直排列 (中间内容 + 底部时间轴)
+    <div
+      style={{
+        height: '100vh',
+        width: '100vw',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
+      <AppTopbar />
+      {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        
+        {/* Left Sidebar */}
+        {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
+        <Sidebar sidebarType="left" >
           <div style={{ flexShrink: 0 }}>
             <LeftQuickButtons />
           </div>
-
-          {/* Element Panel Section - Remaining space */}
-          <div style={{
-            flex: 1,
-            minHeight: 0,
-            borderTop: '1px solid rgba(145, 145, 145, 0.25)',
-            position: 'relative',
-            overflow: 'visible',
-          }}>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0, // 关键：防止 flex 子元素溢出
+              borderTop: '1px solid rgba(145, 145, 145, 0.25)',
+              position: 'relative',
+            }}
+          >
             <ElementPanel />
           </div>
-        </LeftSidebar>
+        </Sidebar>
 
         {/* Main Content Area */}
+        {/* flex: 1 让它自动填满侧边栏右侧的剩余宽度 */}
         <main
           style={{
-            position: 'relative',
-            overflow: 'hidden',
-            background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
+            position: 'relative',
+            minWidth: 0, // 关键：防止 flex 子元素被宽内容撑爆
+            background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
           }}
         >
-          {/* 主区域 TopBar - 第二段（可拖拽） */}
-          <MainTopBar rightContent={<NewEntityButton />}>
-            <TopTimeline />
-          </MainTopBar>
+          
+          {/* Debug Location */}
+          <div style={{ flexShrink: 0 }}>{location.pathname}</div>
 
-          {/* 内容区域 */}
-          <div style={{
-            flex: 1,
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
+          {/* Scrollable Content */}
+          {/* flex: 1 这里的 overflow: auto 才是真正的滚动区域 */}
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              position: 'relative',
+            }}
+          >
             <Outlet />
           </div>
         </main>
+        <Sidebar sidebarType="right" >
+          {/* Right Sidebar Content */}
+        </Sidebar>
+        
       </div>
 
-      {/* Timeline Chapters - Fixed at bottom, full width */}
-      <BottomTimeline />
+      {/* 3. 底部时间轴：固定在底部，自然高度 */}
+      {/* 不使用 position: fixed，而是作为 flex 的最后一个子元素 */}
+      <div style={{ flexShrink: 0, zIndex: 10 }}>
+        <BottomTimeline />
+      </div>
 
-      {/* Graph View Overlay */}
+      {/* Overlays / Modals (绝对定位层) */}
       {isGraphViewOpen && <GraphView />}
-
-      {/* Settings Modal */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      {/* SyncStatusHUD disabled in local-only mode */}
     </div>
   );
 }

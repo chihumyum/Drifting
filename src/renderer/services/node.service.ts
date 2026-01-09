@@ -1,8 +1,9 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookNode } from '../domain/book-node';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("NodeService");
+log.setLevel(loglevel.levels.ERROR);
 
 export interface BookNodeCreateData {
   projectId: string;

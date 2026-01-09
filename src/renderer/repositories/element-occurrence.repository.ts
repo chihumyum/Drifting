@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ElementOccurrenceRepository");
+log.setLevel(loglevel.levels.ERROR);
 
 /**
  * Element Occurrence 记录接口

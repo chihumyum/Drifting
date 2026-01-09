@@ -13,9 +13,10 @@ import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../viewComponents/editor/TagEditor';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ElementEditorView");
+log.setLevel(loglevel.levels.ERROR);
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',

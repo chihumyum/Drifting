@@ -13,9 +13,10 @@ import type { BookElementCategory } from '../domain/book-element';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { X, Eye } from 'lucide-react';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("CategoryEditorView");
+log.setLevel(loglevel.levels.ERROR);
 
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',

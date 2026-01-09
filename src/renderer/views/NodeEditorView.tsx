@@ -4,12 +4,13 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
 import type { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
-import log from "loglevel";
-import { Loader2 } from 'lucide-react';
+import loglevel from "loglevel";
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("NodeEditorView");
+log.setLevel(loglevel.levels.ERROR);
+// log.setLevel(loglevel.levels.DEBUG);
 
 export function NodeEditorView() {
   // stuff for geting a node
@@ -21,11 +22,9 @@ export function NodeEditorView() {
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, loadNodes } = useBookNode();
-  const { getContentById, getContentByNodeId, updateContent, createContent } = useBookContent();
+  const { getContentById, getContentByNodeId, updateContentById, updateContentByNodeId, createContent } = useBookContent();
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
-  // Loading state to prevent rendering editor with empty content during fetch
-  const [isLoading, setIsLoading] = useState(false);
 
   // get nodeId from url params
   useEffect(() => {
@@ -46,9 +45,10 @@ export function NodeEditorView() {
     }
 
     const fetchContent = async () => {
-      setIsLoading(true);
       try {
+        log.debug('[NodeEditor] Fetching content for nodeId', nodeId);
         const cont = await getContentByNodeId(nodeId);
+        log.debug('[NodeEditor] Fetched content:', cont);
         if (!cont) {
           log.error('[NodeEditor] No content found for nodeId', nodeId);
         }
@@ -59,7 +59,7 @@ export function NodeEditorView() {
     };
 
     void fetchContent();
-  }, [nodeId, getContentById]);
+  }, [nodeId, getContentByNodeId]);
 
 
   const handleTitleUpdate = useCallback(
@@ -94,12 +94,12 @@ export function NodeEditorView() {
           }
           return prev;
         });
-        updateContent({ nodeId: targetNodeId, pmJson, outlineJson });
+        updateContentByNodeId(targetNodeId, { pmJson, outlineJson });
       } catch (error) {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [updateContent]
+    [updateContentByNodeId, bookNodes]
   );
 
   const handleElementClick = useCallback(
@@ -112,21 +112,16 @@ export function NodeEditorView() {
   return (
     <div
       style={{
-        position: 'absolute',
-        inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fefdfb',
-        overflow: 'hidden',
       }}
     >
       {/* Main Editor Container */}
       <div
-        data-editor-scroll
+      className='main-editor'
         style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '72px 56px 32px 56px',
+          // flex: 1,
+          // overflow: 'auto',
         }}
       >
         <div
@@ -146,18 +141,7 @@ export function NodeEditorView() {
               position: 'relative',
             }}
           >
-            {isLoading ? (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '400px',
-                color: '#b89968'
-              }}>
-                <Loader2 className="animate-spin" size={32} />
-              </div>
-            ) : (
-              nodeId && bookContent && bookContent.nodeId === nodeId && curNode && (
+            {nodeId && bookContent && bookContent.nodeId === nodeId && curNode && (
                 <ChapterEditor
                   ref={editorRef}
                   nodeId={nodeId}
@@ -177,7 +161,7 @@ export function NodeEditorView() {
                   minHeight="400px"
                 />
               )
-            )}
+            }
           </div>
         </div>
       </div>

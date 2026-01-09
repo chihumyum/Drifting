@@ -8,9 +8,10 @@
  */
 
 import { syncManager } from './sync-manager';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("HybridRepository");
+log.setLevel(loglevel.levels.ERROR);
 import type { SyncTaskEntity } from './types';
 
 export interface HybridRepositoryConfig {

@@ -13,9 +13,10 @@ import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("StorylineEditorView");
+log.setLevel(loglevel.levels.ERROR);
 const DEFAULT_DOC_STRING = JSON.stringify({
   type: 'doc',
   content: [],

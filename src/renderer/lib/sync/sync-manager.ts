@@ -21,9 +21,10 @@ import type {
   SyncEventType,
   SyncStatus,
 } from './types';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("SyncManager");
+log.setLevel(loglevel.levels.ERROR);
 
 type SyncEventHandler = (...args: unknown[]) => void;
 

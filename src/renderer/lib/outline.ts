@@ -1,9 +1,10 @@
 import type { JSONContent } from '@tiptap/core';
 import type { OutlineItem } from '../schema/book_content';
 import { uuidv7 } from 'uuidv7';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("OutlineLib");
+log.setLevel(loglevel.levels.ERROR);
 
 /**
  * Extract outline structure from TipTap JSON content

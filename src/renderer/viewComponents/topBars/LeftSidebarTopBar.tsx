@@ -1,10 +1,12 @@
 import { Settings, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { events } from '../../lib/events.ts';
-import { useState } from 'react';
+import { useUiStore } from '../../store/ui-store';
 
 export function LeftSidebarTopBar() {
   const isMac = navigator.userAgent.includes('Mac');
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+  const isLeftSidebarOpen = useUiStore((state) => state.sidebars.left.isOpen);
+  const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+
   if (!isMac) {
     return null;
   }
@@ -18,8 +20,7 @@ export function LeftSidebarTopBar() {
   };
 
   const handleToggleLeftSidebar = () => {
-    events.emit('left-sidebar:toggle');
-    setIsLeftSidebarOpen(!isLeftSidebarOpen);
+    toggleSidebar('left');
   };
 
 
@@ -37,66 +38,71 @@ export function LeftSidebarTopBar() {
         flexShrink: 0,
         borderBottom: '1px solid rgba(213, 213, 213, 0.15)',
         WebkitAppRegion: 'drag', // 允许拖拽窗口
-        border: '2px solid rgba(0, 0, 0, 1)',
+        // border: '2px solid rgba(0, 0, 0, 1)', 
+        width: '100%',
       } as React.CSSProperties}
     >
-      <button
-        onClick={handleOpenSettings}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          borderRadius: '6px',
-          border: 'none',
-          background: 'transparent',
-          color: '#5a5a5a',
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-          WebkitAppRegion: 'no-drag', // 按钮区域不可拖拽
-        } as React.CSSProperties}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
-        }}
-        title="Settings"
-      >
-        <Settings size={iconSize} />
-      </button>
-      <button
-        onClick={handleOpenSearch}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          borderRadius: '6px',
-          border: 'none',
-          background: 'transparent',
-          color: '#5a5a5a',
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-          WebkitAppRegion: 'no-drag',
-          marginRight: 'auto',
-        } as React.CSSProperties}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
-        }}
-        title="Search"
-      >
-        <Search size={iconSize} />
-      </button>
+      {isLeftSidebarOpen && (
+        <>
+        <button
+          onClick={handleOpenSettings}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            borderRadius: '6px',
+            border: 'none',
+            background: 'transparent',
+            color: '#5a5a5a',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            WebkitAppRegion: 'no-drag', // 按钮区域不可拖拽
+          } as React.CSSProperties}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
+            e.currentTarget.style.color = '#3a3a3a';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#5a5a5a';
+          }}
+          title="Settings"
+        >
+          <Settings size={iconSize} />
+        </button>
+        <button
+          onClick={handleOpenSearch}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            borderRadius: '6px',
+            border: 'none',
+            background: 'transparent',
+            color: '#5a5a5a',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            WebkitAppRegion: 'no-drag',
+            marginRight: 'auto',
+          } as React.CSSProperties}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
+            e.currentTarget.style.color = '#3a3a3a';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#5a5a5a';
+          }}
+          title="Search"
+        >
+          <Search size={iconSize} />
+        </button>
+        </>
+      )}
       {/* white space */}
       <button
         onClick={handleToggleLeftSidebar}

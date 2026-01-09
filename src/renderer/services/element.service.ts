@@ -1,8 +1,9 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ElementService");
+log.setLevel(loglevel.levels.ERROR);
 
 /**
  * 元素服务 - 对应后端 /elements API

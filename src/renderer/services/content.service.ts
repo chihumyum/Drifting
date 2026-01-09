@@ -1,8 +1,9 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { NodeContent } from '../domain/node-content';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("ContentService");
+log.setLevel(loglevel.levels.ERROR);
 
 /**
  * 内容服务 - 对应后端 /nodes/:nodeId/content API

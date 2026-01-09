@@ -9,8 +9,10 @@ import type {
   BookNodeEdgeCreateData,
   BookNodeEdgeUpdateData,
 } from './book_node';
-import log from 'loglevel';
-log.setDefaultLevel(log.levels.DEBUG);
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("BookNodeSqliteRepository");
+log.setLevel(loglevel.levels.DEBUG);
 
 
 type SyncStatus = 'synced' | 'pending' | 'syncing' | 'failed';

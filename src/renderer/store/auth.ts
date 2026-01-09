@@ -5,9 +5,10 @@ import type { LoginDto, RegisterDto } from '../services/api/auth-api';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
 import { events } from '../lib/events';
-import log from "loglevel";
+import loglevel from "loglevel";
 
-log.setLevel(log.levels.ERROR);
+const log = loglevel.getLogger("AuthStore");
+log.setLevel(loglevel.levels.ERROR);
 
 // 用户信息类型（与后端返回一致）
 export interface User {

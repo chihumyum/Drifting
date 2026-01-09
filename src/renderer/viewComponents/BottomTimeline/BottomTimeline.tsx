@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
-import { useStoryline } from '../usecase/useStoryline';
-import { useBookNode } from '../usecase/useBookNode';
-import { useBookContent } from '../usecase/useBookContent';
-import { parseOutline } from '../lib/outline';
-import type { OutlineItem } from '../schema/book_content';
-import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book-node';
-import { useAuthStore, getProjectId } from '../store/auth';
-import { NodeHoverPreview } from './NodeHoverPreview';
-import { useDataStore } from '../store/data-store';
-import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import log from "loglevel";
-log.setLevel(log.levels.ERROR);
+import { useStoryline } from '../../usecase/useStoryline';
+import { useBookNode } from '../../usecase/useBookNode';
+import { useBookContent } from '../../usecase/useBookContent';
+import { parseOutline } from '../../lib/outline';
+import type { OutlineItem } from '../../schema/book_content';
+import type { Storyline } from '../../domain/storyline';
+import type { BookNode } from '../../domain/book-node';
+import { useAuthStore, getProjectId } from '../../store/auth';
+import { NodeHoverPreview } from '../NodeHoverPreview';
+import { useDataStore } from '../../store/data-store';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import loglevel from "loglevel";
+const log = loglevel.getLogger("BottomTimeline");
+log.setLevel(loglevel.levels.ERROR);
 
 // Timeline 配置
 const TIMELINE_CONFIG = {
