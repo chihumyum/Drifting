@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core';
-import type { BookElement } from '../domain/book_element';
+import type { BookElement } from '../domain/book-element';
 
 /**
  * 元素匹配结果

@@ -1,5 +1,5 @@
 // Repository interfaces for Story Stage and Node Tag
-import type { StoryStage, NodeTag, NodeTagLink } from '../domain/story_stage';
+import type { StoryStage, NodeTag, NodeTagLink } from '../domain/node-tag';
 
 // Story Stage Repository
 export interface StoryStageRepository {

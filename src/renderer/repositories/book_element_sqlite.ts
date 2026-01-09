@@ -1,4 +1,4 @@
-import type { BookElement, BookElementCategory } from '../domain/book_element';
+import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { ElementRecord, ElementCategoryRecord } from '../schema/book_element';
 import type { BookElementRepository, BookElementCategoryRepository } from './book_element';
 import { run, query } from '../lib/db';

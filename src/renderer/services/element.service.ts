@@ -1,5 +1,5 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { BookElement, BookElementCategory } from '../domain/book_element';
+import type { BookElement, BookElementCategory } from '../domain/book-element';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

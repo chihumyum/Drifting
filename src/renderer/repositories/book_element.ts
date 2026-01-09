@@ -1,4 +1,4 @@
-import type { BookElement, BookElementCategory } from '../domain/book_element';
+import type { BookElement, BookElementCategory } from '../domain/book-element';
 
 export interface BookElementRepository {
     findById(id: string): Promise<BookElement | null>;

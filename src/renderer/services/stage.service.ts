@@ -1,5 +1,5 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { StoryStage, NodeTag } from '../domain/story_stage';
+import type { StoryStage, NodeTag } from '../domain/node-tag';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

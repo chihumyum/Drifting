@@ -1,5 +1,5 @@
 // Use cases for Story Stage and Node Tag management
-import type { StoryStage, NodeTag } from '../domain/story_stage';
+import type { StoryStage, NodeTag } from '../domain/node-tag';
 import type { 
   StoryStageRepository, 
   NodeTagRepository, 

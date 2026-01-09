@@ -1,4 +1,4 @@
-import type { BookNode } from '../../domain/book_node';
+import type { BookNode } from '../../domain/book-node';
 import { ChapterEditor } from './ChapterEditor';
 
 interface ChapterSectionProps {

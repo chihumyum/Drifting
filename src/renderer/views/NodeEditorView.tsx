@@ -1,29 +1,34 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppStore } from '../store';
-import { useBookContentUsecases } from '../hooks/useBookContentUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
 import log from "loglevel";
 import { Loader2 } from 'lucide-react';
+import { useDataStore } from '../store/data-store';
+import { NodeContent } from '../domain/node-content';
+import { NodeTag } from '../domain/node-tag';
 
-log.setLevel(log.levels.TRACE);
+log.setLevel(log.levels.ERROR);
 
 export function NodeEditorView() {
+  // stuff for geting a node
   const navigate = useNavigate();
   const { nodeId } = useParams<{ nodeId: string }>();
-  const { setSelectedNodeId, bookContent, bookNodes } = useAppStore();
-
-  const { loadContent, updateContent, newContent } = useBookContentUsecases();
-  const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
+  const { bookNodes } = useDataStore();
+  // this component only render one node
   const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
+  const [currentContent, setCurrentContent] = useState<null | NodeContent>(null);
+  const [curTags, setCurTags] = useState<NodeTag[]>([]);
+  // other usecases
+  const { renameNode, updateNodeSummary, loadNodes } = useBookNodeUsecases();
   const editorRef = useRef<ChapterEditorRef>(null);
-
   // Loading state to prevent rendering editor with empty content during fetch
   const [isLoading, setIsLoading] = useState(false);
 
-  // 点击元素链接时的处理
+
+
+
   const handleElementClick = useCallback(
     (elementId: string) => {
       navigate(`/element/${elementId}`);
@@ -31,14 +36,11 @@ export function NodeEditorView() {
     [navigate]
   );
 
-  // 内容更新处理
   const handleContentUpdate = useCallback(
     async (targetNodeId: string, pmJson: string, outlineJson: string) => {
       try {
-        const store = useAppStore.getState();
-        const currentContent = store.bookContent;
 
-        // Safety Check 1: Ensure we have content in store
+        // Safety Check 1: Ensure we have content in store - we don't need the content
         if (!currentContent) {
           log.warn('[NodeEditor] Store content is null, cannot update. Node:', targetNodeId);
           return;

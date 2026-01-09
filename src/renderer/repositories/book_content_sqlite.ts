@@ -1,5 +1,5 @@
 // operations related to book contents (prosemirror json based for now, yjs later)
-import type { BookContent } from '../domain/book_content';
+import type { NodeContent } from '../domain/node-content';
 import type { BookContentRecord } from '../schema/book_content';
 import type { BookContentRepository } from './book_content';
 import { v7 as uuidv7 } from 'uuid';
@@ -7,7 +7,7 @@ import { run, query } from '../lib/db';
 import type { SyncStatus } from '../lib/sync/types';
 
 
-export function recordToBookContent(record: BookContentRecord): BookContent {
+export function recordToBookContent(record: BookContentRecord): NodeContent {
   return {
     id: record.id,
     nodeId: record.node_id,
@@ -18,7 +18,7 @@ export function recordToBookContent(record: BookContentRecord): BookContent {
   };
 }
 
-export function bookContentToRecord(node: BookContent): BookContentRecord {
+export function bookContentToRecord(node: NodeContent): BookContentRecord {
   return {
     id: node.id,
     node_id: node.nodeId,
@@ -40,17 +40,17 @@ async function getContentRecordByNodeId(nodeId: string): Promise<BookContentReco
 export function createBookContentRepository(): BookContentRepository {
     const selectBase = `SELECT bc.* FROM book_content bc`;
 
-    const findById = async (id: string): Promise<BookContent | null> => {
+    const findById = async (id: string): Promise<NodeContent | null> => {
       const result = await query<BookContentRecord>(`${selectBase} WHERE bc.id = ?`, [id]);
       return result.length ? recordToBookContent(result[0]) : null;
     };
 
-    const findByNodeId = async (nodeId: string): Promise<BookContent | null> => {
+    const findByNodeId = async (nodeId: string): Promise<NodeContent | null> => {
         const result = await query<BookContentRecord>(`${selectBase} WHERE bc.node_id = ?`, [nodeId]);
         return result.length ? recordToBookContent(result[0]) : null;
     };
 
-    const create = async (data: Partial<BookContent>): Promise<BookContent> => {
+    const create = async (data: Partial<NodeContent>): Promise<NodeContent> => {
       const now = new Date().toISOString();
       const lastModified = Date.now();
       const record: BookContentRecord = {
@@ -82,7 +82,7 @@ export function createBookContentRepository(): BookContentRepository {
       return recordToBookContent(record);
     }
 
-    const update = async (id: string, data: Partial<BookContent>): Promise<BookContent | null> => {
+    const update = async (id: string, data: Partial<NodeContent>): Promise<NodeContent | null> => {
       const now = new Date().toISOString();
       const existing = await findById(id);
       if (!existing) {
@@ -108,7 +108,7 @@ export function createBookContentRepository(): BookContentRepository {
       );
       return recordToBookContent(record);
     }
-    const updateByNodeId = async (nodeId: string, data: Partial<BookContent>): Promise<BookContent | null> => {
+    const updateByNodeId = async (nodeId: string, data: Partial<NodeContent>): Promise<NodeContent | null> => {
       const existing = await findByNodeId(nodeId);
       if (!existing) {
         return null;

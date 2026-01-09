@@ -1,7 +1,7 @@
 // SQLite implementation for Story Stage and Node Tag repositories
 import { v7 as uuidv7 } from 'uuid';
 import { run, query } from '../lib/db';
-import type { StoryStage, NodeTag, NodeTagLink } from '../domain/story_stage';
+import type { StoryStage, NodeTag, NodeTagLink } from '../domain/node-tag';
 import type { 
   StoryStageRecord, 
   NodeTagRecord,

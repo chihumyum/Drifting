@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, Edit2, Save, X } from 'lucide-react';
-import type { BookNode } from '../../domain/book_node';
+import type { BookNode } from '../../domain/book-node';
 import type { OutlineItem } from '../../schema/book_content';
 import { extractOutline } from '../../lib/outline';
 

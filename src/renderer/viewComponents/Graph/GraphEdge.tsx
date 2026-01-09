@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { BookNodeEdge } from '../../domain/book_node';
-import { BookNodePosition } from '../../domain/book_node';
+import { BookNodeEdge } from '../../domain/book-node';
+import { BookNodePosition } from '../../domain/book-node';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

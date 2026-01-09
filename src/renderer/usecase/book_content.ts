@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import type { BookContentRepository } from "../repositories/book_content";
-import type { BookContent } from "../domain/book_content";
+import type { NodeContent } from "../domain/node-content";
 import { syncManager } from '../lib/sync/sync-manager';
 import { useAuthStore } from '../store/auth';
 import type { SyncTaskType } from '../lib/sync/types';
@@ -16,9 +16,9 @@ export {
 export interface BookContentUsecaseDeps {
     contentRepo: BookContentRepository;
 
-    getContentState: () => BookContent | null;
-    setContentState: (content: BookContent | null) => void;
-    updateContentState: (updates: Partial<BookContent>) => void;
+    getContentState: () => NodeContent | null;
+    setContentState: (content: NodeContent | null) => void;
+    updateContentState: (updates: Partial<NodeContent>) => void;
     getProjectIdForNodeId: (nodeId: string) => string | null;
     now?: () => Date;
 }
@@ -71,7 +71,7 @@ async function loadBookContent(deps: BookContentUsecaseDeps, nodeId: string) {
     // console.log('Loaded content for nodeId', nodeId, ':', content);
 }
 
-async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<BookContent>) {
+async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<NodeContent>) {
     const now = (deps.now ?? (() => new Date()))();
     const updatedData = {
         ...updates,
@@ -96,7 +96,7 @@ async function updateBookContent(deps: BookContentUsecaseDeps, updates: Partial<
 async function newBookContent(deps: BookContentUsecaseDeps, nodeId: string, pmJson: string) {
     const id = uuidv7();
     const now = (deps.now ?? (() => new Date()))();
-    const newContent: Partial<BookContent> = {
+    const newContent: Partial<NodeContent> = {
         id,
         nodeId,
         pmJson: pmJson,

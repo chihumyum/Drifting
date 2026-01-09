@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import log from 'loglevel';
 log.setLevel(log.levels.ERROR);
-import type { BookNode } from '../../domain/book_node';
+import type { BookNode } from '../../domain/book-node';
 
 import { useBookContentUsecases } from '../../hooks/useBookContentUsecases';
 import { ChapterSection } from './ChapterSection';

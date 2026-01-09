@@ -5,7 +5,7 @@ import { X, Plus } from 'lucide-react';
 import { useNodeTagUsecases } from '../../hooks/useNodeTagUsecases';
 import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
 import { useAppStore } from '../../store';
-import type { NodeTag } from '../../domain/story_stage';
+import type { NodeTag } from '../../domain/node-tag';
 
 type TagType = 'node' | 'element';
 

@@ -1,4 +1,4 @@
-export interface BookContent {
+export interface NodeContent {
   id: string;
   nodeId: string;
   pmJson: string;

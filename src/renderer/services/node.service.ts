@@ -1,5 +1,5 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

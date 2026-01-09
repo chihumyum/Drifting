@@ -9,7 +9,7 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
-import type { BookElementCategory } from '../domain/book_element';
+import type { BookElementCategory } from '../domain/book-element';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { X, Eye } from 'lucide-react';
 import log from "loglevel";

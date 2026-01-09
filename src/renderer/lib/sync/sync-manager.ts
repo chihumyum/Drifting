@@ -11,7 +11,7 @@
 
 import { nanoid } from 'nanoid';
 import { APP_CONFIG, debugLog } from '../config';
-import type { BookNode } from '../../domain/book_node';
+import type { BookNode } from '../../domain/book-node';
 import type { CreateNodeDto, UpdateNodeDto } from '../../services/api/node-api';
 import { createTraceId, runWithSyncTraceId } from '../trace';
 import type {

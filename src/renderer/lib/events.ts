@@ -1,6 +1,6 @@
 import mitt from 'mitt';
-import type { BookNode, BookNodeEdge } from '../domain/book_node';
-import type { BookElement, BookElementCategory } from '../domain/book_element';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { BookElement, BookElementCategory } from '../domain/book-element';
 
 export type AppEvents = {
   'graph:select': { nodeId: string | null };

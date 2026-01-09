@@ -9,7 +9,7 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useBookElementUsecases } from '../hooks/useBookElementUsecases';
-import type { BookElement } from '../domain/book_element';
+import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../viewComponents/editor/TagEditor';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';

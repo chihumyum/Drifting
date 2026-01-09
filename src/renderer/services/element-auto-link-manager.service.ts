@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import { ElementOccurrenceRepository } from '../repositories/element-occurrence.repository';
-import type { BookElement } from '../domain/book_element';
+import type { BookElement } from '../domain/book-element';
 import type { JSONContent } from '@tiptap/core';
 import { ElementParserService, type ElementMatch } from './element-parser.service';
 

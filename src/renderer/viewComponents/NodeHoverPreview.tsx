@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 
 interface NodeHoverPreviewProps {
   node: BookNode | null;

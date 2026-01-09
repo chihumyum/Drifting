@@ -5,7 +5,7 @@
  */
 
 import apiClient from '../../lib/axios-config';
-import type { BookNode } from '../../domain/book_node';
+import type { BookNode } from '../../domain/book-node';
 
 interface NodeResponse {
   id: string;

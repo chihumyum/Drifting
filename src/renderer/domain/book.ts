@@ -1,0 +1,1 @@
+// domain model for a whole book

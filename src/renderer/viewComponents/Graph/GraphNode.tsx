@@ -1,7 +1,7 @@
 import { memo } from 'react';
-import { BookNode } from '../../domain/book_node';
+import { BookNode } from '../../domain/book-node';
 import { Storyline } from '../../domain/storyline';
-import { BookElement } from '../../domain/book_element';
+import { BookElement } from '../../domain/book-element';
 
 interface GraphNodeProps {
     node: BookNode;

@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useDataStore } from '../store/data-store';
 import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { NodeHoverPreview } from './NodeHoverPreview';
 import log from "loglevel";
-
 log.setLevel(log.levels.ERROR);
+
+/* A flexible component for showing all types of stuff in safari compact tab style
+  storyline -> nodes 
+  element category -> elements
+  both with additional tag filters
+*/
 
 interface TimelineNode extends BookNode {
   storylines: Storyline[];
@@ -22,6 +27,7 @@ export function TopTimeline() {
   const user = useAuthStore(state => state.user);
   const projectId = getProjectId(user?.id);
   const storylineUsecases = useStorylineUsecases();
+  // use url params to get selected node id
   const selectedNodeId = useAppStore(state => state.selectedNodeId);
 
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
@@ -104,7 +110,7 @@ export function TopTimeline() {
     loadStorylineData();
   }, [nodeId, storylineId, selectedNodeId, bookNodes, storylineUsecases, projectId]);
 
-  // Load all storylines for dropdown
+  // Load all stuff for dropdown
   useEffect(() => {
     async function loadAllStorylines() {
       try {
@@ -115,6 +121,15 @@ export function TopTimeline() {
       }
     }
     loadAllStorylines();
+    async function loadAllElementCategories() {
+      // Placeholder for future element category loading
+    }
+    async function loadAllNodeTags() {
+      // Placeholder for future node tag loading
+    }
+    async function loadAllElementTags() {
+      // Placeholder for future element tag loading
+    }
   }, [projectId, storylineUsecases, showStorylineDropdown]);
 
   // Monitor container width

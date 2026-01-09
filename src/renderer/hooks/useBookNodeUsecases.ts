@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { useAppStore } from '../store';
+import { useDataStore } from '../store/data-store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/book_node_sqlite';
 import { createBookContentRepository } from '../repositories/book_content_sqlite';
 import { StorylineSQLiteRepository } from '../repositories/storyline_sqlite';
 import type { BookNodeUsecaseDeps } from '../usecase/book_node';
-import type { BookNode, BookNodeEdge } from '../domain/book_node';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import {
   createBookNode,
   loadBookNodeEdges,
@@ -27,7 +27,6 @@ const getProjectIdForUser = () => {
 };
 
 export function useBookNodeUsecases() {
-  const store = useAppStore;
   const depsRef = useRef<BookNodeUsecaseDeps | null>(null);
 
   if (!depsRef.current) {
@@ -38,10 +37,10 @@ export function useBookNodeUsecases() {
       edgeRepo: createBookNodeEdgeSqliteRepository(getProjectIdForUser()),
       storylineRepo,
       contentRepo,
-      getNodesState: () => store.getState().bookNodes,
-      setNodesState: (nodes) => store.getState().setBookNodes(nodes),
-      updateNodeState: (id, updates) => store.getState().updateBookNode(id, updates),
-      setEdgesState: (edges) => store.getState().setNodeEdges(edges),
+      getNodesState: () => useDataStore.getState().bookNodes,
+      setNodesState: (nodes) => useDataStore.getState().setBookNodes(nodes),
+      updateNodeState: (id, updates) => useDataStore.getState().updateBookNode(id, updates),
+      setEdgesState: (edges) => useDataStore.getState().setNodeEdges(edges),
       now: () => new Date(),
     };
   }

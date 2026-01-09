@@ -11,7 +11,7 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStorylineUsecases } from '../hooks/useStorylineUsecases';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useAuthStore, getProjectId } from '../store/auth';
 import { useAppStore } from '../store';

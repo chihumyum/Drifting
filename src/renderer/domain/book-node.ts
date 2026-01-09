@@ -18,13 +18,6 @@ export interface BookNode {
   updatedAt: string;
 }
 
-// DEPRECATED: Old structure kept for backward compatibility
-export interface BookNodeTag {
-  id: string;
-  nodeId: string;
-  name: string;
-}
-
 export interface BookNodeEdge {
   id: string;
   projectId: string;

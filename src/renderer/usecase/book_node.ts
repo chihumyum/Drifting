@@ -1,5 +1,5 @@
 // operations related to book nodes & node edges
-import type { BookNode, BookNodeEdge } from '../domain/book_node';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookNodeEdgeRepository, BookNodeRepository } from '../repositories/book_node';
 import type { BookContentRepository } from '../repositories/book_content';
 import type { StorylineRepository } from '../repositories/storyline';

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { BookNodeEdge, BookNode } from '../domain/book_node';
+import { BookNodeEdge, BookNode } from '../domain/book-node';
 import { GraphNode } from '../viewComponents/Graph/GraphNode';
 import { GraphEdge } from '../viewComponents/Graph/GraphEdge';
 import { useBookNodeUsecases } from '../hooks/useBookNodeUsecases';

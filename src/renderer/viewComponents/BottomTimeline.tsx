@@ -7,7 +7,7 @@ import { createBookContentRepository } from '../repositories/book_content_sqlite
 import { parseOutline } from '../lib/outline';
 import type { OutlineItem } from '../schema/book_content';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book_node';
+import type { BookNode } from '../domain/book-node';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

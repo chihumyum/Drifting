@@ -1,5 +1,5 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { BookContent } from '../domain/book_content';
+import type { NodeContent } from '../domain/node-content';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);
@@ -11,9 +11,9 @@ export const contentService = {
   /**
    * 根据内容 ID 获取内容
    */
-  async findById(id: string): Promise<BookContent | null> {
+  async findById(id: string): Promise<NodeContent | null> {
     try {
-      const response = await apiClient.get<BookContent>(`/nodes/content/${id}`);
+      const response = await apiClient.get<NodeContent>(`/nodes/content/${id}`);
       return response.data;
     } catch (error) {
       log.error('Failed to fetch content:', handleApiError(error));
@@ -24,9 +24,9 @@ export const contentService = {
   /**
    * 根据节点 ID 获取内容
    */
-  async findByNodeId(nodeId: string): Promise<BookContent | null> {
+  async findByNodeId(nodeId: string): Promise<NodeContent | null> {
     try {
-      const response = await apiClient.get<BookContent>(`/nodes/${nodeId}/content`);
+      const response = await apiClient.get<NodeContent>(`/nodes/${nodeId}/content`);
       return response.data;
     } catch (error) {
       log.error('Failed to fetch content by node ID:', handleApiError(error));
@@ -37,12 +37,12 @@ export const contentService = {
   /**
    * 创建新内容
    */
-  async create(data: Partial<BookContent>): Promise<BookContent> {
+  async create(data: Partial<NodeContent>): Promise<NodeContent> {
     try {
       if (!data.nodeId) {
         throw new Error('nodeId is required');
       }
-      const response = await apiClient.post<BookContent>(`/nodes/${data.nodeId}/content`, data);
+      const response = await apiClient.post<NodeContent>(`/nodes/${data.nodeId}/content`, data);
       return response.data;
     } catch (error) {
       throw new Error(`Failed to create content: ${handleApiError(error)}`);
@@ -52,9 +52,9 @@ export const contentService = {
   /**
    * 根据内容 ID 更新内容
    */
-  async update(id: string, data: Partial<BookContent>): Promise<BookContent | null> {
+  async update(id: string, data: Partial<NodeContent>): Promise<NodeContent | null> {
     try {
-      const response = await apiClient.patch<BookContent>(`/nodes/content/${id}`, data);
+      const response = await apiClient.patch<NodeContent>(`/nodes/content/${id}`, data);
       return response.data;
     } catch (error) {
       log.error('Failed to update content:', handleApiError(error));
@@ -65,9 +65,9 @@ export const contentService = {
   /**
    * 根据节点 ID 更新内容
    */
-  async updateByNodeId(nodeId: string, data: Partial<BookContent>): Promise<BookContent | null> {
+  async updateByNodeId(nodeId: string, data: Partial<NodeContent>): Promise<NodeContent | null> {
     try {
-      const response = await apiClient.patch<BookContent>(`/nodes/${nodeId}/content`, data);
+      const response = await apiClient.patch<NodeContent>(`/nodes/${nodeId}/content`, data);
       return response.data;
     } catch (error) {
       log.error('Failed to update content by node ID:', handleApiError(error));

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import { useBookElementUsecases } from '../../hooks/useBookElementUsecases';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
-import type { BookElement } from '../../domain/book_element';
+import type { BookElement } from '../../domain/book-element';
 import log from "loglevel";
 
 log.setLevel(log.levels.ERROR);

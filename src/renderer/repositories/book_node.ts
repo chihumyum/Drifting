@@ -1,4 +1,4 @@
-import type { BookNode, BookNodeEdge, BookNodePosition } from '../domain/book_node';
+import type { BookNode, BookNodeEdge, BookNodePosition } from '../domain/book-node';
 
 type PositionInput = Partial<BookNodePosition> | undefined;
 

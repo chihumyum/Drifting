@@ -1,5 +1,5 @@
 import { query, run } from '../lib/db';
-import type { BookNode, BookNodeEdge, BookNodeElementLink } from '../domain/book_node';
+import type { BookNode, BookNodeEdge, BookNodeElementLink } from '../domain/book-node';
 import type { BookNodeRecord, NodeEdgeRecord, ElementNodeLinkRecord } from '../schema/book_node';
 import type {
   BookNodeRepository,

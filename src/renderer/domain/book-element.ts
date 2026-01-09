@@ -23,7 +23,6 @@ export interface BookElementStage {
   updatedAt: string;
 }
 
-
 export interface BookElementCategory {
   id: string;
   name: string;
