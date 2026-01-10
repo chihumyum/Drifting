@@ -16,7 +16,7 @@ import { SettingsModal } from './viewComponents/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useUiStore } from './store/ui-store';
 import { useProject } from './usecase/useProject';
-import { AppTopbar } from './viewComponents/AppTopbar';
+import { AppTopbar } from './views/AppTopbar';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("App");

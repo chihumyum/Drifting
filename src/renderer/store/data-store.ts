@@ -3,7 +3,14 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { NodeTag } from '../domain/node-tag';
-import type { ElementTag } from '../schema/book_element';
+// Type definition moved from schema
+export interface ElementTag {
+  id: string;
+  element_id: string;
+  stage_id?: string;
+  name: string;
+  created_at: string;
+}
 
 
 interface DataState {
@@ -11,7 +18,12 @@ interface DataState {
   storylineNodeMapping: Record<string, string[]>;
   setStorylines: (storylines: Storyline[]) => void;
   addStoryline: (storyline: Storyline) => void;
+  updateStoryline: (id: string, updates: Partial<Storyline>) => void;
+  removeStoryline: (id: string) => void;
   setStorylineNodeMapping: (mapping: Record<string, string[]>) => void;
+  addNodeToStorylineMapping: (storylineId: string, nodeId: string) => void;
+  removeNodeFromStorylineMapping: (storylineId: string, nodeId: string) => void;
+  setNodeStorylinesMapping: (nodeId: string, storylineIds: string[]) => void;
   
   bookNodes: BookNode[];
   setBookNodes: (nodes: BookNode[]) => void;
@@ -54,7 +66,43 @@ export const useDataStore = create<DataState>((set) => ({
   storylineNodeMapping: {},
   addStoryline: (storyline) => set((state) => ({ storylines: [...state.storylines, storyline] })),
   setStorylines: (storylines) => set({ storylines }),
+  updateStoryline: (id, updates) => set((state) => ({
+    storylines: state.storylines.map((storyline) => storyline.id === id ? { ...storyline, ...updates } : storyline),
+  })),
+  removeStoryline: (id) => set((state) => ({ storylines: state.storylines.filter((storyline) => storyline.id !== id) })),
   setStorylineNodeMapping: (mapping) => set({ storylineNodeMapping: mapping }),
+  addNodeToStorylineMapping: (storylineId, nodeId) => set((state) => ({
+    storylineNodeMapping: {
+      ...state.storylineNodeMapping,
+      [storylineId]: [...(state.storylineNodeMapping[storylineId] || []), nodeId]
+    }
+  })),
+  removeNodeFromStorylineMapping: (storylineId, nodeId) => set((state) => ({
+    storylineNodeMapping: {
+      ...state.storylineNodeMapping,
+      [storylineId]: (state.storylineNodeMapping[storylineId] || []).filter((id) => id !== nodeId)
+    }
+  })),
+  setNodeStorylinesMapping: (nodeId, storylineIds) => set((state) => {
+    const newMapping = { ...state.storylineNodeMapping };
+    
+    // Remove nodeId from all storylines where it shouldn't be
+    Object.keys(newMapping).forEach(slId => {
+      if (!storylineIds.includes(slId)) {
+        newMapping[slId] = newMapping[slId].filter(id => id !== nodeId);
+      }
+    });
+
+    // Add nodeId to all storylines where it should be
+    storylineIds.forEach(slId => {
+       const existingNodes = newMapping[slId] || [];
+       if (!existingNodes.includes(nodeId)) {
+         newMapping[slId] = [...existingNodes, nodeId];
+       }
+    });
+    
+    return { storylineNodeMapping: newMapping };
+  }),
   
   bookNodes: [],
   nodeEdges: [],

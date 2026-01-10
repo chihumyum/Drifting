@@ -57,7 +57,7 @@ export function ElementEditorView() {
     const element = bookElements.find(e => e.id === elementId) || null;
     setCurElement(element);
     setNameValue(element?.name || '');
-    setSummaryValue(element?.summary_json || '');
+    setSummaryValue(element?.summary || '');
     setCategoryValue(element?.category || 'others');
     
     // Auto-enter edit mode for newly created elements
@@ -113,7 +113,7 @@ export function ElementEditorView() {
       
       const json = ed.getJSON();
       const contentJson = JSON.stringify(json);
-      if (contentJson === curElement?.content_json) return;
+      if (contentJson === curElement?.pmJson) return;
       
       if (elementId) {
         void updateElement(elementId, {
@@ -127,7 +127,7 @@ export function ElementEditorView() {
   useEffect(() => {
     if (!editor || !curElement) return;
 
-    const contentJson = curElement.content_json;
+    const contentJson = curElement.pmJson;
     if (!contentJson) {
       editor.commands.setContent(getDefaultDoc());
       return;
@@ -287,7 +287,7 @@ export function ElementEditorView() {
               onBlur={handleSaveSummary}
               onKeyDown={e => {
                 if (e.key === 'Escape') {
-                  setSummaryValue(curElement.summary_json);
+                  setSummaryValue(curElement.summary);
                   setEditingSummary(false);
                 }
               }}
@@ -323,7 +323,7 @@ export function ElementEditorView() {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              {curElement.summary_json || 'Click to add summary...'}
+              {curElement.summary || 'Click to add summary...'}
             </div>
           )}
         </div>

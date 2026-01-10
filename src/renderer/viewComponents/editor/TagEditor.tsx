@@ -47,7 +47,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
           setAllTags(allNodeTags);
           // Element tags are stored as tag IDs array
           const elementTags = allNodeTags.filter(tag => 
-            element.tags?.includes(tag.id)
+            element.tagIds?.includes(tag.id)
           );
           setEntityTags(elementTags);
         }
@@ -68,7 +68,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       } else if (type === 'element') {
         const element = bookElements.find(el => el.id === entityId);
         if (element) {
-          const updatedTags = [...(element.tags || []), tagId];
+          const updatedTags = [...(element.tagIds || []), tagId];
           await elementUsecases.updateElement(entityId, {
             tags: updatedTags,
           });
@@ -88,7 +88,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       } else if (type === 'element') {
         const element = bookElements.find(el => el.id === entityId);
         if (element) {
-          const updatedTags = (element.tags || []).filter((id: string) => id !== tagId);
+          const updatedTags = (element.tagIds || []).filter((id: string) => id !== tagId);
           await elementUsecases.updateElement(entityId, {
             tags: updatedTags,
           });
@@ -120,7 +120,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         
         const element = bookElements.find(el => el.id === entityId);
         if (element) {
-          const updatedTags = [...(element.tags || []), newTag.id];
+          const updatedTags = [...(element.tagIds || []), newTag.id];
           await elementUsecases.updateElement(entityId, {
             tags: updatedTags,
           });

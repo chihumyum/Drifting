@@ -1,7 +1,6 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
-import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -9,68 +8,44 @@ import TextAlign from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extensions';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryline } from '../usecase/useStoryline';
-import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
-import { useAuthStore, getProjectId } from '../store/auth';
+import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import loglevel from "loglevel";
-
+import { Storyline } from '../domain/storyline';
+import { BookNode } from '../domain/book-node';
 const log = loglevel.getLogger("StorylineEditorView");
-log.setLevel(loglevel.levels.ERROR);
-const DEFAULT_DOC_STRING = JSON.stringify({
-  type: 'doc',
-  content: [],
-});
+// log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.TRACE);
 
-function getDefaultDoc(): JSONContent {
-  return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
-}
-
+// todo: 修复严重同步问题
 export function StorylineEditorView() {
   const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
-  const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
+  const { bookNodes, storylines } = useDataStore();
   const storylineUsecases = useStoryline();
+  const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
+  const [currentNodes, setCurrentNodes] = useState<BookNode[]>([]);
   
-  const [editingName, setEditingName] = useState(false);
-  const [nameValue, setNameValue] = useState('');
-  const isContentLoadedRef = useRef(false);
-  const loadedStorylineIdRef = useRef<string | null>(null);
 
-  const activeStoryline = storylines.find(s => s.id === storylineId);
-  const activeStorylineNodeIds = storylineNodeMapping[storylineId || ''] || [];
-  
-  const storylineNodes = useMemo(() => {
-    if (!storylineId) return [];
-    return bookNodes
-      .filter(n => activeStorylineNodeIds.includes(n.id))
-      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
-  }, [bookNodes, activeStorylineNodeIds, storylineId]);
-
+  // get storyline and nodes from store
   useEffect(() => {
-    async function checkData() {
-      if (!projectId || !storylineId) {
-        log.error('No projectId or storylineId provided in URL');
-        navigate('/editor');
-        return;
-      }
-      
-      
-      if (projectId && (!storylineNodeMapping[storylineId] || storylineNodeMapping[storylineId].length === 0)) {
-         void storylineUsecases.getNodeIdsByStoryline(storylineId);
-      }
+    if (!projectId || !storylineId) {
+      log.error('Should load data when app started', { projectId, storylineId, user });
+      return;
     }
-    checkData();
-  }, [projectId, storylineId, user, storylineUsecases, navigate, storylineNodeMapping]);
-
-  useEffect(() => {
-    if (activeStoryline) {
-      setNameValue(activeStoryline.name);
+    setCurrentStoryline(storylines.find(sl => sl.id === storylineId) || null);
+    if (!currentStoryline) {
+      log.warn('Current storyline not found in store, loading from DB...', storylineId);
     }
-  }, [activeStoryline]);
+    setCurrentNodes(bookNodes.filter(node => node === storylineId));
+    log.debug('Loaded storyline ', currentStoryline?.name, 'nodes ', currentNodes);
+  }, [projectId, storylineId, user, navigate, storylines, bookNodes]);
 
-  const editor = useEditor({
+
+  // editor for storyline description
+  const editorSL = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
@@ -78,7 +53,7 @@ export function StorylineEditorView() {
         orderedList: { keepMarks: true },
         codeBlock: {},
         underline: false,
-        link: false, // 禁用 StarterKit 自带的 link，使用自定义配置
+        link: false, // disable these two to avoid duplicate extensions warning
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
@@ -92,7 +67,7 @@ export function StorylineEditorView() {
       }),
       createDefaultSlashMenu(),
     ],
-    content: getDefaultDoc(),
+    content: null,
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
@@ -100,131 +75,51 @@ export function StorylineEditorView() {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      if (!isContentLoadedRef.current || !storylineId) {
+      if (!storylineId) {
+        log.warn('No storylineId, cannot save description update');
         return;
       }
-
       const json = ed.getJSON();
-
       void storylineUsecases.updateStoryline({
         id: storylineId,
-        pmJson: json,
+        pmJson: JSON.stringify(json),
       });
     },
-  });
+  }, [storylineId, storylineUsecases]);
 
-  // Update editor content when storyline loads
+  // load editor content when change storylines
   useEffect(() => {
-    if (!editor || !activeStoryline) return;
-
-    if (loadedStorylineIdRef.current !== storylineId) {
-      isContentLoadedRef.current = false;
-      loadedStorylineIdRef.current = null;
+    if (!projectId || !storylineId) {
+      log.warn('No projectId or storylineId, cannot load storyline content');
+      return;
+    }
+    if (!editorSL || !currentStoryline) {
+      log.debug('Editor or active storyline not ready yet');
+      return;
+    }
+    if (currentStoryline.pmJson) {
+      editorSL.commands.setContent(JSON.parse(currentStoryline.pmJson));
+    } else {
+      log.warn('No pmJson content for storyline:', storylineId);
+      editorSL.commands.setContent(null);
     }
     
-    if (loadedStorylineIdRef.current === storylineId && isContentLoadedRef.current) {
-        return;
-    }
+  }, [editorSL, projectId, storylineId, currentStoryline, currentNodes]);
 
-    try {
-      const content = activeStoryline.pmJson
-        ? (typeof activeStoryline.pmJson === 'string' ? JSON.parse(activeStoryline.pmJson as string) : activeStoryline.pmJson)
-        : getDefaultDoc();
-
-      editor.commands.setContent(content);
-
-      isContentLoadedRef.current = true;
-      loadedStorylineIdRef.current = storylineId || null;
-    } catch (error) {
-      log.error('Failed to parse storyline description content', error);
-      editor.commands.setContent(getDefaultDoc());
-      isContentLoadedRef.current = true;
-      loadedStorylineIdRef.current = storylineId || null;
-    }
-  }, [editor, activeStoryline, storylineId]);
-
-  const handleSaveName = async () => {
-    if (!storylineId || !nameValue.trim()) return;
+  const handleUpdateName = async (newName: string) => {
+    if (!storylineId) return;
     await storylineUsecases.updateStoryline({
       id: storylineId,
-      name: nameValue.trim(),
+      name: newName.trim(),
     });
-    setEditingName(false);
   };
-
-
-  const handleContextAction = async (action: string) => {
-    if (!activeStoryline) return;
-
-    if (action === 'deleteStoryline') {
-      const otherStorylines = storylines.filter(t => t.id !== activeStoryline.id);
-
-      if (otherStorylines.length === 0) {
-        alert('Cannot delete the last storyline. Create another storyline first.');
-        return;
-      }
-
-      const confirmed = window.confirm(
-        'Delete this storyline? All nodes will be moved to another storyline if available.'
-      );
-
-      if (!confirmed) return;
-
-      try {
-        const defaultStoryline = otherStorylines[0];
-        const nodesInThisStoryline = storylineNodes;
-
-        for (const node of nodesInThisStoryline) {
-          const nodeStorylines = await storylineUsecases.getStorylinesByNode(node.id);
-
-          if (nodeStorylines.some(t => t.id === activeStoryline.id)) {
-            if (nodeStorylines.length === 1) {
-              await storylineUsecases.addNodeToStoryline(node.id, defaultStoryline.id);
-            }
-            await storylineUsecases.removeNodeFromStoryline(node.id, activeStoryline.id);
-          }
-        }
-
-        await storylineUsecases.deleteStoryline(activeStoryline.id);
-        navigate('/editor');
-      } catch (error) {
-        log.error('Failed to delete storyline:', error);
-        alert('Failed to delete storyline. Please try again.');
-      }
-    }
+  const handleUpdateSummary = async (newSummary: string) => {
+    if (!storylineId) return;
+    await storylineUsecases.updateStoryline({
+      id: storylineId,
+      summary: newSummary.trim(),
+    });
   };
-
-  const isGlobalLoading = (bookNodes.length === 0 && storylines.length === 0);
-
-  if (isGlobalLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        color: '#999',
-      }}>
-        Loading storyline...
-      </div>
-    );
-  }
-
-  if (!activeStoryline) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        color: '#999',
-      }}>
-        Select a storyline to view
-      </div>
-    );
-  }
-
-  const hasEditorContent = (editor?.getText().trim().length ?? 0) > 0;
 
   return (
     <div style={{
@@ -243,21 +138,17 @@ export function StorylineEditorView() {
       <div>
         {/* Storyline Name */}
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-          {editingName ? (
             <input
               type="text"
-              value={nameValue}
-              onChange={e => setNameValue(e.target.value)}
-              onBlur={handleSaveName}
+              value={currentStoryline?.name || ''}
+              onChange={e => handleUpdateName(e.target.value)}
+              onBlur={e => handleUpdateName(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter') handleSaveName();
+                if (e.key === 'Enter') handleUpdateName(e.currentTarget.value);
                 if (e.key === 'Escape') {
-                  setNameValue(activeStoryline.name);
-                  setEditingName(false);
+                  e.currentTarget.blur();
                 }
               }}
-              onFocus={(e) => e.target.select()}
-              autoFocus
               style={{
                 maxWidth: '50vw',
                 fontSize: 32,
@@ -269,55 +160,40 @@ export function StorylineEditorView() {
                 color: 'rgba(0, 0, 0, 0.85)',
               }}
             />
-          ) : (
-            <h1
-              onClick={() => setEditingName(true)}
-              style={{
-                maxWidth: '50vw',
-                fontSize: 32,
-                fontWeight: 700,
-                margin: 0,
-                padding: '8px 0',
-                cursor: 'pointer',
-                color: 'rgba(0, 0, 0, 0.85)',
-                transition: 'color 0.2s ease',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.6)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.85)';
-              }}
-            >
-              {activeStoryline.name || 'Untitled Storyline'}
-            </h1>
-          )}
         </div>
 
         {/* Description - Rich text editor */}
         <div style={{ marginBottom: 16, marginRight: '40%' }}>
-          {hasEditorContent && (
-            <div style={{
+          <input
+            type="text"
+            value={currentStoryline?.summary || ''}
+            onChange={e => handleUpdateSummary(e.target.value)}
+            onBlur={e => handleUpdateSummary(e.currentTarget.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleUpdateSummary(e.currentTarget.value);
+              if (e.key === 'Escape') {
+                e.currentTarget.blur();
+              }
+            }}
+            style={{
+              maxWidth: '50vw',
               fontSize: 14,
-              fontWeight: 500,
-              color: 'rgba(0, 0, 0, 0.45)',
-              marginBottom: 8,
-            }}>
-              Summary
-            </div>
-          )}
+              fontWeight: 400,
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              padding: '8px 0',
+              color: 'rgba(0, 0, 0, 0.85)',
+            }}
+            />
+
           <div>
-            <EditorContent editor={editor} />
+            <EditorContent editor={editorSL} />
           </div>
         </div>
 
-        <StorylineAllChapterEditor nodes={storylineNodes} onCurrentChapterChange={() => { }} />
+        <StorylineAllChapterEditor nodes={currentNodes} onCurrentChapterChange={() => { }} />
 
-        {/* Editor Context Menu */}
-        <EditorContextMenu
-          editorType="storyline"
-          onAction={handleContextAction}
-        />
       </div>
     </div>
   );

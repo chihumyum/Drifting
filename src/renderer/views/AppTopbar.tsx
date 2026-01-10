@@ -1,8 +1,8 @@
 import { useUiStore } from '../store/ui-store';
-import { LeftSidebarTopBar } from './topBars/LeftSidebarTopBar';
-import { MainTopBar } from './topBars/MainTopBar';
-import { NewEntityButton } from './topBars/NewEntityButton';
-import { TopTimeline } from './TopTimeline';
+import { LeftSidebarTopBar } from '../viewComponents/topBars/LeftSidebarTopBar';
+import { MainTopBar } from '../viewComponents/topBars/MainTopBar';
+import { NewEntityButton } from '../viewComponents/topBars/NewEntityButton';
+import { TopTimeline } from '../viewComponents/topBars/TopTimeline';
 
 export function AppTopbar() {
     const leftState = useUiStore(s => s.sidebars.left);

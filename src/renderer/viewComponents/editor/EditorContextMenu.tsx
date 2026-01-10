@@ -9,6 +9,7 @@ interface EditorContextMenuProps {
 }
 /*
   small context menu for editor views (node, element, category, storyline)
+  TODO: 重构改为传入type和id来做事，而不是用传入的callback
 */
 export function EditorContextMenu({ editorType, onAction }: EditorContextMenuProps) {
   const [isOpen, setIsOpen] = useState(false);

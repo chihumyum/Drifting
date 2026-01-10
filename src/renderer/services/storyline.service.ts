@@ -10,7 +10,7 @@ export interface CreateStorylineInput {
   name: string;
   color: string;
   summary?: string;
-  pmJson?: object;
+  pmJson?: string;
 }
 
 export interface UpdateStorylineInput {
@@ -18,7 +18,7 @@ export interface UpdateStorylineInput {
   name?: string;
   color?: string;
   summary?: string;
-  pmJson?: object;
+  pmJson?: string;
 }
 
 /**
