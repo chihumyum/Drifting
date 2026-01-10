@@ -10,7 +10,7 @@ import { createDefaultSlashMenu } from '../../lib/slash-menu';
 import { extractOutline, serializeOutline } from '../../lib/outline';
 import { ElementAutoLink, elementAutoLinkConfig } from '../../lib/extensions/element-auto-link';
 import { ElementParserService } from '../../services/element-parser.service';
-import { ElementOccurrenceRepository } from '../../repositories/element-occurrence.repository';
+import { ElementOccurrenceRepository } from '../../repositories/element-occr-repo';
 import { useSettingsStore } from '@/renderer/store/settings-store';
 import { TagEditor } from './TagEditor';
 import loglevel from 'loglevel';
@@ -99,7 +99,7 @@ export function ChapterEditor({
       map.set(element.name, {
         id: element.id,
         name: element.name,
-        category: element.category,
+        category: element.categoryId,
       });
     });
     return map;

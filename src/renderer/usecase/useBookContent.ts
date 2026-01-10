@@ -1,5 +1,5 @@
 import { useCallback, useRef, useMemo } from 'react';
-import { v7 as uuidv7 } from 'uuid';
+
 import { createBookContentRepository } from '../repositories/book_content_sqlite';
 import type { NodeContent } from '../domain/node-content';
 import { syncManager } from '../lib/sync/sync-manager';
@@ -51,12 +51,12 @@ const enqueueContentTask = (
 export function useBookContent() {
     const contentRepoRef = useRef(createBookContentRepository());
     const contentRepo = contentRepoRef.current;
-    
+
     const getContentByNodeId = useCallback(
         (nodeId: string) => contentRepo.findByNodeId(nodeId),
         [contentRepo]
     );
-    
+
     const getContentById = useCallback(
         (id: string) => contentRepo.findById(id),
         [contentRepo]
@@ -78,7 +78,7 @@ export function useBookContent() {
             // Use projectId and nodeId from existing content for sync
             if (canSync()) {
                 enqueueContentTask('update', cont.nodeId, cont.projectId, {
-                    pmJson: updatedData.pmJson,
+                    pmJson: updatedData.contentJson,
                     outlineJson: updatedData.outlineJson,
                 });
             }
@@ -104,7 +104,7 @@ export function useBookContent() {
             // Use projectId and nodeId from existing content for sync
             if (canSync()) {
                 enqueueContentTask('update', cont.nodeId, cont.projectId, {
-                    pmJson: updatedData.pmJson,
+                    pmJson: updatedData.contentJson,
                     outlineJson: updatedData.outlineJson,
                 });
             }
@@ -113,43 +113,35 @@ export function useBookContent() {
         },
         [contentRepo]
     );
-    
-    
+
+
     const createContent = useCallback(async (
-        nodeId: string, 
-        projectId: string, 
+        nodeId: string,
+        projectId: string,
         content: Partial<NodeContent>
     ) => {
-        const id = uuidv7();
-        const now = new Date().toISOString();
-        
-        const newContent: Partial<NodeContent> = {
-            id,
+        const created = await contentRepo.create({
             nodeId,
             projectId,
-            pmJson: content.pmJson,
-            outlineJson: content.outlineJson ?? '[]',
-            createdAt: now,
-            updatedAt: now,
-        };
-        
-        const created = await contentRepo.create(newContent);
+            contentJson: content.contentJson,
+            outlineJson: content.outlineJson,
+        });
 
         if (canSync()) {
             enqueueContentTask('create', nodeId, projectId, {
-                pmJson: created.pmJson,
+                pmJson: created.contentJson,
                 outlineJson: created.outlineJson,
             });
         }
-        
+
         return created;
     }, [contentRepo]);
-    
+
     const getOutlineByNodeId = useCallback(async (nodeId: string) => {
         const content = await contentRepo.findByNodeId(nodeId);
         return content?.outlineJson;
     }, [contentRepo]);
-    
+
     return useMemo(() => ({
         getContentByNodeId,
         getContentById,

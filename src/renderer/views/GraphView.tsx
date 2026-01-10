@@ -71,23 +71,23 @@ export function GraphView() {
     // Load Mappings 
     useEffect(() => {
         if (storylines.length === 0) return;
-        
+
         // Check if we need to load mappings
         const needsLoading = storylines.some(s => !storylineNodeMapping[s.id]);
-        
+
         if (!needsLoading) return;
 
         const loadMappings = async () => {
             const mapping: Record<string, string[]> = { ...storylineNodeMapping };
-            
+
             for (const line of storylines) {
                 if (!mapping[line.id]) {
-                     mapping[line.id] = await storylineUsecases.getNodeIdsByStoryline(line.id);
+                    mapping[line.id] = await storylineUsecases.getNodeIdsByStoryline(line.id);
                 }
             }
             setStorylineNodeMapping(mapping);
         };
-        
+
         void loadMappings();
 
     }, [storylines, storylineUsecases, setStorylineNodeMapping, storylineNodeMapping]);
@@ -114,7 +114,7 @@ export function GraphView() {
                     projectId,
                     sourceNodeId: source.id,
                     targetNodeId: target.id,
-                    kind: 'chronology',
+                    // kind: 'chronology',
                     label: line.name,
                     weight: 1,
                     isDirected: true,
@@ -215,7 +215,7 @@ export function GraphView() {
             .alphaDecay(0.03) // Faster decay
             .velocityDecay(0.5); // High damping
 
-        simulationRef.current = simulation;
+        simulationRef.current = simulation as any;
 
         // Update positions on each tick
         simulation.on("tick", () => {
@@ -249,7 +249,7 @@ export function GraphView() {
     // Update simulation when nodes are dragged
     useEffect(() => {
         if (!simulationRef.current) return;
-        
+
         bookNodes.forEach(node => {
             const simNode = simulationRef.current!.nodes().find((n: any) => n.id === node.id) as any;
             if (simNode && node.position) {
@@ -421,7 +421,7 @@ export function GraphView() {
 
             // Update both store and simulation
             updateBookNode(dragState.id, { position: { x: newPos.x, y: newPos.y } });
-            
+
             // Update simulation node position while dragging
             if (simulationRef.current) {
                 const simNode = simulationRef.current.nodes().find((n: any) => n.id === dragState.id) as any;
@@ -453,10 +453,10 @@ export function GraphView() {
             const edgeId = dragState.id;
             const rect = containerRef.current?.getBoundingClientRect();
             if (!rect) return;
-            
+
             // Get world position of cursor
             const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-            
+
             // Store the temp position for rendering
             setTempEdgeEnd(worldPos);
         }
@@ -478,17 +478,17 @@ export function GraphView() {
             if (edge && tempEdgeEnd) {
                 // Find node at drop position
                 const targetNode = findNodeAtPosition(tempEdgeEnd.x, tempEdgeEnd.y);
-                
+
                 if (targetNode) {
                     // Calculate anchor on target node border
                     const originalNodeId = dragState.anchorType === 'source' ? edge.sourceNodeId : edge.targetNodeId;
                     const originalNode = bookNodes.find(n => n.id === originalNodeId);
-                    
+
                     if (originalNode?.position) {
                         const dx = tempEdgeEnd.x - targetNode.position.x;
                         const dy = tempEdgeEnd.y - targetNode.position.y;
                         const newAnchor = getAnchorOnBorder(targetNode.position, { x: dx, y: dy });
-                        
+
                         // Update edge connection and anchor
                         if (dragState.anchorType === 'source') {
                             const updatedEdge = { ...edge, sourceNodeId: targetNode.id, sourceAnchor: newAnchor };
@@ -600,7 +600,7 @@ export function GraphView() {
                     projectId: 'default', // TODO
                     sourceNodeId: dragState.id,
                     targetNodeId: targetId,
-                    kind: 'causality', // Default
+
                     label: '',
                     weight: 1,
                     isDirected: true,
@@ -649,7 +649,7 @@ export function GraphView() {
 
             {/* Layout Controls */}
             <div className="absolute top-16 right-4 z-50 flex flex-col gap-2">
-                <button 
+                <button
                     className="bg-white/90 px-3 py-2 rounded shadow hover:bg-white text-sm"
                     onClick={() => {
                         if (simulationRef.current) {
@@ -660,7 +660,7 @@ export function GraphView() {
                 >
                     🔄 Re-layout
                 </button>
-                <button 
+                <button
                     className={`px-3 py-2 rounded shadow text-sm ${isSimulationActive ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'}`}
                     onClick={() => {
                         if (simulationRef.current) {
@@ -694,7 +694,7 @@ export function GraphView() {
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: storyline.color }} />
                             <span className="text-sm font-semibold text-gray-800">{storyline.name}</span>
-                            <button 
+                            <button
                                 onClick={() => setHighlightedStorylineId(null)}
                                 className="ml-2 text-gray-400 hover:text-gray-600 text-xs"
                             >×</button>
@@ -708,7 +708,7 @@ export function GraphView() {
                 <div className="absolute bottom-4 left-4 z-50 w-96 bg-white/95 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200 p-4">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-semibold text-gray-800">Edit Summary</h3>
-                        <button 
+                        <button
                             onClick={() => setSummaryEditor(null)}
                             className="text-gray-400 hover:text-gray-600"
                         >×</button>
@@ -762,13 +762,13 @@ export function GraphView() {
                         </marker>
                         {/* Dynamic markers for each storyline */}
                         {storylines.map(storyline => (
-                            <marker 
+                            <marker
                                 key={`marker-${storyline.id}`}
-                                id={`arrowhead-storyline-${storyline.id}`} 
-                                markerWidth="10" 
-                                markerHeight="7" 
-                                refX="9" 
-                                refY="3.5" 
+                                id={`arrowhead-storyline-${storyline.id}`}
+                                markerWidth="10"
+                                markerHeight="7"
+                                refX="9"
+                                refY="3.5"
                                 orient="auto"
                             >
                                 <polygon points="0 0, 10 3.5, 0 7" fill={storyline.color || '#b89968'} />
@@ -786,7 +786,7 @@ export function GraphView() {
                         const suffix = `-${edge.sourceNodeId}-${edge.targetNodeId}`;
                         const storylineId = edge.id.substring(prefix.length, edge.id.length - suffix.length);
                         const storyline = storylines.find(s => s.id === storylineId);
-                        
+
                         // Get color with proper fallback
                         let color = '#b89968'; // Default color
                         if (storyline && storyline.color) {
@@ -811,11 +811,11 @@ export function GraphView() {
                                     setSelectedEdgeId(null);
                                 }}
                                 customMarkerId={`arrowhead-storyline-${storylineId}`}
-                                style={{ 
-                                    stroke: color, 
-                                    strokeWidth: highlightedStorylineId === storylineId ? 6 : 5, 
+                                style={{
+                                    stroke: color,
+                                    strokeWidth: highlightedStorylineId === storylineId ? 6 : 5,
                                     opacity: highlightedStorylineId === storylineId ? 1.0 : 0.7,
-                                    strokeDasharray: 'none', 
+                                    strokeDasharray: 'none',
                                     filter: highlightedStorylineId === storylineId ? 'drop-shadow(0 0 4px rgba(0,0,0,0.2))' : 'drop-shadow(0 0 2px rgba(0,0,0,0.1))'
                                 }}
                             />
@@ -877,7 +877,7 @@ export function GraphView() {
                         const otherNodeId = anchorType === 'source' ? edge.targetNodeId : edge.sourceNodeId;
                         const otherNode = bookNodes.find(n => n.id === otherNodeId);
                         if (!otherNode?.position) return null;
-                        
+
                         return (
                             <line
                                 x1={anchorType === 'source' ? tempEdgeEnd.x : otherNode.position.x}

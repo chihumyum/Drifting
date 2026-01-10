@@ -1,24 +1,28 @@
 export interface BookElement {
   id: string;
-  category: string;
+  categoryId: string;
   name: string;
-  tags: string[];
-  content_json: string;
-  summary_json: string;
+  summary: string;
+  contentJson: string;
+  stageIds: string[];
+  tagIds: string[];
   createdAt: string;
   updatedAt: string;
-  stages: BookElementStage[];
 }
 
+// element could have multiple stages as the story progresses
+// the contentJson acts like a base, then each new stages patches the element
+// this stage has nothing to do with story stages and storylines
 export interface BookElementStage {
   id: string;
   elementId: string;
-  stage_index: number; // identify sequence for this element
-  start_node_id: number; // get start chapter/scene/beat from book nodes
-  end_node_id: number;  // get end chapter/scene/beat from book nodes
-  cur_stage_tags: string[];
-  cur_stage_content_json: string;
-  cur_stage_summary_json: string;
+  orderKey: number;
+  startNodeId: string;
+  endNodeId: string;
+  stageName: string;
+  contentJson: string;
+  summary: string;
+  tagIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -26,7 +30,7 @@ export interface BookElementStage {
 export interface BookElementCategory {
   id: string;
   name: string;
-  pm_json: string;
-  color?: string;
+  descriptionJson: string;
+  color: string;
 }
 

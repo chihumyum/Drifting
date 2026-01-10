@@ -12,7 +12,8 @@ import loglevel from "loglevel";
 
 const log = loglevel.getLogger("DebugModal");
 log.setLevel(loglevel.levels.ERROR);
-import { query } from '../../lib/db';
+import { getDb } from '../../lib/db';
+import { storyNodes, storylines, elements, elementCategories } from '../../schema/drizzle';
 
 interface DebugModalProps {
   isOpen: boolean;
@@ -61,10 +62,10 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
     try {
       // 直接查询所有表，使用 Promise.allSettled 避免单个表失败导致整体失败
       const results = await Promise.allSettled([
-        query('SELECT * FROM story_node'),
-        query('SELECT * FROM story_thread'),
-        query('SELECT * FROM element'),
-        query('SELECT * FROM element_category'),
+        getDb().select().from(storyNodes),
+        getDb().select().from(storylines),
+        getDb().select().from(elements),
+        getDb().select().from(elementCategories),
       ]);
 
       const data = {
@@ -270,33 +271,30 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         <div className="flex border-b">
           <button
             onClick={() => setActiveTab('server')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
-              activeTab === 'server'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'server'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+              }`}
           >
             <Server size={18} />
             服务器数据
           </button>
           <button
             onClick={() => setActiveTab('sqlite')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
-              activeTab === 'sqlite'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'sqlite'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+              }`}
           >
             <Database size={18} />
             SQLite 数据
           </button>
           <button
             onClick={() => setActiveTab('compare')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
-              activeTab === 'compare'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'compare'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
+              }`}
           >
             对比分析
           </button>

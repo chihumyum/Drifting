@@ -1,4 +1,5 @@
 import { useCallback, useRef, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
@@ -6,8 +7,8 @@ import { createBookElementSqliteRepository, createCategorySqliteRepository } fro
 import { useAuthStore, getProjectId } from '../store/auth';
 
 const getProjectIdForUser = () => {
-  const user = useAuthStore.getState().user;
-  return getProjectId(user?.id);
+    const user = useAuthStore.getState().user;
+    return getProjectId(user?.id);
 };
 
 export interface CreateBookElementInput {
@@ -19,12 +20,14 @@ export interface CreateBookElementInput {
 }
 
 export function useBookElement() {
-    const elementRepoRef = useRef(createBookElementSqliteRepository(getProjectIdForUser()));
+    const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+    const activeProjectId = routeProjectId ?? getProjectIdForUser();
+
+    // Use useMemo ensuring repository is recreated if projectId changes
+    const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);
     const categoryRepoRef = useRef(createCategorySqliteRepository());
-    
-    const elementRepo = elementRepoRef.current;
     const categoryRepo = categoryRepoRef.current;
-    
+
     const getElements = useCallback(() => useDataStore.getState().bookElements, []);
     const setElements = useCallback((els: BookElement[]) => useDataStore.getState().setBookElements(els), []);
     const getCategories = useCallback(() => useDataStore.getState().bookElementCategories, []);
@@ -38,7 +41,7 @@ export function useBookElement() {
         const newCat: BookElementCategory = {
             id: uuidv7(),
             name: categoryName,
-            pm_json: JSON.stringify({ description: '' }),
+            descriptionJson: JSON.stringify({ description: '' }),
             color: '#CCCCCC'
         };
         setCategories([...categories, newCat]);
@@ -46,37 +49,42 @@ export function useBookElement() {
         return newCat;
     }, [categoryRepo, getCategories, setCategories]);
 
+    const deleteCategory = useCallback(async (name: string) => {
+        await categoryRepo.delete(name);
+        const cats = await categoryRepo.findAll();
+        setCategories(cats);
+    }, [categoryRepo, setCategories]);
+
     const loadInitial = useCallback(async (projectId?: string) => {
-        const pid = projectId ?? getProjectIdForUser();
+        const pid = projectId ?? activeProjectId;
         const elements = await elementRepo.findAllByProject(pid);
         setElements(elements);
         const categories = await categoryRepo.findAll();
         setCategories(categories);
-    }, [elementRepo, categoryRepo, setElements, setCategories]);
+    }, [elementRepo, categoryRepo, setElements, setCategories, activeProjectId]);
 
     const createElement = useCallback(async (input: CreateBookElementInput) => {
-        const now = new Date();
+        // Ensure category exists before creating element (though repo handles it too, maybe duplicate but safer for UI state?)
+        // Actually repo's ensureCategoryId handles it. 
+        // But we need the category object to update local state optimistically?
+        // The previous code did optimistic update manually.
         const category = await ensureCategory(input.category);
 
-        const newElement: BookElement = {
-            id: uuidv7(),
-            category: category.name,
+        // We can't do full optimistic update without ID.
+        // But we can wait for repo return.
+
+        const persisted = await elementRepo.create({
+            projectId: activeProjectId,
+            categoryName: input.category,
             name: input.name,
-            tagIds: input.tags ?? [],
-            pmJson: input.content_json ?? JSON.stringify({}),
-            summary: input.summary_json ?? JSON.stringify({}),
-            createdAt: now.toISOString(),
-            updatedAt: now.toISOString(),
-            stages: [],
-        };
+            tagIds: input.tags,
+            contentJson: input.content_json,
+            summary: input.summary_json,
+        });
 
         const prev = getElements();
-        setElements([...prev, newElement]);
+        setElements([persisted, ...prev]);
 
-        const persisted = await elementRepo.create(newElement);
-
-        const current = getElements();
-        setElements(current.map(el => el.id === newElement.id ? persisted : el));
         return persisted;
     }, [elementRepo, ensureCategory, getElements, setElements]);
 
@@ -86,7 +94,7 @@ export function useBookElement() {
         const existing = elements.find(e => e.id === id);
         if (!existing) throw new Error(`Element with id ${id} not found`);
 
-        let categoryName = existing.category;
+        let categoryName = existing.categoryId;
         if (updates.category) {
             const category = await ensureCategory(updates.category);
             categoryName = category.name;
@@ -94,10 +102,10 @@ export function useBookElement() {
 
         const updatedElement: BookElement = {
             ...existing,
-            category: categoryName,
+            categoryId: categoryName,
             name: updates.name ?? existing.name,
             tagIds: updates.tags ?? existing.tagIds,
-            pmJson: updates.content_json ?? existing.pmJson,
+            contentJson: updates.content_json ?? existing.contentJson,
             summary: updates.summary_json ?? existing.summary,
             updatedAt: now.toISOString(),
         };
@@ -130,6 +138,8 @@ export function useBookElement() {
         loadInitial,
         createElement,
         updateElement,
+        createCategory: ensureCategory,
+        deleteCategory,
         removeElement,
-    }), [loadInitial, createElement, updateElement, removeElement]);
+    }), [loadInitial, createElement, updateElement, removeElement, ensureCategory, deleteCategory]);
 }

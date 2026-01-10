@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1768035838561,
+      "tag": "0000_perpetual_cerebro",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1768035962225,
+      "tag": "0001_minor_micromax",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1768038024009,
+      "tag": "0002_acoustic_khan",
+      "breakpoints": true
+    }
+  ]
+}

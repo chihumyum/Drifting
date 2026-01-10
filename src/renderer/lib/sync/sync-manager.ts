@@ -87,7 +87,7 @@ export class SyncManager {
  */
   private async restoreSyncQueue(): Promise<void> {
     try {
-      const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
+      const { syncQueueRepository } = await import('../../repositories/sync-queue-repo');
       const tasks = await syncQueueRepository.getPendingTasks();
       this.queue = tasks;
       log.debug(`[SyncManager] 恢复了 ${tasks.length} 个待同步任务`);
@@ -210,7 +210,7 @@ export class SyncManager {
    */
   private async persistTask(task: SyncTask) {
     try {
-      const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
+      const { syncQueueRepository } = await import('../../repositories/sync-queue-repo');
       await syncQueueRepository.saveTask(task);
     } catch (error) {
       log.error('[SyncManager] 持久化任务失败:', error);
@@ -451,7 +451,7 @@ export class SyncManager {
 
       const description = (() => {
         try {
-          const parsed = local.summary_json ? JSON.parse(local.summary_json) : undefined;
+          const parsed = local.summary ? JSON.parse(local.summary) : undefined;
           return typeof parsed?.description === 'string' ? parsed.description : undefined;
         } catch {
           return undefined;
@@ -460,7 +460,7 @@ export class SyncManager {
 
       const metadata = (() => {
         try {
-          return local.content_json ? JSON.parse(local.content_json) : undefined;
+          return local.contentJson ? JSON.parse(local.contentJson) : undefined;
         } catch {
           return undefined;
         }
@@ -469,7 +469,7 @@ export class SyncManager {
       await elementsApi.create(projectId, {
         id: local.id,
         name: local.name,
-        categoryName: local.category ?? undefined,
+        categoryName: local.categoryId ?? undefined,
         description,
         metadata,
       });
@@ -628,6 +628,7 @@ export class SyncManager {
     status: SyncStatus = 'synced',
     options?: { updatedAt?: string; isDeleted?: boolean }
   ) {
+    return // TODO: implememnt later with backend
     try {
       switch (task.entity) {
         case 'node': {
@@ -669,7 +670,7 @@ export class SyncManager {
    */
   private async deleteTaskFromDB(taskId: string) {
     try {
-      const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
+      const { syncQueueRepository } = await import('../../repositories/sync-queue-repo');
       await syncQueueRepository.deleteTask(taskId);
     } catch (error) {
       log.error('[SyncManager] 删除任务失败:', error);
@@ -681,7 +682,7 @@ export class SyncManager {
    */
   private async updateTaskInDB(task: SyncTask) {
     try {
-      const { syncQueueRepository } = await import('../../repositories/sync-queue-repository');
+      const { syncQueueRepository } = await import('../../repositories/sync-queue-repo');
       await syncQueueRepository.updateTask(task);
     } catch (error) {
       log.error('[SyncManager] 更新任务失败:', error);

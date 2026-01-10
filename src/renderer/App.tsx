@@ -11,7 +11,6 @@ import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
 import { LeftQuickButtons } from './viewComponents/leftBars/LeftQuickButtons';
 import { Sidebar } from './viewComponents/Sidebar';
 import { BottomTimeline } from './viewComponents/BottomTimeline/BottomTimeline';
-import { DEFAULT_PROJECT } from './schema/table';
 import { SettingsModal } from './viewComponents/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useUiStore } from './store/ui-store';
@@ -29,6 +28,7 @@ function Layout() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { initializeProject } = useProject();
+  const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
     // Initialize theme
@@ -41,12 +41,18 @@ function Layout() {
       return;
     }
 
+    // Reset ready state on project switch
+    setDbReady(false);
+
     log.info('[App] Initializing database for project:', projectId);
 
     initDatabase(projectId).then(async () => {
+      // Initialize project-specific data (stores etc)
+      await initializeProject(projectId);
+
       events.emit('db:ready');
       log.info('[App] Database ready for project:', projectId);
-      await initializeProject(projectId);
+      setDbReady(true);
     }).catch(error => {
       log.error('Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
@@ -59,7 +65,7 @@ function Layout() {
     events.on('settings:open', handleOpenSettings);
     const handleOpenSearch = () => setIsSearchOpen(true);
     events.on('search:open', handleOpenSearch);
-    
+
     return () => {
       events.off('settings:open', handleOpenSettings);
       events.off('search:open', handleOpenSearch);
@@ -83,7 +89,16 @@ function Layout() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isGraphViewOpen, setGraphViewOpen]);
-return (
+
+  if (!dbReady) {
+    return (
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Loading Project...
+      </div>
+    );
+  }
+
+  return (
     // 1. 最外层容器：占满屏幕，垂直排列 (中间内容 + 底部时间轴)
     <div
       style={{
@@ -97,7 +112,7 @@ return (
       <AppTopbar />
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        
+
         {/* Left Sidebar */}
         {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
         <Sidebar sidebarType="left" >
@@ -128,7 +143,7 @@ return (
             background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
           }}
         >
-          
+
           {/* Debug Location */}
           <div style={{ flexShrink: 0 }}>{location.pathname}</div>
 
@@ -148,7 +163,7 @@ return (
         <Sidebar sidebarType="right" >
           {/* Right Sidebar Content */}
         </Sidebar>
-        
+
       </div>
 
       {/* 3. 底部时间轴：固定在底部，自然高度 */}
@@ -164,12 +179,14 @@ return (
   );
 }
 
+import { ProjectHomeView } from './views/ProjectHomeView';
+
 export default function App() {
   return (
     <Routes>
-      {/* Root redirect to default project */}
-      <Route path="/" element={<Navigate to={`/project/${DEFAULT_PROJECT.id}`} replace />} />
-      
+      {/* Root - Project Home View */}
+      <Route path="/" element={<ProjectHomeView />} />
+
       {/* Project-scoped routes */}
       <Route path="/project/:projectId" element={<Layout />}>
         <Route index element={<Navigate to="home" replace />} />

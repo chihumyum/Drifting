@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback } from 'react';
-import { DEFAULT_PROJECT } from '../schema/table';
+const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
 
 /**
  * Project-aware navigation hook

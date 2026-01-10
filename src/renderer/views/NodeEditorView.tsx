@@ -90,11 +90,11 @@ export function NodeEditorView() {
         // Check if content exists
         setBookContent((prev) => {
           if (prev && prev.nodeId === targetNodeId) {
-            return {...prev, pmJson, outlineJson};
+            return {...prev, contentJson: pmJson, outlineJson};
           }
           return prev;
         });
-        updateContentByNodeId(targetNodeId, { pmJson, outlineJson });
+        updateContentByNodeId(targetNodeId, { contentJson: pmJson, outlineJson });
       } catch (error) {
         log.error('[NodeEditor] Failed to update content:', error);
       }
@@ -145,7 +145,7 @@ export function NodeEditorView() {
                 <ChapterEditor
                   ref={editorRef}
                   nodeId={nodeId}
-                  content={bookContent.pmJson}
+                  content={bookContent.contentJson}
                   title={curNode.title}
                   summary={curNode.summary || ''}
                   onContentUpdate={handleContentUpdate}

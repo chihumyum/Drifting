@@ -41,7 +41,7 @@ export class ElementParserService {
         matches.set(element.id, {
           elementId: element.id,
           elementName: element.name,
-          category: element.category,
+          category: element.categoryId,
           matches: elementMatches,
         });
       }

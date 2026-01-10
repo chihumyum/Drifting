@@ -5,7 +5,7 @@
  * 用于持久化同步任务队列
  */
 
-import { query, run } from '../lib/db';
+// import { query, run } from '../lib/db';
 import type { SyncTask, SyncTaskStatus } from '../lib/sync/types';
 
 /**
@@ -16,7 +16,7 @@ export const syncQueueRepository = {
    * 保存同步任务到队列
    */
   async saveTask(task: SyncTask): Promise<void> {
-    await run(
+    await window.electronAPI.db.run(
       `INSERT OR REPLACE INTO sync_queue 
        (id, type, entity, local_id, project_id, data, priority, retry_count, max_retries, status, error, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 3, ?, ?, ?, ?)`,
@@ -41,7 +41,17 @@ export const syncQueueRepository = {
    * 获取所有待处理的任务
    */
   async getPendingTasks(): Promise<SyncTask[]> {
-    const rows = await query<{
+    const rows = await window.electronAPI.db.query(
+      `SELECT * FROM sync_queue 
+       WHERE status IN ('pending', 'syncing')
+       ORDER BY 
+         CASE priority 
+           WHEN 'high' THEN 1 
+           WHEN 'normal' THEN 2 
+           WHEN 'low' THEN 3 
+         END,
+         created_at ASC`
+    ) as Array<{
       id: string;
       type: string;
       entity: string;
@@ -53,17 +63,7 @@ export const syncQueueRepository = {
       status: string;
       error: string | null;
       created_at: number;
-    }>(
-      `SELECT * FROM sync_queue 
-       WHERE status IN ('pending', 'syncing')
-       ORDER BY 
-         CASE priority 
-           WHEN 'high' THEN 1 
-           WHEN 'normal' THEN 2 
-           WHEN 'low' THEN 3 
-         END,
-         created_at ASC`
-    );
+    }>;
 
     return rows.map((row) => ({
       id: row.id,
@@ -84,7 +84,7 @@ export const syncQueueRepository = {
    * 更新任务状态
    */
   async updateTask(task: SyncTask): Promise<void> {
-    await run(
+    await window.electronAPI.db.run(
       `UPDATE sync_queue 
        SET retry_count = ?, status = ?, error = ?, updated_at = ?
        WHERE id = ?`,
@@ -96,7 +96,7 @@ export const syncQueueRepository = {
    * 删除任务
    */
   async deleteTask(taskId: string): Promise<void> {
-    await run(`DELETE FROM sync_queue WHERE id = ?`, [taskId]);
+    await window.electronAPI.db.run(`DELETE FROM sync_queue WHERE id = ?`, [taskId]);
   },
 
   /**
@@ -108,9 +108,9 @@ export const syncQueueRepository = {
     syncing: number;
     failed: number;
   }> {
-    const rows = await query<{ status: string; count: number }>(
+    const rows = await window.electronAPI.db.query(
       `SELECT status, COUNT(*) as count FROM sync_queue GROUP BY status`
-    );
+    ) as Array<{ status: string; count: number }>;
 
     const stats = {
       total: 0,
@@ -133,13 +133,13 @@ export const syncQueueRepository = {
    * 清除已完成的任务
    */
   async clearCompletedTasks(): Promise<void> {
-    await run(`DELETE FROM sync_queue WHERE status = 'completed'`);
+    await window.electronAPI.db.run(`DELETE FROM sync_queue WHERE status = 'completed'`);
   },
 
   /**
    * 清除失败的任务
    */
   async clearFailedTasks(): Promise<void> {
-    await run(`DELETE FROM sync_queue WHERE status = 'failed'`);
+    await window.electronAPI.db.run(`DELETE FROM sync_queue WHERE status = 'failed'`);
   },
 };

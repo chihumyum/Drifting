@@ -60,345 +60,256 @@ function initDatabase(dbName: string): void {
 function runMigrations(): void {
   if (!db) return;
 
-  // Import the schema from renderer side
-  db.exec(`
--- =============================
--- Book Element / Element Schema
--- =============================
--- Projects table
-CREATE TABLE IF NOT EXISTS project (
-  id TEXT PRIMARY KEY,
-  project_name TEXT,
-  author TEXT,
-  description TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  const schemaSql = `
+CREATE TABLE IF NOT EXISTS element_categories (
+	id text PRIMARY KEY NOT NULL,
+	name text NOT NULL,
+	description_json text DEFAULT '{}',
+	color text NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_project_name ON project(project_name);
-
--- Category table (element categories)
-CREATE TABLE IF NOT EXISTS element_category (
-  id TEXT PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  description_json TEXT NOT NULL DEFAULT '{}',
-  color TEXT NULL,
-  sync_status TEXT NOT NULL DEFAULT 'synced',
-  last_modified INTEGER,
-  is_deleted INTEGER NOT NULL DEFAULT 0
+CREATE TABLE IF NOT EXISTS element_stages (
+	id text PRIMARY KEY NOT NULL,
+	element_id text NOT NULL,
+	order_key integer NOT NULL,
+	start_node_id text,
+	end_node_id text,
+	stage_name text NOT NULL,
+	content_json text DEFAULT '{}',
+	summary text DEFAULT '',
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (element_id) REFERENCES elements(id) ON UPDATE no action ON DELETE cascade
 );
-
--- Story stages (higher level than nodes/chapters)
-CREATE TABLE IF NOT EXISTS story_stage (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  order_key INTEGER NOT NULL,
-  color TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS element_tags (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	name text NOT NULL,
+	color text,
+	created_at text NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_story_stage_project ON story_stage(project_id);
-CREATE INDEX IF NOT EXISTS idx_story_stage_order ON story_stage(project_id, order_key);
-
--- Node tags (user-defined tags for categorizing nodes)
-CREATE TABLE IF NOT EXISTS node_tag (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  color TEXT,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
-  UNIQUE(project_id, name)
+CREATE TABLE IF NOT EXISTS element_tags_link (
+	element_id text NOT NULL,
+	tag_id text NOT NULL,
+	created_at text NOT NULL,
+	PRIMARY KEY(element_id, tag_id),
+	FOREIGN KEY (element_id) REFERENCES elements(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (tag_id) REFERENCES element_tags(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_node_tag_project ON node_tag(project_id);
-
--- Node-tag link (many-to-many)
-CREATE TABLE IF NOT EXISTS node_tag_link (
-  node_id TEXT NOT NULL,
-  tag_id TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  PRIMARY KEY(node_id, tag_id),
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
-  FOREIGN KEY(tag_id) REFERENCES node_tag(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS elements (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	category_id text,
+	name text NOT NULL,
+	summary text DEFAULT '',
+	content_json text DEFAULT '{}',
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (category_id) REFERENCES element_categories(id) ON UPDATE no action ON DELETE set null
 );
-CREATE INDEX IF NOT EXISTS idx_node_tag_link_node ON node_tag_link(node_id);
-CREATE INDEX IF NOT EXISTS idx_node_tag_link_tag ON node_tag_link(tag_id);
-
--- Story nodes (chapters/nodes - basic writing units)
-CREATE TABLE IF NOT EXISTS story_node (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  project_id TEXT NOT NULL,
-  start INTEGER NOT NULL,
-  end INTEGER,
-  summary TEXT,
-  story_stage_id TEXT,
-  pos_x REAL,
-  pos_y REAL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  sync_status TEXT NOT NULL DEFAULT 'synced',
-  last_modified INTEGER,
-  is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
-  FOREIGN KEY(story_stage_id) REFERENCES story_stage(id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS node_contents (
+	id text PRIMARY KEY NOT NULL,
+	node_id text NOT NULL,
+	project_id text NOT NULL,
+	content_json text DEFAULT '{}',
+	outline_json text DEFAULT '[]',
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_story_node_project ON story_node(project_id);
-CREATE INDEX IF NOT EXISTS idx_story_node_stage ON story_node(story_stage_id);
-CREATE INDEX IF NOT EXISTS idx_story_node_timeline ON story_node(project_id, start, end);
-CREATE INDEX IF NOT EXISTS idx_story_node_sync ON story_node(sync_status) WHERE is_deleted = 0;
-
--- Storylines (narrative threads/storylines)
-CREATE TABLE IF NOT EXISTS storyline (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  color TEXT NOT NULL,
-  summary TEXT,
-  pm_json TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  sync_status TEXT NOT NULL DEFAULT 'synced',
-  last_modified INTEGER,
-  is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+CREATE INDEX IF NOT EXISTS idx_node_contents_node ON node_contents (node_id);
+CREATE TABLE IF NOT EXISTS node_elements_link (
+	id text PRIMARY KEY NOT NULL,
+	node_id text NOT NULL,
+	element_id text NOT NULL,
+	FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (element_id) REFERENCES elements(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_storyline_project ON storyline(project_id);
-CREATE INDEX IF NOT EXISTS idx_storyline_sync ON storyline(sync_status) WHERE is_deleted = 0;
-
--- Node to storyline relationship (many-to-many)
-CREATE TABLE IF NOT EXISTS node_storyline (
-  node_id TEXT NOT NULL,
-  storyline_id TEXT NOT NULL,
-  storyline_order INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY(node_id, storyline_id),
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
-  FOREIGN KEY(storyline_id) REFERENCES storyline(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS node_storylines (
+	node_id text NOT NULL,
+	storyline_id text NOT NULL,
+	storyline_order integer DEFAULT 0 NOT NULL,
+	PRIMARY KEY(node_id, storyline_id),
+	FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (storyline_id) REFERENCES storylines(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_node_storyline_node ON node_storyline(node_id);
-CREATE INDEX IF NOT EXISTS idx_node_storyline_storyline ON node_storyline(storyline_id);
-
--- Edges between nodes 
-CREATE TABLE IF NOT EXISTS node_edge (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  src_node_id TEXT NOT NULL,
-  dst_node_id TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  label TEXT,
-  weight INTEGER NOT NULL DEFAULT 1,
-  style TEXT,  -- JSON for style props
-  data TEXT,   -- JSON for freeform geometry (control points, anchors)
-  created_at TEXT NOT NULL, 
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS node_tags (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	name text NOT NULL,
+	color text,
+	created_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_node_edge_project ON node_edge(project_id);
-CREATE INDEX IF NOT EXISTS idx_node_edge_src ON node_edge(src_node_id);
-CREATE INDEX IF NOT EXISTS idx_node_edge_dst ON node_edge(dst_node_id);
-
-
-
--- Book content table
-
--- Book content table 
-CREATE TABLE IF NOT EXISTS book_content (
-  id TEXT PRIMARY KEY,
-  node_id TEXT NOT NULL UNIQUE,
-  project_id TEXT NOT NULL,
-  pm_json TEXT NOT NULL DEFAULT '{}',
-  outline_json TEXT NOT NULL DEFAULT '[]',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  sync_status TEXT NOT NULL DEFAULT 'synced',
-  last_modified INTEGER,
-  is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
-  FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS node_tags_link (
+	node_id text NOT NULL,
+	tag_id text NOT NULL,
+	created_at text NOT NULL,
+	PRIMARY KEY(node_id, tag_id),
+	FOREIGN KEY (node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (tag_id) REFERENCES node_tags(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_book_content_node ON book_content(node_id);
-CREATE INDEX IF NOT EXISTS idx_book_content_project ON book_content(project_id);
-CREATE INDEX IF NOT EXISTS idx_book_content_sync ON book_content(sync_status) WHERE is_deleted = 0;
-
--- Core element (element) table
-CREATE TABLE IF NOT EXISTS element (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  category_id TEXT,
-  type TEXT NOT NULL,
-  name TEXT NOT NULL,
-  content_json TEXT NOT NULL DEFAULT '{}',
-  summary_json TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  sync_status TEXT NOT NULL DEFAULT 'synced',
-  last_modified INTEGER,
-  is_deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY(category_id) REFERENCES element_category(id) ON DELETE SET NULL
+CREATE TABLE IF NOT EXISTS projects (
+	id text PRIMARY KEY NOT NULL,
+	user_id text NOT NULL,
+	name text NOT NULL,
+	author text NOT NULL,
+	description_json text DEFAULT '{}',
+	created_at text NOT NULL,
+	updated_at text NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_element_project ON element(project_id);
-CREATE INDEX IF NOT EXISTS idx_element_category ON element(category_id);
-CREATE INDEX IF NOT EXISTS idx_element_sync ON element(sync_status) WHERE is_deleted = 0;
-CREATE INDEX IF NOT EXISTS idx_element_type ON element(type);
-
--- Element tags
-CREATE TABLE IF NOT EXISTS element_tag (
-  id TEXT PRIMARY KEY,
-  element_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
-  UNIQUE(element_id, name)
+CREATE TABLE IF NOT EXISTS story_node_edges (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	source_node_id text NOT NULL,
+	target_node_id text NOT NULL,
+	label text,
+	weight integer DEFAULT 1 NOT NULL,
+	is_directed integer DEFAULT true NOT NULL,
+	style_json text,
+	control_point_offset_json text,
+	source_anchor_json text,
+	target_anchor_json text,
+	created_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (source_node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (target_node_id) REFERENCES story_nodes(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_element_tag_element ON element_tag(element_id);
-CREATE INDEX IF NOT EXISTS idx_element_tag_name ON element_tag(name);
-
--- Element stages (evolution across the story)
-CREATE TABLE IF NOT EXISTS element_stage (
-  id TEXT PRIMARY KEY,
-  element_id TEXT NOT NULL,
-  stage_index INTEGER NOT NULL,
-  start_node_id TEXT,
-  end_node_id TEXT,
-  name TEXT NOT NULL,
-  content_json TEXT NOT NULL DEFAULT '{}',
-  summary_json TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
-  UNIQUE(element_id, stage_index)
+CREATE TABLE IF NOT EXISTS story_nodes (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	title text NOT NULL,
+	summary text DEFAULT '',
+	start integer NOT NULL,
+	end integer DEFAULT 0 NOT NULL,
+	story_stage_id text,
+	position_x real NOT NULL,
+	position_y real NOT NULL,
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (story_stage_id) REFERENCES story_stages(id) ON UPDATE no action ON DELETE set null
 );
-CREATE INDEX IF NOT EXISTS idx_element_stage_element ON element_stage(element_id);
-CREATE INDEX IF NOT EXISTS idx_element_stage_stage_index ON element_stage(element_id, stage_index);
-
--- Element to story node links (many-to-many)
-CREATE TABLE IF NOT EXISTS element_node_link (
-  id TEXT PRIMARY KEY,
-  node_id TEXT NOT NULL,
-  element_id TEXT NOT NULL,
-  FOREIGN KEY(node_id) REFERENCES story_node(id) ON DELETE CASCADE,
-  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE,
-  UNIQUE(node_id, element_id)
-);
-CREATE INDEX IF NOT EXISTS idx_element_node_link_node ON element_node_link(node_id);
-CREATE INDEX IF NOT EXISTS idx_element_node_link_element ON element_node_link(element_id);
-
--- Mapping stages to chapters (span coverage)
-CREATE TABLE IF NOT EXISTS chapter_element_stage (
-  chapter_id TEXT NOT NULL,
-  element_stage_id TEXT NOT NULL,
-  PRIMARY KEY(chapter_id, element_stage_id),
-  FOREIGN KEY(element_stage_id) REFERENCES element_stage(id) ON DELETE CASCADE
+CREATE INDEX IF NOT EXISTS idx_story_nodes_project ON story_nodes (project_id);
+CREATE INDEX IF NOT EXISTS idx_story_nodes_stage ON story_nodes (story_stage_id);
+CREATE TABLE IF NOT EXISTS story_stages (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	name text NOT NULL,
+	description_json text DEFAULT '{}',
+	order_key integer NOT NULL,
+	start_node_id text,
+	end_node_id text,
+	color text NOT NULL,
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade
 );
 
--- Element occurrence inside text blocks (for auto-linking)
-CREATE TABLE IF NOT EXISTS element_occurrence (
-  id TEXT PRIMARY KEY,
-  element_id TEXT NOT NULL,
-  node_id TEXT NOT NULL,
-  block_id TEXT NOT NULL,
-  spans_json TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY(element_id) REFERENCES element(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS project_element_categories (
+	project_id text NOT NULL,
+	category_id text NOT NULL,
+	created_at text NOT NULL,
+	PRIMARY KEY(project_id, category_id),
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (category_id) REFERENCES element_categories(id) ON UPDATE no action ON DELETE cascade
 );
-CREATE INDEX IF NOT EXISTS idx_element_occurrence_element ON element_occurrence(element_id);
-CREATE INDEX IF NOT EXISTS idx_element_occurrence_node ON element_occurrence(node_id);
-  `);
 
-  // Migration for existing databases
-  // We try to add columns if they don't exist
-  try {
-    db.prepare("ALTER TABLE node_edge ADD COLUMN style TEXT").run();
-  } catch (e) { /* ignore if exists */ }
+CREATE TABLE IF NOT EXISTS storylines (
+	id text PRIMARY KEY NOT NULL,
+	project_id text NOT NULL,
+	name text NOT NULL,
+	color text NOT NULL,
+	summary text DEFAULT '',
+	description_json text DEFAULT '{}',
+	created_at text NOT NULL,
+	updated_at text NOT NULL,
+	FOREIGN KEY (project_id) REFERENCES projects(id) ON UPDATE no action ON DELETE cascade
+);
+`;
+
+  // Execute schema creation
+  // We split by semicolon to execute mostly safely, though simple exec handles it usually.
+  // Using transaction for safety
+  const transaction = db.transaction(() => {
+    db!.exec(schemaSql);
+  });
 
   try {
-    db.prepare("ALTER TABLE node_edge ADD COLUMN data TEXT").run();
-  } catch (e) { /* ignore if exists */ }
-
-  // Add project_id to book_content if it doesn't exist
-  try {
-    db.prepare("ALTER TABLE book_content ADD COLUMN project_id TEXT NOT NULL DEFAULT 'default-project'").run();
-    log.info('[Database] Added project_id column to book_content table');
-  } catch (e) { 
-    // Column already exists, ignore
-  }
-
-  // Update existing book_content records to have project_id from their node
-  try {
-    db.prepare(`
-      UPDATE book_content 
-      SET project_id = (
-        SELECT sn.project_id 
-        FROM story_node sn 
-        WHERE sn.id = book_content.node_id
-      )
-      WHERE project_id IS NULL OR project_id = ''
-    `).run();
-    log.info('[Database] Updated book_content records with project_id from nodes');
+    transaction();
+    log.info('[Database] Schema setup completed');
   } catch (e) {
-    log.error('[Database] Failed to update book_content project_id:', e);
+    log.error('[Database] Schema setup failed:', e);
+    // Continue anyway as tables might exist
   }
 
   // Insert default project if not exists
   const now = new Date().toISOString();
-  const defaultProject = db.prepare('SELECT id FROM project WHERE id = ?').get('default-project');
+  // Using new table name 'projects' and columns
+  const defaultProject = db.prepare('SELECT id FROM projects WHERE id = ?').get('default-project');
 
   if (!defaultProject) {
     log.info('[Database] Creating default project');
-    db.prepare(`
-      INSERT INTO project (id, project_name, author, description, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      'default-project',
-      'Default Project',
-      'Author Name',
-      'This is your default project. You can create more projects later.',
-      now,
-      now
-    );
+    try {
+      db.prepare(`
+        INSERT INTO projects (id, user_id, name, author, description_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'default-project',
+        'default-user', // Default user ID
+        'Default Project',
+        'Author Name',
+        JSON.stringify({ description: 'This is your default project. You can create more projects later.' }),
+        now,
+        now
+      );
+    } catch (e) {
+      log.error('[Database] Failed to insert default project:', e);
+    }
   }
 
   // Insert default element category if not exists
-  const defaultCategory = db.prepare('SELECT id FROM element_category WHERE id = ?').get('cat_default');
+  const defaultCategory = db.prepare('SELECT id FROM element_categories WHERE id = ?').get('cat_default');
 
   if (!defaultCategory) {
     log.info('[Database] Creating default element category');
-    db.prepare(`
-      INSERT INTO element_category (id, name, description_json, color, sync_status, last_modified, is_deleted)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      'cat_default',
-      'others',
-      JSON.stringify({ description: 'Default category' }),
-      '#CCCCCC',
-      'synced',
-      Date.now(),
-      0
-    );
+    try {
+      db.prepare(`
+        INSERT INTO element_categories (id, name, description_json, color)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        'cat_default',
+        'others',
+        JSON.stringify({ description: 'Default category' }),
+        '#CCCCCC'
+      );
+    } catch (e) {
+      log.error('[Database] Failed to insert default category:', e);
+    }
   }
 
   // Insert default storyline if not exists
-  const defaultStoryline = db.prepare('SELECT id FROM storyline WHERE id = ?').get('storyline_main');
+  const defaultStoryline = db.prepare('SELECT id FROM storylines WHERE id = ?').get('storyline_main');
 
   if (!defaultStoryline) {
     log.info('[Database] Creating default storyline');
-    db.prepare(`
-      INSERT INTO storyline (id, project_id, name, color, summary, created_at, updated_at, sync_status, last_modified, is_deleted)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      'storyline_main',
-      'default-project',
-      'Main Story',
-      '#3B82F6',
-      'Main storyline',
-      now,
-      now,
-      'synced',
-      Date.now(),
-      0
-    );
+    try {
+      db.prepare(`
+        INSERT INTO storylines (id, project_id, name, color, summary, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'storyline_main',
+        'default-project',
+        'Main Story',
+        '#3B82F6',
+        'Main storyline',
+        now,
+        now
+      );
+    } catch (e) {
+      log.error('[Database] Failed to insert default storyline:', e);
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import type { Database } from 'better-sqlite3';
-import { ElementOccurrenceRepository } from '../repositories/element-occurrence.repository';
+import { ElementOccurrenceRepository } from '../repositories/element-occr-repo';
 import type { BookElement } from '../domain/book-element';
 import type { JSONContent } from '@tiptap/core';
 import { ElementParserService, type ElementMatch } from './element-parser.service';
@@ -25,10 +25,8 @@ export function getDatabaseInstance(): Database | null {
 export class ElementAutoLinkManager {
   private repo: ElementOccurrenceRepository | null = null;
 
-  constructor(db?: Database) {
-    if (db) {
-      this.repo = new ElementOccurrenceRepository(db);
-    }
+  constructor() {
+    this.repo = new ElementOccurrenceRepository();
   }
 
   /**
@@ -62,7 +60,7 @@ export class ElementAutoLinkManager {
   /**
    * 获取某个元素的反向链接
    */
-  getBacklinks(elementId: string) {
+  async getBacklinks(elementId: string) {
     if (!this.repo) {
       return [];
     }
@@ -72,7 +70,7 @@ export class ElementAutoLinkManager {
   /**
    * 获取某个节点中的元素出现记录
    */
-  getOccurrencesInNode(nodeId: string) {
+  async getOccurrencesInNode(nodeId: string) {
     if (!this.repo) {
       return [];
     }
@@ -82,7 +80,7 @@ export class ElementAutoLinkManager {
   /**
    * 统计元素被引用的次数
    */
-  countReferences(elementId: string): number {
+  async countReferences(elementId: string): Promise<number> {
     if (!this.repo) {
       return 0;
     }

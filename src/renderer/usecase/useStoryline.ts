@@ -6,7 +6,7 @@ import { useDataStore } from '../store/data-store';
 export function useStoryline() {
   const repoRef = useRef(new StorylineSQLiteRepository());
   const repo = repoRef.current;
-  
+
   const setStorylinesState = useCallback((storylines: Storyline[]) => {
     useDataStore.getState().setStorylines(storylines);
   }, []);

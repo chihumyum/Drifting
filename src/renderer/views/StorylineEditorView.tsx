@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -27,7 +27,7 @@ export function StorylineEditorView() {
   const storylineUsecases = useStoryline();
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
   const [currentNodes, setCurrentNodes] = useState<BookNode[]>([]);
-  
+
 
   // get storyline and nodes from store
   useEffect(() => {
@@ -39,7 +39,7 @@ export function StorylineEditorView() {
     if (!currentStoryline) {
       log.warn('Current storyline not found in store, loading from DB...', storylineId);
     }
-    setCurrentNodes(bookNodes.filter(node => node === storylineId));
+    setCurrentNodes(bookNodes.filter(node => node.storylineIds.includes(storylineId)));
     log.debug('Loaded storyline ', currentStoryline?.name, 'nodes ', currentNodes);
   }, [projectId, storylineId, user, navigate, storylines, bookNodes]);
 
@@ -97,13 +97,13 @@ export function StorylineEditorView() {
       log.debug('Editor or active storyline not ready yet');
       return;
     }
-    if (currentStoryline.pmJson) {
-      editorSL.commands.setContent(JSON.parse(currentStoryline.pmJson));
+    if (currentStoryline.descriptionJson) {
+      editorSL.commands.setContent(JSON.parse(currentStoryline.descriptionJson));
     } else {
       log.warn('No pmJson content for storyline:', storylineId);
       editorSL.commands.setContent(null);
     }
-    
+
   }, [editorSL, projectId, storylineId, currentStoryline, currentNodes]);
 
   const handleUpdateName = async (newName: string) => {
@@ -138,28 +138,28 @@ export function StorylineEditorView() {
       <div>
         {/* Storyline Name */}
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <input
-              type="text"
-              value={currentStoryline?.name || ''}
-              onChange={e => handleUpdateName(e.target.value)}
-              onBlur={e => handleUpdateName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleUpdateName(e.currentTarget.value);
-                if (e.key === 'Escape') {
-                  e.currentTarget.blur();
-                }
-              }}
-              style={{
-                maxWidth: '50vw',
-                fontSize: 32,
-                fontWeight: 700,
-                border: 'none',
-                outline: 'none',
-                background: 'transparent',
-                padding: '8px 0',
-                color: 'rgba(0, 0, 0, 0.85)',
-              }}
-            />
+          <input
+            type="text"
+            value={currentStoryline?.name || ''}
+            onChange={e => handleUpdateName(e.target.value)}
+            onBlur={e => handleUpdateName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleUpdateName(e.currentTarget.value);
+              if (e.key === 'Escape') {
+                e.currentTarget.blur();
+              }
+            }}
+            style={{
+              maxWidth: '50vw',
+              fontSize: 32,
+              fontWeight: 700,
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              padding: '8px 0',
+              color: 'rgba(0, 0, 0, 0.85)',
+            }}
+          />
         </div>
 
         {/* Description - Rich text editor */}
@@ -185,7 +185,7 @@ export function StorylineEditorView() {
               padding: '8px 0',
               color: 'rgba(0, 0, 0, 0.85)',
             }}
-            />
+          />
 
           <div>
             <EditorContent editor={editorSL} />

@@ -57,7 +57,7 @@ export function CategoryEditorView() {
   // Get elements belonging to this category
   const categoryElements = useMemo(() => {
     if (!categoryId) return [];
-    return bookElements.filter(el => el.category === categoryId);
+    return bookElements.filter(el => el.categoryId === categoryId);
   }, [bookElements, categoryId]);
 
   // Initialize editor
@@ -101,7 +101,7 @@ export function CategoryEditorView() {
 
       const json = ed.getJSON();
       const contentJson = JSON.stringify(json);
-      if (contentJson === curCategory?.pm_json) return;
+      if (contentJson === curCategory?.descriptionJson) return;
 
       if (curCategory) {
         void handleSaveContent(contentJson);
@@ -114,7 +114,7 @@ export function CategoryEditorView() {
     if (!editor || !curCategory || isContentLoadedRef.current) return;
 
     try {
-      const content = curCategory.pm_json ? JSON.parse(curCategory.pm_json) : getDefaultDoc();
+      const content = curCategory.descriptionJson ? JSON.parse(curCategory.descriptionJson) : getDefaultDoc();
       editor.commands.setContent(content);
       isContentLoadedRef.current = true;
     } catch (error) {
@@ -128,7 +128,7 @@ export function CategoryEditorView() {
   const handleSaveContent = async (content: string) => {
     if (!curCategory) return;
     updateBookElementCategory(curCategory.id, {
-      pm_json: content,
+      descriptionJson: content,
     });
   };
 

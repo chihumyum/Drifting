@@ -1,5 +1,5 @@
 import { useCallback, useRef, useMemo } from 'react';
-import { v7 as uuidv7 } from 'uuid';
+
 import type { Project } from '../domain/project';
 import { ProjectRepositorySQLite } from '../repositories/project_sqlite';
 import { useBookNode } from './useBookNode';
@@ -24,7 +24,7 @@ export function useProject() {
   const nodeUsecases = useBookNode();
   const storylineUsecases = useStoryline();
   const elementUsecases = useBookElement();
-  
+
   const initializeProject = useCallback(async (projectId: string) => {
     await Promise.all([
       nodeUsecases.loadNodes({ projectId }),
@@ -42,16 +42,10 @@ export function useProject() {
   }, [repo]);
 
   const createProject = useCallback(async (input: CreateProjectInput): Promise<Project> => {
-    const now = new Date().toISOString();
-    const id = uuidv7();
-
     return await repo.create({
-      id,
-      projectName: input.projectName ?? null,
-      author: input.author ?? null,
-      description: input.description ?? null,
-      createdAt: now,
-      updatedAt: now,
+      name: input.projectName ?? 'New Project',
+      author: input.author ?? 'Unknown Author',
+      description: input.description ?? '',
     });
   }, [repo]);
 

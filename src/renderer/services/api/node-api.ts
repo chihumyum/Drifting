@@ -31,15 +31,17 @@ const toBookNode = (node: NodeResponse): BookNode => ({
   projectId: node.projectId,
   title: node.title,
   start: node.start ?? 0,
-  end: node.end ?? null,
-  summary: node.summary ?? null,
-  storyStageId: node.storyStageId ?? null,
+  end: node.end ?? 0,
+  summary: node.summary ?? '',
+  storyStageId: node.storyStageId ?? '',
   position: {
-    x: node.posX ?? null,
-    y: node.posY ?? null,
+    x: node.posX ?? 0,
+    y: node.posY ?? 0,
   },
   createdAt: new Date(node.createdAt).toISOString(),
   updatedAt: new Date(node.updatedAt).toISOString(),
+  storylineIds: [], // Not returned by API list
+  tagIds: [], // Not returned by API list
 });
 
 // DTO 类型定义（与后端对齐）

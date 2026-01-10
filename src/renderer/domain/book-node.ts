@@ -1,32 +1,36 @@
-import type { NodeEdgeKind } from '../schema/book_node';
 
-export interface BookNodePosition {
-  x: number | null;
-  y: number | null;
-}
 
 export interface BookNode {
   id: string;
   projectId: string;
   title: string;
+  summary: string;
   start: number;                     // Position on timeline (chapter order / story time start)
-  end: number | null;                // Timeline end position (null = use default width)
-  summary: string | null;
-  storyStageId: string | null;       // FK to story_stage, nullable
+  end: number;                // Timeline end position
+  storyStageId: string;
+  storylineIds: string[];  // Associated storylines, could be multiple
+  tagIds: string[];       // Tags associated with this node
   position: BookNodePosition;
   createdAt: string;
   updatedAt: string;
 }
+
+
+
+export interface BookNodePosition {
+  x: number;
+  y: number;
+}
+
 
 export interface BookNodeEdge {
   id: string;
   projectId: string;
   sourceNodeId: string;
   targetNodeId: string;
-  kind: NodeEdgeKind;
   label: string | null;
   weight: number;
-  isDirected?: boolean; // Default true if undefined
+  isDirected: boolean; // Default true if undefined
   createdAt: string;
   // Freeform Styling & Geometry
   style?: {

@@ -13,3 +13,12 @@ export interface NodeTagLink {
   tagId: string;
   createdAt: string;
 }
+
+export interface StoryStage {
+  id: string;
+  projectId: string;
+  name: string;
+  color: string;
+  position: number;
+  createdAt: string;
+}

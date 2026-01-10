@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { v7 as uuidv7 } from 'uuid';
+import { useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
-import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/book_node_sqlite';
-import { createBookContentRepository } from '../repositories/book_content_sqlite';
+import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/node-repo.ts';
+import { createBookContentRepository } from '../repositories/content-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import { initDatabase } from '../lib/db';
 import { useAuthStore, getProjectId } from '../store/auth';
@@ -50,23 +50,25 @@ const enqueueNodeTask = (
 };
 
 export function useBookNode() {
-  const nodeRepoRef = useRef(createBookNodeSqliteRepository(getProjectIdForUser()));
-  const edgeRepoRef = useRef(createBookNodeEdgeSqliteRepository(getProjectIdForUser()));
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+
+  // Use route projectId if available, otherwise fallback to user default (legacy)
+  const activeProjectId = routeProjectId ?? getProjectIdForUser();
+
+  const nodeRepo = useMemo(() => createBookNodeSqliteRepository(activeProjectId), [activeProjectId]);
+  const edgeRepo = useMemo(() => createBookNodeEdgeSqliteRepository(activeProjectId), [activeProjectId]);
   const contentRepoRef = useRef(createBookContentRepository());
-  
-  const nodeRepo = nodeRepoRef.current;
-  const edgeRepo = edgeRepoRef.current;
   const contentRepo = contentRepoRef.current;
 
-  const ensureDb = useCallback((projectId?: string) => 
-    initDatabase(projectId ?? getProjectIdForUser()), 
-  []);
-  
+  const ensureDb = useCallback((projectId?: string) =>
+    initDatabase(projectId ?? activeProjectId),
+    [activeProjectId]);
+
   const getNodesState = useCallback(() => useDataStore.getState().bookNodes, []);
   const setNodesState = useCallback((nodes: BookNode[]) => useDataStore.getState().setBookNodes(nodes), []);
-  const updateNodeState = useCallback((id: string, updates: Partial<BookNode>) => 
-    useDataStore.getState().updateBookNode(id, updates), 
-  []);
+  const updateNodeState = useCallback((id: string, updates: Partial<BookNode>) =>
+    useDataStore.getState().updateBookNode(id, updates),
+    []);
   const setEdgesState = useCallback((edges: BookNodeEdge[]) => useDataStore.getState().setNodeEdges(edges), []);
 
   const loadNodes = useCallback(async (options?: { projectId?: string }) => {
@@ -93,12 +95,18 @@ export function useBookNode() {
     const maxStart = nodes.reduce((max, node) => Math.max(max, node.start), Number.NEGATIVE_INFINITY);
     const nextStart = Number.isFinite(maxStart) ? maxStart + 1 : 1;
 
+    const targetProjectId = input.projectId ?? activeProjectId ?? getProjectIdForUser();
+    if (!targetProjectId) {
+      log.error('[createNode] No projectId available for creation. input:', input, 'active:', activeProjectId);
+      throw new Error('Project ID is required to create a node');
+    }
+
     const created = await nodeRepo.create({
       title: input.title,
-      projectId: input.projectId,
+      projectId: targetProjectId,
       start: input.start ?? nextStart,
-      end: input.end ?? null,
-      summary: input.summary ?? null,
+      end: input.end ?? (input.start ?? nextStart) + 1, // Ensure end is provided (width 1 by default if missing)
+      summary: input.summary ?? '',
       storyStageId: input.storyStageId ?? null,
       position: input.position ?? {
         x: (Math.random() - 0.5) * 600,
@@ -116,12 +124,9 @@ export function useBookNode() {
 
     try {
       await contentRepo.create({
-        id: uuidv7(),
         nodeId: created.id,
         projectId: created.projectId,
-        pmJson: defaultDocJson,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
+        contentJson: defaultDocJson,
       });
       log.debug('Created default content for new node:', created.id);
     } catch (error) {
@@ -216,7 +221,7 @@ export function useBookNode() {
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { summary, updatedAt: now });
+    updateNodeState(id, { summary: summary ?? '', updatedAt: now });
 
     try {
       await nodeRepo.update(id, { summary, updatedAt: now });

@@ -35,7 +35,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
           return {
             nodeId: node.id,
             node,
-            content: content?.pmJson || null,
+            content: content?.contentJson || null,
           };
         } catch (error) {
           log.error(`Failed to load content for node ${node.id}:`, error);
@@ -73,13 +73,13 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
 
       if (existingContent?.id) {
         await updateContentById(existingContent.id, {
-          pmJson,
+          contentJson: pmJson,
           outlineJson,
         });
       } else {
         // 创建新内容
         if (node.projectId) {
-           await createContent(nodeId, node.projectId, { pmJson, outlineJson });
+           await createContent(nodeId, node.projectId, { contentJson: pmJson, outlineJson });
         } else {
            log.error('Cannot create content: Node missing projectId', node);
         }

@@ -648,6 +648,9 @@ export function BottomTimeline() {
 
         // 如果有任何更新，写入数据库
         if (Object.keys(updates).length > 0) {
+          const updates: Partial<BookNode> = {
+            end: currentEnd ?? 0 // Fallback to 0 if null 
+          };
           await updateNode(resizingNode.nodeId, updates);
         }
 
@@ -1172,7 +1175,7 @@ export function BottomTimeline() {
           }}
         >
           {/* Render drop indicator */}
-          {dragOverPosition?.storylineId === storyline.id && (
+          {dragOverPosition && dragOverPosition.storylineId === storyline.id && (
             <div
               style={{
                 position: 'absolute',

@@ -13,20 +13,25 @@ interface UiState {
   setTheme: (theme: 'light' | 'dark') => void;
 
   sidebars: Record<SidebarType, SidebarState>;
-  
+
   toggleSidebar: (type: SidebarType) => void;
   setSidebarOpen: (type: SidebarType, isOpen: boolean) => void;
   setSidebarWidth: (type: SidebarType, width: number) => void;
 
   isGraphViewOpen: boolean;
   setGraphViewOpen: (isOpen: boolean) => void;
+
+  selectedElementId: string | null;
+  setSelectedElementId: (id: string | null) => void;
+  timelineHeight: number;
+  setTimelineHeight: (height: number) => void;
 }
 
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       theme: 'dark',
-      
+
       sidebars: {
         left: {
           isOpen: true,
@@ -75,10 +80,15 @@ export const useUiStore = create<UiState>()(
 
       isGraphViewOpen: false,
       setGraphViewOpen: (isOpen) => set({ isGraphViewOpen: isOpen }),
+
+      selectedElementId: null,
+      setSelectedElementId: (id) => set({ selectedElementId: id }),
+      timelineHeight: 200,
+      setTimelineHeight: (height) => set({ timelineHeight: height }),
     }),
     {
       name: 'ui-storage', // unique name
-      partialize: (state) => ({ 
+      partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
         // We can choose what to persist

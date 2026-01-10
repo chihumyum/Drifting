@@ -1,9 +1,12 @@
 // Domain model for a book project
+// AKA a book
+
 export interface Project {
   id: string;
-  projectName: string | null;
-  author: string | null;
-  description: string | null;
+  userId: string;
+  name: string;
+  author: string;
+  descriptionJson: string;
   createdAt: string;
   updatedAt: string;
 }

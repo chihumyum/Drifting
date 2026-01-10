@@ -1,11 +1,13 @@
 // Storyline Domain Model
+// each book contains multiple storylines in parallel
+
 export interface Storyline {
   id: string;
   projectId: string;
   name: string;
   color: string;
-  summary?: string;
-  pmJson?: object; // ProseMirror document JSON
+  summary: string;
+  descriptionJson: string; // ProseMirror document JSON
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,7 +17,7 @@ export interface CreateStorylineInput {
   name: string;
   color: string;
   summary?: string;
-  pmJson?: object;
+  pmJson?: string;
 }
 
 export interface UpdateStorylineInput {
@@ -23,17 +25,5 @@ export interface UpdateStorylineInput {
   name?: string;
   color?: string;
   summary?: string;
-  pmJson?: object;
-}
-
-// Domain model for Story Stage
-export interface StoryStage {
-  id: string;
-  projectId: string;
-  name: string;
-  description: string | null;
-  orderKey: number;
-  color: string | null;
-  createdAt: string;
-  updatedAt: string;
+  pmJson?: string;
 }

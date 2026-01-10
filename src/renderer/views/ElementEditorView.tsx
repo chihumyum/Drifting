@@ -53,13 +53,13 @@ export function ElementEditorView() {
       navigate('/', { replace: true });
       return;
     }
-    
+
     const element = bookElements.find(e => e.id === elementId) || null;
     setCurElement(element);
     setNameValue(element?.name || '');
     setSummaryValue(element?.summary || '');
-    setCategoryValue(element?.category || 'others');
-    
+    setCategoryValue(element?.categoryId || 'others');
+
     // Auto-enter edit mode for newly created elements
     if (element?.name === 'New Element') {
       setEditingName(true);
@@ -72,7 +72,7 @@ export function ElementEditorView() {
 
     isContentLoadedRef.current = false;
     loadedElementIdRef.current = null;
-    
+
     // Content is already in the element
     isContentLoadedRef.current = true;
     loadedElementIdRef.current = elementId;
@@ -110,11 +110,11 @@ export function ElementEditorView() {
         log.debug('Skipping save: content not yet loaded');
         return;
       }
-      
+
       const json = ed.getJSON();
       const contentJson = JSON.stringify(json);
-      if (contentJson === curElement?.pmJson) return;
-      
+      if (contentJson === curElement?.contentJson) return;
+
       if (elementId) {
         void updateElement(elementId, {
           content_json: contentJson,
@@ -127,7 +127,7 @@ export function ElementEditorView() {
   useEffect(() => {
     if (!editor || !curElement) return;
 
-    const contentJson = curElement.pmJson;
+    const contentJson = curElement.contentJson;
     if (!contentJson) {
       editor.commands.setContent(getDefaultDoc());
       return;
@@ -137,7 +137,7 @@ export function ElementEditorView() {
       const json = JSON.parse(contentJson) as JSONContent;
       const currentJson = editor.getJSON();
       const currentString = JSON.stringify(currentJson);
-      
+
       if (contentJson !== currentString) {
         editor.commands.setContent(json);
       }
@@ -161,20 +161,20 @@ export function ElementEditorView() {
 
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim()) return;
-    
-    // Create new category using the category repository
-    const { categoryRepo } = _deps;
-    await categoryRepo.create(newCategoryName.trim());
-    
+
+    // Create new category using the hook
+    const { createCategory } = useBookElement();
+    await createCategory(newCategoryName.trim());
+
     // Reload categories
     await loadInitial();
-    
+
     // Set the new category
     setCategoryValue(newCategoryName.trim());
     if (elementId) {
       await updateElement(elementId, { category: newCategoryName.trim() });
     }
-    
+
     // Close modal
     setShowNewCategoryModal(false);
     setNewCategoryName('');
@@ -183,11 +183,11 @@ export function ElementEditorView() {
 
   const handleContextAction = async (action: string) => {
     if (!elementId || !curElement) return;
-    
+
     if (action === 'deleteElement') {
       const confirmed = window.confirm(`Delete element "${curElement.name}"?`);
       if (!confirmed) return;
-      
+
       try {
         await elementUsecases.removeElement(elementId);
         navigate('/editor');
@@ -202,10 +202,10 @@ export function ElementEditorView() {
 
   if (!elementId || !curElement) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         height: '100%',
         color: '#999',
       }}>
@@ -215,8 +215,8 @@ export function ElementEditorView() {
   }
 
   return (
-    <div style={{ 
-      display: 'flex', 
+    <div style={{
+      display: 'flex',
       flexDirection: 'column',
       height: '100%',
       position: 'relative',
@@ -377,7 +377,7 @@ export function ElementEditorView() {
                   ))}
                   <option value="__new__">+ New Category</option>
                 </select>
-                
+
                 {/* New Category Modal */}
                 {showNewCategoryModal && (
                   <div style={{
@@ -392,11 +392,11 @@ export function ElementEditorView() {
                     justifyContent: 'center',
                     zIndex: 1000,
                   }}
-                  onClick={() => {
-                    setShowNewCategoryModal(false);
-                    setNewCategoryName('');
-                    setEditingCategory(false);
-                  }}
+                    onClick={() => {
+                      setShowNewCategoryModal(false);
+                      setNewCategoryName('');
+                      setEditingCategory(false);
+                    }}
                   >
                     <div style={{
                       background: 'white',
@@ -405,7 +405,7 @@ export function ElementEditorView() {
                       minWidth: 320,
                       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
                     }}
-                    onClick={e => e.stopPropagation()}
+                      onClick={e => e.stopPropagation()}
                     >
                       <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600 }}>
                         New Category
@@ -485,7 +485,7 @@ export function ElementEditorView() {
                   border: '1px solid var(--accent-border, #e8dcc8)',
                 }}
               >
-                {curElement.category || 'others'}
+                {curElement.categoryId || 'others'}
               </div>
             )}
           </div>
@@ -514,11 +514,11 @@ export function ElementEditorView() {
       </div>
 
       {/* Editor Context Menu */}
-      <EditorContextMenu 
+      <EditorContextMenu
         editorType="element"
         onAction={handleContextAction}
       />
-      
+
       {/* Right Vertical Buttons */}
     </div>
   );

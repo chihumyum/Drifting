@@ -29,7 +29,7 @@ export function NewEntityButton() {
     try {
       // Determine target storyline
       let defaultStorylineId: string | null = null;
-      
+
       // Priority 1: Use current storyline if in storyline editor
       const currentStorylineId = getCurrentStorylineId();
       if (currentStorylineId) {
@@ -42,7 +42,7 @@ export function NewEntityButton() {
           defaultStorylineId = selectedNodeStorylines[0].id;
         }
       }
-      
+
       // Priority 3: Use first available storyline
       if (!defaultStorylineId) {
         const projectId = getProjectId(user?.id);
@@ -56,22 +56,22 @@ export function NewEntityButton() {
       let newStart = 1;
       let newEnd = 11; // Default length of 10 units
       const newLength = 10;
-      
+
       // If in storyline editor, always insert at the end of current storyline
       // regardless of selectedNodeId
       if (currentStorylineId && defaultStorylineId) {
         // Insert after last node in the current storyline
         const nodesWithStorylines = await Promise.all(
           bookNodes.map(async (node) => {
-              const nodeStorylines = await getStorylinesByNode(node.id);
+            const nodeStorylines = await getStorylinesByNode(node.id);
             return { ...node, storylines: nodeStorylines };
           })
         );
-        
+
         const nodesInStoryline = nodesWithStorylines
           .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
           .sort((a, b) => a.start - b.start);
-        
+
         if (nodesInStoryline.length > 0) {
           const lastNode = nodesInStoryline[nodesInStoryline.length - 1];
           const lastEnd = lastNode.end ?? lastNode.start;
@@ -91,12 +91,12 @@ export function NewEntityButton() {
             return { ...node, storylines: nodeStorylines };
           })
         );
-        
+
         // Filter nodes where this storyline is the primary (first) storyline
         const nodesInStoryline = nodesWithStorylines
           .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
           .sort((a, b) => a.start - b.start);
-        
+
         if (nodesInStoryline.length > 0) {
           // Place after last node in storyline
           const lastNode = nodesInStoryline[nodesInStoryline.length - 1];
@@ -109,7 +109,7 @@ export function NewEntityButton() {
           newEnd = newStart + newLength;
         }
       }
-      
+
       // Check if there are any nodes in the target storyline overlapping with [newStart, newEnd]
       // and shift all subsequent nodes if necessary
       if (defaultStorylineId) {
@@ -120,49 +120,49 @@ export function NewEntityButton() {
             return { ...node, storylines: nodeStorylines };
           })
         );
-        
+
         // Filter nodes where this storyline is the primary (first) storyline
         const storylineNodes = nodesWithStorylines
           .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
           .sort((a, b) => a.start - b.start);
-        
+
         // Find first overlapping node
         const firstOverlap = storylineNodes.find(node => {
           const nodeStart = node.start;
           const nodeEnd = node.end ?? node.start;
           return nodeStart < newEnd && nodeEnd >= newStart;
         });
-        
+
         if (firstOverlap) {
           // Shift amount is the length of the new chapter
           const shiftAmount = newEnd - newStart;
-          
+
           // Shift all nodes from the first overlap onwards
           const nodesToShift = storylineNodes.filter(node => node.start >= firstOverlap.start);
-          
+
           for (const node of nodesToShift) {
             await updateNode(node.id, {
               start: node.start + shiftAmount,
-              end: node.end ? node.end + shiftAmount : null,
+              end: node.end ? node.end + shiftAmount : 0,
             });
           }
         }
       }
-      
+
       // Create the new node
       const newNode = await createNode({
         title: 'New Chapter',
         start: newStart,
         end: newEnd,
       });
-      
+
       if (defaultStorylineId) {
         await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
-      
+
       await loadNodes();
       navigateToNode(newNode.id);
-      
+
       // Scroll timeline to the new chapter
       setTimeout(() => {
         const timelineContainer = document.querySelector('[data-timeline-container]') as HTMLElement;
@@ -197,7 +197,7 @@ export function NewEntityButton() {
         fontWeight: 500,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
-        WebkitAppRegion: 'no-drag',
+        WebkitAppRegion: 'no-drag' as any,
       }}
       onMouseEnter={e => {
         e.currentTarget.style.background = 'rgba(184, 153, 104, 0.2)';

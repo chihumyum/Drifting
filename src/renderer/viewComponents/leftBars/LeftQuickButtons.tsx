@@ -27,7 +27,7 @@ export function LeftQuickButtons() {
   const { nodeId } = useParams<{ nodeId?: string }>();
   const user = useAuthStore(state => state.user);
   const { createNode, loadNodes } = useBookNode();
-  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines } = useStoryline();
+  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines, getStorylinesByProject } = useStoryline();
   const bookNodes = useDataStore(state => state.bookNodes);
   const { navigateToNode, navigateToStoryline } = useProjectNavigation();
 
@@ -41,57 +41,57 @@ export function LeftQuickButtons() {
     try {
       // Find the maximum end position among all nodes
       // If no nodes exist, start from position 1
-      const maxEnd = bookNodes.length > 0 
+      const maxEnd = bookNodes.length > 0
         ? bookNodes.reduce((max, node) => {
-            const nodeEnd = node.end ?? node.start;
-            return Math.max(max, nodeEnd);
-          }, 0)
+          const nodeEnd = node.end ?? node.start;
+          return Math.max(max, nodeEnd);
+        }, 0)
         : 0; // Start from 0 so first node begins at 1
       const newStart = maxEnd + 1;
       const newEnd = newStart + 10; // Default chapter length
-      
+
       const newNode = await createNode({
         title: 'New Chapter',
         start: newStart,
         end: newEnd,
       });
-      
+
       // 确定要添加到哪个 storyline
       let defaultStorylineId: string | null = null;
-      
+
       // 优先级1: 如果当前在 storyline editor 中，使用当前 storyline
       const currentStorylineId = getCurrentStorylineId();
       if (currentStorylineId) {
         defaultStorylineId = currentStorylineId;
       }
       // 优先级2: 如果有选中的 node，获取它的主 storyline（第一个 storyline）
-      else if (selectedNodeId) {
-        const selectedNodeStorylines = await storylineUsecases.getStorylinesByNode(selectedNodeId);
+      else if (nodeId) {
+        const selectedNodeStorylines = await getStorylinesByNode(nodeId);
         if (selectedNodeStorylines.length > 0) {
           defaultStorylineId = selectedNodeStorylines[0].id;
         }
       }
-      
+
       // 优先级3: 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
       if (!defaultStorylineId) {
         const projectId = getProjectId(user?.id);
-        const allStorylines = await storylineUsecases.getStorylinesByProject(projectId);
+        const allStorylines = await getStorylinesByProject(projectId);
         if (allStorylines.length > 0) {
           defaultStorylineId = allStorylines[0].id;
         }
       }
-      
+
       // 将新 node 添加到 storyline
       if (defaultStorylineId) {
         await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
-      
+
       // Reload nodes to ensure timeline picks up the new node with its storyline relationship
       await loadNodes();
-      
+
       // Navigate to the new chapter
       navigateToNode(newNode.id);
-      
+
       // Scroll timeline to the new chapter position
       setTimeout(() => {
         const timelineContainer = document.querySelector('[data-timeline-container]') as HTMLElement;
@@ -112,10 +112,10 @@ export function LeftQuickButtons() {
   const handleCreateStoryline = async () => {
     try {
       const projectId = getProjectId(user?.id);
-      
+
       // Generate random color
       const randomColor = STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
-      
+
       // Create new storyline
       const newStoryline = await createStoryline({
         projectId,
@@ -123,10 +123,10 @@ export function LeftQuickButtons() {
         color: randomColor,
         summary: '',
       });
-      
+
       // Reload all storylines to update the store and trigger timeline refresh
       await loadStorylines(projectId);
-      
+
       // Navigate to storyline editor
       navigateToStoryline(newStoryline.id);
     } catch (error) {
@@ -145,68 +145,68 @@ export function LeftQuickButtons() {
         padding: '8px',
       }}
     >
-        <button
-          onClick={handleCreateChapter}
-          className="bg-accent hover:bg-accent-hover text-paper transition-colors"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            color: 'rgba(0, 0, 0, 0.75)',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
-          }}
-        >
-          <Plus size={16} />
-          <span>Chapter</span>
-        </button>
-        
-        <button
-          onClick={handleCreateStoryline}
-          className="bg-accent hover:bg-accent-hover text-paper transition-colors"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            color: 'rgba(0, 0, 0, 0.75)',
-            fontSize: '13px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
-          }}
-        >
-          <Plus size={16} />
-          <span>Storyline</span>
-        </button>
-      </div>
+      <button
+        onClick={handleCreateChapter}
+        className="bg-accent hover:bg-accent-hover text-paper transition-colors"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          padding: '12px',
+          borderRadius: '8px',
+          border: 'none',
+          color: 'rgba(0, 0, 0, 0.75)',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+        }}
+      >
+        <Plus size={16} />
+        <span>Chapter</span>
+      </button>
+
+      <button
+        onClick={handleCreateStoryline}
+        className="bg-accent hover:bg-accent-hover text-paper transition-colors"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          padding: '12px',
+          borderRadius: '8px',
+          border: 'none',
+          color: 'rgba(0, 0, 0, 0.75)',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'translateY(-1px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+        }}
+      >
+        <Plus size={16} />
+        <span>Storyline</span>
+      </button>
+    </div>
   );
 }
 

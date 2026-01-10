@@ -400,7 +400,7 @@ export function TopTimeline() {
             }}
             title={currentStoryline.name}
           >
-            {currentStoryline.name.charAt(0).toUpperCase()}
+            {currentStoryline.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'}
           </div>
         </div>
 
@@ -586,10 +586,10 @@ export function TopTimeline() {
                 )}
               </div>
             ))}
-            
+
             {/* Divider */}
             <div style={{ height: 1, background: 'rgba(0, 0, 0, 0.1)', margin: '4px 0' }} />
-            
+
             {/* New Storyline Button */}
             <div
               onClick={async (e) => {
@@ -610,29 +610,29 @@ export function TopTimeline() {
                     // Cool grays
                     '#7d8491', '#8b939e', '#6d7684', '#858c99', '#75808a',
                   ];
-                  
+
                   // Get current storylines to check for used colors
                   const currentStorylines = await loadStorylines(projectId);
                   const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
-                  
+
                   // Find unused colors first
                   const unusedColors = STORYLINE_COLORS.filter(c => !usedColors.has(c.toLowerCase()));
-                  
+
                   // Select color: prefer unused, otherwise pick randomly
                   const selectedColor = unusedColors.length > 0
                     ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
                     : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
-                  
+
                   const newStoryline = await createStoryline({
                     projectId,
                     name: 'New Storyline',
                     color: selectedColor,
                     summary: '',
                   });
-                  
+
                   // Reload all storylines to update store
                   await loadStorylines(projectId);
-                  
+
                   setShowStorylineDropdown(false);
                   setStorylineDropdownPosition(null);
                   navigateToStoryline(newStoryline.id);
@@ -668,7 +668,7 @@ export function TopTimeline() {
       }
 
       {/* Hover Preview */}
-      <NodeHoverPreview 
+      <NodeHoverPreview
         node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
         position={hoverPosition}
       />
