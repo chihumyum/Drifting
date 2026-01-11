@@ -1,8 +1,5 @@
 import { useMemo, useRef, useCallback } from 'react';
-import { 
-  createNodeTagRepository,
-  createNodeTagLinkRepository,
-} from '../repositories/story_stage_sqlite';
+import { createNodeTagRepository, createNodeTagLinkRepository } from '../repositories/story-stage-repo';
 import { initDatabase } from '../lib/db';
 import { useAuthStore, getProjectId } from '../store/auth';
 

@@ -4,6 +4,11 @@ import { useProject } from '../usecase/useProject';
 import { useStoryline } from '../usecase/useStoryline';
 import { Project } from '../domain/project';
 import { initDatabase } from '../lib/db';
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("ProjectHomeView");
+// log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.DEBUG);
 
 export function ProjectHomeView() {
     const navigate = useNavigate();
@@ -21,7 +26,7 @@ export function ProjectHomeView() {
                 await initDatabase();
                 await fetchProjects();
             } catch (e) {
-                console.error("Failed to init projects view", e);
+                log.error("Failed to init projects view", e);
             } finally {
                 setLoading(false);
             }
@@ -31,6 +36,7 @@ export function ProjectHomeView() {
 
     const fetchProjects = async () => {
         const data = await loadProjects();
+        log.debug("Loaded projects:", data);
         setProjects(data);
     };
 
@@ -58,7 +64,7 @@ export function ProjectHomeView() {
             // 3. Navigate
             navigate(`/project/${project.id}`);
         } catch (error) {
-            console.error('Failed to create project:', error);
+            log.error('Failed to create project:', error);
             setIsCreating(false);
         }
     };

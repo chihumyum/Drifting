@@ -117,7 +117,7 @@ export function ElementEditorView() {
 
       if (elementId) {
         void updateElement(elementId, {
-          content_json: contentJson,
+          contentJson: contentJson,
         });
       }
     },
@@ -155,7 +155,7 @@ export function ElementEditorView() {
 
   const handleSaveSummary = async () => {
     if (!elementId) return;
-    await updateElement(elementId, { summary_json: summaryValue });
+    await updateElement(elementId, { summary: summaryValue });
     setEditingSummary(false);
   };
 
@@ -172,7 +172,7 @@ export function ElementEditorView() {
     // Set the new category
     setCategoryValue(newCategoryName.trim());
     if (elementId) {
-      await updateElement(elementId, { category: newCategoryName.trim() });
+      await updateElement(elementId, { categoryId: newCategoryName.trim() });
     }
 
     // Close modal
@@ -347,7 +347,7 @@ export function ElementEditorView() {
                       setCategoryValue(val);
                       // Auto-save on regular selection
                       if (elementId) {
-                        void updateElement(elementId, { category: val });
+                        void updateElement(elementId, { categoryId: val });
                       }
                       setEditingCategory(false);
                     }

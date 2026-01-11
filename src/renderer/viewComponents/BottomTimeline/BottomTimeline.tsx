@@ -4,7 +4,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
 import { parseOutline } from '../../lib/outline';
-import type { OutlineItem } from '../../schema/book_content';
+import type { OutlineItem } from '../../domain/node-content';
 import type { Storyline } from '../../domain/storyline';
 import type { BookNode } from '../../domain/book-node';
 import { useAuthStore, getProjectId } from '../../store/auth';
@@ -344,15 +344,25 @@ export function BottomTimeline() {
     const savedScrollLeft = scrollContainer?.scrollLeft || 0;
     const shouldRestoreScroll = !['editChapter'].includes(action);
 
+    if (!projectId || !storylineId) {
+      log.error('No projectId or storylineId found for context menu action');
+      return;
+    }
+
     try {
       switch (action) {
         case 'createChapter':
           if (contextMenu.type === 'storyline-empty' && contextMenu.storylineId && contextMenu.position) {
             // 创建新章节
             const newNode = await createNode({
+              projectId: projectId,
               title: 'New Chapter',
               start: contextMenu.position,
               end: contextMenu.position + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
+              summary: '',
+              storyStageId: '',
+              storylineIds: [contextMenu.storylineId],
+              position: { x: 0, y: 0 }, // TODO: calculate position from graphview stuff
             });
 
             // 将 node 添加到用户指定的 storyline

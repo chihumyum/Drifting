@@ -90,7 +90,7 @@ export const storyNodeEdges = sqliteTable('story_node_edges', {
     projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     sourceNodeId: text('source_node_id').notNull().references(() => storyNodes.id, { onDelete: 'cascade' }),
     targetNodeId: text('target_node_id').notNull().references(() => storyNodes.id, { onDelete: 'cascade' }),
-    label: text('label'),
+    label: text('label').notNull().default(''),
     weight: integer('weight').notNull().default(1),
     isDirected: integer('is_directed', { mode: 'boolean' }).notNull().default(true),
     styleJson: text('style_json'), // Stores stroke, width, etc.

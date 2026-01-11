@@ -144,7 +144,7 @@ export function CategoryEditorView() {
       try {
         // Move all elements in this category to "others"
         for (const element of categoryElements) {
-          await updateElement(element.id, { category: 'others' });
+          await updateElement(element.id, { categoryId: 'others' });
         }
         // Delete the category
         removeBookElementCategory(curCategory.id);

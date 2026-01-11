@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
@@ -13,17 +13,14 @@ let mainWindow: BrowserWindow | null = null;
 const createWindow = () => {
   // Create the browser window
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: screen.getPrimaryDisplay().workAreaSize.width,
+    height: screen.getPrimaryDisplay().workAreaSize.height,
     minWidth: 1000,
     minHeight: 700,
     title: 'Drifting',
-    // 自定义窗口栏配置
-    titleBarStyle: 'hiddenInset', // macOS: 隐藏标题栏但保留交通灯按钮
-    // titleBarStyle: 'hidden', // 完全隐藏标题栏（包括交通灯）
-    trafficLightPosition: { x: 12, y: 12 }, // macOS 交通灯按钮位置
-    frame: process.platform !== 'darwin', // 非 macOS 显示边框
-    // frame: false, // 如果要在所有平台完全无边框，取消注释这行
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 12, y: 12 },
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

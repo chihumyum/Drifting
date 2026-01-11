@@ -1,7 +1,7 @@
 import { useCallback, useRef, useMemo } from 'react';
 
 import type { Project } from '../domain/project';
-import { ProjectRepositorySQLite } from '../repositories/project_sqlite';
+import { ProjectRepositorySQLite } from '../repositories/project-repo';
 import { useBookNode } from './useBookNode';
 import { useStoryline } from './useStoryline';
 import { useBookElement } from './useBookElement';

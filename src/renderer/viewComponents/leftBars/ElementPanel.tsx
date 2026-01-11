@@ -150,7 +150,7 @@ export function ElementPanel() {
       // Update all elements that use this category
       const elementsToUpdate = bookElements.filter((e: BookElement) => e.categoryId === oldName);
       for (const element of elementsToUpdate) {
-        await updateElement(element.id, { category: newName });
+        await updateElement(element.id, { categoryId: newName });
       }
 
       // Delete old category
@@ -302,10 +302,10 @@ export function ElementPanel() {
                   try {
                     const newElement = await create({
                       name: 'New Element',
-                      category: filterCategory,
-                      tags: [],
-                      summary_json: '',
-                      content_json: JSON.stringify({
+                      categoryId: filterCategory,
+                      tagIds: [],
+                      summary: '',
+                      contentJson: JSON.stringify({
                         type: 'doc',
                         content: [{ type: 'paragraph' }],
                       }),
@@ -384,10 +384,10 @@ export function ElementPanel() {
                       onClick={async () => {
                         const newElement = await create({
                           name: 'New Element',
-                          category: category,
-                          tags: [],
-                          summary_json: '',
-                          content_json: JSON.stringify({
+                          categoryId: category,
+                          tagIds: [],
+                          summary: '',
+                          contentJson: JSON.stringify({
                             type: 'doc',
                             content: [{ type: 'paragraph' }],
                           }),

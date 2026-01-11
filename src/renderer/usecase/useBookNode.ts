@@ -6,8 +6,6 @@ import { createBookContentRepository } from '../repositories/content-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import { initDatabase } from '../lib/db';
 import { useAuthStore, getProjectId } from '../store/auth';
-import { syncManager } from '../lib/sync/sync-manager';
-import type { SyncTaskType } from '../lib/sync/types';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("UseBookNode");
@@ -15,38 +13,18 @@ log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateBookNodeInput {
   title: string;
-  projectId?: string;
-  summary?: string | null;
-  storyStageId?: string | null;
-  start?: number;
-  end?: number | null;
-  position?: BookNode['position'];
+  projectId: string;
+  storyStageId: string;
+  storylineIds: string[];
+  summary: string;
+  start: number;
+  end: number;
+  position: BookNode['position'];
 }
 
 const getProjectIdForUser = () => {
   const user = useAuthStore.getState().user;
   return getProjectId(user?.id);
-};
-
-const canSync = () => {
-  const { isAuthenticated } = useAuthStore.getState();
-  return isAuthenticated;
-};
-
-const enqueueNodeTask = (
-  type: SyncTaskType,
-  node: Pick<BookNode, 'id' | 'projectId'>,
-  data?: Partial<BookNode>
-) => {
-  if (!canSync()) return;
-  syncManager.enqueue({
-    type,
-    entity: 'node',
-    localId: node.id,
-    projectId: node.projectId,
-    data,
-    priority: 'normal',
-  });
 };
 
 export function useBookNode() {
@@ -90,10 +68,7 @@ export function useBookNode() {
 
   const createNode = useCallback(async (input: CreateBookNodeInput) => {
     await ensureDb(input.projectId);
-    const now = new Date();
     const nodes = getNodesState();
-    const maxStart = nodes.reduce((max, node) => Math.max(max, node.start), Number.NEGATIVE_INFINITY);
-    const nextStart = Number.isFinite(maxStart) ? maxStart + 1 : 1;
 
     const targetProjectId = input.projectId ?? activeProjectId ?? getProjectIdForUser();
     if (!targetProjectId) {
@@ -104,16 +79,16 @@ export function useBookNode() {
     const created = await nodeRepo.create({
       title: input.title,
       projectId: targetProjectId,
-      start: input.start ?? nextStart,
-      end: input.end ?? (input.start ?? nextStart) + 1, // Ensure end is provided (width 1 by default if missing)
-      summary: input.summary ?? '',
-      storyStageId: input.storyStageId ?? null,
+      start: input.start,
+      end: input.end,
+      summary: input.summary,
+      storyStageId: input.storyStageId,
+      storylineIds: input.storylineIds,
+      tagIds: [], // create a new node comes with no tags by default
       position: input.position ?? {
         x: (Math.random() - 0.5) * 600,
         y: (Math.random() - 0.5) * 600,
       },
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
     });
 
     // Create default empty content for the new node
@@ -135,22 +110,19 @@ export function useBookNode() {
 
     const nextNodes = [...nodes, created].sort((a, b) => a.start - b.start);
     setNodesState(nextNodes);
-    enqueueNodeTask('create', created, created);
     return created;
   }, [nodeRepo, contentRepo, ensureDb, getNodesState, setNodesState]);
 
   const renameNode = useCallback(async (id: string, title: string) => {
     await ensureDb();
-    const now = new Date().toISOString();
     const prevNodes = getNodesState().slice();
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { title, updatedAt: now });
+    updateNodeState(id, { title });
 
     try {
-      await nodeRepo.update(id, { title, updatedAt: now });
-      enqueueNodeTask('update', existing, { title, updatedAt: now });
+      await nodeRepo.update(id, { title });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -187,8 +159,6 @@ export function useBookNode() {
 
     try {
       await nodeRepo.swapOrder({ id: current.id, start: currentStart }, { id: target.id, start: targetStart });
-      enqueueNodeTask('update', current, { start: targetStart, updatedAt: now });
-      enqueueNodeTask('update', target, { start: currentStart, updatedAt: now });
     } catch (error) {
       setNodesState(prev);
       throw error;
@@ -198,34 +168,30 @@ export function useBookNode() {
   const updateNodePosition = useCallback(async (id: string, position: BookNode['position']) => {
     if (!position) return;
     await ensureDb();
-    const now = new Date().toISOString();
     const prevNodes = getNodesState();
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { position, updatedAt: now });
+    updateNodeState(id, { position });
 
     try {
-      await nodeRepo.update(id, { position, updatedAt: now });
-      enqueueNodeTask('update', existing, { position, updatedAt: now });
+      await nodeRepo.update(id, { position });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
     }
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
-  const updateNodeSummary = useCallback(async (id: string, summary: string | null) => {
+  const updateNodeSummary = useCallback(async (id: string, summary: string) => {
     await ensureDb();
-    const now = new Date().toISOString();
     const prevNodes = getNodesState().slice();
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { summary: summary ?? '', updatedAt: now });
+    updateNodeState(id, { summary: summary });
 
     try {
-      await nodeRepo.update(id, { summary, updatedAt: now });
-      enqueueNodeTask('update', existing, { summary: summary ?? '', updatedAt: now });
+      await nodeRepo.update(id, { summary: summary });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -234,17 +200,14 @@ export function useBookNode() {
 
   const updateNode = useCallback(async (id: string, updates: Partial<BookNode>) => {
     await ensureDb();
-    const now = new Date().toISOString();
     const prevNodes = getNodesState().slice();
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    const updatesWithTimestamp = { ...updates, updatedAt: now };
-    updateNodeState(id, updatesWithTimestamp);
+    updateNodeState(id, updates);
 
     try {
-      await nodeRepo.update(id, updatesWithTimestamp);
-      enqueueNodeTask('update', existing, updatesWithTimestamp);
+      await nodeRepo.update(id, updates);
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -266,7 +229,6 @@ export function useBookNode() {
       log.debug('[deleteBookNode] Calling repository delete');
       await nodeRepo.delete(id);
       log.debug('[deleteBookNode] Repository delete successful');
-      enqueueNodeTask('delete', existing);
     } catch (error) {
       log.error('[deleteBookNode] Repository delete failed, rolling back:', error);
       setNodesState(prevNodes);
@@ -276,8 +238,7 @@ export function useBookNode() {
 
   const updateEdge = useCallback(async (id: string, updates: Partial<BookNodeEdge>) => {
     await ensureDb();
-    const now = new Date().toISOString();
-    return await edgeRepo.update(id, { ...updates, updatedAt: now });
+    return await edgeRepo.update(id, updates);
   }, [edgeRepo, ensureDb]);
 
   return useMemo(() => ({

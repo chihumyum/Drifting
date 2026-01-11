@@ -70,7 +70,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         if (element) {
           const updatedTags = [...(element.tagIds || []), tagId];
           await elementUsecases.updateElement(entityId, {
-            tags: updatedTags,
+            tagIds: updatedTags,
           });
         }
       }
@@ -90,7 +90,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         if (element) {
           const updatedTags = (element.tagIds || []).filter((id: string) => id !== tagId);
           await elementUsecases.updateElement(entityId, {
-            tags: updatedTags,
+            tagIds: updatedTags,
           });
         }
       }
@@ -122,7 +122,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         if (element) {
           const updatedTags = [...(element.tagIds || []), newTag.id];
           await elementUsecases.updateElement(entityId, {
-            tags: updatedTags,
+            tagIds: updatedTags,
           });
         }
       }

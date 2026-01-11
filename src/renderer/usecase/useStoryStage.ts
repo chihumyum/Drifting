@@ -1,5 +1,5 @@
 import { useMemo, useRef, useCallback } from 'react';
-import { createStoryStageRepository } from '../repositories/story_stage_sqlite';
+import { createStoryStageRepository } from '../repositories/story-stage-repo';
 import { StoryStage } from '../domain/storystage';
 import { initDatabase } from '../lib/db';
 import { useAuthStore, getProjectId } from '../store/auth';

@@ -8,14 +8,20 @@ import { v7 as uuidv7 } from 'uuid';
 
 type PositionInput = Partial<BookNodePosition> | undefined;
 
-// Use Omit to enforce domain types while allowing optional system fields
-export type CreateBookNodeRepoInput = Omit<BookNode, 'id' | 'createdAt' | 'updatedAt' | 'storylineIds' | 'tagIds'> & {
-  id?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  // projectId is technically required in BookNode, but repo might default it. 
-  // User wants strict enforcement. Let's make projectId optional only if we really support default.
-  // But start/end MUST be present.
+// when creating a new node, only id, createdAt, updatedAt are not passed in
+export interface CreateBookNodeRepoInput {
+  // id: string;
+  projectId: string;
+  title: string;
+  summary: string;
+  start: number;
+  end: number;
+  storyStageId: string;
+  storylineIds: string[];
+  tagIds: string[];
+  position: BookNodePosition;
+  // createdAt: string;
+  // updatedAt: string;
 };
 
 export interface BookNodeUpdateData {
@@ -23,18 +29,17 @@ export interface BookNodeUpdateData {
   title?: string;
   start?: number;
   end?: number;
-  summary?: string | null;
-  storyStageId?: string | null;
+  summary?: string;
+  storyStageId?: string;
   position?: PositionInput;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
+// TODO: update later to enforce stricter typing
 export type CreateBookNodeEdgeInput = {
   projectId?: string;
   sourceNodeId: string;
   targetNodeId: string;
-  label?: string | null;
+  label?: string;
   weight?: number;
   style?: BookNodeEdge['style'];
   controlPointOffset?: BookNodeEdge['controlPointOffset'];
@@ -46,14 +51,12 @@ export interface BookNodeEdgeUpdateData {
   projectId?: string;
   sourceNodeId?: string;
   targetNodeId?: string;
-
-  label?: string | null;
+  label?: string;
   weight?: number;
   style?: BookNodeEdge['style'];
   controlPointOffset?: BookNodeEdge['controlPointOffset'];
   sourceAnchor?: BookNodeEdge['sourceAnchor'];
   targetAnchor?: BookNodeEdge['targetAnchor'];
-  updatedAt?: string;
 }
 
 export interface BookNodeRepository {
@@ -138,7 +141,7 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
 
     async create(data: CreateBookNodeRepoInput) {
       const now = new Date().toISOString();
-      const id = data.id ?? uuidv7();
+      const id = uuidv7();
 
       // Validate Project Exists to prevent vague FK errors
       const validProjectId = data.projectId;
@@ -160,8 +163,8 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
         storyStageId: data.storyStageId || null,
         positionX: data.position.x,
         positionY: data.position.y,
-        createdAt: data.createdAt ?? now,
-        updatedAt: data.updatedAt ?? now,
+        createdAt: now,
+        updatedAt: now,
       };
 
       await getDb().insert(storyNodes).values(newNode);
@@ -179,7 +182,7 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
 
       const now = new Date().toISOString();
       const updateValues: Partial<typeof storyNodes.$inferInsert> = {
-        updatedAt: updates.updatedAt ?? now,
+        updatedAt: now,
       };
 
       if (updates.title !== undefined) updateValues.title = updates.title;
@@ -275,9 +278,4 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
     },
   };
 }
-
-// placeholders
-export async function markNodeSyncStatus(id: string, status: any, options?: any) { }
-export async function applyRemoteNode(node: BookNode) { return 'skipped'; }
-export async function cleanupSyncedDeletedNodes() { }
 

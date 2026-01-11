@@ -28,7 +28,7 @@ export interface BookNodeEdge {
   projectId: string;
   sourceNodeId: string;
   targetNodeId: string;
-  label: string | null;
+  label: string;
   weight: number;
   isDirected: boolean; // Default true if undefined
   createdAt: string;
