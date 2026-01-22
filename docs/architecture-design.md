@@ -18,7 +18,10 @@ postgres后端主要数据库，存的东西和sqlite一致，除了content投�
 Time Machine：本地sqlite存索引+硬盘压缩immutable
 on device LLM 来提供copilot能力，实现快速ai hint，像IDE代码补全一样
 
-redis 异步队列，rate limit，分布式锁，api缓存，用一层redis来锻炼后端能力
+redis 异步队列，rate limit，分布式锁，api缓存，用一层redis来锻炼后端能力。或者用来缓存增量？
+    write-behind buffer. client push进来，进redis stream/list, server worker从redis消费数据
+    如果client pull seq很新，直接redis里找，找不到再去postgres
+    AI任务编排。收到请求推进redis，server worker thread再去消费
     如果redis不够用，加一个MQ
 
 betterAuth鉴权+Google之类的oAuth支持
