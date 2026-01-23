@@ -1,4 +1,4 @@
-import apiClient, { handleApiError, tokenManager } from '../lib/api';
+import { authClient } from '../lib/auth-client';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("AuthService");
@@ -7,9 +7,11 @@ log.setLevel(loglevel.levels.ERROR);
 export interface User {
   id: string;
   email: string;
-  username: string;
-  createdAt: string;
-  updatedAt: string;
+  name: string;
+  image?: string;
+  emailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface LoginInput {
@@ -19,51 +21,52 @@ export interface LoginInput {
 
 export interface RegisterInput {
   email: string;
-  username: string;
+  name: string;
   password: string;
 }
 
-export interface AuthResponse {
-  accessToken: string;
-  user: User;
-}
-
 /**
- * 认证服务 - 对应后端 /auth API
+ * 认证服务 - 使用 better-auth
  */
 export const authService = {
   /**
    * 用户登录
    */
-  async login(email: string, password: string): Promise<AuthResponse> {
+  async login(email: string, password: string): Promise<User | null> {
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', {
+      const result = await authClient.signIn.email({
         email,
         password,
       });
       
-      // 保存 token
-      tokenManager.setToken(response.data.accessToken);
+      if (result.error) {
+        throw new Error(result.error.message || 'Login failed');
+      }
       
-      return response.data;
+      return result.data?.user as User;
     } catch (error) {
-      throw new Error(`Login failed: ${handleApiError(error)}`);
+      throw new Error(`Login failed: ${error}`);
     }
   },
 
   /**
    * 用户注册
    */
-  async register(data: RegisterInput): Promise<AuthResponse> {
+  async register(data: RegisterInput): Promise<User | null> {
     try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', data);
+      const result = await authClient.signUp.email({
+        email: data.email,
+        password: data.password,
+        name: data.name,
+      });
       
-      // 保存 token
-      tokenManager.setToken(response.data.accessToken);
+      if (result.error) {
+        throw new Error(result.error.message || 'Registration failed');
+      }
       
-      return response.data;
+      return result.data?.user as User;
     } catch (error) {
-      throw new Error(`Registration failed: ${handleApiError(error)}`);
+      throw new Error(`Registration failed: ${error}`);
     }
   },
 
@@ -72,47 +75,46 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      await apiClient.post('/auth/logout');
+      await authClient.signOut();
     } catch (error) {
-      log.error('Logout error:', handleApiError(error));
-    } finally {
-      // 无论是否成功，都清除本地 token
-      tokenManager.removeToken();
+      log.error('Logout error:', error);
+      throw error;
     }
   },
 
   /**
-   * 刷新 token
+   * 获取当前会话
    */
-  async refreshToken(): Promise<{ accessToken: string }> {
+  async getSession() {
     try {
-      const response = await apiClient.post<{ accessToken: string }>('/auth/refresh');
-      
-      // 更新 token
-      tokenManager.setToken(response.data.accessToken);
-      
-      return response.data;
+      const result = await authClient.getSession();
+      return result.data;
     } catch (error) {
-      throw new Error(`Failed to refresh token: ${handleApiError(error)}`);
+      throw new Error(`Failed to get session: ${error}`);
     }
   },
 
   /**
    * 获取当前用户信息
    */
-  async getCurrentUser(): Promise<User> {
+  async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await apiClient.get<User>('/auth/me');
-      return response.data;
+      const session = await this.getSession();
+      return session?.user as User;
     } catch (error) {
-      throw new Error(`Failed to get current user: ${handleApiError(error)}`);
+      throw new Error(`Failed to get current user: ${error}`);
     }
   },
 
   /**
    * 检查是否已登录
    */
-  isAuthenticated(): boolean {
-    return tokenManager.getToken() !== null;
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const session = await this.getSession();
+      return !!session;
+    } catch {
+      return false;
+    }
   },
 };

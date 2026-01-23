@@ -70,6 +70,7 @@
     "@tiptap/starter-kit": "^3.10.2",
     "@tiptap/suggestion": "^3.10.2",
     "axios": "^1.13.2",
+    "better-auth": "^1.4.17",
     "better-sqlite3": "^12.5.0",
     "clsx": "^2.1.1",
     "d3-force": "^3.0.0",
