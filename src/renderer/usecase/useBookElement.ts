@@ -4,12 +4,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import { createBookElementSqliteRepository, createCategorySqliteRepository } from '../repositories/element-repo';
-import { useAuthStore, getProjectId } from '../store/auth';
-
-const getProjectIdForUser = () => {
-    const user = useAuthStore.getState().user;
-    return getProjectId(user?.id);
-};
+import { useAuthStore } from '../store/auth';
 
 export interface CreateBookElementInput {
     categoryId: string;
@@ -22,7 +17,8 @@ export interface CreateBookElementInput {
 
 export function useBookElement() {
     const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-    const activeProjectId = routeProjectId ?? getProjectIdForUser();
+    // Use route projectId - this is the ONLY source of truth for projectId
+    const activeProjectId = routeProjectId;
 
     // Use useMemo ensuring repository is recreated if projectId changes
     const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);

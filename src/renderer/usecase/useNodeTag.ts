@@ -1,12 +1,8 @@
 import { useMemo, useRef, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { createNodeTagRepository, createNodeTagLinkRepository } from '../repositories/story-stage-repo';
 import { initDatabase } from '../lib/db';
-import { useAuthStore, getProjectId } from '../store/auth';
-
-const getProjectIdForUser = () => {
-  const user = useAuthStore.getState().user;
-  return getProjectId(user?.id);
-};
+import { useAuthStore } from '../store/auth';
 
 export interface CreateNodeTagInput {
   projectId?: string;
@@ -15,6 +11,7 @@ export interface CreateNodeTagInput {
 }
 
 export function useNodeTag() {
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const tagRepoRef = useRef(createNodeTagRepository());
   const tagLinkRepoRef = useRef(createNodeTagLinkRepository());
   
@@ -22,41 +19,64 @@ export function useNodeTag() {
   const tagLinkRepo = tagLinkRepoRef.current;
 
   // Tag CRUD operations
-  const loadTags = useCallback(async (projectId: string = getProjectIdForUser()) => {
-    await initDatabase(projectId);
-    return tagRepo.findAll(projectId);
-  }, [tagRepo]);
+  const loadTags = useCallback(async (projectId?: string) => {
+    const pid = projectId ?? routeProjectId;
+    if (!pid) {
+      throw new Error('Project ID is required to load tags');
+    }
+    await initDatabase(pid);
+    return tagRepo.findAll(pid);
+  }, [tagRepo, routeProjectId]);
 
-  const getTagById = useCallback(async (id: string, projectId: string = getProjectIdForUser()) => {
-    await initDatabase(projectId);
+  const getTagById = useCallback(async (id: string, projectId?: string) => {
+    const pid = projectId ?? routeProjectId;
+    if (!pid) {
+      throw new Error('Project ID is required to get tag');
+    }
+    await initDatabase(pid);
     return tagRepo.findById(id);
-  }, [tagRepo]);
+  }, [tagRepo, routeProjectId]);
 
   const createTag = useCallback(async (input: CreateNodeTagInput) => {
-    const projectId = input.projectId ?? getProjectIdForUser();
+    const projectId = input.projectId ?? routeProjectId;
+    if (!projectId) {
+      throw new Error('Project ID is required to create tag');
+    }
     await initDatabase(projectId);
     return tagRepo.create({
       projectId,
       name: input.name,
       color: input.color ?? null,
     });
-  }, [tagRepo]);
+  }, [tagRepo, routeProjectId]);
 
-  const deleteTag = useCallback(async (id: string, projectId: string = getProjectIdForUser()) => {
-    await initDatabase(projectId);
+  const deleteTag = useCallback(async (id: string, projectId?: string) => {
+    const pid = projectId ?? routeProjectId;
+    if (!pid) {
+      throw new Error('Project ID is required to delete tag');
+    }
+    await initDatabase(pid);
     return tagRepo.delete(id);
-  }, [tagRepo]);
+  }, [tagRepo, routeProjectId]);
   
   // Node-Tag link operations
-  const getTagsForNode = useCallback(async (nodeId: string, projectId: string = getProjectIdForUser()) => {
-    await initDatabase(projectId);
+  const getTagsForNode = useCallback(async (nodeId: string, projectId?: string) => {
+    const pid = projectId ?? routeProjectId;
+    if (!pid) {
+      throw new Error('Project ID is required to get tags for node');
+    }
+    await initDatabase(pid);
     return tagLinkRepo.findTagsByNodeId(nodeId);
-  }, [tagLinkRepo]);
+  }, [tagLinkRepo, routeProjectId]);
 
-  const getNodesWithTag = useCallback(async (tagId: string, projectId: string = getProjectIdForUser()) => {
-    await initDatabase(projectId);
+  const getNodesWithTag = useCallback(async (tagId: string, projectId?: string) => {
+    const pid = projectId ?? routeProjectId;
+    if (!pid) {
+      throw new Error('Project ID is required to get nodes with tag');
+    }
+    await initDatabase(pid);
     return tagLinkRepo.findNodeIdsByTagId(tagId);
-  }, [tagLinkRepo]);
+  }, [tagLinkRepo, routeProjectId]);
 
   const addTagToNode = useCallback(async (nodeId: string, tagId: string, projectId: string = getProjectIdForUser()) => {
     await initDatabase(projectId);

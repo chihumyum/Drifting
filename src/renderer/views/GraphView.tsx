@@ -2,12 +2,13 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
-import { BookNodeEdge, BookNode } from '../domain/book-node';
+import { StoryNodeEdge, StoryNode } from '../domain/story-node';
 import { GraphNode } from '../viewComponents/Graph/GraphNode';
 import { GraphEdge } from '../viewComponents/Graph/GraphEdge';
 import { useBookNode } from '../usecase/useBookNode';
 import { useStoryline } from '../usecase/useStoryline';
-import { useAuthStore, getProjectId } from '../store/auth';
+import { useAuthStore } from '../store/auth';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { nanoid } from 'nanoid';
 import * as d3 from 'd3-force';
 
@@ -46,7 +47,7 @@ export function GraphView() {
     const nodeUsecases = useBookNode();
     const storylineUsecases = useStoryline();
     const { user } = useAuthStore();
-    const projectId = getProjectId(user?.id);
+    const { projectId } = useProjectNavigation();
 
     // Local State
     const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, scale: 1 });
@@ -62,7 +63,7 @@ export function GraphView() {
 
     // Edge Editing State
     const [isEdgeEditOpen, setIsEdgeEditOpen] = useState(false);
-    const [editingEdge, setEditingEdge] = useState<BookNodeEdge | null>(null);
+    const [editingEdge, setEditingEdge] = useState<StoryNodeEdge | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
@@ -93,14 +94,14 @@ export function GraphView() {
     }, [storylines, storylineUsecases, setStorylineNodeMapping, storylineNodeMapping]);
 
     const derivedEdges = useMemo(() => {
-        const edges: BookNodeEdge[] = [];
+        const edges: StoryNodeEdge[] = [];
         storylines.forEach(line => {
             const nodeIds = storylineNodeMapping[line.id] || [];
 
             // Map IDs to node objects and filter out missing ones
             const nodesInStoryline = nodeIds
                 .map(id => bookNodes.find(n => n.id === id))
-                .filter((n): n is BookNode => !!n);
+                .filter((n): n is StoryNode => !!n);
 
             // Sort by chronological start order
             nodesInStoryline.sort((a, b) => a.start - b.start);
@@ -160,7 +161,7 @@ export function GraphView() {
     };
 
     // Helper: Check if point is inside node
-    const isPointInNode = (worldX: number, worldY: number, node: BookNode) => {
+    const isPointInNode = (worldX: number, worldY: number, node: StoryNode) => {
         if (!node.position) return false;
         const nodeW = 240;
         const nodeH = 160;
@@ -188,7 +189,7 @@ export function GraphView() {
             y: n.position?.y ?? (Math.random() - 0.5) * 1000,
             vx: 0, // Initialize velocity
             vy: 0
-        })) as (BookNode & d3.SimulationNodeDatum)[];
+        })) as (StoryNode & d3.SimulationNodeDatum)[];
 
         const simulationEdges = allEdges.map(e => ({
             ...e,
@@ -595,7 +596,7 @@ export function GraphView() {
         if (dragState.type === 'edge-create' && dragState.id) {
             if (dragState.id !== targetId) {
                 // Create Edge
-                const newEdge: BookNodeEdge = {
+                const newEdge: StoryNodeEdge = {
                     id: nanoid(),
                     projectId: 'default', // TODO
                     sourceNodeId: dragState.id,

@@ -3,11 +3,14 @@ import { projects, projectElementCategories, elementCategories } from '../schema
 import { eq, desc, and } from 'drizzle-orm';
 import type { Project } from '../domain/project';
 import { v7 as uuidv7 } from 'uuid';
+import { useAuthStore } from '../store/auth';
+
 // Strict creation input: User provides name/author/desc. System handles ID/dates.
 export type CreateProjectInput = {
   name: string;
   author: string;
   description?: string;
+  userId?: string; // 添加 userId 参数
 };
 
 export interface ProjectUpdateData {
@@ -53,15 +56,42 @@ export class ProjectRepositorySQLite implements ProjectRepository {
   }
 
   async findAll(): Promise<Project[]> {
-    const rows = await getDb().select().from(projects).orderBy(desc(projects.createdAt));
+    // 只返回当前登录用户的项目
+    const currentUserId = useAuthStore.getState().user?.id;
+    
+    if (!currentUserId) {
+      // 未登录用户，返回匿名项目
+      const rows = await getDb()
+        .select()
+        .from(projects)
+        .where(eq(projects.userId, "anonymous"))
+        .orderBy(desc(projects.createdAt));
+      return rows.map(recordToDomain);
+    }
+    
+    // 已登录用户，返回该用户的项目
+    const rows = await getDb()
+      .select()
+      .from(projects)
+      .where(eq(projects.userId, currentUserId))
+      .orderBy(desc(projects.createdAt));
     return rows.map(recordToDomain);
   }
 
   async create(input: CreateProjectInput): Promise<Project> {
     const now = new Date().toISOString();
     const id = uuidv7();
-    const userId = "default-user"; // TODO: pass userId or get from context
-
+    let userId: string;
+    // 获取当前登录用户的 ID，如果没有则使用 "anonymous"
+    if (!input.userId) {
+      if (!useAuthStore.getState().user?.id) {
+        throw new Error('Cannot create project: no user logged in');
+      } else {
+        userId = useAuthStore.getState().user!.id;
+      }
+    } else {
+      userId = input.userId;
+    }
     const newProject: typeof projects.$inferInsert = {
       id,
       userId,

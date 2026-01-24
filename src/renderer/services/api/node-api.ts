@@ -5,7 +5,7 @@
  */
 
 import apiClient from '../../lib/axios-config';
-import type { BookNode } from '../../domain/book-node';
+import type { StoryNode } from '../../domain/story-node';
 
 interface NodeResponse {
   id: string;
@@ -26,7 +26,7 @@ interface ListNodesResponse {
   nextCursor: string | null;
 }
 
-const toBookNode = (node: NodeResponse): BookNode => ({
+const toBookNode = (node: NodeResponse): StoryNode => ({
   id: node.id,
   projectId: node.projectId,
   title: node.title,
@@ -82,8 +82,8 @@ export const nodeApi = {
    * 获取项目的所有节点
    * GET /api/projects/:projectId/nodes
    */
-  async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<BookNode[]> {
-    const items: BookNode[] = [];
+  async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<StoryNode[]> {
+    const items: StoryNode[] = [];
     let cursor: string | undefined;
 
     // page through results (backend returns {items,nextCursor})
@@ -112,7 +112,7 @@ export const nodeApi = {
    * 创建节点
    * POST /api/projects/:projectId/nodes
    */
-  async create(projectId: string, dto: CreateNodeDto): Promise<BookNode> {
+  async create(projectId: string, dto: CreateNodeDto): Promise<StoryNode> {
     const response = await apiClient.post<NodeResponse>(`/api/projects/${projectId}/nodes`, dto);
     return toBookNode(response.data);
   },
@@ -121,7 +121,7 @@ export const nodeApi = {
    * 获取单个节点
    * GET /api/projects/:projectId/nodes/:nodeId
    */
-  async getById(projectId: string, nodeId: string): Promise<BookNode> {
+  async getById(projectId: string, nodeId: string): Promise<StoryNode> {
     const response = await apiClient.get<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`);
     return toBookNode(response.data);
   },
@@ -130,7 +130,7 @@ export const nodeApi = {
    * 更新节点
    * PATCH /api/projects/:projectId/nodes/:nodeId
    */
-  async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<BookNode> {
+  async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<StoryNode> {
     const response = await apiClient.patch<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`, dto);
     return toBookNode(response.data);
   },

@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/node-repo.ts';
 import { createBookContentRepository } from '../repositories/content-repo.ts';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { StoryNode, StoryNodeEdge } from '../domain/story-node.ts';
 import { initDatabase } from '../lib/db';
-import { useAuthStore, getProjectId } from '../store/auth';
+import { useAuthStore } from '../store/auth';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("UseBookNode");
@@ -19,19 +19,15 @@ export interface CreateBookNodeInput {
   summary: string;
   start: number;
   end: number;
-  position: BookNode['position'];
+  position: StoryNode['position'];
 }
-
-const getProjectIdForUser = () => {
-  const user = useAuthStore.getState().user;
-  return getProjectId(user?.id);
-};
 
 export function useBookNode() {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
 
-  // Use route projectId if available, otherwise fallback to user default (legacy)
-  const activeProjectId = routeProjectId ?? getProjectIdForUser();
+  // Use route projectId - this is the ONLY source of truth for projectId
+  // No fallback to fake IDs!
+  const activeProjectId = routeProjectId;
 
   const nodeRepo = useMemo(() => createBookNodeSqliteRepository(activeProjectId), [activeProjectId]);
   const edgeRepo = useMemo(() => createBookNodeEdgeSqliteRepository(activeProjectId), [activeProjectId]);
@@ -43,11 +39,11 @@ export function useBookNode() {
     [activeProjectId]);
 
   const getNodesState = useCallback(() => useDataStore.getState().bookNodes, []);
-  const setNodesState = useCallback((nodes: BookNode[]) => useDataStore.getState().setBookNodes(nodes), []);
-  const updateNodeState = useCallback((id: string, updates: Partial<BookNode>) =>
+  const setNodesState = useCallback((nodes: StoryNode[]) => useDataStore.getState().setBookNodes(nodes), []);
+  const updateNodeState = useCallback((id: string, updates: Partial<StoryNode>) =>
     useDataStore.getState().updateBookNode(id, updates),
     []);
-  const setEdgesState = useCallback((edges: BookNodeEdge[]) => useDataStore.getState().setNodeEdges(edges), []);
+  const setEdgesState = useCallback((edges: StoryNodeEdge[]) => useDataStore.getState().setNodeEdges(edges), []);
 
   const loadNodes = useCallback(async (options?: { projectId?: string }) => {
     await ensureDb(options?.projectId);
@@ -70,7 +66,7 @@ export function useBookNode() {
     await ensureDb(input.projectId);
     const nodes = getNodesState();
 
-    const targetProjectId = input.projectId ?? activeProjectId ?? getProjectIdForUser();
+    const targetProjectId = input.projectId ?? activeProjectId;
     if (!targetProjectId) {
       log.error('[createNode] No projectId available for creation. input:', input, 'active:', activeProjectId);
       throw new Error('Project ID is required to create a node');
@@ -165,7 +161,7 @@ export function useBookNode() {
     }
   }, [nodeRepo, ensureDb, getNodesState, setNodesState]);
 
-  const updateNodePosition = useCallback(async (id: string, position: BookNode['position']) => {
+  const updateNodePosition = useCallback(async (id: string, position: StoryNode['position']) => {
     if (!position) return;
     await ensureDb();
     const prevNodes = getNodesState();
@@ -198,7 +194,7 @@ export function useBookNode() {
     }
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
-  const updateNode = useCallback(async (id: string, updates: Partial<BookNode>) => {
+  const updateNode = useCallback(async (id: string, updates: Partial<StoryNode>) => {
     await ensureDb();
     const prevNodes = getNodesState().slice();
     const existing = prevNodes.find((node) => node.id === id);
@@ -236,7 +232,7 @@ export function useBookNode() {
     }
   }, [nodeRepo, ensureDb, getNodesState, setNodesState]);
 
-  const updateEdge = useCallback(async (id: string, updates: Partial<BookNodeEdge>) => {
+  const updateEdge = useCallback(async (id: string, updates: Partial<StoryNodeEdge>) => {
     await ensureDb();
     return await edgeRepo.update(id, updates);
   }, [edgeRepo, ensureDb]);

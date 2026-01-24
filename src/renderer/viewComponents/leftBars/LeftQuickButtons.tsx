@@ -3,7 +3,6 @@ import { useLocation, useParams } from 'react-router-dom';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
-import { useAuthStore, getProjectId } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
 
@@ -25,11 +24,10 @@ const STORYLINE_COLORS = [
 export function LeftQuickButtons() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
-  const user = useAuthStore(state => state.user);
   const { createNode, loadNodes } = useBookNode();
   const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines, getStorylinesByProject } = useStoryline();
   const bookNodes = useDataStore(state => state.bookNodes);
-  const { navigateToNode, navigateToStoryline } = useProjectNavigation();
+  const { navigateToNode, navigateToStoryline, projectId } = useProjectNavigation();
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -74,7 +72,6 @@ export function LeftQuickButtons() {
 
       // 优先级3: 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
       if (!defaultStorylineId) {
-        const projectId = getProjectId(user?.id);
         const allStorylines = await getStorylinesByProject(projectId);
         if (allStorylines.length > 0) {
           defaultStorylineId = allStorylines[0].id;
@@ -111,7 +108,7 @@ export function LeftQuickButtons() {
 
   const handleCreateStoryline = async () => {
     try {
-      const projectId = getProjectId(user?.id);
+      if (!projectId) return;
 
       // Generate random color
       const randomColor = STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];

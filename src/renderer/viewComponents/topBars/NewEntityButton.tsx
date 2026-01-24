@@ -3,7 +3,6 @@ import { useLocation, useParams } from 'react-router-dom';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
-import { useAuthStore, getProjectId } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
 
@@ -13,11 +12,10 @@ log.setLevel(loglevel.levels.ERROR);
 export function NewEntityButton() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
-  const user = useAuthStore(state => state.user);
   const { createNode, loadNodes, updateNode } = useBookNode();
   const { getStorylinesByNode, getStorylinesByProject, addNodeToStoryline } = useStoryline();
   const bookNodes = useDataStore(state => state.bookNodes);
-  const { navigateToNode } = useProjectNavigation();
+  const { navigateToNode, projectId } = useProjectNavigation();
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -45,7 +43,6 @@ export function NewEntityButton() {
 
       // Priority 3: Use first available storyline
       if (!defaultStorylineId) {
-        const projectId = getProjectId(user?.id);
         const allStorylines = await getStorylinesByProject(projectId);
         if (allStorylines.length > 0) {
           defaultStorylineId = allStorylines[0].id;

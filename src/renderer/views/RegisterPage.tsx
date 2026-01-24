@@ -45,7 +45,7 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await register(formData);
+      await register(formData.email, formData.password, formData.name);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败，请稍后重试');
@@ -128,7 +128,7 @@ export function RegisterPage() {
               <input
                 id="password"
                 type="password"
-                placeholder="至少 6 位密码"
+                placeholder="至少 8 位密码"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
@@ -137,7 +137,7 @@ export function RegisterPage() {
                 className="h-6 w-full border-none bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:text-slate-400"
               />
             </div>
-            <p className="text-xs text-slate-400">密码至少需要 6 个字符。</p>
+            <p className="text-xs text-slate-400">密码至少需要 8 个字符。</p>
           </div>
 
           <button

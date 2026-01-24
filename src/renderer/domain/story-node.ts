@@ -1,6 +1,6 @@
 
 
-export interface BookNode {
+export interface StoryNode {
   id: string;
   projectId: string;
   title: string;
@@ -10,20 +10,20 @@ export interface BookNode {
   storyStageId: string;
   storylineIds: string[];  // Associated storylines, could be multiple
   tagIds: string[];       // Tags associated with this node
-  position: BookNodePosition;
+  position: StoryNodePosition;
   createdAt: string;
   updatedAt: string;
 }
 
 
 
-export interface BookNodePosition {
+export interface StoryNodePosition {
   x: number;
   y: number;
 }
 
 
-export interface BookNodeEdge {
+export interface StoryNodeEdge {
   id: string;
   projectId: string;
   sourceNodeId: string;
@@ -45,10 +45,10 @@ export interface BookNodeEdge {
   targetAnchor?: { x: number; y: number }; // Relative to node top-left
 }
 
-export interface BookNodeElementLink {
-  id: string;
-  nodeId: string;
-  elementId: string;
-}
+// export interface BookNodeElementLink {
+//   id: string;
+//   nodeId: string;
+//   elementId: string;
+// }
 
 

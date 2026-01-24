@@ -1,12 +1,12 @@
 import { getDb } from '../lib/db';
 import { storyNodes, storyNodeEdges, projects } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
-import type { BookNode, BookNodeEdge, BookNodePosition } from '../domain/book-node';
+import type { StoryNode, StoryNodeEdge, StoryNodePosition } from '../domain/story-node';
 
 import { v7 as uuidv7 } from 'uuid';
 
 
-type PositionInput = Partial<BookNodePosition> | undefined;
+type PositionInput = Partial<StoryNodePosition> | undefined;
 
 // when creating a new node, only id, createdAt, updatedAt are not passed in
 export interface CreateBookNodeRepoInput {
@@ -19,7 +19,7 @@ export interface CreateBookNodeRepoInput {
   storyStageId: string;
   storylineIds: string[];
   tagIds: string[];
-  position: BookNodePosition;
+  position: StoryNodePosition;
   // createdAt: string;
   // updatedAt: string;
 };
@@ -41,10 +41,10 @@ export type CreateBookNodeEdgeInput = {
   targetNodeId: string;
   label?: string;
   weight?: number;
-  style?: BookNodeEdge['style'];
-  controlPointOffset?: BookNodeEdge['controlPointOffset'];
-  sourceAnchor?: BookNodeEdge['sourceAnchor'];
-  targetAnchor?: BookNodeEdge['targetAnchor'];
+  style?: StoryNodeEdge['style'];
+  controlPointOffset?: StoryNodeEdge['controlPointOffset'];
+  sourceAnchor?: StoryNodeEdge['sourceAnchor'];
+  targetAnchor?: StoryNodeEdge['targetAnchor'];
 };
 
 export interface BookNodeEdgeUpdateData {
@@ -53,25 +53,25 @@ export interface BookNodeEdgeUpdateData {
   targetNodeId?: string;
   label?: string;
   weight?: number;
-  style?: BookNodeEdge['style'];
-  controlPointOffset?: BookNodeEdge['controlPointOffset'];
-  sourceAnchor?: BookNodeEdge['sourceAnchor'];
-  targetAnchor?: BookNodeEdge['targetAnchor'];
+  style?: StoryNodeEdge['style'];
+  controlPointOffset?: StoryNodeEdge['controlPointOffset'];
+  sourceAnchor?: StoryNodeEdge['sourceAnchor'];
+  targetAnchor?: StoryNodeEdge['targetAnchor'];
 }
 
 export interface BookNodeRepository {
-  findById(id: string): Promise<BookNode | null>;
-  findAll(projectId?: string): Promise<BookNode[]>;
-  create(data: CreateBookNodeRepoInput): Promise<BookNode>;
-  update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
+  findById(id: string): Promise<StoryNode | null>;
+  findAll(projectId?: string): Promise<StoryNode[]>;
+  create(data: CreateBookNodeRepoInput): Promise<StoryNode>;
+  update(id: string, data: BookNodeUpdateData): Promise<StoryNode | null>;
   delete(id: string): Promise<boolean>;
-  swapOrder(first: Pick<BookNode, 'id' | 'start'>, second: Pick<BookNode, 'id' | 'start'>): Promise<void>;
+  swapOrder(first: Pick<StoryNode, 'id' | 'start'>, second: Pick<StoryNode, 'id' | 'start'>): Promise<void>;
 }
 
 export interface BookNodeEdgeRepository {
-  findAll(projectId?: string): Promise<BookNodeEdge[]>;
-  create(input: CreateBookNodeEdgeInput): Promise<BookNodeEdge>;
-  update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
+  findAll(projectId?: string): Promise<StoryNodeEdge[]>;
+  create(input: CreateBookNodeEdgeInput): Promise<StoryNodeEdge>;
+  update(id: string, data: BookNodeEdgeUpdateData): Promise<StoryNodeEdge | null>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -82,7 +82,7 @@ export interface BookNodeDataSource {
 
 
 
-function toBookNode(record: typeof storyNodes.$inferSelect): BookNode {
+function toBookNode(record: typeof storyNodes.$inferSelect): StoryNode {
   return {
     id: record.id,
     projectId: record.projectId,
@@ -102,7 +102,7 @@ function toBookNode(record: typeof storyNodes.$inferSelect): BookNode {
   };
 }
 
-function toBookNodeEdge(record: typeof storyNodeEdges.$inferSelect): BookNodeEdge {
+function toBookNodeEdge(record: typeof storyNodeEdges.$inferSelect): StoryNodeEdge {
   const style = record.styleJson ? JSON.parse(record.styleJson) : undefined;
   const cp = record.controlPointOffsetJson ? JSON.parse(record.controlPointOffsetJson) : undefined;
   const sa = record.sourceAnchorJson ? JSON.parse(record.sourceAnchorJson) : undefined;
@@ -209,7 +209,7 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       return (result as any).rowsAffected > 0;
     },
 
-    async swapOrder(first: BookNode, second: BookNode) {
+    async swapOrder(first: StoryNode, second: StoryNode) {
       const now = new Date().toISOString();
 
       await getDb().transaction(async (tx) => {

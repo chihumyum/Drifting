@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../usecase/useProject';
 import { useStoryline } from '../usecase/useStoryline';
+import { useAuthStore } from '../store/auth';
 import { Project } from '../domain/project';
 import { initDatabase } from '../lib/db';
 import loglevel from 'loglevel';
@@ -14,6 +15,7 @@ export function ProjectHomeView() {
     const navigate = useNavigate();
     const { loadProjects, createProject } = useProject();
     const { createStoryline } = useStoryline();
+    const user = useAuthStore((state) => state.user);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
@@ -23,7 +25,8 @@ export function ProjectHomeView() {
     useEffect(() => {
         const init = async () => {
             try {
-                await initDatabase();
+                // 使用当前登录用户的数据库（只需要 userId，不需要 projectId）
+                await initDatabase(undefined, user?.id);
                 await fetchProjects();
             } catch (e) {
                 log.error("Failed to init projects view", e);
@@ -32,7 +35,7 @@ export function ProjectHomeView() {
             }
         };
         init();
-    }, [loadProjects]);
+    }, [user?.id]);
 
     const fetchProjects = async () => {
         const data = await loadProjects();

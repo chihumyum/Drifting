@@ -1,13 +1,13 @@
 import mitt from 'mitt';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { StoryNode, StoryNodeEdge } from '../domain/story-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 
 export type AppEvents = {
   'graph:select': { nodeId: string | null };
-  'graph:node-created': { node: BookNode };
-  'graph:node-updated': { nodeId: string; updates: Partial<BookNode> };
+  'graph:node-created': { node: StoryNode };
+  'graph:node-updated': { nodeId: string; updates: Partial<StoryNode> };
   'graph:node-deleted': { nodeId: string };
-  'graph:edge-created': { edge: BookNodeEdge };
+  'graph:edge-created': { edge: StoryNodeEdge };
   'graph:edge-deleted': { edgeId: string };
   
   'editor:saved': { nodeId: string; content: string };

@@ -3,18 +3,18 @@ import loglevel from 'loglevel';
 
 const log = loglevel.getLogger("StorylineAllChapterEditor");
 log.setLevel(loglevel.levels.ERROR);
-import type { BookNode } from '../../domain/book-node';
+import type { StoryNode } from '../../domain/story-node';
 import { useBookContent } from '../../usecase/useBookContent';
 import { ChapterSection } from './ChapterSection';
 
 interface StorylineAllChapterProps {
-  nodes: BookNode[]; // 已按顺序排列的章节列表
+  nodes: StoryNode[]; // 已按顺序排列的章节列表
   onCurrentChapterChange?: (nodeId: string, index: number) => void; // 当前编辑的章节变化回调
 }
 
 interface ChapterData {
   nodeId: string;
-  node: BookNode;
+  node: StoryNode;
   content: string | null; // pm_json
 }
 

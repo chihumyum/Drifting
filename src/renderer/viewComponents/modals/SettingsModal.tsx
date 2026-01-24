@@ -4,6 +4,7 @@ import { applyAccentColor } from '../../lib/theme';
 import { DebugModal } from './DebugModal';
 import { APP_CONFIG } from '../../lib/config';
 import { EditorSettings } from '../settings/EditorSettings';
+import { AccountSettings } from '../settings/AccountSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ const ACCENT_COLORS: AccentColorOption[] = [
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [selectedColor, setSelectedColor] = useState<string>('brown');
-  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced' | 'account'>('appearance');
   const [showDebugModal, setShowDebugModal] = useState(false);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     };
 
     document.addEventListener('keydown', handleEscape);
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
@@ -64,10 +65,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       // Save to localStorage
       localStorage.setItem('accentColor', colorName);
       localStorage.setItem('accentHue', colorOption.hue.toString());
-      
+
       // Apply CSS custom properties for dynamic theming
       applyAccentColor(colorOption.hue);
-      
+
       // Trigger a custom event for other components to react
       window.dispatchEvent(new CustomEvent('accentColorChange', { detail: { hue: colorOption.hue } }));
     }
@@ -272,6 +273,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <span>⚙️</span>
               <span>Advanced</span>
             </button>
+            <button
+              onClick={() => setActiveTab('account')}
+              style={{
+                width: '100%',
+                padding: '10px 24px',
+                textAlign: 'left',
+                border: 'none',
+                background: activeTab === 'account' ? '#fefdfb' : 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: activeTab === 'account' ? '#2a1a0a' : '#5a4a3a',
+                fontWeight: activeTab === 'account' ? 600 : 400,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderLeft: activeTab === 'account' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+              }}
+            >
+              <span>👤</span>
+              <span>Account</span>
+            </button>
           </div>
         </div>
 
@@ -469,6 +491,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
             )}
 
+            {activeTab === 'account' && (
+              <div>
+                <AccountSettings />
+              </div>
+            )}
+
             {activeTab === 'advanced' && (
               <div>
                 {/* Local-First Mode Info */}
@@ -497,7 +525,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     提示：在 {APP_CONFIG.LOCAL_ONLY_MODE ? 'src/renderer/lib/config.ts' : 'config'} 中可以切换模式
                   </div>
                 </div>
-                
+
                 <h3
                   style={{
                     fontSize: '15px',
@@ -508,7 +536,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 >
                   开发者工具
                 </h3>
-                
+
                 <div
                   style={{
                     display: 'flex',
@@ -565,7 +593,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
         </div>
       </div>
-      
+
       {/* Debug Modal */}
       <DebugModal isOpen={showDebugModal} onClose={() => setShowDebugModal(false)} />
     </div>

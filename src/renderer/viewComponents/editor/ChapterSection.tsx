@@ -1,8 +1,8 @@
-import type { BookNode } from '../../domain/book-node';
+import type { StoryNode } from '../../domain/story-node';
 import { ChapterEditor } from './ChapterEditor';
 
 interface ChapterSectionProps {
-  node: BookNode;
+  node: StoryNode;
   content: string | null;
   onContentUpdate: (nodeId: string, pmJson: string, outlineJson: string) => void;
   isActive?: boolean;

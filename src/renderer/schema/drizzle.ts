@@ -1,11 +1,10 @@
 import { sqliteTable, text, integer, real, primaryKey, index } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
 
 // Projects
 // Domain: Project
 export const projects = sqliteTable('projects', {
     id: text('id').primaryKey(),
-    userId: text('user_id').notNull(), // From Project domain
+    userId: text('user_id').notNull(), // should reference to userId in server pg
     name: text('name').notNull(),
     author: text('author').notNull(),
     descriptionJson: text('description_json').default('{}'),
@@ -14,43 +13,53 @@ export const projects = sqliteTable('projects', {
 });
 
 // Element Categories
+// project(1) <-> elementCategory(N)
+// elementCategory(1) <-> element(N)
 // Domain: BookElementCategory
 export const elementCategories = sqliteTable('element_categories', {
     id: text('id').primaryKey(),
     name: text('name').notNull(), // Unique in domain logic potentially
     descriptionJson: text('description_json').default('{}'),
     color: text('color').notNull(),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
 });
 
 // Story Stages
+// project(1) <-> storyStage(N)
+// storyStage(1) <-> node(N)
 // Domain: StoryStage
 export const storyStages = sqliteTable('story_stages', {
     id: text('id').primaryKey(),
-    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     descriptionJson: text('description_json').default('{}'),
     orderKey: integer('order_key').notNull(),
+    // storyStages are allowed to contain 0 node
     startNodeId: text('start_node_id'), // Can be null initially?
     endNodeId: text('end_node_id'),
     color: text('color').notNull(),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 });
 
 // Storylines
+// project(1) <-> storyline(N)
+// storyline(1) <-> node(N)
 // Domain: Storyline
 export const storylines = sqliteTable('storylines', {
     id: text('id').primaryKey(),
-    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     color: text('color').notNull(),
     summary: text('summary').default(''),
     descriptionJson: text('description_json').default('{}'),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 });
 
-// Story Nodes (BookNode)
+// Story Nodes  
 // Domain: BookNode
 export const storyNodes = sqliteTable('story_nodes', {
     id: text('id').primaryKey(),
@@ -64,10 +73,10 @@ export const storyNodes = sqliteTable('story_nodes', {
     positionY: real('position_y').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
-}, (table) => ({
-    projectIdx: index('idx_story_nodes_project').on(table.projectId),
-    stageIdx: index('idx_story_nodes_stage').on(table.storyStageId),
-}));
+}, (table) => [
+    index('idx_story_nodes_project').on(table.projectId),
+    index('idx_story_nodes_stage').on(table.storyStageId),
+]);
 
 // Node Contents (Separate to avoid loading huge JSONs when listing nodes)
 // Domain: NodeContent
@@ -79,9 +88,9 @@ export const nodeContents = sqliteTable('node_contents', {
     outlineJson: text('outline_json').default('[]'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
-}, (table) => ({
-    nodeIdx: index('idx_node_contents_node').on(table.nodeId),
-}));
+}, (table) => [
+    index('idx_node_contents_node').on(table.nodeId),
+]);
 
 // Node Edges
 // Domain: BookNodeEdge

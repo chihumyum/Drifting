@@ -26,6 +26,7 @@ const createWindow = () => {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
+      webSecurity: false, // 开发环境禁用 web security 以避免 CORS 问题
     },
     show: false,
   });

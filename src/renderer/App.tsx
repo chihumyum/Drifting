@@ -5,6 +5,8 @@ import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
 import { GraphView } from './views/GraphView';
+import { LoginPage } from './views/LoginPage';
+import { RegisterPage } from './views/RegisterPage';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
@@ -14,12 +16,38 @@ import { BottomTimeline } from './viewComponents/BottomTimeline/BottomTimeline';
 import { SettingsModal } from './viewComponents/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useUiStore } from './store/ui-store';
+import { useAuthStore } from './store/auth';
 import { useProject } from './usecase/useProject';
 import { AppTopbar } from './views/AppTopbar';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("App");
 log.setLevel(loglevel.levels.ERROR);
+
+// 认证路由守卫
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [isChecking, setIsChecking] = useState(true);
+  const checkSession = useAuthStore((state) => state.checkSession);
+
+  useEffect(() => {
+    checkSession().finally(() => setIsChecking(false));
+  }, [checkSession]);
+
+  if (isChecking) {
+    return (
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Checking authentication...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 function Layout() {
   const location = useLocation();
@@ -184,11 +212,23 @@ import { ProjectHomeView } from './views/ProjectHomeView';
 export default function App() {
   return (
     <Routes>
-      {/* Root - Project Home View */}
-      <Route path="/" element={<ProjectHomeView />} />
+      {/* 公开路由 */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      {/* 受保护的路由 */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <ProjectHomeView />
+        </ProtectedRoute>
+      } />
 
       {/* Project-scoped routes */}
-      <Route path="/project/:projectId" element={<Layout />}>
+      <Route path="/project/:projectId" element={
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      }>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<div>Project Home</div>} />
         <Route path="editor" element={<Navigate to="../home" replace />} />

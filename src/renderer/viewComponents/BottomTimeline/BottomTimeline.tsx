@@ -6,8 +6,8 @@ import { useBookContent } from '../../usecase/useBookContent';
 import { parseOutline } from '../../lib/outline';
 import type { OutlineItem } from '../../domain/node-content';
 import type { Storyline } from '../../domain/storyline';
-import type { BookNode } from '../../domain/book-node';
-import { useAuthStore, getProjectId } from '../../store/auth';
+import type { StoryNode } from '../../domain/story-node';
+import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -29,19 +29,19 @@ const TIMELINE_CONFIG = {
   RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
 
-interface TimelineNode extends BookNode {
+interface TimelineNode extends StoryNode {
   storylines: Storyline[];
 }
 
 export function BottomTimeline() {
-  const { projectId, storylineId, nodeId } = useParams<{ projectId: string; storylineId?: string; nodeId?: string }>();
+  const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
   const location = useLocation();
   const user = useAuthStore(state => state.user);
   const { bookNodes, storylines } = useDataStore();
   const { loadNodes, createNode, updateNode, deleteNode } = useBookNode();
   const { loadStorylines, addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline, setNodeStorylines } = useStoryline();
   const { getOutlineByNodeId } = useBookContent();
-  const { navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
+  const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
 
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
 
@@ -69,9 +69,8 @@ export function BottomTimeline() {
   useEffect(() => {
     async function loadData() {
       try {
-        const projectId = getProjectId(user?.id);
-
         // Load storylines from database and update store
+        if (!projectId) return;
         await loadStorylines(projectId);
 
         // Load storyline info for each node
@@ -658,7 +657,7 @@ export function BottomTimeline() {
 
         // 如果有任何更新，写入数据库
         if (Object.keys(updates).length > 0) {
-          const updates: Partial<BookNode> = {
+          const updates: Partial<StoryNode> = {
             end: currentEnd ?? 0 // Fallback to 0 if null 
           };
           await updateNode(resizingNode.nodeId, updates);

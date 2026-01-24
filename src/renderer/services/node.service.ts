@@ -1,5 +1,5 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { BookNode } from '../domain/book-node';
+import type { StoryNode } from '../domain/story-node';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("NodeService");
@@ -39,9 +39,9 @@ export const nodeService = {
   /**
    * 根据 ID 获取节点
    */
-  async findById(id: string): Promise<BookNode | null> {
+  async findById(id: string): Promise<StoryNode | null> {
     try {
-      const response = await apiClient.get<BookNode>(`/nodes/${id}`);
+      const response = await apiClient.get<StoryNode>(`/nodes/${id}`);
       return response.data;
     } catch (error) {
       log.error('Failed to fetch node:', handleApiError(error));
@@ -52,10 +52,10 @@ export const nodeService = {
   /**
    * 获取所有节点（可按项目过滤）
    */
-  async findAll(projectId?: string): Promise<BookNode[]> {
+  async findAll(projectId?: string): Promise<StoryNode[]> {
     try {
       const params = projectId ? { projectId } : {};
-      const response = await apiClient.get<BookNode[]>('/nodes', { params });
+      const response = await apiClient.get<StoryNode[]>('/nodes', { params });
       return response.data;
     } catch (error) {
       log.error('Failed to fetch nodes:', handleApiError(error));
@@ -66,9 +66,9 @@ export const nodeService = {
   /**
    * 创建新节点
    */
-  async create(data: BookNodeCreateData): Promise<BookNode> {
+  async create(data: BookNodeCreateData): Promise<StoryNode> {
     try {
-      const response = await apiClient.post<BookNode>('/nodes', data);
+      const response = await apiClient.post<StoryNode>('/nodes', data);
       return response.data;
     } catch (error) {
       throw new Error(`Failed to create node: ${handleApiError(error)}`);
@@ -78,9 +78,9 @@ export const nodeService = {
   /**
    * 更新节点
    */
-  async update(id: string, updates: BookNodeUpdateData): Promise<BookNode> {
+  async update(id: string, updates: BookNodeUpdateData): Promise<StoryNode> {
     try {
-      const response = await apiClient.patch<BookNode>(`/nodes/${id}`, updates);
+      const response = await apiClient.patch<StoryNode>(`/nodes/${id}`, updates);
       return response.data;
     } catch (error) {
       throw new Error(`Failed to update node: ${handleApiError(error)}`);

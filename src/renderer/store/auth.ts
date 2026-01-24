@@ -21,12 +21,12 @@ export interface User {
   updatedAt: Date;
 }
 
-// 获取用户的 project ID
-export function getProjectId(userId?: string): string {
+// 获取用户的数据库文件名（不是 project ID！）
+export function getDbFileName(userId?: string): string {
   if (!userId) {
-    return 'default-project'; // 匿名用户
+    return 'drifting-library.db'; // 匿名用户
   }
-  return `default-project-${userId}`;
+  return `${userId}_drifting.db`;
 }
 
 // Auth Store 状态接口
@@ -69,30 +69,27 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(result.error.message || 'Login failed');
           }
 
-          const session = result.data;
+          // signIn returns { user, token }, not { session }
+          // We need to get the session separately
+          const sessionResult = await authClient.getSession();
           
           set({
             isAuthenticated: true,
-            session,
-            user: session?.user as User,
+            session: sessionResult.data || null,
+            user: result.data?.user as User,
           });
 
-          log.info('[Auth] Login successful:', session?.user?.email);
+          log.info('[Auth] Login successful:', result.data?.user?.email);
           
           // 登录成功后：切换到用户专属数据库
           try {
             await resetDatabase();
-            const projectId = getProjectId(session?.user?.id);
-            await initDatabase(projectId, session?.user?.id);
+            await initDatabase(undefined, result.data?.user?.id);
             events.emit('db:ready');
             
-            log.info('[Auth] User database initialized:', session?.user?.id);
-            
-            // 从服务器拉取数据
-            const { syncPullService } = await import('../lib/sync/sync-pull.service');
-            await syncPullService.initialSync();
+            log.info('[Auth] User database initialized:', result.data?.user?.id);
           } catch (error) {
-            log.error('[Auth] Failed to initialize user database or sync:', error);
+            log.error('[Auth] Failed to initialize user database:', error);
           }
         } catch (error) {
           log.error('[Auth] Login failed:', error);
@@ -117,29 +114,27 @@ export const useAuthStore = create<AuthState>()(
             throw new Error(result.error.message || 'Registration failed');
           }
 
-          const session = result.data;
+          // signUp returns { user, token }, not { session }
+          // We need to get the session separately
+          const sessionResult = await authClient.getSession();
           
           set({
             isAuthenticated: true,
-            session,
-            user: session?.user as User,
+            session: sessionResult.data || null,
+            user: result.data?.user as User,
           });
 
-          log.info('[Auth] Registration successful:', session?.user?.email);
+          log.info('[Auth] Registration successful:', result.data?.user?.email);
           
           // 注册成功后：切换到用户专属数据库
           try {
             await resetDatabase();
-            const projectId = getProjectId(session?.user?.id);
-            await initDatabase(projectId, session?.user?.id);
-            events.emit('db:ready');
+            const dbFileName = getDbFileName(result.data?.user?.id);
+            await initDatabase(dbFileName);
             
-            log.info('[Auth] User database initialized:', session?.user?.id);
-            
-            const { syncPullService } = await import('../lib/sync/sync-pull.service');
-            await syncPullService.initialSync();
+            log.info('[Auth] User database initialized:', result.data?.user?.id);
           } catch (error) {
-            log.error('[Auth] Failed to initialize user database or sync:', error);
+            log.error('[Auth] Failed to initialize user database:', error);
           }
         } catch (error) {
           log.error('[Auth] Registration failed:', error);
@@ -165,9 +160,9 @@ export const useAuthStore = create<AuthState>()(
         // 重置数据库连接，切换回匿名/demo模式的数据库
         try {
           await resetDatabase();
-          await initDatabase(getProjectId());
+          await initDatabase(getDbFileName());
           events.emit('db:ready');
-          log.info('[Auth] Switched to anonymous database');
+          log.info('[Auth] Anonymous database');
         } catch (error) {
           log.error('[Auth] Failed to reset database on logout:', error);
         }
