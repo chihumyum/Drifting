@@ -11,6 +11,7 @@ const config: ForgeConfig = {
     asar: true,
     icon: './src/assets/icon',
     name: 'Drifting',
+    extraResource: ['./drizzle'],
   },
   rebuildConfig: {},
   makers: [

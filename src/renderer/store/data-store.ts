@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Storyline } from '../domain/storyline';
-import type { StoryNode, StoryNodeEdge } from '../domain/story-node';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { NodeTag } from '../domain/node-tag';
 // Type definition moved from schema
@@ -25,14 +25,14 @@ interface DataState {
   removeNodeFromStorylineMapping: (storylineId: string, nodeId: string) => void;
   setNodeStorylinesMapping: (nodeId: string, storylineIds: string[]) => void;
   
-  bookNodes: StoryNode[];
-  setBookNodes: (nodes: StoryNode[]) => void;
-  addBookNode: (node: StoryNode) => void;
-  updateBookNode: (id: string, updates: Partial<StoryNode>) => void;
+  bookNodes: BookNode[];
+  setBookNodes: (nodes: BookNode[]) => void;
+  addBookNode: (node: BookNode) => void;
+  updateBookNode: (id: string, updates: Partial<BookNode>) => void;
   removeBookNode: (id: string) => void;
   
-  nodeEdges: StoryNodeEdge[];
-  setNodeEdges: (edges: StoryNodeEdge[]) => void;
+  nodeEdges: BookNodeEdge[];
+  setNodeEdges: (edges: BookNodeEdge[]) => void;
 
 
   bookElementCategories: BookElementCategory[];

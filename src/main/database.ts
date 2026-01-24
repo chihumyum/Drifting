@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from '../renderer/schema/drizzle';
 
-log.setLevel(log.levels.ERROR);
+log.setLevel(log.levels.INFO);
 
 let db: Database.Database | null = null;
 
@@ -32,6 +32,7 @@ function getDbDirectory(): string {
 function initDatabase(dbName: string): void {
   try {
     // Close existing database if any
+    log.info('[Database] Initializing database:', dbName);
     if (db) {
       db.close();
       db = null;
@@ -39,6 +40,21 @@ function initDatabase(dbName: string): void {
 
     const dbDir = getDbDirectory();
     const dbPath = path.join(dbDir, dbName);
+
+    // [DEV] 强制删除旧数据库，每次重启/重载都重建
+    // 如果需要保留数据，请注释掉下面这段代码
+    if (fs.existsSync(dbPath)) {
+      log.warn('[Database] DEV MODE: Deleting existing database for fresh rebuild');
+      try {
+        fs.unlinkSync(dbPath);
+        const walFile = `${dbPath}-wal`;
+        const shmFile = `${dbPath}-shm`;
+        if (fs.existsSync(walFile)) fs.unlinkSync(walFile);
+        if (fs.existsSync(shmFile)) fs.unlinkSync(shmFile);
+      } catch (err) {
+        log.error('[Database] Failed to delete database files:', err);
+      }
+    }
 
     log.info(`[Database] Opening database: ${dbPath}`);
 
@@ -50,9 +66,9 @@ function initDatabase(dbName: string): void {
     // Run migrations
     runMigrations();
 
-    log.info('[Database] Database initialized successfully');
+    log.info('[Database(main)] Database initialized successfully');
   } catch (error) {
-    log.error('[Database] Failed to initialize database:', error);
+    log.error('[Database(main)] Failed to initialize database:', error);
     throw error;
   }
 }
@@ -70,7 +86,11 @@ function runMigrations(): void {
     
     // Apply migrations from drizzle/ folder
     // Comment this out if you prefer to rebuild from scratch during development
-    const migrationsFolder = path.join(__dirname, '../../drizzle');
+    let migrationsFolder = path.join(__dirname, '../../drizzle');
+
+    if (app.isPackaged) {
+      migrationsFolder = path.join(process.resourcesPath, 'drizzle');
+    }
     migrate(drizzleDb, { migrationsFolder });
     
     log.info('[Database] Migrations applied successfully');

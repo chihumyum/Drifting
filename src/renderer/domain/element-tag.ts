@@ -5,11 +5,11 @@ export interface ElementTag {
   name: string;
   color: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 // Domain model for Element-Tag link
 export interface ElementTagLink {
   elementId: string;
   tagId: string;
-  createdAt: string;
 }

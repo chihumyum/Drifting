@@ -13,7 +13,7 @@ import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import loglevel from "loglevel";
 import { Storyline } from '../domain/storyline';
-import { StoryNode } from '../domain/story-node';
+import { BookNode } from '../domain/book-node';
 const log = loglevel.getLogger("StorylineEditorView");
 // log.setLevel(loglevel.levels.ERROR);
 log.setLevel(loglevel.levels.TRACE);
@@ -26,7 +26,7 @@ export function StorylineEditorView() {
   const { bookNodes, storylines } = useDataStore();
   const storylineUsecases = useStoryline();
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
-  const [currentNodes, setCurrentNodes] = useState<StoryNode[]>([]);
+  const [currentNodes, setCurrentNodes] = useState<BookNode[]>([]);
 
 
   // get storyline and nodes from store

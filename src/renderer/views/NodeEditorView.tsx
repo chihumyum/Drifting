@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
-import type { StoryNode } from '../domain/story-node';
+import type { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
 import loglevel from "loglevel";
 import { useDataStore } from '../store/data-store';
@@ -18,7 +18,7 @@ export function NodeEditorView() {
   const { nodeId } = useParams<{ nodeId: string }>();
   const { bookNodes } = useDataStore();
   // this component only render one node
-  const [curNode, setCurNode] = useState<Partial<StoryNode> | null>(null);
+  const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, loadNodes } = useBookNode();

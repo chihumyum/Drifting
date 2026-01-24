@@ -3,7 +3,8 @@ import * as schema from '../schema/drizzle';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("DbLib");
-log.setLevel(loglevel.levels.ERROR);
+// log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.TRACE);
 
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
@@ -12,6 +13,8 @@ let currentDbName: string | null = null;
 // Internal unexported db instance
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
+
+// DB singleton for the renderer process
 export function getDb() {
   if (!dbInitialized || !db) {
     throw new Error("Database not initialized. Call initDatabase() first.");
@@ -20,19 +23,18 @@ export function getDb() {
 }
 
 /**
- * Generate the database filename based on userId and projectId.
+ * Generate the database filename based on userId
  */
-export function getDbName(userId?: string): string {
-  // Use a single database file for all projects to allow cross-project querying
-  return userId ? `${userId}_drifting.db` : 'drifting-library.db';
+export function getDbName(userId: string): string {
+  return `${userId}_drifting.db`;
 }
 
 /**
  * Initialize database and Drizzle proxy.
  */
-export async function initDatabase(projectId?: string, userId?: string): Promise<void> {
-  const targetDbName = getDbName(userId);
-
+export async function initDatabase(userId: string): Promise<void> {
+  const targetDbName = getDbName(userId); 
+  log.debug(`[DB] Target DB Name: ${targetDbName}`);
   if (dbInitialized && currentDbName === targetDbName) {
     return Promise.resolve();
   }
@@ -40,7 +42,7 @@ export async function initDatabase(projectId?: string, userId?: string): Promise
   if (dbInitialized && currentDbName !== targetDbName) {
     log.info(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
     await resetDatabase();
-    return initDatabase(projectId, userId);
+    return initDatabase(userId);
   }
 
   if (initPromise) return initPromise;
@@ -54,9 +56,6 @@ export async function initDatabase(projectId?: string, userId?: string): Promise
       currentDbName = targetDbName;
       dbInitialized = true;
 
-      // Initialize Drizzle Proxy
-      // This allows us to use the Drizzle Query Builder in the renderer,
-      // but execution happens in the main process.
       db = drizzle(async (sql, params, method) => {
         try {
           // If the query is a SELECT / reading data
@@ -65,18 +64,9 @@ export async function initDatabase(projectId?: string, userId?: string): Promise
             return { rows: result };
           }
 
-          // For get, values in standard sqlite-proxy? 
-          // Actually better-sqlite3 wrapper usually expects 'all' or 'run' or 'values'
-          // We map 'get' -> query and return first?
-          // Drizzle's proxy driver expects:
-          // { rows: any[] } for 'all'
-          // { rows: any[][] } for 'values'
-          // { rows: any[], ...stats } for 'run'
 
           if (method === 'run') {
             const result = await window.electronAPI.db.run(sql, params);
-            // Return structure matching what Drizzle expects for 'run'
-            // Usually { rows: [], rowsAffected: ..., insertId: ... }
             return {
               rows: [],
               rowsAffected: result.changes,
@@ -89,11 +79,7 @@ export async function initDatabase(projectId?: string, userId?: string): Promise
             return { rows: result ? [result] : [] };
           }
 
-          // Fallback or 'values'
           const rows = await window.electronAPI.db.query(sql, params);
-          // For 'values', we really need arrays of values, but our IPC returns objects.
-          // In a real proxy driver we might need to conform strictly.
-          // However, for most use cases 'all' and 'run' cover standard QB usage.
           return { rows };
 
         } catch (e) {

@@ -8,8 +8,6 @@ export interface StoryStage {
   name: string;
   descriptionJson: string;
   orderKey: number;
-  startNodeId: string;
-  endNodeId: string;
   color: string;
   createdAt: string;
   updatedAt: string;

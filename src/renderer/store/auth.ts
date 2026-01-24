@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>()(
           // 登录成功后：切换到用户专属数据库
           try {
             await resetDatabase();
-            await initDatabase(undefined, result.data?.user?.id);
+            await initDatabase(result.data?.user?.id);
             events.emit('db:ready');
             
             log.info('[Auth] User database initialized:', result.data?.user?.id);

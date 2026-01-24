@@ -5,7 +5,6 @@ export interface Project {
   id: string;
   userId: string;
   name: string;
-  author: string;
   descriptionJson: string;
   createdAt: string;
   updatedAt: string;

@@ -1,12 +1,12 @@
 import { getDb } from '../lib/db';
-import { storyNodes, storyNodeEdges, projects } from '../schema/drizzle';
+import { BookNodeTable, NodeEdgeTable, ProjectTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
-import type { StoryNode, StoryNodeEdge, StoryNodePosition } from '../domain/story-node';
+import type { BookNode, BookNodeEdge, NodePosition } from '../domain/book-node';
 
 import { v7 as uuidv7 } from 'uuid';
 
 
-type PositionInput = Partial<StoryNodePosition> | undefined;
+type PositionInput = Partial<NodePosition> | undefined;
 
 // when creating a new node, only id, createdAt, updatedAt are not passed in
 export interface CreateBookNodeRepoInput {
@@ -16,10 +16,11 @@ export interface CreateBookNodeRepoInput {
   summary: string;
   start: number;
   end: number;
-  storyStageId: string;
+  storyStageId: string | null;
+  mainStorylineId: string; // Added: required by schema
   storylineIds: string[];
   tagIds: string[];
-  position: StoryNodePosition;
+  position: NodePosition;
   // createdAt: string;
   // updatedAt: string;
 };
@@ -30,7 +31,8 @@ export interface BookNodeUpdateData {
   start?: number;
   end?: number;
   summary?: string;
-  storyStageId?: string;
+  storyStageId?: string | null;
+  mainStorylineId?: string;
   position?: PositionInput;
 }
 
@@ -41,10 +43,10 @@ export type CreateBookNodeEdgeInput = {
   targetNodeId: string;
   label?: string;
   weight?: number;
-  style?: StoryNodeEdge['style'];
-  controlPointOffset?: StoryNodeEdge['controlPointOffset'];
-  sourceAnchor?: StoryNodeEdge['sourceAnchor'];
-  targetAnchor?: StoryNodeEdge['targetAnchor'];
+  style?: BookNodeEdge['style'];
+  controlPointOffset?: BookNodeEdge['controlPointOffset'];
+  sourceAnchor?: BookNodeEdge['sourceAnchor'];
+  targetAnchor?: BookNodeEdge['targetAnchor'];
 };
 
 export interface BookNodeEdgeUpdateData {
@@ -53,25 +55,25 @@ export interface BookNodeEdgeUpdateData {
   targetNodeId?: string;
   label?: string;
   weight?: number;
-  style?: StoryNodeEdge['style'];
-  controlPointOffset?: StoryNodeEdge['controlPointOffset'];
-  sourceAnchor?: StoryNodeEdge['sourceAnchor'];
-  targetAnchor?: StoryNodeEdge['targetAnchor'];
+  style?: BookNodeEdge['style'];
+  controlPointOffset?: BookNodeEdge['controlPointOffset'];
+  sourceAnchor?: BookNodeEdge['sourceAnchor'];
+  targetAnchor?: BookNodeEdge['targetAnchor'];
 }
 
 export interface BookNodeRepository {
-  findById(id: string): Promise<StoryNode | null>;
-  findAll(projectId?: string): Promise<StoryNode[]>;
-  create(data: CreateBookNodeRepoInput): Promise<StoryNode>;
-  update(id: string, data: BookNodeUpdateData): Promise<StoryNode | null>;
+  findById(id: string): Promise<BookNode | null>;
+  findAll(projectId?: string): Promise<BookNode[]>;
+  create(data: CreateBookNodeRepoInput): Promise<BookNode>;
+  update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
-  swapOrder(first: Pick<StoryNode, 'id' | 'start'>, second: Pick<StoryNode, 'id' | 'start'>): Promise<void>;
+  swapOrder(first: Pick<BookNode, 'id' | 'start'>, second: Pick<BookNode, 'id' | 'start'>): Promise<void>;
 }
 
 export interface BookNodeEdgeRepository {
-  findAll(projectId?: string): Promise<StoryNodeEdge[]>;
-  create(input: CreateBookNodeEdgeInput): Promise<StoryNodeEdge>;
-  update(id: string, data: BookNodeEdgeUpdateData): Promise<StoryNodeEdge | null>;
+  findAll(projectId?: string): Promise<BookNodeEdge[]>;
+  create(input: CreateBookNodeEdgeInput): Promise<BookNodeEdge>;
+  update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -82,7 +84,7 @@ export interface BookNodeDataSource {
 
 
 
-function toBookNode(record: typeof storyNodes.$inferSelect): StoryNode {
+function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
   return {
     id: record.id,
     projectId: record.projectId,
@@ -90,7 +92,8 @@ function toBookNode(record: typeof storyNodes.$inferSelect): StoryNode {
     start: record.start,
     end: record.end ?? 0, // Domain requires number, default to 0 if null
     summary: record.summary ?? '',
-    storyStageId: record.storyStageId ?? '',
+    storyStageId: record.storyStageId ?? null,
+    mainStorylineId: record.mainStorylineId,
     storylineIds: [], // TODO: Implement join if needed, or separate fetch
     tagIds: [], // TODO: Implement join if needed
     position: {
@@ -102,7 +105,7 @@ function toBookNode(record: typeof storyNodes.$inferSelect): StoryNode {
   };
 }
 
-function toBookNodeEdge(record: typeof storyNodeEdges.$inferSelect): StoryNodeEdge {
+function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge {
   const style = record.styleJson ? JSON.parse(record.styleJson) : undefined;
   const cp = record.controlPointOffsetJson ? JSON.parse(record.controlPointOffsetJson) : undefined;
   const sa = record.sourceAnchorJson ? JSON.parse(record.sourceAnchorJson) : undefined;
@@ -121,21 +124,22 @@ function toBookNodeEdge(record: typeof storyNodeEdges.$inferSelect): StoryNodeEd
     sourceAnchor: sa,
     targetAnchor: ta,
     createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
 export function createBookNodeSqliteRepository(defaultProjectId: string): BookNodeRepository {
   return {
     async findById(id: string) {
-      const rows = await getDb().select().from(storyNodes).where(eq(storyNodes.id, id)).limit(1);
+      const rows = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
       return rows[0] ? toBookNode(rows[0]) : null;
     },
 
     async findAll(projectId?: string) {
       const pid = projectId ?? defaultProjectId;
-      const rows = await getDb().select().from(storyNodes)
-        .where(eq(storyNodes.projectId, pid))
-        .orderBy(asc(storyNodes.start));
+      const rows = await getDb().select().from(BookNodeTable)
+        .where(eq(BookNodeTable.projectId, pid))
+        .orderBy(asc(BookNodeTable.start));
       return rows.map(toBookNode);
     },
 
@@ -147,12 +151,12 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       const validProjectId = data.projectId;
       if (!validProjectId) throw new Error("Project ID is missing for node creation");
 
-      const projectExists = await getDb().select({ id: projects.id }).from(projects).where(eq(projects.id, validProjectId)).limit(1);
+      const projectExists = await getDb().select({ id: ProjectTable.id }).from(ProjectTable).where(eq(ProjectTable.id, validProjectId)).limit(1);
       if (projectExists.length === 0) {
         throw new Error(`Project with ID ${validProjectId} does not exist. Cannot create node.`);
       }
 
-      const newNode: typeof storyNodes.$inferInsert = {
+      const newNode: typeof BookNodeTable.$inferInsert = {
         id,
         projectId: validProjectId,
         title: data.title,
@@ -161,27 +165,28 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
         summary: data.summary,
         // Ensure empty string becomes null to satisfy FK 
         storyStageId: data.storyStageId || null,
+        mainStorylineId: data.mainStorylineId, // Added: required field
         positionX: data.position.x,
         positionY: data.position.y,
         createdAt: now,
         updatedAt: now,
       };
 
-      await getDb().insert(storyNodes).values(newNode);
+      await getDb().insert(BookNodeTable).values(newNode);
 
       return toBookNode({
         ...newNode,
         positionX: newNode.positionX!,
         positionY: newNode.positionY!,
-      } as typeof storyNodes.$inferSelect);
+      } as typeof BookNodeTable.$inferSelect);
     },
 
     async update(id: string, updates: BookNodeUpdateData) {
-      const existing = await getDb().select().from(storyNodes).where(eq(storyNodes.id, id)).limit(1);
+      const existing = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
       if (!existing[0]) return null;
 
       const now = new Date().toISOString();
-      const updateValues: Partial<typeof storyNodes.$inferInsert> = {
+      const updateValues: Partial<typeof BookNodeTable.$inferInsert> = {
         updatedAt: now,
       };
 
@@ -189,7 +194,8 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
       if (updates.start !== undefined) updateValues.start = updates.start;
       if (updates.end !== undefined) updateValues.end = updates.end;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
-      if (updates.storyStageId !== undefined) updateValues.storyStageId = updates.storyStageId;
+      if (updates.storyStageId !== undefined) updateValues.storyStageId = updates.storyStageId || null;
+      if (updates.mainStorylineId !== undefined) updateValues.mainStorylineId = updates.mainStorylineId;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
 
       if (updates.position) {
@@ -197,29 +203,29 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
         if (updates.position.y !== undefined && updates.position.y !== null) updateValues.positionY = updates.position.y;
       }
 
-      await getDb().update(storyNodes).set(updateValues).where(eq(storyNodes.id, id));
+      await getDb().update(BookNodeTable).set(updateValues).where(eq(BookNodeTable.id, id));
 
       // Fetch updated
-      const updated = await getDb().select().from(storyNodes).where(eq(storyNodes.id, id)).limit(1);
+      const updated = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
       return updated[0] ? toBookNode(updated[0]) : null;
     },
 
     async delete(id: string) {
-      const result = await getDb().delete(storyNodes).where(eq(storyNodes.id, id));
+      const result = await getDb().delete(BookNodeTable).where(eq(BookNodeTable.id, id));
       return (result as any).rowsAffected > 0;
     },
 
-    async swapOrder(first: StoryNode, second: StoryNode) {
+    async swapOrder(first: BookNode, second: BookNode) {
       const now = new Date().toISOString();
 
       await getDb().transaction(async (tx) => {
-        await tx.update(storyNodes)
+        await tx.update(BookNodeTable)
           .set({ start: second.start, updatedAt: now })
-          .where(eq(storyNodes.id, first.id));
+          .where(eq(BookNodeTable.id, first.id));
 
-        await tx.update(storyNodes)
+        await tx.update(BookNodeTable)
           .set({ start: first.start, updatedAt: now })
-          .where(eq(storyNodes.id, second.id));
+          .where(eq(BookNodeTable.id, second.id));
       });
     },
   };
@@ -229,9 +235,9 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
   return {
     async findAll(projectId?: string) {
       const pid = projectId ?? defaultProjectId;
-      const rows = await getDb().select().from(storyNodeEdges)
-        .where(eq(storyNodeEdges.projectId, pid))
-        .orderBy(asc(storyNodeEdges.createdAt));
+      const rows = await getDb().select().from(NodeEdgeTable)
+        .where(eq(NodeEdgeTable.projectId, pid))
+        .orderBy(asc(NodeEdgeTable.createdAt));
       return rows.map(toBookNodeEdge);
     },
 
@@ -239,7 +245,7 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
       const now = new Date().toISOString();
       const id = uuidv7();
 
-      const newEdge: typeof storyNodeEdges.$inferInsert = {
+      const newEdge: typeof NodeEdgeTable.$inferInsert = {
         id,
         projectId: input.projectId ?? defaultProjectId,
         sourceNodeId: input.sourceNodeId,
@@ -252,9 +258,10 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
         sourceAnchorJson: input.sourceAnchor ? JSON.stringify(input.sourceAnchor) : undefined,
         targetAnchorJson: input.targetAnchor ? JSON.stringify(input.targetAnchor) : undefined,
         createdAt: now,
+        updatedAt: now,
       };
 
-      await getDb().insert(storyNodeEdges).values(newEdge);
+      await getDb().insert(NodeEdgeTable).values(newEdge);
       return toBookNodeEdge(newEdge as any);
     },
 
@@ -265,17 +272,17 @@ export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): Bo
       if (updates.style) updateValues.styleJson = JSON.stringify(updates.style);
 
       if (Object.keys(updateValues).length > 0) {
-        await getDb().update(storyNodeEdges).set(updateValues).where(eq(storyNodeEdges.id, id));
+        updateValues.updatedAt = new Date().toISOString();
+        await getDb().update(NodeEdgeTable).set(updateValues).where(eq(NodeEdgeTable.id, id));
       }
 
-      const res = await getDb().select().from(storyNodeEdges).where(eq(storyNodeEdges.id, id));
+      const res = await getDb().select().from(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
       return res[0] ? toBookNodeEdge(res[0]) : null;
     },
 
     async delete(id: string) {
-      await getDb().delete(storyNodeEdges).where(eq(storyNodeEdges.id, id));
+      await getDb().delete(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
       return true;
     },
   };
 }
-

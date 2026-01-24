@@ -1,10 +1,10 @@
 import { memo } from 'react';
-import { StoryNode } from '../../domain/story-node';
+import { BookNode } from '../../domain/book-node';
 import { Storyline } from '../../domain/storyline';
 import { BookElement } from '../../domain/book-element';
 
 interface GraphNodeProps {
-    node: StoryNode;
+    node: BookNode;
     storylines: Storyline[];
     elements: BookElement[];
     isSelected: boolean;

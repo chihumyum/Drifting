@@ -1,7 +1,5 @@
 export interface NodeContent {
-  id: string;
   nodeId: string;
-  projectId: string;
   contentJson: string;
   outlineJson: string;
   createdAt: string;
@@ -16,4 +14,3 @@ export interface OutlineItem {
   paragraphsAfter: number; // Number of paragraphs after this heading (before next heading or end)
   summary: string;        // Optional summary for this heading section
 }
-

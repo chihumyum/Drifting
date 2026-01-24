@@ -1,6 +1,7 @@
 export interface BookElement {
   id: string;
-  categoryId: string;
+  projectId: string;
+  categoryId: string | null;
   name: string;
   summary: string;
   contentJson: string;
@@ -17,20 +18,21 @@ export interface BookElementStage {
   id: string;
   elementId: string;
   orderKey: number;
-  startNodeId: string;
-  endNodeId: string;
+  startNodeId: string | null;
+  endNodeId: string | null;
   stageName: string;
   contentJson: string;
   summary: string;
-  tagIds: string[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface BookElementCategory {
   id: string;
+  projectId: string;
   name: string;
   descriptionJson: string;
   color: string;
+  createdAt: string;
+  updatedAt: string;
 }
-

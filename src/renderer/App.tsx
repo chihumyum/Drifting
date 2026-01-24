@@ -22,7 +22,8 @@ import { AppTopbar } from './views/AppTopbar';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("App");
-log.setLevel(loglevel.levels.ERROR);
+// log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.TRACE);
 
 // 认证路由守卫
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -82,7 +83,7 @@ function Layout() {
       log.info('[App] Database ready for project:', projectId);
       setDbReady(true);
     }).catch(error => {
-      log.error('Failed to initialize database:', error);
+      log.error('[App] Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
     });
   }, [projectId]); // Re-init when projectId changes

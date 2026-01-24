@@ -13,7 +13,7 @@ import loglevel from "loglevel";
 const log = loglevel.getLogger("DebugModal");
 log.setLevel(loglevel.levels.ERROR);
 import { getDb } from '../../lib/db';
-import { storyNodes, storylines, elements, elementCategories } from '../../schema/drizzle';
+import { BookNodeTable, StorylineTable, BookElementTable, ElementCategoryTable } from '../../schema/drizzle';
 
 interface DebugModalProps {
   isOpen: boolean;
@@ -62,10 +62,10 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
     try {
       // 直接查询所有表，使用 Promise.allSettled 避免单个表失败导致整体失败
       const results = await Promise.allSettled([
-        getDb().select().from(storyNodes),
-        getDb().select().from(storylines),
-        getDb().select().from(elements),
-        getDb().select().from(elementCategories),
+        getDb().select().from(BookNodeTable),
+        getDb().select().from(StorylineTable),
+        getDb().select().from(BookElementTable),
+        getDb().select().from(ElementCategoryTable),
       ]);
 
       const data = {

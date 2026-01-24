@@ -5,11 +5,12 @@
  */
 
 import apiClient from '../../lib/axios-config';
-import type { StoryNode } from '../../domain/story-node';
+import type { BookNode } from '../../domain/book-node';
 
 interface NodeResponse {
   id: string;
   projectId: string;
+  mainStorylineId?: string | null;
   title: string;
   summary?: string | null;
   start?: number | null;
@@ -26,14 +27,15 @@ interface ListNodesResponse {
   nextCursor: string | null;
 }
 
-const toBookNode = (node: NodeResponse): StoryNode => ({
+const toBookNode = (node: NodeResponse): BookNode => ({
   id: node.id,
   projectId: node.projectId,
   title: node.title,
   start: node.start ?? 0,
   end: node.end ?? 0,
   summary: node.summary ?? '',
-  storyStageId: node.storyStageId ?? '',
+  storyStageId: node.storyStageId ?? null,
+  mainStorylineId: node.mainStorylineId ?? '',
   position: {
     x: node.posX ?? 0,
     y: node.posY ?? 0,
@@ -52,6 +54,7 @@ export interface CreateNodeDto {
   end?: number;
   summary?: string;
   storyStageId?: string;
+  mainStorylineId?: string;
   posX?: number;
   posY?: number;
 }
@@ -62,6 +65,7 @@ export interface UpdateNodeDto {
   end?: number;
   summary?: string;
   storyStageId?: string;
+  mainStorylineId?: string;
   posX?: number;
   posY?: number;
 }
@@ -82,8 +86,8 @@ export const nodeApi = {
    * 获取项目的所有节点
    * GET /api/projects/:projectId/nodes
    */
-  async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<StoryNode[]> {
-    const items: StoryNode[] = [];
+  async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<BookNode[]> {
+    const items: BookNode[] = [];
     let cursor: string | undefined;
 
     // page through results (backend returns {items,nextCursor})
@@ -112,7 +116,7 @@ export const nodeApi = {
    * 创建节点
    * POST /api/projects/:projectId/nodes
    */
-  async create(projectId: string, dto: CreateNodeDto): Promise<StoryNode> {
+  async create(projectId: string, dto: CreateNodeDto): Promise<BookNode> {
     const response = await apiClient.post<NodeResponse>(`/api/projects/${projectId}/nodes`, dto);
     return toBookNode(response.data);
   },
@@ -121,7 +125,7 @@ export const nodeApi = {
    * 获取单个节点
    * GET /api/projects/:projectId/nodes/:nodeId
    */
-  async getById(projectId: string, nodeId: string): Promise<StoryNode> {
+  async getById(projectId: string, nodeId: string): Promise<BookNode> {
     const response = await apiClient.get<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`);
     return toBookNode(response.data);
   },
@@ -130,7 +134,7 @@ export const nodeApi = {
    * 更新节点
    * PATCH /api/projects/:projectId/nodes/:nodeId
    */
-  async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<StoryNode> {
+  async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<BookNode> {
     const response = await apiClient.patch<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`, dto);
     return toBookNode(response.data);
   },

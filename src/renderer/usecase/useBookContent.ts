@@ -35,7 +35,7 @@ export function useBookContent() {
                 updatedAt: now,
             };
 
-            return contentRepo.update(cont.id, updatedData);
+            return contentRepo.update(cont.nodeId, updatedData);
         },
         [contentRepo]
     );
@@ -54,7 +54,7 @@ export function useBookContent() {
             };
 
 
-            return contentRepo.update(id, updatedData);
+            return contentRepo.update(cont.nodeId, updatedData);
         },
         [contentRepo]
     );
@@ -62,12 +62,10 @@ export function useBookContent() {
 
     const createContent = useCallback(async (
         nodeId: string,
-        projectId: string,
         content: Partial<NodeContent>
     ) => {
         const created = await contentRepo.create({
             nodeId,
-            projectId,
             contentJson: content.contentJson,
             outlineJson: content.outlineJson,
         });

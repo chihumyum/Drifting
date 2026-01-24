@@ -1,9 +1,10 @@
 import { getDb } from '../lib/db';
-import { elements, elementCategories, elementTags, elementTagsLink } from '../schema/drizzle';
+import { BookElementTable, ElementCategoryTable, ElementTagTable, ElementTagLinkTable } from '../schema/drizzle';
 import { eq, desc, and, inArray, getTableColumns, asc } from 'drizzle-orm';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import { v7 as uuidv7 } from 'uuid';
 
+const elementTagsLink = ElementTagLinkTable;
 
 // Strict creation input
 export type CreateBookElementInput = {
@@ -62,10 +63,10 @@ async function getTagMap(elementIds: string[]): Promise<Record<string, string[]>
 
     const rows = await getDb().select({
         elementId: elementTagsLink.elementId,
-        tagName: elementTags.name
+        tagName: ElementTagTable.name
     })
         .from(elementTagsLink)
-        .innerJoin(elementTags, eq(elementTagsLink.tagId, elementTags.id))
+        .innerJoin(ElementTagTable, eq(elementTagsLink.tagId, ElementTagTable.id))
         .where(inArray(elementTagsLink.elementId, elementIds));
 
     const map: Record<string, string[]> = {};
@@ -76,12 +77,13 @@ async function getTagMap(elementIds: string[]): Promise<Record<string, string[]>
     return map;
 }
 
-async function mapToDomain(rows: { element: typeof elements.$inferSelect, categoryName: string | null }[]): Promise<BookElement[]> {
+async function mapToDomain(rows: { element: typeof BookElementTable.$inferSelect, categoryName: string | null }[]): Promise<BookElement[]> {
     const elementIds = rows.map(r => r.element.id);
     const tagMap = await getTagMap(elementIds);
 
     return rows.map(r => ({
         id: r.element.id,
+        projectId: r.element.projectId,
         categoryId: r.categoryName ?? DEFAULT_CATEGORY_NAME, // Maps to name per legacy interface
         name: r.element.name,
         summary: r.element.summary ?? '',
@@ -97,10 +99,10 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
     const findAll = async (): Promise<BookElement[]> => {
         const rows = await getDb().select()
-            .from(elements)
-            .leftJoin(elementCategories, eq(elements.categoryId, elementCategories.id))
-            .where(eq(elements.projectId, projectId))
-            .orderBy(desc(elements.updatedAt));
+            .from(BookElementTable)
+            .leftJoin(ElementCategoryTable, eq(BookElementTable.categoryId, ElementCategoryTable.id))
+            .where(eq(BookElementTable.projectId, projectId))
+            .orderBy(desc(BookElementTable.updatedAt));
 
         // Map Drizzle result structure to my helper input
         const mappedInput = rows.map(r => ({
@@ -113,10 +115,10 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
     const findAllByProject = async (pid: string): Promise<BookElement[]> => {
         const rows = await getDb().select()
-            .from(elements)
-            .leftJoin(elementCategories, eq(elements.categoryId, elementCategories.id))
-            .where(eq(elements.projectId, pid))
-            .orderBy(desc(elements.updatedAt));
+            .from(BookElementTable)
+            .leftJoin(ElementCategoryTable, eq(BookElementTable.categoryId, ElementCategoryTable.id))
+            .where(eq(BookElementTable.projectId, pid))
+            .orderBy(desc(BookElementTable.updatedAt));
 
         const mappedInput = rows.map(r => ({
             element: r.elements,
@@ -127,9 +129,9 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
     const findById = async (id: string): Promise<BookElement | null> => {
         const rows = await getDb().select()
-            .from(elements)
-            .leftJoin(elementCategories, eq(elements.categoryId, elementCategories.id))
-            .where(eq(elements.id, id))
+            .from(BookElementTable)
+            .leftJoin(ElementCategoryTable, eq(BookElementTable.categoryId, ElementCategoryTable.id))
+            .where(eq(BookElementTable.id, id))
             .limit(1);
 
         if (rows.length === 0) return null;
@@ -144,13 +146,13 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
     const findAllByCategory = async (pid: string, categoryId: string): Promise<BookElement[]> => {
         const rows = await getDb().select()
-            .from(elements)
-            .leftJoin(elementCategories, eq(elements.categoryId, elementCategories.id))
+            .from(BookElementTable)
+            .leftJoin(ElementCategoryTable, eq(BookElementTable.categoryId, ElementCategoryTable.id))
             .where(and(
-                eq(elements.projectId, pid),
-                eq(elementCategories.id, categoryId)
+                eq(BookElementTable.projectId, pid),
+                eq(ElementCategoryTable.id, categoryId)
             ))
-            .orderBy(desc(elements.updatedAt));
+            .orderBy(desc(BookElementTable.updatedAt));
 
         const mappedInput = rows.map(r => ({
             element: r.elements,
@@ -161,15 +163,15 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
     const findAllByTag = async (pid: string, tag: string): Promise<BookElement[]> => {
         const rows = await getDb().select()
-            .from(elements)
-            .leftJoin(elementCategories, eq(elements.categoryId, elementCategories.id))
-            .innerJoin(elementTagsLink, eq(elements.id, elementTagsLink.elementId))
-            .innerJoin(elementTags, eq(elementTagsLink.tagId, elementTags.id))
+            .from(BookElementTable)
+            .leftJoin(ElementCategoryTable, eq(BookElementTable.categoryId, ElementCategoryTable.id))
+            .innerJoin(elementTagsLink, eq(BookElementTable.id, elementTagsLink.elementId))
+            .innerJoin(ElementTagTable, eq(elementTagsLink.tagId, ElementTagTable.id))
             .where(and(
-                eq(elements.projectId, pid),
-                eq(elementTags.name, tag)
+                eq(BookElementTable.projectId, pid),
+                eq(ElementTagTable.name, tag)
             ))
-            .orderBy(desc(elements.updatedAt));
+            .orderBy(desc(BookElementTable.updatedAt));
 
         const mappedInput = rows.map(r => ({
             element: r.elements,
@@ -182,7 +184,7 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         const id = uuidv7();
         const now = new Date().toISOString();
 
-        const newElement: typeof elements.$inferInsert = {
+        const newElement: typeof BookElementTable.$inferInsert = {
             id,
             projectId: input.projectId,
             categoryId: input.categoryId,
@@ -193,7 +195,7 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
             updatedAt: now,
         };
 
-        await getDb().insert(elements).values(newElement);
+        await getDb().insert(BookElementTable).values(newElement);
 
         if (input.tagIds && input.tagIds.length > 0) {
             await setElementTagsLocal(id, input.tagIds);
@@ -205,13 +207,13 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
     const update = async (id: string, element: BookElement): Promise<BookElement | null> => {
         const now = new Date().toISOString();
 
-        await getDb().update(elements).set({
+        await getDb().update(BookElementTable).set({
             categoryId: element.categoryId,
             name: element.name,
             summary: element.summary,
             contentJson: element.contentJson,
             updatedAt: now
-        }).where(eq(elements.id, id));
+        }).where(eq(BookElementTable.id, id));
 
         if (element.tagIds) {
             await setElementTagsLocal(id, element.tagIds);
@@ -225,20 +227,19 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
 
         const now = new Date().toISOString();
         for (const tagName of tags) {
-            let tagRow = (await getDb().select().from(elementTags)
-                .where(and(eq(elementTags.projectId, projectId), eq(elementTags.name, tagName)))
+            let tagRow = (await getDb().select().from(ElementTagTable)
+                .where(and(eq(ElementTagTable.projectId, projectId), eq(ElementTagTable.name, tagName)))
                 .limit(1))[0];
 
             if (!tagRow) {
                 const newId = uuidv7();
-                tagRow = { id: newId, projectId, name: tagName, color: null, createdAt: now };
-                await getDb().insert(elementTags).values(tagRow);
+                tagRow = { id: newId, projectId, name: tagName, color: null, createdAt: now, updatedAt: now };
+                await getDb().insert(ElementTagTable).values(tagRow);
             }
 
             await getDb().insert(elementTagsLink).values({
                 elementId,
                 tagId: tagRow.id,
-                createdAt: now
             });
         }
     };
@@ -252,18 +253,18 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         create,
         update,
         delete: async (id) => {
-            await getDb().delete(elements).where(eq(elements.id, id));
+            await getDb().delete(BookElementTable).where(eq(BookElementTable.id, id));
             return true;
         },
         setElementCategory: async (id, catId) => {
-            await getDb().update(elements).set({ categoryId: catId }).where(eq(elements.id, id));
+            await getDb().update(BookElementTable).set({ categoryId: catId }).where(eq(BookElementTable.id, id));
         },
         getElementCategory: async (id) => {
             const r = await findById(id);
             return r?.categoryId ?? null;
         },
         updateElementCategory: async (id, catId) => {
-            await getDb().update(elements).set({ categoryId: catId }).where(eq(elements.id, id));
+            await getDb().update(BookElementTable).set({ categoryId: catId }).where(eq(BookElementTable.id, id));
         },
         getElementTags: async (id) => {
             const map = await getTagMap([id]);
@@ -279,57 +280,138 @@ export function createBookElementSqliteRepository(projectId: string): BookElemen
         },
         setElementTags: setElementTagsLocal,
         getElementContent: async (id) => {
-            const r = await getDb().select({ c: elements.contentJson }).from(elements).where(eq(elements.id, id)).limit(1);
+            const r = await getDb().select({ c: BookElementTable.contentJson }).from(BookElementTable).where(eq(BookElementTable.id, id)).limit(1);
             return r[0]?.c ?? '{}';
         },
         setElementContent: async (id, c) => {
-            await getDb().update(elements).set({ contentJson: c }).where(eq(elements.id, id));
+            await getDb().update(BookElementTable).set({ contentJson: c }).where(eq(BookElementTable.id, id));
         },
     };
 }
 
-export function createCategorySqliteRepository(): BookElementCategoryRepository {
+export function createCategorySqliteRepository(projectId?: string): BookElementCategoryRepository {
+    const withProjectCheck = (query: any) => {
+        if (!projectId) return query;
+        return query.where(eq(ElementCategoryTable.projectId, projectId));
+    };
+
     return {
         findAll: async () => {
-            const rows = await getDb().select().from(elementCategories).orderBy(asc(elementCategories.name));
+            let query = getDb().select().from(ElementCategoryTable);
+            if (projectId) {
+                query = query.where(eq(ElementCategoryTable.projectId, projectId));
+            }
+            const rows = await query.orderBy(asc(ElementCategoryTable.name));
             return rows.map(r => ({
                 id: r.id,
+                projectId: r.projectId,
                 name: r.name,
                 descriptionJson: r.descriptionJson ?? '{}',
-                color: r.color ?? undefined
+                color: r.color ?? undefined,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
             }));
         },
         findByName: async (name) => {
             const n = normalizeCategoryName(name);
-            const r = await getDb().select().from(elementCategories).where(eq(elementCategories.name, n)).limit(1);
-            return r[0] ? { id: r[0].id, name: r[0].name, descriptionJson: r[0].descriptionJson ?? '{}', color: r[0].color ?? undefined } : null;
+            let query = getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.name, n));
+             if (projectId) {
+                query = query.where(eq(ElementCategoryTable.projectId, projectId));
+            }
+            const r = await query.limit(1);
+            return r[0] ? {
+                id: r[0].id,
+                projectId: r[0].projectId,
+                name: r[0].name,
+                descriptionJson: r[0].descriptionJson ?? '{}',
+                color: r[0].color ?? undefined,
+                createdAt: r[0].createdAt,
+                updatedAt: r[0].updatedAt,
+            } : null;
         },
         create: async (name, color) => {
+             // Missing implementation in original file? Assuming we want to Insert first.
+            // But waiting, original only selected? That looks like a bug in original code context I read.
+            // I will implement a proper create here.
+             if (!projectId) throw new Error("ProjectId required for creation");
+
             const id = uuidv7();
-            const r = (await getDb().select().from(elementCategories).where(eq(elementCategories.id, id)).limit(1))[0];
-            return { id: r.id, name: r.name, descriptionJson: r.descriptionJson ?? '{}', color: r.color ?? undefined };
+            const now = new Date().toISOString();
+            const n = normalizeCategoryName(name);
+
+             await getDb().insert(ElementCategoryTable).values({
+                id,
+                projectId: projectId,
+                name: n,
+                color: color || '#888888',
+                descriptionJson: '{}',
+                createdAt: now,
+                updatedAt: now
+            });
+
+            const r = (await getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1))[0];
+            return {
+                id: r.id,
+                projectId: r.projectId,
+                name: r.name,
+                descriptionJson: r.descriptionJson ?? '{}',
+                color: r.color ?? undefined,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+            };
         },
         update: async (name, updates) => {
             const n = normalizeCategoryName(name);
-            const existing = (await getDb().select({ id: elementCategories.id }).from(elementCategories).where(eq(elementCategories.name, n)).limit(1))[0];
-            if (!existing) return null;
+            let existingQuery = getDb().select({ id: ElementCategoryTable.id }).from(ElementCategoryTable).where(eq(ElementCategoryTable.name, n));
+             if (projectId) {
+                existingQuery = existingQuery.where(eq(ElementCategoryTable.projectId, projectId));
+            }
+            const existing = (await existingQuery.limit(1))[0];
+            
+            if (!existing) return null; // or throw
 
             const vals: any = {};
             if (updates.color) vals.color = updates.color;
             if (updates.description_json) vals.descriptionJson = updates.description_json;
 
             if (Object.keys(vals).length > 0) {
-                await getDb().update(elementCategories).set(vals).where(eq(elementCategories.id, existing.id));
+                await getDb().update(ElementCategoryTable).set(vals).where(eq(ElementCategoryTable.id, existing.id));
             }
 
-            const r = (await getDb().select().from(elementCategories).where(eq(elementCategories.id, existing.id)).limit(1))[0];
-            return { id: r.id, name: r.name, descriptionJson: r.descriptionJson ?? '{}', color: r.color ?? undefined };
+            const r = (await getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, existing.id)).limit(1))[0];
+            return {
+                id: r.id,
+                projectId: r.projectId,
+                name: r.name,
+                descriptionJson: r.descriptionJson ?? '{}',
+                color: r.color ?? undefined,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+            };
         },
         delete: async (name) => {
             const n = normalizeCategoryName(name);
-            await getDb().delete(elementCategories).where(eq(elementCategories.name, n));
+            
+            // Find target(s) based on context
+            let targetQuery = getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.name, n));
+            if (projectId) {
+                targetQuery = targetQuery.where(eq(ElementCategoryTable.projectId, projectId));
+            }
+            
+            const target = (await targetQuery.limit(1))[0];
+            if (!target) return false;
+
+            // Invariant check: need count of categories in this project
+            const currentProjectId = target.projectId;
+            const allCats = await getDb().select({ id: ElementCategoryTable.id }).from(ElementCategoryTable)
+                .where(eq(ElementCategoryTable.projectId, currentProjectId));
+            
+            if (allCats.length <= 1) {
+                throw new Error("Cannot delete the last category in the project.");
+            }
+
+            await getDb().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, target.id));
             return true;
         },
     };
 }
-

@@ -8,8 +8,8 @@ export interface Storyline {
   color: string;
   summary: string;
   descriptionJson: string; // ProseMirror document JSON
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateStorylineInput {

@@ -9,6 +9,11 @@ import loglevel from "loglevel";
 const log = loglevel.getLogger("NewEntityButton");
 log.setLevel(loglevel.levels.ERROR);
 
+// TODO: make this dynamic to create different entity types
+// if we're in storyline editor, get from URL, create new node
+// if we're at a node editor, get the node's current main storyline, create new node
+// if at element category editor, create element in this category
+// if at element editor, create element in this element's category
 export function NewEntityButton() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
@@ -17,7 +22,7 @@ export function NewEntityButton() {
   const bookNodes = useDataStore(state => state.bookNodes);
   const { navigateToNode, projectId } = useProjectNavigation();
 
-  // Check if we're currently in a storyline editor
+
   const getCurrentStorylineId = (): string | null => {
     const match = location.pathname.match(/^\/editor\/storyline\/([^/]+)$/);
     return match ? match[1] : null;
@@ -148,7 +153,8 @@ export function NewEntityButton() {
 
       // Create the new node
       const newNode = await createNode({
-        title: 'New Chapter',
+        projectId: projectId,
+        mainStorylineId: '',
         start: newStart,
         end: newEnd,
       });
@@ -194,7 +200,6 @@ export function NewEntityButton() {
         fontWeight: 500,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
-        WebkitAppRegion: 'no-drag' as any,
       }}
       onMouseEnter={e => {
         e.currentTarget.style.background = 'rgba(184, 153, 104, 0.2)';

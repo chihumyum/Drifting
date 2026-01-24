@@ -60,8 +60,6 @@ export function useStoryStage() {
       name: input.name,
       descriptionJson: input.description ?? '{}',
       orderKey,
-      startNodeId: '', // Default empty
-      endNodeId: '', // Default empty
       color: input.color ?? '#000000',
     });
   }, [stageRepo]);

@@ -1,8 +1,8 @@
 import { useRef, useEffect } from 'react';
-import type { StoryNode } from '../domain/story-node';
+import type { BookNode } from '../domain/book-node';
 
 interface NodeHoverPreviewProps {
-  node: StoryNode | null;
+  node: BookNode | null;
   position: { x: number; y: number } | null;
   showAbove?: boolean; // 是否显示在上方（用于 bottom timeline）
 }

@@ -1,9 +1,11 @@
 import { getDb } from '../lib/db';
-import { storyStages, nodeTags, nodeTagsLink } from '../schema/drizzle';
+import { StoryStageTable, NodeTagTable, NodeTagLinkTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
 import type { NodeTag, NodeTagLink } from '../domain/node-tag';
 import type { StoryStage } from '../domain/storystage';
 import { v7 as uuidv7 } from 'uuid';
+
+const nodeTagsLink = NodeTagLinkTable;
 
 // Story Stage Repository
 export interface StoryStageRepository {
@@ -19,7 +21,7 @@ export interface NodeTagRepository {
   findById(id: string): Promise<NodeTag | null>;
   findAll(projectId: string): Promise<NodeTag[]>;
   findByName(projectId: string, name: string): Promise<NodeTag | null>;
-  create(data: Omit<NodeTag, 'id' | 'createdAt'>): Promise<NodeTag>;
+  create(data: Omit<NodeTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeTag>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -40,28 +42,27 @@ export interface NodeTagLinkRepository {
 
 // ==================== Converters ====================
 
-function storyStageRecordToDomain(record: typeof storyStages.$inferSelect): StoryStage {
+function storyStageRecordToDomain(record: typeof StoryStageTable.$inferSelect): StoryStage {
   return {
     id: record.id,
     projectId: record.projectId,
     name: record.name,
     descriptionJson: record.descriptionJson ?? '{}',
     orderKey: record.orderKey,
-    startNodeId: record.startNodeId ?? '',
-    endNodeId: record.endNodeId ?? '',
     color: record.color,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
 }
 
-function nodeTagRecordToDomain(record: typeof nodeTags.$inferSelect): NodeTag {
+function nodeTagRecordToDomain(record: typeof NodeTagTable.$inferSelect): NodeTag {
   return {
     id: record.id,
     projectId: record.projectId,
     name: record.name,
     color: record.color,
     createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
@@ -70,34 +71,34 @@ function nodeTagRecordToDomain(record: typeof nodeTags.$inferSelect): NodeTag {
 export function createStoryStageRepository(): StoryStageRepository {
 
   const findById = async (id: string): Promise<StoryStage | null> => {
-    const rows = await getDb().select().from(storyStages).where(eq(storyStages.id, id)).limit(1);
+    const rows = await getDb().select().from(StoryStageTable).where(eq(StoryStageTable.id, id)).limit(1);
     return rows[0] ? storyStageRecordToDomain(rows[0]) : null;
   };
 
   const findAll = async (projectId: string): Promise<StoryStage[]> => {
-    const rows = await getDb().select().from(storyStages)
-      .where(eq(storyStages.projectId, projectId))
-      .orderBy(asc(storyStages.orderKey));
+    const rows = await getDb().select().from(StoryStageTable)
+      .where(eq(StoryStageTable.projectId, projectId))
+      .orderBy(asc(StoryStageTable.orderKey));
     return rows.map(storyStageRecordToDomain);
   };
 
   const create = async (data: any): Promise<StoryStage> => {
     const now = new Date().toISOString();
     const id = uuidv7();
-    const newStage: typeof storyStages.$inferInsert = {
+    const newStage: typeof StoryStageTable.$inferInsert = {
       id,
       projectId: data.projectId,
       name: data.name,
-      descriptionJson: data.description ?? '{}',
+      descriptionJson: data.descriptionJson ?? '{}',
       orderKey: data.orderKey ?? 0,
       color: data.color ?? '#000000',
       createdAt: now,
       updatedAt: now,
     };
 
-    await getDb().insert(storyStages).values(newStage);
+    await getDb().insert(StoryStageTable).values(newStage);
 
-    return storyStageRecordToDomain(newStage as typeof storyStages.$inferSelect);
+    return storyStageRecordToDomain(newStage as typeof StoryStageTable.$inferSelect);
   };
 
   const update = async (id: string, data: any): Promise<StoryStage | null> => {
@@ -105,22 +106,26 @@ export function createStoryStageRepository(): StoryStageRepository {
     if (!existing) return null;
 
     const now = new Date().toISOString();
-    const updateValues: Partial<typeof storyStages.$inferInsert> = {
+    const updateValues: Partial<typeof StoryStageTable.$inferInsert> = {
       updatedAt: now,
     };
 
     if (data.name !== undefined) updateValues.name = data.name;
-    if (data.description !== undefined) updateValues.descriptionJson = typeof data.description === 'string' ? data.description : JSON.stringify(data.description);
+    if (data.descriptionJson !== undefined) {
+      updateValues.descriptionJson = typeof data.descriptionJson === 'string'
+        ? data.descriptionJson
+        : JSON.stringify(data.descriptionJson);
+    }
     if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
     if (data.color !== undefined) updateValues.color = data.color;
 
-    await getDb().update(storyStages).set(updateValues).where(eq(storyStages.id, id));
+    await getDb().update(StoryStageTable).set(updateValues).where(eq(StoryStageTable.id, id));
 
     return findById(id);
   };
 
   const deleteStage = async (id: string): Promise<boolean> => {
-    const result = await getDb().delete(storyStages).where(eq(storyStages.id, id));
+    const result = await getDb().delete(StoryStageTable).where(eq(StoryStageTable.id, id));
     return (result as any).rowsAffected > 0; // rowsAffected might not be typed in Drizzle proxy result properly, relying on loose typing
   };
 
@@ -138,20 +143,20 @@ export function createStoryStageRepository(): StoryStageRepository {
 export function createNodeTagRepository(): NodeTagRepository {
 
   const findById = async (id: string): Promise<NodeTag | null> => {
-    const rows = await getDb().select().from(nodeTags).where(eq(nodeTags.id, id)).limit(1);
+    const rows = await getDb().select().from(NodeTagTable).where(eq(NodeTagTable.id, id)).limit(1);
     return rows[0] ? nodeTagRecordToDomain(rows[0]) : null;
   };
 
   const findAll = async (projectId: string): Promise<NodeTag[]> => {
-    const rows = await getDb().select().from(nodeTags)
-      .where(eq(nodeTags.projectId, projectId))
-      .orderBy(asc(nodeTags.name));
+    const rows = await getDb().select().from(NodeTagTable)
+      .where(eq(NodeTagTable.projectId, projectId))
+      .orderBy(asc(NodeTagTable.name));
     return rows.map(nodeTagRecordToDomain);
   };
 
   const findByName = async (projectId: string, name: string): Promise<NodeTag | null> => {
-    const rows = await getDb().select().from(nodeTags)
-      .where(and(eq(nodeTags.projectId, projectId), eq(nodeTags.name, name)))
+    const rows = await getDb().select().from(NodeTagTable)
+      .where(and(eq(NodeTagTable.projectId, projectId), eq(NodeTagTable.name, name)))
       .limit(1);
     return rows[0] ? nodeTagRecordToDomain(rows[0]) : null;
   };
@@ -159,20 +164,21 @@ export function createNodeTagRepository(): NodeTagRepository {
   const create = async (data: any): Promise<NodeTag> => {
     const now = new Date().toISOString();
     const id = uuidv7();
-    const newTag: typeof nodeTags.$inferInsert = {
+    const newTag: typeof NodeTagTable.$inferInsert = {
       id,
       projectId: data.projectId,
       name: data.name,
       color: data.color ?? null,
       createdAt: now,
+      updatedAt: now,
     };
 
-    await getDb().insert(nodeTags).values(newTag);
-    return nodeTagRecordToDomain(newTag as typeof nodeTags.$inferSelect);
+    await getDb().insert(NodeTagTable).values(newTag);
+    return nodeTagRecordToDomain(newTag as typeof NodeTagTable.$inferSelect);
   };
 
   const deleteTag = async (id: string): Promise<boolean> => {
-    const result = await getDb().delete(nodeTags).where(eq(nodeTags.id, id));
+    const result = await getDb().delete(NodeTagTable).where(eq(NodeTagTable.id, id));
     return (result as any).rowsAffected > 0;
   };
 
@@ -190,16 +196,17 @@ export function createNodeTagRepository(): NodeTagRepository {
 export function createNodeTagLinkRepository(): NodeTagLinkRepository {
   const findTagsByNodeId = async (nodeId: string): Promise<NodeTag[]> => {
     const rows = await getDb().select({
-      id: nodeTags.id,
-      projectId: nodeTags.projectId,
-      name: nodeTags.name,
-      color: nodeTags.color,
-      createdAt: nodeTags.createdAt
+      id: NodeTagTable.id,
+      projectId: NodeTagTable.projectId,
+      name: NodeTagTable.name,
+      color: NodeTagTable.color,
+      createdAt: NodeTagTable.createdAt,
+      updatedAt: NodeTagTable.updatedAt
     })
-      .from(nodeTags)
-      .innerJoin(nodeTagsLink, eq(nodeTags.id, nodeTagsLink.tagId))
+      .from(NodeTagTable)
+      .innerJoin(nodeTagsLink, eq(NodeTagTable.id, nodeTagsLink.tagId))
       .where(eq(nodeTagsLink.nodeId, nodeId))
-      .orderBy(asc(nodeTags.name));
+      .orderBy(asc(NodeTagTable.name));
 
     return rows.map(nodeTagRecordToDomain);
   };
@@ -212,12 +219,11 @@ export function createNodeTagLinkRepository(): NodeTagLinkRepository {
   };
 
   const addTagToNode = async (nodeId: string, tagId: string): Promise<NodeTagLink> => {
-    const now = new Date().toISOString();
     await getDb().insert(nodeTagsLink)
-      .values({ nodeId, tagId, createdAt: now })
+      .values({ nodeId, tagId })
       .onConflictDoNothing();
 
-    return { nodeId, tagId, createdAt: now };
+    return { nodeId, tagId };
   };
 
   const removeTagFromNode = async (nodeId: string, tagId: string): Promise<boolean> => {

@@ -1,29 +1,30 @@
 
 
-export interface StoryNode {
+export interface BookNode {
   id: string;
   projectId: string;
   title: string;
   summary: string;
   start: number;                     // Position on timeline (chapter order / story time start)
   end: number;                // Timeline end position
-  storyStageId: string;
+  storyStageId: string | null;
+  mainStorylineId: string;
   storylineIds: string[];  // Associated storylines, could be multiple
   tagIds: string[];       // Tags associated with this node
-  position: StoryNodePosition;
+  position: NodePosition;
   createdAt: string;
   updatedAt: string;
 }
 
 
 
-export interface StoryNodePosition {
+export interface NodePosition {
   x: number;
   y: number;
 }
 
 
-export interface StoryNodeEdge {
+export interface BookNodeEdge {
   id: string;
   projectId: string;
   sourceNodeId: string;
@@ -32,6 +33,7 @@ export interface StoryNodeEdge {
   weight: number;
   isDirected: boolean; // Default true if undefined
   createdAt: string;
+  updatedAt: string;
   // Freeform Styling & Geometry
   style?: {
     stroke?: string;
@@ -45,10 +47,8 @@ export interface StoryNodeEdge {
   targetAnchor?: { x: number; y: number }; // Relative to node top-left
 }
 
-// export interface BookNodeElementLink {
-//   id: string;
-//   nodeId: string;
-//   elementId: string;
-// }
-
+export interface NodeElementBacklink {
+  nodeId: string;
+  elementId: string;
+}
 

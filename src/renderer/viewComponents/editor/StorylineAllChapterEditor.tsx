@@ -3,23 +3,23 @@ import loglevel from 'loglevel';
 
 const log = loglevel.getLogger("StorylineAllChapterEditor");
 log.setLevel(loglevel.levels.ERROR);
-import type { StoryNode } from '../../domain/story-node';
+import type { BookNode } from '../../domain/book-node';
 import { useBookContent } from '../../usecase/useBookContent';
 import { ChapterSection } from './ChapterSection';
 
 interface StorylineAllChapterProps {
-  nodes: StoryNode[]; // 已按顺序排列的章节列表
+  nodes: BookNode[]; // 已按顺序排列的章节列表
   onCurrentChapterChange?: (nodeId: string, index: number) => void; // 当前编辑的章节变化回调
 }
 
 interface ChapterData {
   nodeId: string;
-  node: StoryNode;
+  node: BookNode;
   content: string | null; // pm_json
 }
 
 export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: StorylineAllChapterProps) {
-  const { updateContentById, updateContentByNodeId, createContent, getContentByNodeId } = useBookContent();
+  const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent();
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,18 +71,14 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
       // 先尝试获取现有内容以判断是更新还是创建
       const existingContent = await getContentByNodeId(nodeId);
 
-      if (existingContent?.id) {
-        await updateContentById(existingContent.id, {
+      if (existingContent) {
+        await updateContentByNodeId(nodeId, {
           contentJson: pmJson,
           outlineJson,
         });
       } else {
         // 创建新内容
-        if (node.projectId) {
-           await createContent(nodeId, node.projectId, { contentJson: pmJson, outlineJson });
-        } else {
-           log.error('Cannot create content: Node missing projectId', node);
-        }
+        await createContent(nodeId, { contentJson: pmJson, outlineJson });
       }
 
       // 更新本地状态
@@ -94,7 +90,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
         )
       );
     },
-    [nodes, getContentByNodeId, updateContentById, updateContentByNodeId, createContent]
+    [nodes, getContentByNodeId, updateContentByNodeId, createContent]
   );
 
   // 滚动到指定章节

@@ -8,11 +8,6 @@ import { useAuthStore } from '../store/auth';
 
 export interface CreateBookElementInput {
     categoryId: string;
-    name: string;
-    summary: string;
-    contentJson: string;
-    tagIds: string[];
-    stageIds: string[];
 }
 
 export function useBookElement() {
@@ -22,8 +17,8 @@ export function useBookElement() {
 
     // Use useMemo ensuring repository is recreated if projectId changes
     const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);
-    const categoryRepoRef = useRef(createCategorySqliteRepository());
-    const categoryRepo = categoryRepoRef.current;
+    // Also recreate category repo when Project ID changes, so invariants are scoped correctly
+    const categoryRepo = useMemo(() => createCategorySqliteRepository(activeProjectId), [activeProjectId]);
 
     const getElements = useCallback(() => useDataStore.getState().bookElements, []);
     const setElements = useCallback((els: BookElement[]) => useDataStore.getState().setBookElements(els), []);

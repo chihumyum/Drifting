@@ -5,7 +5,7 @@ import { useDataStore } from '../../store/data-store';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { Storyline } from '../../domain/storyline';
-import type { StoryNode } from '../../domain/story-node';
+import type { BookNode } from '../../domain/book-node';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import loglevel from "loglevel";
@@ -18,7 +18,7 @@ log.setLevel(loglevel.levels.ERROR);
   both with additional tag filters
 */
 
-interface TimelineNode extends StoryNode {
+interface TimelineNode extends BookNode {
   storylines: Storyline[];
 }
 

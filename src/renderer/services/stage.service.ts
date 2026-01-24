@@ -1,5 +1,6 @@
 import apiClient, { handleApiError } from '../lib/api';
-import type { StoryStage, NodeTag } from '../domain/node-tag';
+import type { NodeTag } from '../domain/node-tag';
+import type { StoryStage } from '../domain/storystage';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("StageService");
@@ -128,7 +129,7 @@ export const nodeTagService = {
   /**
    * 创建新标签
    */
-  async create(data: Omit<NodeTag, 'id' | 'createdAt'>): Promise<NodeTag> {
+  async create(data: Omit<NodeTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeTag> {
     try {
       const response = await apiClient.post<NodeTag>('/tags', data);
       return response.data;

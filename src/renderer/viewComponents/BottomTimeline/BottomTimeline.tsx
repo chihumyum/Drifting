@@ -6,7 +6,7 @@ import { useBookContent } from '../../usecase/useBookContent';
 import { parseOutline } from '../../lib/outline';
 import type { OutlineItem } from '../../domain/node-content';
 import type { Storyline } from '../../domain/storyline';
-import type { StoryNode } from '../../domain/story-node';
+import type { BookNode } from '../../domain/book-node';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
@@ -29,7 +29,7 @@ const TIMELINE_CONFIG = {
   RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
 
-interface TimelineNode extends StoryNode {
+interface TimelineNode extends BookNode {
   storylines: Storyline[];
 }
 
@@ -355,17 +355,15 @@ export function BottomTimeline() {
             // 创建新章节
             const newNode = await createNode({
               projectId: projectId,
-              title: 'New Chapter',
               start: contextMenu.position,
               end: contextMenu.position + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
-              summary: '',
               storyStageId: '',
-              storylineIds: [contextMenu.storylineId],
+              mainStorylineId: contextMenu.storylineId,
               position: { x: 0, y: 0 }, // TODO: calculate position from graphview stuff
             });
 
             // 将 node 添加到用户指定的 storyline
-            // 因为这是第一个 storyline，storyline_order=0，它将成为此 node 的 primary storyline
+            // 因为这是第一个 storyline，storyline_order=0，它将成为此 node 的 main storyline
             await addNodeToStoryline(newNode.id, contextMenu.storylineId);
 
             // 设置为选中状态并导航
@@ -657,7 +655,7 @@ export function BottomTimeline() {
 
         // 如果有任何更新，写入数据库
         if (Object.keys(updates).length > 0) {
-          const updates: Partial<StoryNode> = {
+          const updates: Partial<BookNode> = {
             end: currentEnd ?? 0 // Fallback to 0 if null 
           };
           await updateNode(resizingNode.nodeId, updates);

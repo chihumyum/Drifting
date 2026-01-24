@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, FileText, Edit2, Save, X } from 'lucide-react';
-import type { StoryNode } from '../../domain/story-node';
+import type { BookNode } from '../../domain/book-node';
 import type { OutlineItem } from '../../schema/book_content';
 import { extractOutline } from '../../lib/outline';
 
 interface ChaptersOutlinePanelProps {
-  nodes: StoryNode[]; // 章节列表
+  nodes: BookNode[]; // 章节列表
   contentsMap: Map<string, string>; // nodeId -> pm_json
   currentChapterIndex: number; // 当前章节索引
   onChapterClick: (index: number) => void; // 点击章节跳转
@@ -13,7 +13,7 @@ interface ChaptersOutlinePanelProps {
 }
 
 interface ChapterOutlineData {
-  node: StoryNode;
+  node: BookNode;
   outline: OutlineItem[];
   isExpanded: boolean;
 }
