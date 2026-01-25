@@ -1,6 +1,6 @@
 import { useCallback, useRef, useMemo } from 'react';
 
-import { createBookContentRepository } from '../repositories/content-repo';
+import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import type { NodeContent } from '../domain/node-content';
 import loglevel from 'loglevel';
 

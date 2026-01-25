@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
-import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../repositories/node-repo.ts';
-import { createBookContentRepository } from '../repositories/content-repo.ts';
+import { useAuthStore } from '../store/auth.ts';
+import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../sqlite-repo/node-repo.ts';
+import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node.ts';
 import { initDatabase } from '../lib/db';
+import { v7 as uuidv7 } from 'uuid';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("UseBookNode");
@@ -19,19 +21,26 @@ export interface CreateNodeUsecaseInput {
 
 export function useBookNode() {
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-
-  // Use route projectId - this is the ONLY source of truth for projectId
-  // No fallback to fake IDs!
+  const { user } = useAuthStore.getState();
+  // repositories are bound to route projectId. do we really need to store projectid here too?
   const activeProjectId = routeProjectId;
+  if (!activeProjectId) {
+    throw new Error("useBookNode must be used within a project route");
+  }
+  if (!user) {
+    throw new Error("useBookNode requires authenticated user");
+  }
 
   const nodeRepo = useMemo(() => createBookNodeSqliteRepository(activeProjectId), [activeProjectId]);
   const edgeRepo = useMemo(() => createBookNodeEdgeSqliteRepository(activeProjectId), [activeProjectId]);
   const contentRepoRef = useRef(createBookContentRepository());
   const contentRepo = contentRepoRef.current;
-
-  const ensureDb = useCallback((projectId?: string) =>
-    initDatabase(projectId ?? activeProjectId),
-    [activeProjectId]);
+  const ensureDb = useCallback(async () => {
+    if (!user) {
+      throw new Error("useBookNode requires authenticated user");
+    }
+    await initDatabase(user.id);
+  }, [user]);
 
   const getNodesState = useCallback(() => useDataStore.getState().bookNodes, []);
   const setNodesState = useCallback((nodes: BookNode[]) => useDataStore.getState().setBookNodes(nodes), []);
@@ -41,7 +50,7 @@ export function useBookNode() {
   const setEdgesState = useCallback((edges: BookNodeEdge[]) => useDataStore.getState().setNodeEdges(edges), []);
 
   const loadNodes = useCallback(async (options?: { projectId?: string }) => {
-    await ensureDb(options?.projectId);
+    await ensureDb();
     log.debug('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
     const nodes = await nodeRepo.findAll(options?.projectId);
     log.debug('[loadBookNodes] Loaded nodes count:', nodes.length, 'ids:', nodes.map(n => n.id));
@@ -51,19 +60,17 @@ export function useBookNode() {
   }, [nodeRepo, ensureDb, setNodesState]);
 
   const loadEdges = useCallback(async (projectId?: string) => {
-    await ensureDb(projectId);
+    await ensureDb();
     const edges = await edgeRepo.findAll(projectId);
     setEdgesState(edges);
     return edges;
   }, [edgeRepo, ensureDb, setEdgesState]);
 
   const createNode = useCallback(async (input: CreateNodeUsecaseInput) => {
-    await ensureDb(input.projectId);
+    await ensureDb();
     const nodes = getNodesState();
 
-    const targetProjectId = input.projectId ?? activeProjectId;
-    if (!targetProjectId) {
-      log.error('[createNode] No projectId available for creation. input:', input, 'active:', activeProjectId);
+    if (!activeProjectId) {
       throw new Error('Project ID is required to create a node');
     }
 
@@ -72,8 +79,9 @@ export function useBookNode() {
     }
 
     const created = await nodeRepo.create({
+      id: uuidv7(),
       title: 'New Node',
-      projectId: targetProjectId,
+      projectId: activeProjectId,
       start: input.start,
       end: input.end ?? input.start,
       summary: '',
@@ -81,10 +89,12 @@ export function useBookNode() {
       mainStorylineId: input.mainStorylineId,
       storylineIds: [],
       tagIds: [], // create a new node comes with no tags by default
-      position: input.position ?? {
+      position: { // TODO: properly fit the graph node
         x: (Math.random() - 0.5) * 600,
         y: (Math.random() - 0.5) * 600,
       },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
 
     // Create default empty content for the new node
@@ -117,7 +127,7 @@ export function useBookNode() {
     updateNodeState(id, { title });
 
     try {
-      await nodeRepo.update(id, { title });
+      await nodeRepo.update(id, { title: title, updatedAt: new Date().toISOString() });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -170,7 +180,7 @@ export function useBookNode() {
     updateNodeState(id, { position });
 
     try {
-      await nodeRepo.update(id, { position });
+      await nodeRepo.update(id, { position, updatedAt: new Date().toISOString() });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -186,7 +196,7 @@ export function useBookNode() {
     updateNodeState(id, { summary: summary });
 
     try {
-      await nodeRepo.update(id, { summary: summary });
+      await nodeRepo.update(id, { summary: summary, updatedAt: new Date().toISOString() });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -202,7 +212,7 @@ export function useBookNode() {
     updateNodeState(id, updates);
 
     try {
-      await nodeRepo.update(id, updates);
+      await nodeRepo.update(id, { ...updates, updatedAt: new Date().toISOString() });
     } catch (error) {
       setNodesState(prevNodes);
       throw error;
@@ -233,7 +243,7 @@ export function useBookNode() {
 
   const updateEdge = useCallback(async (id: string, updates: Partial<BookNodeEdge>) => {
     await ensureDb();
-    return await edgeRepo.update(id, updates);
+    return await edgeRepo.update(id, { ...updates, updatedAt: new Date().toISOString() });
   }, [edgeRepo, ensureDb]);
 
   return useMemo(() => ({

@@ -69,7 +69,7 @@ export const StorylineTable = sqliteTable('storylines', {
 export const BookNodeTable = sqliteTable('book_node', {
     id: text('id').primaryKey(),
     title: text('title').notNull(),
-    summary: text('summary').default(''),
+    summary: text('summary').notNull().default(''),
     start: integer('start').notNull(),
     end: integer('end').notNull().default(0), // Nullable in domain
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
@@ -127,10 +127,10 @@ export const NodeEdgeTable = sqliteTable('book_node_edge', {
 export const BookElementTable = sqliteTable('element', {
     id: text('id').primaryKey(),
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    categoryId: text('category_id').references(() => ElementCategoryTable.id, { onDelete: 'set null' }),
+    categoryId: text('category_id').notNull().references(() => ElementCategoryTable.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
-    summary: text('summary').default(''),
-    contentJson: text('content_json').default('{}'),
+    summary: text('summary').notNull().default(''),
+    contentJson: text('content_json').notNull().default('{}'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 });
@@ -185,7 +185,7 @@ export const ElementTagTable = sqliteTable('element_tag', {
     id: text('id').primaryKey(),
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    color: text('color'),
+    color: text('color'),  // nullable - 可以在创建时不指定颜色
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 }, (t) => [

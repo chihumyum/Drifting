@@ -1,70 +1,24 @@
 import { getDb } from '../lib/db';
 import { BookNodeTable, NodeEdgeTable, ProjectTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
-import type { BookNode, BookNodeEdge, NodePosition } from '../domain/book-node';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
 
-import { v7 as uuidv7 } from 'uuid';
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger("BookNodeRepository");
+log.setLevel(loglevel.levels.WARN);
 
 
-type PositionInput = Partial<NodePosition> | undefined;
 
-// when creating a new node, only id, createdAt, updatedAt are not passed in
-export interface CreateBookNodeRepoInput {
-  // id: string;
-  projectId: string;
-  title: string;
-  summary: string;
-  start: number;
-  end: number;
-  storyStageId: string | null;
-  mainStorylineId: string; // Added: required by schema
-  storylineIds: string[];
-  tagIds: string[];
-  position: NodePosition;
-  // createdAt: string;
-  // updatedAt: string;
-};
 
-export interface BookNodeUpdateData {
-  projectId?: string;
-  title?: string;
-  start?: number;
-  end?: number;
-  summary?: string;
-  storyStageId?: string | null;
-  mainStorylineId?: string;
-  position?: PositionInput;
-}
+export type BookNodeUpdateData = Partial<Omit<BookNode, 'id' | 'createdAt'>> & { updatedAt: string};
+export type BookNodeEdgeUpdateData = Partial<BookNodeEdge>;
 
-// TODO: update later to enforce stricter typing
-export type CreateBookNodeEdgeInput = {
-  projectId?: string;
-  sourceNodeId: string;
-  targetNodeId: string;
-  label?: string;
-  weight?: number;
-  style?: BookNodeEdge['style'];
-  controlPointOffset?: BookNodeEdge['controlPointOffset'];
-  sourceAnchor?: BookNodeEdge['sourceAnchor'];
-  targetAnchor?: BookNodeEdge['targetAnchor'];
-};
-
-export interface BookNodeEdgeUpdateData {
-  projectId?: string;
-  sourceNodeId?: string;
-  targetNodeId?: string;
-  label?: string;
-  weight?: number;
-  style?: BookNodeEdge['style'];
-  controlPointOffset?: BookNodeEdge['controlPointOffset'];
-  sourceAnchor?: BookNodeEdge['sourceAnchor'];
-  targetAnchor?: BookNodeEdge['targetAnchor'];
-}
 
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
   findAll(projectId?: string): Promise<BookNode[]>;
-  create(data: CreateBookNodeRepoInput): Promise<BookNode>;
+  create(data: BookNode): Promise<BookNode>;
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
   swapOrder(first: Pick<BookNode, 'id' | 'start'>, second: Pick<BookNode, 'id' | 'start'>): Promise<void>;
@@ -72,7 +26,7 @@ export interface BookNodeRepository {
 
 export interface BookNodeEdgeRepository {
   findAll(projectId?: string): Promise<BookNodeEdge[]>;
-  create(input: CreateBookNodeEdgeInput): Promise<BookNodeEdge>;
+  create(input: BookNodeEdge): Promise<BookNodeEdge>;
   update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
   delete(id: string): Promise<boolean>;
 }
@@ -91,7 +45,7 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     title: record.title,
     start: record.start,
     end: record.end ?? 0, // Domain requires number, default to 0 if null
-    summary: record.summary ?? '',
+    summary: record.summary,
     storyStageId: record.storyStageId ?? null,
     mainStorylineId: record.mainStorylineId,
     storylineIds: [], // TODO: Implement join if needed, or separate fetch
@@ -128,48 +82,45 @@ function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge
   };
 }
 
-export function createBookNodeSqliteRepository(defaultProjectId: string): BookNodeRepository {
+export function createBookNodeSqliteRepository(currentProject: string): BookNodeRepository {
   return {
     async findById(id: string) {
-      const rows = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
+      const rows = await getDb().selectDistinct().from(BookNodeTable).where(eq(BookNodeTable.id, id));
       return rows[0] ? toBookNode(rows[0]) : null;
     },
 
-    async findAll(projectId?: string) {
-      const pid = projectId ?? defaultProjectId;
+    async findAll() {
+      const pid = currentProject;
       const rows = await getDb().select().from(BookNodeTable)
         .where(eq(BookNodeTable.projectId, pid))
         .orderBy(asc(BookNodeTable.start));
       return rows.map(toBookNode);
     },
 
-    async create(data: CreateBookNodeRepoInput) {
-      const now = new Date().toISOString();
-      const id = uuidv7();
+    async create(data: BookNode) {
+      if (!data.projectId || data.projectId !== currentProject) {
+        throw new Error(`Cannot create node: projectId mismatch. Expected ${currentProject}, got ${data.projectId}`);
+      }
 
-      // Validate Project Exists to prevent vague FK errors
-      const validProjectId = data.projectId;
-      if (!validProjectId) throw new Error("Project ID is missing for node creation");
-
-      const projectExists = await getDb().select({ id: ProjectTable.id }).from(ProjectTable).where(eq(ProjectTable.id, validProjectId)).limit(1);
+      const projectExists = await getDb()
+        .select({ id: ProjectTable.id }).from(ProjectTable).where(eq(ProjectTable.id, data.projectId)).limit(1);
       if (projectExists.length === 0) {
-        throw new Error(`Project with ID ${validProjectId} does not exist. Cannot create node.`);
+        throw new Error(`Project with ID ${data.projectId} does not exist. Cannot create node.`);
       }
 
       const newNode: typeof BookNodeTable.$inferInsert = {
-        id,
-        projectId: validProjectId,
+        id: data.id,
+        projectId: data.projectId,
         title: data.title,
         start: data.start,
         end: data.end,
         summary: data.summary,
-        // Ensure empty string becomes null to satisfy FK 
-        storyStageId: data.storyStageId || null,
-        mainStorylineId: data.mainStorylineId, // Added: required field
+        storyStageId: data.storyStageId ?? null,
+        mainStorylineId: data.mainStorylineId,
         positionX: data.position.x,
         positionY: data.position.y,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
       };
 
       await getDb().insert(BookNodeTable).values(newNode);
@@ -183,18 +134,20 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
 
     async update(id: string, updates: BookNodeUpdateData) {
       const existing = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
-      if (!existing[0]) return null;
+      if (!existing[0]) {
+        log.warn(`[BookNodeRepository] update: Node with ID ${id} does not exist.`);
+        return null;
+      }
 
-      const now = new Date().toISOString();
       const updateValues: Partial<typeof BookNodeTable.$inferInsert> = {
-        updatedAt: now,
+        updatedAt: updates.updatedAt,
       };
 
       if (updates.title !== undefined) updateValues.title = updates.title;
       if (updates.start !== undefined) updateValues.start = updates.start;
       if (updates.end !== undefined) updateValues.end = updates.end;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
-      if (updates.storyStageId !== undefined) updateValues.storyStageId = updates.storyStageId || null;
+      if (updates.storyStageId !== undefined) updateValues.storyStageId = updates.storyStageId ?? null;
       if (updates.mainStorylineId !== undefined) updateValues.mainStorylineId = updates.mainStorylineId;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
 
@@ -231,34 +184,35 @@ export function createBookNodeSqliteRepository(defaultProjectId: string): BookNo
   };
 }
 
-export function createBookNodeEdgeSqliteRepository(defaultProjectId: string): BookNodeEdgeRepository {
+export function createBookNodeEdgeSqliteRepository(currentProjectId: string): BookNodeEdgeRepository {
   return {
-    async findAll(projectId?: string) {
-      const pid = projectId ?? defaultProjectId;
+    async findAll() {
+      const pid = currentProjectId;
       const rows = await getDb().select().from(NodeEdgeTable)
         .where(eq(NodeEdgeTable.projectId, pid))
         .orderBy(asc(NodeEdgeTable.createdAt));
       return rows.map(toBookNodeEdge);
     },
 
-    async create(input: CreateBookNodeEdgeInput) {
-      const now = new Date().toISOString();
-      const id = uuidv7();
+    async create(input: BookNodeEdge) {
+      if (!input.projectId || input.projectId !== currentProjectId) {
+        throw new Error(`Cannot create edge: projectId mismatch. Expected ${currentProjectId}, got ${input.projectId}`);
+      }
 
       const newEdge: typeof NodeEdgeTable.$inferInsert = {
-        id,
-        projectId: input.projectId ?? defaultProjectId,
+        id: input.id,
+        projectId: input.projectId,
         sourceNodeId: input.sourceNodeId,
         targetNodeId: input.targetNodeId,
         label: input.label,
         weight: input.weight ?? 1,
-        isDirected: true, // Default
+        isDirected: input.isDirected,
         styleJson: input.style ? JSON.stringify(input.style) : undefined,
         controlPointOffsetJson: input.controlPointOffset ? JSON.stringify(input.controlPointOffset) : undefined,
         sourceAnchorJson: input.sourceAnchor ? JSON.stringify(input.sourceAnchor) : undefined,
         targetAnchorJson: input.targetAnchor ? JSON.stringify(input.targetAnchor) : undefined,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: input.createdAt,
+        updatedAt: input.updatedAt,
       };
 
       await getDb().insert(NodeEdgeTable).values(newEdge);

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react';
 import type { Storyline, CreateStorylineInput, UpdateStorylineInput } from '../domain/storyline';
-import { StorylineSQLiteRepository } from '../repositories/storyline-repo';
+import { StorylineSQLiteRepository } from '../sqlite-repo/storyline-repo';
 import { useDataStore } from '../store/data-store';
 
 export function useStoryline() {

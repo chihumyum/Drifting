@@ -15,7 +15,7 @@ export interface BookContentRepository {
   findById(id: string): Promise<NodeContent | null>;
   findByNodeId(nodeId: string): Promise<NodeContent | null>;
   create(input: CreateBookContentInput): Promise<NodeContent>;
-  update(contentId: string, data: Partial<NodeContent>): Promise<NodeContent | null>;
+  update(id: string, data: Partial<NodeContent>): Promise<NodeContent | null>;
   updateByNodeId(nodeId: string, data: Partial<NodeContent>): Promise<NodeContent | null>;
   deleteById(id: string): Promise<boolean>;
   deleteByNodeId(nodeId: string): Promise<boolean>;

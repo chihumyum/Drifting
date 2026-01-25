@@ -1,22 +1,23 @@
 import { useCallback, useRef, useMemo } from 'react';
 
 import type { Project } from '../domain/project';
-import { ProjectRepositorySQLite } from '../repositories/project-repo';
+import { ProjectRepositorySQLite } from '../sqlite-repo/project-repo';
 import { useBookNode } from './useBookNode';
 import { useStoryline } from './useStoryline';
 import { useBookElement } from './useBookElement';
+import { useElementCategory } from './useElementCategory';
+import { useAuthStore } from '../store/auth';
+import { v7 as uuidv7 } from 'uuid';
+import LogLevel from 'loglevel';
+
+const log = LogLevel.getLogger("UseProject");
+log.setLevel(LogLevel.levels.WARN);
 
 export interface CreateProjectInput {
   projectName?: string | null;
-  author?: string | null;
-  description?: string | null;
 }
 
-export interface UpdateProjectInput {
-  projectName?: string | null;
-  author?: string | null;
-  description?: string | null;
-}
+export type UpdateProjectInput = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;
 
 export function useProject() {
   const repoRef = useRef(new ProjectRepositorySQLite());
@@ -24,6 +25,11 @@ export function useProject() {
   const nodeUsecases = useBookNode();
   const storylineUsecases = useStoryline();
   const elementUsecases = useBookElement();
+  const elementCategoryUsecases = useElementCategory();
+  const { user } = useAuthStore();
+  if (!user) {
+    log.warn("No authenticated user found");
+  }
 
   const initializeProject = useCallback(async (projectId: string) => {
     await Promise.all([
@@ -42,46 +48,55 @@ export function useProject() {
   }, [repo]);
 
   const createProject = useCallback(async (input: CreateProjectInput): Promise<Project> => {
-    return await repo.create({
+    if (user == null) {
+      // TODO: get anonymous user ID from auth store
+      throw new Error("Cannot create project: No authenticated user");
+    }
+    const project = await repo.create({
+      id: uuidv7(),
+      userId: user.id,
       name: input.projectName ?? 'New Project',
-      author: input.author ?? 'Unknown Author',
-      description: input.description ?? '',
+      descriptionJson: '', // TODO: fix to pmJson, or Ydoc
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
-  }, [repo]);
 
-  const updateProject = useCallback(async (
-    id: string,
-    input: UpdateProjectInput
-  ): Promise<Project | null> => {
-    const now = new Date().toISOString();
+    // Enforce invariant: Project must have at least one default storyline
+    await storylineUsecases.createStoryline({
+      projectId: project.id,
+      name: 'Default Storyline',
+      color: '#3b82f6',
+      summary: '',
+      pmJson: '{}'
+    });
 
+    // Enforce invariant: Project must have at least one 'others' element category
+    await elementCategoryUsecases.createCategory({
+        projectId: project.id,
+        name: 'others',
+        descriptionJson: '{}',
+        color: '#6b7280'
+    });
+
+    return project;
+  }, [repo, user, storylineUsecases, elementCategoryUsecases]);
+
+  const updateProject = useCallback(async (id: string, input: UpdateProjectInput): Promise<Project | null> => {
+    if (user == null) {
+      log.warn("Cannot update project: No authenticated user"); // TODO: handle anonymous user update if needed
+      return Promise.resolve(null);
+    }
     return await repo.update(id, {
-      ...input,
-      updatedAt: now,
+      userId: user.id,
+      name: input.name,
+      descriptionJson: input.descriptionJson,
+      updatedAt: new Date().toISOString(),
     });
-  }, [repo]);
+  }, [repo, user]);
 
   const deleteProject = useCallback(async (id: string): Promise<boolean> => {
     return await repo.delete(id);
-  }, [repo]);
-
-  const addElementCategory = useCallback(async (
-    projectId: string,
-    categoryId: string
-  ): Promise<void> => {
-    await repo.addElementCategory(projectId, categoryId);
-  }, [repo]);
-
-  const removeElementCategory = useCallback(async (
-    projectId: string,
-    categoryId: string
-  ): Promise<void> => {
-    await repo.removeElementCategory(projectId, categoryId);
-  }, [repo]);
-
-  const getElementCategories = useCallback(async (projectId: string): Promise<string[]> => {
-    return await repo.getElementCategories(projectId);
-  }, [repo]);
+  }, [repo, user]);
 
   return useMemo(() => ({
     loadProjects,
@@ -89,9 +104,6 @@ export function useProject() {
     createProject,
     updateProject,
     deleteProject,
-    addElementCategory,
-    removeElementCategory,
-    getElementCategories,
     initializeProject,
   }), [
     loadProjects,
@@ -99,9 +111,6 @@ export function useProject() {
     createProject,
     updateProject,
     deleteProject,
-    addElementCategory,
-    removeElementCategory,
-    getElementCategories,
     initializeProject,
   ]);
 }

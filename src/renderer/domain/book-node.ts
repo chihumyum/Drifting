@@ -11,14 +11,14 @@ export interface BookNode {
   mainStorylineId: string;
   storylineIds: string[];  // Associated storylines, could be multiple
   tagIds: string[];       // Tags associated with this node
-  position: NodePosition;
+  position: GraphViewNodePosition;
   createdAt: string;
   updatedAt: string;
 }
 
 
 
-export interface NodePosition {
+export interface GraphViewNodePosition {
   x: number;
   y: number;
 }

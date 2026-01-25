@@ -3,7 +3,7 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger("BacklinksPanel");
 log.setLevel(loglevel.levels.ERROR);
 import { useNavigate } from 'react-router-dom';
-import { ElementOccurrenceRepository } from '../../repositories/element-occr-repo';
+import { ElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
 
 interface BacklinksPanelProps {
   elementId: string;

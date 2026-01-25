@@ -3,22 +3,36 @@ import { useParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
-import { createBookElementSqliteRepository, createCategorySqliteRepository } from '../repositories/element-repo';
-import { useAuthStore } from '../store/auth';
+import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
+import { ElementCategoryRepositorySQLite } from '../sqlite-repo/element-category-repo';
+
 
 export interface CreateBookElementInput {
     categoryId: string;
+}
+export type UpdateElementUsecaseInput = {
+    id: string;
+    categoryId?: string;
+    name?: string;
+    tagIds?: string[];
+    stageIds?: string[];
+    summary?: string;
+    contentJson?: string;
 }
 
 export function useBookElement() {
     const { projectId: routeProjectId } = useParams<{ projectId: string }>();
     // Use route projectId - this is the ONLY source of truth for projectId
+    if (!routeProjectId) {
+        throw new Error("useBookElement must be used within a project route");
+    }
     const activeProjectId = routeProjectId;
 
     // Use useMemo ensuring repository is recreated if projectId changes
     const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);
     // Also recreate category repo when Project ID changes, so invariants are scoped correctly
-    const categoryRepo = useMemo(() => createCategorySqliteRepository(activeProjectId), [activeProjectId]);
+    const categoryRepoRef = useRef(new ElementCategoryRepositorySQLite());
+    const categoryRepo = categoryRepoRef.current;
 
     const getElements = useCallback(() => useDataStore.getState().bookElements, []);
     const setElements = useCallback((els: BookElement[]) => useDataStore.getState().setBookElements(els), []);
@@ -26,38 +40,40 @@ export function useBookElement() {
     const setCategories = useCallback((cats: BookElementCategory[]) => useDataStore.getState().setBookElementCategories(cats), []);
 
 
-    const deleteCategory = useCallback(async (name: string) => {
-        await categoryRepo.delete(name);
-        const cats = await categoryRepo.findAll();
+    const deleteCategory = useCallback(async (id: string) => {
+        await categoryRepo.delete(id);
+        const cats = await categoryRepo.findByProjectId(activeProjectId);
         setCategories(cats);
-    }, [categoryRepo, setCategories]);
+    }, [categoryRepo, setCategories, activeProjectId]);
 
     const loadInitial = useCallback(async (projectId?: string) => {
         const pid = projectId ?? activeProjectId;
         const elements = await elementRepo.findAllByProject(pid);
         setElements(elements);
-        const categories = await categoryRepo.findAll();
+        const categories = await categoryRepo.findByProjectId(pid);
         setCategories(categories);
     }, [elementRepo, categoryRepo, setElements, setCategories, activeProjectId]);
 
     const createElement = useCallback(async (input: CreateBookElementInput) => {
         const persisted = await elementRepo.create({
+            id: uuidv7(),
             projectId: activeProjectId,
             categoryId: input.categoryId,
-            name: input.name,
-            tagIds: input.tagIds,
-            stageIds: input.stageIds,
-            summary: input.summary,
-            contentJson: input.contentJson,
+            name: 'New Element',
+            tagIds: [],
+            stageIds: [],
+            summary: '',
+            contentJson: '{}', // TODO: fix this 
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         });
-
         const prev = getElements();
         setElements([persisted, ...prev]);
 
         return persisted;
     }, [elementRepo, getElements, setElements]);
 
-    const updateElement = useCallback(async (id: string, updates: Partial<CreateBookElementInput>) => {
+    const updateElement = useCallback(async (id: string, updates: Partial<UpdateElementUsecaseInput>) => {
         const now = new Date();
         const elements = getElements();
         const existing = elements.find(e => e.id === id);

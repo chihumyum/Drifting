@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { BookNodeEdge } from '../../domain/book-node';
-import { NodePosition } from '../../domain/book-node';
+import { GraphViewNodePosition } from '../../domain/book-node';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("GraphEdge");
@@ -8,8 +8,8 @@ log.setLevel(loglevel.levels.ERROR);
 
 interface GraphEdgeProps {
     edge: BookNodeEdge;
-    sourcePos: NodePosition;
-    targetPos: NodePosition;
+    sourcePos: GraphViewNodePosition;
+    targetPos: GraphViewNodePosition;
     isSelected: boolean;
     onSelect: (id: string) => void;
     style?: React.CSSProperties; // Add style prop

@@ -1,7 +1,7 @@
 export interface BookElement {
   id: string;
   projectId: string;
-  categoryId: string | null;
+  categoryId: string;
   name: string;
   summary: string;
   contentJson: string;

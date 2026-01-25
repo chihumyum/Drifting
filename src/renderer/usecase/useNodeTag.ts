@@ -1,6 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { createNodeTagRepository, createNodeTagLinkRepository } from '../repositories/story-stage-repo';
+import { createNodeTagRepository, createNodeTagLinkRepository } from '../sqlite-repo/story-stage-repo';
 import { initDatabase } from '../lib/db';
 import { useAuthStore } from '../store/auth';
 
