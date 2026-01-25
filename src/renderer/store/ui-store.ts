@@ -32,6 +32,8 @@ interface UiState {
 
   activeSuperView: 'none' | 'element' | 'graph' | 'reference';
   setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
+  lastActiveSuperView: 'element' | 'graph' | 'reference' | null;
+  setLastActiveSuperView: (view: 'element' | 'graph' | 'reference' | null) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -97,7 +99,17 @@ export const useUiStore = create<UiState>()(
       setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
 
       activeSuperView: 'none',
-      setActiveSuperView: (view) => set({ activeSuperView: view }),
+      setActiveSuperView: (view) => {
+        set((state) => {
+          const updates: Partial<UiState> = { activeSuperView: view };
+          if (view !== 'none') {
+            updates.lastActiveSuperView = view;
+          }
+          return updates;
+        });
+      },
+      lastActiveSuperView: null,
+      setLastActiveSuperView: (view) => set({ lastActiveSuperView: view }),
     }),
     {
       name: 'ui-storage', // unique name
@@ -106,6 +118,7 @@ export const useUiStore = create<UiState>()(
         sidebars: state.sidebars,
         activeLeftPanel: state.activeLeftPanel,
         activeSuperView: state.activeSuperView,
+        lastActiveSuperView: state.lastActiveSuperView,
       }),
     }
   )

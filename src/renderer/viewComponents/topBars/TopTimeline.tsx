@@ -58,12 +58,13 @@ export function TopTimeline() {
 
   const isElementMode = Boolean(categoryId || elementId);
   const isStorylineMode = Boolean(storylineId || nodeId);
+  const isAllNodesMode = !isStorylineMode && !isElementMode && location.pathname.includes('/editor');
 
   // Load current node's primary storyline and all chapters in that storyline
   useEffect(() => {
     async function loadStorylineData() {
       try {
-        if (isElementMode || !isStorylineMode) {
+        if (isElementMode || isAllNodesMode || !isStorylineMode) {
           setCurrentStoryline(null);
           setStorylineNodes([]);
           return;
@@ -112,7 +113,7 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, isElementMode, isStorylineMode, bookNodes, storylines, getStorylineById, getNodeIdsByStoryline, loadStorylines, projectId]);
+  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById, getNodeIdsByStoryline, loadStorylines, projectId]);
 
   useEffect(() => {
     if (!isElementMode) {
@@ -147,6 +148,17 @@ export function TopTimeline() {
     setCategoryElements(elementsInCategory);
   }, [isElementMode, categoryId, elementId, bookElements, bookElementCategories]);
 
+  useEffect(() => {
+    if (!isAllNodesMode) {
+      return;
+    }
+    setCurrentStoryline(null);
+    setCurrentCategory(null);
+    setCategoryElements([]);
+    const sorted = bookNodes.slice().sort((a, b) => a.start - b.start);
+    setStorylineNodes(sorted);
+  }, [isAllNodesMode, bookNodes]);
+
   // Load all stuff for dropdown
   useEffect(() => {
     async function loadAllStorylines() {
@@ -157,17 +169,17 @@ export function TopTimeline() {
         log.error('Failed to load all storylines:', error);
       }
     }
-    if (!isElementMode && showStorylineDropdown) {
+    if (!isElementMode && !isAllNodesMode && showStorylineDropdown) {
       loadAllStorylines();
     }
-  }, [projectId, loadStorylines, showStorylineDropdown, isElementMode]);
+  }, [projectId, loadStorylines, showStorylineDropdown, isElementMode, isAllNodesMode]);
 
   useEffect(() => {
-    if (isElementMode && showStorylineDropdown) {
+    if ((isElementMode || isAllNodesMode) && showStorylineDropdown) {
       setShowStorylineDropdown(false);
       setStorylineDropdownPosition(null);
     }
-  }, [isElementMode, showStorylineDropdown]);
+  }, [isElementMode, isAllNodesMode, showStorylineDropdown]);
 
   useEffect(() => {
     if (isElementMode && hoveredNodeId) {
@@ -227,7 +239,7 @@ export function TopTimeline() {
     }
   }, [nodeId, elementId, storylineNodes, categoryElements]);
 
-  if (!isStorylineMode && !isElementMode) {
+  if (!isStorylineMode && !isElementMode && !isAllNodesMode) {
     return null;
   }
 
@@ -339,6 +351,9 @@ export function TopTimeline() {
       }
       return;
     }
+    if (isAllNodesMode) {
+      return;
+    }
     if (currentStoryline) {
       navigateToStoryline(currentStoryline.id);
     }
@@ -437,8 +452,10 @@ export function TopTimeline() {
               borderRadius: 7,
               background: isElementMode
                 ? (currentCategory?.color || '#b89968')
-                : (currentStoryline?.color || '#b89968'),
-              cursor: isElementMode ? (currentCategory ? 'pointer' : 'default') : 'pointer',
+                : isAllNodesMode
+                  ? '#8b7355'
+                  : (currentStoryline?.color || '#b89968'),
+              cursor: isElementMode ? (currentCategory ? 'pointer' : 'default') : (isAllNodesMode ? 'default' : 'pointer'),
               fontSize: 14,
               fontWeight: 600,
               color: '#fff',
@@ -449,22 +466,24 @@ export function TopTimeline() {
             onMouseEnter={e => {
               e.currentTarget.style.transform = 'scale(1.05)';
               e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-              if (!isElementMode) {
+              if (!isElementMode && !isAllNodesMode) {
                 handleShowDropdown(e);
               }
             }}
             onMouseLeave={e => {
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              if (!isElementMode) {
+              if (!isElementMode && !isAllNodesMode) {
                 handleHideDropdown();
               }
             }}
-            title={isElementMode ? (currentCategory?.name || 'Category') : (currentStoryline?.name || 'Storyline')}
+            title={isElementMode
+              ? (currentCategory?.name || 'Category')
+              : (isAllNodesMode ? 'All Nodes' : (currentStoryline?.name || 'Storyline'))}
           >
             {isElementMode
               ? (currentCategory?.name ? currentCategory.name.charAt(0).toUpperCase() : '?')
-              : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?')}
+              : (isAllNodesMode ? 'A' : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'))}
           </div>
         </div>
 
@@ -555,7 +574,7 @@ export function TopTimeline() {
 
       {/* Storyline Dropdown */}
       {
-        !isElementMode && showStorylineDropdown && storylineDropdownPosition && (
+        !isElementMode && !isAllNodesMode && showStorylineDropdown && storylineDropdownPosition && (
           <div
             ref={dropdownRef}
             style={{

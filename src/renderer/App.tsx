@@ -4,6 +4,7 @@ import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
+import { AllNodesEditorView } from './views/AllNodesEditorView';
 import { GraphView } from './views/GraphView';
 import { LoginPage } from './views/LoginPage';
 import { RegisterPage } from './views/RegisterPage';
@@ -259,6 +260,7 @@ export default function App() {
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<div>Project Home</div>} />
         <Route path="editor" element={<Navigate to="../home" replace />} />
+        <Route path="editor/all-nodes" element={<AllNodesEditorView />} />
         <Route path="editor/:nodeId" element={<NodeEditorView />} />
         <Route path="editor/storyline/:storylineId" element={<StorylineEditorView />} />
         <Route path="element/:elementId" element={<ElementEditorView />} />

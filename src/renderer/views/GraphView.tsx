@@ -42,7 +42,7 @@ export function GraphView() {
         storylineNodeMapping,
         setStorylineNodeMapping,
     } = useDataStore();
-    const { setGraphViewOpen } = useUiStore();
+    const setActiveSuperView = useUiStore(s => s.setActiveSuperView);
 
     const { user } = useAuthStore();
     const { projectId } = useProjectNavigation();
@@ -74,6 +74,38 @@ export function GraphView() {
     const containerRef = useRef<HTMLDivElement>(null);
     const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
     const loadedRef = useRef(false);
+
+    // Helper to center the view
+    function centerView(nodes: any[]) {
+        if (nodes.length === 0 || !containerRef.current) return;
+
+        const xs = nodes.map((n: any) => (n.x ?? n.position?.x ?? 0) as number);
+        const ys = nodes.map((n: any) => (n.y ?? n.position?.y ?? 0) as number);
+
+        if (xs.length === 0) return;
+
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        const width = maxX - minX + 600; // Padding
+        const height = maxY - minY + 600;
+
+        const { width: containerW, height: containerH } = containerRef.current.getBoundingClientRect();
+
+        // Fit to screen
+        const scale = Math.min(containerW / width, containerH / height, 1);
+
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        setViewport({
+            x: containerW / 2 - centerX * scale,
+            y: containerH / 2 - centerY * scale,
+            scale
+        });
+    }
 
     // Load Mappings 
     useEffect(() => {
@@ -126,6 +158,7 @@ export function GraphView() {
                     weight: 1,
                     isDirected: true,
                     createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                 });
             }
         });
@@ -276,48 +309,18 @@ export function GraphView() {
         }
     }, [bookNodes, dragState]);
 
-    // Helper to center the view
-    const centerView = (nodes: any[]) => {
-        if (nodes.length === 0 || !containerRef.current) return;
-
-        const xs = nodes.map((n: any) => (n.x ?? n.position?.x ?? 0) as number);
-        const ys = nodes.map((n: any) => (n.y ?? n.position?.y ?? 0) as number);
-
-        if (xs.length === 0) return;
-
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-
-        const width = maxX - minX + 600; // Padding
-        const height = maxY - minY + 600;
-
-        const { width: containerW, height: containerH } = containerRef.current.getBoundingClientRect();
-
-        // Fit to screen
-        const scale = Math.min(containerW / width, containerH / height, 1);
-
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-
-        setViewport({
-            x: containerW / 2 - centerX * scale,
-            y: containerH / 2 - centerY * scale,
-            scale
-        });
-    };
+    ;
 
     // Handle Close Shortcut
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                setGraphViewOpen(false);
+                setActiveSuperView('none');
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [setGraphViewOpen]);
+    }, [setActiveSuperView]);
 
     // Helper: World to Screen / Screen to World
     const screenToWorld = (sx: number, sy: number) => ({
@@ -611,7 +614,8 @@ export function GraphView() {
                     label: '',
                     weight: 1,
                     isDirected: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                 };
 
                 // Call usecase to create edge (which updates store and DB)
@@ -649,7 +653,7 @@ export function GraphView() {
             {/* Close Button */}
             <button
                 className="absolute top-4 right-16 z-50 bg-white/80 p-2 rounded shadow hover:bg-white"
-                onClick={() => setGraphViewOpen(false)}
+                onClick={() => setActiveSuperView('none')}
             >
                 Close (Esc)
             </button>
@@ -922,18 +926,18 @@ export function GraphView() {
                                 }
                             }}
                             onNavigate={(id) => {
-                                setGraphViewOpen(false); // Close graph on navigate
+                                setActiveSuperView('none'); // Close graph on navigate
                                 navigate(`/editor/${id}`);
                             }}
                             onTitleClick={(id) => {
-                                setGraphViewOpen(false);
+                                setActiveSuperView('none');
                                 navigate(`/editor/${id}`);
                             }}
                             onSummaryClick={(id, summary) => {
                                 setSummaryEditor({ nodeId: id, summary: summary || '' });
                             }}
                             onElementClick={(id) => {
-                                setGraphViewOpen(false);
+                                setActiveSuperView('none');
                                 navigate(`/element/${id}`);
                             }}
                             onMouseDown={handleNodeMouseDown}
