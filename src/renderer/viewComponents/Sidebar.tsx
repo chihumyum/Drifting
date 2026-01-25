@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 
 interface SidebarProps {
@@ -15,6 +15,45 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   // Fallback if state is missing (should not happen with correct store setup)
   const isExpanded = sidebarState?.isOpen ?? true;
   const expandedWidth = sidebarState?.width ?? 280;
+
+  // Resize Logic
+  const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
+  const setResizingSidebar = useUiStore((state) => state.setResizingSidebar);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Min limit: 200px (matches LEFT_COLLAPSED_WIDTH in AppTopbar)
+      // Max limit: 30% of viewport
+      let newWidth = e.clientX;
+      const minWidth = 200;
+      const maxWidth = window.innerWidth * 0.3;
+
+      if (newWidth < minWidth) newWidth = minWidth;
+      if (newWidth > maxWidth) newWidth = maxWidth;
+
+      setSidebarWidth('left', newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setResizingSidebar(null);
+      document.body.style.cursor = 'default';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'default';
+    };
+  }, [isResizing, setSidebarWidth, setResizingSidebar]);
+
 
   return (
     <div
@@ -52,6 +91,25 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         {/* 收起状态的提示 */}
         {!isExpanded && collapsedContent}
       </div>
+
+      {isExpanded && sidebarType === 'left' && (
+        <div
+          onMouseDown={() => {
+            setIsResizing(true);
+            setResizingSidebar('left');
+          }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: -3, // Center on border
+            width: 6,
+            height: '100%',
+            cursor: 'col-resize',
+            zIndex: 10,
+            // background: 'rgba(0,0,0,0.1)', // debug
+          }}
+        />
+      )}
     </div>
   );
 }

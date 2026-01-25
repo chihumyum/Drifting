@@ -89,6 +89,7 @@
     "drizzle-orm": "^0.45.1",
     "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",
+    "framer-motion": "^12.29.0",
     "loglevel": "^1.9.2",
     "lucide-react": "^0.563.0",
     "mitt": "^3.0.1",

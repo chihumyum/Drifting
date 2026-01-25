@@ -8,6 +8,8 @@ export function AppTopbar() {
     const leftState = useUiStore(s => s.sidebars.left);
     const rightState = useUiStore(s => s.sidebars.right);
 
+    const resizingSidebar = useUiStore(s => s.resizingSidebar);
+
     // Calculate widths
     // Traffic lights usually take ~70-80px. LeftSidebarTopBar has paddingLeft: 90.
     // Plus button width ~30px + paddingRight 16px.
@@ -23,7 +25,7 @@ export function AppTopbar() {
             {/* Left Section */}
             <div style={{
                 width: leftWidth,
-                transition: 'width 0.2s',
+                transition: resizingSidebar === 'left' ? 'none' : 'width 0.2s',
                 borderRight: '1px solid rgba(213, 213, 213, 0.3)',
                 flexShrink: 0,
                 overflow: 'hidden'

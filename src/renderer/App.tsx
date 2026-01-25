@@ -10,7 +10,9 @@ import { RegisterPage } from './views/RegisterPage';
 import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
-import { LeftQuickButtons } from './viewComponents/leftBars/LeftQuickButtons';
+import { LeftSidebarHeader } from './viewComponents/leftBars/LeftSidebarHeader';
+import { NodesPanel } from './viewComponents/leftBars/NodesPanel';
+import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './viewComponents/Sidebar';
 import { BottomTimeline } from './viewComponents/BottomTimeline/BottomTimeline';
 import { SettingsModal } from './viewComponents/modals/SettingsModal';
@@ -117,22 +119,29 @@ function Layout() {
 
   }, []);
 
+
+
   // Global Shortcut for Graph View (Cmd + Shift + \)
-  const isGraphViewOpen = useUiStore((state) => state.isGraphViewOpen);
-  const setGraphViewOpen = useUiStore((state) => state.setGraphViewOpen);
+  const activeSuperView = useUiStore((state) => state.activeSuperView);
+  const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
+  const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd + Shift + \ (Backslash)
       if (e.metaKey && e.shiftKey && e.code === 'Backslash') {
         e.preventDefault();
-        setGraphViewOpen(!isGraphViewOpen);
+        if (activeSuperView === 'graph') {
+          setActiveSuperView('none');
+        } else {
+          setActiveSuperView('graph');
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isGraphViewOpen, setGraphViewOpen]);
+  }, [activeSuperView, setActiveSuperView]);
 
   if (!dbReady) {
     return (
@@ -161,7 +170,7 @@ function Layout() {
         {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
         <Sidebar sidebarType="left" >
           <div style={{ flexShrink: 0 }}>
-            <LeftQuickButtons />
+            <LeftSidebarHeader />
           </div>
           <div
             style={{
@@ -171,7 +180,7 @@ function Layout() {
               position: 'relative',
             }}
           >
-            <ElementPanel />
+            {activeLeftPanel === 'elements' ? <ElementPanel /> : <NodesPanel />}
           </div>
         </Sidebar>
 
@@ -217,7 +226,9 @@ function Layout() {
       </div>
 
       {/* Overlays / Modals (绝对定位层) */}
-      {isGraphViewOpen && <GraphView />}
+      {activeSuperView === 'graph' && <GraphView />}
+      {activeSuperView === 'element' && <SuperElementView />}
+      {activeSuperView === 'reference' && <SuperReferenceView />}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );

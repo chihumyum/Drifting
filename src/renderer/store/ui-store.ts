@@ -18,13 +18,20 @@ interface UiState {
   setSidebarOpen: (type: SidebarType, isOpen: boolean) => void;
   setSidebarWidth: (type: SidebarType, width: number) => void;
 
-  isGraphViewOpen: boolean;
-  setGraphViewOpen: (isOpen: boolean) => void;
 
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
+
+  resizingSidebar: SidebarType | null;
+  setResizingSidebar: (type: SidebarType | null) => void;
+
+  activeLeftPanel: 'nodes' | 'elements';
+  setActiveLeftPanel: (panel: 'nodes' | 'elements') => void;
+
+  activeSuperView: 'none' | 'element' | 'graph' | 'reference';
+  setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -78,20 +85,27 @@ export const useUiStore = create<UiState>()(
           },
         })),
 
-      isGraphViewOpen: false,
-      setGraphViewOpen: (isOpen) => set({ isGraphViewOpen: isOpen }),
-
       selectedElementId: null,
       setSelectedElementId: (id) => set({ selectedElementId: id }),
       timelineHeight: 200,
       setTimelineHeight: (height) => set({ timelineHeight: height }),
+
+      resizingSidebar: null,
+      setResizingSidebar: (type) => set({ resizingSidebar: type }),
+
+      activeLeftPanel: 'elements',
+      setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
+
+      activeSuperView: 'none',
+      setActiveSuperView: (view) => set({ activeSuperView: view }),
     }),
     {
       name: 'ui-storage', // unique name
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
-        // We can choose what to persist
+        activeLeftPanel: state.activeLeftPanel,
+        activeSuperView: state.activeSuperView,
       }),
     }
   )

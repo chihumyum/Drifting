@@ -6,6 +6,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { Storyline } from '../../domain/storyline';
 import type { BookNode } from '../../domain/book-node';
+import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import loglevel from "loglevel";
@@ -18,23 +19,29 @@ log.setLevel(loglevel.levels.ERROR);
   both with additional tag filters
 */
 
-interface TimelineNode extends BookNode {
-  storylines: Storyline[];
-}
-
 export function TopTimeline() {
-  const { nodeId, storylineId } = useParams<{ nodeId?: string; storylineId?: string }>();
+  const { nodeId, storylineId, elementId, categoryId } = useParams<{
+    nodeId?: string;
+    storylineId?: string;
+    elementId?: string;
+    categoryId?: string;
+  }>();
   const location = useLocation();
   const bookNodes = useDataStore(state => state.bookNodes);
+  const storylines = useDataStore(state => state.storylines);
+  const bookElements = useDataStore(state => state.bookElements);
+  const bookElementCategories = useDataStore(state => state.bookElementCategories);
   const user = useAuthStore(state => state.user);
-  const { projectId, navigateToStoryline, navigateToNode } = useProjectNavigation();
-  const { getStorylineById, getStorylinesByNode, createStoryline, loadStorylines } = useStoryline({
+  const { projectId, navigateToStoryline, navigateToNode, navigateToElement, navigateToCategory } = useProjectNavigation();
+  const { getStorylineById, getNodeIdsByStoryline, createStoryline, loadStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
 
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
-  const [storylineNodes, setStorylineNodes] = useState<TimelineNode[]>([]);
+  const [storylineNodes, setStorylineNodes] = useState<BookNode[]>([]);
+  const [currentCategory, setCurrentCategory] = useState<BookElementCategory | null>(null);
+  const [categoryElements, setCategoryElements] = useState<BookElement[]>([]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -49,47 +56,49 @@ export function TopTimeline() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hideDropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isElementMode = Boolean(categoryId || elementId);
+  const isStorylineMode = Boolean(storylineId || nodeId);
+
   // Load current node's primary storyline and all chapters in that storyline
   useEffect(() => {
     async function loadStorylineData() {
       try {
+        if (isElementMode || !isStorylineMode) {
+          setCurrentStoryline(null);
+          setStorylineNodes([]);
+          return;
+        }
+
         let targetStoryline: Storyline | null = null;
 
         if (storylineId) {
           // In storyline editor: directly load the storyline
-          targetStoryline = await getStorylineById(storylineId);
+          targetStoryline = storylines.find(s => s.id === storylineId) ?? await getStorylineById(storylineId);
         } else if (nodeId) {
-          // In node editor: get storylines for current node
-          const nodeStorylines = await getStorylinesByNode(nodeId);
-          if (nodeStorylines.length > 0) {
-            // Use the primary storyline (first one)
-            targetStoryline = nodeStorylines[0];
+          // In node editor: use node's main storyline
+          const selectedNode = bookNodes.find(node => node.id === nodeId);
+          const mainStorylineId = selectedNode?.mainStorylineId ?? null;
+          if (mainStorylineId) {
+            targetStoryline = storylines.find(s => s.id === mainStorylineId) ?? await getStorylineById(mainStorylineId);
           }
         }
 
         // If still no storyline found, load the first storyline to keep timeline visible
         // This ensures timeline is visible on app startup
         if (!targetStoryline) {
-          const allStorylines = await loadStorylines(projectId);
-          if (allStorylines.length > 0) {
-            targetStoryline = allStorylines[0];
-          }
+          const availableStorylines = storylines.length > 0 ? storylines : await loadStorylines(projectId);
+          targetStoryline = availableStorylines[0] ?? null;
         }
 
         if (targetStoryline) {
           setCurrentStoryline(targetStoryline);
 
-          // Load all nodes with their storylines (even if bookNodes is empty initially)
-          const nodesWithStorylines = await Promise.all(
-            bookNodes.map(async (node) => {
-              const nodeStorylines = await getStorylinesByNode(node.id);
-              return { ...node, storylines: nodeStorylines };
-            })
-          );
+          const nodeIdsInStoryline = await getNodeIdsByStoryline(targetStoryline.id);
+          const nodeIdSet = new Set(nodeIdsInStoryline);
 
-          // Filter nodes where the target storyline is the primary storyline (first one) and sort by start position
-          const nodesInStoryline = nodesWithStorylines
-            .filter(n => n.storylines.length > 0 && n.storylines[0].id === targetStoryline.id)
+          // Filter nodes that belong to the storyline (or are main storyline as a fallback) and sort by start position
+          const nodesInStoryline = bookNodes
+            .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === targetStoryline.id)
             .sort((a, b) => a.start - b.start);
 
           setStorylineNodes(nodesInStoryline);
@@ -103,7 +112,40 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, bookNodes, getStorylineById, getStorylinesByNode, loadStorylines, projectId]);
+  }, [nodeId, storylineId, isElementMode, isStorylineMode, bookNodes, storylines, getStorylineById, getNodeIdsByStoryline, loadStorylines, projectId]);
+
+  useEffect(() => {
+    if (!isElementMode) {
+      return;
+    }
+
+    let targetCategory: BookElementCategory | null = null;
+    let targetCategoryId: string | null = null;
+
+    if (categoryId) {
+      targetCategory = bookElementCategories.find(cat => cat.id === categoryId || cat.name === categoryId) ?? null;
+      targetCategoryId = targetCategory?.id ?? categoryId;
+    }
+
+    if (!targetCategoryId && elementId) {
+      const currentElement = bookElements.find(el => el.id === elementId) ?? null;
+      targetCategoryId = currentElement?.categoryId ?? null;
+      if (currentElement) {
+        targetCategory = bookElementCategories.find(
+          cat => cat.id === currentElement.categoryId || cat.name === currentElement.categoryId
+        ) ?? null;
+      }
+    }
+
+    const elementsInCategory = targetCategoryId
+      ? bookElements
+        .filter(el => el.categoryId === targetCategoryId || el.categoryId === targetCategory?.name)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      : [];
+
+    setCurrentCategory(targetCategory);
+    setCategoryElements(elementsInCategory);
+  }, [isElementMode, categoryId, elementId, bookElements, bookElementCategories]);
 
   // Load all stuff for dropdown
   useEffect(() => {
@@ -115,10 +157,24 @@ export function TopTimeline() {
         log.error('Failed to load all storylines:', error);
       }
     }
-    if (showStorylineDropdown) {
+    if (!isElementMode && showStorylineDropdown) {
       loadAllStorylines();
     }
-  }, [projectId, loadStorylines, showStorylineDropdown]);
+  }, [projectId, loadStorylines, showStorylineDropdown, isElementMode]);
+
+  useEffect(() => {
+    if (isElementMode && showStorylineDropdown) {
+      setShowStorylineDropdown(false);
+      setStorylineDropdownPosition(null);
+    }
+  }, [isElementMode, showStorylineDropdown]);
+
+  useEffect(() => {
+    if (isElementMode && hoveredNodeId) {
+      setHoveredNodeId(null);
+      setHoverPosition(null);
+    }
+  }, [isElementMode, hoveredNodeId]);
 
   // Monitor container width
   useEffect(() => {
@@ -145,7 +201,7 @@ export function TopTimeline() {
     return () => {
       resizeObserver.disconnect();
     };
-  }, [storylineNodes.length]);
+  }, [storylineNodes.length, categoryElements.length]);
 
   // Auto-scroll to selected node
   useEffect(() => {
@@ -169,16 +225,16 @@ export function TopTimeline() {
         });
       }
     }
-  }, [nodeId, storylineNodes]);
+  }, [nodeId, elementId, storylineNodes, categoryElements]);
 
-  // Don't render if no storyline exists at all
-  if (!currentStoryline) {
+  if (!isStorylineMode && !isElementMode) {
     return null;
   }
 
   // Calculate dynamic widths based on available space
-  // Use nodeId for actual selection, selectedNodeId is just for loading storyline
-  const selectedIndex = storylineNodes.findIndex(n => n.id === nodeId);
+  const timelineItems: Array<BookNode | BookElement> = isElementMode ? categoryElements : storylineNodes;
+  const selectedItemId = isElementMode ? elementId : nodeId;
+  const selectedIndex = timelineItems.findIndex(item => item.id === selectedItemId);
   const hasSelected = selectedIndex !== -1;
 
   // Safari-style tab width calculation
@@ -200,31 +256,30 @@ export function TopTimeline() {
   // Calculate optimal width for each node based on its title
   const calculateNodeWidths = (): number[] => {
     // Safety check
-    if (storylineNodes.length === 0 || containerWidth === 0) {
-      // console.log(`calculateNodeWidths: storylineNodes.length: ${storylineNodes.length}, containerWidth: ${containerWidth}`);
-      return storylineNodes.map(() => MAX_WIDTH);
+    if (timelineItems.length === 0 || containerWidth === 0) {
+      return timelineItems.map(() => MAX_WIDTH);
     }
 
     // 1. Calculate Ideal Widths for everyone (based on title)
     // Constraint: MIN_WIDTH <= Ideal <= MAX_WIDTH
-    const idealWidths = storylineNodes.map((node) => {
+    const idealWidths = timelineItems.map((item) => {
+      const title = 'title' in item ? item.title : item.name;
       const titleWidth = measureTextWidth(
-        node.title || 'Untitled Chapter',
+        title || (isElementMode ? 'Untitled Element' : 'Untitled Chapter'),
         13,
         400
       );
-      // console.log(`titleWidth: ${titleWidth}`);
       return Math.min(Math.max(titleWidth + PADDING, MIN_WIDTH), MAX_WIDTH);
     });
 
     const selectedIdealWidth = hasSelected ? idealWidths[selectedIndex] : 0;
-    const unselectedMinTotal = storylineNodes.reduce((sum, _, idx) => {
+    const unselectedMinTotal = timelineItems.reduce((sum, _, idx) => {
       if (idx === selectedIndex) return sum;
       return sum + MIN_WIDTH;
     }, 0);
 
     const minRequiredTotalWidth = (hasSelected ? selectedIdealWidth : 0) + unselectedMinTotal;
-    const totalGaps = GAP * storylineNodes.length;
+    const totalGaps = GAP * timelineItems.length;
 
     // 2. Find the smallest Expansion Factor (1x, 2x, 4x...) that fits the Min Requirement
     let expansionFactor = 1;
@@ -257,8 +312,7 @@ export function TopTimeline() {
 
     // Case A: Extra Space (Ideal fits easily)
     if (totalIdealUnselected <= availableForUnselected) {
-
-      return storylineNodes.map((_, idx) => {
+      return timelineItems.map((_, idx) => {
         if (idx === selectedIndex) return currentSelectedWidth;
         return idealWidths[idx];
       });
@@ -266,9 +320,9 @@ export function TopTimeline() {
 
     // Case B: Shrink Needed
 
-    return storylineNodes.map((_, idx) => {
+    return timelineItems.map((_, idx) => {
       if (idx === selectedIndex) return currentSelectedWidth;
-      return availableForUnselected / (storylineNodes.length - 1);
+      return availableForUnselected / (timelineItems.length - 1);
     });
   };
 
@@ -278,37 +332,32 @@ export function TopTimeline() {
     return nodeWidths[index] || MIN_WIDTH;
   };
 
-  const handleStorylineClick = () => {
+  const handleHeaderClick = () => {
+    if (isElementMode) {
+      if (currentCategory) {
+        navigateToCategory(currentCategory.id);
+      }
+      return;
+    }
     if (currentStoryline) {
       navigateToStoryline(currentStoryline.id);
     }
   };
 
-  const handleStorylineChange = async (storylineId: string, navigateToEditor: boolean = false) => {
+  const handleStorylineChange = async (storylineId: string) => {
     setShowStorylineDropdown(false);
-
-    // If navigateToEditor is true, directly navigate to storyline editor
-    if (navigateToEditor) {
-      navigateToStoryline(storylineId);
-      return;
-    }
 
     // Load the new storyline and its nodes
     try {
       const targetStoryline = await getStorylineById(storylineId);
       setCurrentStoryline(targetStoryline);
 
-      // Load all nodes with their storylines
-      const nodesWithStorylines = await Promise.all(
-        bookNodes.map(async (node) => {
-          const nodeStorylines = await getStorylinesByNode(node.id);
-          return { ...node, storylines: nodeStorylines };
-        })
-      );
+      const nodeIdsInStoryline = await getNodeIdsByStoryline(storylineId);
+      const nodeIdSet = new Set(nodeIdsInStoryline);
 
       // Filter nodes that belong to the target storyline and sort by start position
-      const nodesInStoryline = nodesWithStorylines
-        .filter(n => n.storylines.some(s => s.id === storylineId))
+      const nodesInStoryline = bookNodes
+        .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === storylineId)
         .sort((a, b) => a.start - b.start);
 
       setStorylineNodes(nodesInStoryline);
@@ -340,14 +389,19 @@ export function TopTimeline() {
     }, 150);
   };
 
-  const handleNodeClick = (clickedNodeId: string) => {
-    // 避免重复导航到同一页面
-    if (location.pathname !== `/project/${projectId}/editor/${clickedNodeId}`) {
-      navigateToNode(clickedNodeId);
+  const handleItemClick = (item: BookNode | BookElement) => {
+    if ('title' in item) {
+      if (location.pathname !== `/project/${projectId}/editor/${item.id}`) {
+        navigateToNode(item.id);
+      }
+      return;
+    }
+    if (location.pathname !== `/project/${projectId}/element/${item.id}`) {
+      navigateToElement(item.id);
     }
   };
 
-  const handleMouseEnter = (node: TimelineNode, e: React.MouseEvent) => {
+  const handleMouseEnter = (node: BookNode, e: React.MouseEvent) => {
     setHoveredNodeId(node.id);
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverPosition({
@@ -364,7 +418,7 @@ export function TopTimeline() {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: GAP }}>
-        {/* Storyline Icon - Leftmost (Fixed) */}
+        {/* Header Icon - Leftmost (Fixed) */}
         <div
           ref={storylineIconRef}
           style={{
@@ -373,7 +427,7 @@ export function TopTimeline() {
           }}
         >
           <div
-            onClick={handleStorylineClick}
+            onClick={handleHeaderClick}
             style={{
               width: ICON_WIDTH,
               height: 28,
@@ -381,8 +435,10 @@ export function TopTimeline() {
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 7,
-              background: currentStoryline.color || '#b89968',
-              cursor: 'pointer',
+              background: isElementMode
+                ? (currentCategory?.color || '#b89968')
+                : (currentStoryline?.color || '#b89968'),
+              cursor: isElementMode ? (currentCategory ? 'pointer' : 'default') : 'pointer',
               fontSize: 14,
               fontWeight: 600,
               color: '#fff',
@@ -393,16 +449,22 @@ export function TopTimeline() {
             onMouseEnter={e => {
               e.currentTarget.style.transform = 'scale(1.05)';
               e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-              handleShowDropdown(e);
+              if (!isElementMode) {
+                handleShowDropdown(e);
+              }
             }}
             onMouseLeave={e => {
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              handleHideDropdown();
+              if (!isElementMode) {
+                handleHideDropdown();
+              }
             }}
-            title={currentStoryline.name}
+            title={isElementMode ? (currentCategory?.name || 'Category') : (currentStoryline?.name || 'Storyline')}
           >
-            {currentStoryline.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'}
+            {isElementMode
+              ? (currentCategory?.name ? currentCategory.name.charAt(0).toUpperCase() : '?')
+              : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?')}
           </div>
         </div>
 
@@ -425,17 +487,22 @@ export function TopTimeline() {
           className="top-timeline-container"
         >
           {/* Chapter Tabs */}
-          {storylineNodes.map((node, index) => {
-            const isSelected = node.id === nodeId;
+          {timelineItems.map((item, index) => {
+            const isSelected = item.id === selectedItemId;
             const width = getNodeWidth(index);
+            const label = 'title' in item
+              ? (item.title || 'Untitled Chapter')
+              : (item.name || 'Untitled Element');
 
             return (
               <div
-                key={node.id}
+                key={item.id}
                 ref={isSelected ? selectedNodeRef : null}
-                onClick={() => handleNodeClick(node.id)}
+                onClick={() => handleItemClick(item)}
                 onMouseEnter={(e) => {
-                  handleMouseEnter(node, e);
+                  if ('title' in item) {
+                    handleMouseEnter(item, e);
+                  }
                   if (!isSelected) {
                     e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)';
                     e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
@@ -479,7 +546,7 @@ export function TopTimeline() {
                   WebkitAppRegion: 'no-drag',
                 } as React.CSSProperties}
               >
-                {node.title || 'Untitled Chapter'}
+                {label}
               </div>
             );
           })}
@@ -488,7 +555,7 @@ export function TopTimeline() {
 
       {/* Storyline Dropdown */}
       {
-        showStorylineDropdown && storylineDropdownPosition && (
+        !isElementMode && showStorylineDropdown && storylineDropdownPosition && (
           <div
             ref={dropdownRef}
             style={{
@@ -670,10 +737,12 @@ export function TopTimeline() {
       }
 
       {/* Hover Preview */}
-      <NodeHoverPreview
-        node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
-        position={hoverPosition}
-      />
+      {!isElementMode && (
+        <NodeHoverPreview
+          node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
+          position={hoverPosition}
+        />
+      )}
 
       <style>{`
         .top-timeline-container::-webkit-scrollbar {

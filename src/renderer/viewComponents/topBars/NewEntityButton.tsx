@@ -1,7 +1,9 @@
 import { Plus } from 'lucide-react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
+import { useBookElement } from '../../usecase/useBookElement';
+import { useElementCategory } from '../../usecase/useElementCategory';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
@@ -16,50 +18,58 @@ log.setLevel(loglevel.levels.ERROR);
 // if at element category editor, create element in this category
 // if at element editor, create element in this element's category
 export function NewEntityButton() {
-  const location = useLocation();
-  const { nodeId } = useParams<{ nodeId?: string }>();
-  const { navigateToNode, projectId } = useProjectNavigation();
+  const { nodeId, storylineId, elementId, categoryId } = useParams<{
+    nodeId?: string;
+    storylineId?: string;
+    elementId?: string;
+    categoryId?: string;
+  }>();
+  const { navigateToNode, navigateToElement, projectId } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const { createNode, loadNodes, updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { getStorylinesByNode, getStorylinesByProject, addNodeToStoryline, createStoryline } = useStoryline({
+  const { addNodeToStoryline, createStoryline, loadStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const bookNodes = useDataStore(state => state.bookNodes);
-
-
-  const getCurrentStorylineId = (): string | null => {
-    const match = location.pathname.match(/^\/editor\/storyline\/([^/]+)$/);
-    return match ? match[1] : null;
-  };
+  const { createElement, loadInitial } = useBookElement({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { createCategory, loadCategories } = useElementCategory({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStore();
+  const isElementContext = Boolean(elementId || categoryId);
+  const buttonLabel = isElementContext ? 'Element' : 'Chapter';
 
   const handleCreateChapter = async () => {
     try {
+      let currentNodes = bookNodes;
+      if (currentNodes.length === 0) {
+        currentNodes = await loadNodes();
+      }
+
       // Determine target storyline
       let defaultStorylineId: string | null = null;
 
       // Priority 1: Use current storyline if in storyline editor
-      const currentStorylineId = getCurrentStorylineId();
-      if (currentStorylineId) {
-        defaultStorylineId = currentStorylineId;
+      if (storylineId) {
+        defaultStorylineId = storylineId;
       }
       // Priority 2: Use selected node's primary storyline
       else if (nodeId) {
-        const selectedNodeStorylines = await getStorylinesByNode(nodeId);
-        if (selectedNodeStorylines.length > 0) {
-          defaultStorylineId = selectedNodeStorylines[0].id;
-        }
+        const selectedNode = currentNodes.find((node) => node.id === nodeId);
+        defaultStorylineId = selectedNode?.mainStorylineId ?? null;
       }
 
       // Priority 3: Use first available storyline
       if (!defaultStorylineId) {
-        const allStorylines = await getStorylinesByProject(projectId);
-        if (allStorylines.length > 0) {
-          defaultStorylineId = allStorylines[0].id;
-        }
+        const availableStorylines = storylines.length > 0 ? storylines : await loadStorylines(projectId);
+        defaultStorylineId = availableStorylines[0]?.id ?? null;
       }
 
       // Calculate insertion position
@@ -69,77 +79,22 @@ export function NewEntityButton() {
 
       // If in storyline editor, always insert at the end of current storyline
       // regardless of selectedNodeId
-      if (currentStorylineId && defaultStorylineId) {
-        // Insert after last node in the current storyline
-        const nodesWithStorylines = await Promise.all(
-          bookNodes.map(async (node) => {
-            const nodeStorylines = await getStorylinesByNode(node.id);
-            return { ...node, storylines: nodeStorylines };
-          })
-        );
-
-        const nodesInStoryline = nodesWithStorylines
-          .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
-          .sort((a, b) => a.start - b.start);
-
-        if (nodesInStoryline.length > 0) {
-          const lastNode = nodesInStoryline[nodesInStoryline.length - 1];
-          const lastEnd = lastNode.end ?? lastNode.start;
-          newStart = lastEnd + 1;
-          newEnd = newStart + newLength;
-        } else {
-          // Storyline is empty, place at beginning
-          newStart = 1;
-          newEnd = newStart + newLength;
-        }
-      } else if (defaultStorylineId) {
-        // Insert after last node in the target storyline
-        // Get all nodes with their storylines
-        const nodesWithStorylines = await Promise.all(
-          bookNodes.map(async (node) => {
-            const nodeStorylines = await getStorylinesByNode(node.id);
-            return { ...node, storylines: nodeStorylines };
-          })
-        );
-
-        // Filter nodes where this storyline is the primary (first) storyline
-        const nodesInStoryline = nodesWithStorylines
-          .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
-          .sort((a, b) => a.start - b.start);
-
-        if (nodesInStoryline.length > 0) {
-          // Place after last node in storyline
-          const lastNode = nodesInStoryline[nodesInStoryline.length - 1];
-          const lastEnd = lastNode.end ?? lastNode.start;
-          newStart = lastEnd + 1;
-          newEnd = newStart + newLength;
-        } else {
-          // Storyline is empty, place at beginning
-          newStart = 1;
-          newEnd = newStart + newLength;
-        }
-      }
-
-      // Check if there are any nodes in the target storyline overlapping with [newStart, newEnd]
-      // and shift all subsequent nodes if necessary
       if (defaultStorylineId) {
-        // Get all nodes with their storylines
-        const nodesWithStorylines = await Promise.all(
-          bookNodes.map(async (node) => {
-            const nodeStorylines = await getStorylinesByNode(node.id);
-            return { ...node, storylines: nodeStorylines };
-          })
-        );
-
-        // Filter nodes where this storyline is the primary (first) storyline
-        const storylineNodes = nodesWithStorylines
-          .filter(n => n.storylines.length > 0 && n.storylines[0].id === defaultStorylineId)
+        const storylineNodes = currentNodes
+          .filter((node) => node.mainStorylineId === defaultStorylineId)
           .sort((a, b) => a.start - b.start);
+
+        if (storylineNodes.length > 0) {
+          const lastNode = storylineNodes[storylineNodes.length - 1];
+          const lastEnd = Math.max(lastNode.end ?? 0, lastNode.start);
+          newStart = lastEnd + 1;
+          newEnd = newStart + newLength;
+        }
 
         // Find first overlapping node
-        const firstOverlap = storylineNodes.find(node => {
+        const firstOverlap = storylineNodes.find((node) => {
           const nodeStart = node.start;
-          const nodeEnd = node.end ?? node.start;
+          const nodeEnd = Math.max(node.end ?? 0, node.start);
           return nodeStart < newEnd && nodeEnd >= newStart;
         });
 
@@ -148,12 +103,13 @@ export function NewEntityButton() {
           const shiftAmount = newEnd - newStart;
 
           // Shift all nodes from the first overlap onwards
-          const nodesToShift = storylineNodes.filter(node => node.start >= firstOverlap.start);
+          const nodesToShift = storylineNodes.filter((node) => node.start >= firstOverlap.start);
 
           for (const node of nodesToShift) {
+            const nodeEnd = Math.max(node.end ?? 0, node.start);
             await updateNode(node.id, {
               start: node.start + shiftAmount,
-              end: node.end ? node.end + shiftAmount : 0,
+              end: nodeEnd + shiftAmount,
             });
           }
         }
@@ -166,6 +122,7 @@ export function NewEntityButton() {
 
       // Create the new node
       const newNode = await createNode({
+        title: 'New Chapter',
         mainStorylineId: defaultStorylineId,
         start: newStart,
         end: newEnd,
@@ -195,9 +152,51 @@ export function NewEntityButton() {
     }
   };
 
+  const handleCreateElement = async () => {
+    try {
+      let targetCategoryId: string | null = null;
+
+      if (categoryId) {
+        const match = bookElementCategories.find(
+          (cat) => cat.id === categoryId || cat.name === categoryId
+        );
+        targetCategoryId = match?.id ?? null;
+      }
+
+      if (!targetCategoryId && elementId) {
+        let element = bookElements.find((el) => el.id === elementId) ?? null;
+        if (!element) {
+          await loadInitial();
+          element = useDataStore.getState().bookElements.find((el) => el.id === elementId) ?? null;
+        }
+        targetCategoryId = element?.categoryId ?? null;
+      }
+
+      if (!targetCategoryId) {
+        const categories = bookElementCategories.length > 0 ? bookElementCategories : await loadCategories();
+        targetCategoryId = categories[0]?.id ?? null;
+      }
+
+      if (!targetCategoryId) {
+        const created = await createCategory('others');
+        targetCategoryId = created.id;
+      }
+
+      if (!targetCategoryId) {
+        log.error('No category available for new element');
+        return;
+      }
+
+      const newElement = await createElement({ categoryId: targetCategoryId });
+      navigateToElement(newElement.id);
+    } catch (error) {
+      log.error('Failed to create element:', error);
+    }
+  };
+
   return (
     <button
-      onClick={handleCreateChapter}
+      onClick={isElementContext ? handleCreateElement : handleCreateChapter}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -223,7 +222,7 @@ export function NewEntityButton() {
       }}
     >
       <Plus size={16} />
-      <span>Chapter</span>
+      <span>{buttonLabel}</span>
     </button>
   );
 }
