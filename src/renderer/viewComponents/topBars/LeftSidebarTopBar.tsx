@@ -42,67 +42,63 @@ export function LeftSidebarTopBar() {
         width: '100%',
       } as React.CSSProperties}
     >
-      {isLeftSidebarOpen && (
-        <>
-        <button
-          onClick={handleOpenSettings}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: '#5a5a5a',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            WebkitAppRegion: 'no-drag', // 按钮区域不可拖拽
-          } as React.CSSProperties}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-            e.currentTarget.style.color = '#3a3a3a';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#5a5a5a';
-          }}
-          title="Settings"
-        >
-          <Settings size={iconSize} />
-        </button>
-        <button
-          onClick={handleOpenSearch}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: '#5a5a5a',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            WebkitAppRegion: 'no-drag',
-            marginRight: 'auto',
-          } as React.CSSProperties}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-            e.currentTarget.style.color = '#3a3a3a';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#5a5a5a';
-          }}
-          title="Search"
-        >
-          <Search size={iconSize} />
-        </button>
-        </>
-      )}
+      <button
+        onClick={handleOpenSettings}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 28,
+          height: 28,
+          borderRadius: '6px',
+          border: 'none',
+          background: 'transparent',
+          color: '#5a5a5a',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          WebkitAppRegion: 'no-drag', // 按钮区域不可拖拽
+        } as React.CSSProperties}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
+          e.currentTarget.style.color = '#3a3a3a';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = '#5a5a5a';
+        }}
+        title="Settings"
+      >
+        <Settings size={iconSize} />
+      </button>
+      <button
+        onClick={handleOpenSearch}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 28,
+          height: 28,
+          borderRadius: '6px',
+          border: 'none',
+          background: 'transparent',
+          color: '#5a5a5a',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
+          e.currentTarget.style.color = '#3a3a3a';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = '#5a5a5a';
+        }}
+        title="Search"
+      >
+        <Search size={iconSize} />
+      </button>
+
       {/* white space */}
       <button
         onClick={handleToggleLeftSidebar}
@@ -119,7 +115,7 @@ export function LeftSidebarTopBar() {
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           WebkitAppRegion: 'no-drag',
-          marginLeft: 'auto',
+          marginLeft: isLeftSidebarOpen ? 'auto' : '8px',
         } as React.CSSProperties}
         onMouseEnter={e => {
           e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
@@ -131,9 +127,9 @@ export function LeftSidebarTopBar() {
         }}
         title="Toggle Left Sidebar"
       >
-        {isLeftSidebarOpen ? 
-        <PanelLeftClose size={iconSize} /> :
-        <PanelLeftOpen size={iconSize} />}
+        {isLeftSidebarOpen ?
+          <PanelLeftClose size={iconSize} /> :
+          <PanelLeftOpen size={iconSize} />}
       </button>
     </div>
   );
