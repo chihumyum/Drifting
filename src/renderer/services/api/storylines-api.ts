@@ -11,6 +11,7 @@ export interface CreateStorylineDto {
   name: string;
   color: string;
   summary?: string;
+  orderKey?: number;
   pmJson?: Record<string, unknown>;
   nodeIds?: string[];
 }
@@ -19,6 +20,7 @@ export interface UpdateStorylineDto {
   name?: string;
   color?: string;
   summary?: string;
+  orderKey?: number;
   pmJson?: Record<string, unknown>;
   nodeIds?: string[];
 }
@@ -29,6 +31,7 @@ export interface Storyline {
   name: string;
   color: string;
   summary?: string;
+  orderKey?: number;
   pmJson?: Record<string, unknown>;
   nodeIds: string[];
   createdAt: string;

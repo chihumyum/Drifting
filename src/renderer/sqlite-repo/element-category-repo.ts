@@ -8,8 +8,8 @@ export type ElementCategoryUpdateData = Partial<Omit<BookElementCategory, 'id' |
 export interface ElementCategoryRepository {
   create(category: BookElementCategory): Promise<BookElementCategory>;
   update(id: string, updates: ElementCategoryUpdateData): Promise<BookElementCategory | null>;
-  findByProjectId(projectId: string): Promise<BookElementCategory[]>;
-  findByName(projectId: string, name: string): Promise<BookElementCategory | null>;
+  findAll(): Promise<BookElementCategory[]>;
+  findByName(name: string): Promise<BookElementCategory | null>;
   delete(id: string): Promise<void>;
 }
 
@@ -20,16 +20,26 @@ function normalizeCategoryName(name?: string): string {
     return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_CATEGORY_NAME;
 }
 
-export class ElementCategoryRepositorySQLite implements ElementCategoryRepository {
-  async create(category: BookElementCategory): Promise<BookElementCategory> {
-    category.name = normalizeCategoryName(category.name);
-    await getDb().insert(ElementCategoryTable).values(category);
-    return category;
-  }
+type DbClient = ReturnType<typeof getDb>;
 
-  async update(id: string, updates: ElementCategoryUpdateData): Promise<BookElementCategory | null> {
-    const existing = await getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1);
+export function createElementCategoryRepository(projectId: string, dbOverride?: DbClient): ElementCategoryRepository {
+  const dbProvider = () => dbOverride ?? getDb();
+
+  const create = async (category: BookElementCategory): Promise<BookElementCategory> => {
+    if (category.projectId !== projectId) {
+      throw new Error(`Cannot create category: projectId mismatch. Expected ${projectId}, got ${category.projectId}`);
+    }
+    category.name = normalizeCategoryName(category.name);
+    await dbProvider().insert(ElementCategoryTable).values(category);
+    return category;
+  };
+
+  const update = async (id: string, updates: ElementCategoryUpdateData): Promise<BookElementCategory | null> => {
+    const existing = await dbProvider().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1);
     if (!existing[0]) return null;
+    if (existing[0].projectId !== projectId) {
+      throw new Error(`Cannot update category: projectId mismatch. Expected ${projectId}, got ${existing[0].projectId}`);
+    }
 
     if (updates.name) updates.name = normalizeCategoryName(updates.name);
 
@@ -40,26 +50,26 @@ export class ElementCategoryRepositorySQLite implements ElementCategoryRepositor
     if (updates.color !== undefined) updateValues.color = updates.color;
     if (updates.descriptionJson !== undefined) updateValues.descriptionJson = updates.descriptionJson;
 
-    await getDb().update(ElementCategoryTable)
+    await dbProvider().update(ElementCategoryTable)
         .set(updateValues)
         .where(eq(ElementCategoryTable.id, id));
 
-    return (await getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1))[0] as BookElementCategory;
-  }
+    return (await dbProvider().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1))[0] as BookElementCategory;
+  };
 
-  async findByProjectId(projectId: string): Promise<BookElementCategory[]> {
-    const rows = await getDb()
+  const findAll = async (): Promise<BookElementCategory[]> => {
+    const rows = await dbProvider()
       .select()
       .from(ElementCategoryTable)
       .where(eq(ElementCategoryTable.projectId, projectId))
       .orderBy(asc(ElementCategoryTable.name));
     
     return rows as BookElementCategory[];
-  }
+  };
 
-  async findByName(projectId: string, name: string): Promise<BookElementCategory | null> {
+  const findByName = async (name: string): Promise<BookElementCategory | null> => {
     const n = normalizeCategoryName(name);
-    const rows = await getDb()
+    const rows = await dbProvider()
         .select()
         .from(ElementCategoryTable)
         .where(and(
@@ -69,21 +79,31 @@ export class ElementCategoryRepositorySQLite implements ElementCategoryRepositor
         .limit(1);
     
     return (rows[0] as BookElementCategory) ?? null;
-  }
+  };
 
-  async delete(id: string): Promise<void> {
+  const deleteCategory = async (id: string): Promise<void> => {
     // Invariant check: need count of categories in this project
-    const target = (await getDb().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1))[0];
+    const target = (await dbProvider().select().from(ElementCategoryTable).where(eq(ElementCategoryTable.id, id)).limit(1))[0];
     if (!target) return;
+    if (target.projectId !== projectId) {
+      throw new Error(`Cannot delete category: projectId mismatch. Expected ${projectId}, got ${target.projectId}`);
+    }
 
-    const currentProjectId = target.projectId;
-    const allCats = await getDb().select({ id: ElementCategoryTable.id }).from(ElementCategoryTable)
-        .where(eq(ElementCategoryTable.projectId, currentProjectId));
+    const allCats = await dbProvider().select({ id: ElementCategoryTable.id }).from(ElementCategoryTable)
+        .where(eq(ElementCategoryTable.projectId, projectId));
     
     if (allCats.length <= 1) {
         throw new Error("Cannot delete the last category in the project.");
     }
 
-    await getDb().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, id));
-  }
+    await dbProvider().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, id));
+  };
+
+  return {
+    create,
+    update,
+    findAll,
+    findByName,
+    delete: deleteCategory,
+  };
 }

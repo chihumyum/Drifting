@@ -2,7 +2,6 @@ import { getDb } from '../lib/db';
 import { ProjectTable } from '../schema/drizzle';
 import { eq, desc } from 'drizzle-orm';
 import type { Project } from '../domain/project';
-import { useAuthStore } from '../store/auth';
 import LogLevel  from 'loglevel';
 const log = LogLevel.getLogger("ProjectRepositorySQLite");
 log.setLevel(LogLevel.levels.WARN);
@@ -34,39 +33,36 @@ function recordToDomain(record: typeof ProjectTable.$inferSelect): Project {
   };
 }
 
-export class ProjectRepositorySQLite implements ProjectRepository {
-  async findById(id: string): Promise<Project | null> {
+export function createProjectRepository(currentUserId?: string): ProjectRepository {
+  const userId = currentUserId ?? 'anonymous';
+
+  const findById = async (id: string): Promise<Project | null> => {
     const rows = await getDb().select().from(ProjectTable).where(eq(ProjectTable.id, id)).limit(1);
     if (rows.length === 0) {
       log.warn(`Project with id ${id} not found`);
       return null;
     }
     return rows[0] ? recordToDomain(rows[0]) : null;
-  }
+  };
 
-  async findAll(): Promise<Project[]> {
-    const currentUserId = useAuthStore.getState().user?.id;
+  const findAll = async (): Promise<Project[]> => {
     if (!currentUserId) {
       log.warn("No authenticated user found, loading anonymous projects");
     }
-    if (!currentUserId) {
-      const rows = await getDb()
-        .select()
-        .from(ProjectTable)
-        .where(eq(ProjectTable.userId, "anonymous"))
-        .orderBy(desc(ProjectTable.createdAt));
-      return rows.map(recordToDomain);
-    }
-    
+
     const rows = await getDb()
       .select()
       .from(ProjectTable)
-      .where(eq(ProjectTable.userId, currentUserId))
+      .where(eq(ProjectTable.userId, userId))
       .orderBy(desc(ProjectTable.createdAt));
     return rows.map(recordToDomain);
-  }
+  };
 
-  async create(input: Project): Promise<Project> {
+  const create = async (input: Project): Promise<Project> => {
+    if (input.userId !== userId) {
+      throw new Error(`Cannot create project: userId mismatch. Expected ${userId}, got ${input.userId}`);
+    }
+
     const newProject: typeof ProjectTable.$inferInsert = {
       id: input.id,
       userId: input.userId,
@@ -79,12 +75,16 @@ export class ProjectRepositorySQLite implements ProjectRepository {
     await getDb().insert(ProjectTable).values(newProject);
 
     return recordToDomain(newProject as typeof ProjectTable.$inferSelect);
-  }
-  async update(id: string, data: ProjectUpdateData): Promise<Project | null> {
-    const existing = await this.findById(id);
+  };
+
+  const update = async (id: string, data: ProjectUpdateData): Promise<Project | null> => {
+    const existing = await findById(id);
     if (!existing) {
       log.warn(`Cannot update project: Project with ID ${id} does not exist.`);
       return null;
+    }
+    if (data.userId !== undefined && data.userId !== userId) {
+      throw new Error(`Cannot update project: userId mismatch. Expected ${userId}, got ${data.userId}`);
     }
 
     const updateValues: Partial<typeof ProjectTable.$inferInsert> = {
@@ -99,11 +99,18 @@ export class ProjectRepositorySQLite implements ProjectRepository {
       .where(eq(ProjectTable.id, id)).returning();
 
     return res[0] ? recordToDomain(res[0]) : null;
-  }
+  };
 
-  async delete(id: string): Promise<boolean> {
+  const deleteProject = async (id: string): Promise<boolean> => {
     const result = await getDb().delete(ProjectTable).where(eq(ProjectTable.id, id));
     return (result as any).rowsAffected > 0;
-  }
+  };
 
+  return {
+    findById,
+    findAll,
+    create,
+    update,
+    delete: deleteProject,
+  };
 }

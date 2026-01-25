@@ -10,7 +10,7 @@ import { createDefaultSlashMenu } from '../../lib/slash-menu';
 import { extractOutline, serializeOutline } from '../../lib/outline';
 import { ElementAutoLink, elementAutoLinkConfig } from '../../lib/extensions/element-auto-link';
 import { ElementParserService } from '../../services/element-parser.service';
-import { ElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
+import { createElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
 import { useSettingsStore } from '@/renderer/store/settings-store';
 import { TagEditor } from './TagEditor';
 import loglevel from 'loglevel';
@@ -116,7 +116,7 @@ export function ChapterEditor({
       try {
         // TODO: maybe there is a performance issue here
         const matches = ElementParserService.parseElementsFromContent(jsonContent, bookElements);
-        const repo = new ElementOccurrenceRepository();
+        const repo = createElementOccurrenceRepository();
         await repo.saveOccurrencesForNode(
           nodeId,
           matches.map((m) => ({

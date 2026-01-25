@@ -4,6 +4,7 @@ import loglevel from "loglevel";
 const log = loglevel.getLogger("ElementOccurrenceRepository");
 log.setLevel(loglevel.levels.ERROR);
 
+// TODO: refactor this file to match others
 /**
  * Element Occurrence 记录接口
  */
@@ -16,22 +17,46 @@ export interface ElementOccurrenceRecord {
   created_at: string;
 }
 
-/**
- * 元素出现位置的数据库操作
- * 通过 IPC 与主进程的数据库交互
- */
-export class ElementOccurrenceRepository {
-  /**
-   * 保存或更新某个节点中的元素出现记录
-   * 会先删除该节点的所有旧记录，然后插入新记录
-   */
-  async saveOccurrencesForNode(
+export interface ElementOccurrenceRepository {
+  saveOccurrencesForNode(
     nodeId: string,
     elementMatches: Array<{
       elementId: string;
       matches: Array<{ text: string; position: number; length: number }>;
     }>
-  ): Promise<void> {
+  ): Promise<void>;
+  getOccurrencesByNode(nodeId: string): Promise<ElementOccurrenceRecord[]>;
+  getOccurrencesByElement(elementId: string): Promise<Array<{
+    id: string;
+    element_id: string;
+    node_id: string;
+    node_title: string;
+    spans_json: string;
+    created_at: string;
+  }>>;
+  deleteOccurrencesByNode(nodeId: string): Promise<void>;
+  deleteOccurrencesByElement(elementId: string): Promise<void>;
+  countOccurrencesByElement(elementId: string): Promise<number>;
+}
+
+/**
+ * 元素出现位置的数据库操作
+ * 通过 IPC 与主进程的数据库交互
+ */
+export function createElementOccurrenceRepository(projectId?: string): ElementOccurrenceRepository {
+  void projectId;
+
+  /**
+   * 保存或更新某个节点中的元素出现记录
+   * 会先删除该节点的所有旧记录，然后插入新记录
+   */
+  const saveOccurrencesForNode = async (
+    nodeId: string,
+    elementMatches: Array<{
+      elementId: string;
+      matches: Array<{ text: string; position: number; length: number }>;
+    }>
+  ): Promise<void> => {
     try {
       // 删除旧记录
       await window.electronAPI.db.run(
@@ -61,12 +86,12 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error saving occurrences:', error);
       throw error;
     }
-  }
+  };
 
   /**
    * 获取某个节点中的所有元素出现记录
    */
-  async getOccurrencesByNode(nodeId: string): Promise<ElementOccurrenceRecord[]> {
+  const getOccurrencesByNode = async (nodeId: string): Promise<ElementOccurrenceRecord[]> => {
     try {
       const results = await window.electronAPI.db.query(
         'SELECT * FROM element_occurrence WHERE node_id = ?',
@@ -77,19 +102,19 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error getting occurrences by node:', error);
       return [];
     }
-  }
+  };
 
   /**
    * 获取某个元素在哪些节点中出现过（反向链接）
    */
-  async getOccurrencesByElement(elementId: string): Promise<Array<{
+  const getOccurrencesByElement = async (elementId: string): Promise<Array<{
     id: string;
     element_id: string;
     node_id: string;
     node_title: string;
     spans_json: string;
     created_at: string;
-  }>> {
+  }>> => {
     try {
       const results = await window.electronAPI.db.query(
         `SELECT 
@@ -117,12 +142,12 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error getting occurrences by element:', error);
       return [];
     }
-  }
+  };
 
   /**
    * 删除某个节点的所有元素出现记录
    */
-  async deleteOccurrencesByNode(nodeId: string): Promise<void> {
+  const deleteOccurrencesByNode = async (nodeId: string): Promise<void> => {
     try {
       await window.electronAPI.db.run(
         'DELETE FROM element_occurrence WHERE node_id = ?',
@@ -132,12 +157,12 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error deleting occurrences by node:', error);
       throw error;
     }
-  }
+  };
 
   /**
    * 删除某个元素的所有出现记录
    */
-  async deleteOccurrencesByElement(elementId: string): Promise<void> {
+  const deleteOccurrencesByElement = async (elementId: string): Promise<void> => {
     try {
       await window.electronAPI.db.run(
         'DELETE FROM element_occurrence WHERE element_id = ?',
@@ -147,12 +172,12 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error deleting occurrences by element:', error);
       throw error;
     }
-  }
+  };
 
   /**
    * 统计某个元素在多少个节点中出现
    */
-  async countOccurrencesByElement(elementId: string): Promise<number> {
+  const countOccurrencesByElement = async (elementId: string): Promise<number> => {
     try {
       const result = await window.electronAPI.db.get(
         'SELECT COUNT(DISTINCT node_id) as count FROM element_occurrence WHERE element_id = ?',
@@ -163,5 +188,14 @@ export class ElementOccurrenceRepository {
       log.error('[ElementOccurrenceRepository] Error counting occurrences:', error);
       return 0;
     }
-  }
+  };
+
+  return {
+    saveOccurrencesForNode,
+    getOccurrencesByNode,
+    getOccurrencesByElement,
+    deleteOccurrencesByNode,
+    deleteOccurrencesByElement,
+    countOccurrencesByElement,
+  };
 }

@@ -7,23 +7,8 @@ export interface Storyline {
   name: string;
   color: string;
   summary: string;
-  descriptionJson: string; // ProseMirror document JSON
+  orderKey: number;
+  descriptionJson: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CreateStorylineInput {
-  projectId: string;
-  name: string;
-  color: string;
-  summary?: string;
-  pmJson?: string;
-}
-
-export interface UpdateStorylineInput {
-  id: string;
-  name?: string;
-  color?: string;
-  summary?: string;
-  pmJson?: string;
 }

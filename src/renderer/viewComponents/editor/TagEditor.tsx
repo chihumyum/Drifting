@@ -5,11 +5,14 @@ const log = loglevel.getLogger("TagEditor");
 log.setLevel(loglevel.levels.ERROR);
 import { X, Plus } from 'lucide-react';
 import { useNodeTag } from '../../usecase/useNodeTag';
-import { useBookElement } from '../../usecase/useBookElement';
-import { useDataStore } from '../../store/data-store';
-import type { NodeTag } from '../../domain/node-tag';
+import { useElementTag } from '../../usecase/useElementTag';
 
 type TagType = 'node' | 'element';
+type TagRecord = {
+  id: string;
+  name: string;
+  color: string | null;
+};
 
 interface TagEditorProps {
   type: TagType;
@@ -21,10 +24,9 @@ interface TagEditorProps {
 */
 export function TagEditor({ type, entityId, projectId = 'default-project' }: TagEditorProps) {
   const nodeTagUsecases = useNodeTag();
-  const elementUsecases = useBookElement();
-  const bookElements = useDataStore(state => state.bookElements);
-  const [allTags, setAllTags] = useState<NodeTag[]>([]);
-  const [entityTags, setEntityTags] = useState<NodeTag[]>([]);
+  const elementTagUsecases = useElementTag();
+  const [allTags, setAllTags] = useState<TagRecord[]>([]);
+  const [entityTags, setEntityTags] = useState<TagRecord[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -39,23 +41,17 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
         setAllTags(all);
         setEntityTags(entity);
       } else if (type === 'element') {
-        // For elements, we use the element's tags from the element data
-        const element = bookElements.find(el => el.id === entityId);
-        if (element) {
-          // Get all available tags
-          const allNodeTags = await nodeTagUsecases.loadTags(projectId);
-          setAllTags(allNodeTags);
-          // Element tags are stored as tag IDs array
-          const elementTags = allNodeTags.filter(tag => 
-            element.tagIds?.includes(tag.id)
-          );
-          setEntityTags(elementTags);
-        }
+        const [all, entity] = await Promise.all([
+          elementTagUsecases.loadTags(projectId),
+          elementTagUsecases.getTagsForElement(entityId, projectId),
+        ]);
+        setAllTags(all);
+        setEntityTags(entity);
       }
     } catch (error) {
       log.error('Failed to load tags:', error);
     }
-  }, [type, entityId, projectId, nodeTagUsecases, bookElements]);
+  }, [type, entityId, projectId, nodeTagUsecases, elementTagUsecases]);
 
   useEffect(() => {
     loadTags();
@@ -66,13 +62,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       if (type === 'node') {
         await nodeTagUsecases.addTagToNode(entityId, tagId, projectId);
       } else if (type === 'element') {
-        const element = bookElements.find(el => el.id === entityId);
-        if (element) {
-          const updatedTags = [...(element.tagIds || []), tagId];
-          await elementUsecases.updateElement(entityId, {
-            tagIds: updatedTags,
-          });
-        }
+        await elementTagUsecases.addTagToElement(entityId, tagId, projectId);
       }
       await loadTags();
       setShowDropdown(false);
@@ -86,13 +76,7 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
       if (type === 'node') {
         await nodeTagUsecases.removeTagFromNode(entityId, tagId, projectId);
       } else if (type === 'element') {
-        const element = bookElements.find(el => el.id === entityId);
-        if (element) {
-          const updatedTags = (element.tagIds || []).filter((id: string) => id !== tagId);
-          await elementUsecases.updateElement(entityId, {
-            tagIds: updatedTags,
-          });
-        }
+        await elementTagUsecases.removeTagFromElement(entityId, tagId, projectId);
       }
       await loadTags();
     } catch (error) {
@@ -111,20 +95,11 @@ export function TagEditor({ type, entityId, projectId = 'default-project' }: Tag
           color: generateRandomColor(),
         });
       } else if (type === 'element') {
-        // Create tag and add to element
-        const newTag = await nodeTagUsecases.createTag({
+        await elementTagUsecases.createAndAddTagToElement(entityId, {
           projectId,
           name: newTagName.trim(),
           color: generateRandomColor(),
         });
-        
-        const element = bookElements.find(el => el.id === entityId);
-        if (element) {
-          const updatedTags = [...(element.tagIds || []), newTag.id];
-          await elementUsecases.updateElement(entityId, {
-            tagIds: updatedTags,
-          });
-        }
       }
       setNewTagName('');
       setIsCreating(false);

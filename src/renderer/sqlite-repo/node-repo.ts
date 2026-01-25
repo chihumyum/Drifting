@@ -8,6 +8,7 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger("BookNodeRepository");
 log.setLevel(loglevel.levels.WARN);
 
+type DbClient = ReturnType<typeof getDb>;
 
 
 
@@ -82,16 +83,17 @@ function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge
   };
 }
 
-export function createBookNodeSqliteRepository(currentProject: string): BookNodeRepository {
+export function createBookNodeSqliteRepository(currentProject: string, dbOverride?: DbClient): BookNodeRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   return {
     async findById(id: string) {
-      const rows = await getDb().selectDistinct().from(BookNodeTable).where(eq(BookNodeTable.id, id));
+      const rows = await dbProvider().selectDistinct().from(BookNodeTable).where(eq(BookNodeTable.id, id));
       return rows[0] ? toBookNode(rows[0]) : null;
     },
 
     async findAll() {
       const pid = currentProject;
-      const rows = await getDb().select().from(BookNodeTable)
+      const rows = await dbProvider().select().from(BookNodeTable)
         .where(eq(BookNodeTable.projectId, pid))
         .orderBy(asc(BookNodeTable.start));
       return rows.map(toBookNode);
@@ -102,7 +104,7 @@ export function createBookNodeSqliteRepository(currentProject: string): BookNode
         throw new Error(`Cannot create node: projectId mismatch. Expected ${currentProject}, got ${data.projectId}`);
       }
 
-      const projectExists = await getDb()
+      const projectExists = await dbProvider()
         .select({ id: ProjectTable.id }).from(ProjectTable).where(eq(ProjectTable.id, data.projectId)).limit(1);
       if (projectExists.length === 0) {
         throw new Error(`Project with ID ${data.projectId} does not exist. Cannot create node.`);
@@ -123,7 +125,7 @@ export function createBookNodeSqliteRepository(currentProject: string): BookNode
         updatedAt: data.updatedAt,
       };
 
-      await getDb().insert(BookNodeTable).values(newNode);
+      await dbProvider().insert(BookNodeTable).values(newNode);
 
       return toBookNode({
         ...newNode,
@@ -133,7 +135,7 @@ export function createBookNodeSqliteRepository(currentProject: string): BookNode
     },
 
     async update(id: string, updates: BookNodeUpdateData) {
-      const existing = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
+      const existing = await dbProvider().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
       if (!existing[0]) {
         log.warn(`[BookNodeRepository] update: Node with ID ${id} does not exist.`);
         return null;
@@ -156,22 +158,32 @@ export function createBookNodeSqliteRepository(currentProject: string): BookNode
         if (updates.position.y !== undefined && updates.position.y !== null) updateValues.positionY = updates.position.y;
       }
 
-      await getDb().update(BookNodeTable).set(updateValues).where(eq(BookNodeTable.id, id));
+      await dbProvider().update(BookNodeTable).set(updateValues).where(eq(BookNodeTable.id, id));
 
       // Fetch updated
-      const updated = await getDb().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
+      const updated = await dbProvider().select().from(BookNodeTable).where(eq(BookNodeTable.id, id)).limit(1);
       return updated[0] ? toBookNode(updated[0]) : null;
     },
 
     async delete(id: string) {
-      const result = await getDb().delete(BookNodeTable).where(eq(BookNodeTable.id, id));
+      const result = await dbProvider().delete(BookNodeTable).where(eq(BookNodeTable.id, id));
       return (result as any).rowsAffected > 0;
     },
 
     async swapOrder(first: BookNode, second: BookNode) {
       const now = new Date().toISOString();
+      const db = dbProvider();
+      if (dbOverride) {
+        await db.update(BookNodeTable)
+          .set({ start: second.start, updatedAt: now })
+          .where(eq(BookNodeTable.id, first.id));
+        await db.update(BookNodeTable)
+          .set({ start: first.start, updatedAt: now })
+          .where(eq(BookNodeTable.id, second.id));
+        return;
+      }
 
-      await getDb().transaction(async (tx) => {
+      await db.transaction(async (tx) => {
         await tx.update(BookNodeTable)
           .set({ start: second.start, updatedAt: now })
           .where(eq(BookNodeTable.id, first.id));
@@ -184,11 +196,12 @@ export function createBookNodeSqliteRepository(currentProject: string): BookNode
   };
 }
 
-export function createBookNodeEdgeSqliteRepository(currentProjectId: string): BookNodeEdgeRepository {
+export function createBookNodeEdgeSqliteRepository(currentProjectId: string, dbOverride?: DbClient): BookNodeEdgeRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   return {
     async findAll() {
       const pid = currentProjectId;
-      const rows = await getDb().select().from(NodeEdgeTable)
+      const rows = await dbProvider().select().from(NodeEdgeTable)
         .where(eq(NodeEdgeTable.projectId, pid))
         .orderBy(asc(NodeEdgeTable.createdAt));
       return rows.map(toBookNodeEdge);
@@ -215,7 +228,7 @@ export function createBookNodeEdgeSqliteRepository(currentProjectId: string): Bo
         updatedAt: input.updatedAt,
       };
 
-      await getDb().insert(NodeEdgeTable).values(newEdge);
+      await dbProvider().insert(NodeEdgeTable).values(newEdge);
       return toBookNodeEdge(newEdge as any);
     },
 
@@ -227,15 +240,15 @@ export function createBookNodeEdgeSqliteRepository(currentProjectId: string): Bo
 
       if (Object.keys(updateValues).length > 0) {
         updateValues.updatedAt = new Date().toISOString();
-        await getDb().update(NodeEdgeTable).set(updateValues).where(eq(NodeEdgeTable.id, id));
+        await dbProvider().update(NodeEdgeTable).set(updateValues).where(eq(NodeEdgeTable.id, id));
       }
 
-      const res = await getDb().select().from(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
+      const res = await dbProvider().select().from(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
       return res[0] ? toBookNodeEdge(res[0]) : null;
     },
 
     async delete(id: string) {
-      await getDb().delete(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
+      await dbProvider().delete(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
       return true;
     },
   };

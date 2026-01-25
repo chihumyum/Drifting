@@ -10,6 +10,7 @@ export interface CreateStorylineInput {
   name: string;
   color: string;
   summary?: string;
+  orderKey?: number;
   pmJson?: string;
 }
 
@@ -18,6 +19,7 @@ export interface UpdateStorylineInput {
   name?: string;
   color?: string;
   summary?: string;
+  orderKey?: number;
   pmJson?: string;
 }
 

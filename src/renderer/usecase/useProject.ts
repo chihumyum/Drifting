@@ -1,7 +1,7 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type { Project } from '../domain/project';
-import { ProjectRepositorySQLite } from '../sqlite-repo/project-repo';
+import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { useBookNode } from './useBookNode';
 import { useStoryline } from './useStoryline';
 import { useBookElement } from './useBookElement';
@@ -20,13 +20,12 @@ export interface CreateProjectInput {
 export type UpdateProjectInput = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;
 
 export function useProject() {
-  const repoRef = useRef(new ProjectRepositorySQLite());
-  const repo = repoRef.current;
   const nodeUsecases = useBookNode();
   const storylineUsecases = useStoryline();
   const elementUsecases = useBookElement();
   const elementCategoryUsecases = useElementCategory();
   const { user } = useAuthStore();
+  const repo = useMemo(() => createProjectRepository(user?.id), [user?.id]);
   if (!user) {
     log.warn("No authenticated user found");
   }
@@ -62,21 +61,10 @@ export function useProject() {
     });
 
     // Enforce invariant: Project must have at least one default storyline
-    await storylineUsecases.createStoryline({
-      projectId: project.id,
-      name: 'Default Storyline',
-      color: '#3b82f6',
-      summary: '',
-      pmJson: '{}'
-    });
+    await storylineUsecases.createStoryline({ projectId: project.id });
 
     // Enforce invariant: Project must have at least one 'others' element category
-    await elementCategoryUsecases.createCategory({
-        projectId: project.id,
-        name: 'others',
-        descriptionJson: '{}',
-        color: '#6b7280'
-    });
+    await elementCategoryUsecases.createCategory({ projectId: project.id });
 
     return project;
   }, [repo, user, storylineUsecases, elementCategoryUsecases]);

@@ -2,57 +2,48 @@ import { useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
-import type { BookElement, BookElementCategory } from '../domain/book-element';
+import type { BookElement } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
-import { ElementCategoryRepositorySQLite } from '../sqlite-repo/element-category-repo';
+import { createElementTagLinkRepository } from '../sqlite-repo/element-tag-repo';
+import loglevel from "loglevel";
 
+const log = loglevel.getLogger("UseBookElement");
+log.setLevel(loglevel.levels.WARN);
 
 export interface CreateBookElementInput {
     categoryId: string;
 }
-export type UpdateElementUsecaseInput = {
-    id: string;
-    categoryId?: string;
-    name?: string;
-    tagIds?: string[];
-    stageIds?: string[];
-    summary?: string;
-    contentJson?: string;
-}
+export type UpdateElementUsecaseInput = Partial<Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>>;
 
 export function useBookElement() {
-    const { projectId: routeProjectId } = useParams<{ projectId: string }>();
     // Use route projectId - this is the ONLY source of truth for projectId
+    const { projectId: routeProjectId } = useParams<{ projectId: string }>();
     if (!routeProjectId) {
         throw new Error("useBookElement must be used within a project route");
     }
     const activeProjectId = routeProjectId;
 
-    // Use useMemo ensuring repository is recreated if projectId changes
     const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);
-    // Also recreate category repo when Project ID changes, so invariants are scoped correctly
-    const categoryRepoRef = useRef(new ElementCategoryRepositorySQLite());
-    const categoryRepo = categoryRepoRef.current;
+    const elementTagLinkRepoRef = useRef(createElementTagLinkRepository());
+    const elementTagLinkRepo = elementTagLinkRepoRef.current;
 
     const getElements = useCallback(() => useDataStore.getState().bookElements, []);
     const setElements = useCallback((els: BookElement[]) => useDataStore.getState().setBookElements(els), []);
-    const getCategories = useCallback(() => useDataStore.getState().bookElementCategories, []);
-    const setCategories = useCallback((cats: BookElementCategory[]) => useDataStore.getState().setBookElementCategories(cats), []);
 
 
-    const deleteCategory = useCallback(async (id: string) => {
-        await categoryRepo.delete(id);
-        const cats = await categoryRepo.findByProjectId(activeProjectId);
-        setCategories(cats);
-    }, [categoryRepo, setCategories, activeProjectId]);
 
     const loadInitial = useCallback(async (projectId?: string) => {
-        const pid = projectId ?? activeProjectId;
-        const elements = await elementRepo.findAllByProject(pid);
-        setElements(elements);
-        const categories = await categoryRepo.findByProjectId(pid);
-        setCategories(categories);
-    }, [elementRepo, categoryRepo, setElements, setCategories, activeProjectId]);
+        if (projectId && projectId !== activeProjectId) {
+            throw new Error('Cannot load elements for different projectId');
+        }
+        const elements = await elementRepo.findAll();
+        const tagMap = await elementTagLinkRepo.findTagIdsByElementIds(elements.map(el => el.id));
+        const hydrated = elements.map(el => ({
+            ...el,
+            tagIds: tagMap[el.id] ?? [],
+        }));
+        setElements(hydrated);
+    }, [elementRepo, elementTagLinkRepo, setElements, activeProjectId]);
 
     const createElement = useCallback(async (input: CreateBookElementInput) => {
         const persisted = await elementRepo.create({
@@ -60,8 +51,6 @@ export function useBookElement() {
             projectId: activeProjectId,
             categoryId: input.categoryId,
             name: 'New Element',
-            tagIds: [],
-            stageIds: [],
             summary: '',
             contentJson: '{}', // TODO: fix this 
             createdAt: new Date().toISOString(),
@@ -73,17 +62,18 @@ export function useBookElement() {
         return persisted;
     }, [elementRepo, getElements, setElements]);
 
-    const updateElement = useCallback(async (id: string, updates: Partial<UpdateElementUsecaseInput>) => {
+    const updateElement = useCallback(async (id: string, updates: UpdateElementUsecaseInput) => {
         const now = new Date();
         const elements = getElements();
         const existing = elements.find(e => e.id === id);
-        if (!existing) throw new Error(`Element with id ${id} not found`);
+        if (!existing) {
+            throw new Error(`Element with id ${id} not found`);
+        }
 
         const updatedElement: BookElement = {
             ...existing,
             categoryId: updates.categoryId ?? existing.categoryId,
             name: updates.name ?? existing.name,
-            tagIds: updates.tagIds ?? existing.tagIds,
             stageIds: updates.stageIds ?? existing.stageIds,
             contentJson: updates.contentJson ?? existing.contentJson,
             summary: updates.summary ?? existing.summary,
@@ -92,11 +82,25 @@ export function useBookElement() {
 
         setElements(elements.map(el => el.id === id ? updatedElement : el));
 
-        const persisted = await elementRepo.update(id, updatedElement);
+        const persisted = await elementRepo.update(id, {
+            categoryId: updatedElement.categoryId,
+            name: updatedElement.name,
+            summary: updatedElement.summary,
+            contentJson: updatedElement.contentJson,
+            updatedAt: updatedElement.updatedAt,
+        });
+
         if (persisted) {
             const current = getElements();
-            setElements(current.map(el => el.id === id ? persisted : el));
-            return persisted;
+            const persistedWithTags = {
+                ...persisted,
+                tagIds: updatedElement.tagIds,
+                stageIds: updatedElement.stageIds,
+            };
+            setElements(current.map(el => el.id === id ? persistedWithTags : el));
+            return persistedWithTags;
+        } else {
+            log.warn(`Failed to persist update for element with id ${id}`);
         }
 
         return updatedElement;
@@ -118,7 +122,6 @@ export function useBookElement() {
         loadInitial,
         createElement,
         updateElement,
-        deleteCategory,
         removeElement,
-    }), [loadInitial, createElement, updateElement, removeElement, deleteCategory]);
+    }), [loadInitial, createElement, updateElement, removeElement]);
 }

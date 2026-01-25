@@ -1,25 +1,19 @@
 import { getDb } from '../lib/db';
-import { StorylineTable, NodeStorylineLinkTable } from '../schema/drizzle';
-import { eq, desc, asc, and } from 'drizzle-orm';
-import type { Storyline, CreateStorylineInput, UpdateStorylineInput } from '../domain/storyline';
-import { v7 as uuidv7 } from 'uuid';
+import { StorylineTable } from '../schema/drizzle';
+import { eq, asc } from 'drizzle-orm';
+import type { Storyline } from '../domain/storyline';
+import LogLevel from 'loglevel';
+const log = LogLevel.getLogger("StorylineRepository");
+log.setLevel(LogLevel.levels.WARN);
 
-
-
+export type UpdateStorylineInput = Partial<Omit<Storyline, 'id' | 'createdAt'>> & { updatedAt: string };
 export interface StorylineRepository {
   // Storyline CRUD
-  createStoryline(input: CreateStorylineInput): Promise<Storyline>;
+  createStoryline(input: Storyline): Promise<Storyline>;
   getStorylineById(id: string): Promise<Storyline | null>;
-  getStorylinesByProject(projectId: string): Promise<Storyline[]>;
-  updateStoryline(input: UpdateStorylineInput): Promise<Storyline>;
+  getStorylinesByProject(): Promise<Storyline[]>;
+  updateStoryline(id: string, input: UpdateStorylineInput): Promise<Storyline>;
   deleteStoryline(id: string): Promise<void>;
-  
-  // Node-Storyline relationships
-  addNodeToStoryline(nodeId: string, storylineId: string): Promise<void>;
-  removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void>;
-  getStorylinesByNode(nodeId: string): Promise<Storyline[]>;
-  getNodeIdsByStoryline(storylineId: string): Promise<string[]>;
-  setNodeStorylines(nodeId: string, storylineIds: string[]): Promise<void>;
 }
 
 
@@ -30,154 +24,103 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
     projectId: record.projectId,
     name: record.name,
     color: record.color,
-    summary: record.summary ?? '',
-    descriptionJson: record.descriptionJson ?? '{}',
+    summary: record.summary,
+    orderKey: record.orderKey,
+    descriptionJson: record.descriptionJson,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
 }
 
-export class StorylineSQLiteRepository implements StorylineRepository {
-  async createStoryline(input: CreateStorylineInput): Promise<Storyline> {
-    const id = uuidv7();
-    const now = new Date().toISOString();
+type DbClient = ReturnType<typeof getDb>;
+
+export function createStorylineRepository(projectId: string, dbOverride?: DbClient): StorylineRepository {
+  const dbProvider = () => dbOverride ?? getDb();
+
+  const createStoryline = async (input: Storyline): Promise<Storyline> => {
+    if (input.projectId !== projectId) {
+      throw new Error(`Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`);
+    }
 
     const newStoryline: typeof StorylineTable.$inferInsert = {
-      id,
+      id: input.id,
       projectId: input.projectId,
       name: input.name,
       color: input.color,
-      summary: input.summary ?? '',
-      descriptionJson: input.pmJson ?? '{}',
-      createdAt: now,
-      updatedAt: now,
+      summary: input.summary,
+      orderKey: input.orderKey,
+      descriptionJson: input.descriptionJson,
+      createdAt: input.createdAt,
+      updatedAt: input.updatedAt,
     };
 
-    await getDb().insert(StorylineTable).values(newStoryline);
+    await dbProvider().insert(StorylineTable).values(newStoryline);
 
     return toStoryline(newStoryline as typeof StorylineTable.$inferSelect);
-  }
+  };
 
-  async getStorylineById(id: string): Promise<Storyline | null> {
-    const rows = await getDb().select().from(StorylineTable).where(eq(StorylineTable.id, id)).limit(1);
+  const getStorylineById = async (id: string): Promise<Storyline | null> => {
+    const rows = await dbProvider().select().from(StorylineTable).where(eq(StorylineTable.id, id)).limit(1);
     return rows[0] ? toStoryline(rows[0]) : null;
-  }
+  };
 
-  async getStorylinesByProject(projectId: string): Promise<Storyline[]> {
-    const rows = await getDb().select()
+  const getStorylinesByProject = async (): Promise<Storyline[]> => {
+    const rows = await dbProvider().select()
       .from(StorylineTable)
       .where(eq(StorylineTable.projectId, projectId))
-      .orderBy(asc(StorylineTable.name));
+      .orderBy(asc(StorylineTable.orderKey));
     return rows.map(toStoryline);
-  }
+  };
 
-  async updateStoryline(input: UpdateStorylineInput): Promise<Storyline> {
-    const existing = await this.getStorylineById(input.id);
+  const updateStoryline = async (id: string, input: UpdateStorylineInput): Promise<Storyline> => {
+    const existing = await getStorylineById(id);
     if (!existing) {
-      throw new Error(`Storyline ${input.id} not found`);
+      throw new Error(`Storyline ${id} not found`);
+    }
+    if (input.projectId !== existing.projectId) {
+      throw new Error('Cannot change projectId of a storyline');
     }
 
-    const now = new Date().toISOString();
     const updateValues: Partial<typeof StorylineTable.$inferInsert> = {
-      updatedAt: now,
+      updatedAt: input.updatedAt,
     };
 
     if (input.name !== undefined) updateValues.name = input.name;
     if (input.color !== undefined) updateValues.color = input.color;
     if (input.summary !== undefined) updateValues.summary = input.summary;
-    if (input.pmJson !== undefined) updateValues.descriptionJson = input.pmJson;
+    if (input.orderKey !== undefined) updateValues.orderKey = input.orderKey;
+    if (input.descriptionJson !== undefined) updateValues.descriptionJson = input.descriptionJson;
 
-    await getDb().update(StorylineTable)
+
+    const res = await dbProvider().update(StorylineTable)
       .set(updateValues)
-      .where(eq(StorylineTable.id, input.id));
+      .where(eq(StorylineTable.id, id)).returning();
 
-    const updated = await this.getStorylineById(input.id);
-    if (!updated) throw new Error('Failed to retrieve updated storyline');
-    return updated;
-  }
+    if (!res || res.length === 0) {
+      throw new Error(`Failed to update storyline ${id}`);
+    } 
+    return toStoryline(res[0]);
+  };
 
-  async deleteStoryline(id: string): Promise<void> {
-    const sl = await this.getStorylineById(id);
+  const deleteStoryline = async (id: string): Promise<void> => {
+    const sl = await getStorylineById(id);
     if (!sl) return;
 
+    // TODO: move this to usecase layer
     // Check invariant: Project must have at least one storyline
-    const allStorylines = await this.getStorylinesByProject(sl.projectId);
+    const allStorylines = await getStorylinesByProject();
     if (allStorylines.length <= 1) {
       throw new Error('Cannot delete the last storyline in the project.');
     }
 
-    await getDb().delete(StorylineTable).where(eq(StorylineTable.id, id));
-  }
+    await dbProvider().delete(StorylineTable).where(eq(StorylineTable.id, id));
+  };
 
-  async addNodeToStoryline(nodeId: string, storylineId: string): Promise<void> {
-    // Determine next order
-    const existingLinks = await getDb().select({ order: NodeStorylineLinkTable.storylineOrder })
-      .from(NodeStorylineLinkTable)
-      .where(eq(NodeStorylineLinkTable.nodeId, nodeId));
-
-    const maxOrder = existingLinks.reduce((max, link) => Math.max(max, link.order), -1);
-    const nextOrder = maxOrder + 1;
-
-    await getDb().insert(NodeStorylineLinkTable)
-      .values({
-        nodeId,
-        storylineId,
-        storylineOrder: nextOrder,
-      })
-      .onConflictDoNothing();
-  }
-
-  async removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void> {
-    await getDb().delete(NodeStorylineLinkTable)
-      .where(and(
-        eq(NodeStorylineLinkTable.nodeId, nodeId),
-        eq(NodeStorylineLinkTable.storylineId, storylineId)
-      ));
-  }
-
-  async getStorylinesByNode(nodeId: string): Promise<Storyline[]> {
-    // Join storylines and nodeStorylines
-    // Select storylines.* order by nodeStorylines.storylineOrder
-    const rows = await getDb().select({
-      storyline: StorylineTable
-    })
-      .from(StorylineTable)
-      .innerJoin(NodeStorylineLinkTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
-      .where(eq(NodeStorylineLinkTable.nodeId, nodeId))
-      .orderBy(asc(NodeStorylineLinkTable.storylineOrder));
-
-    return rows.map(r => toStoryline(r.storyline));
-  }
-
-  async getNodeIdsByStoryline(storylineId: string): Promise<string[]> {
-    const rows = await getDb().select({ nodeId: NodeStorylineLinkTable.nodeId })
-      .from(NodeStorylineLinkTable)
-      .where(eq(NodeStorylineLinkTable.storylineId, storylineId));
-
-    return rows.map(r => r.nodeId);
-  }
-
-  async setNodeStorylines(nodeId: string, storylineIds: string[]): Promise<void> {
-    await getDb().transaction(async (tx) => {
-      // Clear existing
-      await tx.delete(NodeStorylineLinkTable).where(eq(NodeStorylineLinkTable.nodeId, nodeId));
-
-      // Insert new with order
-      if (storylineIds.length > 0) {
-        await tx.insert(NodeStorylineLinkTable).values(
-          storylineIds.map((sid, index) => ({
-            nodeId,
-            storylineId: sid,
-            storylineOrder: index,
-          }))
-        );
-      }
-    });
-  }
+  return {
+    createStoryline,
+    getStorylineById,
+    getStorylinesByProject,
+    updateStoryline,
+    deleteStoryline,
+  };
 }
-
-// Placeholder sync functions
-export interface RemoteStorylinePayload { }
-export async function markStorylineSyncStatus(id: string, status: any, options?: any) { }
-export async function cleanupSyncedDeletedStorylines() { }
-export async function applyRemoteStoryline(payload: any) { return 'skipped'; }
