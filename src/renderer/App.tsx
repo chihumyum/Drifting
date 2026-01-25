@@ -236,6 +236,7 @@ function Layout() {
 }
 
 import { ProjectHomeView } from './views/ProjectHomeView';
+import { ProjectDashboard } from './views/ProjectDashboard';
 
 export default function App() {
   return (
@@ -258,7 +259,7 @@ export default function App() {
         </ProtectedRoute>
       }>
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<div>Project Home</div>} />
+        <Route path="home" element={<ProjectDashboard />} />
         <Route path="editor" element={<Navigate to="../home" replace />} />
         <Route path="editor/all-nodes" element={<AllNodesEditorView />} />
         <Route path="editor/:nodeId" element={<NodeEditorView />} />
