@@ -9,11 +9,13 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useBookElement } from '../usecase/useBookElement';
+import { useElementCategory } from '../usecase/useElementCategory';
 import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../viewComponents/editor/TagEditor';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';
 import loglevel from "loglevel";
+import { useAuthStore } from '../store/auth';
 
 const log = loglevel.getLogger("ElementEditorView");
 log.setLevel(loglevel.levels.ERROR);
@@ -29,11 +31,19 @@ function getDefaultDoc(): JSONContent {
 
 export function ElementEditorView() {
   const navigate = useNavigate();
-  const { elementId } = useParams<{ elementId: string }>();
+  const { elementId, projectId } = useParams<{ elementId: string; projectId: string }>();
+  const userId = useAuthStore((state) => state.user?.id);
   const { bookElements, bookElementCategories } = useDataStore();
 
-  const elementUsecases = useBookElement();
-  const { updateElement, loadInitial } = elementUsecases;
+  const elementUsecases = useBookElement({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const categoryUsecases = useElementCategory({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { updateElement } = elementUsecases;
   const [curElement, setCurElement] = useState<BookElement | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
@@ -162,12 +172,10 @@ export function ElementEditorView() {
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim()) return;
 
-    // Create new category using the hook
-    const { createCategory } = useBookElement();
-    await createCategory(newCategoryName.trim());
+    await categoryUsecases.createCategory(newCategoryName.trim());
 
     // Reload categories
-    await loadInitial();
+    await categoryUsecases.loadCategories();
 
     // Set the new category
     setCategoryValue(newCategoryName.trim());
@@ -492,7 +500,7 @@ export function ElementEditorView() {
 
           {/* Tags */}
           <div style={{ flex: 2 }}>
-            <TagEditor type="element" entityId={elementId} />
+            <TagEditor type="element" entityId={elementId} projectId={projectId} />
           </div>
         </div>
 

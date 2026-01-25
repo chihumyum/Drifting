@@ -1,12 +1,9 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { NodeTagTable, NodeTagLinkTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
 import type { NodeTag, NodeTagLink } from '../domain/node-tag';
-import { v7 as uuidv7 } from 'uuid';
 
-type DbClient = ReturnType<typeof getDb>;
-
-function createDbProvider(dbOverride?: DbClient) {
+function createDbProvider(dbOverride?: DbExecutor) {
   return () => dbOverride ?? getDb();
 }
 
@@ -17,7 +14,7 @@ export interface NodeTagRepository {
   findById(id: string): Promise<NodeTag | null>;
   findAll(projectId: string): Promise<NodeTag[]>;
   findByName(projectId: string, name: string): Promise<NodeTag | null>;
-  create(data: Omit<NodeTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeTag>;
+  create(data: NodeTag): Promise<NodeTag>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -40,13 +37,12 @@ function nodeTagRecordToDomain(record: typeof NodeTagTable.$inferSelect): NodeTa
     id: record.id,
     projectId: record.projectId,
     name: record.name,
-    color: record.color,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
 }
 
-export function createNodeTagRepository(dbOverride?: DbClient): NodeTagRepository {
+export function createNodeTagRepository(dbOverride?: DbExecutor): NodeTagRepository {
   const dbProvider = createDbProvider(dbOverride);
 
   const findById = async (id: string): Promise<NodeTag | null> => {
@@ -68,16 +64,13 @@ export function createNodeTagRepository(dbOverride?: DbClient): NodeTagRepositor
     return rows[0] ? nodeTagRecordToDomain(rows[0]) : null;
   };
 
-  const create = async (data: Omit<NodeTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<NodeTag> => {
-    const now = new Date().toISOString();
-    const id = uuidv7();
+  const create = async (data: NodeTag): Promise<NodeTag> => {
     const newTag: typeof NodeTagTable.$inferInsert = {
-      id,
+      id: data.id,
       projectId: data.projectId,
       name: data.name,
-      color: data.color ?? null,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
     };
 
     await dbProvider().insert(NodeTagTable).values(newTag);
@@ -98,7 +91,7 @@ export function createNodeTagRepository(dbOverride?: DbClient): NodeTagRepositor
   };
 }
 
-export function createNodeTagLinkRepository(dbOverride?: DbClient): NodeTagLinkRepository {
+export function createNodeTagLinkRepository(dbOverride?: DbExecutor): NodeTagLinkRepository {
   const dbProvider = createDbProvider(dbOverride);
 
   const findTagsByNodeId = async (nodeId: string): Promise<NodeTag[]> => {
@@ -106,7 +99,6 @@ export function createNodeTagLinkRepository(dbOverride?: DbClient): NodeTagLinkR
       id: NodeTagTable.id,
       projectId: NodeTagTable.projectId,
       name: NodeTagTable.name,
-      color: NodeTagTable.color,
       createdAt: NodeTagTable.createdAt,
       updatedAt: NodeTagTable.updatedAt,
     })

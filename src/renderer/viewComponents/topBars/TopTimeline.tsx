@@ -27,8 +27,11 @@ export function TopTimeline() {
   const location = useLocation();
   const bookNodes = useDataStore(state => state.bookNodes);
   const user = useAuthStore(state => state.user);
-  const { getStorylineById, getStorylinesByNode, createStoryline, loadStorylines } = useStoryline();
   const { projectId, navigateToStoryline, navigateToNode } = useProjectNavigation();
+  const { getStorylineById, getStorylinesByNode, createStoryline, loadStorylines } = useStoryline({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
 
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
   const [storylineNodes, setStorylineNodes] = useState<TimelineNode[]>([]);

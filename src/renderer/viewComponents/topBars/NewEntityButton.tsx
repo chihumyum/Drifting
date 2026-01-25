@@ -5,6 +5,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
+import { useAuthStore } from '../../store/auth';
 
 const log = loglevel.getLogger("NewEntityButton");
 log.setLevel(loglevel.levels.ERROR);
@@ -17,10 +18,17 @@ log.setLevel(loglevel.levels.ERROR);
 export function NewEntityButton() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
-  const { createNode, loadNodes, updateNode } = useBookNode();
-  const { getStorylinesByNode, getStorylinesByProject, addNodeToStoryline } = useStoryline();
-  const bookNodes = useDataStore(state => state.bookNodes);
   const { navigateToNode, projectId } = useProjectNavigation();
+  const userId = useAuthStore((state) => state.user?.id);
+  const { createNode, loadNodes, updateNode } = useBookNode({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { getStorylinesByNode, getStorylinesByProject, addNodeToStoryline, createStoryline } = useStoryline({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const bookNodes = useDataStore(state => state.bookNodes);
 
 
   const getCurrentStorylineId = (): string | null => {
@@ -151,10 +159,14 @@ export function NewEntityButton() {
         }
       }
 
+      if (!defaultStorylineId) {
+        const createdStoryline = await createStoryline({ projectId });
+        defaultStorylineId = createdStoryline.id;
+      }
+
       // Create the new node
       const newNode = await createNode({
-        projectId: projectId,
-        mainStorylineId: '',
+        mainStorylineId: defaultStorylineId,
         start: newStart,
         end: newEnd,
       });

@@ -17,7 +17,10 @@ import { SettingsModal } from './viewComponents/modals/SettingsModal';
 import { initAccentColor } from './lib/theme';
 import { useUiStore } from './store/ui-store';
 import { useAuthStore } from './store/auth';
-import { useProject } from './usecase/useProject';
+import { useBookNode } from './usecase/useBookNode';
+import { useStoryline } from './usecase/useStoryline';
+import { useBookElement } from './usecase/useBookElement';
+import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
 import loglevel from "loglevel";
 
@@ -56,28 +59,40 @@ function Layout() {
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { initializeProject } = useProject();
   const [dbReady, setDbReady] = useState(false);
+  const userId = useAuthStore((state) => state.user?.id);
+  const nodeUsecases = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
+  const storylineUsecases = useStoryline({ projectId: projectId ?? '', userId: userId ?? '' });
+  const elementUsecases = useBookElement({ projectId: projectId ?? '', userId: userId ?? '' });
+  const categoryUsecases = useElementCategory({ projectId: projectId ?? '', userId: userId ?? '' });
 
   useEffect(() => {
     // Initialize theme
     initAccentColor();
 
-    // Initialize database for the current project
-    // Use projectId from URL params
+    // Initialize database for the current user
     if (!projectId) {
       log.error('No projectId found in URL params');
+      return;
+    }
+    if (!userId) {
+      log.error('No userId found in auth store');
       return;
     }
 
     // Reset ready state on project switch
     setDbReady(false);
 
-    log.info('[App] Initializing database for project:', projectId);
+    log.info('[App] Initializing database for user:', userId);
 
-    initDatabase(projectId).then(async () => {
+    initDatabase(userId).then(async () => {
       // Initialize project-specific data (stores etc)
-      await initializeProject(projectId);
+      await Promise.all([
+        nodeUsecases.loadNodes(),
+        storylineUsecases.loadStorylines(),
+        elementUsecases.loadInitial(),
+        categoryUsecases.loadCategories(),
+      ]);
 
       events.emit('db:ready');
       log.info('[App] Database ready for project:', projectId);
@@ -86,7 +101,7 @@ function Layout() {
       log.error('[App] Failed to initialize database:', error);
       events.emit('db:error', { error: error.message });
     });
-  }, [projectId]); // Re-init when projectId changes
+  }, [projectId, userId, nodeUsecases, storylineUsecases, elementUsecases, categoryUsecases]); // Re-init when projectId or user changes
 
   // listen for left topbar events
   useEffect(() => {

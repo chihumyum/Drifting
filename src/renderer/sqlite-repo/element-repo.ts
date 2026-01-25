@@ -1,9 +1,7 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { BookElementTable } from '../schema/drizzle';
 import { eq, desc, and } from 'drizzle-orm';
 import type { BookElement } from '../domain/book-element';
-
-type DbClient = ReturnType<typeof getDb>;
 
 export type ElementCreateData = Omit<BookElement, 'tagIds' | 'stageIds'>;
 export type ElementUpdateData = Partial<Omit<BookElement, 'id' | 'createdAt' | 'tagIds' | 'stageIds'>> & { updatedAt: string };
@@ -33,7 +31,7 @@ function toDomain(record: typeof BookElementTable.$inferSelect): BookElement {
     };
 }
 
-export function createBookElementSqliteRepository(projectId: string, dbOverride?: DbClient): ElementRepository {
+export function createBookElementSqliteRepository(projectId: string, dbOverride?: DbExecutor): ElementRepository {
     const dbProvider = () => dbOverride ?? getDb();
 
     const findById = async (id: string): Promise<BookElement | null> => {

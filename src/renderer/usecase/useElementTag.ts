@@ -1,10 +1,11 @@
 import { useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createElementTagRepository, createElementTagLinkRepository } from '../sqlite-repo/element-tag-repo';
 import { initDatabase, getDb } from '../lib/db';
 import type { ElementTag } from '../domain/element-tag';
 import { useDataStore } from '../store/data-store';
+import { withOptimisticUpdate } from './optimistic';
+import { v7 as uuidv7 } from 'uuid';
 
 export interface CreateElementTagInput {
   projectId?: string;
@@ -12,28 +13,38 @@ export interface CreateElementTagInput {
   color?: string | null;
 }
 
-export function useElementTag() {
-  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+export interface UseElementTagContext {
+  projectId: string;
+  userId: string;
+}
+
+export function useElementTag({ projectId, userId }: UseElementTagContext) {
+  const activeProjectId = projectId;
+  if (!activeProjectId) {
+    throw new Error('useElementTag requires a projectId');
+  }
+  if (!userId) {
+    throw new Error('useElementTag requires a userId');
+  }
   const tagRepoRef = useRef(createElementTagRepository());
   const tagLinkRepoRef = useRef(createElementTagLinkRepository());
 
   const tagRepo = tagRepoRef.current;
   const tagLinkRepo = tagLinkRepoRef.current;
-  type DbClient = ReturnType<typeof getDb>;
 
   const ensureProjectId = useCallback((projectId?: string) => {
-    const pid = projectId ?? routeProjectId;
+    const pid = projectId ?? activeProjectId;
     if (!pid) {
       throw new Error('Project ID is required to load tags');
     }
     return pid;
-  }, [routeProjectId]);
+  }, [activeProjectId]);
 
   const ensureDb = useCallback(async (projectId?: string) => {
     const pid = ensureProjectId(projectId);
-    await initDatabase(pid);
+    await initDatabase(userId);
     return pid;
-  }, [ensureProjectId]);
+  }, [ensureProjectId, userId]);
 
   const updateElementTagIdsInStore = useCallback((elementId: string, tagIds: string[], updatedAt?: string) => {
     const updates: Partial<{ tagIds: string[]; updatedAt: string }> = { tagIds };
@@ -55,9 +66,11 @@ export function useElementTag() {
   const createTag = useCallback(async (input: CreateElementTagInput) => {
     const projectId = await ensureDb(input.projectId);
     return tagRepo.create({
+      id: uuidv7(),
       projectId,
       name: input.name,
-      color: input.color ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
   }, [tagRepo, ensureDb]);
 
@@ -81,51 +94,97 @@ export function useElementTag() {
     const pid = await ensureDb(projectId);
     const db = getDb();
     const updatedAt = new Date().toISOString();
-    await db.transaction(async (tx) => {
-      const elementRepoTx = createBookElementSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createElementTagLinkRepository(tx as DbClient);
-      const updated = await elementRepoTx.update(elementId, { updatedAt });
-      if (!updated) throw new Error(`Element with id ${elementId} not found`);
-      await tagLinkRepoTx.addTagToElement(elementId, tagId);
-    });
 
     const current = useDataStore.getState().bookElements.find(el => el.id === elementId);
-    if (!current) return;
-    const nextTagIds = current.tagIds.includes(tagId) ? current.tagIds : [...current.tagIds, tagId];
-    updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
+    const prevTagIds = current?.tagIds ?? [];
+    const prevUpdatedAt = current?.updatedAt;
+    const nextTagIds = current
+      ? (current.tagIds.includes(tagId) ? current.tagIds : [...current.tagIds, tagId])
+      : null;
+
+    const apply = () => {
+      if (nextTagIds) updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
+    };
+    const rollback = () => {
+      if (current) updateElementTagIdsInStore(elementId, prevTagIds, prevUpdatedAt);
+    };
+
+    return withOptimisticUpdate({
+      apply,
+      rollback,
+      effect: async () => {
+        await db.transaction(async (tx) => {
+          const elementRepoTx = createBookElementSqliteRepository(pid, tx);
+          const tagLinkRepoTx = createElementTagLinkRepository(tx);
+          const updated = await elementRepoTx.update(elementId, { updatedAt });
+          if (!updated) throw new Error(`Element with id ${elementId} not found`);
+          await tagLinkRepoTx.addTagToElement(elementId, tagId);
+        });
+      },
+    });
   }, [ensureDb, updateElementTagIdsInStore]);
 
   const removeTagFromElement = useCallback(async (elementId: string, tagId: string, projectId?: string) => {
     const pid = await ensureDb(projectId);
     const db = getDb();
     const updatedAt = new Date().toISOString();
-    await db.transaction(async (tx) => {
-      const elementRepoTx = createBookElementSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createElementTagLinkRepository(tx as DbClient);
-      const updated = await elementRepoTx.update(elementId, { updatedAt });
-      if (!updated) throw new Error(`Element with id ${elementId} not found`);
-      await tagLinkRepoTx.removeTagFromElement(elementId, tagId);
-    });
 
     const current = useDataStore.getState().bookElements.find(el => el.id === elementId);
-    if (!current) return;
-    const nextTagIds = current.tagIds.filter(id => id !== tagId);
-    updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
+    const prevTagIds = current?.tagIds ?? [];
+    const prevUpdatedAt = current?.updatedAt;
+    const nextTagIds = current ? current.tagIds.filter(id => id !== tagId) : null;
+
+    const apply = () => {
+      if (nextTagIds) updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
+    };
+    const rollback = () => {
+      if (current) updateElementTagIdsInStore(elementId, prevTagIds, prevUpdatedAt);
+    };
+
+    return withOptimisticUpdate({
+      apply,
+      rollback,
+      effect: async () => {
+        await db.transaction(async (tx) => {
+          const elementRepoTx = createBookElementSqliteRepository(pid, tx);
+          const tagLinkRepoTx = createElementTagLinkRepository(tx);
+          const updated = await elementRepoTx.update(elementId, { updatedAt });
+          if (!updated) throw new Error(`Element with id ${elementId} not found`);
+          await tagLinkRepoTx.removeTagFromElement(elementId, tagId);
+        });
+      },
+    });
   }, [ensureDb, updateElementTagIdsInStore]);
 
   const setElementTags = useCallback(async (elementId: string, tagIds: string[], projectId?: string) => {
     const pid = await ensureDb(projectId);
     const db = getDb();
     const updatedAt = new Date().toISOString();
-    await db.transaction(async (tx) => {
-      const elementRepoTx = createBookElementSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createElementTagLinkRepository(tx as DbClient);
-      const updated = await elementRepoTx.update(elementId, { updatedAt });
-      if (!updated) throw new Error(`Element with id ${elementId} not found`);
-      await tagLinkRepoTx.setTagsForElement(elementId, tagIds);
-    });
 
-    updateElementTagIdsInStore(elementId, tagIds, updatedAt);
+    const current = useDataStore.getState().bookElements.find(el => el.id === elementId);
+    const prevTagIds = current?.tagIds ?? [];
+    const prevUpdatedAt = current?.updatedAt;
+
+    const apply = () => {
+      updateElementTagIdsInStore(elementId, tagIds, updatedAt);
+    };
+    const rollback = () => {
+      if (current) updateElementTagIdsInStore(elementId, prevTagIds, prevUpdatedAt);
+    };
+
+    return withOptimisticUpdate({
+      apply,
+      rollback,
+      effect: async () => {
+        await db.transaction(async (tx) => {
+          const elementRepoTx = createBookElementSqliteRepository(pid, tx);
+          const tagLinkRepoTx = createElementTagLinkRepository(tx);
+          const updated = await elementRepoTx.update(elementId, { updatedAt });
+          if (!updated) throw new Error(`Element with id ${elementId} not found`);
+          await tagLinkRepoTx.setTagsForElement(elementId, tagIds);
+        });
+      },
+    });
   }, [ensureDb, updateElementTagIdsInStore]);
 
   const createAndAddTagToElement = useCallback(async (elementId: string, input: CreateElementTagInput) => {
@@ -134,39 +193,48 @@ export function useElementTag() {
     let createdTag: ElementTag | null = null;
     const updatedAt = new Date().toISOString();
 
-    await db.transaction(async (tx) => {
-      const tagRepoTx = createElementTagRepository(tx as DbClient);
-      const tagLinkRepoTx = createElementTagLinkRepository(tx as DbClient);
-      const elementRepoTx = createBookElementSqliteRepository(projectId, tx as DbClient);
 
-      let tag = await tagRepoTx.findByName(projectId, input.name);
-      if (!tag) {
-        tag = await tagRepoTx.create({
-          projectId,
-          name: input.name,
-          color: input.color ?? null,
+    return withOptimisticUpdate({
+      apply: () => {},
+      rollback: () => {},
+      effect: async () => {
+        await db.transaction(async (tx) => {
+          const tagRepoTx = createElementTagRepository(tx);
+          const tagLinkRepoTx = createElementTagLinkRepository(tx);
+          const elementRepoTx = createBookElementSqliteRepository(projectId, tx);
+
+          let tag = await tagRepoTx.findByName(projectId, input.name);
+          if (!tag) {
+            tag = await tagRepoTx.create({
+              id: uuidv7(),
+              projectId,
+              name: input.name,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+
+          const updated = await elementRepoTx.update(elementId, { updatedAt });
+          if (!updated) throw new Error(`Element with id ${elementId} not found`);
+          await tagLinkRepoTx.addTagToElement(elementId, tag.id);
+          createdTag = tag;
         });
-      }
-
-      const updated = await elementRepoTx.update(elementId, { updatedAt });
-      if (!updated) throw new Error(`Element with id ${elementId} not found`);
-      await tagLinkRepoTx.addTagToElement(elementId, tag.id);
-      createdTag = tag;
+        return createdTag;
+      },
+      onSuccess: (tag) => {
+        if (!tag) return;
+        const latestCurrent = useDataStore.getState().bookElements.find(el => el.id === elementId);
+        
+        const nextTagIds = latestCurrent
+          ? (latestCurrent.tagIds.includes(tag.id) ? latestCurrent.tagIds : [...latestCurrent.tagIds, tag.id])
+          : null;
+          
+        if (nextTagIds) updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
+      },
     });
-
-    if (createdTag) {
-      const current = useDataStore.getState().bookElements.find(el => el.id === elementId);
-      if (current) {
-        const nextTagIds = current.tagIds.includes(createdTag.id)
-          ? current.tagIds
-          : [...current.tagIds, createdTag.id];
-        updateElementTagIdsInStore(elementId, nextTagIds, updatedAt);
-      }
-    }
-
-    return createdTag;
   }, [ensureDb, updateElementTagIdsInStore]);
 
+  
   return useMemo(() => ({
     loadTags,
     getTagById,

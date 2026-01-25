@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
-import type { BookNode } from '../domain/book-node';
+import { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
 import loglevel from "loglevel";
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
+import { useAuthStore } from '../store/auth';
 
 const log = loglevel.getLogger("NodeEditorView");
 log.setLevel(loglevel.levels.ERROR);
@@ -15,14 +16,25 @@ log.setLevel(loglevel.levels.ERROR);
 export function NodeEditorView() {
   // stuff for geting a node
   const navigate = useNavigate();
-  const { nodeId } = useParams<{ nodeId: string }>();
+  const { nodeId, projectId } = useParams<{ nodeId: string; projectId: string }>();
+  const userId = useAuthStore((state) => state.user?.id);
+  if (!projectId) {
+    throw new Error('NodeEditorView requires a projectId');
+  }
+  if (!userId) {
+    throw new Error('NodeEditorView requires a logged-in user');
+  }
   const { bookNodes } = useDataStore();
   // this component only render one node
-  const [curNode, setCurNode] = useState<Partial<BookNode> | null>(null);
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   // usecases
-  const { renameNode, updateNodeSummary, loadNodes } = useBookNode();
-  const { getContentById, getContentByNodeId, updateContentById, updateContentByNodeId, createContent } = useBookContent();
+  const { renameNode, updateNodeSummary } = useBookNode({
+    projectId: projectId,
+    userId: userId,
+  });
+  const { getContentByNodeId, updateContentByNodeId } = useBookContent({
+    userId: userId,
+  });
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
 
@@ -30,12 +42,16 @@ export function NodeEditorView() {
   useEffect(() => {
     if (!nodeId) {
       navigate('/', { replace: true });
-      return;
+    }
+  }, [nodeId, navigate]);
+
+  const curNode = useMemo<BookNode | null>(() => {
+    if (!nodeId) {
+      return null;
     }
 
-    const node = bookNodes.find(n => n.id === nodeId) || null;
-    setCurNode(node);
-  }, [bookNodes, nodeId, navigate]);
+    return bookNodes.find(n => n.id === nodeId) || null;
+  }, [bookNodes, nodeId]);
 
   // load content when node changes
   useEffect(() => {
@@ -74,7 +90,7 @@ export function NodeEditorView() {
   );
 
   const handleSummaryUpdate = useCallback(
-    async (targetNodeId: string, summary: string | null) => {
+    async (targetNodeId: string, summary: string) => {
       try {
         await updateNodeSummary(targetNodeId, summary);
       } catch (error) {
@@ -99,7 +115,7 @@ export function NodeEditorView() {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [updateContentByNodeId, bookNodes]
+    [updateContentByNodeId]
   );
 
   const handleElementClick = useCallback(
@@ -145,6 +161,7 @@ export function NodeEditorView() {
                 <ChapterEditor
                   ref={editorRef}
                   nodeId={nodeId}
+                  projectId={projectId}
                   content={bookContent.contentJson}
                   title={curNode.title}
                   summary={curNode.summary || ''}

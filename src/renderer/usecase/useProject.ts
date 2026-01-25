@@ -2,14 +2,13 @@ import { useCallback, useMemo } from 'react';
 
 import type { Project } from '../domain/project';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
-import { useBookNode } from './useBookNode';
-import { useStoryline } from './useStoryline';
-import { useBookElement } from './useBookElement';
-import { useElementCategory } from './useElementCategory';
-import { useAuthStore } from '../store/auth';
+import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
+import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
+import { initDatabase } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
+import { randomColor } from '../utils';
+import { useDataStore } from '../store/data-store';
 import LogLevel from 'loglevel';
-
 const log = LogLevel.getLogger("UseProject");
 log.setLevel(LogLevel.levels.WARN);
 
@@ -19,72 +18,97 @@ export interface CreateProjectInput {
 
 export type UpdateProjectInput = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;
 
-export function useProject() {
-  const nodeUsecases = useBookNode();
-  const storylineUsecases = useStoryline();
-  const elementUsecases = useBookElement();
-  const elementCategoryUsecases = useElementCategory();
-  const { user } = useAuthStore();
-  const repo = useMemo(() => createProjectRepository(user?.id), [user?.id]);
-  if (!user) {
-    log.warn("No authenticated user found");
-  }
+export interface UseProjectContext {
+  userId: string;
+}
 
-  const initializeProject = useCallback(async (projectId: string) => {
-    await Promise.all([
-      nodeUsecases.loadNodes({ projectId }),
-      storylineUsecases.loadStorylines(projectId),
-      elementUsecases.loadInitial(projectId)
-    ]);
-  }, [nodeUsecases, storylineUsecases, elementUsecases]);
+export function useProject({ userId }: UseProjectContext) {
+  const repo = useMemo(() => createProjectRepository(userId), [userId]);
+  const ensureDb = useCallback(async () => {
+    if (!userId) {
+      log.warn('No authenticated user found');
+      throw new Error('Cannot access projects without a userId');
+    }
+    await initDatabase(userId);
+  }, [userId]);
 
   const loadProjects = useCallback(async (): Promise<Project[]> => {
+    await ensureDb();
     return await repo.findAll();
-  }, [repo]);
+  }, [repo, ensureDb]);
 
   const loadProject = useCallback(async (id: string): Promise<Project | null> => {
+    await ensureDb();
     return await repo.findById(id);
-  }, [repo]);
+  }, [repo, ensureDb]);
 
   const createProject = useCallback(async (input: CreateProjectInput): Promise<Project> => {
-    if (user == null) {
-      // TODO: get anonymous user ID from auth store
-      throw new Error("Cannot create project: No authenticated user");
+    if (!userId) {
+      throw new Error('Cannot create project: No authenticated user');
     }
+    await ensureDb();
+
+    const now = new Date().toISOString();
     const project = await repo.create({
       id: uuidv7(),
-      userId: user.id,
+      userId,
       name: input.projectName ?? 'New Project',
       descriptionJson: '', // TODO: fix to pmJson, or Ydoc
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     });
 
     // Enforce invariant: Project must have at least one default storyline
-    await storylineUsecases.createStoryline({ projectId: project.id });
+    const storylineRepo = createStorylineRepository(project.id);
+    const defaultStoryline = await storylineRepo.createStoryline({
+      id: uuidv7(),
+      projectId: project.id,
+      name: 'New Storyline',
+      color: randomColor(),
+      summary: '',
+      orderKey: 1,
+      descriptionJson: '{}',
+      createdAt: now,
+      updatedAt: now,
+    });
 
     // Enforce invariant: Project must have at least one 'others' element category
-    await elementCategoryUsecases.createCategory({ projectId: project.id });
+    const categoryRepo = createElementCategoryRepository(project.id);
+    const defaultCategory = await categoryRepo.create({
+      id: uuidv7(),
+      projectId: project.id,
+      name: 'others',
+      descriptionJson: '{}',
+      color: randomColor(),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const dataStore = useDataStore.getState();
+    dataStore.setStorylines([defaultStoryline]);
+    dataStore.setBookElementCategories([defaultCategory]);
 
     return project;
-  }, [repo, user, storylineUsecases, elementCategoryUsecases]);
+  }, [repo, userId, ensureDb]);
 
   const updateProject = useCallback(async (id: string, input: UpdateProjectInput): Promise<Project | null> => {
-    if (user == null) {
-      log.warn("Cannot update project: No authenticated user"); // TODO: handle anonymous user update if needed
+    if (!userId) {
+      log.warn('Cannot update project: No authenticated user');
       return Promise.resolve(null);
     }
+    await ensureDb();
     return await repo.update(id, {
-      userId: user.id,
+      userId,
       name: input.name,
       descriptionJson: input.descriptionJson,
       updatedAt: new Date().toISOString(),
     });
-  }, [repo, user]);
+  }, [repo, userId, ensureDb]);
 
   const deleteProject = useCallback(async (id: string): Promise<boolean> => {
+    await ensureDb();
     return await repo.delete(id);
-  }, [repo, user]);
+  }, [repo, ensureDb]);
 
   return useMemo(() => ({
     loadProjects,
@@ -92,13 +116,11 @@ export function useProject() {
     createProject,
     updateProject,
     deleteProject,
-    initializeProject,
   }), [
     loadProjects,
     loadProject,
     createProject,
     updateProject,
     deleteProject,
-    initializeProject,
   ]);
 }

@@ -1,10 +1,10 @@
 CREATE TABLE `element` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
-	`category_id` text,
+	`category_id` text NOT NULL,
 	`name` text NOT NULL,
-	`summary` text DEFAULT '',
-	`content_json` text DEFAULT '{}',
+	`summary` text DEFAULT '' NOT NULL,
+	`content_json` text DEFAULT '{}' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -14,7 +14,7 @@ CREATE TABLE `element` (
 CREATE TABLE `book_node` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text NOT NULL,
-	`summary` text DEFAULT '',
+	`summary` text DEFAULT '' NOT NULL,
 	`start` integer NOT NULL,
 	`end` integer DEFAULT 0 NOT NULL,
 	`project_id` text NOT NULL,
@@ -74,7 +74,6 @@ CREATE TABLE `element_tag` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
 	`name` text NOT NULL,
-	`color` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade
@@ -143,7 +142,6 @@ CREATE TABLE `node_tag` (
 	`id` text PRIMARY KEY NOT NULL,
 	`project_id` text NOT NULL,
 	`name` text NOT NULL,
-	`color` text,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade
@@ -176,11 +174,12 @@ CREATE UNIQUE INDEX `idx_unique_stage_per_project` ON `story_stages` (`project_i
 CREATE INDEX `idx_story_stage_project` ON `story_stages` (`project_id`);--> statement-breakpoint
 CREATE TABLE `storylines` (
 	`id` text PRIMARY KEY NOT NULL,
+	`project_id` text NOT NULL,
 	`name` text NOT NULL,
 	`color` text NOT NULL,
-	`summary` text DEFAULT '',
-	`description_json` text DEFAULT '{}',
-	`project_id` text NOT NULL,
+	`summary` text DEFAULT '' NOT NULL,
+	`order_key` integer NOT NULL,
+	`description_json` text DEFAULT '{}' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL,
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade

@@ -1,12 +1,9 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { ElementTagTable, ElementTagLinkTable } from '../schema/drizzle';
 import { eq, asc, and, inArray } from 'drizzle-orm';
 import type { ElementTag, ElementTagLink } from '../domain/element-tag';
-import { v7 as uuidv7 } from 'uuid';
 
-type DbClient = ReturnType<typeof getDb>;
-
-function createDbProvider(dbOverride?: DbClient) {
+function createDbProvider(dbOverride?: DbExecutor) {
   return () => dbOverride ?? getDb();
 }
 
@@ -16,7 +13,7 @@ export interface ElementTagRepository {
   findById(id: string): Promise<ElementTag | null>;
   findAll(projectId: string): Promise<ElementTag[]>;
   findByName(projectId: string, name: string): Promise<ElementTag | null>;
-  create(data: Omit<ElementTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<ElementTag>;
+  create(data: ElementTag): Promise<ElementTag>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -36,13 +33,12 @@ function elementTagRecordToDomain(record: typeof ElementTagTable.$inferSelect): 
     id: record.id,
     projectId: record.projectId,
     name: record.name,
-    color: record.color,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
 }
 
-export function createElementTagRepository(dbOverride?: DbClient): ElementTagRepository {
+export function createElementTagRepository(dbOverride?: DbExecutor): ElementTagRepository {
   const dbProvider = createDbProvider(dbOverride);
 
   const findById = async (id: string): Promise<ElementTag | null> => {
@@ -64,16 +60,13 @@ export function createElementTagRepository(dbOverride?: DbClient): ElementTagRep
     return rows[0] ? elementTagRecordToDomain(rows[0]) : null;
   };
 
-  const create = async (data: Omit<ElementTag, 'id' | 'createdAt' | 'updatedAt'>): Promise<ElementTag> => {
-    const now = new Date().toISOString();
-    const id = uuidv7();
+  const create = async (data: ElementTag): Promise<ElementTag> => {
     const newTag: typeof ElementTagTable.$inferInsert = {
-      id,
+      id: data.id,
       projectId: data.projectId,
       name: data.name,
-      color: data.color ?? null,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
     };
 
     await dbProvider().insert(ElementTagTable).values(newTag);
@@ -94,7 +87,7 @@ export function createElementTagRepository(dbOverride?: DbClient): ElementTagRep
   };
 }
 
-export function createElementTagLinkRepository(dbOverride?: DbClient): ElementTagLinkRepository {
+export function createElementTagLinkRepository(dbOverride?: DbExecutor): ElementTagLinkRepository {
   const dbProvider = createDbProvider(dbOverride);
 
   const findTagsByElementId = async (elementId: string): Promise<ElementTag[]> => {
@@ -102,7 +95,6 @@ export function createElementTagLinkRepository(dbOverride?: DbClient): ElementTa
       id: ElementTagTable.id,
       projectId: ElementTagTable.projectId,
       name: ElementTagTable.name,
-      color: ElementTagTable.color,
       createdAt: ElementTagTable.createdAt,
       updatedAt: ElementTagTable.updatedAt,
     })

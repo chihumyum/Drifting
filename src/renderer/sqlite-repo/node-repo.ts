@@ -1,6 +1,6 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, NodeEdgeTable, ProjectTable } from '../schema/drizzle';
-import { eq, asc, and } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 
 import loglevel from 'loglevel';
@@ -8,25 +8,22 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger("BookNodeRepository");
 log.setLevel(loglevel.levels.WARN);
 
-type DbClient = ReturnType<typeof getDb>;
-
-
-
-export type BookNodeUpdateData = Partial<Omit<BookNode, 'id' | 'createdAt'>> & { updatedAt: string};
+export type BookNodeCreateData = Omit<BookNode, 'storylineIds' | 'tagIds'>;
+export type BookNodeUpdateData = Partial<Omit<BookNode, 'id' | 'createdAt' | 'storylineIds' | 'tagIds'>> & { updatedAt: string};
 export type BookNodeEdgeUpdateData = Partial<BookNodeEdge>;
 
 
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
-  findAll(projectId?: string): Promise<BookNode[]>;
-  create(data: BookNode): Promise<BookNode>;
+  findAll(): Promise<BookNode[]>;
+  create(data: BookNodeCreateData): Promise<BookNode>;
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
   swapOrder(first: Pick<BookNode, 'id' | 'start'>, second: Pick<BookNode, 'id' | 'start'>): Promise<void>;
 }
 
 export interface BookNodeEdgeRepository {
-  findAll(projectId?: string): Promise<BookNodeEdge[]>;
+  findAll(): Promise<BookNodeEdge[]>;
   create(input: BookNodeEdge): Promise<BookNodeEdge>;
   update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
   delete(id: string): Promise<boolean>;
@@ -83,7 +80,7 @@ function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge
   };
 }
 
-export function createBookNodeSqliteRepository(currentProject: string, dbOverride?: DbClient): BookNodeRepository {
+export function createBookNodeSqliteRepository(currentProject: string, dbOverride?: DbExecutor): BookNodeRepository {
   const dbProvider = () => dbOverride ?? getDb();
   return {
     async findById(id: string) {
@@ -99,7 +96,7 @@ export function createBookNodeSqliteRepository(currentProject: string, dbOverrid
       return rows.map(toBookNode);
     },
 
-    async create(data: BookNode) {
+    async create(data: BookNodeCreateData) {
       if (!data.projectId || data.projectId !== currentProject) {
         throw new Error(`Cannot create node: projectId mismatch. Expected ${currentProject}, got ${data.projectId}`);
       }
@@ -196,7 +193,7 @@ export function createBookNodeSqliteRepository(currentProject: string, dbOverrid
   };
 }
 
-export function createBookNodeEdgeSqliteRepository(currentProjectId: string, dbOverride?: DbClient): BookNodeEdgeRepository {
+export function createBookNodeEdgeSqliteRepository(currentProjectId: string, dbOverride?: DbExecutor): BookNodeEdgeRepository {
   const dbProvider = () => dbOverride ?? getDb();
   return {
     async findAll() {

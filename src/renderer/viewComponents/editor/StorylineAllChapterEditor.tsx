@@ -6,6 +6,7 @@ log.setLevel(loglevel.levels.ERROR);
 import type { BookNode } from '../../domain/book-node';
 import { useBookContent } from '../../usecase/useBookContent';
 import { ChapterSection } from './ChapterSection';
+import { useAuthStore } from '../../store/auth';
 
 interface StorylineAllChapterProps {
   nodes: BookNode[]; // 已按顺序排列的章节列表
@@ -19,7 +20,10 @@ interface ChapterData {
 }
 
 export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: StorylineAllChapterProps) {
-  const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent();
+  const userId = useAuthStore((state) => state.user?.id);
+  const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent({
+    userId: userId ?? '',
+  });
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);

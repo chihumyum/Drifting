@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
-import { useAuthStore } from '../store/auth.ts';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node.ts';
 import { initDatabase } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from "loglevel";
+import { withOptimisticUpdate } from './optimistic';
 
 const log = loglevel.getLogger("UseBookNode");
 log.setLevel(loglevel.levels.ERROR);
@@ -17,18 +16,22 @@ export interface CreateNodeUsecaseInput {
   mainStorylineId: string;
   start: number;
   end?: number;
+  title?: string;
+  position?: BookNode['position'];
 }
 
-export function useBookNode() {
-  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const { user } = useAuthStore.getState();
-  // repositories are bound to route projectId. do we really need to store projectid here too?
-  const activeProjectId = routeProjectId;
+export interface UseBookNodeContext {
+  projectId: string;
+  userId: string;
+}
+
+export function useBookNode({ projectId, userId }: UseBookNodeContext) {
+  const activeProjectId = projectId;
   if (!activeProjectId) {
-    throw new Error("useBookNode must be used within a project route");
+    throw new Error("useBookNode requires a projectId");
   }
-  if (!user) {
-    throw new Error("useBookNode requires authenticated user");
+  if (!userId) {
+    throw new Error("useBookNode requires a userId");
   }
 
   const nodeRepo = useMemo(() => createBookNodeSqliteRepository(activeProjectId), [activeProjectId]);
@@ -36,11 +39,8 @@ export function useBookNode() {
   const contentRepoRef = useRef(createBookContentRepository());
   const contentRepo = contentRepoRef.current;
   const ensureDb = useCallback(async () => {
-    if (!user) {
-      throw new Error("useBookNode requires authenticated user");
-    }
-    await initDatabase(user.id);
-  }, [user]);
+    await initDatabase(userId);
+  }, [userId]);
 
   const getNodesState = useCallback(() => useDataStore.getState().bookNodes, []);
   const setNodesState = useCallback((nodes: BookNode[]) => useDataStore.getState().setBookNodes(nodes), []);
@@ -49,26 +49,26 @@ export function useBookNode() {
     []);
   const setEdgesState = useCallback((edges: BookNodeEdge[]) => useDataStore.getState().setNodeEdges(edges), []);
 
-  const loadNodes = useCallback(async (options?: { projectId?: string }) => {
+  const loadNodes = useCallback(async () => {
     await ensureDb();
-    log.debug('[loadBookNodes] Loading nodes from database, projectId:', options?.projectId);
-    const nodes = await nodeRepo.findAll(options?.projectId);
+    log.debug('[loadBookNodes] Loading nodes from database');
+    const nodes = await nodeRepo.findAll();
     log.debug('[loadBookNodes] Loaded nodes count:', nodes.length, 'ids:', nodes.map(n => n.id));
     const sorted = nodes.slice().sort((a, b) => a.start - b.start);
     setNodesState(sorted);
     return sorted;
   }, [nodeRepo, ensureDb, setNodesState]);
 
-  const loadEdges = useCallback(async (projectId?: string) => {
+  const loadEdges = useCallback(async () => {
     await ensureDb();
-    const edges = await edgeRepo.findAll(projectId);
+    const edges = await edgeRepo.findAll();
     setEdgesState(edges);
     return edges;
   }, [edgeRepo, ensureDb, setEdgesState]);
 
   const createNode = useCallback(async (input: CreateNodeUsecaseInput) => {
     await ensureDb();
-    const nodes = getNodesState();
+    const prevNodes = getNodesState().slice();
 
     if (!activeProjectId) {
       throw new Error('Project ID is required to create a node');
@@ -78,9 +78,10 @@ export function useBookNode() {
       throw new Error('Main storyline is required to create a node');
     }
 
-    const created = await nodeRepo.create({
+    const now = new Date().toISOString();
+    const newNode: BookNode = {
       id: uuidv7(),
-      title: 'New Node',
+      title: input.title ?? 'New Node',
       projectId: activeProjectId,
       start: input.start,
       end: input.end ?? input.start,
@@ -89,13 +90,13 @@ export function useBookNode() {
       mainStorylineId: input.mainStorylineId,
       storylineIds: [],
       tagIds: [], // create a new node comes with no tags by default
-      position: { // TODO: properly fit the graph node
+      position: input.position ?? { // TODO: properly fit the graph node
         x: (Math.random() - 0.5) * 600,
         y: (Math.random() - 0.5) * 600,
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+      createdAt: now,
+      updatedAt: now,
+    };
 
     // Create default empty content for the new node
     const defaultDocJson = JSON.stringify({
@@ -103,20 +104,33 @@ export function useBookNode() {
       content: [],
     });
 
-    try {
-      await contentRepo.create({
-        nodeId: created.id,
-        contentJson: defaultDocJson,
-      });
-      log.debug('Created default content for new node:', created.id);
-    } catch (error) {
-      log.error('Failed to create default content for new node:', error);
-    }
+    const nextNodes = [...prevNodes, newNode].sort((a, b) => a.start - b.start);
 
-    const nextNodes = [...nodes, created].sort((a, b) => a.start - b.start);
-    setNodesState(nextNodes);
-    return created;
-  }, [nodeRepo, contentRepo, ensureDb, getNodesState, setNodesState]);
+    return withOptimisticUpdate({
+      apply: () => setNodesState(nextNodes),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        const created = await nodeRepo.create(newNode);
+        try {
+          await contentRepo.create({
+            nodeId: created.id,
+            contentJson: defaultDocJson,
+          });
+          log.debug('Created default content for new node:', created.id);
+        } catch (error) {
+          log.error('Failed to create default content for new node:', error);
+        }
+        return created;
+      },
+      onSuccess: (created) => {
+        const current = getNodesState();
+        const merged = current
+          .map((node) => (node.id === created.id ? created : node))
+          .sort((a, b) => a.start - b.start);
+        setNodesState(merged);
+      },
+    });
+  }, [nodeRepo, contentRepo, ensureDb, getNodesState, setNodesState, activeProjectId]);
 
   const renameNode = useCallback(async (id: string, title: string) => {
     await ensureDb();
@@ -124,14 +138,14 @@ export function useBookNode() {
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { title });
-
-    try {
-      await nodeRepo.update(id, { title: title, updatedAt: new Date().toISOString() });
-    } catch (error) {
-      setNodesState(prevNodes);
-      throw error;
-    }
+    const updatedAt = new Date().toISOString();
+    return withOptimisticUpdate({
+      apply: () => updateNodeState(id, { title, updatedAt }),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        await nodeRepo.update(id, { title, updatedAt });
+      },
+    });
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
   const reorderNode = useCallback(async (id: string, direction: 'up' | 'down') => {
@@ -160,31 +174,29 @@ export function useBookNode() {
     }).sort((a, b) => a.start - b.start);
 
     const prev = getNodesState().slice();
-    setNodesState(nextNodes);
 
-    try {
-      await nodeRepo.swapOrder({ id: current.id, start: currentStart }, { id: target.id, start: targetStart });
-    } catch (error) {
-      setNodesState(prev);
-      throw error;
-    }
+    return withOptimisticUpdate({
+      apply: () => setNodesState(nextNodes),
+      rollback: () => setNodesState(prev),
+      effect: () => nodeRepo.swapOrder({ id: current.id, start: currentStart }, { id: target.id, start: targetStart }),
+    });
   }, [nodeRepo, ensureDb, getNodesState, setNodesState]);
 
   const updateNodePosition = useCallback(async (id: string, position: BookNode['position']) => {
     if (!position) return;
     await ensureDb();
-    const prevNodes = getNodesState();
+    const prevNodes = getNodesState().slice();
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { position });
-
-    try {
-      await nodeRepo.update(id, { position, updatedAt: new Date().toISOString() });
-    } catch (error) {
-      setNodesState(prevNodes);
-      throw error;
-    }
+    const updatedAt = new Date().toISOString();
+    return withOptimisticUpdate({
+      apply: () => updateNodeState(id, { position, updatedAt }),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        await nodeRepo.update(id, { position, updatedAt });
+      },
+    });
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
   const updateNodeSummary = useCallback(async (id: string, summary: string) => {
@@ -193,14 +205,14 @@ export function useBookNode() {
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, { summary: summary });
-
-    try {
-      await nodeRepo.update(id, { summary: summary, updatedAt: new Date().toISOString() });
-    } catch (error) {
-      setNodesState(prevNodes);
-      throw error;
-    }
+    const updatedAt = new Date().toISOString();
+    return withOptimisticUpdate({
+      apply: () => updateNodeState(id, { summary, updatedAt }),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        await nodeRepo.update(id, { summary, updatedAt });
+      },
+    });
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
   const updateNode = useCallback(async (id: string, updates: Partial<BookNode>) => {
@@ -209,14 +221,14 @@ export function useBookNode() {
     const existing = prevNodes.find((node) => node.id === id);
     if (!existing) throw new Error(`Book node ${id} not found`);
 
-    updateNodeState(id, updates);
-
-    try {
-      await nodeRepo.update(id, { ...updates, updatedAt: new Date().toISOString() });
-    } catch (error) {
-      setNodesState(prevNodes);
-      throw error;
-    }
+    const updatedAt = new Date().toISOString();
+    return withOptimisticUpdate({
+      apply: () => updateNodeState(id, { ...updates, updatedAt }),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        await nodeRepo.update(id, { ...updates, updatedAt });
+      },
+    });
   }, [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState]);
 
   const deleteNode = useCallback(async (id: string) => {
@@ -228,17 +240,15 @@ export function useBookNode() {
 
     log.debug('[deleteBookNode] Node found, removing from state optimistically');
     const nextNodes = prevNodes.filter((node) => node.id !== id);
-    setNodesState(nextNodes);
-
-    try {
-      log.debug('[deleteBookNode] Calling repository delete');
-      await nodeRepo.delete(id);
-      log.debug('[deleteBookNode] Repository delete successful');
-    } catch (error) {
-      log.error('[deleteBookNode] Repository delete failed, rolling back:', error);
-      setNodesState(prevNodes);
-      throw error;
-    }
+    return withOptimisticUpdate({
+      apply: () => setNodesState(nextNodes),
+      rollback: () => setNodesState(prevNodes),
+      effect: async () => {
+        log.debug('[deleteBookNode] Calling repository delete');
+        await nodeRepo.delete(id);
+        log.debug('[deleteBookNode] Repository delete successful');
+      },
+    });
   }, [nodeRepo, ensureDb, getNodesState, setNodesState]);
 
   const updateEdge = useCallback(async (id: string, updates: Partial<BookNodeEdge>) => {

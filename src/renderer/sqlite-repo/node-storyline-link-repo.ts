@@ -1,9 +1,7 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, NodeStorylineLinkTable, StorylineTable } from '../schema/drizzle';
 import { eq, asc, and, inArray } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
-
-type DbClient = ReturnType<typeof getDb>;
 
 export interface NodeStorylineLinkRepository {
   addNodeToStoryline(nodeId: string, storylineId: string): Promise<void>;
@@ -27,7 +25,7 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
   };
 }
 
-export function createNodeStorylineLinkRepository(projectId: string, dbOverride?: DbClient): NodeStorylineLinkRepository {
+export function createNodeStorylineLinkRepository(projectId: string, dbOverride?: DbExecutor): NodeStorylineLinkRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
   const ensureStorylineInProject = async (storylineId: string): Promise<void> => {

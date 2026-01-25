@@ -1,10 +1,10 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { StorylineTable } from '../schema/drizzle';
 import { eq, asc } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger("StorylineRepository");
-log.setLevel(LogLevel.levels.WARN);
+log.setLevel(LogLevel.levels.DEBUG);
 
 export type UpdateStorylineInput = Partial<Omit<Storyline, 'id' | 'createdAt'>> & { updatedAt: string };
 export interface StorylineRepository {
@@ -32,12 +32,11 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
   };
 }
 
-type DbClient = ReturnType<typeof getDb>;
-
-export function createStorylineRepository(projectId: string, dbOverride?: DbClient): StorylineRepository {
+export function createStorylineRepository(projectId: string, dbOverride?: DbExecutor): StorylineRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
   const createStoryline = async (input: Storyline): Promise<Storyline> => {
+    log.debug("Creating storyline:", input);
     if (input.projectId !== projectId) {
       throw new Error(`Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`);
     }

@@ -38,10 +38,18 @@ export function BottomTimeline() {
   const location = useLocation();
   const user = useAuthStore(state => state.user);
   const { bookNodes, storylines } = useDataStore();
-  const { loadNodes, createNode, updateNode, deleteNode } = useBookNode();
-  const { loadStorylines, addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline, setNodeStorylines } = useStoryline();
-  const { getOutlineByNodeId } = useBookContent();
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
+  const { loadNodes, createNode, updateNode, deleteNode } = useBookNode({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { loadStorylines, addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline, setNodeStorylines } = useStoryline({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { getOutlineByNodeId } = useBookContent({
+    userId: user?.id ?? '',
+  });
 
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
 
@@ -354,10 +362,8 @@ export function BottomTimeline() {
           if (contextMenu.type === 'storyline-empty' && contextMenu.storylineId && contextMenu.position) {
             // 创建新章节
             const newNode = await createNode({
-              projectId: projectId,
               start: contextMenu.position,
               end: contextMenu.position + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
-              storyStageId: '',
               mainStorylineId: contextMenu.storylineId,
               position: { x: 0, y: 0 }, // TODO: calculate position from graphview stuff
             });

@@ -1,31 +1,37 @@
 import { useCallback, useRef, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import type { BookElement } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createElementTagLinkRepository } from '../sqlite-repo/element-tag-repo';
-import loglevel from "loglevel";
-
-const log = loglevel.getLogger("UseBookElement");
-log.setLevel(loglevel.levels.WARN);
+import { initDatabase } from '../lib/db';
+import { withOptimisticUpdate } from './optimistic';
 
 export interface CreateBookElementInput {
     categoryId: string;
 }
 export type UpdateElementUsecaseInput = Partial<Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>>;
 
-export function useBookElement() {
-    // Use route projectId - this is the ONLY source of truth for projectId
-    const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-    if (!routeProjectId) {
-        throw new Error("useBookElement must be used within a project route");
+export interface UseBookElementContext {
+    projectId: string;
+    userId: string;
+}
+
+export function useBookElement({ projectId, userId }: UseBookElementContext) {
+    if (!projectId) {
+        throw new Error("useBookElement requires a projectId");
     }
-    const activeProjectId = routeProjectId;
+    if (!userId) {
+        throw new Error("useBookElement requires a userId");
+    }
+    const activeProjectId = projectId;
 
     const elementRepo = useMemo(() => createBookElementSqliteRepository(activeProjectId), [activeProjectId]);
     const elementTagLinkRepoRef = useRef(createElementTagLinkRepository());
     const elementTagLinkRepo = elementTagLinkRepoRef.current;
+    const ensureDb = useCallback(async () => {
+        await initDatabase(userId);
+    }, [userId]);
 
     const getElements = useCallback(() => useDataStore.getState().bookElements, []);
     const setElements = useCallback((els: BookElement[]) => useDataStore.getState().setBookElements(els), []);
@@ -36,6 +42,7 @@ export function useBookElement() {
         if (projectId && projectId !== activeProjectId) {
             throw new Error('Cannot load elements for different projectId');
         }
+        await ensureDb();
         const elements = await elementRepo.findAll();
         const tagMap = await elementTagLinkRepo.findTagIdsByElementIds(elements.map(el => el.id));
         const hydrated = elements.map(el => ({
@@ -43,26 +50,39 @@ export function useBookElement() {
             tagIds: tagMap[el.id] ?? [],
         }));
         setElements(hydrated);
-    }, [elementRepo, elementTagLinkRepo, setElements, activeProjectId]);
+    }, [elementRepo, elementTagLinkRepo, setElements, activeProjectId, ensureDb]);
 
     const createElement = useCallback(async (input: CreateBookElementInput) => {
-        const persisted = await elementRepo.create({
+        await ensureDb();
+        const prev = getElements().slice();
+        const now = new Date().toISOString();
+        const newElement: BookElement = {
             id: uuidv7(),
             projectId: activeProjectId,
             categoryId: input.categoryId,
             name: 'New Element',
             summary: '',
-            contentJson: '{}', // TODO: fix this 
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        });
-        const prev = getElements();
-        setElements([persisted, ...prev]);
+            contentJson: '{}', // TODO: fix this
+            createdAt: now,
+            updatedAt: now,
+            tagIds: [],
+            stageIds: [],
+        };
 
-        return persisted;
-    }, [elementRepo, getElements, setElements]);
+        return withOptimisticUpdate({
+            apply: () => setElements([newElement, ...prev]),
+            rollback: () => setElements(prev),
+            effect: () => elementRepo.create(newElement),
+            onSuccess: (persisted) => {
+                const current = getElements();
+                const updated = current.map(el => el.id === persisted.id ? { ...persisted, tagIds: newElement.tagIds, stageIds: newElement.stageIds } : el);
+                setElements(updated);
+            },
+        });
+    }, [elementRepo, getElements, setElements, ensureDb, activeProjectId]);
 
     const updateElement = useCallback(async (id: string, updates: UpdateElementUsecaseInput) => {
+        await ensureDb();
         const now = new Date();
         const elements = getElements();
         const existing = elements.find(e => e.id === id);
@@ -80,43 +100,47 @@ export function useBookElement() {
             updatedAt: now.toISOString(),
         };
 
-        setElements(elements.map(el => el.id === id ? updatedElement : el));
-
-        const persisted = await elementRepo.update(id, {
-            categoryId: updatedElement.categoryId,
-            name: updatedElement.name,
-            summary: updatedElement.summary,
-            contentJson: updatedElement.contentJson,
-            updatedAt: updatedElement.updatedAt,
+        return withOptimisticUpdate({
+            apply: () => setElements(elements.map(el => el.id === id ? updatedElement : el)),
+            rollback: () => setElements(elements),
+            effect: async () => {
+                const persisted = await elementRepo.update(id, {
+                    categoryId: updatedElement.categoryId,
+                    name: updatedElement.name,
+                    summary: updatedElement.summary,
+                    contentJson: updatedElement.contentJson,
+                    updatedAt: updatedElement.updatedAt,
+                });
+                if (!persisted) {
+                    throw new Error(`Element with id ${id} not found`);
+                }
+                return persisted;
+            },
+            onSuccess: (persisted) => {
+                const current = getElements();
+                const persistedWithTags = {
+                    ...persisted,
+                    tagIds: updatedElement.tagIds,
+                    stageIds: updatedElement.stageIds,
+                };
+                setElements(current.map(el => el.id === id ? persistedWithTags : el));
+            },
         });
-
-        if (persisted) {
-            const current = getElements();
-            const persistedWithTags = {
-                ...persisted,
-                tagIds: updatedElement.tagIds,
-                stageIds: updatedElement.stageIds,
-            };
-            setElements(current.map(el => el.id === id ? persistedWithTags : el));
-            return persistedWithTags;
-        } else {
-            log.warn(`Failed to persist update for element with id ${id}`);
-        }
-
-        return updatedElement;
-    }, [elementRepo, getElements, setElements]);
+    }, [elementRepo, getElements, setElements, ensureDb]);
 
     const removeElement = useCallback(async (id: string) => {
+        await ensureDb();
         const elements = getElements();
         const existing = elements.find(e => e.id === id);
         if (!existing) throw new Error(`Element with id ${id} not found`);
 
         const filtered = elements.filter(e => e.id !== id);
-        setElements(filtered);
-
-        await elementRepo.delete(id);
-        return true;
-    }, [elementRepo, getElements, setElements]);
+        return withOptimisticUpdate({
+            apply: () => setElements(filtered),
+            rollback: () => setElements(elements),
+            effect: () => elementRepo.delete(id),
+        });
+    }, [elementRepo, getElements, setElements, ensureDb]);
 
     return useMemo(() => ({
         loadInitial,

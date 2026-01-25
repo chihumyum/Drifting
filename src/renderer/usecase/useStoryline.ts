@@ -3,44 +3,49 @@ import type { Storyline } from '../domain/storyline';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
 import { useDataStore } from '../store/data-store';
-import { useAuthStore } from '../store/auth';
-import { useParams } from 'react-router-dom';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
-import loglevel from "loglevel";
 import type { UpdateStorylineInput } from '../services';
+import { initDatabase } from '../lib/db';
+import { withOptimisticUpdate } from './optimistic';
 
-const log = loglevel.getLogger("UseStoryline");
-log.setLevel(loglevel.levels.WARN);
 export type CreateStorylineInput = {
   // since projectId and user are got from store. 
   // maybe we don't need these?
   projectId?: string;
   orderKey?: number;
+  name?: string;
+  color?: string;
+  summary?: string;
+  descriptionJson?: string;
 
 }
 
+export interface UseStorylineContext {
+  projectId: string;
+  userId: string;
+}
 
-
-// TODO: get project & user from store
-export function useStoryline() {
-  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
-  const { user } = useAuthStore.getState();
-  // repositories are bound to route projectId. do we really need to store projectid here too?
-  const activeProjectId = routeProjectId;
+export function useStoryline({ projectId, userId }: UseStorylineContext) {
+  const activeProjectId = projectId;
   if (!activeProjectId) {
-    throw new Error("useStoryline must be used within a project route");
+    throw new Error("useStoryline requires a projectId");
   }
-  if (!user) {
-    throw new Error("useStoryline requires authenticated user");
+  if (!userId) {
+    throw new Error("useStoryline requires a userId");
   }
 
   const repo = useMemo(() => createStorylineRepository(activeProjectId), [activeProjectId]);
   const linkRepo = useMemo(() => createNodeStorylineLinkRepository(activeProjectId), [activeProjectId]);
+  const ensureDb = useCallback(async () => {
+    await initDatabase(userId);
+  }, [userId]);
 
   const setStorylinesState = useCallback((storylines: Storyline[]) => {
     useDataStore.getState().setStorylines(storylines);
   }, []);
+
+  const getStorylinesState = useCallback(() => useDataStore.getState().storylines, []);
 
   const addStorylineState = useCallback((storyline: Storyline) => {
     useDataStore.getState().addStoryline(storyline);
@@ -66,91 +71,160 @@ export function useStoryline() {
     useDataStore.getState().setNodeStorylinesMapping(nodeId, storylineIds);
   }, []);
 
+  const getStorylineNodeMappingState = useCallback(() => useDataStore.getState().storylineNodeMapping, []);
+
+  const setStorylineNodeMappingState = useCallback((mapping: Record<string, string[]>) => {
+    useDataStore.getState().setStorylineNodeMapping(mapping);
+  }, []);
+
+  const cloneStorylineNodeMapping = useCallback((mapping: Record<string, string[]>) => {
+    return Object.fromEntries(
+      Object.entries(mapping).map(([key, value]) => [key, value.slice()])
+    );
+  }, []);
+
   const loadStorylines = useCallback(async (projectId?: string): Promise<Storyline[]> => {
     if (projectId && projectId !== activeProjectId) {
       throw new Error('Cannot load storylines for different projectId');
     }
+    await ensureDb();
     const storylines = await repo.getStorylinesByProject();
     setStorylinesState(storylines);
     return storylines;
-  }, [repo, setStorylinesState, activeProjectId]);
+  }, [repo, setStorylinesState, activeProjectId, ensureDb]);
 
   const createStoryline = useCallback(async (input: CreateStorylineInput): Promise<Storyline> => {
     if (input.projectId && input.projectId !== activeProjectId) {
       throw new Error('Cannot create storyline for different projectId');
     }
+    await ensureDb();
     const existing = await repo.getStorylinesByProject();
     const maxOrder = existing.reduce((max, sl) => Math.max(max, sl.orderKey), 0);
     const orderKey = input.orderKey ?? maxOrder + 1;
-    const newStoryline = {
+    const now = new Date().toISOString();
+    const newStoryline: Storyline = {
       id: uuidv7(),
       projectId: activeProjectId,
-      name: 'New Storyline',
-      color: randomColor(),
-      summary: '',
+      name: input.name ?? 'New Storyline',
+      color: input.color ?? randomColor(),
+      summary: input.summary ?? '',
       orderKey,
-      descriptionJson: '{}',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    const storyline = await repo.createStoryline(newStoryline);
-    addStorylineState(storyline);
-    return storyline;
-  }, [repo, addStorylineState, activeProjectId]);
+      descriptionJson: input.descriptionJson ?? '{}',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const prevStorylines = getStorylinesState().slice();
+    return withOptimisticUpdate({
+      apply: () => addStorylineState(newStoryline),
+      rollback: () => setStorylinesState(prevStorylines),
+      effect: () => repo.createStoryline(newStoryline),
+      onSuccess: (storyline) => {
+        const current = getStorylinesState();
+        setStorylinesState(current.map(sl => (sl.id === storyline.id ? storyline : sl)));
+      },
+    });
+  }, [repo, addStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState]);
 
   const getStorylineById = useCallback(async (id: string): Promise<Storyline | null> => {
+    await ensureDb();
     return repo.getStorylineById(id);
-  }, [repo, activeProjectId]);
+  }, [repo, ensureDb]);
 
   const getStorylinesByProject = useCallback(async (projectId?: string): Promise<Storyline[]> => {
     if (projectId && projectId !== activeProjectId) {
       throw new Error('Cannot get storylines for different projectId');
     }
+    await ensureDb();
     return repo.getStorylinesByProject();
-  }, [repo]);
+  }, [repo, ensureDb, activeProjectId]);
 
   const updateStoryline = useCallback(async (input: UpdateStorylineInput): Promise<Storyline> => {
+    await ensureDb();
     const now = new Date().toISOString();
-    const storyline = await repo.updateStoryline(input.id, {
-      name: input.name,
-      color: input.color,
-      summary: input.summary,
-      orderKey: input.orderKey,
-      descriptionJson: input.pmJson,
+    const prevStorylines = getStorylinesState().slice();
+    const existing = prevStorylines.find(sl => sl.id === input.id) ?? await repo.getStorylineById(input.id);
+    if (!existing) {
+      throw new Error(`Storyline ${input.id} not found`);
+    }
+
+    const updated: Storyline = {
+      ...existing,
+      name: input.name ?? existing.name,
+      color: input.color ?? existing.color,
+      summary: input.summary ?? existing.summary,
+      orderKey: input.orderKey ?? existing.orderKey,
+      descriptionJson: input.pmJson ?? existing.descriptionJson,
       updatedAt: now,
-      projectId: activeProjectId,
+    };
+
+    return withOptimisticUpdate({
+      apply: () => updateStorylineState(input.id, updated),
+      rollback: () => setStorylinesState(prevStorylines),
+      effect: () => repo.updateStoryline(input.id, {
+        name: updated.name,
+        color: updated.color,
+        summary: updated.summary,
+        orderKey: updated.orderKey,
+        descriptionJson: updated.descriptionJson,
+        updatedAt: updated.updatedAt,
+        projectId: activeProjectId,
+      }),
+      onSuccess: (storyline) => {
+        updateStorylineState(storyline.id, storyline);
+      },
     });
-    updateStorylineState(storyline.id, storyline);
-    return storyline;
-  }, [repo, updateStorylineState, activeProjectId]);
+  }, [repo, updateStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState]);
 
   const deleteStoryline = useCallback(async (id: string): Promise<void> => {
-    await repo.deleteStoryline(id);
-    removeStorylineState(id);
-  }, [repo, removeStorylineState]);
+    await ensureDb();
+    const prevStorylines = getStorylinesState().slice();
+    return withOptimisticUpdate({
+      apply: () => removeStorylineState(id),
+      rollback: () => setStorylinesState(prevStorylines),
+      effect: () => repo.deleteStoryline(id),
+    });
+  }, [repo, removeStorylineState, ensureDb, getStorylinesState, setStorylinesState]);
 
   const addNodeToStoryline = useCallback(async (nodeId: string, storylineId: string): Promise<void> => {
-    await linkRepo.addNodeToStoryline(nodeId, storylineId);
-    addNodeToStorylineMappingState(storylineId, nodeId);
-  }, [linkRepo, addNodeToStorylineMappingState]);
+    await ensureDb();
+    const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
+    return withOptimisticUpdate({
+      apply: () => addNodeToStorylineMappingState(storylineId, nodeId),
+      rollback: () => setStorylineNodeMappingState(prevMapping),
+      effect: () => linkRepo.addNodeToStoryline(nodeId, storylineId),
+    });
+  }, [linkRepo, addNodeToStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
 
   const removeNodeFromStoryline = useCallback(async (nodeId: string, storylineId: string): Promise<void> => {
-    await linkRepo.removeNodeFromStoryline(nodeId, storylineId);
-    removeNodeFromStorylineMappingState(storylineId, nodeId);
-  }, [linkRepo, removeNodeFromStorylineMappingState]);
+    await ensureDb();
+    const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
+    return withOptimisticUpdate({
+      apply: () => removeNodeFromStorylineMappingState(storylineId, nodeId),
+      rollback: () => setStorylineNodeMappingState(prevMapping),
+      effect: () => linkRepo.removeNodeFromStoryline(nodeId, storylineId),
+    });
+  }, [linkRepo, removeNodeFromStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
 
   const getStorylinesByNode = useCallback(async (nodeId: string): Promise<Storyline[]> => {
+    await ensureDb();
     return linkRepo.getStorylinesByNode(nodeId);
-  }, [linkRepo]);
+  }, [linkRepo, ensureDb]);
 
   const getNodeIdsByStoryline = useCallback(async (storylineId: string): Promise<string[]> => {
+    await ensureDb();
     return linkRepo.getNodeIdsByStoryline(storylineId);
-  }, [linkRepo]);
+  }, [linkRepo, ensureDb]);
 
   const setNodeStorylines = useCallback(async (nodeId: string, storylineIds: string[]): Promise<void> => {
-    await linkRepo.setNodeStorylines(nodeId, storylineIds);
-    setNodeStorylinesMappingState(nodeId, storylineIds);
-  }, [linkRepo, setNodeStorylinesMappingState]);
+    await ensureDb();
+    const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
+    return withOptimisticUpdate({
+      apply: () => setNodeStorylinesMappingState(nodeId, storylineIds),
+      rollback: () => setStorylineNodeMappingState(prevMapping),
+      effect: () => linkRepo.setNodeStorylines(nodeId, storylineIds),
+    });
+  }, [linkRepo, setNodeStorylinesMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
 
   return useMemo(() => ({
     loadStorylines,

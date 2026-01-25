@@ -44,10 +44,16 @@ export function GraphView() {
     } = useDataStore();
     const { setGraphViewOpen } = useUiStore();
 
-    const nodeUsecases = useBookNode();
-    const storylineUsecases = useStoryline();
     const { user } = useAuthStore();
     const { projectId } = useProjectNavigation();
+    const nodeUsecases = useBookNode({
+        projectId: projectId ?? '',
+        userId: user?.id ?? '',
+    });
+    const storylineUsecases = useStoryline({
+        projectId: projectId ?? '',
+        userId: user?.id ?? '',
+    });
 
     // Local State
     const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, scale: 1 });

@@ -1,38 +1,47 @@
 import { useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { createNodeTagRepository, createNodeTagLinkRepository } from '../sqlite-repo/node-tag-repo';
 import { initDatabase, getDb } from '../lib/db';
 import type { NodeTag } from '../domain/node-tag';
+import { v7 as uuidv7 } from 'uuid';
 
 export interface CreateNodeTagInput {
   projectId?: string;
   name: string;
-  color?: string | null;
 }
 
-export function useNodeTag() {
-  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+export interface UseNodeTagContext {
+  projectId: string;
+  userId: string;
+}
+
+export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
+  const activeProjectId = projectId;
+  if (!activeProjectId) {
+    throw new Error('useNodeTag requires a projectId');
+  }
+  if (!userId) {
+    throw new Error('useNodeTag requires a userId');
+  }
   const tagRepoRef = useRef(createNodeTagRepository());
   const tagLinkRepoRef = useRef(createNodeTagLinkRepository());
   
   const tagRepo = tagRepoRef.current;
   const tagLinkRepo = tagLinkRepoRef.current;
-  type DbClient = ReturnType<typeof getDb>;
 
   const ensureProjectId = useCallback((projectId?: string) => {
-    const pid = projectId ?? routeProjectId;
+    const pid = projectId ?? activeProjectId;
     if (!pid) {
       throw new Error('Project ID is required to load tags');
     }
     return pid;
-  }, [routeProjectId]);
+  }, [activeProjectId]);
 
   const ensureDb = useCallback(async (projectId?: string) => {
     const pid = ensureProjectId(projectId);
-    await initDatabase(pid);
+    await initDatabase(userId);
     return pid;
-  }, [ensureProjectId]);
+  }, [ensureProjectId, userId]);
   
   // Tag CRUD operations
   const loadTags = useCallback(async (projectId?: string) => {
@@ -48,9 +57,11 @@ export function useNodeTag() {
   const createTag = useCallback(async (input: CreateNodeTagInput) => {
     const projectId = await ensureDb(input.projectId);
     return tagRepo.create({
-      projectId,
+      id: uuidv7(),
+      projectId: projectId,
       name: input.name,
-      color: input.color ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
   }, [tagRepo, ensureDb]);
 
@@ -74,8 +85,8 @@ export function useNodeTag() {
     const pid = await ensureDb(projectId);
     const db = getDb();
     await db.transaction(async (tx) => {
-      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createNodeTagLinkRepository(tx as DbClient);
+      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx);
+      const tagLinkRepoTx = createNodeTagLinkRepository(tx);
       const updated = await nodeRepoTx.update(nodeId, { updatedAt: new Date().toISOString() });
       if (!updated) throw new Error(`Node with id ${nodeId} not found`);
       await tagLinkRepoTx.addTagToNode(nodeId, tagId);
@@ -86,8 +97,8 @@ export function useNodeTag() {
     const pid = await ensureDb(projectId);
     const db = getDb();
     await db.transaction(async (tx) => {
-      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createNodeTagLinkRepository(tx as DbClient);
+      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx);
+      const tagLinkRepoTx = createNodeTagLinkRepository(tx);
       const updated = await nodeRepoTx.update(nodeId, { updatedAt: new Date().toISOString() });
       if (!updated) throw new Error(`Node with id ${nodeId} not found`);
       await tagLinkRepoTx.removeTagFromNode(nodeId, tagId);
@@ -98,8 +109,8 @@ export function useNodeTag() {
     const pid = await ensureDb(projectId);
     const db = getDb();
     await db.transaction(async (tx) => {
-      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx as DbClient);
-      const tagLinkRepoTx = createNodeTagLinkRepository(tx as DbClient);
+      const nodeRepoTx = createBookNodeSqliteRepository(pid, tx);
+      const tagLinkRepoTx = createNodeTagLinkRepository(tx);
       const updated = await nodeRepoTx.update(nodeId, { updatedAt: new Date().toISOString() });
       if (!updated) throw new Error(`Node with id ${nodeId} not found`);
       await tagLinkRepoTx.removeAllTagsFromNode(nodeId);
@@ -115,16 +126,18 @@ export function useNodeTag() {
     let createdTag: NodeTag | null = null;
 
     await db.transaction(async (tx) => {
-      const tagRepoTx = createNodeTagRepository(tx as DbClient);
-      const tagLinkRepoTx = createNodeTagLinkRepository(tx as DbClient);
-      const nodeRepoTx = createBookNodeSqliteRepository(projectId, tx as DbClient);
+      const tagRepoTx = createNodeTagRepository(tx);
+      const tagLinkRepoTx = createNodeTagLinkRepository(tx);
+      const nodeRepoTx = createBookNodeSqliteRepository(projectId, tx);
 
       let tag = await tagRepoTx.findByName(projectId, input.name);
       if (!tag) {
         tag = await tagRepoTx.create({
+          id: uuidv7(),
           projectId,
           name: input.name,
-          color: input.color ?? null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
       }
 

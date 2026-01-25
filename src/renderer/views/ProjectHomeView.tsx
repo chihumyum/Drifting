@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../usecase/useProject';
-import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { Project } from '../domain/project';
-import { initDatabase } from '../lib/db';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger("ProjectHomeView");
@@ -13,9 +11,8 @@ log.setLevel(loglevel.levels.DEBUG);
 
 export function ProjectHomeView() {
     const navigate = useNavigate();
-    const { loadProjects, createProject } = useProject();
-    const { createStoryline } = useStoryline();
     const user = useAuthStore((state) => state.user);
+    const { loadProjects, createProject } = useProject({ userId: user?.id ?? '' });
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
@@ -25,8 +22,6 @@ export function ProjectHomeView() {
     useEffect(() => {
         const init = async () => {
             try {
-                // 使用当前登录用户的数据库（只需要 userId，不需要 projectId）
-                await initDatabase(undefined, user?.id);
                 await fetchProjects();
             } catch (e) {
                 log.error("Failed to init projects view", e);
@@ -52,19 +47,9 @@ export function ProjectHomeView() {
             const name = newProjectName.trim() || 'Untitled Project';
             const project = await createProject({
                 projectName: name,
-                author: 'User',
-                description: '',
             });
 
-            // 2. Create Default Storyline
-            await createStoryline({
-                projectId: project.id,
-                name: 'Main Storyline',
-                summary: 'The main storyline of the project.',
-                color: '#FF5733',
-            });
-
-            // 3. Navigate
+            // 2. Navigate
             navigate(`/project/${project.id}`);
         } catch (error) {
             log.error('Failed to create project:', error);
@@ -105,7 +90,7 @@ export function ProjectHomeView() {
                         onClick={() => navigate(`/project/${project.id}`)}
                     >
                         <h3 style={styles.projectName}>{project.name}</h3>
-                        <p style={styles.projectAuthor}>by {project.author}</p>
+                        <p style={styles.projectAuthor}>by {user?.name ?? 'You'}</p>
                         <div style={styles.cardFooter}>
                             <span style={styles.date}>
                                 {project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : ''}

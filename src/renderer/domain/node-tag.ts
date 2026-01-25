@@ -3,7 +3,6 @@ export interface NodeTag {
   id: string;
   projectId: string;
   name: string;
-  color: string | null;
   createdAt: string;
   updatedAt: string;
 }

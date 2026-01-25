@@ -1,7 +1,10 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { ElementCategoryTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
 import type { BookElementCategory } from '../domain/book-element';
+import Loglevel  from 'loglevel';
+const log = Loglevel.getLogger("ElementCategoryRepositorySQLite");
+log.setLevel(Loglevel.levels.DEBUG);
 
 export type ElementCategoryUpdateData = Partial<Omit<BookElementCategory, 'id' | 'createdAt'>> & { updatedAt: string };
 
@@ -20,9 +23,7 @@ function normalizeCategoryName(name?: string): string {
     return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_CATEGORY_NAME;
 }
 
-type DbClient = ReturnType<typeof getDb>;
-
-export function createElementCategoryRepository(projectId: string, dbOverride?: DbClient): ElementCategoryRepository {
+export function createElementCategoryRepository(projectId: string, dbOverride?: DbExecutor): ElementCategoryRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
   const create = async (category: BookElementCategory): Promise<BookElementCategory> => {
@@ -30,6 +31,7 @@ export function createElementCategoryRepository(projectId: string, dbOverride?: 
       throw new Error(`Cannot create category: projectId mismatch. Expected ${projectId}, got ${category.projectId}`);
     }
     category.name = normalizeCategoryName(category.name);
+    log.debug("Creating category:", category);
     await dbProvider().insert(ElementCategoryTable).values(category);
     return category;
   };

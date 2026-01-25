@@ -5,6 +5,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
+import { useAuthStore } from '../../store/auth';
 
 const log = loglevel.getLogger("LeftQuickButtons");
 log.setLevel(loglevel.levels.ERROR);
@@ -24,10 +25,17 @@ const STORYLINE_COLORS = [
 export function LeftQuickButtons() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
-  const { createNode, loadNodes } = useBookNode();
-  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines, getStorylinesByProject } = useStoryline();
+  const { projectId, navigateToNode, navigateToStoryline } = useProjectNavigation();
+  const userId = useAuthStore((state) => state.user?.id);
+  const { createNode, loadNodes } = useBookNode({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines, getStorylinesByProject } = useStoryline({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
   const bookNodes = useDataStore(state => state.bookNodes);
-  const { navigateToNode, navigateToStoryline, projectId } = useProjectNavigation();
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -47,12 +55,6 @@ export function LeftQuickButtons() {
         : 0; // Start from 0 so first node begins at 1
       const newStart = maxEnd + 1;
       const newEnd = newStart + 10; // Default chapter length
-
-      const newNode = await createNode({
-        title: 'New Chapter',
-        start: newStart,
-        end: newEnd,
-      });
 
       // 确定要添加到哪个 storyline
       let defaultStorylineId: string | null = null;
@@ -77,6 +79,18 @@ export function LeftQuickButtons() {
           defaultStorylineId = allStorylines[0].id;
         }
       }
+
+      if (!defaultStorylineId) {
+        const createdStoryline = await createStoryline({ projectId });
+        defaultStorylineId = createdStoryline.id;
+      }
+
+      const newNode = await createNode({
+        title: 'New Chapter',
+        start: newStart,
+        end: newEnd,
+        mainStorylineId: defaultStorylineId,
+      });
 
       // 将新 node 添加到 storyline
       if (defaultStorylineId) {
@@ -206,4 +220,3 @@ export function LeftQuickButtons() {
     </div>
   );
 }
-

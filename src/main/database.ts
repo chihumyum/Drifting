@@ -41,21 +41,6 @@ function initDatabase(dbName: string): void {
     const dbDir = getDbDirectory();
     const dbPath = path.join(dbDir, dbName);
 
-    // [DEV] 强制删除旧数据库，每次重启/重载都重建
-    // 如果需要保留数据，请注释掉下面这段代码
-    if (fs.existsSync(dbPath)) {
-      log.warn('[Database] DEV MODE: Deleting existing database for fresh rebuild');
-      try {
-        fs.unlinkSync(dbPath);
-        const walFile = `${dbPath}-wal`;
-        const shmFile = `${dbPath}-shm`;
-        if (fs.existsSync(walFile)) fs.unlinkSync(walFile);
-        if (fs.existsSync(shmFile)) fs.unlinkSync(shmFile);
-      } catch (err) {
-        log.error('[Database] Failed to delete database files:', err);
-      }
-    }
-
     log.info(`[Database] Opening database: ${dbPath}`);
 
     db = new Database(dbPath);
@@ -63,7 +48,7 @@ function initDatabase(dbName: string): void {
     // Enable WAL mode for better concurrent performance
     db.pragma('journal_mode = WAL');
 
-    // Run migrations
+    // Run migrations to ensure tables exist before queries
     runMigrations();
 
     log.info('[Database(main)] Database initialized successfully');

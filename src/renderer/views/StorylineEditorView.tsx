@@ -24,7 +24,10 @@ export function StorylineEditorView() {
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const { bookNodes, storylines } = useDataStore();
-  const storylineUsecases = useStoryline();
+  const storylineUsecases = useStoryline({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
   const [currentNodes, setCurrentNodes] = useState<BookNode[]>([]);
 

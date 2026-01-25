@@ -167,7 +167,6 @@ export const NodeTagTable = sqliteTable('node_tag', {
     id: text('id').primaryKey(),
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    color: text('color').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 }, (t) => [
@@ -186,7 +185,6 @@ export const ElementTagTable = sqliteTable('element_tag', {
     id: text('id').primaryKey(),
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    color: text('color').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 }, (t) => [

@@ -6,6 +6,7 @@ log.setLevel(loglevel.levels.ERROR);
 import { X, Plus } from 'lucide-react';
 import { useNodeTag } from '../../usecase/useNodeTag';
 import { useElementTag } from '../../usecase/useElementTag';
+import { useAuthStore } from '../../store/auth';
 
 type TagType = 'node' | 'element';
 type TagRecord = {
@@ -22,9 +23,16 @@ interface TagEditorProps {
 /*
   Tag Editor Component used in NodeEditorView and ElementEditorView
 */
-export function TagEditor({ type, entityId, projectId = 'default-project' }: TagEditorProps) {
-  const nodeTagUsecases = useNodeTag();
-  const elementTagUsecases = useElementTag();
+export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
+  const userId = useAuthStore((state) => state.user?.id);
+  const nodeTagUsecases = useNodeTag({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const elementTagUsecases = useElementTag({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
   const [allTags, setAllTags] = useState<TagRecord[]>([]);
   const [entityTags, setEntityTags] = useState<TagRecord[]>([]);
   const [isCreating, setIsCreating] = useState(false);

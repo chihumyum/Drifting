@@ -8,12 +8,14 @@ import TextAlign from '@tiptap/extension-text-align';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
+import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
 import type { BookElementCategory } from '../domain/book-element';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { X, Eye } from 'lucide-react';
 import loglevel from "loglevel";
+import { useAuthStore } from '../store/auth';
 
 const log = loglevel.getLogger("CategoryEditorView");
 log.setLevel(loglevel.levels.ERROR);
@@ -30,9 +32,17 @@ function getDefaultDoc(): JSONContent {
 export function CategoryEditorView() {
   const navigate = useNavigate();
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
-  const { bookElementCategories, bookElements, updateBookElementCategory, removeBookElementCategory } = useDataStore();
+  const userId = useAuthStore((state) => state.user?.id);
+  const { bookElementCategories, bookElements } = useDataStore();
   // TODO: allow delete element from this view
-  const { updateElement, createElement, removeElement } = useBookElement();
+  const { updateElement } = useBookElement({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const categoryUsecases = useElementCategory({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
   const { navigateToHome } = useProjectNavigation();
 
   const [curCategory, setCurCategory] = useState<BookElementCategory | null>(null);
@@ -50,7 +60,7 @@ export function CategoryEditorView() {
       navigateToHome();
       return;
     }
-    const category = bookElementCategories.find(cat => cat.id === categoryId) || null;
+    const category = bookElementCategories.find(cat => cat.id === categoryId || cat.name === categoryId) || null;
     setCurCategory(category);
   }, [bookElementCategories, categoryId, navigateToHome, projectId]);
 
@@ -127,7 +137,7 @@ export function CategoryEditorView() {
   // Save category description
   const handleSaveContent = async (content: string) => {
     if (!curCategory) return;
-    updateBookElementCategory(curCategory.id, {
+    await categoryUsecases.updateCategory(curCategory.id, {
       descriptionJson: content,
     });
   };
@@ -147,7 +157,7 @@ export function CategoryEditorView() {
           await updateElement(element.id, { categoryId: 'others' });
         }
         // Delete the category
-        removeBookElementCategory(curCategory.id);
+        await categoryUsecases.deleteCategory(curCategory.id);
         navigateToHome();
       } catch (error) {
         log.error('Failed to delete category:', error);

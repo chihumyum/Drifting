@@ -3,7 +3,7 @@ import * as schema from '../schema/drizzle';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("DbLib");
-// log.setLevel(loglevel.levels.ERROR);
+// log.setLevel(loglevel.levels.WARN);
 log.setLevel(loglevel.levels.TRACE);
 
 let dbInitialized = false;
@@ -22,11 +22,18 @@ export function getDb() {
   return db;
 }
 
+export type DbClient = ReturnType<typeof getDb>;
+export type DbTransaction = Parameters<Parameters<DbClient['transaction']>[0]>[0];
+export type DbExecutor = DbClient | DbTransaction;
+
 /**
- * Generate the database filename based on userId
+ * Generate the database filename based on userId or return a provided db filename.
  */
-export function getDbName(userId: string): string {
-  return `${userId}_drifting.db`;
+export function getDbName(userIdOrDbName: string): string {
+  if (userIdOrDbName.endsWith('.db')) {
+    return userIdOrDbName;
+  }
+  return `${userIdOrDbName}_drifting.db`;
 }
 
 /**

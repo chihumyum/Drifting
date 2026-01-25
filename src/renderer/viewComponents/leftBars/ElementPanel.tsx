@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore } from '../../store/ui-store';
 import { useBookElement } from '../../usecase/useBookElement';
+import { useElementCategory } from '../../usecase/useElementCategory';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
 import type { BookElement } from '../../domain/book-element';
 import loglevel from "loglevel";
+import { useAuthStore } from '../../store/auth';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 const log = loglevel.getLogger("ElementPanel");
 log.setLevel(loglevel.levels.ERROR);
@@ -29,7 +32,16 @@ export function ElementPanel() {
   const navigate = useNavigate();
   const { bookElements, bookElementCategories } = useDataStore();
   const { selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId, timelineHeight } = useUiStore();
-  const { createElement: create, removeElement: remove, loadInitial, updateElement, createCategory, deleteCategory } = useBookElement();
+  const { projectId } = useProjectNavigation();
+  const userId = useAuthStore((state) => state.user?.id);
+  const { createElement: create, removeElement: remove, loadInitial, updateElement } = useBookElement({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const { createCategory, deleteCategory, loadCategories } = useElementCategory({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
 
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -75,7 +87,7 @@ export function ElementPanel() {
   const handleNewCategory = async () => {
     if (!newCategoryName.trim()) return;
     await createCategory(newCategoryName.trim());
-    await loadInitial();
+    await loadCategories();
     setShowNewCategoryModal(false);
     setNewCategoryName('');
   };
@@ -86,7 +98,7 @@ export function ElementPanel() {
     const tempName = `New Category ${Date.now()}`;
     try {
       await createCategory(tempName);
-      await loadInitial();
+      await loadCategories();
       // Switch to the new category tab and enter edit mode
       setFilterCategory(tempName);
       setEditingCategoryName(tempName);
@@ -157,7 +169,7 @@ export function ElementPanel() {
       await deleteCategory(oldName);
 
       // Reload to get updated data
-      await loadInitial();
+      await loadCategories();
 
       // Update filter if it was set to the old category
       if (filterCategory === oldName) {
@@ -194,7 +206,10 @@ export function ElementPanel() {
     loadInitial().catch(err => {
       log.error('Failed to load book elements', err);
     });
-  }, [loadInitial]);
+    loadCategories().catch(err => {
+      log.error('Failed to load categories', err);
+    });
+  }, [loadInitial, loadCategories]);
 
   return (
     <div style={{

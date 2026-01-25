@@ -26,12 +26,13 @@ interface ChapterEditorProps {
   content: string | null; // pm_json string
   title?: string;
   summary?: string;
+  projectId?: string;
   ref?: Ref<ChapterEditorRef>;
 
   // 内容更新回调
   onContentUpdate: (nodeId: string, pmJson: string, outlineJson: string) => void;
   onTitleUpdate?: (nodeId: string, title: string) => void;
-  onSummaryUpdate?: (nodeId: string, summary: string | null) => void;
+  onSummaryUpdate?: (nodeId: string, summary: string) => void;
   onElementClick?: (elementId: string) => void;
 
   // 显示选项
@@ -59,6 +60,7 @@ export function ChapterEditor({
   content,
   title = '',
   summary = '',
+  projectId,
   ref: forwardedRef,
   onContentUpdate,
   onTitleUpdate,
@@ -302,7 +304,7 @@ export function ChapterEditor({
                 borderLeft: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
               }}
             >
-              <TagEditor type="node" entityId={nodeId} />
+              <TagEditor type="node" entityId={nodeId} projectId={projectId} />
             </div>
           )}
           {/* Summary */}
