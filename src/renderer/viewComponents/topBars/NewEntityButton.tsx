@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -8,9 +8,18 @@ import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
 import { useAuthStore } from '../../store/auth';
+import { useUiStore } from '../../store/ui-store';
 
 const log = loglevel.getLogger("NewEntityButton");
 log.setLevel(loglevel.levels.ERROR);
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 
 // TODO: make this dynamic to create different entity types
 // if we're in storyline editor, get from URL, create new node
@@ -24,7 +33,9 @@ export function NewEntityButton() {
     elementId?: string;
     categoryId?: string;
   }>();
+  const location = useLocation();
   const { navigateToNode, navigateToElement, projectId } = useProjectNavigation();
+  const setSelectedElementId = useUiStore((state) => state.setSelectedElementId);
   const userId = useAuthStore((state) => state.user?.id);
   const { createNode, loadNodes, updateNode } = useBookNode({
     projectId: projectId ?? '',
@@ -43,7 +54,9 @@ export function NewEntityButton() {
     userId: userId ?? '',
   });
   const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStore();
-  const isElementContext = Boolean(elementId || categoryId);
+  const isAllElementsMode = location.pathname.includes('/home/all-elements') || location.pathname.includes('/editor/all-elements');
+  const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
+  const isElementContext = Boolean(elementId || categoryId || isAllElementsMode);
   const buttonLabel = isElementContext ? 'Element' : 'Chapter';
 
   const handleCreateChapter = async () => {
@@ -74,50 +87,56 @@ export function NewEntityButton() {
 
       // Calculate insertion position
       let newStart = 1;
-      let newEnd = 11; // Default length of 10 units
       const newLength = 10;
-
-      // If in storyline editor, always insert at the end of current storyline
-      // regardless of selectedNodeId
-      if (defaultStorylineId) {
-        const storylineNodes = currentNodes
-          .filter((node) => node.mainStorylineId === defaultStorylineId)
-          .sort((a, b) => a.start - b.start);
-
-        if (storylineNodes.length > 0) {
-          const lastNode = storylineNodes[storylineNodes.length - 1];
-          const lastEnd = Math.max(lastNode.end ?? 0, lastNode.start);
-          newStart = lastEnd + 1;
-          newEnd = newStart + newLength;
-        }
-
-        // Find first overlapping node
-        const firstOverlap = storylineNodes.find((node) => {
-          const nodeStart = node.start;
-          const nodeEnd = Math.max(node.end ?? 0, node.start);
-          return nodeStart < newEnd && nodeEnd >= newStart;
-        });
-
-        if (firstOverlap) {
-          // Shift amount is the length of the new chapter
-          const shiftAmount = newEnd - newStart;
-
-          // Shift all nodes from the first overlap onwards
-          const nodesToShift = storylineNodes.filter((node) => node.start >= firstOverlap.start);
-
-          for (const node of nodesToShift) {
-            const nodeEnd = Math.max(node.end ?? 0, node.start);
-            await updateNode(node.id, {
-              start: node.start + shiftAmount,
-              end: nodeEnd + shiftAmount,
-            });
-          }
-        }
-      }
 
       if (!defaultStorylineId) {
         const createdStoryline = await createStoryline({ projectId });
         defaultStorylineId = createdStoryline.id;
+      }
+
+      const storylineNodes = currentNodes
+        .filter((node) => node.mainStorylineId === defaultStorylineId)
+        .sort((a, b) => a.start - b.start);
+
+      const isNodeEditorContext = Boolean(nodeId && !storylineId);
+      if (isNodeEditorContext && nodeId) {
+        const currentNode = storylineNodes.find((node) => node.id === nodeId);
+        if (currentNode) {
+          const currentEnd = Math.max(currentNode.end ?? currentNode.start, currentNode.start);
+          newStart = currentEnd + 1;
+        } else if (storylineNodes.length > 0) {
+          const lastNode = storylineNodes[storylineNodes.length - 1];
+          const lastEnd = Math.max(lastNode.end ?? lastNode.start, lastNode.start);
+          newStart = lastEnd + 1;
+        }
+      } else if (storylineNodes.length > 0) {
+        const lastNode = storylineNodes[storylineNodes.length - 1];
+        const lastEnd = Math.max(lastNode.end ?? lastNode.start, lastNode.start);
+        newStart = lastEnd + 1;
+      }
+
+      const newEnd = newStart + newLength;
+
+      // Keep insertion stable by pushing overlapping chapters to the right.
+      const firstOverlap = storylineNodes.find((node) => {
+        if (nodeId && node.id === nodeId) return false;
+        const nodeStart = node.start;
+        const nodeEnd = Math.max(node.end ?? node.start, node.start);
+        return nodeStart < newEnd && nodeEnd >= newStart;
+      });
+
+      if (firstOverlap) {
+        const shiftAmount = newLength;
+        const nodesToShift = storylineNodes
+          .filter((node) => node.id !== nodeId && node.start >= firstOverlap.start);
+
+        for (const node of nodesToShift) {
+          const nodeEnd = Math.max(node.end ?? node.start, node.start);
+          await updateNode(node.id, {
+            start: node.start + shiftAmount,
+            end: nodeEnd + shiftAmount,
+          });
+        }
       }
 
       // Create the new node
@@ -157,10 +176,14 @@ export function NewEntityButton() {
       let targetCategoryId: string | null = null;
 
       if (categoryId) {
-        const match = bookElementCategories.find(
-          (cat) => cat.id === categoryId || cat.name === categoryId
+        const normalizedCategoryId = decodedCategoryId ?? categoryId;
+        const match = bookElementCategories.find((cat) =>
+          cat.id === categoryId ||
+          cat.id === normalizedCategoryId ||
+          cat.name === categoryId ||
+          cat.name === normalizedCategoryId
         );
-        targetCategoryId = match?.id ?? null;
+        targetCategoryId = normalizedCategoryId ?? match?.id ?? match?.name ?? null;
       }
 
       if (!targetCategoryId && elementId) {
@@ -188,6 +211,7 @@ export function NewEntityButton() {
       }
 
       const newElement = await createElement({ categoryId: targetCategoryId });
+      setSelectedElementId(newElement.id);
       navigateToElement(newElement.id);
     } catch (error) {
       log.error('Failed to create element:', error);
@@ -211,6 +235,7 @@ export function NewEntityButton() {
         fontWeight: 500,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
+        WebkitAppRegion: 'no-drag',
       }}
       onMouseEnter={e => {
         e.currentTarget.style.background = 'rgba(184, 153, 104, 0.2)';

@@ -5,6 +5,7 @@ import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
 import { AllNodesEditorView } from './views/AllNodesEditorView';
+import { AllElementsEditorView } from './views/AllElementsEditorView';
 import { GraphView } from './views/GraphView';
 import { LoginPage } from './views/LoginPage';
 import { RegisterPage } from './views/RegisterPage';
@@ -60,6 +61,7 @@ function Layout() {
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const isEditorRoute = location.pathname.includes('/editor');
+  const isProjectDashboardHome = Boolean(projectId && location.pathname === `/project/${projectId}/home`);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
@@ -162,7 +164,7 @@ function Layout() {
       }}
     >
       {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
-      <AppTopbar />
+      {!isProjectDashboardHome && <AppTopbar />}
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -259,8 +261,11 @@ export default function App() {
       }>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<ProjectDashboard />} />
+        <Route path="home/all-nodes" element={<AllNodesEditorView />} />
+        <Route path="home/all-elements" element={<AllElementsEditorView />} />
         <Route path="editor" element={<Navigate to="../home" replace />} />
-        <Route path="editor/all-nodes" element={<AllNodesEditorView />} />
+        <Route path="editor/all-nodes" element={<Navigate to="../home/all-nodes" replace />} />
+        <Route path="editor/all-elements" element={<Navigate to="../home/all-elements" replace />} />
         <Route path="editor/:nodeId" element={<NodeEditorView />} />
         <Route path="editor/storyline/:storylineId" element={<StorylineEditorView />} />
         <Route path="element/:elementId" element={<ElementEditorView />} />

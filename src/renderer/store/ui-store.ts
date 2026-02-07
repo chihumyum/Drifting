@@ -21,6 +21,8 @@ interface UiState {
 
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
+  selectedNodeId: string | null;
+  setSelectedNodeId: (id: string | null) => void;
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
 
@@ -89,6 +91,8 @@ export const useUiStore = create<UiState>()(
 
       selectedElementId: null,
       setSelectedElementId: (id) => set({ selectedElementId: id }),
+      selectedNodeId: null,
+      setSelectedNodeId: (id) => set({ selectedNodeId: id }),
       timelineHeight: 200,
       setTimelineHeight: (height) => set({ timelineHeight: height }),
 

@@ -1,22 +1,39 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
 import { useStoryline } from '../../usecase/useStoryline';
+import { useElementCategory } from '../../usecase/useElementCategory';
+import { useNodeTag } from '../../usecase/useNodeTag';
+import { useElementTag } from '../../usecase/useElementTag';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { Storyline } from '../../domain/storyline';
 import type { BookNode } from '../../domain/book-node';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
+import type { NodeTag } from '../../domain/node-tag';
+import type { ElementTag } from '../../domain/element-tag';
 import { useAuthStore } from '../../store/auth';
+import { useUiStore } from '../../store/ui-store';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("TopTimeline");
-log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.WARN);
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 
 /* A flexible component for showing all types of stuff in safari compact tab style
-  storyline -> nodes 
-  element category -> elements
-  both with additional tag filters
+  when in node editor or storyline editor: show nodes whose primary storyline is the current storyline
+    - new entity button creates a new node in the current storyline, after current node if in node editor, at the end if in storyline editor
+  when in element editor or category editor: show elements in the current category
+    - new entity button creates a new element in the current category
+  when in all-nodes view: show all nodes in current project
+  when in all-elements view: show elements in all categories in current project
+  icon dropdown always shows full controls: storylines, categories, chapter tags filter, element tags filter
 */
 
 export function TopTimeline() {
@@ -31,9 +48,25 @@ export function TopTimeline() {
   const storylines = useDataStore(state => state.storylines);
   const bookElements = useDataStore(state => state.bookElements);
   const bookElementCategories = useDataStore(state => state.bookElementCategories);
+  const selectedNodeId = useUiStore((state) => state.selectedNodeId);
+  const setSelectedNodeId = useUiStore((state) => state.setSelectedNodeId);
+  const selectedElementId = useUiStore((state) => state.selectedElementId);
+  const setSelectedElementId = useUiStore((state) => state.setSelectedElementId);
   const user = useAuthStore(state => state.user);
-  const { projectId, navigateToStoryline, navigateToNode, navigateToElement, navigateToCategory } = useProjectNavigation();
-  const { getStorylineById, getNodeIdsByStoryline, createStoryline, loadStorylines } = useStoryline({
+  const { projectId, navigateToStoryline, navigateToNode, navigateToElement, navigateToCategory, navigateTo } = useProjectNavigation();
+  const { getStorylineById, createStoryline, loadStorylines } = useStoryline({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { loadCategories, createCategory } = useElementCategory({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { loadTags: loadNodeTags, createTag: createNodeTag, getNodesWithTag } = useNodeTag({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { loadTags: loadElementTags, createTag: createElementTag, getElementsWithTag } = useElementTag({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -42,6 +75,13 @@ export function TopTimeline() {
   const [storylineNodes, setStorylineNodes] = useState<BookNode[]>([]);
   const [currentCategory, setCurrentCategory] = useState<BookElementCategory | null>(null);
   const [categoryElements, setCategoryElements] = useState<BookElement[]>([]);
+  const [allCategories, setAllCategories] = useState<BookElementCategory[]>([]);
+  const [allNodeTags, setAllNodeTags] = useState<NodeTag[]>([]);
+  const [allElementTags, setAllElementTags] = useState<ElementTag[]>([]);
+  const [selectedNodeTagIds, setSelectedNodeTagIds] = useState<string[]>([]);
+  const [selectedElementTagIds, setSelectedElementTagIds] = useState<string[]>([]);
+  const [filteredNodeIdSet, setFilteredNodeIdSet] = useState<Set<string> | null>(null);
+  const [filteredElementIdSet, setFilteredElementIdSet] = useState<Set<string> | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -58,15 +98,25 @@ export function TopTimeline() {
 
   const isElementMode = Boolean(categoryId || elementId);
   const isStorylineMode = Boolean(storylineId || nodeId);
-  const isAllNodesMode = !isStorylineMode && !isElementMode && location.pathname.includes('/editor');
+  const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
+  const isAllNodesMode = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
+  const isAllElementsMode = location.pathname.includes('/home/all-elements') || location.pathname.includes('/editor/all-elements');
+  const isNodeTimelineMode = isStorylineMode || isAllNodesMode;
+  const isElementTimelineMode = isElementMode || isAllElementsMode;
+  const shouldShowTimeline = isNodeTimelineMode || isElementTimelineMode;
+  const canShowHeaderDropdown = shouldShowTimeline;
+  const isNodeTagFilterEnabled = isNodeTimelineMode;
+  const isElementTagFilterEnabled = isElementTimelineMode;
 
   // Load current node's primary storyline and all chapters in that storyline
   useEffect(() => {
     async function loadStorylineData() {
       try {
-        if (isElementMode || isAllNodesMode || !isStorylineMode) {
-          setCurrentStoryline(null);
-          setStorylineNodes([]);
+        if (!isStorylineMode) {
+          if (!isAllNodesMode) {
+            setCurrentStoryline(null);
+            setStorylineNodes([]);
+          }
           return;
         }
 
@@ -95,12 +145,9 @@ export function TopTimeline() {
           setCurrentStoryline(targetStoryline);
           const targetStorylineId = targetStoryline.id;
 
-          const nodeIdsInStoryline = await getNodeIdsByStoryline(targetStorylineId);
-          const nodeIdSet = new Set(nodeIdsInStoryline);
-
-          // Filter nodes that belong to the storyline (or are main storyline as a fallback) and sort by start position
+          // Show only nodes whose primary storyline is the current storyline.
           const nodesInStoryline = bookNodes
-            .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === targetStorylineId)
+            .filter(n => n.mainStorylineId === targetStorylineId)
             .sort((a, b) => a.start - b.start);
 
           setStorylineNodes(nodesInStoryline);
@@ -114,7 +161,7 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById, getNodeIdsByStoryline, loadStorylines, projectId]);
+  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById, loadStorylines, projectId]);
 
   useEffect(() => {
     if (!isElementMode) {
@@ -125,8 +172,14 @@ export function TopTimeline() {
     let targetCategoryId: string | null = null;
 
     if (categoryId) {
-      targetCategory = bookElementCategories.find(cat => cat.id === categoryId || cat.name === categoryId) ?? null;
-      targetCategoryId = targetCategory?.id ?? categoryId;
+      targetCategory = bookElementCategories.find(
+        cat =>
+          cat.id === categoryId ||
+          cat.id === decodedCategoryId ||
+          cat.name === categoryId ||
+          cat.name === decodedCategoryId
+      ) ?? null;
+      targetCategoryId = targetCategory?.id ?? decodedCategoryId ?? categoryId;
     }
 
     if (!targetCategoryId && elementId) {
@@ -139,15 +192,22 @@ export function TopTimeline() {
       }
     }
 
-    const elementsInCategory = targetCategoryId
+    const categoryKeys = new Set<string>();
+    if (categoryId) categoryKeys.add(categoryId);
+    if (decodedCategoryId) categoryKeys.add(decodedCategoryId);
+    if (targetCategoryId) categoryKeys.add(targetCategoryId);
+    if (targetCategory?.id) categoryKeys.add(targetCategory.id);
+    if (targetCategory?.name) categoryKeys.add(targetCategory.name);
+
+    const elementsInCategory = categoryKeys.size > 0
       ? bookElements
-        .filter(el => el.categoryId === targetCategoryId || el.categoryId === targetCategory?.name)
+        .filter(el => categoryKeys.has(el.categoryId))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       : [];
 
     setCurrentCategory(targetCategory);
     setCategoryElements(elementsInCategory);
-  }, [isElementMode, categoryId, elementId, bookElements, bookElementCategories]);
+  }, [isElementMode, categoryId, decodedCategoryId, elementId, bookElements, bookElementCategories]);
 
   useEffect(() => {
     if (!isAllNodesMode) {
@@ -160,27 +220,47 @@ export function TopTimeline() {
     setStorylineNodes(sorted);
   }, [isAllNodesMode, bookNodes]);
 
-  // Load all stuff for dropdown
   useEffect(() => {
-    async function loadAllStorylines() {
+    if (!isAllElementsMode) {
+      return;
+    }
+    setCurrentStoryline(null);
+    setCurrentCategory(null);
+    const sortedElements = bookElements
+      .slice()
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    setCategoryElements(sortedElements);
+  }, [isAllElementsMode, bookElements]);
+
+  // Load full data for icon dropdown
+  useEffect(() => {
+    async function loadDropdownData() {
       try {
-        const lines = await loadStorylines(projectId);
+        const [lines, categories, nodeTags, elementTags] = await Promise.all([
+          loadStorylines(projectId),
+          loadCategories(projectId),
+          loadNodeTags(projectId),
+          loadElementTags(projectId),
+        ]);
         setAllStorylines(lines);
+        setAllCategories(categories);
+        setAllNodeTags(nodeTags);
+        setAllElementTags(elementTags);
       } catch (error) {
-        log.error('Failed to load all storylines:', error);
+        log.error('Failed to load dropdown data:', error);
       }
     }
-    if (!isElementMode && !isAllNodesMode && showStorylineDropdown) {
-      loadAllStorylines();
+    if (showStorylineDropdown) {
+      void loadDropdownData();
     }
-  }, [projectId, loadStorylines, showStorylineDropdown, isElementMode, isAllNodesMode]);
+  }, [projectId, loadStorylines, loadCategories, loadNodeTags, loadElementTags, showStorylineDropdown]);
 
   useEffect(() => {
-    if ((isElementMode || isAllNodesMode) && showStorylineDropdown) {
+    if (!canShowHeaderDropdown && showStorylineDropdown) {
       setShowStorylineDropdown(false);
       setStorylineDropdownPosition(null);
     }
-  }, [isElementMode, isAllNodesMode, showStorylineDropdown]);
+  }, [canShowHeaderDropdown, showStorylineDropdown]);
 
   useEffect(() => {
     if (isElementMode && hoveredNodeId) {
@@ -188,6 +268,124 @@ export function TopTimeline() {
       setHoverPosition(null);
     }
   }, [isElementMode, hoveredNodeId]);
+
+  useEffect(() => {
+    if (nodeId) {
+      setSelectedNodeId(nodeId);
+    }
+  }, [nodeId, setSelectedNodeId]);
+
+  useEffect(() => {
+    if (elementId) {
+      setSelectedElementId(elementId);
+    }
+  }, [elementId, setSelectedElementId]);
+
+  useEffect(() => {
+    if (!isNodeTagFilterEnabled) {
+      setFilteredNodeIdSet(null);
+      return;
+    }
+    if (selectedNodeTagIds.length === 0) {
+      setFilteredNodeIdSet(null);
+      return;
+    }
+
+    let cancelled = false;
+    async function applyNodeTagFilter() {
+      try {
+        const nodeIdGroups = await Promise.all(
+          selectedNodeTagIds.map(tagId => getNodesWithTag(tagId, projectId))
+        );
+        if (cancelled) return;
+
+        if (nodeIdGroups.length === 0) {
+          setFilteredNodeIdSet(null);
+          return;
+        }
+
+        const [firstGroup, ...restGroups] = nodeIdGroups;
+        const intersection = firstGroup.filter(nodeId =>
+          restGroups.every(group => group.includes(nodeId))
+        );
+        setFilteredNodeIdSet(new Set(intersection));
+      } catch (error) {
+        log.error('Failed to apply node tag filter:', error);
+      }
+    }
+
+    void applyNodeTagFilter();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNodeTagIds, getNodesWithTag, projectId, isNodeTagFilterEnabled]);
+
+  useEffect(() => {
+    if (!isElementTagFilterEnabled) {
+      setFilteredElementIdSet(null);
+      return;
+    }
+    if (selectedElementTagIds.length === 0) {
+      setFilteredElementIdSet(null);
+      return;
+    }
+
+    let cancelled = false;
+    async function applyElementTagFilter() {
+      try {
+        const elementIdGroups = await Promise.all(
+          selectedElementTagIds.map(tagId => getElementsWithTag(tagId, projectId))
+        );
+        if (cancelled) return;
+
+        if (elementIdGroups.length === 0) {
+          setFilteredElementIdSet(null);
+          return;
+        }
+
+        const [firstGroup, ...restGroups] = elementIdGroups;
+        const intersection = firstGroup.filter(elementId =>
+          restGroups.every(group => group.includes(elementId))
+        );
+        setFilteredElementIdSet(new Set(intersection));
+      } catch (error) {
+        log.error('Failed to apply element tag filter:', error);
+      }
+    }
+
+    void applyElementTagFilter();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedElementTagIds, getElementsWithTag, projectId, isElementTagFilterEnabled]);
+
+  useEffect(() => {
+    if (isNodeTagFilterEnabled) {
+      if (selectedElementTagIds.length > 0) {
+        setSelectedElementTagIds([]);
+      }
+      if (filteredElementIdSet) {
+        setFilteredElementIdSet(null);
+      }
+      return;
+    }
+
+    if (isElementTagFilterEnabled) {
+      if (selectedNodeTagIds.length > 0) {
+        setSelectedNodeTagIds([]);
+      }
+      if (filteredNodeIdSet) {
+        setFilteredNodeIdSet(null);
+      }
+    }
+  }, [
+    isNodeTagFilterEnabled,
+    isElementTagFilterEnabled,
+    selectedElementTagIds.length,
+    selectedNodeTagIds.length,
+    filteredElementIdSet,
+    filteredNodeIdSet,
+  ]);
 
   // Monitor container width
   useEffect(() => {
@@ -238,15 +436,29 @@ export function TopTimeline() {
         });
       }
     }
-  }, [nodeId, elementId, storylineNodes, categoryElements]);
+  }, [nodeId, elementId, selectedNodeId, selectedElementId, storylineNodes, categoryElements]);
 
-  if (!isStorylineMode && !isElementMode && !isAllNodesMode) {
+  if (!shouldShowTimeline) {
     return null;
   }
 
+  const nodeItemsSource = isAllNodesMode
+    ? bookNodes.slice().sort((a, b) => a.start - b.start)
+    : storylineNodes;
+
+  const filteredNodeItems = filteredNodeIdSet
+    ? nodeItemsSource.filter(node => filteredNodeIdSet.has(node.id))
+    : nodeItemsSource;
+
+  const filteredElementItems = filteredElementIdSet
+    ? categoryElements.filter(element => filteredElementIdSet.has(element.id))
+    : categoryElements;
+
   // Calculate dynamic widths based on available space
-  const timelineItems: Array<BookNode | BookElement> = isElementMode ? categoryElements : storylineNodes;
-  const selectedItemId = isElementMode ? elementId : nodeId;
+  const timelineItems: Array<BookNode | BookElement> = isElementTimelineMode ? filteredElementItems : filteredNodeItems;
+  const selectedItemId = isElementTimelineMode
+    ? (isAllElementsMode ? selectedElementId : elementId)
+    : (isAllNodesMode ? selectedNodeId : nodeId);
   const selectedIndex = timelineItems.findIndex(item => item.id === selectedItemId);
   const hasSelected = selectedIndex !== -1;
 
@@ -346,13 +558,13 @@ export function TopTimeline() {
   };
 
   const handleHeaderClick = () => {
+    if (isAllElementsMode || isAllNodesMode) {
+      return;
+    }
     if (isElementMode) {
       if (currentCategory) {
         navigateToCategory(currentCategory.id);
       }
-      return;
-    }
-    if (isAllNodesMode) {
       return;
     }
     if (currentStoryline) {
@@ -382,9 +594,17 @@ export function TopTimeline() {
 
   const handleItemClick = (item: BookNode | BookElement) => {
     if ('title' in item) {
+      setSelectedNodeId(item.id);
+      if (isAllNodesMode) {
+        return;
+      }
       if (location.pathname !== `/project/${projectId}/editor/${item.id}`) {
         navigateToNode(item.id);
       }
+      return;
+    }
+    setSelectedElementId(item.id);
+    if (isAllElementsMode) {
       return;
     }
     if (location.pathname !== `/project/${projectId}/element/${item.id}`) {
@@ -404,6 +624,110 @@ export function TopTimeline() {
   const handleMouseLeave = () => {
     setHoveredNodeId(null);
     setHoverPosition(null);
+  };
+
+  const toggleNodeTagFilter = (tagId: string) => {
+    setSelectedNodeTagIds(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const toggleElementTagFilter = (tagId: string) => {
+    setSelectedElementTagIds(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const handleCreateStorylineFromDropdown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const STORYLINE_COLORS = [
+        '#b89968', '#8b7355', '#946b54', '#bc6c25', '#a0522d',
+        '#6b9080', '#588157', '#a3b18a', '#4a7c59', '#6d9773',
+        '#7a9e9f', '#5b8a8f', '#4682b4', '#5f9ea0', '#4a7c8c',
+        '#9b7e9b', '#8b7b9b', '#a98d9b', '#9a7e9e', '#b19cd9',
+        '#c17c5c', '#d4956c', '#b8805f', '#cf8d6f', '#a67c52',
+        '#7d8491', '#8b939e', '#6d7684', '#858c99', '#75808a',
+      ];
+
+      const currentStorylines = await loadStorylines(projectId);
+      const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
+      const unusedColors = STORYLINE_COLORS.filter(c => !usedColors.has(c.toLowerCase()));
+      const selectedColor = unusedColors.length > 0
+        ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
+        : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
+
+      await createStoryline({
+        projectId,
+        name: 'New Storyline',
+        color: selectedColor,
+        summary: '',
+      });
+
+      const refreshed = await loadStorylines(projectId);
+      setAllStorylines(refreshed);
+    } catch (error) {
+      log.error('Failed to create storyline:', error);
+    }
+  };
+
+  const handleCreateCategoryFromDropdown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const created = await createCategory({
+        projectId,
+        name: `New Category ${allCategories.length + 1}`,
+      });
+      const refreshed = await loadCategories(projectId);
+      setAllCategories(refreshed);
+      if (!currentCategory && !isAllElementsMode) {
+        navigateToCategory(created.id);
+      }
+    } catch (error) {
+      log.error('Failed to create category:', error);
+    }
+  };
+
+  const handleCreateNodeTagFromDropdown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await createNodeTag({
+        projectId,
+        name: `Chapter Tag ${allNodeTags.length + 1}`,
+      });
+      const refreshed = await loadNodeTags(projectId);
+      setAllNodeTags(refreshed);
+    } catch (error) {
+      log.error('Failed to create chapter tag:', error);
+    }
+  };
+
+  const handleCreateElementTagFromDropdown = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await createElementTag({
+        projectId,
+        name: `Element Tag ${allElementTags.length + 1}`,
+      });
+      const refreshed = await loadElementTags(projectId);
+      setAllElementTags(refreshed);
+    } catch (error) {
+      log.error('Failed to create element tag:', error);
+    }
+  };
+
+  const handleNavigateToAllNodesEditor = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigateTo('home/all-nodes');
+    setShowStorylineDropdown(false);
+    setStorylineDropdownPosition(null);
+  };
+
+  const handleNavigateToAllElementsEditor = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigateTo('home/all-elements');
+    setShowStorylineDropdown(false);
+    setStorylineDropdownPosition(null);
   };
 
   return (
@@ -426,12 +750,14 @@ export function TopTimeline() {
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 7,
-              background: isElementMode
+              background: isAllElementsMode
+                ? '#5d8aa8'
+                : isElementMode
                 ? (currentCategory?.color || '#b89968')
                 : isAllNodesMode
                   ? '#8b7355'
                   : (currentStoryline?.color || '#b89968'),
-              cursor: isElementMode ? (currentCategory ? 'pointer' : 'default') : (isAllNodesMode ? 'default' : 'pointer'),
+              cursor: canShowHeaderDropdown || (isElementMode && Boolean(currentCategory)) ? 'pointer' : 'default',
               fontSize: 14,
               fontWeight: 600,
               color: '#fff',
@@ -442,22 +768,26 @@ export function TopTimeline() {
             onMouseEnter={e => {
               e.currentTarget.style.transform = 'scale(1.05)';
               e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-              if (!isElementMode && !isAllNodesMode) {
+              if (canShowHeaderDropdown) {
                 handleShowDropdown(e);
               }
             }}
             onMouseLeave={e => {
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              if (!isElementMode && !isAllNodesMode) {
+              if (canShowHeaderDropdown) {
                 handleHideDropdown();
               }
             }}
-            title={isElementMode
+            title={isAllElementsMode
+              ? 'All Elements'
+              : isElementMode
               ? (currentCategory?.name || 'Category')
               : (isAllNodesMode ? 'All Nodes' : (currentStoryline?.name || 'Storyline'))}
           >
-            {isElementMode
+            {isAllElementsMode
+              ? 'E'
+              : isElementMode
               ? (currentCategory?.name ? currentCategory.name.charAt(0).toUpperCase() : '?')
               : (isAllNodesMode ? 'A' : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'))}
           </div>
@@ -548,44 +878,46 @@ export function TopTimeline() {
         </div>
       </div >
 
-      {/* Storyline Dropdown */}
-      {
-        !isElementMode && !isAllNodesMode && showStorylineDropdown && storylineDropdownPosition && (
+      {/* Header Dropdown */}
+      {showStorylineDropdown && storylineDropdownPosition && (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            left: Math.max(12, Math.min(storylineDropdownPosition.x, window.innerWidth - 980)),
+            top: storylineDropdownPosition.y,
+            width: 'min(960px, calc(100vw - 24px))',
+            maxHeight: '70vh',
+            background: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            padding: 12,
+            zIndex: 10000,
+            overflow: 'auto',
+          }}
+          onMouseEnter={() => {
+            if (hideDropdownTimeoutRef.current) {
+              clearTimeout(hideDropdownTimeoutRef.current);
+              hideDropdownTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={handleHideDropdown}
+        >
           <div
-            ref={dropdownRef}
             style={{
-              position: 'fixed',
-              left: storylineDropdownPosition.x,
-              top: storylineDropdownPosition.y,
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              borderRadius: 8,
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              padding: 8,
-              zIndex: 10000,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              minWidth: 200,
+              display: 'grid',
+              gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) minmax(320px, 1.4fr)',
+              gap: 12,
+              alignItems: 'stretch',
             }}
-            onMouseEnter={() => {
-              if (hideDropdownTimeoutRef.current) {
-                clearTimeout(hideDropdownTimeoutRef.current);
-                hideDropdownTimeoutRef.current = null;
-              }
-            }}
-            onMouseLeave={handleHideDropdown}
           >
-            {allStorylines.map(storyline => (
+            <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Storylines</div>
               <div
-                key={storyline.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigateToStoryline(storyline.id);
-                  setShowStorylineDropdown(false);
-                  setStorylineDropdownPosition(null);
-                }}
+                onClick={handleNavigateToAllNodesEditor}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -593,146 +925,278 @@ export function TopTimeline() {
                   padding: '6px 8px',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  background: storyline.id === currentStoryline?.id
-                    ? 'rgba(0, 0, 0, 0.05)'
-                    : 'transparent',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.08)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = storyline.id === currentStoryline?.id
-                    ? 'rgba(0, 0, 0, 0.05)'
-                    : 'transparent';
+                  marginBottom: 6,
+                  background: isAllNodesMode ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                  fontSize: 13,
+                  color: 'rgba(0, 0, 0, 0.88)',
+                  fontWeight: isAllNodesMode ? 600 : 500,
                 }}
               >
-                <div
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 6,
-                    background: storyline.color || '#b89968',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  }}
-                >
-                  {storyline.name.charAt(0).toUpperCase()}
-                </div>
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: 'rgba(0, 0, 0, 0.85)',
-                    fontWeight: storyline.id === currentStoryline?.id ? 600 : 400,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    flex: 1,
-                  }}
-                >
-                  {storyline.name}
-                </div>
-                {storyline.id === currentStoryline?.id && (
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: storyline.color || '#b89968',
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
+                All Nodes Editor
               </div>
-            ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {allStorylines.map(storyline => (
+                  <div
+                    key={storyline.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToStoryline(storyline.id);
+                      setShowStorylineDropdown(false);
+                      setStorylineDropdownPosition(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      background: storyline.id === currentStoryline?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        background: storyline.color || '#5d8aa8',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: 'rgba(0, 0, 0, 0.88)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {storyline.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div
+                onClick={handleCreateStorylineFromDropdown}
+                style={{
+                  marginTop: 10,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: 'rgba(0, 0, 0, 0.7)',
+                }}
+              >
+                + storyline
+              </div>
+            </div>
 
-            {/* Divider */}
-            <div style={{ height: 1, background: 'rgba(0, 0, 0, 0.1)', margin: '4px 0' }} />
+            <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Categories</div>
+              <div
+                onClick={handleNavigateToAllElementsEditor}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  marginBottom: 6,
+                  background: isAllElementsMode ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                  fontSize: 13,
+                  color: 'rgba(0, 0, 0, 0.88)',
+                  fontWeight: isAllElementsMode ? 600 : 500,
+                }}
+              >
+                All Elements Editor
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {allCategories.map(category => (
+                  <div
+                    key={category.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToCategory(category.id);
+                      setShowStorylineDropdown(false);
+                      setStorylineDropdownPosition(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '6px 8px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      background: category.id === currentCategory?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        background: category.color || '#5d8aa8',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: 'rgba(0, 0, 0, 0.88)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {category.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div
+                onClick={handleCreateCategoryFromDropdown}
+                style={{
+                  marginTop: 10,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: 'rgba(0, 0, 0, 0.7)',
+                }}
+              >
+                + category
+              </div>
+            </div>
 
-            {/* New Storyline Button */}
-            <div
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  // Extended storyline color palette with better distinction
-                  const STORYLINE_COLORS = [
-                    // Earth tones
-                    '#b89968', '#8b7355', '#946b54', '#bc6c25', '#a0522d',
-                    // Green tones
-                    '#6b9080', '#588157', '#a3b18a', '#4a7c59', '#6d9773',
-                    // Blue/Teal tones
-                    '#7a9e9f', '#5b8a8f', '#4682b4', '#5f9ea0', '#4a7c8c',
-                    // Purple/Mauve tones
-                    '#9b7e9b', '#8b7b9b', '#a98d9b', '#9a7e9e', '#b19cd9',
-                    // Warm tones
-                    '#c17c5c', '#d4956c', '#b8805f', '#cf8d6f', '#a67c52',
-                    // Cool grays
-                    '#7d8491', '#8b939e', '#6d7684', '#858c99', '#75808a',
-                  ];
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Tags Filter</div>
 
-                  // Get current storylines to check for used colors
-                  const currentStorylines = await loadStorylines(projectId);
-                  const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
+              {isNodeTagFilterEnabled && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Chapter Tags</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {allNodeTags.map(tag => {
+                      const selected = selectedNodeTagIds.includes(tag.id);
+                      return (
+                        <div
+                          key={tag.id}
+                          onClick={() => {
+                            toggleNodeTagFilter(tag.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            border: '1px solid rgba(0, 0, 0, 0.14)',
+                            background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 2,
+                              border: '1px solid rgba(0, 0, 0, 0.6)',
+                              background: selected ? '#5d8aa8' : 'transparent',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ fontSize: 13, color: 'rgba(0, 0, 0, 0.85)' }}>{tag.name}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                    <div
+                      onClick={(e) => {
+                        void handleCreateNodeTagFromDropdown(e);
+                      }}
+                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.7)' }}
+                    >
+                      + chapter tag
+                    </div>
+                    <div
+                      onClick={() => {
+                        setSelectedNodeTagIds([]);
+                      }}
+                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.55)' }}
+                    >
+                      clear
+                    </div>
+                  </div>
+                </>
+              )}
 
-                  // Find unused colors first
-                  const unusedColors = STORYLINE_COLORS.filter(c => !usedColors.has(c.toLowerCase()));
-
-                  // Select color: prefer unused, otherwise pick randomly
-                  const selectedColor = unusedColors.length > 0
-                    ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
-                    : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
-
-                  const newStoryline = await createStoryline({
-                    projectId,
-                    name: 'New Storyline',
-                    color: selectedColor,
-                    summary: '',
-                  });
-
-                  // Reload all storylines to update store
-                  await loadStorylines(projectId);
-
-                  setShowStorylineDropdown(false);
-                  setStorylineDropdownPosition(null);
-                  navigateToStoryline(newStoryline.id);
-                } catch (error) {
-                  log.error('Failed to create storyline:', error);
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 8px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                background: 'transparent',
-                transition: 'all 0.2s',
-                color: 'rgba(0, 0, 0, 0.65)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(184, 153, 104, 0.1)';
-                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.85)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = 'rgba(0, 0, 0, 0.65)';
-              }}
-            >
-              <Plus size={16} />
-              <div style={{ fontSize: 13, fontWeight: 500 }}>New Storyline</div>
+              {isElementTagFilterEnabled && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginTop: isNodeTagFilterEnabled ? 10 : 0, marginBottom: 6 }}>Element Tags</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {allElementTags.map(tag => {
+                      const selected = selectedElementTagIds.includes(tag.id);
+                      return (
+                        <div
+                          key={tag.id}
+                          onClick={() => {
+                            toggleElementTagFilter(tag.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            border: '1px solid rgba(0, 0, 0, 0.14)',
+                            background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 2,
+                              border: '1px solid rgba(0, 0, 0, 0.6)',
+                              background: selected ? '#5d8aa8' : 'transparent',
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ fontSize: 13, color: 'rgba(0, 0, 0, 0.85)' }}>{tag.name}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                    <div
+                      onClick={(e) => {
+                        void handleCreateElementTagFromDropdown(e);
+                      }}
+                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.7)' }}
+                    >
+                      + element tag
+                    </div>
+                    <div
+                      onClick={() => {
+                        setSelectedElementTagIds([]);
+                      }}
+                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.55)' }}
+                    >
+                      clear
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {/* Hover Preview */}
-      {!isElementMode && (
+      {isNodeTimelineMode && (
         <NodeHoverPreview
           node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
           position={hoverPosition}

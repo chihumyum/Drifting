@@ -143,10 +143,18 @@ export function ProjectDashboard() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     <div
-                        onClick={() => navigate('../editor/all-nodes')} // Navigating to all elements panel equivalent or just create
+                        onClick={() => navigate('../home/all-nodes')}
                         className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 cursor-pointer transition-all flex items-center gap-3"
                     >
                         <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-sm font-medium text-gray-700">All Nodes</span>
+                    </div>
+
+                    <div
+                        onClick={() => navigate('../home/all-elements')}
+                        className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 cursor-pointer transition-all flex items-center gap-3"
+                    >
+                        <div className="w-3 h-3 rounded-full bg-gray-500"></div>
                         <span className="text-sm font-medium text-gray-700">All Elements</span>
                     </div>
 

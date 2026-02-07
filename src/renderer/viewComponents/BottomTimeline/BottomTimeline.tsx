@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
@@ -17,6 +17,7 @@ import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
 import { BottomTimelineContextMenu } from './BottomTimelineContextMenu';
 import type { BottomTimelineContextMenuAction, TimelineNode } from './types';
+import { useUiStore } from '../../store/ui-store';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("BottomTimeline");
 log.setLevel(loglevel.levels.WARN);
@@ -37,8 +38,11 @@ const TIMELINE_CONFIG = {
 
 export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
+  const location = useLocation();
   const user = useAuthStore(state => state.user);
   const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
+  const selectedNodeId = useUiStore((state) => state.selectedNodeId);
+  const setSelectedNodeId = useUiStore((state) => state.setSelectedNodeId);
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
   const { loadNodes, createNode, updateNode, deleteNode } = useBookNode({
     projectId: projectId ?? '',
@@ -58,6 +62,8 @@ export function BottomTimeline() {
   const { getOutlineByNodeId } = useBookContent({
     userId: user?.id ?? '',
   });
+  const isAllNodesEditorRoute = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
+  const activeSelectedNodeId = isAllNodesEditorRoute ? (selectedNodeId ?? nodeId) : nodeId;
 
   const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
 
@@ -570,6 +576,7 @@ export function BottomTimeline() {
   const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     clearContextMenu();
+    setSelectedNodeId(clickedNodeId);
     if (nodeId !== clickedNodeId) {
       navigateToNode(clickedNodeId);
     }
@@ -615,7 +622,7 @@ export function BottomTimeline() {
   // Render a single node card
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylineById.get(storylineId);
-    const isSelected = nodeId === node.id;
+    const isSelected = activeSelectedNodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
     const defaultColor = '#00355bff';
 
@@ -932,7 +939,7 @@ export function BottomTimeline() {
     const nodesInStoryline = getNodesInStoryline(storyline.id);
 
     // 检查选中的节点是否属于当前 storyline
-    const selectedNode = nodeId ? (nodeById.get(nodeId) ?? null) : null;
+    const selectedNode = activeSelectedNodeId ? (nodeById.get(activeSelectedNodeId) ?? null) : null;
     const selectedNodeBelongsToStoryline = selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
     return (
@@ -1000,7 +1007,7 @@ export function BottomTimeline() {
               type: 'storyline',
               storylineId: storyline.id,
               position,
-              canAddCurrentNode: Boolean(nodeId && !selectedNodeBelongsToStoryline),
+              canAddCurrentNode: Boolean(activeSelectedNodeId && !selectedNodeBelongsToStoryline),
             });
           }
         }}

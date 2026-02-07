@@ -27,17 +27,17 @@ export function MainTopBar({ children, leftContent, rightContent }: MainTopBarPr
       } as React.CSSProperties}
     >
       {/* Left content */}
-      <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center' }}>
+      <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
         {leftContent}
       </div>
 
       {/* Center content */}
-      <div style={{ pointerEvents: 'auto', flex: 1, display: 'flex', justifyContent: 'flex-start', minWidth: 0, overflow: 'hidden' }}>
+      <div style={{ pointerEvents: 'auto', flex: 1, display: 'flex', justifyContent: 'flex-start', minWidth: 0, overflow: 'hidden', WebkitAppRegion: 'no-drag' }}>
         {children}
       </div>
 
       {/* Right content */}
-      <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center' }}>
+      <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' }}>
         {rightContent}
       </div>
     </div>
