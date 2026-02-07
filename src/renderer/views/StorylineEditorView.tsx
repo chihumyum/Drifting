@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -12,40 +12,58 @@ import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import loglevel from "loglevel";
-import { Storyline } from '../domain/storyline';
-import { BookNode } from '../domain/book-node';
 const log = loglevel.getLogger("StorylineEditorView");
-// log.setLevel(loglevel.levels.ERROR);
 log.setLevel(loglevel.levels.WARN);
 
-// todo: 修复严重同步问题
 export function StorylineEditorView() {
   const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
-  const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
+  if (!projectId) {
+    log.error('No projectId in params, cannot render storyline editor');
+    throw new Error('No projectId in params');
+  };
+  if (!user) {
+    log.error('No user in auth store, cannot render storyline editor');
+    throw new Error('No user in auth store');
+  };
   const { bookNodes, storylines } = useDataStore();
   const storylineUsecases = useStoryline({
-    projectId: projectId ?? '',
-    userId: user?.id ?? '',
+    projectId: projectId,
+    userId: user.id,
   });
-  const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
-  const [currentNodes, setCurrentNodes] = useState<BookNode[]>([]);
-
-
-  // get storyline and nodes from store
-  useEffect(() => {
-    if (!projectId || !storylineId) {
-      log.error('Should load data when app started', { projectId, storylineId, user });
-      return;
+  const idRef = useRef<string | null>(storylineId);
+  const currentStoryline = useMemo(() => {
+    if (!storylineId) {
+      log.error('No storylineId in params, cannot find storyline');
+      return null;
+    };
+    const found = storylines.find(sl => sl.id === storylineId);
+    if (!found) {
+      log.warn('Storyline not found for id:', storylineId);
+      return null;
     }
-    setCurrentStoryline(storylines.find(sl => sl.id === storylineId) || null);
-    if (!currentStoryline) {
-      log.warn('Current storyline not found in store, loading from DB...', storylineId);
-    }
-    setCurrentNodes(bookNodes.filter(node => node.storylineIds.includes(storylineId)));
-    log.debug('Loaded storyline ', currentStoryline?.name, 'nodes ', currentNodes);
-  }, [projectId, storylineId, user, navigate, storylines, bookNodes]);
+    return found;
+  }, [storylineId, storylines]);
 
+  const currentNodes = useMemo(() => {
+    if (!storylineId) {
+      log.error('No storylineId in params, cannot find nodes');
+      return [];
+    };
+    const found = bookNodes.filter(node => node.storylineIds.includes(storylineId));
+    log.debug('Found nodes for storyline ', storylineId, found);
+    return found;
+  }, [storylineId, bookNodes]);
+  const currentName = currentStoryline?.name ?? '';
+  const currentSummary = currentStoryline?.summary ?? '';
+  const [nameDraft, setNameDraft] = useState('');
+  const [summaryDraft, setSummaryDraft] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [isComposingName, setIsComposingName] = useState(false);
+  const [isComposingSummary, setIsComposingSummary] = useState(false);
+  const displayedName = isEditingName ? nameDraft : currentName;
+  const displayedSummary = isEditingSummary ? summaryDraft : currentSummary;
 
   // editor for storyline description
   const editorSL = useEditor({
@@ -66,7 +84,7 @@ export function StorylineEditorView() {
         defaultAlignment: 'left',
       }),
       Placeholder.configure({
-        placeholder: 'Add a summary for this storyline...',
+        placeholder: 'Empty',
       }),
       createDefaultSlashMenu(),
     ],
@@ -92,35 +110,40 @@ export function StorylineEditorView() {
 
   // load editor content when change storylines
   useEffect(() => {
+    if (idRef.current === storylineId) {
+      return;
+    }
     if (!projectId || !storylineId) {
       log.warn('No projectId or storylineId, cannot load storyline content');
       return;
     }
     if (!editorSL || !currentStoryline) {
-      log.debug('Editor or active storyline not ready yet');
+      log.warn('Editor or active storyline not ready yet');
       return;
     }
+    idRef.current = storylineId;
     if (currentStoryline.descriptionJson) {
       editorSL.commands.setContent(JSON.parse(currentStoryline.descriptionJson));
     } else {
-      log.warn('No pmJson content for storyline:', storylineId);
+      log.error('No pmJson content for storyline:', storylineId);
       editorSL.commands.setContent(null);
     }
+  }, [projectId, storylineId, editorSL, currentStoryline]);
 
-  }, [editorSL, projectId, storylineId, currentStoryline, currentNodes]);
-
-  const handleUpdateName = async (newName: string) => {
+  const commitName = async () => {
     if (!storylineId) return;
+    if (nameDraft === currentName) return;
     await storylineUsecases.updateStoryline({
       id: storylineId,
-      name: newName.trim(),
+      name: nameDraft,
     });
   };
-  const handleUpdateSummary = async (newSummary: string) => {
+  const commitSummary = async () => {
     if (!storylineId) return;
+    if (summaryDraft === currentSummary) return;
     await storylineUsecases.updateStoryline({
       id: storylineId,
-      summary: newSummary.trim(),
+      summary: summaryDraft,
     });
   };
 
@@ -143,12 +166,30 @@ export function StorylineEditorView() {
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <input
             type="text"
-            value={currentStoryline?.name || ''}
-            onChange={e => handleUpdateName(e.target.value)}
-            onBlur={e => handleUpdateName(e.target.value)}
+            value={displayedName}
+            onFocus={() => {
+              setNameDraft(currentName);
+              setIsEditingName(true);
+            }}
+            onChange={e => setNameDraft(e.target.value)}
+            onCompositionStart={() => setIsComposingName(true)}
+            onCompositionEnd={e => {
+              setIsComposingName(false);
+              setNameDraft(e.currentTarget.value);
+            }}
+            onBlur={() => {
+              setIsEditingName(false);
+              if (!isComposingName) {
+                void commitName();
+              }
+            }}
             onKeyDown={e => {
-              if (e.key === 'Enter') handleUpdateName(e.currentTarget.value);
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
               if (e.key === 'Escape') {
+                setNameDraft(currentName);
                 e.currentTarget.blur();
               }
             }}
@@ -169,15 +210,34 @@ export function StorylineEditorView() {
         <div style={{ marginBottom: 16, marginRight: '40%' }}>
           <input
             type="text"
-            value={currentStoryline?.summary || ''}
-            onChange={e => handleUpdateSummary(e.target.value)}
-            onBlur={e => handleUpdateSummary(e.currentTarget.value)}
+            value={displayedSummary}
+            onFocus={() => {
+              setSummaryDraft(currentSummary);
+              setIsEditingSummary(true);
+            }}
+            onChange={e => setSummaryDraft(e.target.value)}
+            onCompositionStart={() => setIsComposingSummary(true)}
+            onCompositionEnd={e => {
+              setIsComposingSummary(false);
+              setSummaryDraft(e.currentTarget.value);
+            }}
+            onBlur={() => {
+              setIsEditingSummary(false);
+              if (!isComposingSummary) {
+                void commitSummary();
+              }
+            }}
             onKeyDown={e => {
-              if (e.key === 'Enter') handleUpdateSummary(e.currentTarget.value);
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingSummary) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
               if (e.key === 'Escape') {
+                setSummaryDraft(currentSummary);
                 e.currentTarget.blur();
               }
             }}
+            placeholder='add a summary...'
             style={{
               maxWidth: '50vw',
               fontSize: 14,
