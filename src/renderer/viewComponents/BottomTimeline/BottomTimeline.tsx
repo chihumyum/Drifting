@@ -13,7 +13,7 @@ import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("BottomTimeline");
-log.setLevel(loglevel.levels.ERROR);
+log.setLevel(loglevel.levels.WARN);
 
 // Timeline 配置
 const TIMELINE_CONFIG = {

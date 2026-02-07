@@ -68,6 +68,11 @@ function Layout() {
   const elementUsecases = useBookElement({ projectId: projectId ?? '', userId: userId ?? '' });
   const categoryUsecases = useElementCategory({ projectId: projectId ?? '', userId: userId ?? '' });
 
+  // Reset ready state when project or user changes
+  useEffect(() => {
+    setDbReady(false);
+  }, [projectId, userId]);
+
   useEffect(() => {
     // Initialize theme
     initAccentColor();
@@ -81,9 +86,6 @@ function Layout() {
       log.error('No userId found in auth store');
       return;
     }
-
-    // Reset ready state on project switch
-    setDbReady(false);
 
     log.info('[App] Initializing database for user:', userId);
 

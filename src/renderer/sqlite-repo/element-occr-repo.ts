@@ -1,19 +1,24 @@
-import { nanoid } from 'nanoid';
-import loglevel from "loglevel";
+import { v7 as uuidv7 } from 'uuid';
+import { desc, eq, sql } from 'drizzle-orm';
+import { getDb } from '../lib/db';
+import { BookNodeTable, ElementOccurrenceTable } from '../schema/drizzle';
 
-const log = loglevel.getLogger("ElementOccurrenceRepository");
-log.setLevel(loglevel.levels.ERROR);
-
-// TODO: refactor this file to match others
-/**
- * Element Occurrence 记录接口
- */
 export interface ElementOccurrenceRecord {
   id: string;
   element_id: string;
   node_id: string;
   block_id: string;
-  spans_json: string; // JSON 字符串，存储匹配位置信息
+  spans_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ElementBacklinkRecord {
+  id: string;
+  element_id: string;
+  node_id: string;
+  node_title: string;
+  spans_json: string;
   created_at: string;
 }
 
@@ -26,30 +31,27 @@ export interface ElementOccurrenceRepository {
     }>
   ): Promise<void>;
   getOccurrencesByNode(nodeId: string): Promise<ElementOccurrenceRecord[]>;
-  getOccurrencesByElement(elementId: string): Promise<Array<{
-    id: string;
-    element_id: string;
-    node_id: string;
-    node_title: string;
-    spans_json: string;
-    created_at: string;
-  }>>;
+  getOccurrencesByElement(elementId: string): Promise<ElementBacklinkRecord[]>;
   deleteOccurrencesByNode(nodeId: string): Promise<void>;
   deleteOccurrencesByElement(elementId: string): Promise<void>;
   countOccurrencesByElement(elementId: string): Promise<number>;
 }
 
-/**
- * 元素出现位置的数据库操作
- * 通过 IPC 与主进程的数据库交互
- */
-export function createElementOccurrenceRepository(projectId?: string): ElementOccurrenceRepository {
-  void projectId;
+function toOccurrenceRecord(
+  row: typeof ElementOccurrenceTable.$inferSelect,
+): ElementOccurrenceRecord {
+  return {
+    id: row.id,
+    element_id: row.elementId,
+    node_id: row.nodeId,
+    block_id: row.blockId,
+    spans_json: row.spansJson,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
+}
 
-  /**
-   * 保存或更新某个节点中的元素出现记录
-   * 会先删除该节点的所有旧记录，然后插入新记录
-   */
+export function createElementOccurrenceRepository(_projectId?: string): ElementOccurrenceRepository {
   const saveOccurrencesForNode = async (
     nodeId: string,
     elementMatches: Array<{
@@ -57,137 +59,82 @@ export function createElementOccurrenceRepository(projectId?: string): ElementOc
       matches: Array<{ text: string; position: number; length: number }>;
     }>
   ): Promise<void> => {
-    try {
-      // 删除旧记录
-      await window.electronAPI.db.run(
-        'DELETE FROM element_occurrence WHERE node_id = ?',
-        [nodeId]
-      );
+    const db = getDb();
+    const now = new Date().toISOString();
 
-      // 插入新记录
-      const now = new Date().toISOString();
-      for (const match of elementMatches) {
-        if (match.matches.length > 0) {
-          await window.electronAPI.db.run(
-            `INSERT INTO element_occurrence (id, element_id, node_id, block_id, spans_json, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              nanoid(),
-              match.elementId,
-              nodeId,
-              '', // block_id 暂时为空，可以后续扩展
-              JSON.stringify(match.matches),
-              now
-            ]
-          );
-        }
+    await db.transaction(async (tx) => {
+      await tx.delete(ElementOccurrenceTable).where(eq(ElementOccurrenceTable.nodeId, nodeId));
+
+      const rows = elementMatches
+        .filter((m) => m.matches.length > 0)
+        .map((m) => ({
+          id: uuidv7(),
+          elementId: m.elementId,
+          nodeId,
+          blockId: '',
+          spansJson: JSON.stringify(m.matches),
+          createdAt: now,
+          updatedAt: now,
+        }));
+
+      if (rows.length > 0) {
+        await tx.insert(ElementOccurrenceTable).values(rows);
       }
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error saving occurrences:', error);
-      throw error;
-    }
+    });
   };
 
-  /**
-   * 获取某个节点中的所有元素出现记录
-   */
   const getOccurrencesByNode = async (nodeId: string): Promise<ElementOccurrenceRecord[]> => {
-    try {
-      const results = await window.electronAPI.db.query(
-        'SELECT * FROM element_occurrence WHERE node_id = ?',
-        [nodeId]
-      );
-      return results as ElementOccurrenceRecord[];
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error getting occurrences by node:', error);
-      return [];
-    }
+    const rows = await getDb()
+      .select()
+      .from(ElementOccurrenceTable)
+      .where(eq(ElementOccurrenceTable.nodeId, nodeId))
+      .orderBy(desc(ElementOccurrenceTable.createdAt));
+
+    return rows.map(toOccurrenceRecord);
   };
 
-  /**
-   * 获取某个元素在哪些节点中出现过（反向链接）
-   */
-  const getOccurrencesByElement = async (elementId: string): Promise<Array<{
-    id: string;
-    element_id: string;
-    node_id: string;
-    node_title: string;
-    spans_json: string;
-    created_at: string;
-  }>> => {
-    try {
-      const results = await window.electronAPI.db.query(
-        `SELECT 
-          eo.id,
-          eo.element_id,
-          eo.node_id,
-          sn.title as node_title,
-          eo.spans_json,
-          eo.created_at
-        FROM element_occurrence eo
-        LEFT JOIN story_node sn ON eo.node_id = sn.id
-        WHERE eo.element_id = ?
-        ORDER BY eo.created_at DESC`,
-        [elementId]
-      );
-      return results as Array<{
-        id: string;
-        element_id: string;
-        node_id: string;
-        node_title: string;
-        spans_json: string;
-        created_at: string;
-      }>;
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error getting occurrences by element:', error);
-      return [];
-    }
+  const getOccurrencesByElement = async (elementId: string): Promise<ElementBacklinkRecord[]> => {
+    const rows = await getDb()
+      .select({
+        id: ElementOccurrenceTable.id,
+        element_id: ElementOccurrenceTable.elementId,
+        node_id: ElementOccurrenceTable.nodeId,
+        node_title: BookNodeTable.title,
+        spans_json: ElementOccurrenceTable.spansJson,
+        created_at: ElementOccurrenceTable.createdAt,
+      })
+      .from(ElementOccurrenceTable)
+      .leftJoin(BookNodeTable, eq(ElementOccurrenceTable.nodeId, BookNodeTable.id))
+      .where(eq(ElementOccurrenceTable.elementId, elementId))
+      .orderBy(desc(ElementOccurrenceTable.createdAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      element_id: row.element_id,
+      node_id: row.node_id,
+      node_title: row.node_title ?? '',
+      spans_json: row.spans_json,
+      created_at: row.created_at,
+    }));
   };
 
-  /**
-   * 删除某个节点的所有元素出现记录
-   */
   const deleteOccurrencesByNode = async (nodeId: string): Promise<void> => {
-    try {
-      await window.electronAPI.db.run(
-        'DELETE FROM element_occurrence WHERE node_id = ?',
-        [nodeId]
-      );
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error deleting occurrences by node:', error);
-      throw error;
-    }
+    await getDb().delete(ElementOccurrenceTable).where(eq(ElementOccurrenceTable.nodeId, nodeId));
   };
 
-  /**
-   * 删除某个元素的所有出现记录
-   */
   const deleteOccurrencesByElement = async (elementId: string): Promise<void> => {
-    try {
-      await window.electronAPI.db.run(
-        'DELETE FROM element_occurrence WHERE element_id = ?',
-        [elementId]
-      );
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error deleting occurrences by element:', error);
-      throw error;
-    }
+    await getDb().delete(ElementOccurrenceTable).where(eq(ElementOccurrenceTable.elementId, elementId));
   };
 
-  /**
-   * 统计某个元素在多少个节点中出现
-   */
   const countOccurrencesByElement = async (elementId: string): Promise<number> => {
-    try {
-      const result = await window.electronAPI.db.get(
-        'SELECT COUNT(DISTINCT node_id) as count FROM element_occurrence WHERE element_id = ?',
-        [elementId]
-      );
-      return (result as { count: number })?.count ?? 0;
-    } catch (error) {
-      log.error('[ElementOccurrenceRepository] Error counting occurrences:', error);
-      return 0;
-    }
+    const rows = await getDb()
+      .select({
+        count: sql<number>`count(distinct ${ElementOccurrenceTable.nodeId})`,
+      })
+      .from(ElementOccurrenceTable)
+      .where(eq(ElementOccurrenceTable.elementId, elementId));
+
+    return Number(rows[0]?.count ?? 0);
   };
 
   return {

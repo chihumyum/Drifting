@@ -17,6 +17,7 @@ dist-ssr
 out
 .vite
 *.local
+.pnpm-store
 
 # Editor directories and files
 .vscode/*

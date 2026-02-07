@@ -200,6 +200,22 @@ export const ElementTagLinkTable = sqliteTable('element_tag_link', {
 ]);
 
 
+// Element Occurrence (mentions in chapter content)
+// Domain: element mention backlinks
+export const ElementOccurrenceTable = sqliteTable('element_occurrence', {
+    id: text('id').primaryKey(),
+    elementId: text('element_id').notNull().references(() => BookElementTable.id, { onDelete: 'cascade' }),
+    nodeId: text('node_id').notNull().references(() => BookNodeTable.id, { onDelete: 'cascade' }),
+    blockId: text('block_id').notNull().default(''),
+    spansJson: text('spans_json').notNull().default('[]'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+}, (t) => [
+    index('idx_element_occurrence_element').on(t.elementId),
+    index('idx_element_occurrence_node').on(t.nodeId),
+]);
+
+
 
 
 // Node <-> Element (Mentions)
