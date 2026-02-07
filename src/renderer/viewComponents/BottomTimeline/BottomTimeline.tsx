@@ -41,8 +41,8 @@ export function BottomTimeline() {
   const location = useLocation();
   const user = useAuthStore(state => state.user);
   const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
-  const selectedNodeId = useUiStore((state) => state.selectedNodeId);
-  const setSelectedNodeId = useUiStore((state) => state.setSelectedNodeId);
+  const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
+  const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
   const { loadNodes, createNode, updateNode, deleteNode } = useBookNode({
     projectId: projectId ?? '',
@@ -576,10 +576,7 @@ export function BottomTimeline() {
   const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     clearContextMenu();
-    setSelectedNodeId(clickedNodeId);
-    if (nodeId !== clickedNodeId) {
-      navigateToNode(clickedNodeId);
-    }
+    setNodeSelection(clickedNodeId, 'ui');
   };
 
   // 悬停预览事件处理

@@ -26,6 +26,7 @@ import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
 import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
+import { EditorShell } from './views/EditorShell';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("App");
@@ -261,15 +262,39 @@ export default function App() {
       }>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<ProjectDashboard />} />
-        <Route path="home/all-nodes" element={<AllNodesEditorView />} />
-        <Route path="home/all-elements" element={<AllElementsEditorView />} />
+        <Route path="home/all-nodes" element={
+          <EditorShell view="all-nodes-editor">
+            <AllNodesEditorView />
+          </EditorShell>
+        } />
+        <Route path="home/all-elements" element={
+          <EditorShell view="all-elements-editor">
+            <AllElementsEditorView />
+          </EditorShell>
+        } />
         <Route path="editor" element={<Navigate to="../home" replace />} />
         <Route path="editor/all-nodes" element={<Navigate to="../home/all-nodes" replace />} />
         <Route path="editor/all-elements" element={<Navigate to="../home/all-elements" replace />} />
-        <Route path="editor/:nodeId" element={<NodeEditorView />} />
-        <Route path="editor/storyline/:storylineId" element={<StorylineEditorView />} />
-        <Route path="element/:elementId" element={<ElementEditorView />} />
-        <Route path="category/:categoryId" element={<CategoryEditorView />} />
+        <Route path="editor/:nodeId" element={
+          <EditorShell view="node-editor">
+            <NodeEditorView />
+          </EditorShell>
+        } />
+        <Route path="editor/storyline/:storylineId" element={
+          <EditorShell view="storyline-editor">
+            <StorylineEditorView />
+          </EditorShell>
+        } />
+        <Route path="element/:elementId" element={
+          <EditorShell view="element-editor">
+            <ElementEditorView />
+          </EditorShell>
+        } />
+        <Route path="category/:categoryId" element={
+          <EditorShell view="category-editor">
+            <CategoryEditorView />
+          </EditorShell>
+        } />
       </Route>
     </Routes>
   );

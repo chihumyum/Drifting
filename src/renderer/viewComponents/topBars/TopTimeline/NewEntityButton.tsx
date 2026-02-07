@@ -34,8 +34,9 @@ export function NewEntityButton() {
     categoryId?: string;
   }>();
   const location = useLocation();
-  const { navigateToNode, navigateToElement, projectId } = useProjectNavigation();
-  const setSelectedElementId = useUiStore((state) => state.setSelectedElementId);
+  const { projectId } = useProjectNavigation();
+  const setNodeSelection = useUiStore((state) => state.setNodeSelection);
+  const setElementSelection = useUiStore((state) => state.setElementSelection);
   const userId = useAuthStore((state) => state.user?.id);
   const { createNode, loadNodes, updateNode } = useBookNode({
     projectId: projectId ?? '',
@@ -152,7 +153,7 @@ export function NewEntityButton() {
       }
 
       await loadNodes();
-      navigateToNode(newNode.id);
+      setNodeSelection(newNode.id, 'ui');
 
       // Scroll timeline to the new chapter
       setTimeout(() => {
@@ -204,8 +205,7 @@ export function NewEntityButton() {
       }
 
       const newElement = await createElement({ categoryId: targetCategoryId });
-      setSelectedElementId(newElement.id);
-      navigateToElement(newElement.id);
+      setElementSelection(newElement.id, 'ui');
     } catch (error) {
       log.error('Failed to create element:', error);
     }

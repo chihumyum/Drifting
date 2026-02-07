@@ -48,12 +48,12 @@ export function TopTimeline() {
   const storylines = useDataStore(state => state.storylines);
   const bookElements = useDataStore(state => state.bookElements);
   const bookElementCategories = useDataStore(state => state.bookElementCategories);
-  const selectedNodeId = useUiStore((state) => state.selectedNodeId);
-  const setSelectedNodeId = useUiStore((state) => state.setSelectedNodeId);
-  const selectedElementId = useUiStore((state) => state.selectedElementId);
-  const setSelectedElementId = useUiStore((state) => state.setSelectedElementId);
+  const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
+  const setNodeSelection = useUiStore((state) => state.setNodeSelection);
+  const selectedElementId = useUiStore((state) => state.elementUi.selectedId);
+  const setElementSelection = useUiStore((state) => state.setElementSelection);
   const user = useAuthStore(state => state.user);
-  const { projectId, navigateToStoryline, navigateToNode, navigateToElement, navigateToCategory, navigateTo } = useProjectNavigation();
+  const { projectId, navigateToStoryline, navigateToCategory, navigateTo } = useProjectNavigation();
   const { getStorylineById, createStoryline, loadStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
@@ -265,18 +265,6 @@ export function TopTimeline() {
       setHoverPosition(null);
     }
   }, [isElementMode, hoveredNodeId]);
-
-  useEffect(() => {
-    if (nodeId) {
-      setSelectedNodeId(nodeId);
-    }
-  }, [nodeId, setSelectedNodeId]);
-
-  useEffect(() => {
-    if (elementId) {
-      setSelectedElementId(elementId);
-    }
-  }, [elementId, setSelectedElementId]);
 
   useEffect(() => {
     if (!isNodeTagFilterEnabled) {
@@ -591,22 +579,10 @@ export function TopTimeline() {
 
   const handleItemClick = (item: BookNode | BookElement) => {
     if ('title' in item) {
-      setSelectedNodeId(item.id);
-      if (isAllNodesMode) {
-        return;
-      }
-      if (location.pathname !== `/project/${projectId}/editor/${item.id}`) {
-        navigateToNode(item.id);
-      }
+      setNodeSelection(item.id, 'ui');
       return;
     }
-    setSelectedElementId(item.id);
-    if (isAllElementsMode) {
-      return;
-    }
-    if (location.pathname !== `/project/${projectId}/element/${item.id}`) {
-      navigateToElement(item.id);
-    }
+    setElementSelection(item.id, 'ui');
   };
 
   const handleMouseEnter = (node: BookNode, e: React.MouseEvent) => {

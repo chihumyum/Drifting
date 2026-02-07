@@ -16,12 +16,13 @@ log.setLevel(loglevel.levels.ERROR);
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
   const {
-    selectedElementId: selectedBookElementId,
-    setSelectedElementId: setSelectedBookElementId,
+    elementUi,
+    setElementSelection,
     timelineHeight,
   } = useUiStore();
   const userId = useAuthStore((state) => state.user?.id);
-  const { projectId, navigateToElement, navigateToCategory } = useProjectNavigation();
+  const { projectId, navigateToCategory } = useProjectNavigation();
+  const selectedBookElementId = elementUi.selectedId;
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -132,22 +133,21 @@ export function ElementPanel() {
     try {
       await removeElement(id);
       if (selectedBookElementId === id) {
-        setSelectedBookElementId(null);
+        setElementSelection(null, 'ui');
       }
     } catch (error) {
       log.error('Failed to delete element', error);
     }
-  }, [removeElement, selectedBookElementId, setSelectedBookElementId]);
+  }, [removeElement, selectedBookElementId, setElementSelection]);
 
   const handleCreateElement = useCallback(async (categoryId: string) => {
     try {
       const created = await createElement({ categoryId });
-      setSelectedBookElementId(created.id);
-      navigateToElement(created.id);
+      setElementSelection(created.id, 'ui');
     } catch (error) {
       log.error('Failed to create element', error);
     }
-  }, [createElement, navigateToElement, setSelectedBookElementId]);
+  }, [createElement, setElementSelection]);
 
   const handleCreateCategory = useCallback(async () => {
     try {
@@ -231,8 +231,7 @@ export function ElementPanel() {
           marginBottom: 8,
         }}
         onClick={() => {
-          setSelectedBookElementId(element.id);
-          navigateToElement(element.id);
+          setElementSelection(element.id, 'ui');
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
