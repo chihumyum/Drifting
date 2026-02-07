@@ -209,6 +209,11 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     return linkRepo.getStorylinesByNode(nodeId);
   }, [linkRepo, ensureDb]);
 
+  const getStorylinesByNodeIds = useCallback(async (nodeIds: string[]): Promise<Record<string, Storyline[]>> => {
+    await ensureDb();
+    return linkRepo.getStorylinesByNodeIds(nodeIds);
+  }, [linkRepo, ensureDb]);
+
   const getNodeIdsByStoryline = useCallback(async (storylineId: string): Promise<string[]> => {
     await ensureDb();
     return linkRepo.getNodeIdsByStoryline(storylineId);
@@ -234,6 +239,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     addNodeToStoryline,
     removeNodeFromStoryline,
     getStorylinesByNode,
+    getStorylinesByNodeIds,
     getNodeIdsByStoryline,
     setNodeStorylines,
   }), [
@@ -246,6 +252,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     addNodeToStoryline,
     removeNodeFromStoryline,
     getStorylinesByNode,
+    getStorylinesByNodeIds,
     getNodeIdsByStoryline,
     setNodeStorylines,
   ]);

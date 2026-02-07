@@ -7,6 +7,7 @@ export interface NodeStorylineLinkRepository {
   addNodeToStoryline(nodeId: string, storylineId: string): Promise<void>;
   removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void>;
   getStorylinesByNode(nodeId: string): Promise<Storyline[]>;
+  getStorylinesByNodeIds(nodeIds: string[]): Promise<Record<string, Storyline[]>>;
   getNodeIdsByStoryline(storylineId: string): Promise<string[]>;
   setNodeStorylines(nodeId: string, storylineIds: string[]): Promise<void>;
 }
@@ -85,6 +86,33 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
     return rows.map(r => toStoryline(r.storyline));
   };
 
+  const getStorylinesByNodeIds = async (nodeIds: string[]): Promise<Record<string, Storyline[]>> => {
+    if (nodeIds.length === 0) return {};
+
+    const rows = await dbProvider().select({
+      nodeId: NodeStorylineLinkTable.nodeId,
+      storyline: StorylineTable,
+    })
+      .from(NodeStorylineLinkTable)
+      .innerJoin(StorylineTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
+      .where(and(
+        inArray(NodeStorylineLinkTable.nodeId, nodeIds),
+        eq(StorylineTable.projectId, projectId)
+      ))
+      .orderBy(asc(StorylineTable.orderKey));
+
+    const grouped: Record<string, Storyline[]> = {};
+    nodeIds.forEach((nodeId) => {
+      grouped[nodeId] = [];
+    });
+
+    rows.forEach((row) => {
+      grouped[row.nodeId].push(toStoryline(row.storyline));
+    });
+
+    return grouped;
+  };
+
   const getNodeIdsByStoryline = async (storylineId: string): Promise<string[]> => {
     await ensureStorylineInProject(storylineId);
 
@@ -128,6 +156,7 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
     addNodeToStoryline,
     removeNodeFromStoryline,
     getStorylinesByNode,
+    getStorylinesByNodeIds,
     getNodeIdsByStoryline,
     setNodeStorylines,
   };
