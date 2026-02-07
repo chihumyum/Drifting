@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';

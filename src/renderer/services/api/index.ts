@@ -10,7 +10,6 @@ export * from './node-api';
 export * from './content-api';
 export * from './storylines-api';
 export * from './elements-api';
-export * from './sync-api';
 export * from './ai-api';
 export * from './export-api';
 export * from './debug-api';

@@ -1,5 +1,12 @@
-import { run, query } from './db'
 import { events } from './events'
+
+async function run(sql: string, params: unknown[] = []) {
+  await window.electronAPI.db.run(sql, params);
+}
+
+async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  return window.electronAPI.db.query(sql, params) as Promise<T[]>;
+}
 
 export async function createChapter(title: string) {
   const project = (await query<{ id: string }>('SELECT id FROM project LIMIT 1'))[0]
@@ -38,10 +45,5 @@ export async function createScene() {
 export async function createBeat() {
   // placeholder
 }
-
-function escapeSql(s: string) {
-  return s.replaceAll("'", "''")
-}
-
 
 

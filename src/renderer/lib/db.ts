@@ -13,6 +13,18 @@ let currentDbName: string | null = null;
 // Internal unexported db instance
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
+function toArrayRow(row: unknown): unknown[] {
+  if (Array.isArray(row)) return row;
+  if (row && typeof row === 'object') {
+    return Object.values(row as Record<string, unknown>);
+  }
+  return [];
+}
+
+function toArrayRows(rows: unknown[]): unknown[][] {
+  return rows.map((row) => toArrayRow(row));
+}
+
 
 // DB singleton for the renderer process
 export function getDb() {
@@ -41,10 +53,10 @@ export function getDbName(userIdOrDbName: string): string {
  */
 export async function initDatabase(userId: string): Promise<void> {
   const targetDbName = getDbName(userId); 
-  log.debug(`[DB] Target DB Name: ${targetDbName}`);
   if (dbInitialized && currentDbName === targetDbName) {
     return Promise.resolve();
   }
+  log.debug(`[DB] Target DB Name: ${targetDbName}; Current DB Name: ${currentDbName}; Initialized: ${dbInitialized}`);
 
   if (dbInitialized && currentDbName !== targetDbName) {
     log.info(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
@@ -68,7 +80,7 @@ export async function initDatabase(userId: string): Promise<void> {
           // If the query is a SELECT / reading data
           if (method === 'all') {
             const result = await window.electronAPI.db.query(sql, params);
-            return { rows: result };
+            return { rows: toArrayRows(result) };
           }
 
 
@@ -83,11 +95,16 @@ export async function initDatabase(userId: string): Promise<void> {
 
           if (method === 'get') {
             const result = await window.electronAPI.db.get(sql, params);
-            return { rows: result ? [result] : [] };
+            return { rows: result ? [toArrayRow(result)] : [] };
+          }
+
+          if (method === 'values') {
+            const result = await window.electronAPI.db.query(sql, params);
+            return { rows: toArrayRows(result) };
           }
 
           const rows = await window.electronAPI.db.query(sql, params);
-          return { rows };
+          return { rows: toArrayRows(rows) };
 
         } catch (e) {
           log.error('Drizzle Proxy Error:', e);

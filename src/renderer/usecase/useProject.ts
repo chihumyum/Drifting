@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react';
 
 import type { Project } from '../domain/project';
+import type { Storyline } from '../domain/storyline';
+import type { BookElementCategory } from '../domain/book-element';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
@@ -60,8 +62,9 @@ export function useProject({ userId }: UseProjectContext) {
 
     // Enforce invariant: Project must have at least one default storyline
     const storylineRepo = createStorylineRepository(project.id);
-    const defaultStoryline = await storylineRepo.createStoryline({
-      id: uuidv7(),
+    const defaultStorylineId = uuidv7();
+    const createdStoryline = await storylineRepo.createStoryline({
+      id: defaultStorylineId,
       projectId: project.id,
       name: 'New Storyline',
       color: randomColor(),
@@ -71,11 +74,30 @@ export function useProject({ userId }: UseProjectContext) {
       createdAt: now,
       updatedAt: now,
     });
+    log.debug("Created default storyline:", createdStoryline);
+    let defaultStoryline: Storyline | null = createdStoryline;
+    if (!defaultStoryline?.id || !defaultStoryline.name?.trim()) {
+      defaultStoryline = await storylineRepo.getStorylineById(defaultStorylineId);
+    }
+    if (!defaultStoryline) {
+      throw new Error('Failed to create default storyline');
+    }
+    if (!defaultStoryline.name?.trim()) {
+      await storylineRepo.updateStoryline(defaultStoryline.id || defaultStorylineId, {
+        name: 'New Storyline',
+        updatedAt: new Date().toISOString(),
+      });
+      defaultStoryline = await storylineRepo.getStorylineById(defaultStorylineId);
+      if (!defaultStoryline) {
+        throw new Error('Failed to recover default storyline after name update');
+      }
+    }
 
     // Enforce invariant: Project must have at least one 'others' element category
     const categoryRepo = createElementCategoryRepository(project.id);
-    const defaultCategory = await categoryRepo.create({
-      id: uuidv7(),
+    const defaultCategoryId = uuidv7();
+    const createdCategory = await categoryRepo.create({
+      id: defaultCategoryId,
       projectId: project.id,
       name: 'others',
       descriptionJson: '{}',
@@ -83,10 +105,34 @@ export function useProject({ userId }: UseProjectContext) {
       createdAt: now,
       updatedAt: now,
     });
+    let defaultCategory: BookElementCategory | null = createdCategory;
+    if (!defaultCategory?.id || !defaultCategory.name?.trim()) {
+      defaultCategory = await categoryRepo.findByName('others');
+    }
+    if (!defaultCategory) {
+      throw new Error('Failed to create default element category');
+    }
+    if (!defaultCategory.name?.trim()) {
+      await categoryRepo.update(defaultCategory.id || defaultCategoryId, {
+        name: 'others',
+        updatedAt: new Date().toISOString(),
+      });
+      defaultCategory = await categoryRepo.findByName('others');
+      if (!defaultCategory) {
+        throw new Error('Failed to recover default category after name update');
+      }
+    }
+
+    const [storylines, categories] = await Promise.all([
+      storylineRepo.getStorylinesByProject(),
+      categoryRepo.findAll(),
+    ]);
+    const safeStorylines = storylines.filter((s) => Boolean(s?.id) && Boolean(s?.name?.trim()));
+    const safeCategories = categories.filter((c) => Boolean(c?.id) && Boolean(c?.name?.trim()));
 
     const dataStore = useDataStore.getState();
-    dataStore.setStorylines([defaultStoryline]);
-    dataStore.setBookElementCategories([defaultCategory]);
+    dataStore.setStorylines(safeStorylines.length > 0 ? safeStorylines : [defaultStoryline]);
+    dataStore.setBookElementCategories(safeCategories.length > 0 ? safeCategories : [defaultCategory]);
 
     return project;
   }, [repo, userId, ensureDb]);

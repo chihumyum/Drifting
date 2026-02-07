@@ -10,15 +10,12 @@ import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 
 export type CreateStorylineInput = {
-  // since projectId and user are got from store. 
-  // maybe we don't need these?
   projectId?: string;
   orderKey?: number;
   name?: string;
   color?: string;
   summary?: string;
   descriptionJson?: string;
-
 }
 
 export interface UseStorylineContext {
@@ -120,6 +117,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       rollback: () => setStorylinesState(prevStorylines),
       effect: () => repo.createStoryline(newStoryline),
       onSuccess: (storyline) => {
+        console.log("Storyline created successfully:", storyline);
         const current = getStorylinesState();
         setStorylinesState(current.map(sl => (sl.id === storyline.id ? storyline : sl)));
       },

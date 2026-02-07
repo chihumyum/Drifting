@@ -12,7 +12,7 @@ type TagType = 'node' | 'element';
 type TagRecord = {
   id: string;
   name: string;
-  color: string | null;
+  color?: string | null;
 };
 
 interface TagEditorProps {
@@ -46,15 +46,15 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
           nodeTagUsecases.loadTags(projectId),
           nodeTagUsecases.getTagsForNode(entityId, projectId),
         ]);
-        setAllTags(all);
-        setEntityTags(entity);
+        setAllTags(all.map((tag) => ({ ...tag, color: null })));
+        setEntityTags(entity.map((tag) => ({ ...tag, color: null })));
       } else if (type === 'element') {
         const [all, entity] = await Promise.all([
           elementTagUsecases.loadTags(projectId),
           elementTagUsecases.getTagsForElement(entityId, projectId),
         ]);
-        setAllTags(all);
-        setEntityTags(entity);
+        setAllTags(all.map((tag) => ({ ...tag, color: null })));
+        setEntityTags(entity.map((tag) => ({ ...tag, color: null })));
       }
     } catch (error) {
       log.error('Failed to load tags:', error);
@@ -100,7 +100,6 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
         await nodeTagUsecases.createAndAddTagToNode(entityId, {
           projectId,
           name: newTagName.trim(),
-          color: generateRandomColor(),
         });
       } else if (type === 'element') {
         await elementTagUsecases.createAndAddTagToElement(entityId, {

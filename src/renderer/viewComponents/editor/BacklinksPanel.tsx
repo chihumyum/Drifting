@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import loglevel from 'loglevel';
 const log = loglevel.getLogger("BacklinksPanel");
 log.setLevel(loglevel.levels.ERROR);
-import { useNavigate } from 'react-router-dom';
 import { createElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 interface BacklinksPanelProps {
   elementId: string;
@@ -22,7 +22,7 @@ interface Backlink {
  * 显示某个元素在哪些章节中被引用
  */
 export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
-  const navigate = useNavigate();
+  const { navigateToNode } = useProjectNavigation();
   const [backlinks, setBacklinks] = useState<Backlink[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,7 +84,7 @@ export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
           return (
             <div
               key={backlink.id}
-              onClick={() => navigate(`/editor/${backlink.node_id}`)}
+              onClick={() => navigateToNode(backlink.node_id)}
               className="backlink-item p-3 bg-gray-800 hover:bg-gray-750 rounded cursor-pointer transition-colors group"
             >
               <div className="flex items-center justify-between">

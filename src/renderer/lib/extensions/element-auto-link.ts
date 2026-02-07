@@ -1,10 +1,10 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import type { EditorState, Transaction } from '@tiptap/pm/state';
 
 export interface ElementAutoLinkOptions {
   elementNames: Map<string, { id: string; name: string; category: string }>;
   autoDetectEnabled: boolean;
+  HTMLAttributes?: Record<string, string>;
   onClick?: (elementId: string) => void;
 }
 
@@ -30,6 +30,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
     return {
       elementNames: new Map(),
       autoDetectEnabled: true,
+      HTMLAttributes: {},
       onClick: undefined,
     };
   },
@@ -100,7 +101,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
     const category = HTMLAttributes['data-category'] || 'character';
     return [
       'span',
-      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      mergeAttributes(this.options.HTMLAttributes ?? {}, HTMLAttributes, {
         class: `element-link element-link-${category}`,
         style: 'cursor: pointer;',
       }),
@@ -115,7 +116,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
     return [
       new Plugin({
         key: ElementAutoLinkPluginKey,
-        appendTransaction: (transactions, oldState, newState) => {
+        appendTransaction: (transactions, _oldState, newState) => {
           // 从共享配置读取最新值
           // console.log('[ElementAutoLink Plugin] appendTransaction called:', {
           //   autoDetectEnabled: elementAutoLinkConfig.autoDetectEnabled,
@@ -144,11 +145,11 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
           transactions.forEach((transaction) => {
             if (!transaction.docChanged) return;
 
-            transaction.steps.forEach((step, index) => {
+            transaction.steps.forEach((_step, index) => {
               const stepMap = transaction.mapping.maps[index];
               
               // 获取这个 step 影响的范围
-              stepMap.forEach((oldStart, oldEnd, newStart, newEnd) => {
+              stepMap.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
                 // newStart 到 newEnd 是新插入/修改的内容范围
                 if (newStart === newEnd) return; // 没有新内容
                 
@@ -212,7 +213,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
           return modified ? tr : null;
         },
         props: {
-          handleClick(view, pos, event) {
+          handleClick(_view, _pos, event) {
             const { onClick } = extension.options;
             if (!onClick) return false;
 

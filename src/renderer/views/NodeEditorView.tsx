@@ -8,6 +8,7 @@ import loglevel from "loglevel";
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 
 const log = loglevel.getLogger("NodeEditorView");
 log.setLevel(loglevel.levels.ERROR);
@@ -16,6 +17,7 @@ log.setLevel(loglevel.levels.ERROR);
 export function NodeEditorView() {
   // stuff for geting a node
   const navigate = useNavigate();
+  const { navigateToElement } = useProjectNavigation();
   const { nodeId, projectId } = useParams<{ nodeId: string; projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
@@ -120,9 +122,9 @@ export function NodeEditorView() {
 
   const handleElementClick = useCallback(
     (elementId: string) => {
-      navigate(`/element/${elementId}`);
+      navigateToElement(elementId);
     },
-    [navigate]
+    [navigateToElement]
   );
 
   return (

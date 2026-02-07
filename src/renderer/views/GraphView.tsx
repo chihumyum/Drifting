@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { BookNodeEdge, BookNode } from '../domain/book-node';
@@ -32,7 +31,6 @@ interface DragState {
 }
 
 export function GraphView() {
-    const navigate = useNavigate();
     const {
         bookNodes,
         nodeEdges,
@@ -45,7 +43,7 @@ export function GraphView() {
     const setActiveSuperView = useUiStore(s => s.setActiveSuperView);
 
     const { user } = useAuthStore();
-    const { projectId } = useProjectNavigation();
+    const { projectId, navigateToNode, navigateToElement } = useProjectNavigation();
     const nodeUsecases = useBookNode({
         projectId: projectId ?? '',
         userId: user?.id ?? '',
@@ -73,7 +71,6 @@ export function GraphView() {
 
     const containerRef = useRef<HTMLDivElement>(null);
     const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
-    const loadedRef = useRef(false);
 
     // Helper to center the view
     function centerView(nodes: any[]) {
@@ -175,7 +172,7 @@ export function GraphView() {
     const allEdges = useMemo(() => [...nodeEdges, ...derivedEdges], [nodeEdges, derivedEdges]);
 
     // Helper function: Calculate anchor position on node border
-    const getAnchorOnBorder = (nodePos: { x: number, y: number }, anchor: { x: number, y: number }) => {
+    const getAnchorOnBorder = (_nodePos: { x: number, y: number }, anchor: { x: number, y: number }) => {
         const nodeW = 240;
         const nodeH = 160;
         const halfW = nodeW / 2;
@@ -460,7 +457,6 @@ export function GraphView() {
                 edge.id === edgeId ? { ...edge, controlPointOffset: newOffset } : edge
             ));
         } else if (dragState.type === 'edge-anchor' && dragState.id && dragState.anchorType) {
-            const edgeId = dragState.id;
             const rect = containerRef.current?.getBoundingClientRect();
             if (!rect) return;
 
@@ -513,7 +509,7 @@ export function GraphView() {
                 } else {
                     // Dropped outside any node - delete edge
                     setNodeEdges(nodeEdges.filter(e => e.id !== dragState.id));
-                    // TODO: Call API to delete edge from backend
+                    void nodeUsecases.deleteEdge(dragState.id);
                 }
             }
         }
@@ -607,7 +603,7 @@ export function GraphView() {
                 // Create Edge
                 const newEdge: BookNodeEdge = {
                     id: nanoid(),
-                    projectId: 'default', // TODO
+                    projectId,
                     sourceNodeId: dragState.id,
                     targetNodeId: targetId,
 
@@ -618,22 +614,7 @@ export function GraphView() {
                     updatedAt: new Date().toISOString(),
                 };
 
-                // Call usecase to create edge (which updates store and DB)
-                // Assuming usecase handles it. If not, logic below only updates store?
-                // nodeUsecases doesn't seem to have createEdge exposed in the view yet (only nodes).
-                // Wait, useBookNodeUsecases hook (old version) had loadEdges but maybe not createEdge?
-                // I need to check if createEdge exists on nodeUsecases or if I should add it.
-                // Assuming I should add it or use direct update for now.
-                // But previous code was just setNodeEdges([...]). That doesn't persist! 
-                // That's a bug in previous implementation or I missed it.
-                // Let's stick to restoring the logic that was there (setNodeEdges), 
-                // and fix persistence for edges separately or now.
-                // Given the task is about "Freeform edge editing", creation persistence is out of scope but good to fix.
-                // I'll stick to setNodeEdges for now to match previous state, but fixing the handleNodeMouseUp logic.
-
-                setNodeEdges([...nodeEdges, newEdge]);
-
-                // TODO: Persist new edge (missing in original code too?)
+                void nodeUsecases.createEdge(newEdge);
             }
         }
     };
@@ -927,18 +908,18 @@ export function GraphView() {
                             }}
                             onNavigate={(id) => {
                                 setActiveSuperView('none'); // Close graph on navigate
-                                navigate(`/editor/${id}`);
+                                navigateToNode(id);
                             }}
                             onTitleClick={(id) => {
                                 setActiveSuperView('none');
-                                navigate(`/editor/${id}`);
+                                navigateToNode(id);
                             }}
                             onSummaryClick={(id, summary) => {
                                 setSummaryEditor({ nodeId: id, summary: summary || '' });
                             }}
                             onElementClick={(id) => {
                                 setActiveSuperView('none');
-                                navigate(`/element/${id}`);
+                                navigateToElement(id);
                             }}
                             onMouseDown={handleNodeMouseDown}
                             onOutputMouseDown={handleOutputMouseDown}
@@ -985,7 +966,7 @@ export function GraphView() {
                             <button
                                 className="px-3 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100"
                                 onClick={() => {
-                                    setNodeEdges(nodeEdges.filter(e => e.id !== editingEdge.id));
+                                    void nodeUsecases.deleteEdge(editingEdge.id);
                                     setIsEdgeEditOpen(false);
                                     setEditingEdge(null);
                                 }}

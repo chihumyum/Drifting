@@ -16,6 +16,7 @@ import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';
 import loglevel from "loglevel";
 import { useAuthStore } from '../store/auth';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 
 const log = loglevel.getLogger("ElementEditorView");
 log.setLevel(loglevel.levels.ERROR);
@@ -31,6 +32,7 @@ function getDefaultDoc(): JSONContent {
 
 export function ElementEditorView() {
   const navigate = useNavigate();
+  const { navigateToHome } = useProjectNavigation();
   const { elementId, projectId } = useParams<{ elementId: string; projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   const { bookElements, bookElementCategories } = useDataStore();
@@ -198,7 +200,7 @@ export function ElementEditorView() {
 
       try {
         await elementUsecases.removeElement(elementId);
-        navigate('/editor');
+        navigateToHome();
       } catch (error) {
         log.error('Failed to delete element:', error);
         alert('Failed to delete element. Please try again.');

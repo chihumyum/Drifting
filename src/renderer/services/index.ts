@@ -5,11 +5,11 @@
  */
 
 // API 客户端和工具
-export { apiClient, tokenManager, handleApiError } from '../lib/api';
+export { apiClient, handleApiError } from '../lib/api';
 
 // 认证服务
 export { authService } from './auth.service';
-export type { User, LoginInput, RegisterInput, AuthResponse } from './auth.service';
+export type { User, LoginInput, RegisterInput } from './auth.service';
 
 // 用户服务
 export { userService } from './user.service';

@@ -4,7 +4,7 @@ import { eq, asc } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger("StorylineRepository");
-log.setLevel(LogLevel.levels.DEBUG);
+log.setLevel(LogLevel.levels.WARN);
 
 export type UpdateStorylineInput = Partial<Omit<Storyline, 'id' | 'createdAt'>> & { updatedAt: string };
 export interface StorylineRepository {
@@ -15,7 +15,6 @@ export interface StorylineRepository {
   updateStoryline(id: string, input: UpdateStorylineInput): Promise<Storyline>;
   deleteStoryline(id: string): Promise<void>;
 }
-
 
 
 function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
@@ -41,26 +40,47 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
       throw new Error(`Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`);
     }
 
+    const storylineName = input.name.trim();
     const newStoryline: typeof StorylineTable.$inferInsert = {
       id: input.id,
       projectId: input.projectId,
-      name: input.name,
+      name: storylineName,
       color: input.color,
-      summary: input.summary,
+      summary: input.summary ?? '',
       orderKey: input.orderKey,
-      descriptionJson: input.descriptionJson,
+      descriptionJson: input.descriptionJson ?? '{}',
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
-
-    await dbProvider().insert(StorylineTable).values(newStoryline);
-
-    return toStoryline(newStoryline as typeof StorylineTable.$inferSelect);
+    log.debug("Inserting storyline into database:", newStoryline);
+    
+    const inserted = await dbProvider().insert(StorylineTable).values(newStoryline).returning();
+    if (inserted.length > 0) {
+      const candidate = toStoryline(inserted[0]);
+      if (candidate.id && candidate.projectId && candidate.name?.trim()) {
+        return candidate;
+      }
+      log.warn('Insert returning payload incomplete, fallback to re-query by id:', inserted[0]);
+    } else {
+      log.warn("Failed to insert storyline, no rows returned");
+    }
+    log.debug("Inserted storyline, now re-querying to confirm:", newStoryline.id);
+    const reloaded = await getStorylineById(newStoryline.id);
+    log.debug("Reloaded storyline after insert attempt:", reloaded);
+    if (!reloaded) {
+      throw new Error(`Failed to create storyline ${newStoryline.id}`);
+    }
+    return reloaded;
   };
 
   const getStorylineById = async (id: string): Promise<Storyline | null> => {
     const rows = await dbProvider().select().from(StorylineTable).where(eq(StorylineTable.id, id)).limit(1);
-    return rows[0] ? toStoryline(rows[0]) : null;
+    if (rows.length === 0) { 
+      log.warn(`Storyline with id ${id} not found`);
+      return null;
+    }
+    log.debug(`Fetched storyline by id: ${id}`, rows[0]);
+    return toStoryline(rows[0]);
   };
 
   const getStorylinesByProject = async (): Promise<Storyline[]> => {

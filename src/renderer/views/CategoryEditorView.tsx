@@ -6,7 +6,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { createDefaultSlashMenu } from '../lib/slash-menu';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
@@ -30,7 +30,6 @@ function getDefaultDoc(): JSONContent {
 }
 
 export function CategoryEditorView() {
-  const navigate = useNavigate();
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   const { bookElementCategories, bookElements } = useDataStore();
@@ -43,7 +42,7 @@ export function CategoryEditorView() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { navigateToHome } = useProjectNavigation();
+  const { navigateToHome, navigateToElement } = useProjectNavigation();
 
   const [curCategory, setCurCategory] = useState<BookElementCategory | null>(null);
   const [showElementsModal, setShowElementsModal] = useState(false);
@@ -394,7 +393,7 @@ export function CategoryEditorView() {
                       key={el.id}
                       onClick={() => {
                         setShowElementsModal(false);
-                        navigate(`/element/${el.id}`);
+                        navigateToElement(el.id);
                       }}
                       className="bg-paper shadow-paper"
                       style={{

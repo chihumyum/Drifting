@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Edit2, Save, X } from 'lucide-react';
-import type { OutlineItem } from '../../schema/book_content';
+import type { OutlineItem } from '../../lib/outline';
 
 interface OutlineSummaryPanelProps {
   outline: OutlineItem[];

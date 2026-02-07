@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore } from '../../store/ui-store';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -29,10 +28,9 @@ const DEFAULT_CATEGORY_COLORS = [
 
 
 export function ElementPanel() {
-  const navigate = useNavigate();
   const { bookElements, bookElementCategories } = useDataStore();
   const { selectedElementId: selectedBookElementId, setSelectedElementId: setSelectedBookElementId, timelineHeight } = useUiStore();
-  const { projectId } = useProjectNavigation();
+  const { projectId, navigateToElement, navigateToCategory } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const { createElement: create, removeElement: remove, loadInitial, updateElement } = useBookElement({
     projectId: projectId ?? '',
@@ -147,16 +145,7 @@ export function ElementPanel() {
         return;
       }
 
-      // Create new category (copy color from old)
-      const oldCategory = categories.find((c: any) => c.name === oldName);
-      // Note: createCategory hook might not support color arg yet, but ensureCategory creates default. 
-      // If we need color preservation, we might need a better updateCategory method. 
-      // For now, simplify to create (which makes default) then potentially update?
-      // Legacy code passed color. ensureCategory internal only takes name.
-      // createCategory (alias to ensureCategory) returns existing or new.
-      // But we probably want to COPY the color.
-      // The store has updateCategory? No.
-      // Let's just create it. Color might be lost or default. This is acceptable for migration verification.
+      // Create new category first, then remap all elements and delete old category.
       await createCategory(newName);
 
       // Update all elements that use this category
@@ -294,7 +283,7 @@ export function ElementPanel() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={() => navigate(`/category/${encodeURIComponent(filterCategory)}`)}
+                onClick={() => navigateToCategory(encodeURIComponent(filterCategory))}
                 className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                 style={{
                   display: 'flex',
@@ -316,16 +305,9 @@ export function ElementPanel() {
                 onClick={async () => {
                   try {
                     const newElement = await create({
-                      name: 'New Element',
                       categoryId: filterCategory,
-                      tagIds: [],
-                      summary: '',
-                      contentJson: JSON.stringify({
-                        type: 'doc',
-                        content: [{ type: 'paragraph' }],
-                      }),
                     });
-                    navigate(`/element/${newElement.id}`);
+                    navigateToElement(newElement.id);
                   } catch (error) {
                     log.error('Failed to create element:', error);
                   }
@@ -377,7 +359,7 @@ export function ElementPanel() {
                   <span>{category}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
-                      onClick={() => navigate(`/category/${encodeURIComponent(category)}`)}
+                      onClick={() => navigateToCategory(encodeURIComponent(category))}
                       className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
                       style={{
                         padding: '4px 12px',
@@ -398,16 +380,9 @@ export function ElementPanel() {
                     <button
                       onClick={async () => {
                         const newElement = await create({
-                          name: 'New Element',
                           categoryId: category,
-                          tagIds: [],
-                          summary: '',
-                          contentJson: JSON.stringify({
-                            type: 'doc',
-                            content: [{ type: 'paragraph' }],
-                          }),
                         });
-                        navigate(`/element/${newElement.id}`);
+                        navigateToElement(newElement.id);
                       }}
                       className="bg-accent hover:bg-accent-hover text-paper transition-colors"
                       style={{
@@ -445,7 +420,7 @@ export function ElementPanel() {
                       }}
                       onClick={() => {
                         setSelectedBookElementId(el.id);
-                        navigate(`/element/${el.id}`);
+                        navigateToElement(el.id);
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -602,7 +577,7 @@ export function ElementPanel() {
                   }}
                   onClick={() => {
                     setSelectedBookElementId(el.id);
-                    navigate(`/element/${el.id}`);
+                    navigateToElement(el.id);
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>

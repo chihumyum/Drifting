@@ -61,7 +61,6 @@ function Layout() {
   const { projectId } = useParams<{ projectId: string }>();
   const isEditorRoute = location.pathname.includes('/editor');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
   const nodeUsecases = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
@@ -92,6 +91,7 @@ function Layout() {
       // Initialize project-specific data (stores etc)
       await Promise.all([
         nodeUsecases.loadNodes(),
+        nodeUsecases.loadEdges(),
         storylineUsecases.loadStorylines(),
         elementUsecases.loadInitial(),
         categoryUsecases.loadCategories(),
@@ -110,12 +110,9 @@ function Layout() {
   useEffect(() => {
     const handleOpenSettings = () => setIsSettingsOpen(true);
     events.on('settings:open', handleOpenSettings);
-    const handleOpenSearch = () => setIsSearchOpen(true);
-    events.on('search:open', handleOpenSearch);
 
     return () => {
       events.off('settings:open', handleOpenSettings);
-      events.off('search:open', handleOpenSearch);
     };
 
   }, []);

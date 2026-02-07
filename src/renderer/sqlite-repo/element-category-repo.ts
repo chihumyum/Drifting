@@ -17,6 +17,7 @@ export interface ElementCategoryRepository {
 }
 
 const DEFAULT_CATEGORY_NAME = 'others';
+const DEFAULT_CATEGORY_COLOR = '#8B7355';
 
 function normalizeCategoryName(name?: string): string {
     const trimmed = name?.trim();
@@ -30,10 +31,32 @@ export function createElementCategoryRepository(projectId: string, dbOverride?: 
     if (category.projectId !== projectId) {
       throw new Error(`Cannot create category: projectId mismatch. Expected ${projectId}, got ${category.projectId}`);
     }
-    category.name = normalizeCategoryName(category.name);
-    log.debug("Creating category:", category);
-    await dbProvider().insert(ElementCategoryTable).values(category);
-    return category;
+    const newCategory: typeof ElementCategoryTable.$inferInsert = {
+      ...category,
+      name: normalizeCategoryName(category.name),
+      descriptionJson: category.descriptionJson ?? '{}',
+      color: category.color ?? DEFAULT_CATEGORY_COLOR,
+    };
+    log.debug("Creating category:", newCategory);
+    const inserted = await dbProvider().insert(ElementCategoryTable).values(newCategory).returning();
+    if (inserted.length > 0) {
+      const candidate = inserted[0] as BookElementCategory;
+      if (candidate.id && candidate.projectId && candidate.name?.trim()) {
+        return candidate;
+      }
+      log.warn('Insert returning payload incomplete, fallback to re-query by id:', inserted[0]);
+    }
+
+    const reloaded = (await dbProvider()
+      .select()
+      .from(ElementCategoryTable)
+      .where(eq(ElementCategoryTable.id, newCategory.id))
+      .limit(1))[0];
+
+    if (!reloaded) {
+      throw new Error(`Failed to create category ${newCategory.id}`);
+    }
+    return reloaded as BookElementCategory;
   };
 
   const update = async (id: string, updates: ElementCategoryUpdateData): Promise<BookElementCategory | null> => {

@@ -93,13 +93,14 @@ export function TopTimeline() {
 
         if (targetStoryline) {
           setCurrentStoryline(targetStoryline);
+          const targetStorylineId = targetStoryline.id;
 
-          const nodeIdsInStoryline = await getNodeIdsByStoryline(targetStoryline.id);
+          const nodeIdsInStoryline = await getNodeIdsByStoryline(targetStorylineId);
           const nodeIdSet = new Set(nodeIdsInStoryline);
 
           // Filter nodes that belong to the storyline (or are main storyline as a fallback) and sort by start position
           const nodesInStoryline = bookNodes
-            .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === targetStoryline.id)
+            .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === targetStorylineId)
             .sort((a, b) => a.start - b.start);
 
           setStorylineNodes(nodesInStoryline);
@@ -356,31 +357,6 @@ export function TopTimeline() {
     }
     if (currentStoryline) {
       navigateToStoryline(currentStoryline.id);
-    }
-  };
-
-  const handleStorylineChange = async (storylineId: string) => {
-    setShowStorylineDropdown(false);
-
-    // Load the new storyline and its nodes
-    try {
-      const targetStoryline = await getStorylineById(storylineId);
-      setCurrentStoryline(targetStoryline);
-
-      const nodeIdsInStoryline = await getNodeIdsByStoryline(storylineId);
-      const nodeIdSet = new Set(nodeIdsInStoryline);
-
-      // Filter nodes that belong to the target storyline and sort by start position
-      const nodesInStoryline = bookNodes
-        .filter(n => nodeIdSet.has(n.id) || n.mainStorylineId === storylineId)
-        .sort((a, b) => a.start - b.start);
-
-      setStorylineNodes(nodesInStoryline);
-
-      // Don't navigate automatically when switching storylines
-      // User can click on a node to navigate
-    } catch (error) {
-      log.error('Failed to switch storyline:', error);
     }
   };
 

@@ -256,6 +256,36 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     return await edgeRepo.update(id, { ...updates, updatedAt: new Date().toISOString() });
   }, [edgeRepo, ensureDb]);
 
+  const createEdge = useCallback(async (input: BookNodeEdge) => {
+    await ensureDb();
+    const prevEdges = useDataStore.getState().nodeEdges.slice();
+    const optimistic = [...prevEdges, input];
+
+    return withOptimisticUpdate({
+      apply: () => setEdgesState(optimistic),
+      rollback: () => setEdgesState(prevEdges),
+      effect: async () => edgeRepo.create(input),
+      onSuccess: (created) => {
+        const current = useDataStore.getState().nodeEdges;
+        setEdgesState(current.map((edge) => (edge.id === created.id ? created : edge)));
+      },
+    });
+  }, [edgeRepo, ensureDb, setEdgesState]);
+
+  const deleteEdge = useCallback(async (id: string) => {
+    await ensureDb();
+    const prevEdges = useDataStore.getState().nodeEdges.slice();
+    const nextEdges = prevEdges.filter((edge) => edge.id !== id);
+
+    return withOptimisticUpdate({
+      apply: () => setEdgesState(nextEdges),
+      rollback: () => setEdgesState(prevEdges),
+      effect: async () => {
+        await edgeRepo.delete(id);
+      },
+    });
+  }, [edgeRepo, ensureDb, setEdgesState]);
+
   return useMemo(() => ({
     loadNodes,
     loadEdges,
@@ -267,6 +297,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     updateNode,
     deleteNode,
     updateEdge,
+    createEdge,
+    deleteEdge,
   }), [
     loadNodes,
     loadEdges,
@@ -278,5 +310,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     updateNode,
     deleteNode,
     updateEdge,
+    createEdge,
+    deleteEdge,
   ]);
 }

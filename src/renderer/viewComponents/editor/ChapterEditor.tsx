@@ -226,7 +226,7 @@ export function ChapterEditor({
 
   const handleSummarySave = () => {
     if (onSummaryUpdate && summaryValue !== summary) {
-      onSummaryUpdate(nodeId, summaryValue.trim() || null);
+      onSummaryUpdate(nodeId, summaryValue.trim());
     }
   };
 

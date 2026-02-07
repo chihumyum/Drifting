@@ -25,7 +25,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
     userId: userId ?? '',
   });
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
-  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  const [currentChapterIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 加载所有章节的内容
@@ -112,6 +112,13 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
       containerRef.current.scrollToChapter = scrollToChapter;
     }
   }, [scrollToChapter]);
+
+  useEffect(() => {
+    if (!onCurrentChapterChange) return;
+    const current = chaptersData[currentChapterIndex];
+    if (!current) return;
+    onCurrentChapterChange(current.nodeId, currentChapterIndex);
+  }, [onCurrentChapterChange, chaptersData, currentChapterIndex]);
 
   if (chaptersData.length === 0) {
     return (

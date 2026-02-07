@@ -100,7 +100,7 @@ export const useUiStore = create<UiState>()(
 
       activeSuperView: 'none',
       setActiveSuperView: (view) => {
-        set((state) => {
+        set(() => {
           const updates: Partial<UiState> = { activeSuperView: view };
           if (view !== 'none') {
             updates.lastActiveSuperView = view;
