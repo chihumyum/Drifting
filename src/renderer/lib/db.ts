@@ -139,5 +139,3 @@ export async function resetDatabase(): Promise<void> {
     initPromise = null;
   }
 }
-
-// End of file

@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
-import { useDataStore } from '../../store/data-store';
-import { useStoryline } from '../../usecase/useStoryline';
-import { useElementCategory } from '../../usecase/useElementCategory';
-import { useNodeTag } from '../../usecase/useNodeTag';
-import { useElementTag } from '../../usecase/useElementTag';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import type { Storyline } from '../../domain/storyline';
-import type { BookNode } from '../../domain/book-node';
-import type { BookElement, BookElementCategory } from '../../domain/book-element';
-import type { NodeTag } from '../../domain/node-tag';
-import type { ElementTag } from '../../domain/element-tag';
-import { useAuthStore } from '../../store/auth';
-import { useUiStore } from '../../store/ui-store';
-import { NodeHoverPreview } from '../NodeHoverPreview';
+import { useDataStore } from '../../../store/data-store';
+import { useStoryline } from '../../../usecase/useStoryline';
+import { useElementCategory } from '../../../usecase/useElementCategory';
+import { useNodeTag } from '../../../usecase/useNodeTag';
+import { useElementTag } from '../../../usecase/useElementTag';
+import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
+import type { Storyline } from '../../../domain/storyline';
+import type { BookNode } from '../../../domain/book-node';
+import type { BookElement, BookElementCategory } from '../../../domain/book-element';
+import type { NodeTag } from '../../../domain/node-tag';
+import type { ElementTag } from '../../../domain/element-tag';
+import { useAuthStore } from '../../../store/auth';
+import { useUiStore } from '../../../store/ui-store';
+import { NodeHoverPreview } from '../../NodeHoverPreview';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("TopTimeline");
 log.setLevel(loglevel.levels.WARN);
@@ -175,9 +175,7 @@ export function TopTimeline() {
       targetCategory = bookElementCategories.find(
         cat =>
           cat.id === categoryId ||
-          cat.id === decodedCategoryId ||
-          cat.name === categoryId ||
-          cat.name === decodedCategoryId
+          cat.id === decodedCategoryId
       ) ?? null;
       targetCategoryId = targetCategory?.id ?? decodedCategoryId ?? categoryId;
     }
@@ -187,7 +185,7 @@ export function TopTimeline() {
       targetCategoryId = currentElement?.categoryId ?? null;
       if (currentElement) {
         targetCategory = bookElementCategories.find(
-          cat => cat.id === currentElement.categoryId || cat.name === currentElement.categoryId
+          cat => cat.id === currentElement.categoryId
         ) ?? null;
       }
     }
@@ -197,7 +195,6 @@ export function TopTimeline() {
     if (decodedCategoryId) categoryKeys.add(decodedCategoryId);
     if (targetCategoryId) categoryKeys.add(targetCategoryId);
     if (targetCategory?.id) categoryKeys.add(targetCategory.id);
-    if (targetCategory?.name) categoryKeys.add(targetCategory.name);
 
     const elementsInCategory = categoryKeys.size > 0
       ? bookElements
@@ -641,26 +638,9 @@ export function TopTimeline() {
   const handleCreateStorylineFromDropdown = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const STORYLINE_COLORS = [
-        '#b89968', '#8b7355', '#946b54', '#bc6c25', '#a0522d',
-        '#6b9080', '#588157', '#a3b18a', '#4a7c59', '#6d9773',
-        '#7a9e9f', '#5b8a8f', '#4682b4', '#5f9ea0', '#4a7c8c',
-        '#9b7e9b', '#8b7b9b', '#a98d9b', '#9a7e9e', '#b19cd9',
-        '#c17c5c', '#d4956c', '#b8805f', '#cf8d6f', '#a67c52',
-        '#7d8491', '#8b939e', '#6d7684', '#858c99', '#75808a',
-      ];
-
-      const currentStorylines = await loadStorylines(projectId);
-      const usedColors = new Set(currentStorylines.map(s => s.color?.toLowerCase()));
-      const unusedColors = STORYLINE_COLORS.filter(c => !usedColors.has(c.toLowerCase()));
-      const selectedColor = unusedColors.length > 0
-        ? unusedColors[Math.floor(Math.random() * unusedColors.length)]
-        : STORYLINE_COLORS[Math.floor(Math.random() * STORYLINE_COLORS.length)];
-
       await createStoryline({
         projectId,
         name: 'New Storyline',
-        color: selectedColor,
         summary: '',
       });
 
@@ -674,10 +654,7 @@ export function TopTimeline() {
   const handleCreateCategoryFromDropdown = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const created = await createCategory({
-        projectId,
-        name: `New Category ${allCategories.length + 1}`,
-      });
+      const created = await createCategory();
       const refreshed = await loadCategories(projectId);
       setAllCategories(refreshed);
       if (!currentCategory && !isAllElementsMode) {

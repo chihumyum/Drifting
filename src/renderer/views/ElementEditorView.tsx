@@ -70,7 +70,7 @@ export function ElementEditorView() {
     setCurElement(element);
     setNameValue(element?.name || '');
     setSummaryValue(element?.summary || '');
-    setCategoryValue(element?.categoryId || 'others');
+    setCategoryValue(element?.categoryId || '');
 
     // Auto-enter edit mode for newly created elements
     if (element?.name === 'New Element') {
@@ -174,15 +174,15 @@ export function ElementEditorView() {
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim()) return;
 
-    await categoryUsecases.createCategory(newCategoryName.trim());
+    const created = await categoryUsecases.createCategory({ name: newCategoryName.trim() });
 
     // Reload categories
     await categoryUsecases.loadCategories();
 
     // Set the new category
-    setCategoryValue(newCategoryName.trim());
+    setCategoryValue(created.id);
     if (elementId) {
-      await updateElement(elementId, { categoryId: newCategoryName.trim() });
+      await updateElement(elementId, { categoryId: created.id });
     }
 
     // Close modal
@@ -379,9 +379,8 @@ export function ElementEditorView() {
                     cursor: 'pointer',
                   }}
                 >
-                  <option value="others">Others</option>
                   {bookElementCategories.map(cat => (
-                    <option key={cat.id} value={cat.name}>
+                    <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
                   ))}
@@ -495,7 +494,7 @@ export function ElementEditorView() {
                   border: '1px solid var(--accent-border, #e8dcc8)',
                 }}
               >
-                {curElement.categoryId || 'others'}
+                {bookElementCategories.find(cat => cat.id === curElement.categoryId)?.name ?? curElement.categoryId}
               </div>
             )}
           </div>

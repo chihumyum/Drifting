@@ -1,14 +1,14 @@
 import { Plus } from 'lucide-react';
 import { useLocation, useParams } from 'react-router-dom';
-import { useBookNode } from '../../usecase/useBookNode';
-import { useStoryline } from '../../usecase/useStoryline';
-import { useBookElement } from '../../usecase/useBookElement';
-import { useElementCategory } from '../../usecase/useElementCategory';
-import { useDataStore } from '../../store/data-store';
-import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useBookNode } from '../../../usecase/useBookNode';
+import { useStoryline } from '../../../usecase/useStoryline';
+import { useBookElement } from '../../../usecase/useBookElement';
+import { useElementCategory } from '../../../usecase/useElementCategory';
+import { useDataStore } from '../../../store/data-store';
+import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import loglevel from "loglevel";
-import { useAuthStore } from '../../store/auth';
-import { useUiStore } from '../../store/ui-store';
+import { useAuthStore } from '../../../store/auth';
+import { useUiStore } from '../../../store/ui-store';
 
 const log = loglevel.getLogger("NewEntityButton");
 log.setLevel(loglevel.levels.ERROR);
@@ -176,14 +176,7 @@ export function NewEntityButton() {
       let targetCategoryId: string | null = null;
 
       if (categoryId) {
-        const normalizedCategoryId = decodedCategoryId ?? categoryId;
-        const match = bookElementCategories.find((cat) =>
-          cat.id === categoryId ||
-          cat.id === normalizedCategoryId ||
-          cat.name === categoryId ||
-          cat.name === normalizedCategoryId
-        );
-        targetCategoryId = normalizedCategoryId ?? match?.id ?? match?.name ?? null;
+        targetCategoryId = decodedCategoryId ?? categoryId;
       }
 
       if (!targetCategoryId && elementId) {
@@ -201,7 +194,7 @@ export function NewEntityButton() {
       }
 
       if (!targetCategoryId) {
-        const created = await createCategory('others');
+        const created = await createCategory();
         targetCategoryId = created.id;
       }
 

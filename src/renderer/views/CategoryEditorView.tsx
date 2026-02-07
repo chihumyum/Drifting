@@ -59,7 +59,7 @@ export function CategoryEditorView() {
       navigateToHome();
       return;
     }
-    const category = bookElementCategories.find(cat => cat.id === categoryId || cat.name === categoryId) || null;
+    const category = bookElementCategories.find(cat => cat.id === categoryId) || null;
     setCurCategory(category);
   }, [bookElementCategories, categoryId, navigateToHome, projectId]);
 
