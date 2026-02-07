@@ -16,7 +16,7 @@ import { Storyline } from '../domain/storyline';
 import { BookNode } from '../domain/book-node';
 const log = loglevel.getLogger("StorylineEditorView");
 // log.setLevel(loglevel.levels.ERROR);
-log.setLevel(loglevel.levels.TRACE);
+log.setLevel(loglevel.levels.WARN);
 
 // todo: 修复严重同步问题
 export function StorylineEditorView() {

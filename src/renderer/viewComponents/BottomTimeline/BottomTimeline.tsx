@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
@@ -29,15 +29,21 @@ const TIMELINE_CONFIG = {
   RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
 };
 
+const EXPANDED_ZOOM_CONFIG = {
+  MIN_SCALE: 0.5,
+  MAX_SCALE: 3,
+  WHEEL_SENSITIVITY: 0.002,
+  STORAGE_KEY: 'timeline-expanded-scale',
+};
+
 interface TimelineNode extends BookNode {
   storylines: Storyline[];
 }
 
 export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
-  const location = useLocation();
   const user = useAuthStore(state => state.user);
-  const { bookNodes, storylines } = useDataStore();
+  const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
   const { loadNodes, createNode, updateNode, deleteNode } = useBookNode({
     projectId: projectId ?? '',
@@ -56,6 +62,7 @@ export function BottomTimeline() {
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
 
   const [isExpanded, setIsExpanded] = useState(true);
+  const [expandedScale, setExpandedScale] = useState(1);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [draggedNode, setDraggedNode] = useState<{ node: TimelineNode; storylineId: string } | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<{ storylineId: string; start: number; x: number } | null>(null);
@@ -65,12 +72,12 @@ export function BottomTimeline() {
   useEffect(() => {
     async function loadChapters() {
       try {
-        loadNodes();
+        await loadNodes();
       } catch (error) {
         log.error('Failed to load chapters:', error);
       }
     }
-    loadChapters();
+    void loadChapters();
   }, [loadNodes, user]);
 
   // Load storylines and node-storyline relationships
@@ -102,8 +109,8 @@ export function BottomTimeline() {
     }
 
     // Always load storylines, even if there are no nodes yet
-    loadData();
-  }, [bookNodes, loadStorylines, user, getStorylinesByNode]);
+    void loadData();
+  }, [bookNodes, storylineNodeMapping, projectId, loadStorylines, user, getStorylinesByNode]);
 
   // Load outlines for all nodes
   useEffect(() => {
@@ -138,10 +145,11 @@ export function BottomTimeline() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    type: 'storyline-empty' | 'node' | 'storyline-with-selected';
+    type: 'storyline' | 'node';
     storylineId?: string;
     nodeId?: string;
     position?: number;
+    canAddCurrentNode?: boolean;
     // Node 预览信息
     nodeTitle?: string;
     nodeSummary?: string | null;
@@ -171,6 +179,11 @@ export function BottomTimeline() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const pinchStateRef = useRef<{ startDistance: number; startScale: number } | null>(null);
+
+  const clampExpandedScale = useCallback((scale: number) => {
+    return Math.min(EXPANDED_ZOOM_CONFIG.MAX_SCALE, Math.max(EXPANDED_ZOOM_CONFIG.MIN_SCALE, scale));
+  }, []);
 
   // Save scroll position to localStorage
   const saveScrollPosition = useCallback(() => {
@@ -211,6 +224,21 @@ export function BottomTimeline() {
     }
   }, []);
 
+  // 从 localStorage 恢复展开态缩放
+  useEffect(() => {
+    const savedScale = localStorage.getItem(EXPANDED_ZOOM_CONFIG.STORAGE_KEY);
+    if (!savedScale) return;
+    const parsed = Number.parseFloat(savedScale);
+    if (Number.isFinite(parsed)) {
+      setExpandedScale(clampExpandedScale(parsed));
+    }
+  }, [clampExpandedScale]);
+
+  // 保存展开态缩放
+  useEffect(() => {
+    localStorage.setItem(EXPANDED_ZOOM_CONFIG.STORAGE_KEY, expandedScale.toString());
+  }, [expandedScale]);
+
   // 处理高度调整的拖拽
   useEffect(() => {
     if (!isResizingHeight) return;
@@ -236,7 +264,7 @@ export function BottomTimeline() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingHeight, customTotalHeight]);
+  }, [isResizingHeight, customTotalHeight, storylines.length]);
 
 
   // Save scroll position on scroll
@@ -276,20 +304,22 @@ export function BottomTimeline() {
 
   // 计算 timeline 范围
   // 收起时和展开时都显示所有节点，但收起时会通过缩放来适应窗口
-  const minStart = nodesWithStorylines.length > 0 ? Math.min(...nodesWithStorylines.map(n => n.start)) : 0;
-  const maxEnd = nodesWithStorylines.length > 0
-    ? Math.max(...nodesWithStorylines.map(n => n.end ?? (n.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH)))
-    : 0;
+  const minNodeStart = nodesWithStorylines.length > 0 ? Math.min(...nodesWithStorylines.map((n) => n.start)) : 1;
+  // Keep timeline baseline stable so moving the earliest node right does not "zoom" the whole axis.
+  const minStart = Math.min(minNodeStart, 1);
+  const maxNodeEnd = nodesWithStorylines.length > 0
+    ? Math.max(...nodesWithStorylines.map((n) => n.end ?? (n.start + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH)))
+    : (minStart + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
+  const maxEnd = Math.max(maxNodeEnd, minStart + TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
 
   // 收起时：计算缩放比例，让所有节点适应窗口宽度
   // 展开时：不缩放，使用正常的 GRID_UNIT
-  const timelineRange = maxEnd - minStart;
+  const timelineRange = Math.max(maxEnd - minStart, TIMELINE_CONFIG.NODE_DEFAULT_WIDTH);
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const availableWidth = viewportWidth - 40; // 减去左右边距
 
-  const scaleFactor = isExpanded
-    ? 1
-    : Math.min(1, availableWidth / (timelineRange * TIMELINE_CONFIG.GRID_UNIT));
+  const collapsedAutoScale = Math.min(1, availableWidth / (timelineRange * TIMELINE_CONFIG.GRID_UNIT));
+  const scaleFactor = isExpanded ? expandedScale : collapsedAutoScale;
 
   // 展开时：添加 25% 视口宽度的额外空间用于扩展新 node
   // 收起时：只添加 40px 基础边距
@@ -351,15 +381,15 @@ export function BottomTimeline() {
     const savedScrollLeft = scrollContainer?.scrollLeft || 0;
     const shouldRestoreScroll = !['editChapter'].includes(action);
 
-    if (!projectId || !storylineId) {
-      log.error('No projectId or storylineId found for context menu action');
+    if (!projectId) {
+      log.error('No projectId found for context menu action');
       return;
     }
 
     try {
       switch (action) {
         case 'createChapter':
-          if (contextMenu.type === 'storyline-empty' && contextMenu.storylineId && contextMenu.position) {
+          if (contextMenu.type === 'storyline' && contextMenu.storylineId && contextMenu.position !== undefined) {
             // 创建新章节
             const newNode = await createNode({
               start: contextMenu.position,
@@ -396,8 +426,10 @@ export function BottomTimeline() {
                 navigateToHome();
               }
             } else {
-              // 检查是否删除的是主 storyline（第一个 storyline）
-              const isRemovingPrimaryStoryline = nodeStorylines.length > 0 && nodeStorylines[0].id === contextMenu.storylineId;
+              // 检查是否删除的是主 storyline（mainStorylineId）
+              const nodeInTimeline = nodesWithStorylines.find((n) => n.id === contextMenu.nodeId);
+              const currentPrimaryStorylineId = nodeInTimeline?.mainStorylineId ?? nodeStorylines[0]?.id;
+              const isRemovingPrimaryStoryline = currentPrimaryStorylineId === contextMenu.storylineId;
 
               if (isRemovingPrimaryStoryline) {
                 // 如果删除主 storyline 且还有其他 storylines，将剩余的 storylines 重新排序
@@ -407,6 +439,9 @@ export function BottomTimeline() {
 
                 // 第一个剩余的 storyline 会成为新的主 storyline
                 await setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
+                if (remainingStorylineIds.length > 0) {
+                  await updateNode(contextMenu.nodeId, { mainStorylineId: remainingStorylineIds[0] });
+                }
               } else {
                 // 如果不是主 storyline，直接删除
                 await removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
@@ -440,7 +475,7 @@ export function BottomTimeline() {
           break;
 
         case 'addToStoryline':
-          if (contextMenu.type === 'storyline-with-selected' && contextMenu.storylineId && nodeId) {
+          if (contextMenu.type === 'storyline' && contextMenu.storylineId && contextMenu.canAddCurrentNode && nodeId) {
             // 添加选中的节点到此 storyline
             await addNodeToStoryline(nodeId, contextMenu.storylineId);
             // 恢复滚动
@@ -449,6 +484,8 @@ export function BottomTimeline() {
                 scrollContainer.scrollLeft = savedScrollLeft;
               });
             }
+          } else if (contextMenu.type === 'storyline') {
+            log.error('No selected node found for addToStoryline action');
           }
           break;
       }
@@ -461,19 +498,25 @@ export function BottomTimeline() {
 
   // 点击其他地方关闭 context menu
   useEffect(() => {
-    const handleClickOutside = () => setContextMenu(null);
+    if (!contextMenu) return;
+
+    const handlePointerDownCapture = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as Node | null;
+      if (target && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+    };
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setContextMenu(null);
     };
 
-    if (contextMenu) {
-      document.addEventListener('click', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-      return () => {
-        document.removeEventListener('click', handleClickOutside);
-        document.removeEventListener('keydown', handleEscape);
-      };
-    }
+    document.addEventListener('pointerdown', handlePointerDownCapture, true);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownCapture, true);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [contextMenu]);
 
   // 将 start 转换为像素位置（考虑 minStart 偏移和缩放）
@@ -494,7 +537,7 @@ export function BottomTimeline() {
 
     if (!draggedNode) return;
 
-    // 获取节点容器的位置（不是整个 timeline）
+    // 获取节点容器的位置
     const container = (e.currentTarget as HTMLElement).querySelector('[data-node-container]') as HTMLElement;
     if (!container) return;
 
@@ -519,41 +562,33 @@ export function BottomTimeline() {
     const targetStart = dragOverPosition.start;
 
     try {
-      // Check if this is a primary storyline (first storyline in node.storylines)
-      const isPrimaryStoryline = node.storylines.length > 0 && node.storylines[0].id === sourceStorylineId;
+      const fallbackPrimaryId = node.storylines[0]?.id;
+      const primaryStorylineId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
+        ? node.mainStorylineId
+        : fallbackPrimaryId;
+      const isPrimaryStoryline = primaryStorylineId === sourceStorylineId;
       const isTargetInNodeStorylines = node.storylines.some(t => t.id === targetStorylineId);
 
-      // Only allow dragging from primary storyline
       if (!isPrimaryStoryline) {
         log.warn('Can only drag from primary storyline');
         return;
       }
 
-      // If dropped in a different storyline
       if (sourceStorylineId !== targetStorylineId) {
         if (isTargetInNodeStorylines) {
-          // Target storyline already belongs to this node
-          // Keep source storyline, but make target storyline the new primary
-          const newStorylineOrder = [
-            targetStorylineId,
-            ...node.storylines.filter(t => t.id !== targetStorylineId).map(t => t.id)
-          ];
-          await setNodeStorylines(node.id, newStorylineOrder);
+          // Keep memberships, only switch primary storyline.
+          await updateNode(node.id, { mainStorylineId: targetStorylineId });
         } else {
-          // Target storyline is new to this node
-          // Remove old primary storyline and add target as new primary
           await removeNodeFromStoryline(node.id, sourceStorylineId);
-          // Add target storyline as the first (primary) storyline
           const remainingStorylineIds = node.storylines
             .filter(t => t.id !== sourceStorylineId)
             .map(t => t.id);
           await setNodeStorylines(node.id, [targetStorylineId, ...remainingStorylineIds]);
+          await updateNode(node.id, { mainStorylineId: targetStorylineId });
         }
       }
 
-      // Update start position if changed (and maintain position regardless of storyline changes)
       if (targetStart !== node.start) {
-        // Calculate new end to maintain width
         const currentEnd = nodeEnds.get(node.id) ?? node.end;
         const width = currentEnd !== null ? currentEnd - node.start : TIMELINE_CONFIG.NODE_DEFAULT_WIDTH;
         const newEnd = targetStart + width;
@@ -647,7 +682,7 @@ export function BottomTimeline() {
         const currentEnd = nodeEnds.get(resizingNode.nodeId) ?? node.end;
 
         // 准备更新数据
-        const updates: { start?: number; end?: number | null } = {};
+        const updates: Partial<BookNode> = {};
 
         // 如果 start 变化了，更新它
         if (node.start !== resizingNode.startStart) {
@@ -655,15 +690,12 @@ export function BottomTimeline() {
         }
 
         // 如果 end 变化了，更新它
-        if (currentEnd !== resizingNode.startEnd) {
+        if (currentEnd !== resizingNode.startEnd && currentEnd !== null) {
           updates.end = currentEnd;
         }
 
         // 如果有任何更新，写入数据库
         if (Object.keys(updates).length > 0) {
-          const updates: Partial<BookNode> = {
-            end: currentEnd ?? 0 // Fallback to 0 if null 
-          };
           await updateNode(resizingNode.nodeId, updates);
         }
 
@@ -691,13 +723,14 @@ export function BottomTimeline() {
         document.removeEventListener('mouseup', handleNodeResizeEnd);
       };
     }
-  }, [resizingNode, nodesWithStorylines, nodeEnds]);
+  }, [resizingNode, nodesWithStorylines, nodeEnds, updateNode]);
 
   // Handle node click
-  const handleNodeClick = (nodeId: string, e: React.MouseEvent) => {
+  const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (location.pathname !== `/${projectId}/editor/${nodeId}`) {
-      navigateToNode(nodeId);
+    setContextMenu(null);
+    if (nodeId !== clickedNodeId) {
+      navigateToNode(clickedNodeId);
     }
   };
 
@@ -719,6 +752,7 @@ export function BottomTimeline() {
 
   // Handle timeline background click (deselect)
   const handleTimelineClick = () => {
+    setContextMenu(null);
     // 只在展开时响应点击
     if (!isExpanded) return;
     // 点击任何空白处都导航到 home（事件会被节点和按钮拦截）
@@ -727,45 +761,71 @@ export function BottomTimeline() {
     }
   };
 
-  // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
-  // 规则：在 node 的第一个 storyline 上完整显示，其他 storylines 上显示连接点
-  const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
-    if (node.storylines.length === 0) return false;
-    return node.storylines[0].id === storylineId;
+  // Use a non-passive native wheel listener so preventDefault works for trackpad pinch zoom.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      // 收起态固定自动缩放，不允许手动缩放
+      if (!isExpanded) return;
+      // Trackpad pinch 通常会带 ctrlKey；同时兼容 meta+wheel
+      if (!event.ctrlKey && !event.metaKey) return;
+
+      event.preventDefault();
+      const zoomFactor = Math.exp(-event.deltaY * EXPANDED_ZOOM_CONFIG.WHEEL_SENSITIVITY);
+      setExpandedScale((prev) => clampExpandedScale(prev * zoomFactor));
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [isExpanded, clampExpandedScale]);
+
+  const getTouchDistance = (touches: React.TouchList): number => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
   };
 
-  // 渲染连接线和标记点（用于跨多个 storylines 的 node）
-  const renderNodeConnections = (node: TimelineNode, currentStorylineIndex: number) => {
-    // 只有当 node 在多个 storylines 中时才渲染连接
-    if (node.storylines.length <= 1) return null;
+  const handleTimelineTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isExpanded || e.touches.length < 2) return;
+    const startDistance = getTouchDistance(e.touches);
+    if (startDistance <= 0) return;
+    pinchStateRef.current = { startDistance, startScale: expandedScale };
+  };
 
-    // 找到主 storyline 的索引（第一个 storyline）
-    const primaryStorylineId = node.storylines[0].id;
-    const primaryStorylineIndex = storylines.findIndex(t => t.id === primaryStorylineId);
+  const handleTimelineTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isExpanded || e.touches.length < 2 || !pinchStateRef.current) return;
 
-    if (primaryStorylineIndex === -1) return null;
+    const currentDistance = getTouchDistance(e.touches);
+    if (currentDistance <= 0 || pinchStateRef.current.startDistance <= 0) return;
 
-    // 只在主 storyline 上显示连接指示（简化版本）
-    if (currentStorylineIndex !== primaryStorylineIndex) return null;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
 
-    // 显示一个简单的标记表示该节点在多个 storylines 中
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          right: 4,
-          top: 4,
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: storylines.find(t => t.id === primaryStorylineId)?.color || '#b89968',
-          opacity: 0.6,
-          pointerEvents: 'none',
-          zIndex: 10,
-        }}
-        title={`This node appears in ${node.storylines.length} storylines`}
-      />
-    );
+    const ratio = currentDistance / pinchStateRef.current.startDistance;
+    const nextScale = pinchStateRef.current.startScale * ratio;
+    setExpandedScale(clampExpandedScale(nextScale));
+  };
+
+  const handleTimelineTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length < 2) {
+      pinchStateRef.current = null;
+    }
+  };
+
+  // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
+  // 规则：在 node.mainStorylineId 上完整显示，其他 storylines 上显示连接点
+  const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
+    const fallbackPrimaryId = node.storylines[0]?.id;
+    const primaryId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
+      ? node.mainStorylineId
+      : fallbackPrimaryId;
+    return primaryId === storylineId;
   };
 
   // Render a single node card
@@ -773,7 +833,6 @@ export function BottomTimeline() {
     const storyline = storylines.find((t) => t.id === storylineId);
     const isSelected = nodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
-    const currentStorylineIndex = storylines.findIndex(t => t.id === storylineId);
     const defaultColor = '#00355bff';
 
     // startToPosition 已经处理了 minStart 偏移和缩放
@@ -784,6 +843,9 @@ export function BottomTimeline() {
     if (!isPrimary && node.storylines.length > 1) {
       const markerSize = isExpanded ? 12 : 6;
       const isHovered = hoveredNodeId === node.id;
+      const primaryStorylineName = storylines.find((sl) => sl.id === node.mainStorylineId)?.name
+        ?? node.storylines[0]?.name
+        ?? 'another storyline';
       return (
         <div
           key={`${node.id}-${storylineId}-marker`}
@@ -814,7 +876,7 @@ export function BottomTimeline() {
             transition: isExpanded ? 'none' : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease',
             zIndex: isSelected ? 10 : 5,
           }}
-          title={isExpanded ? `${node.title} (from ${node.storylines[0]?.name || 'another storyline'})` : undefined}
+          title={isExpanded ? `${node.title} (from ${primaryStorylineName})` : undefined}
         />
       );
     }
@@ -896,11 +958,9 @@ export function BottomTimeline() {
           filter: !isExpanded && isSelected ? 'brightness(1.2) saturate(1.3) contrast(1.1)' : 'none',
           transform: isExpanded ? 'none' : `scale(${isHovered ? 1.05 : 1})`,
           transition: isExpanded ? 'none' : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.3s ease',
+          overflow: 'visible',
         }}
       >
-        {/* 连接线 - 如果node在多个storylines中 */}
-        {node.storylines.length > 1 && renderNodeConnections(node, currentStorylineIndex)}
-
         {/* Outline 刻度线背景层 - 仅展开时显示 */}
         {isExpanded && (() => {
           const outline = nodeOutlines.get(node.id);
@@ -1097,12 +1157,16 @@ export function BottomTimeline() {
         onDragOver={(e) => isExpanded && handleNodeDragOver(e, storyline.id)}
         onDrop={(e) => isExpanded && handleDrop(e, storyline.id)}
         onClick={(e) => {
+          e.stopPropagation();
+          setContextMenu(null);
           // 检查是否点击在节点上
           const target = e.target as HTMLElement;
           const isNodeClick = target.closest('[data-node-card]');
 
           if (!isNodeClick) {
-            if (location.pathname !== `/${projectId}/editor/storyline/${storyline.id}`) {
+            if (storylineId && storylineId === storyline.id) {
+              navigateToHome();
+            } else {
               navigateToStoryline(storyline.id);
             }
           }
@@ -1119,7 +1183,10 @@ export function BottomTimeline() {
           const x = e.clientX - rect.left;
 
           // 从像素位置转换为 start（timeline position）
-          const position = Math.max(1, Math.round(x / TIMELINE_CONFIG.GRID_UNIT) + 1);
+          const position = Math.max(
+            minStart,
+            Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minStart
+          );
 
           // 检查是否点击在某个 node 上
           const clickedNode = nodesInStoryline.find(node => {
@@ -1141,22 +1208,15 @@ export function BottomTimeline() {
               nodeSummary: clickedNode.summary,
               nodeStorylines: clickedNode.storylines,
             });
-          } else if (nodeId && !selectedNodeBelongsToStoryline) {
-            // 选中了某个 node，且点击在空白处，可以添加 node 到此 storyline
-            setContextMenu({
-              x: e.clientX + 2,
-              y: e.clientY - 2,
-              type: 'storyline-with-selected',
-              storylineId: storyline.id,
-            });
           } else {
-            // Storyline 空白处，可以新增 chapter
+            // Storyline 空白处：总是可新增 chapter；若当前选中 node 且不在此 storyline，可附加 Add to Storyline
             setContextMenu({
               x: e.clientX + 2,
               y: e.clientY - 2,
-              type: 'storyline-empty',
+              type: 'storyline',
               storylineId: storyline.id,
               position,
+              canAddCurrentNode: Boolean(nodeId && !selectedNodeBelongsToStoryline),
             });
           }
         }}
@@ -1269,6 +1329,10 @@ export function BottomTimeline() {
       <div
         ref={scrollContainerRef}
         data-timeline-container
+        onTouchStart={handleTimelineTouchStart}
+        onTouchMove={handleTimelineTouchMove}
+        onTouchEnd={handleTimelineTouchEnd}
+        onTouchCancel={handleTimelineTouchEnd}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -1282,6 +1346,7 @@ export function BottomTimeline() {
           scrollbarWidth: 'none', // Firefox
           msOverflowStyle: 'none', // IE and Edge
           WebkitOverflowScrolling: 'touch', // iOS smooth scrolling
+          touchAction: isExpanded ? 'pan-x pinch-zoom' : 'pan-x',
         }}
         // 隐藏滚动条 - Webkit (Chrome, Safari)
         className="timeline-scroll-container"
@@ -1315,6 +1380,8 @@ export function BottomTimeline() {
           if (contextMenu.nodeSummary) menuHeight += 40;
           if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0) menuHeight += 30;
           if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1) menuHeight += 40; // Remove from storyline button
+        } else if (contextMenu.type === 'storyline' && contextMenu.canAddCurrentNode) {
+          menuHeight = 100;
         }
 
         const position = getContextMenuPosition(contextMenu.x, contextMenu.y, menuWidth, menuHeight);
@@ -1338,31 +1405,60 @@ export function BottomTimeline() {
             }}
           >
             {/* Storyline 空白处菜单 */}
-            {contextMenu.type === 'storyline-empty' && (
-              <button
-                onClick={() => handleContextMenuAction('createChapter')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  width: '100%',
-                  padding: '8px 16px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#2a1a0a',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--accent-hover, #f5f0e8)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                ➕ Create Chapter
-              </button>
+            {contextMenu.type === 'storyline' && (
+              <>
+                <button
+                  onClick={() => handleContextMenuAction('createChapter')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#2a1a0a',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--accent-hover, #f5f0e8)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  ➕ Add New Node
+                </button>
+
+                {contextMenu.canAddCurrentNode && (
+                  <button
+                    onClick={() => handleContextMenuAction('addToStoryline')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      width: '100%',
+                      padding: '8px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#2a1a0a',
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--accent-hover, #f5f0e8)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    ➕ Add to Storyline
+                  </button>
+                )}
+              </>
             )}
 
             {/* Node 菜单 - 带预览信息 */}
@@ -1517,33 +1613,6 @@ export function BottomTimeline() {
               </>
             )}
 
-            {/* 添加到 Storyline 菜单 */}
-            {contextMenu.type === 'storyline-with-selected' && (
-              <button
-                onClick={() => handleContextMenuAction('addToStoryline')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  width: '100%',
-                  padding: '8px 16px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#2a1a0a',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--accent-hover, #f5f0e8)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                ➕ Add to Storyline
-              </button>
-            )}
           </div>
         );
       })()}
