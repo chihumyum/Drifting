@@ -24,7 +24,13 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// Enable HMR for Vite
+// Fallback for Electron dev: if React Fast Refresh misses a boundary,
+// force a full-page reload so edits are still reflected immediately.
 if (import.meta.hot) {
-  import.meta.hot.accept();
+  import.meta.hot.on('vite:beforeUpdate', (payload) => {
+    const hasScriptUpdate = payload.updates.some((update) => update.type === 'js-update');
+    if (hasScriptUpdate) {
+      window.location.reload();
+    }
+  });
 }

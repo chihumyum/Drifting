@@ -5,7 +5,12 @@ import { useSettingsStore } from '../../store/settings-store';
  * 包含自动元素链接等功能的开关
  */
 export function EditorSettings() {
-  const { autoElementLinkEnabled, setAutoElementLinkEnabled } = useSettingsStore();
+  const {
+    autoElementLinkEnabled,
+    setAutoElementLinkEnabled,
+    recentEntitiesLimit,
+    setRecentEntitiesLimit,
+  } = useSettingsStore();
 
   return (
     <div className="editor-settings p-4 bg-gray-800 rounded-lg">
@@ -28,6 +33,27 @@ export function EditorSettings() {
               checked={autoElementLinkEnabled}
               onChange={(e) => setAutoElementLinkEnabled(e.target.checked)}
               className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+            />
+          </div>
+        </label>
+
+        <label className="flex items-center justify-between cursor-pointer group">
+          <div className="flex-1">
+            <div className="text-sm text-gray-300 group-hover:text-white transition-colors">
+              最近使用 Entity 数量
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              Project Home 顶部时间轴最多显示多少条最近使用记录（1-50）
+            </div>
+          </div>
+          <div className="ml-3">
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={recentEntitiesLimit}
+              onChange={(e) => setRecentEntitiesLimit(Number(e.target.value))}
+              className="w-16 px-2 py-1 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </label>

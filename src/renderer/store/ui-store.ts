@@ -41,8 +41,6 @@ interface EditorRuntimeState {
   activeEntityType: 'node' | 'element' | 'none';
   isAllNodesEditor: boolean;
   isAllElementsEditor: boolean;
-  shouldNavigateOnNodeSelect: boolean;
-  shouldNavigateOnElementSelect: boolean;
 }
 
 interface UiState {
@@ -72,6 +70,10 @@ interface UiState {
 
   editorRuntime: EditorRuntimeState;
   setEditorRuntime: (runtime: EditorRuntimeState) => void;
+  preferAllNodeTimeline: boolean;
+  setPreferAllNodeTimeline: (prefer: boolean) => void;
+  preferAllElementTimeline: boolean;
+  setPreferAllElementTimeline: (prefer: boolean) => void;
 
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
@@ -260,10 +262,12 @@ export const useUiStore = create<UiState>()(
         activeEntityType: 'none',
         isAllNodesEditor: false,
         isAllElementsEditor: false,
-        shouldNavigateOnNodeSelect: true,
-        shouldNavigateOnElementSelect: true,
       },
       setEditorRuntime: (runtime) => set({ editorRuntime: runtime }),
+      preferAllNodeTimeline: false,
+      setPreferAllNodeTimeline: (prefer) => set({ preferAllNodeTimeline: prefer }),
+      preferAllElementTimeline: false,
+      setPreferAllElementTimeline: (prefer) => set({ preferAllElementTimeline: prefer }),
 
       selectedElementId: null,
       setSelectedElementId: (id) =>
@@ -314,6 +318,8 @@ export const useUiStore = create<UiState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
+        preferAllNodeTimeline: state.preferAllNodeTimeline,
+        preferAllElementTimeline: state.preferAllElementTimeline,
         activeLeftPanel: state.activeLeftPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,

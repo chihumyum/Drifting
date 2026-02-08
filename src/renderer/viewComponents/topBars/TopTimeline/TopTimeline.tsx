@@ -6,6 +6,8 @@ import { useElementCategory } from '../../../usecase/useElementCategory';
 import { useNodeTag } from '../../../usecase/useNodeTag';
 import { useElementTag } from '../../../usecase/useElementTag';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
+import { useSettingsStore } from '../../../store/settings-store';
+import { useRecentEntitiesStore } from '../../../store/recent-entities-store';
 import type { Storyline } from '../../../domain/storyline';
 import type { BookNode } from '../../../domain/book-node';
 import type { BookElement, BookElementCategory } from '../../../domain/book-element';
@@ -14,6 +16,9 @@ import type { ElementTag } from '../../../domain/element-tag';
 import { useAuthStore } from '../../../store/auth';
 import { useUiStore } from '../../../store/ui-store';
 import { NodeHoverPreview } from '../../NodeHoverPreview';
+import { TopTimelineTabs } from './TopTimelineTabs';
+import { TopTimelineDropdown } from './TopTimelineDropdown';
+import { useTimelineTabWidths } from './useTimelineTabWidths';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("TopTimeline");
 log.setLevel(loglevel.levels.WARN);
@@ -38,7 +43,14 @@ function safeDecodeURIComponent(value: string): string {
 
 export function TopTimeline() {
   const user = useAuthStore(state => state.user);
-  const { projectId, navigateToStoryline, navigateToCategory, navigateTo } = useProjectNavigation();
+  const {
+    projectId,
+    navigateToStoryline,
+    navigateToCategory,
+    navigateToNode,
+    navigateToElement,
+    navigateTo,
+  } = useProjectNavigation();
   if (!projectId) {
     log.error('No projectId in params, cannot render TopTimeline');
     throw new Error('No projectId in params');
@@ -62,6 +74,12 @@ export function TopTimeline() {
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const selectedElementId = useUiStore((state) => state.elementUi.selectedId);
   const setElementSelection = useUiStore((state) => state.setElementSelection);
+  const preferAllNodeTimeline = useUiStore((state) => state.preferAllNodeTimeline);
+  const preferAllElementTimeline = useUiStore((state) => state.preferAllElementTimeline);
+  const recentEntities = useRecentEntitiesStore((state) => state.items);
+  const touchRecentEntity = useRecentEntitiesStore((state) => state.touchEntity);
+  const trimRecentEntities = useRecentEntitiesStore((state) => state.trimToLimit);
+  const recentEntitiesLimit = useSettingsStore((state) => state.recentEntitiesLimit);
   const { getStorylineById, createStoryline } = useStoryline({
     projectId: projectId,
     userId: user.id,
@@ -97,7 +115,6 @@ export function TopTimeline() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedNodeRef = useRef<HTMLDivElement>(null);
-  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const storylineIconRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const hideDropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -105,11 +122,14 @@ export function TopTimeline() {
   const isElementMode = Boolean(categoryId || elementId);
   const isStorylineMode = Boolean(storylineId || nodeId);
   const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
+  const isProjectHomeMode = location.pathname === `/project/${projectId}/home`;
   const isAllNodesMode = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
   const isAllElementsMode = location.pathname.includes('/home/all-elements') || location.pathname.includes('/editor/all-elements');
-  const isNodeTimelineMode = isStorylineMode || isAllNodesMode;
-  const isElementTimelineMode = isElementMode || isAllElementsMode;
-  const shouldShowTimeline = isNodeTimelineMode || isElementTimelineMode;
+  const showAllNodeGroup = isAllNodesMode || (Boolean(nodeId) && preferAllNodeTimeline);
+  const showAllElementGroup = isAllElementsMode || (Boolean(elementId) && preferAllElementTimeline);
+  const isNodeTimelineMode = isStorylineMode || showAllNodeGroup;
+  const isElementTimelineMode = isElementMode || showAllElementGroup;
+  const shouldShowTimeline = isNodeTimelineMode || isElementTimelineMode || isProjectHomeMode;
   const canShowHeaderDropdown = shouldShowTimeline;
   const isNodeTagFilterEnabled = isNodeTimelineMode;
   const isElementTagFilterEnabled = isElementTimelineMode;
@@ -120,8 +140,8 @@ export function TopTimeline() {
   useEffect(() => {
     async function loadStorylineData() {
       try {
-        if (!isStorylineMode) {
-          if (!isAllNodesMode) {
+        if (!isStorylineMode || showAllNodeGroup) {
+          if (!showAllNodeGroup) {
             setCurrentStoryline(null);
             setStorylineNodes([]);
           }
@@ -167,7 +187,7 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById]);
+  }, [nodeId, storylineId, isElementMode, showAllNodeGroup, isStorylineMode, bookNodes, storylines, getStorylineById]);
 
   useEffect(() => {
     if (!isElementMode) {
@@ -213,7 +233,7 @@ export function TopTimeline() {
   }, [isElementMode, categoryId, decodedCategoryId, elementId, bookElements, bookElementCategories]);
 
   useEffect(() => {
-    if (!isAllNodesMode) {
+    if (!showAllNodeGroup) {
       return;
     }
     setCurrentStoryline(null);
@@ -221,10 +241,10 @@ export function TopTimeline() {
     setCategoryElements([]);
     const sorted = bookNodes.slice().sort((a, b) => a.start - b.start);
     setStorylineNodes(sorted);
-  }, [isAllNodesMode, bookNodes]);
+  }, [showAllNodeGroup, bookNodes]);
 
   useEffect(() => {
-    if (!isAllElementsMode) {
+    if (!showAllElementGroup) {
       return;
     }
     setCurrentStoryline(null);
@@ -233,7 +253,63 @@ export function TopTimeline() {
       .slice()
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     setCategoryElements(sortedElements);
-  }, [isAllElementsMode, bookElements]);
+  }, [showAllElementGroup, bookElements]);
+
+  useEffect(() => {
+    trimRecentEntities(recentEntitiesLimit);
+  }, [trimRecentEntities, recentEntitiesLimit]);
+
+  useEffect(() => {
+    if (!nodeId) {
+      return;
+    }
+    if (!bookNodes.some((node) => node.id === nodeId)) {
+      return;
+    }
+    touchRecentEntity(
+      { projectId, entityId: nodeId, entityType: 'node' },
+      recentEntitiesLimit
+    );
+  }, [nodeId, projectId, bookNodes, touchRecentEntity, recentEntitiesLimit]);
+
+  useEffect(() => {
+    if (!elementId) {
+      return;
+    }
+    if (!bookElements.some((element) => element.id === elementId)) {
+      return;
+    }
+    touchRecentEntity(
+      { projectId, entityId: elementId, entityType: 'element' },
+      recentEntitiesLimit
+    );
+  }, [elementId, projectId, bookElements, touchRecentEntity, recentEntitiesLimit]);
+
+  useEffect(() => {
+    if (!showAllNodeGroup || !selectedNodeId) {
+      return;
+    }
+    if (!bookNodes.some((node) => node.id === selectedNodeId)) {
+      return;
+    }
+    touchRecentEntity(
+      { projectId, entityId: selectedNodeId, entityType: 'node' },
+      recentEntitiesLimit
+    );
+  }, [showAllNodeGroup, selectedNodeId, projectId, bookNodes, touchRecentEntity, recentEntitiesLimit]);
+
+  useEffect(() => {
+    if (!showAllElementGroup || !selectedElementId) {
+      return;
+    }
+    if (!bookElements.some((element) => element.id === selectedElementId)) {
+      return;
+    }
+    touchRecentEntity(
+      { projectId, entityId: selectedElementId, entityType: 'element' },
+      recentEntitiesLimit
+    );
+  }, [showAllElementGroup, selectedElementId, projectId, bookElements, touchRecentEntity, recentEntitiesLimit]);
 
   // Load full data for icon dropdown
   useEffect(() => {
@@ -376,11 +452,6 @@ export function TopTimeline() {
 
   // Monitor container width
   useEffect(() => {
-    // Create canvas for text measurement
-    if (!measureCanvasRef.current) {
-      measureCanvasRef.current = document.createElement('canvas');
-    }
-
     const container = containerRef.current;
     // console.log(`ContainerRef: ${containerRef.current}`);
     if (!container) {
@@ -425,11 +496,29 @@ export function TopTimeline() {
     }
   }, [nodeId, elementId, selectedNodeId, selectedElementId, storylineNodes, categoryElements]);
 
-  if (!shouldShowTimeline) {
-    return null;
-  }
+  const recentTimelineItems: Array<BookNode | BookElement> = (() => {
+    const records = recentEntities.filter((item) => item.projectId === projectId);
+    const orderedItems: Array<BookNode | BookElement> = [];
 
-  const nodeItemsSource = isAllNodesMode
+    for (const record of records) {
+      if (record.entityType === 'node') {
+        const matchedNode = bookNodes.find((node) => node.id === record.entityId);
+        if (matchedNode) {
+          orderedItems.push(matchedNode);
+        }
+        continue;
+      }
+
+      const matchedElement = bookElements.find((element) => element.id === record.entityId);
+      if (matchedElement) {
+        orderedItems.push(matchedElement);
+      }
+    }
+
+    return orderedItems;
+  })();
+
+  const nodeItemsSource = showAllNodeGroup
     ? bookNodes.slice().sort((a, b) => a.start - b.start)
     : storylineNodes;
 
@@ -442,110 +531,32 @@ export function TopTimeline() {
     : categoryElements;
 
   // Calculate dynamic widths based on available space
-  const timelineItems: Array<BookNode | BookElement> = isElementTimelineMode ? filteredElementItems : filteredNodeItems;
-  const selectedItemId = isElementTimelineMode
-    ? (isAllElementsMode ? selectedElementId : elementId)
-    : (isAllNodesMode ? selectedNodeId : nodeId);
-  const selectedIndex = timelineItems.findIndex(item => item.id === selectedItemId);
-  const hasSelected = selectedIndex !== -1;
+  const timelineItems: Array<BookNode | BookElement> = isProjectHomeMode
+    ? recentTimelineItems
+    : (isElementTimelineMode ? filteredElementItems : filteredNodeItems);
+  const selectedItemId = isProjectHomeMode
+    ? null
+    : (isElementTimelineMode
+      ? (showAllElementGroup ? selectedElementId : elementId)
+      : (showAllNodeGroup ? selectedNodeId : nodeId));
+  const storylineColorMap = new Map(storylines.map((storyline) => [storyline.id, storyline.color]));
+  const categoryColorMap = new Map(bookElementCategories.map((category) => [category.id, category.color]));
 
   // Safari-style tab width calculation
   const ICON_WIDTH = 32;
   const GAP = 8;
-  const MIN_WIDTH = 40;
-  const MAX_WIDTH = 180; // Preferred maximum width for all tabs
-  const PADDING = 20; // paddingLeft + paddingRight
-
-  // Measure text width
-  const measureTextWidth = (text: string, fontSize: number, fontWeight: number): number => {
-    if (!measureCanvasRef.current) return 0;
-    const ctx = measureCanvasRef.current.getContext('2d');
-    if (!ctx) return 0;
-    ctx.font = `${fontWeight} ${fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-    return Math.ceil(ctx.measureText(text).width);
-  };
-
-  // Calculate optimal width for each node based on its title
-  const calculateNodeWidths = (): number[] => {
-    // Safety check
-    if (timelineItems.length === 0 || containerWidth === 0) {
-      return timelineItems.map(() => MAX_WIDTH);
-    }
-
-    // 1. Calculate Ideal Widths for everyone (based on title)
-    // Constraint: MIN_WIDTH <= Ideal <= MAX_WIDTH
-    const idealWidths = timelineItems.map((item) => {
-      const title = 'title' in item ? item.title : item.name;
-      const titleWidth = measureTextWidth(
-        title || (isElementMode ? 'Untitled Element' : 'Untitled Chapter'),
-        13,
-        400
-      );
-      return Math.min(Math.max(titleWidth + PADDING, MIN_WIDTH), MAX_WIDTH);
-    });
-
-    const selectedIdealWidth = hasSelected ? idealWidths[selectedIndex] : 0;
-    const unselectedMinTotal = timelineItems.reduce((sum, _, idx) => {
-      if (idx === selectedIndex) return sum;
-      return sum + MIN_WIDTH;
-    }, 0);
-
-    const minRequiredTotalWidth = (hasSelected ? selectedIdealWidth : 0) + unselectedMinTotal;
-    const totalGaps = GAP * timelineItems.length;
-
-    // 2. Find the smallest Expansion Factor (1x, 2x, 4x...) that fits the Min Requirement
-    let expansionFactor = 1;
-    let targetAvailableWidth = 0;
-
-    while (expansionFactor <= 64) {
-      const targetContainerWidth = containerWidth * expansionFactor;
-      targetAvailableWidth = targetContainerWidth - totalGaps - 16;
-
-      if (targetAvailableWidth >= minRequiredTotalWidth) {
-        break;
-      }
-      expansionFactor *= 2;
-    }
-
-    // Safety Fallback: If even 64x doesn't fit (crazy huge number of nodes), just use ideal widths
-    if (targetAvailableWidth < minRequiredTotalWidth) {
-      return idealWidths;
-    }
-
-    // 3. Distribute space for the winning Target Width
-    const currentSelectedWidth = hasSelected ? idealWidths[selectedIndex] : 0;
-    const availableForUnselected = targetAvailableWidth - currentSelectedWidth;
-
-    // Sum of ideal widths of unselected
-    const totalIdealUnselected = idealWidths.reduce((sum, w, idx) => {
-      if (idx === selectedIndex) return sum;
-      return sum + w;
-    }, 0);
-
-    // Case A: Extra Space (Ideal fits easily)
-    if (totalIdealUnselected <= availableForUnselected) {
-      return timelineItems.map((_, idx) => {
-        if (idx === selectedIndex) return currentSelectedWidth;
-        return idealWidths[idx];
-      });
-    }
-
-    // Case B: Shrink Needed
-
-    return timelineItems.map((_, idx) => {
-      if (idx === selectedIndex) return currentSelectedWidth;
-      return availableForUnselected / (timelineItems.length - 1);
-    });
-  };
-
-  const nodeWidths = calculateNodeWidths();
-
-  const getNodeWidth = (index: number): number => {
-    return nodeWidths[index] || MIN_WIDTH;
-  };
+  const { getNodeWidth } = useTimelineTabWidths({
+    timelineItems,
+    containerWidth,
+    selectedItemId,
+    gap: GAP,
+  });
 
   const handleHeaderClick = () => {
-    if (isAllElementsMode || isAllNodesMode) {
+    if (isProjectHomeMode) {
+      return;
+    }
+    if (showAllElementGroup || showAllNodeGroup) {
       return;
     }
     if (isElementMode) {
@@ -580,6 +591,17 @@ export function TopTimeline() {
   };
 
   const handleItemClick = (item: BookNode | BookElement) => {
+    if (isProjectHomeMode) {
+      if ('title' in item) {
+        setNodeSelection(item.id, 'ui');
+        navigateToNode(item.id);
+        return;
+      }
+      setElementSelection(item.id, 'ui');
+      navigateToElement(item.id);
+      return;
+    }
+
     if ('title' in item) {
       setNodeSelection(item.id, 'ui');
       return;
@@ -613,8 +635,7 @@ export function TopTimeline() {
     );
   };
 
-  const handleCreateStorylineFromDropdown = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCreateStorylineFromDropdown = async () => {
     try {
       await createStoryline({
         projectId,
@@ -626,11 +647,10 @@ export function TopTimeline() {
     }
   };
 
-  const handleCreateCategoryFromDropdown = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCreateCategoryFromDropdown = async () => {
     try {
       const created = await createCategory();
-      if (!currentCategory && !isAllElementsMode) {
+      if (!currentCategory && !showAllElementGroup) {
         navigateToCategory(created.id);
       }
     } catch (error) {
@@ -638,8 +658,7 @@ export function TopTimeline() {
     }
   };
 
-  const handleCreateNodeTagFromDropdown = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCreateNodeTagFromDropdown = async () => {
     try {
       await createNodeTag({
         projectId,
@@ -652,8 +671,7 @@ export function TopTimeline() {
     }
   };
 
-  const handleCreateElementTagFromDropdown = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCreateElementTagFromDropdown = async () => {
     try {
       await createElementTag({
         projectId,
@@ -666,489 +684,113 @@ export function TopTimeline() {
     }
   };
 
-  const handleNavigateToAllNodesEditor = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigateTo('home/all-nodes');
+  const closeStorylineDropdown = () => {
     setShowStorylineDropdown(false);
     setStorylineDropdownPosition(null);
   };
 
-  const handleNavigateToAllElementsEditor = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigateTo('home/all-elements');
-    setShowStorylineDropdown(false);
-    setStorylineDropdownPosition(null);
+  const handleNavigateToAllNodesEditor = () => {
+    navigateTo('home/all-nodes');
+    closeStorylineDropdown();
   };
+
+  const handleNavigateToAllElementsEditor = () => {
+    navigateTo('home/all-elements');
+    closeStorylineDropdown();
+  };
+
+  if (!shouldShowTimeline) {
+    return null;
+  }
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: GAP }}>
-        {/* Header Icon - Leftmost (Fixed) */}
-        <div
-          ref={storylineIconRef}
-          style={{
-            position: 'relative',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            onClick={handleHeaderClick}
-            style={{
-              width: ICON_WIDTH,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 7,
-              background: isAllElementsMode
-                ? '#5d8aa8'
-                : isElementMode
-                ? (currentCategory?.color || '#b89968')
-                : isAllNodesMode
-                  ? '#8b7355'
-                  : (currentStoryline?.color || '#b89968'),
-              cursor: canShowHeaderDropdown || (isElementMode && Boolean(currentCategory)) ? 'pointer' : 'default',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              transition: 'all 0.2s',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'scale(1.05)';
-              e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-              if (canShowHeaderDropdown) {
-                handleShowDropdown(e);
-              }
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-              if (canShowHeaderDropdown) {
-                handleHideDropdown();
-              }
-            }}
-            title={isAllElementsMode
-              ? 'All Elements'
-              : isElementMode
-              ? (currentCategory?.name || 'Category')
-              : (isAllNodesMode ? 'All Nodes' : (currentStoryline?.name || 'Storyline'))}
-          >
-            {isAllElementsMode
-              ? 'E'
-              : isElementMode
-              ? (currentCategory?.name ? currentCategory.name.charAt(0).toUpperCase() : '?')
-              : (isAllNodesMode ? 'A' : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'))}
-          </div>
-        </div>
+      <TopTimelineTabs
+        iconWidth={ICON_WIDTH}
+        gap={GAP}
+        containerRef={containerRef}
+        selectedNodeRef={selectedNodeRef}
+        storylineIconRef={storylineIconRef}
+        canShowHeaderDropdown={canShowHeaderDropdown}
+        isProjectHomeMode={isProjectHomeMode}
+        isAllElementsMode={showAllElementGroup}
+        isElementMode={isElementMode}
+        isAllNodesMode={showAllNodeGroup}
+        currentCategory={currentCategory}
+        currentStoryline={currentStoryline}
+        recentEntitiesLimit={recentEntitiesLimit}
+        onHeaderClick={handleHeaderClick}
+        onShowDropdown={handleShowDropdown}
+        onHideDropdown={handleHideDropdown}
+        timelineItems={timelineItems}
+        selectedItemId={selectedItemId}
+        getNodeWidth={getNodeWidth}
+        onItemClick={handleItemClick}
+        onNodeMouseEnter={handleMouseEnter}
+        onItemMouseLeave={handleMouseLeave}
+        storylineColorMap={storylineColorMap}
+        categoryColorMap={categoryColorMap}
+      />
 
-        <div
-          ref={containerRef}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: GAP,
-            height: 28,
-            overflowX: 'auto',
-            overflowY: 'hidden',
-            paddingRight: 16,
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-          }}
-          className="top-timeline-container"
-        >
-          {/* Chapter Tabs */}
-          {timelineItems.map((item, index) => {
-            const isSelected = item.id === selectedItemId;
-            const width = getNodeWidth(index);
-            const label = 'title' in item
-              ? (item.title || 'Untitled Chapter')
-              : (item.name || 'Untitled Element');
-
-            return (
-              <div
-                key={item.id}
-                ref={isSelected ? selectedNodeRef : null}
-                onClick={() => handleItemClick(item)}
-                onMouseEnter={(e) => {
-                  if ('title' in item) {
-                    handleMouseEnter(item, e);
-                  }
-                  if (!isSelected) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)';
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  handleMouseLeave();
-                  if (!isSelected) {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.6)';
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
-                  }
-                }}
-                style={{
-                  flexShrink: 0,
-                  maxWidth: width,
-                  minWidth: 0,
-                  height: 28,
-                  display: 'flex',
-                  alignItems: 'center',
-                  paddingLeft: 10,
-                  paddingRight: 10,
-                  borderRadius: 7,
-                  background: isSelected
-                    ? 'rgba(255, 255, 255, 0.95)'
-                    : 'rgba(255, 255, 255, 0.6)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  border: isSelected
-                    ? '1px solid rgba(0, 0, 0, 0.08)'
-                    : '1px solid transparent',
-                  boxShadow: isSelected
-                    ? '0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)'
-                    : '0 1px 3px rgba(0, 0, 0, 0.05)',
-                  cursor: 'pointer',
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  fontSize: 13,
-                  color: isSelected ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  WebkitAppRegion: 'no-drag',
-                } as React.CSSProperties}
-              >
-                {label}
-              </div>
-            );
-          })}
-        </div>
-      </div >
-
-      {/* Header Dropdown */}
-      {showStorylineDropdown && storylineDropdownPosition && (
-        <div
-          ref={dropdownRef}
-          style={{
-            position: 'fixed',
-            left: Math.max(12, Math.min(storylineDropdownPosition.x, window.innerWidth - 980)),
-            top: storylineDropdownPosition.y,
-            width: 'min(960px, calc(100vw - 24px))',
-            maxHeight: '70vh',
-            background: 'rgba(255, 255, 255, 0.96)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            borderRadius: 10,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
-            border: '1px solid rgba(0, 0, 0, 0.08)',
-            padding: 12,
-            zIndex: 10000,
-            overflow: 'auto',
-          }}
-          onMouseEnter={() => {
-            if (hideDropdownTimeoutRef.current) {
-              clearTimeout(hideDropdownTimeoutRef.current);
-              hideDropdownTimeoutRef.current = null;
-            }
-          }}
-          onMouseLeave={handleHideDropdown}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) minmax(320px, 1.4fr)',
-              gap: 12,
-              alignItems: 'stretch',
-            }}
-          >
-            <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Storylines</div>
-              <div
-                onClick={handleNavigateToAllNodesEditor}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 8px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  marginBottom: 6,
-                  background: isAllNodesMode ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
-                  fontSize: 13,
-                  color: 'rgba(0, 0, 0, 0.88)',
-                  fontWeight: isAllNodesMode ? 600 : 500,
-                }}
-              >
-                All Nodes Editor
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {allStorylines.map(storyline => (
-                  <div
-                    key={storyline.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigateToStoryline(storyline.id);
-                      setShowStorylineDropdown(false);
-                      setStorylineDropdownPosition(null);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 8px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      background: storyline.id === currentStoryline?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 3,
-                        background: storyline.color || '#5d8aa8',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: 'rgba(0, 0, 0, 0.88)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {storyline.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div
-                onClick={handleCreateStorylineFromDropdown}
-                style={{
-                  marginTop: 10,
-                  padding: '6px 8px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: 'rgba(0, 0, 0, 0.7)',
-                }}
-              >
-                + storyline
-              </div>
-            </div>
-
-            <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Categories</div>
-              <div
-                onClick={handleNavigateToAllElementsEditor}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 8px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  marginBottom: 6,
-                  background: isAllElementsMode ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
-                  fontSize: 13,
-                  color: 'rgba(0, 0, 0, 0.88)',
-                  fontWeight: isAllElementsMode ? 600 : 500,
-                }}
-              >
-                All Elements Editor
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {allCategories.map(category => (
-                  <div
-                    key={category.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigateToCategory(category.id);
-                      setShowStorylineDropdown(false);
-                      setStorylineDropdownPosition(null);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 8px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      background: category.id === currentCategory?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 3,
-                        background: category.color || '#5d8aa8',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: 'rgba(0, 0, 0, 0.88)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {category.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div
-                onClick={handleCreateCategoryFromDropdown}
-                style={{
-                  marginTop: 10,
-                  padding: '6px 8px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: 'rgba(0, 0, 0, 0.7)',
-                }}
-              >
-                + category
-              </div>
-            </div>
-
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Tags Filter</div>
-
-              {isNodeTagFilterEnabled && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Chapter Tags</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {allNodeTags.map(tag => {
-                      const selected = selectedNodeTagIds.includes(tag.id);
-                      return (
-                        <div
-                          key={tag.id}
-                          onClick={() => {
-                            toggleNodeTagFilter(tag.id);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '6px 8px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            border: '1px solid rgba(0, 0, 0, 0.14)',
-                            background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: 2,
-                              border: '1px solid rgba(0, 0, 0, 0.6)',
-                              background: selected ? '#5d8aa8' : 'transparent',
-                              flexShrink: 0,
-                            }}
-                          />
-                          <div style={{ fontSize: 13, color: 'rgba(0, 0, 0, 0.85)' }}>{tag.name}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                    <div
-                      onClick={(e) => {
-                        void handleCreateNodeTagFromDropdown(e);
-                      }}
-                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.7)' }}
-                    >
-                      + chapter tag
-                    </div>
-                    <div
-                      onClick={() => {
-                        setSelectedNodeTagIds([]);
-                      }}
-                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.55)' }}
-                    >
-                      clear
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {isElementTagFilterEnabled && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginTop: isNodeTagFilterEnabled ? 10 : 0, marginBottom: 6 }}>Element Tags</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {allElementTags.map(tag => {
-                      const selected = selectedElementTagIds.includes(tag.id);
-                      return (
-                        <div
-                          key={tag.id}
-                          onClick={() => {
-                            toggleElementTagFilter(tag.id);
-                          }}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '6px 8px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            border: '1px solid rgba(0, 0, 0, 0.14)',
-                            background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: 2,
-                              border: '1px solid rgba(0, 0, 0, 0.6)',
-                              background: selected ? '#5d8aa8' : 'transparent',
-                              flexShrink: 0,
-                            }}
-                          />
-                          <div style={{ fontSize: 13, color: 'rgba(0, 0, 0, 0.85)' }}>{tag.name}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-                    <div
-                      onClick={(e) => {
-                        void handleCreateElementTagFromDropdown(e);
-                      }}
-                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.7)' }}
-                    >
-                      + element tag
-                    </div>
-                    <div
-                      onClick={() => {
-                        setSelectedElementTagIds([]);
-                      }}
-                      style={{ cursor: 'pointer', fontSize: 13, color: 'rgba(0, 0, 0, 0.55)' }}
-                    >
-                      clear
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <TopTimelineDropdown
+        show={showStorylineDropdown}
+        position={storylineDropdownPosition}
+        dropdownRef={dropdownRef}
+        onMouseEnter={() => {
+          if (hideDropdownTimeoutRef.current) {
+            clearTimeout(hideDropdownTimeoutRef.current);
+            hideDropdownTimeoutRef.current = null;
+          }
+        }}
+        onMouseLeave={handleHideDropdown}
+        isAllNodesMode={showAllNodeGroup}
+        isAllElementsMode={showAllElementGroup}
+        allStorylines={allStorylines}
+        currentStoryline={currentStoryline}
+        allCategories={allCategories}
+        currentCategory={currentCategory}
+        onNavigateToAllNodesEditor={handleNavigateToAllNodesEditor}
+        onNavigateToAllElementsEditor={handleNavigateToAllElementsEditor}
+        onSelectStoryline={(targetStorylineId) => {
+          navigateToStoryline(targetStorylineId);
+          closeStorylineDropdown();
+        }}
+        onSelectCategory={(targetCategoryId) => {
+          navigateToCategory(targetCategoryId);
+          closeStorylineDropdown();
+        }}
+        onCreateStoryline={() => {
+          void handleCreateStorylineFromDropdown();
+        }}
+        onCreateCategory={() => {
+          void handleCreateCategoryFromDropdown();
+        }}
+        isNodeTagFilterEnabled={isNodeTagFilterEnabled}
+        isElementTagFilterEnabled={isElementTagFilterEnabled}
+        allNodeTags={allNodeTags}
+        allElementTags={allElementTags}
+        selectedNodeTagIds={selectedNodeTagIds}
+        selectedElementTagIds={selectedElementTagIds}
+        onToggleNodeTagFilter={toggleNodeTagFilter}
+        onToggleElementTagFilter={toggleElementTagFilter}
+        onCreateNodeTag={() => {
+          void handleCreateNodeTagFromDropdown();
+        }}
+        onCreateElementTag={() => {
+          void handleCreateElementTagFromDropdown();
+        }}
+        onClearNodeTagFilters={() => {
+          setSelectedNodeTagIds([]);
+        }}
+        onClearElementTagFilters={() => {
+          setSelectedElementTagIds([]);
+        }}
+      />
 
       {/* Hover Preview */}
       {isNodeTimelineMode && (
         <NodeHoverPreview
-          node={hoveredNodeId ? storylineNodes.find(n => n.id === hoveredNodeId) ?? null : null}
+          node={hoveredNodeId ? bookNodes.find((n) => n.id === hoveredNodeId) ?? null : null}
           position={hoverPosition}
         />
       )}

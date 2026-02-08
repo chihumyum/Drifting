@@ -5,10 +5,10 @@ import { NewEntityButton } from '../viewComponents/topBars/TopTimeline/NewEntity
 import { TopTimeline } from '../viewComponents/topBars/TopTimeline/TopTimeline';
 
 interface AppTopbarProps {
-    hideTopTimeline?: boolean;
+    hideNewEntityButton?: boolean;
 }
 
-export function AppTopbar({ hideTopTimeline = false }: AppTopbarProps) {
+export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
     const leftState = useUiStore(s => s.sidebars.left);
     const rightState = useUiStore(s => s.sidebars.right);
 
@@ -39,8 +39,8 @@ export function AppTopbar({ hideTopTimeline = false }: AppTopbarProps) {
 
             {/* Middle Section */}
             <div style={{ flex: 1, minWidth: 0, overflow: 'visible' }}>
-                <MainTopBar rightContent={hideTopTimeline ? undefined : <NewEntityButton />}>
-                    {hideTopTimeline ? null : <TopTimeline />}
+                <MainTopBar rightContent={hideNewEntityButton ? undefined : <NewEntityButton />}>
+                    <TopTimeline />
                 </MainTopBar>
             </div>
 

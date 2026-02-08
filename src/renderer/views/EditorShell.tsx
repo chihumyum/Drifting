@@ -24,8 +24,6 @@ function buildRuntime(view: EditorShellView) {
         activeEntityType: 'node' as const,
         isAllNodesEditor: true,
         isAllElementsEditor: false,
-        shouldNavigateOnNodeSelect: false,
-        shouldNavigateOnElementSelect: true,
       };
     case 'all-elements-editor':
       return {
@@ -33,8 +31,6 @@ function buildRuntime(view: EditorShellView) {
         activeEntityType: 'element' as const,
         isAllNodesEditor: false,
         isAllElementsEditor: true,
-        shouldNavigateOnNodeSelect: true,
-        shouldNavigateOnElementSelect: false,
       };
     case 'node-editor':
     case 'storyline-editor':
@@ -43,8 +39,6 @@ function buildRuntime(view: EditorShellView) {
         activeEntityType: 'node' as const,
         isAllNodesEditor: false,
         isAllElementsEditor: false,
-        shouldNavigateOnNodeSelect: true,
-        shouldNavigateOnElementSelect: true,
       };
     case 'element-editor':
     case 'category-editor':
@@ -53,8 +47,6 @@ function buildRuntime(view: EditorShellView) {
         activeEntityType: 'element' as const,
         isAllNodesEditor: false,
         isAllElementsEditor: false,
-        shouldNavigateOnNodeSelect: true,
-        shouldNavigateOnElementSelect: true,
       };
     case 'project-home':
     case 'project-dashboard':
@@ -64,8 +56,6 @@ function buildRuntime(view: EditorShellView) {
         activeEntityType: 'none' as const,
         isAllNodesEditor: false,
         isAllElementsEditor: false,
-        shouldNavigateOnNodeSelect: true,
-        shouldNavigateOnElementSelect: true,
       };
   }
 }
@@ -85,6 +75,8 @@ export function EditorShell({ view, children }: EditorShellProps) {
   const setElementSelection = useUiStore((state) => state.setElementSelection);
   const setNodeActiveStorylineId = useUiStore((state) => state.setNodeActiveStorylineId);
   const setElementActiveCategoryId = useUiStore((state) => state.setElementActiveCategoryId);
+  const setPreferAllNodeTimeline = useUiStore((state) => state.setPreferAllNodeTimeline);
+  const setPreferAllElementTimeline = useUiStore((state) => state.setPreferAllElementTimeline);
   const nodeSelectedId = useUiStore((state) => state.nodeUi.selectedId);
   const nodeSelectedFrom = useUiStore((state) => state.nodeUi.selectedFrom);
   const elementSelectedId = useUiStore((state) => state.elementUi.selectedId);
@@ -107,6 +99,26 @@ export function EditorShell({ view, children }: EditorShellProps) {
   }, [elementId, setElementSelection]);
 
   useEffect(() => {
+    if (view === 'all-nodes-editor') {
+      setPreferAllNodeTimeline(true);
+      return;
+    }
+    if (view === 'storyline-editor') {
+      setPreferAllNodeTimeline(false);
+    }
+  }, [view, setPreferAllNodeTimeline]);
+
+  useEffect(() => {
+    if (view === 'all-elements-editor') {
+      setPreferAllElementTimeline(true);
+      return;
+    }
+    if (view === 'category-editor') {
+      setPreferAllElementTimeline(false);
+    }
+  }, [view, setPreferAllElementTimeline]);
+
+  useEffect(() => {
     if (view === 'storyline-editor') {
       setNodeActiveStorylineId(storylineId ?? null);
       return;
@@ -123,31 +135,37 @@ export function EditorShell({ view, children }: EditorShellProps) {
   }, [view, categoryId, setElementActiveCategoryId]);
 
   useEffect(() => {
-    if (!runtime.shouldNavigateOnNodeSelect) return;
     if (nodeSelectedFrom !== 'ui') return;
     if (!nodeSelectedId) return;
     if (nodeSelectedId === nodeId) return;
+    if (runtime.isAllNodesEditor) {
+      setPreferAllNodeTimeline(true);
+    }
     navigateToNode(nodeSelectedId);
   }, [
-    runtime.shouldNavigateOnNodeSelect,
+    runtime.isAllNodesEditor,
     nodeSelectedFrom,
     nodeSelectedId,
     nodeId,
     navigateToNode,
+    setPreferAllNodeTimeline,
   ]);
 
   useEffect(() => {
-    if (!runtime.shouldNavigateOnElementSelect) return;
     if (elementSelectedFrom !== 'ui') return;
     if (!elementSelectedId) return;
     if (elementSelectedId === elementId) return;
+    if (runtime.isAllElementsEditor) {
+      setPreferAllElementTimeline(true);
+    }
     navigateToElement(elementSelectedId);
   }, [
-    runtime.shouldNavigateOnElementSelect,
+    runtime.isAllElementsEditor,
     elementSelectedFrom,
     elementSelectedId,
     elementId,
     navigateToElement,
+    setPreferAllElementTimeline,
   ]);
 
   return <>{children}</>;

@@ -202,7 +202,7 @@ function Layout() {
       }}
     >
       {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
-      <AppTopbar hideTopTimeline={isProjectDashboardHome} />
+      <AppTopbar hideNewEntityButton={isProjectDashboardHome} />
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
