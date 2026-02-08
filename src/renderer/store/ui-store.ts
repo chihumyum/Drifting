@@ -87,6 +87,8 @@ interface UiState {
 
   activeLeftPanel: 'nodes' | 'elements';
   setActiveLeftPanel: (panel: 'nodes' | 'elements') => void;
+  activeRightPanel: 'references' | 'inspirations' | 'ai';
+  setActiveRightPanel: (panel: 'references' | 'inspirations' | 'ai') => void;
 
   activeSuperView: 'none' | 'element' | 'graph' | 'reference';
   setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
@@ -299,6 +301,8 @@ export const useUiStore = create<UiState>()(
 
       activeLeftPanel: 'elements',
       setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
+      activeRightPanel: 'references',
+      setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
 
       activeSuperView: 'none',
       setActiveSuperView: (view) => {
@@ -321,6 +325,7 @@ export const useUiStore = create<UiState>()(
         preferAllNodeTimeline: state.preferAllNodeTimeline,
         preferAllElementTimeline: state.preferAllElementTimeline,
         activeLeftPanel: state.activeLeftPanel,
+        activeRightPanel: state.activeRightPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
       }),

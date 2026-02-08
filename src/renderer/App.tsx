@@ -14,6 +14,7 @@ import { events } from './lib/events';
 import { ElementPanel } from './viewComponents/leftBars/ElementPanel';
 import { LeftSidebarHeader } from './viewComponents/leftBars/LeftSidebarHeader';
 import { NodesPanel } from './viewComponents/leftBars/NodesPanel';
+import { RightSidebarPanels } from './viewComponents/rightBars/RightSidebarPanels';
 import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './viewComponents/Sidebar';
 import { BottomTimeline } from './viewComponents/BottomTimeline/BottomTimeline';
@@ -151,10 +152,16 @@ function Layout() {
   // listen for left topbar events
   useEffect(() => {
     const handleOpenSettings = () => setIsSettingsOpen(true);
+    const handleToggleLeftSidebar = () => useUiStore.getState().toggleSidebar('left');
+    const handleToggleRightSidebar = () => useUiStore.getState().toggleSidebar('right');
     events.on('settings:open', handleOpenSettings);
+    events.on('left-sidebar:toggle', handleToggleLeftSidebar);
+    events.on('right-sidebar:toggle', handleToggleRightSidebar);
 
     return () => {
       events.off('settings:open', handleOpenSettings);
+      events.off('left-sidebar:toggle', handleToggleLeftSidebar);
+      events.off('right-sidebar:toggle', handleToggleRightSidebar);
     };
 
   }, []);
@@ -254,7 +261,15 @@ function Layout() {
           </div>
         </main>
         <Sidebar sidebarType="right" >
-          {/* Right Sidebar Content */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              position: 'relative',
+            }}
+          >
+            <RightSidebarPanels />
+          </div>
         </Sidebar>
 
       </div>

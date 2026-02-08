@@ -25,16 +25,14 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     if (!isResizing) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Min limit: 200px (matches LEFT_COLLAPSED_WIDTH in AppTopbar)
-      // Max limit: 30% of viewport
-      let newWidth = e.clientX;
-      const minWidth = 200;
+      let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
+      const minWidth = 220;
       const maxWidth = window.innerWidth * 0.3;
 
       if (newWidth < minWidth) newWidth = minWidth;
       if (newWidth > maxWidth) newWidth = maxWidth;
 
-      setSidebarWidth('left', newWidth);
+      setSidebarWidth(sidebarType, newWidth);
     };
 
     const handleMouseUp = () => {
@@ -52,7 +50,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [isResizing, setSidebarWidth, setResizingSidebar]);
+  }, [isResizing, setSidebarWidth, setResizingSidebar, sidebarType]);
 
 
   return (
@@ -62,7 +60,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         display: 'flex',
         flexDirection: 'column',
         background: '#fefdfb',
-        borderRight: '1px solid rgba(213, 213, 213, 0.3)',
+        borderRight: sidebarType === 'left' ? '1px solid rgba(213, 213, 213, 0.3)' : 'none',
+        borderLeft: sidebarType === 'right' ? '1px solid rgba(213, 213, 213, 0.3)' : 'none',
         position: 'relative',
         overflow: 'visible',
       }}
@@ -82,26 +81,25 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
           flexDirection: 'column',
           overflow: 'visible',
           position: 'relative',
-          display: isExpanded ? 'flex' : 'none',
+          display: 'flex',
         }}
       >
         {/* 内容区域 - 根据展开状态显示 */}
-        {isExpanded && children}
+        {isExpanded ? children : collapsedContent}
 
-        {/* 收起状态的提示 */}
-        {!isExpanded && collapsedContent}
       </div>
 
-      {isExpanded && sidebarType === 'left' && (
+      {isExpanded && (
         <div
           onMouseDown={() => {
             setIsResizing(true);
-            setResizingSidebar('left');
+            setResizingSidebar(sidebarType);
           }}
           style={{
             position: 'absolute',
             top: 0,
-            right: -3, // Center on border
+            right: sidebarType === 'left' ? -3 : 'auto',
+            left: sidebarType === 'right' ? -3 : 'auto',
             width: 6,
             height: '100%',
             cursor: 'col-resize',

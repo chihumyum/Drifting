@@ -1,6 +1,7 @@
 import { useUiStore } from '../store/ui-store';
 import { LeftSidebarTopBar } from '../viewComponents/topBars/LeftSidebarTopBar';
 import { MainTopBar } from '../viewComponents/topBars/MainTopBar';
+import { RightSidebarTopBar } from '../viewComponents/topBars/RightSidebarTopBar';
 import { NewEntityButton } from '../viewComponents/topBars/TopTimeline/NewEntityButton';
 import { TopTimeline } from '../viewComponents/topBars/TopTimeline/TopTimeline';
 
@@ -20,9 +21,10 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
     // 90 + 28 + 16 ~= 134px. Let's say 140px safe.
     // Or just let it be auto? No, we want animation.
     const LEFT_COLLAPSED_WIDTH = 200;
+    const RIGHT_COLLAPSED_WIDTH = 44;
 
     const leftWidth = leftState.isOpen ? leftState.width : LEFT_COLLAPSED_WIDTH;
-    const rightWidth = rightState.isOpen ? rightState.width : 0;
+    const rightWidth = rightState.isOpen ? rightState.width : RIGHT_COLLAPSED_WIDTH;
 
     return (
         <div style={{ display: 'flex', width: '100%', height: 42, overflow: 'hidden' }}>
@@ -47,11 +49,11 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
             {/* Right Section */}
             <div style={{
                 width: rightWidth,
-                transition: 'width 0.2s',
-                borderLeft: rightWidth > 0 ? '1px solid rgba(213, 213, 213, 0.3)' : 'none',
+                transition: resizingSidebar === 'right' ? 'none' : 'width 0.2s',
+                borderLeft: '1px solid rgba(213, 213, 213, 0.3)',
                 flexShrink: 0
             }}>
-                {/* Right Top Bar content if any */}
+                <RightSidebarTopBar />
             </div>
         </div>
     )
