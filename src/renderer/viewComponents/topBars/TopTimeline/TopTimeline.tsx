@@ -37,6 +37,16 @@ function safeDecodeURIComponent(value: string): string {
 */
 
 export function TopTimeline() {
+  const user = useAuthStore(state => state.user);
+  const { projectId, navigateToStoryline, navigateToCategory, navigateTo } = useProjectNavigation();
+  if (!projectId) {
+    log.error('No projectId in params, cannot render TopTimeline');
+    throw new Error('No projectId in params');
+  }
+  if (!user) {
+    log.error('No user in auth store, cannot render TopTimeline');
+    throw new Error('No user in auth store');
+  }
   const { nodeId, storylineId, elementId, categoryId } = useParams<{
     nodeId?: string;
     storylineId?: string;
@@ -52,30 +62,27 @@ export function TopTimeline() {
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const selectedElementId = useUiStore((state) => state.elementUi.selectedId);
   const setElementSelection = useUiStore((state) => state.setElementSelection);
-  const user = useAuthStore(state => state.user);
-  const { projectId, navigateToStoryline, navigateToCategory, navigateTo } = useProjectNavigation();
-  const { getStorylineById, createStoryline, loadStorylines } = useStoryline({
-    projectId: projectId ?? '',
-    userId: user?.id ?? '',
+  const { getStorylineById, createStoryline } = useStoryline({
+    projectId: projectId,
+    userId: user.id,
   });
-  const { loadCategories, createCategory } = useElementCategory({
-    projectId: projectId ?? '',
-    userId: user?.id ?? '',
+  const { createCategory } = useElementCategory({
+    projectId: projectId,
+    userId: user.id,
   });
   const { loadTags: loadNodeTags, createTag: createNodeTag, getNodesWithTag } = useNodeTag({
-    projectId: projectId ?? '',
-    userId: user?.id ?? '',
+    projectId: projectId,
+    userId: user.id,
   });
   const { loadTags: loadElementTags, createTag: createElementTag, getElementsWithTag } = useElementTag({
-    projectId: projectId ?? '',
-    userId: user?.id ?? '',
+    projectId: projectId,
+    userId: user.id,
   });
 
   const [currentStoryline, setCurrentStoryline] = useState<Storyline | null>(null);
   const [storylineNodes, setStorylineNodes] = useState<BookNode[]>([]);
   const [currentCategory, setCurrentCategory] = useState<BookElementCategory | null>(null);
   const [categoryElements, setCategoryElements] = useState<BookElement[]>([]);
-  const [allCategories, setAllCategories] = useState<BookElementCategory[]>([]);
   const [allNodeTags, setAllNodeTags] = useState<NodeTag[]>([]);
   const [allElementTags, setAllElementTags] = useState<ElementTag[]>([]);
   const [selectedNodeTagIds, setSelectedNodeTagIds] = useState<string[]>([]);
@@ -87,7 +94,6 @@ export function TopTimeline() {
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [showStorylineDropdown, setShowStorylineDropdown] = useState(false);
   const [storylineDropdownPosition, setStorylineDropdownPosition] = useState<{ x: number; y: number } | null>(null);
-  const [allStorylines, setAllStorylines] = useState<Storyline[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedNodeRef = useRef<HTMLDivElement>(null);
@@ -107,6 +113,8 @@ export function TopTimeline() {
   const canShowHeaderDropdown = shouldShowTimeline;
   const isNodeTagFilterEnabled = isNodeTimelineMode;
   const isElementTagFilterEnabled = isElementTimelineMode;
+  const allStorylines = storylines;
+  const allCategories = bookElementCategories;
 
   // Load current node's primary storyline and all chapters in that storyline
   useEffect(() => {
@@ -134,11 +142,9 @@ export function TopTimeline() {
           }
         }
 
-        // If still no storyline found, load the first storyline to keep timeline visible
-        // This ensures timeline is visible on app startup
+        // If still no storyline found, fall back to the first loaded storyline.
         if (!targetStoryline) {
-          const availableStorylines = storylines.length > 0 ? storylines : await loadStorylines(projectId);
-          targetStoryline = availableStorylines[0] ?? null;
+          targetStoryline = storylines[0] ?? null;
         }
 
         if (targetStoryline) {
@@ -161,7 +167,7 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById, loadStorylines, projectId]);
+  }, [nodeId, storylineId, isElementMode, isAllNodesMode, isStorylineMode, bookNodes, storylines, getStorylineById]);
 
   useEffect(() => {
     if (!isElementMode) {
@@ -233,14 +239,10 @@ export function TopTimeline() {
   useEffect(() => {
     async function loadDropdownData() {
       try {
-        const [lines, categories, nodeTags, elementTags] = await Promise.all([
-          loadStorylines(projectId),
-          loadCategories(projectId),
+        const [nodeTags, elementTags] = await Promise.all([
           loadNodeTags(projectId),
           loadElementTags(projectId),
         ]);
-        setAllStorylines(lines);
-        setAllCategories(categories);
         setAllNodeTags(nodeTags);
         setAllElementTags(elementTags);
       } catch (error) {
@@ -250,7 +252,7 @@ export function TopTimeline() {
     if (showStorylineDropdown) {
       void loadDropdownData();
     }
-  }, [projectId, loadStorylines, loadCategories, loadNodeTags, loadElementTags, showStorylineDropdown]);
+  }, [projectId, loadNodeTags, loadElementTags, showStorylineDropdown]);
 
   useEffect(() => {
     if (!canShowHeaderDropdown && showStorylineDropdown) {
@@ -619,9 +621,6 @@ export function TopTimeline() {
         name: 'New Storyline',
         summary: '',
       });
-
-      const refreshed = await loadStorylines(projectId);
-      setAllStorylines(refreshed);
     } catch (error) {
       log.error('Failed to create storyline:', error);
     }
@@ -631,8 +630,6 @@ export function TopTimeline() {
     e.stopPropagation();
     try {
       const created = await createCategory();
-      const refreshed = await loadCategories(projectId);
-      setAllCategories(refreshed);
       if (!currentCategory && !isAllElementsMode) {
         navigateToCategory(created.id);
       }

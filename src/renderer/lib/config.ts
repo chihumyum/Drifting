@@ -17,10 +17,10 @@ export const APP_CONFIG = {
   ENABLE_SYNC: false,  // Disable automatic sync to server
 
   // Authentication
-  REQUIRE_AUTH: false,  // Skip authentication, work directly with local data
+  REQUIRE_AUTH: true,  // Skip authentication, work directly with local data
 
   // API endpoints (not used in local-only mode)
-  API_BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
 
   // Database
   DEFAULT_DB_NAME: 'default-project.db',

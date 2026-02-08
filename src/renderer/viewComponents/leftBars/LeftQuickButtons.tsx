@@ -27,15 +27,16 @@ export function LeftQuickButtons() {
   const { nodeId } = useParams<{ nodeId?: string }>();
   const { projectId, navigateToNode, navigateToStoryline } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
-  const { createNode, loadNodes } = useBookNode({
+  const { createNode } = useBookNode({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { createStoryline, getStorylinesByNode, addNodeToStoryline, loadStorylines, getStorylinesByProject } = useStoryline({
+  const { createStoryline, getStorylinesByNode, addNodeToStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
   const bookNodes = useDataStore(state => state.bookNodes);
+  const storylines = useDataStore(state => state.storylines);
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -74,9 +75,8 @@ export function LeftQuickButtons() {
 
       // 优先级3: 如果没有选中 node 或选中的 node 没有 storyline，随便选一个 storyline
       if (!defaultStorylineId) {
-        const allStorylines = await getStorylinesByProject(projectId);
-        if (allStorylines.length > 0) {
-          defaultStorylineId = allStorylines[0].id;
+        if (storylines.length > 0) {
+          defaultStorylineId = storylines[0].id;
         }
       }
 
@@ -96,9 +96,6 @@ export function LeftQuickButtons() {
       if (defaultStorylineId) {
         await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
-
-      // Reload nodes to ensure timeline picks up the new node with its storyline relationship
-      await loadNodes();
 
       // Navigate to the new chapter
       navigateToNode(newNode.id);
@@ -134,9 +131,6 @@ export function LeftQuickButtons() {
         color: randomColor,
         summary: '',
       });
-
-      // Reload all storylines to update the store and trigger timeline refresh
-      await loadStorylines(projectId);
 
       // Navigate to storyline editor
       navigateToStoryline(newStoryline.id);

@@ -44,12 +44,11 @@ export function BottomTimeline() {
   const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
-  const { loadNodes, createNode, updateNode, deleteNode } = useBookNode({
+  const { createNode, updateNode, deleteNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
   const {
-    loadStorylines,
     addNodeToStoryline,
     getStorylinesByNode,
     getStorylinesByNodeIds,
@@ -73,26 +72,10 @@ export function BottomTimeline() {
   const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [customTotalHeight, setCustomTotalHeight] = useState<number | null>(null); // 用户自定义的bottomTimeline总高度
 
-  // Load all nodes
-  useEffect(() => {
-    async function loadChapters() {
-      try {
-        await loadNodes();
-      } catch (error) {
-        log.error('Failed to load chapters:', error);
-      }
-    }
-    void loadChapters();
-  }, [loadNodes, user]);
-
-  // Load storylines and node-storyline relationships
+  // Load node-storyline relationships
   useEffect(() => {
     async function loadData() {
       try {
-        // Load storylines from database and update store
-        if (!projectId) return;
-        await loadStorylines(projectId);
-
         // Load storyline info in batch to avoid per-node queries (N+1).
         const nodeIds = bookNodes.map((node) => node.id);
         const storylinesByNode = await getStorylinesByNodeIds(nodeIds);
@@ -113,9 +96,9 @@ export function BottomTimeline() {
       }
     }
 
-    // Always load storylines, even if there are no nodes yet
+    // Refresh timeline relationship data whenever nodes or mapping changes.
     void loadData();
-  }, [bookNodes, storylineNodeMapping, projectId, loadStorylines, user, getStorylinesByNodeIds]);
+  }, [bookNodes, storylineNodeMapping, getStorylinesByNodeIds]);
 
   // Load outlines for all nodes
   useEffect(() => {

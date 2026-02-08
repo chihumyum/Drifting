@@ -38,19 +38,19 @@ export function NewEntityButton() {
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const setElementSelection = useUiStore((state) => state.setElementSelection);
   const userId = useAuthStore((state) => state.user?.id);
-  const { createNode, loadNodes, updateNode } = useBookNode({
+  const { createNode, updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { addNodeToStoryline, createStoryline, loadStorylines } = useStoryline({
+  const { addNodeToStoryline, createStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { createElement, loadInitial } = useBookElement({
+  const { createElement } = useBookElement({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { createCategory, loadCategories } = useElementCategory({
+  const { createCategory } = useElementCategory({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -62,10 +62,7 @@ export function NewEntityButton() {
 
   const handleCreateChapter = async () => {
     try {
-      let currentNodes = bookNodes;
-      if (currentNodes.length === 0) {
-        currentNodes = await loadNodes();
-      }
+      const currentNodes = bookNodes;
 
       // Determine target storyline
       let defaultStorylineId: string | null = null;
@@ -82,7 +79,7 @@ export function NewEntityButton() {
 
       // Priority 3: Use first available storyline
       if (!defaultStorylineId) {
-        const availableStorylines = storylines.length > 0 ? storylines : await loadStorylines(projectId);
+        const availableStorylines = storylines;
         defaultStorylineId = availableStorylines[0]?.id ?? null;
       }
 
@@ -151,8 +148,6 @@ export function NewEntityButton() {
       if (defaultStorylineId) {
         await addNodeToStoryline(newNode.id, defaultStorylineId);
       }
-
-      await loadNodes();
       setNodeSelection(newNode.id, 'ui');
 
       // Scroll timeline to the new chapter
@@ -181,16 +176,12 @@ export function NewEntityButton() {
       }
 
       if (!targetCategoryId && elementId) {
-        let element = bookElements.find((el) => el.id === elementId) ?? null;
-        if (!element) {
-          await loadInitial();
-          element = useDataStore.getState().bookElements.find((el) => el.id === elementId) ?? null;
-        }
+        const element = bookElements.find((el) => el.id === elementId) ?? null;
         targetCategoryId = element?.categoryId ?? null;
       }
 
       if (!targetCategoryId) {
-        const categories = bookElementCategories.length > 0 ? bookElementCategories : await loadCategories();
+        const categories = bookElementCategories;
         targetCategoryId = categories[0]?.id ?? null;
       }
 

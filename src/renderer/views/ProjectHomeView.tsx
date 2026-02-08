@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
@@ -19,7 +19,18 @@ export function ProjectHomeView() {
     const [newProjectName, setNewProjectName] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    const fetchProjects = useCallback(async () => {
+        const data = await loadProjects();
+        log.debug("Loaded projects:", data);
+        setProjects(data);
+    }, [loadProjects]);
+
     useEffect(() => {
+        if (!user?.id) {
+            setLoading(true);
+            return;
+        }
+
         const init = async () => {
             try {
                 await fetchProjects();
@@ -30,13 +41,7 @@ export function ProjectHomeView() {
             }
         };
         init();
-    }, [user?.id]);
-
-    const fetchProjects = async () => {
-        const data = await loadProjects();
-        log.debug("Loaded projects:", data);
-        setProjects(data);
-    };
+    }, [user?.id, fetchProjects]);
 
     const handleCreateProject = async () => {
         if (isCreating) return;

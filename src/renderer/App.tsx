@@ -27,6 +27,7 @@ import { useBookElement } from './usecase/useBookElement';
 import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
+import { isAuthRequired } from './lib/config';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("App");
@@ -35,7 +36,9 @@ log.setLevel(loglevel.levels.TRACE);
 
 // 认证路由守卫
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const authRequired = isAuthRequired();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userId = useAuthStore((state) => state.user?.id);
   const [isChecking, setIsChecking] = useState(true);
   const checkSession = useAuthStore((state) => state.checkSession);
 
@@ -51,8 +54,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (authRequired && (!isAuthenticated || !userId)) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const authRequired = isAuthRequired();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userId = useAuthStore((state) => state.user?.id);
+  const [isChecking, setIsChecking] = useState(true);
+  const checkSession = useAuthStore((state) => state.checkSession);
+
+  useEffect(() => {
+    checkSession().finally(() => setIsChecking(false));
+  }, [checkSession]);
+
+  if (isChecking) {
+    return (
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Checking authentication...
+      </div>
+    );
+  }
+
+  if (!authRequired || (isAuthenticated && !!userId)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -61,15 +90,23 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function Layout() {
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
+  const userId = useAuthStore((state) => state.user?.id);
+  if (!projectId) {
+    log.error('No projectId found in URL params');
+    throw new Error('Project ID is required in URL');
+  }
+  if (!userId) {
+    log.error('No userId found in auth store');
+    throw new Error('User must be authenticated');
+  }
   const isEditorRoute = location.pathname.includes('/editor');
   const isProjectDashboardHome = Boolean(projectId && location.pathname === `/project/${projectId}/home`);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
-  const userId = useAuthStore((state) => state.user?.id);
-  const nodeUsecases = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
-  const storylineUsecases = useStoryline({ projectId: projectId ?? '', userId: userId ?? '' });
-  const elementUsecases = useBookElement({ projectId: projectId ?? '', userId: userId ?? '' });
-  const categoryUsecases = useElementCategory({ projectId: projectId ?? '', userId: userId ?? '' });
+  const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
+  const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
+  const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
+  const categoryUsecases = useElementCategory({ projectId: projectId, userId: userId });
 
   // Reset ready state when project or user changes
   useEffect(() => {
@@ -244,8 +281,16 @@ export default function App() {
   return (
     <Routes>
       {/* 公开路由 */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/login" element={
+        <PublicRoute>
+          <LoginPage />
+        </PublicRoute>
+      } />
+      <Route path="/register" element={
+        <PublicRoute>
+          <RegisterPage />
+        </PublicRoute>
+      } />
 
       {/* 受保护的路由 */}
       <Route path="/" element={

@@ -20,14 +20,13 @@ export const ProjectTable = sqliteTable('project', {
 // Domain: BookElementCategory
 export const ElementCategoryTable = sqliteTable('element_category', {
     id: text('id').primaryKey(),
-    name: text('name').notNull(), // Unique in domain logic potentially
+    name: text('name').notNull(),
     descriptionJson: text('description_json').default('{}'),
     color: text('color').notNull(),
     projectId: text('project_id').notNull().references(() => ProjectTable.id, { onDelete: 'cascade' }),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
 }, (t) => [
-    uniqueIndex('idx_unique_category_per_project').on(t.projectId, t.name),
     index('idx_element_category_project').on(t.projectId),
 ]);
 

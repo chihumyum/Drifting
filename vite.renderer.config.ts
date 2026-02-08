@@ -10,6 +10,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    // Avoid clashing with private service (http://localhost:3000)
+    port: 5173,
+    strictPort: true,
+    hmr: true,
+  },
   build: {
     rollupOptions: {
       output: {

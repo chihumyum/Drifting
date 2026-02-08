@@ -23,3 +23,8 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// Enable HMR for Vite
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}

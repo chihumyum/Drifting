@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -34,7 +34,6 @@ export function ElementPanel() {
   const {
     createElement,
     removeElement,
-    loadInitial,
     updateElement,
   } = useBookElement({
     projectId: activeProjectId,
@@ -44,7 +43,6 @@ export function ElementPanel() {
   const {
     createCategory,
     updateCategory,
-    loadCategories,
     getCategoryColor,
   } = useElementCategory({
     projectId: activeProjectId,
@@ -120,15 +118,6 @@ export function ElementPanel() {
     return grouped;
   }, [bookElements, categoryIds]);
 
-  useEffect(() => {
-    loadInitial().catch((error) => {
-      log.error('Failed to load book elements', error);
-    });
-    loadCategories().catch((error) => {
-      log.error('Failed to load categories', error);
-    });
-  }, [loadInitial, loadCategories]);
-
   const handleDeleteElement = useCallback(async (id: string) => {
     try {
       await removeElement(id);
@@ -152,7 +141,6 @@ export function ElementPanel() {
   const handleCreateCategory = useCallback(async () => {
     try {
       const created = await createCategory();
-      await loadCategories();
 
       setFilterCategory(created.id);
       setEditingCategoryName(created.id);
@@ -160,7 +148,7 @@ export function ElementPanel() {
     } catch (error) {
       log.error('Failed to create new category', error);
     }
-  }, [createCategory, loadCategories]);
+  }, [createCategory]);
 
   const handleSaveElementName = useCallback(async (elementId: string) => {
     const nextName = editingElementName.trim();
@@ -196,7 +184,6 @@ export function ElementPanel() {
 
     try {
       await updateCategory(categoryId, { name: newName });
-      await loadCategories();
     } catch (error) {
       log.error('Failed to rename category', error);
       alert('Failed to rename category. Please try again.');
@@ -207,7 +194,6 @@ export function ElementPanel() {
   }, [
     categoryById,
     editingCategoryNewName,
-    loadCategories,
     updateCategory,
   ]);
 

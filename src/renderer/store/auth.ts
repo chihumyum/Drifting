@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { authClient } from '../lib/auth-client';
 import type { Session } from '../lib/auth-client';
+import { isAuthRequired } from '../lib/config';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
 import { events } from '../lib/events';
@@ -21,7 +22,21 @@ export interface User {
   updatedAt: Date;
 }
 
-// 获取用户的数据库文件名（不是 project ID！）
+const LOCAL_USER_ID = 'drifting-library.db';
+
+function createLocalUser(): User {
+  const now = new Date();
+  return {
+    id: LOCAL_USER_ID,
+    email: 'local@drifting.local',
+    name: 'Local User',
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// 获取用户的数据库文件名
 export function getDbFileName(userId?: string): string {
   if (!userId) {
     return 'drifting-library.db'; // 匿名用户
@@ -44,14 +59,26 @@ interface AuthState {
   initAuth: () => Promise<void>;
 }
 
+type CoreAuthState = Pick<AuthState, 'isAuthenticated' | 'session' | 'user'>;
+
+function getLocalAuthState(): CoreAuthState {
+  return {
+    isAuthenticated: true,
+    session: null,
+    user: createLocalUser(),
+  };
+}
+
 // 创建 Auth Store
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       // 初始状态
-      isAuthenticated: false,
-      session: null,
-      user: null,
+      ...(isAuthRequired() ? {
+        isAuthenticated: false,
+        session: null,
+        user: null,
+      } : getLocalAuthState()),
 
       // 登录
       login: async (email: string, password: string) => {
@@ -72,11 +99,16 @@ export const useAuthStore = create<AuthState>()(
           // signIn returns { user, token }, not { session }
           // We need to get the session separately
           const sessionResult = await authClient.getSession();
+          const session = sessionResult.data || null;
+          const resolvedUser = (sessionResult.data?.user || result.data?.user) as User | undefined;
+          if (!resolvedUser?.id) {
+            throw new Error('Login failed: missing user in session');
+          }
           
           set({
             isAuthenticated: true,
-            session: sessionResult.data || null,
-            user: result.data?.user as User,
+            session,
+            user: resolvedUser,
           });
 
           log.info('[Auth] Login successful:', result.data?.user?.email);
@@ -84,10 +116,10 @@ export const useAuthStore = create<AuthState>()(
           // 登录成功后：切换到用户专属数据库
           try {
             await resetDatabase();
-            await initDatabase(result.data?.user?.id);
+            await initDatabase(resolvedUser.id);
             events.emit('db:ready');
             
-            log.info('[Auth] User database initialized:', result.data?.user?.id);
+            log.info('[Auth] User database initialized:', resolvedUser.id);
           } catch (error) {
             log.error('[Auth] Failed to initialize user database:', error);
           }
@@ -117,11 +149,16 @@ export const useAuthStore = create<AuthState>()(
           // signUp returns { user, token }, not { session }
           // We need to get the session separately
           const sessionResult = await authClient.getSession();
+          const session = sessionResult.data || null;
+          const resolvedUser = (sessionResult.data?.user || result.data?.user) as User | undefined;
+          if (!resolvedUser?.id) {
+            throw new Error('Registration failed: missing user in session');
+          }
           
           set({
             isAuthenticated: true,
-            session: sessionResult.data || null,
-            user: result.data?.user as User,
+            session,
+            user: resolvedUser,
           });
 
           log.info('[Auth] Registration successful:', result.data?.user?.email);
@@ -129,10 +166,10 @@ export const useAuthStore = create<AuthState>()(
           // 注册成功后：切换到用户专属数据库
           try {
             await resetDatabase();
-            const dbFileName = getDbFileName(result.data?.user?.id);
+            const dbFileName = getDbFileName(resolvedUser.id);
             await initDatabase(dbFileName);
             
-            log.info('[Auth] User database initialized:', result.data?.user?.id);
+            log.info('[Auth] User database initialized:', resolvedUser.id);
           } catch (error) {
             log.error('[Auth] Failed to initialize user database:', error);
           }
@@ -144,6 +181,19 @@ export const useAuthStore = create<AuthState>()(
 
       // 登出
       logout: async () => {
+        if (!isAuthRequired()) {
+          const localAuthState = getLocalAuthState();
+          set(localAuthState);
+          try {
+            await resetDatabase();
+            await initDatabase(localAuthState.user?.id ?? LOCAL_USER_ID);
+            events.emit('db:ready');
+          } catch (error) {
+            log.error('[Auth] Failed to reset local database on logout:', error);
+          }
+          return;
+        }
+
         try {
           await authClient.signOut();
         } catch (error) {
@@ -172,14 +222,21 @@ export const useAuthStore = create<AuthState>()(
 
       // 检查 session 状态
       checkSession: async () => {
+        if (!isAuthRequired()) {
+          set(getLocalAuthState());
+          return;
+        }
+
         try {
           const result = await authClient.getSession();
+          const session = result.data || null;
+          const sessionUser = session?.user as User | undefined;
           
-          if (result.data) {
+          if (session && sessionUser?.id) {
             set({
               isAuthenticated: true,
-              session: result.data,
-              user: result.data.user as User,
+              session,
+              user: sessionUser,
             });
           } else {
             set({

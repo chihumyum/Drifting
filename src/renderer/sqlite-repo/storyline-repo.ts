@@ -40,11 +40,10 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
       throw new Error(`Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`);
     }
 
-    const storylineName = input.name.trim();
     const newStoryline: typeof StorylineTable.$inferInsert = {
       id: input.id,
       projectId: input.projectId,
-      name: storylineName,
+      name: input.name.trim(),
       color: input.color,
       summary: input.summary ?? '',
       orderKey: input.orderKey,

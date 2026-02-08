@@ -41,7 +41,7 @@ export function ElementEditorView() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const categoryUsecases = useElementCategory({
+  const { createCategory } = useElementCategory({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -174,10 +174,7 @@ export function ElementEditorView() {
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim()) return;
 
-    const created = await categoryUsecases.createCategory({ name: newCategoryName.trim() });
-
-    // Reload categories
-    await categoryUsecases.loadCategories();
+    const created = await createCategory({ name: newCategoryName.trim() });
 
     // Set the new category
     setCategoryValue(created.id);

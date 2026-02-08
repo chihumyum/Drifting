@@ -32,15 +32,23 @@ function getDefaultDoc(): JSONContent {
 export function CategoryEditorView() {
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
+  if (!projectId) {
+    log.error('Project ID is missing in params');
+    throw new Error('Project ID is required');
+  }
+  if (!userId) {
+    log.error('User ID is missing in auth store');
+    throw new Error('User must be authenticated');
+  }
   const { bookElementCategories, bookElements } = useDataStore();
   // TODO: allow delete element from this view
   const { updateElement } = useBookElement({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
+    projectId: projectId,
+    userId: userId,
   });
   const categoryUsecases = useElementCategory({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
+    projectId: projectId,
+    userId: userId,
   });
   const { navigateToHome, navigateToElement } = useProjectNavigation();
 
