@@ -77,6 +77,8 @@ export function EditorShell({ view, children }: EditorShellProps) {
   const setElementActiveCategoryId = useUiStore((state) => state.setElementActiveCategoryId);
   const setPreferAllNodeTimeline = useUiStore((state) => state.setPreferAllNodeTimeline);
   const setPreferAllElementTimeline = useUiStore((state) => state.setPreferAllElementTimeline);
+  const preferAllNodeTimeline = useUiStore((state) => state.preferAllNodeTimeline);
+  const preferAllElementTimeline = useUiStore((state) => state.preferAllElementTimeline);
   const nodeSelectedId = useUiStore((state) => state.nodeUi.selectedId);
   const nodeSelectedFrom = useUiStore((state) => state.nodeUi.selectedFrom);
   const elementSelectedId = useUiStore((state) => state.elementUi.selectedId);
@@ -138,12 +140,13 @@ export function EditorShell({ view, children }: EditorShellProps) {
     if (nodeSelectedFrom !== 'ui') return;
     if (!nodeSelectedId) return;
     if (nodeSelectedId === nodeId) return;
-    if (runtime.isAllNodesEditor) {
+    if (runtime.isAllNodesEditor || preferAllNodeTimeline) {
       setPreferAllNodeTimeline(true);
     }
     navigateToNode(nodeSelectedId);
   }, [
     runtime.isAllNodesEditor,
+    preferAllNodeTimeline,
     nodeSelectedFrom,
     nodeSelectedId,
     nodeId,
@@ -155,12 +158,13 @@ export function EditorShell({ view, children }: EditorShellProps) {
     if (elementSelectedFrom !== 'ui') return;
     if (!elementSelectedId) return;
     if (elementSelectedId === elementId) return;
-    if (runtime.isAllElementsEditor) {
+    if (runtime.isAllElementsEditor || preferAllElementTimeline) {
       setPreferAllElementTimeline(true);
     }
     navigateToElement(elementSelectedId);
   }, [
     runtime.isAllElementsEditor,
+    preferAllElementTimeline,
     elementSelectedFrom,
     elementSelectedId,
     elementId,

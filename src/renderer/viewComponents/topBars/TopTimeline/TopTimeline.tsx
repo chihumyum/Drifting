@@ -19,6 +19,7 @@ import { NodeHoverPreview } from '../../NodeHoverPreview';
 import { TopTimelineTabs } from './TopTimelineTabs';
 import { TopTimelineDropdown } from './TopTimelineDropdown';
 import { useTimelineTabWidths } from './useTimelineTabWidths';
+import { sortElementsForTimeline, type ElementTimelineSortMode } from './element-timeline-sort';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("TopTimeline");
 log.setLevel(loglevel.levels.WARN);
@@ -76,6 +77,8 @@ export function TopTimeline() {
   const setElementSelection = useUiStore((state) => state.setElementSelection);
   const preferAllNodeTimeline = useUiStore((state) => state.preferAllNodeTimeline);
   const preferAllElementTimeline = useUiStore((state) => state.preferAllElementTimeline);
+  const setPreferAllNodeTimeline = useUiStore((state) => state.setPreferAllNodeTimeline);
+  const setPreferAllElementTimeline = useUiStore((state) => state.setPreferAllElementTimeline);
   const recentEntities = useRecentEntitiesStore((state) => state.items);
   const touchRecentEntity = useRecentEntitiesStore((state) => state.touchEntity);
   const trimRecentEntities = useRecentEntitiesStore((state) => state.trimToLimit);
@@ -129,6 +132,7 @@ export function TopTimeline() {
   const showAllElementGroup = isAllElementsMode || (Boolean(elementId) && preferAllElementTimeline);
   const isNodeTimelineMode = isStorylineMode || showAllNodeGroup;
   const isElementTimelineMode = isElementMode || showAllElementGroup;
+  const elementTimelineSortMode: ElementTimelineSortMode = 'category-then-created-at';
   const shouldShowTimeline = isNodeTimelineMode || isElementTimelineMode || isProjectHomeMode;
   const canShowHeaderDropdown = shouldShowTimeline;
   const isNodeTagFilterEnabled = isNodeTimelineMode;
@@ -190,7 +194,11 @@ export function TopTimeline() {
   }, [nodeId, storylineId, isElementMode, showAllNodeGroup, isStorylineMode, bookNodes, storylines, getStorylineById]);
 
   useEffect(() => {
-    if (!isElementMode) {
+    if (!isElementMode || showAllElementGroup) {
+      if (!showAllElementGroup) {
+        setCurrentCategory(null);
+        setCategoryElements([]);
+      }
       return;
     }
 
@@ -223,14 +231,25 @@ export function TopTimeline() {
     if (targetCategory?.id) categoryKeys.add(targetCategory.id);
 
     const elementsInCategory = categoryKeys.size > 0
-      ? bookElements
-        .filter(el => categoryKeys.has(el.categoryId))
-        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      ? sortElementsForTimeline(
+        bookElements.filter(el => categoryKeys.has(el.categoryId)),
+        bookElementCategories,
+        elementTimelineSortMode
+      )
       : [];
 
     setCurrentCategory(targetCategory);
     setCategoryElements(elementsInCategory);
-  }, [isElementMode, categoryId, decodedCategoryId, elementId, bookElements, bookElementCategories]);
+  }, [
+    isElementMode,
+    showAllElementGroup,
+    categoryId,
+    decodedCategoryId,
+    elementId,
+    bookElements,
+    bookElementCategories,
+    elementTimelineSortMode,
+  ]);
 
   useEffect(() => {
     if (!showAllNodeGroup) {
@@ -249,11 +268,13 @@ export function TopTimeline() {
     }
     setCurrentStoryline(null);
     setCurrentCategory(null);
-    const sortedElements = bookElements
-      .slice()
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const sortedElements = sortElementsForTimeline(
+      bookElements,
+      bookElementCategories,
+      elementTimelineSortMode
+    );
     setCategoryElements(sortedElements);
-  }, [showAllElementGroup, bookElements]);
+  }, [showAllElementGroup, bookElements, bookElementCategories, elementTimelineSortMode]);
 
   useEffect(() => {
     trimRecentEntities(recentEntitiesLimit);
@@ -603,8 +624,14 @@ export function TopTimeline() {
     }
 
     if ('title' in item) {
+      if (showAllNodeGroup) {
+        setPreferAllNodeTimeline(true);
+      }
       setNodeSelection(item.id, 'ui');
       return;
+    }
+    if (showAllElementGroup) {
+      setPreferAllElementTimeline(true);
     }
     setElementSelection(item.id, 'ui');
   };
