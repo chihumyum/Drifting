@@ -8,8 +8,11 @@
     "dev": "electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "db:push": "drizzle-kit push",
+    "db:push": "pnpm run db:rebuild:electron && ELECTRON_RUN_AS_NODE=1 pnpm exec electron ./node_modules/drizzle-kit/bin.cjs push",
+    "db:push:node": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
+    "db:rebuild:electron": "npm_config_cache=./.npm-cache npm_config_devdir=./.node-gyp npm_config_runtime=electron npm_config_target=40.0.0 npm_config_disturl=https://electronjs.org/headers pnpm rebuild better-sqlite3",
+    "db:rebuild:node": "pnpm rebuild better-sqlite3",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint ."

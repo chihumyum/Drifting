@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2f75d91f-134e-4269-b022-76549c103093",
+  "id": "558fe683-3890-434c-97b2-7a0bd9e9066b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "element": {
@@ -321,14 +321,6 @@
         }
       },
       "indexes": {
-        "idx_unique_category_per_project": {
-          "name": "idx_unique_category_per_project",
-          "columns": [
-            "project_id",
-            "name"
-          ],
-          "isUnique": true
-        },
         "idx_element_category_project": {
           "name": "idx_element_category_project",
           "columns": [
@@ -344,6 +336,109 @@
           "tableTo": "project",
           "columnsFrom": [
             "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "element_occurrence": {
+      "name": "element_occurrence",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "element_id": {
+          "name": "element_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "node_id": {
+          "name": "node_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "block_id": {
+          "name": "block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "spans_json": {
+          "name": "spans_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_element_occurrence_element": {
+          "name": "idx_element_occurrence_element",
+          "columns": [
+            "element_id"
+          ],
+          "isUnique": false
+        },
+        "idx_element_occurrence_node": {
+          "name": "idx_element_occurrence_node",
+          "columns": [
+            "node_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "element_occurrence_element_id_element_id_fk": {
+          "name": "element_occurrence_element_id_element_id_fk",
+          "tableFrom": "element_occurrence",
+          "tableTo": "element",
+          "columnsFrom": [
+            "element_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "element_occurrence_node_id_book_node_id_fk": {
+          "name": "element_occurrence_node_id_book_node_id_fk",
+          "tableFrom": "element_occurrence",
+          "tableTo": "book_node",
+          "columnsFrom": [
+            "node_id"
           ],
           "columnsTo": [
             "id"

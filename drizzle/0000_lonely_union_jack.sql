@@ -44,8 +44,21 @@ CREATE TABLE `element_category` (
 	FOREIGN KEY (`project_id`) REFERENCES `project`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `idx_unique_category_per_project` ON `element_category` (`project_id`,`name`);--> statement-breakpoint
 CREATE INDEX `idx_element_category_project` ON `element_category` (`project_id`);--> statement-breakpoint
+CREATE TABLE `element_occurrence` (
+	`id` text PRIMARY KEY NOT NULL,
+	`element_id` text NOT NULL,
+	`node_id` text NOT NULL,
+	`block_id` text DEFAULT '' NOT NULL,
+	`spans_json` text DEFAULT '[]' NOT NULL,
+	`created_at` text NOT NULL,
+	`updated_at` text NOT NULL,
+	FOREIGN KEY (`element_id`) REFERENCES `element`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`node_id`) REFERENCES `book_node`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_element_occurrence_element` ON `element_occurrence` (`element_id`);--> statement-breakpoint
+CREATE INDEX `idx_element_occurrence_node` ON `element_occurrence` (`node_id`);--> statement-breakpoint
 CREATE TABLE `element_stage` (
 	`id` text PRIMARY KEY NOT NULL,
 	`element_id` text NOT NULL,
