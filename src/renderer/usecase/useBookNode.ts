@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { useDataStore } from '../store/data-store';
 import { createBookNodeSqliteRepository, createBookNodeEdgeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
+import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node.ts';
 import { initDatabase } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
@@ -36,6 +37,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
   const nodeRepo = useMemo(() => createBookNodeSqliteRepository(activeProjectId), [activeProjectId]);
   const edgeRepo = useMemo(() => createBookNodeEdgeSqliteRepository(activeProjectId), [activeProjectId]);
+  const linkRepo = useMemo(() => createNodeStorylineLinkRepository(activeProjectId), [activeProjectId]);
   const contentRepoRef = useRef(createBookContentRepository());
   const contentRepo = contentRepoRef.current;
   const ensureDb = useCallback(async () => {
@@ -44,6 +46,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
   const getNodesState = useCallback(() => useDataStore.getState().bookNodes, []);
   const setNodesState = useCallback((nodes: BookNode[]) => useDataStore.getState().setBookNodes(nodes), []);
+  const addNodeToStorylineMappingState = useCallback((storylineId: string, nodeId: string) =>
+    useDataStore.getState().addNodeToStorylineMapping(storylineId, nodeId),
+    []);
   const updateNodeState = useCallback((id: string, updates: Partial<BookNode>) =>
     useDataStore.getState().updateBookNode(id, updates),
     []);
@@ -88,7 +93,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       summary: '',
       storyStageId: input.storyStageId ?? null,
       mainStorylineId: input.mainStorylineId,
-      storylineIds: [],
+      storylineIds: [input.mainStorylineId],
       tagIds: [], // create a new node comes with no tags by default
       position: input.position ?? { // TODO: properly fit the graph node
         x: (Math.random() - 0.5) * 600,
@@ -112,6 +117,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       effect: async () => {
         const created = await nodeRepo.create(newNode);
         try {
+          await linkRepo.addNodeToStoryline(created.id, created.mainStorylineId);
+        } catch (error) {
+          await nodeRepo.delete(created.id);
+          throw error;
+        }
+        try {
           await contentRepo.create({
             nodeId: created.id,
             contentJson: defaultDocJson,
@@ -120,7 +131,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         } catch (error) {
           log.error('Failed to create default content for new node:', error);
         }
-        return created;
+        return {
+          ...created,
+          storylineIds: [created.mainStorylineId],
+        };
       },
       onSuccess: (created) => {
         const current = getNodesState();
@@ -128,9 +142,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           .map((node) => (node.id === created.id ? created : node))
           .sort((a, b) => a.start - b.start);
         setNodesState(merged);
+        addNodeToStorylineMappingState(created.mainStorylineId, created.id);
       },
     });
-  }, [nodeRepo, contentRepo, ensureDb, getNodesState, setNodesState, activeProjectId]);
+  }, [nodeRepo, linkRepo, contentRepo, ensureDb, getNodesState, setNodesState, addNodeToStorylineMappingState, activeProjectId]);
 
   const renameNode = useCallback(async (id: string, title: string) => {
     await ensureDb();

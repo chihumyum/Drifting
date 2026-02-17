@@ -274,7 +274,7 @@ export function StorylineEditorView() {
           </div>
         </div>
 
-        <StorylineAllChapterEditor nodes={currentNodes} onCurrentChapterChange={() => { }} />
+        {/* <StorylineAllChapterEditor nodes={currentNodes} onCurrentChapterChange={() => { }} /> */}
 
       </div>
     </div>

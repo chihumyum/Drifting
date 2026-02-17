@@ -74,7 +74,9 @@ export const useDataStore = create<DataState>((set) => ({
   addNodeToStorylineMapping: (storylineId, nodeId) => set((state) => ({
     storylineNodeMapping: {
       ...state.storylineNodeMapping,
-      [storylineId]: [...(state.storylineNodeMapping[storylineId] || []), nodeId]
+      [storylineId]: (state.storylineNodeMapping[storylineId] || []).includes(nodeId)
+        ? (state.storylineNodeMapping[storylineId] || [])
+        : [...(state.storylineNodeMapping[storylineId] || []), nodeId]
     }
   })),
   removeNodeFromStorylineMapping: (storylineId, nodeId) => set((state) => ({

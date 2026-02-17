@@ -73,7 +73,6 @@ export function useBottomTimelineContextMenuActions({
               position: { x: 0, y: 0 },
             });
 
-            await addNodeToStoryline(newNode.id, contextMenu.storylineId);
             navigateToNode(newNode.id);
           }
           break;

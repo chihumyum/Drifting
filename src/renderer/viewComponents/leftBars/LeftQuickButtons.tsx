@@ -31,7 +31,7 @@ export function LeftQuickButtons() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { createStoryline, getStorylinesByNode, addNodeToStoryline } = useStoryline({
+  const { createStoryline, getStorylinesByNode } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -91,11 +91,6 @@ export function LeftQuickButtons() {
         end: newEnd,
         mainStorylineId: defaultStorylineId,
       });
-
-      // 将新 node 添加到 storyline
-      if (defaultStorylineId) {
-        await addNodeToStoryline(newNode.id, defaultStorylineId);
-      }
 
       // Navigate to the new chapter
       navigateToNode(newNode.id);

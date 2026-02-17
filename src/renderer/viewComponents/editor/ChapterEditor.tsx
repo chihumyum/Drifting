@@ -189,7 +189,7 @@ export function ChapterEditor({
       isContentLoadedRef.current = true;
     } else {
       if (!isContentLoadedRef.current) {
-        log.error('Editor not ready');
+        log.warn('Editor not ready');
       }
     }
   }, [editor, content]);

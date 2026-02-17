@@ -74,15 +74,19 @@ export function BottomTimeline() {
 
   // Load node-storyline relationships
   useEffect(() => {
+    let isActive = true;
+
     async function loadData() {
       try {
         // Load storyline info in batch to avoid per-node queries (N+1).
         const nodeIds = bookNodes.map((node) => node.id);
         const storylinesByNode = await getStorylinesByNodeIds(nodeIds);
+        if (!isActive) return;
         const nodesWithStorylineInfo = bookNodes.map((node) => ({
           ...node,
           storylines: storylinesByNode[node.id] ?? [],
         }));
+        if (!isActive) return;
         setNodesWithStorylines(nodesWithStorylineInfo);
 
         // Initialize end state from database
@@ -90,14 +94,20 @@ export function BottomTimeline() {
         bookNodes.forEach((node) => {
           endsMap.set(node.id, node.end ?? null);
         });
+        if (!isActive) return;
         setNodeEnds(endsMap);
       } catch (error) {
-        log.error('Failed to load timeline data:', error);
+        if (isActive) {
+          log.error('Failed to load timeline data:', error);
+        }
       }
     }
 
     // Refresh timeline relationship data whenever nodes or mapping changes.
     void loadData();
+    return () => {
+      isActive = false;
+    };
   }, [bookNodes, storylineNodeMapping, getStorylinesByNodeIds]);
 
   // Load outlines for all nodes

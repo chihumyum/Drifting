@@ -45,7 +45,7 @@ export function NewEntityButton() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { addNodeToStoryline, createStoryline } = useStoryline({
+  const { createStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -160,9 +160,6 @@ export function NewEntityButton() {
         end: newEnd,
       });
 
-      if (defaultStorylineId) {
-        await addNodeToStoryline(newNode.id, defaultStorylineId);
-      }
       setNodeSelection(newNode.id, 'ui');
 
       // Scroll timeline to the new chapter
