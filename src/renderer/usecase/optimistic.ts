@@ -1,5 +1,5 @@
 import LogLevel from 'loglevel';
-const log = LogLevel.getLogger("UseProject");
+const log = LogLevel.getLogger("optimistic-update");
 log.setLevel(LogLevel.levels.WARN);
 
 export type OptimisticUpdateOptions<T> = {

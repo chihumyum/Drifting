@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -13,7 +14,13 @@ import { useDataStore } from '../store/data-store';
 import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("StorylineEditorView");
-log.setLevel(loglevel.levels.WARN);
+log.setLevel(loglevel.levels.DEBUG);
+// log.setLevel(loglevel.levels.WARN);
+
+const DEFAULT_DOC = {
+  type: 'doc',
+  content: [],
+};
 
 export function StorylineEditorView() {
   const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
@@ -31,7 +38,8 @@ export function StorylineEditorView() {
     projectId: projectId,
     userId: user.id,
   });
-  const idRef = useRef<string | null>(storylineId);
+  const loadedEditorRef = useRef<Editor | null>(null);
+  const loadedStorylineRef = useRef<string | null>(null);
   const currentStoryline = useMemo(() => {
     if (!storylineId) {
       log.error('No storylineId in params, cannot find storyline');
@@ -110,7 +118,10 @@ export function StorylineEditorView() {
 
   // load editor content when change storylines
   useEffect(() => {
-    if (idRef.current === storylineId) {
+    const alreadyLoadedForTarget =
+      loadedStorylineRef.current === storylineId &&
+      loadedEditorRef.current === editorSL;
+    if (alreadyLoadedForTarget) {
       return;
     }
     if (!projectId || !storylineId) {
@@ -121,13 +132,21 @@ export function StorylineEditorView() {
       log.warn('Editor or active storyline not ready yet');
       return;
     }
-    idRef.current = storylineId;
+    loadedStorylineRef.current = storylineId;
+    loadedEditorRef.current = editorSL;
     if (currentStoryline.descriptionJson) {
-      editorSL.commands.setContent(JSON.parse(currentStoryline.descriptionJson));
+      try {
+        const content = JSON.parse(currentStoryline.descriptionJson);
+        log.debug('Loading storyline description content for storyline ', storylineId, content);
+        editorSL.commands.setContent(content, { emitUpdate: false });
+        return;
+      } catch (error) {
+        log.warn('Failed to parse storyline pmJson, fallback to empty doc:', error);
+      }
     } else {
-      log.error('No pmJson content for storyline:', storylineId);
-      editorSL.commands.setContent(null);
+      log.warn('No pmJson content for storyline:', storylineId);
     }
+    editorSL.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
   }, [projectId, storylineId, editorSL, currentStoryline]);
 
   const commitName = async () => {

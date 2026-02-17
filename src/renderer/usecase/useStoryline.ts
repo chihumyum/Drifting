@@ -8,14 +8,19 @@ import { v7 as uuidv7 } from 'uuid';
 import type { UpdateStorylineInput } from '../services';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import LogLevel from 'loglevel';
+const log = LogLevel.getLogger("useStoryline");
+log.setLevel(LogLevel.levels.DEBUG);
+log.setLevel(LogLevel.levels.WARN);
+
+const DEFAULT_TIPTAP_DOC_JSON = JSON.stringify({
+  type: 'doc',
+  content: [],
+});
 
 export type CreateStorylineInput = {
   projectId?: string;
   orderKey?: number;
-  name?: string;
-  color?: string;
-  summary?: string;
-  descriptionJson?: string;
 }
 
 export interface UseStorylineContext {
@@ -102,11 +107,11 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     const newStoryline: Storyline = {
       id: uuidv7(),
       projectId: activeProjectId,
-      name: input.name ?? 'New Storyline',
-      color: input.color ?? randomColor(),
-      summary: input.summary ?? '',
+      name: 'New Storyline',
+      color: randomColor(),
+      summary: '',
       orderKey,
-      descriptionJson: input.descriptionJson ?? '{}',
+      descriptionJson: DEFAULT_TIPTAP_DOC_JSON,
       createdAt: now,
       updatedAt: now,
     };
@@ -138,6 +143,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   }, [repo, ensureDb, activeProjectId]);
 
   const updateStoryline = useCallback(async (input: UpdateStorylineInput): Promise<Storyline> => {
+    log.debug(`input is: `, input);
     await ensureDb();
     const now = new Date().toISOString();
     const prevStorylines = getStorylinesState().slice();
@@ -155,7 +161,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       descriptionJson: input.pmJson ?? existing.descriptionJson,
       updatedAt: now,
     };
-
+    log.debug(`updated storyline is: `, updated);
     return withOptimisticUpdate({
       apply: () => updateStorylineState(input.id, updated),
       rollback: () => setStorylinesState(prevStorylines),

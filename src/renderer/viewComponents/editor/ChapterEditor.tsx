@@ -17,7 +17,7 @@ import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
 const log = loglevel.getLogger('ChapterEditor');
 // log.setLevel(loglevel.levels.DEBUG);
-log.setLevel(log.levels.ERROR);
+log.setLevel(log.levels.WARN);
 
 // editor component with built-in element tracking and outline extraction, and more
 
@@ -308,7 +308,6 @@ export function ChapterEditor({
             </div>
           )}
           {/* Summary */}
-          {/* TODO: remove to outline panel */}
           {showSummary && (
             <div style={{ flex: 1 }}>
               {editableSummary ? (
