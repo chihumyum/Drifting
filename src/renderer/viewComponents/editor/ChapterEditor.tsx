@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import Collaboration from '@tiptap/extension-collaboration';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
@@ -15,6 +16,8 @@ import { useSettingsStore } from '@/renderer/store/settings-store';
 import { TagEditor } from './TagEditor';
 import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
+import { useAuthStore } from '@/renderer/store/auth';
+import { useYjsDoc } from '@/renderer/hooks/useYjsDoc';
 const log = loglevel.getLogger('ChapterEditor');
 // log.setLevel(loglevel.levels.DEBUG);
 log.setLevel(log.levels.WARN);
@@ -23,7 +26,7 @@ log.setLevel(log.levels.WARN);
 
 interface ChapterEditorProps {
   nodeId: string;
-  content: string | null; // pm_json string
+  content: string | null; // legacy pm_json string (migration seed only)
   title?: string;
   summary?: string;
   projectId?: string;
@@ -55,6 +58,21 @@ export interface ChapterEditorRef {
   focusEditor: () => void;
 }
 
+const DEFAULT_DOC: JSONContent = {
+  type: 'doc',
+  content: [],
+};
+
+function toSafeDoc(input: unknown): JSONContent {
+  if (input && typeof input === 'object') {
+    const maybe = input as { type?: unknown; content?: unknown };
+    if (maybe.type === 'doc' && Array.isArray(maybe.content)) {
+      return maybe as JSONContent;
+    }
+  }
+  return DEFAULT_DOC;
+}
+
 export function ChapterEditor({
   nodeId,
   content,
@@ -77,7 +95,16 @@ export function ChapterEditor({
 }: ChapterEditorProps) {
   const { bookElements } = useDataStore();
   const { autoElementLinkEnabled }= useSettingsStore();
-  const isContentLoadedRef = useRef(false);
+  const userId = useAuthStore((state) => state.user?.id);
+  if (!userId) {
+    throw new Error('ChapterEditor requires authenticated user');
+  }
+
+  const { ydoc, isReady: isYjsReady, hasLocalState } = useYjsDoc({
+    docId: `node-content:${nodeId}`,
+    userId,
+  });
+  const legacySeededRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [titleValue, setTitleValue] = useState(title);
@@ -140,8 +167,13 @@ export function ChapterEditor({
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
         codeBlock: {},
+        undoRedo: false,
         underline: false,
         link: false,
+      }),
+      Collaboration.configure({
+        document: ydoc,
+        field: 'default',
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
@@ -159,6 +191,7 @@ export function ChapterEditor({
     ],
     content: null,
     autofocus: autoFocus ? 'end' : false,
+    editable: isYjsReady,
     editorProps: {
       attributes: {
         class: 'prose max-w-none focus:outline-none',
@@ -167,6 +200,7 @@ export function ChapterEditor({
       },
     },
     onUpdate: ({ editor: ed }) => {
+      if (!isYjsReady) return;
 
       const json = ed.getJSON();
       const pmJson = JSON.stringify(json);
@@ -180,19 +214,32 @@ export function ChapterEditor({
       log.debug('Updating node', nodeId, 'with content:', pmJson);
       onContentUpdate(nodeId, pmJson, outlineJson);
     },
-  });
+  }, [nodeId, ydoc, elementNamesMap, autoElementLinkEnabled, onElementClick, autoFocus, minHeight, onContentUpdate, parseAndSaveElementOccurrences, isYjsReady]);
 
-  // load content into editor
+  // Seed Yjs document from legacy JSON once for old docs without local yjs state.
   useEffect(() => {
-    if (editor && content && !isContentLoadedRef.current) {
-      editor.commands.setContent(JSON.parse(content));
-      isContentLoadedRef.current = true;
-    } else {
-      if (!isContentLoadedRef.current) {
-        log.warn('Editor not ready');
-      }
+    if (!editor || !isYjsReady || hasLocalState || legacySeededRef.current) {
+      return;
     }
-  }, [editor, content]);
+
+    legacySeededRef.current = true;
+    if (!content) {
+      editor.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(content);
+      editor.commands.setContent(toSafeDoc(parsed), { emitUpdate: true });
+    } catch (error) {
+      log.warn('Failed to parse legacy chapter content, fallback to empty doc:', error);
+      editor.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
+    }
+  }, [content, editor, hasLocalState, isYjsReady]);
+
+  useEffect(() => {
+    legacySeededRef.current = false;
+  }, [nodeId]);
 
   // 暴露方法给父组件
   useImperativeHandle(forwardedRef, () => ({

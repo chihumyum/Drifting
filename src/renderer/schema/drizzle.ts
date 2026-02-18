@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex, blob } from 'drizzle-orm/sqlite-core';
 // schema definition in users' local sqlite database.
 
 
@@ -225,3 +225,20 @@ export const NodeElementBacklinkTable = sqliteTable('node_element_backlink', {
 }, (t) => [
     primaryKey({ columns: [t.nodeId, t.elementId] }),
 ]);
+
+export const yjsUpdates = sqliteTable('yjs_updates', {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    docId: text('document_id').notNull(),
+    updateBlob: blob('update_blob').notNull(),
+    createdAt: text('created_at').notNull(),
+}, (t) => [
+    index('idx_yjs_updates_doc').on(t.docId),
+]);
+
+export const yjsSnapshots = sqliteTable('yjs_snapshots', {
+    docId: text('document_id').primaryKey(),
+    stateBlob: blob('state_blob').notNull(),
+    updatedAt: text('updated_at').notNull(),
+}, (t) => [
+    index('idx_yjs_snapshot_doc').on(t.docId),
+])

@@ -76,6 +76,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.20",
     "@tiptap/core": "^3.17.0",
+    "@tiptap/extension-collaboration": "^3.19.0",
     "@tiptap/extension-link": "^3.17.0",
     "@tiptap/extension-text-align": "^3.17.0",
     "@tiptap/extension-underline": "^3.17.0",
@@ -87,6 +88,7 @@
     "axios": "^1.13.2",
     "better-auth": "^1.4.17",
     "better-sqlite3": "^12.6.2",
+    "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "d3-force": "^3.0.0",
     "drizzle-kit": "^0.31.8",
@@ -105,6 +107,7 @@
     "react-window": "^2.2.5",
     "uuid": "^13.0.0",
     "uuidv7": "^1.1.0",
+    "y-protocols": "^1.0.7",
     "yjs": "^13.6.29",
     "zustand": "^5.0.10"
   }

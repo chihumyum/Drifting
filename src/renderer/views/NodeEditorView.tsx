@@ -29,12 +29,13 @@ export function NodeEditorView() {
   const { bookNodes } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
+  const [isContentLoaded, setIsContentLoaded] = useState(false);
   // usecases
   const { renameNode, updateNodeSummary } = useBookNode({
     projectId: projectId,
     userId: userId,
   });
-  const { getContentByNodeId, updateContentByNodeId } = useBookContent({
+  const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
     userId: userId,
   });
   // for focus at this level
@@ -61,6 +62,7 @@ export function NodeEditorView() {
       log.error('[NodeEditor] No nodeId provided in URL params');
       return;
     }
+    setIsContentLoaded(false);
 
     const fetchContent = async () => {
       try {
@@ -68,11 +70,13 @@ export function NodeEditorView() {
         const cont = await getContentByNodeId(nodeId);
         log.debug('[NodeEditor] Fetched content:', cont);
         if (!cont) {
-          log.error('[NodeEditor] No content found for nodeId', nodeId);
+          log.warn('[NodeEditor] No content found for nodeId, editor will seed from Yjs/legacy', nodeId);
         }
         setBookContent(cont);
       } catch (error) {
         log.error('[NodeEditor] Failed to load/create chapter content', error);
+      } finally {
+        setIsContentLoaded(true);
       }
     };
 
@@ -105,19 +109,22 @@ export function NodeEditorView() {
   const handleContentUpdate = useCallback(
     async (targetNodeId: string, pmJson: string, outlineJson: string) => {
       try {
-        // Check if content exists
-        setBookContent((prev) => {
-          if (prev && prev.nodeId === targetNodeId) {
-            return {...prev, contentJson: pmJson, outlineJson};
+        const existing = await getContentByNodeId(targetNodeId);
+        if (existing) {
+          const updated = await updateContentByNodeId(targetNodeId, { contentJson: pmJson, outlineJson });
+          if (updated) {
+            setBookContent(updated);
           }
-          return prev;
-        });
-        updateContentByNodeId(targetNodeId, { contentJson: pmJson, outlineJson });
+          return;
+        }
+
+        const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
+        setBookContent(created);
       } catch (error) {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [updateContentByNodeId]
+    [createContent, getContentByNodeId, updateContentByNodeId]
   );
 
   const handleElementClick = useCallback(
@@ -159,12 +166,12 @@ export function NodeEditorView() {
               position: 'relative',
             }}
           >
-            {nodeId && bookContent && bookContent.nodeId === nodeId && curNode && (
+            {nodeId && isContentLoaded && curNode && (
                 <ChapterEditor
                   ref={editorRef}
                   nodeId={nodeId}
                   projectId={projectId}
-                  content={bookContent.contentJson}
+                  content={bookContent?.contentJson ?? null}
                   title={curNode.title}
                   summary={curNode.summary || ''}
                   onContentUpdate={handleContentUpdate}

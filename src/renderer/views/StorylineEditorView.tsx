@@ -15,7 +15,7 @@ import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAll
 import loglevel from "loglevel";
 const log = loglevel.getLogger("StorylineEditorView");
 log.setLevel(loglevel.levels.DEBUG);
-// log.setLevel(loglevel.levels.WARN);
+log.setLevel(loglevel.levels.WARN);
 
 const DEFAULT_DOC = {
   type: 'doc',
