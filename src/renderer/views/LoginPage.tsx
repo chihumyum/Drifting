@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, NotebookPen, Sparkles, UserRound, Mail, Lock } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { AuthLayout } from '../viewComponents/auth/AuthLayout';
+import { OAuthButtons } from '../viewComponents/auth/OAuthButtons';
 
 const heroFeatures = [
   {
@@ -123,6 +124,8 @@ export function LoginPage() {
             )}
           </button>
         </form>
+
+        <OAuthButtons />
 
         <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
           <span>还没有账号？</span>
