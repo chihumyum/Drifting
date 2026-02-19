@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo, useImperativeHandle, useState, useCallback,
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
+import * as Y from 'yjs';
 import StarterKit from '@tiptap/starter-kit';
 import Collaboration from '@tiptap/extension-collaboration';
 import Underline from '@tiptap/extension-underline';
@@ -19,8 +20,8 @@ import { useDataStore } from '@/renderer/store/data-store';
 import { useAuthStore } from '@/renderer/store/auth';
 import { useYjsDoc } from '@/renderer/hooks/useYjsDoc';
 const log = loglevel.getLogger('ChapterEditor');
-// log.setLevel(loglevel.levels.DEBUG);
 log.setLevel(log.levels.WARN);
+// log.setLevel(loglevel.levels.DEBUG);
 
 // editor component with built-in element tracking and outline extraction, and more
 
@@ -62,6 +63,8 @@ const DEFAULT_DOC: JSONContent = {
   type: 'doc',
   content: [],
 };
+const META_KEY_TITLE = 'title';
+const META_KEY_SUMMARY = 'summary';
 
 function toSafeDoc(input: unknown): JSONContent {
   if (input && typeof input === 'object') {
@@ -106,6 +109,8 @@ export function ChapterEditor({
   });
   const legacySeededRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProjectedTitleRef = useRef<string | null>(null);
+  const lastProjectedSummaryRef = useRef<string | null>(null);
 
   const [titleValue, setTitleValue] = useState(title);
   const [summaryValue, setSummaryValue] = useState(summary);
@@ -120,6 +125,79 @@ export function ChapterEditor({
   useEffect(() => {
     setSummaryValue(summary);
   }, [summary]);
+
+  const getMetaString = useCallback((meta: Y.Map<unknown>, key: string): string | null => {
+    const raw = meta.get(key);
+    return typeof raw === 'string' ? raw : null;
+  }, []);
+
+  const setMetaString = useCallback((key: string, value: string, origin: string) => {
+    const meta = ydoc.getMap<unknown>('meta');
+    const current = getMetaString(meta, key);
+    if (current === value) return;
+    log.debug(`Setting meta ${key} to`, value, 'with origin', origin);
+    ydoc.transact(() => {
+      meta.set(key, value);
+    }, origin);
+  }, [getMetaString, ydoc]);
+
+  useEffect(() => {
+    if (!isYjsReady) return;
+
+    const meta = ydoc.getMap<unknown>('meta');
+
+    const syncMeta = () => {
+      const yTitle = getMetaString(meta, META_KEY_TITLE);
+      const ySummary = getMetaString(meta, META_KEY_SUMMARY);
+
+      setTitleValue(yTitle ?? title);
+      setSummaryValue(ySummary ?? summary);
+
+      if (
+        onTitleUpdate
+        && yTitle !== null
+        && yTitle !== title
+        && yTitle !== lastProjectedTitleRef.current
+      ) {
+        lastProjectedTitleRef.current = yTitle;
+        void Promise.resolve(onTitleUpdate(nodeId, yTitle)).catch((error) => {
+          log.error('[ChapterEditor] failed to project yjs title:', error);
+        });
+      }
+
+      if (
+        onSummaryUpdate
+        && ySummary !== null
+        && ySummary !== summary
+        && ySummary !== lastProjectedSummaryRef.current
+      ) {
+        lastProjectedSummaryRef.current = ySummary;
+        void Promise.resolve(onSummaryUpdate(nodeId, ySummary)).catch((error) => {
+          log.error('[ChapterEditor] failed to project yjs summary:', error);
+        });
+      }
+    };
+
+    const needsSeedTitle = !meta.has(META_KEY_TITLE);
+    const needsSeedSummary = !meta.has(META_KEY_SUMMARY);
+    if (needsSeedTitle || needsSeedSummary) {
+      ydoc.transact(() => {
+        if (needsSeedTitle) {
+          meta.set(META_KEY_TITLE, title);
+        }
+        if (needsSeedSummary) {
+          meta.set(META_KEY_SUMMARY, summary);
+        }
+      }, 'meta-seed');
+    }
+
+    syncMeta();
+    meta.observeDeep(syncMeta);
+
+    return () => {
+      meta.unobserveDeep(syncMeta);
+    };
+  }, [getMetaString, isYjsReady, nodeId, onSummaryUpdate, onTitleUpdate, summary, title, ydoc]);
 
   // element tracking
   const elementNamesMap = useMemo(() => {
@@ -207,11 +285,11 @@ export function ChapterEditor({
 
       // TODO: check if we have a performance issue here
       const outline = extractOutline(pmJson);
-      log.debug('Extracted outline:', outline);
+      // log.debug('Extracted outline:', outline);
       const outlineJson = serializeOutline(outline);
-      log.debug('Outline JSON:', outlineJson);
+      // log.debug('Outline JSON:', outlineJson);
       parseAndSaveElementOccurrences(json);
-      log.debug('Updating node', nodeId, 'with content:', pmJson);
+      // log.debug('Updating node', nodeId, 'with content:', pmJson);
       onContentUpdate(nodeId, pmJson, outlineJson);
     },
   }, [nodeId, ydoc, elementNamesMap, autoElementLinkEnabled, onElementClick, autoFocus, minHeight, onContentUpdate, parseAndSaveElementOccurrences, isYjsReady]);
@@ -239,6 +317,8 @@ export function ChapterEditor({
 
   useEffect(() => {
     legacySeededRef.current = false;
+    lastProjectedTitleRef.current = null;
+    lastProjectedSummaryRef.current = null;
   }, [nodeId]);
 
   // 暴露方法给父组件
@@ -266,15 +346,28 @@ export function ChapterEditor({
   }, []);
 
   const handleTitleSave = () => {
-    if (onTitleUpdate && titleValue.trim() && titleValue !== title) {
-      onTitleUpdate(nodeId, titleValue.trim());
+    const nextTitle = titleValue.trim();
+    if (!nextTitle) {
+      setTitleValue(title);
+      return;
     }
+    if (!isYjsReady) {
+      if (onTitleUpdate && nextTitle !== title) {
+        onTitleUpdate(nodeId, nextTitle);
+      }
+      return;
+    }
+    setMetaString(META_KEY_TITLE, nextTitle, 'meta:title');
   };
 
   const handleSummarySave = () => {
-    if (onSummaryUpdate && summaryValue !== summary) {
-      onSummaryUpdate(nodeId, summaryValue.trim());
+    if (!isYjsReady) {
+      if (onSummaryUpdate && summaryValue !== summary) {
+        onSummaryUpdate(nodeId, summaryValue.trim());
+      }
+      return;
     }
+    setMetaString(META_KEY_SUMMARY, summaryValue.trim(), 'meta:summary');
   };
 
   if (!editor) {
@@ -316,7 +409,8 @@ export function ChapterEditor({
                       e.preventDefault();
                       editor?.commands.focus('start');
                     } else if (e.key === 'Escape') {
-                      setTitleValue(title);
+                      const meta = ydoc.getMap<unknown>('meta');
+                      setTitleValue(getMetaString(meta, META_KEY_TITLE) ?? title);
                       e.currentTarget.blur();
                     }
                   }}
@@ -351,7 +445,7 @@ export function ChapterEditor({
                 borderLeft: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
               }}
             >
-              <TagEditor type="node" entityId={nodeId} projectId={projectId} />
+              <TagEditor type="node" entityId={nodeId} projectId={projectId} ydoc={ydoc} />
             </div>
           )}
           {/* Summary */}
@@ -364,7 +458,8 @@ export function ChapterEditor({
                   onBlur={handleSummarySave}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
-                      setSummaryValue(summary);
+                      const meta = ydoc.getMap<unknown>('meta');
+                      setSummaryValue(getMetaString(meta, META_KEY_SUMMARY) ?? summary);
                       e.currentTarget.blur();
                     }
                   }}

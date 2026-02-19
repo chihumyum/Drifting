@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import loglevel from 'loglevel';
-
-const log = loglevel.getLogger("TagEditor");
-log.setLevel(loglevel.levels.ERROR);
+import * as Y from 'yjs';
 import { X, Plus } from 'lucide-react';
 import { useNodeTag } from '../../usecase/useNodeTag';
 import { useElementTag } from '../../usecase/useElementTag';
 import { useAuthStore } from '../../store/auth';
+
+const log = loglevel.getLogger('TagEditor');
+log.setLevel(loglevel.levels.ERROR);
+
+const META_KEY_TAGS = 'tags';
 
 type TagType = 'node' | 'element';
 type TagRecord = {
@@ -19,11 +22,29 @@ interface TagEditorProps {
   type: TagType;
   entityId: string; // nodeId or elementId
   projectId?: string;
+  ydoc?: Y.Doc;
 }
+
+function ensureYjsNodeTagsMap(ydoc: Y.Doc): Y.Map<boolean> {
+  const meta = ydoc.getMap<unknown>('meta');
+  const raw = meta.get(META_KEY_TAGS);
+  if (raw instanceof Y.Map) {
+    return raw as Y.Map<boolean>;
+  }
+  const tagsMap = new Y.Map<boolean>();
+  meta.set(META_KEY_TAGS, tagsMap);
+  return tagsMap;
+}
+
+function readYjsNodeTagIds(ydoc: Y.Doc): string[] {
+  const tagsMap = ensureYjsNodeTagsMap(ydoc);
+  return Array.from(tagsMap.keys()).sort();
+}
+
 /*
   Tag Editor Component used in NodeEditorView and ElementEditorView
 */
-export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
+export function TagEditor({ type, entityId, projectId, ydoc }: TagEditorProps) {
   const userId = useAuthStore((state) => state.user?.id);
   const nodeTagUsecases = useNodeTag({
     projectId: projectId ?? '',
@@ -33,11 +54,32 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
+
+  const isNodeYjsMode = type === 'node' && Boolean(ydoc);
+  const projectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastProjectedTagKeyRef = useRef<string | null>(null);
+
   const [allTags, setAllTags] = useState<TagRecord[]>([]);
   const [entityTags, setEntityTags] = useState<TagRecord[]>([]);
+  const [entityTagIds, setEntityTagIds] = useState<string[]>([]);
+  const [isYjsTagsReady, setIsYjsTagsReady] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+
+  const setEntityTagsFromIds = useCallback((tagIds: string[], tagsPool: TagRecord[]) => {
+    const tagsById = new Map(tagsPool.map((tag) => [tag.id, tag]));
+    const nextTags = tagIds.map((id) => tagsById.get(id) ?? { id, name: id, color: null });
+    setEntityTagIds(tagIds);
+    setEntityTags(nextTags);
+  }, []);
+
+  const syncNodeTagsFromYjs = useCallback((tagsPool: TagRecord[]) => {
+    if (!isNodeYjsMode || !ydoc) return;
+    const ids = readYjsNodeTagIds(ydoc);
+    setEntityTagsFromIds(ids, tagsPool);
+    setIsYjsTagsReady(true);
+  }, [isNodeYjsMode, setEntityTagsFromIds, ydoc]);
 
   const loadTags = useCallback(async () => {
     try {
@@ -46,7 +88,23 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
           nodeTagUsecases.loadTags(projectId),
           nodeTagUsecases.getTagsForNode(entityId, projectId),
         ]);
-        setAllTags(all.map((tag) => ({ ...tag, color: null })));
+        const normalizedAll = all.map((tag) => ({ ...tag, color: null }));
+        setAllTags(normalizedAll);
+
+        if (isNodeYjsMode && ydoc) {
+          const currentYjsTagIds = readYjsNodeTagIds(ydoc);
+          if (currentYjsTagIds.length === 0 && entity.length > 0) {
+            ydoc.transact(() => {
+              const tagsMap = ensureYjsNodeTagsMap(ydoc);
+              entity.forEach((tag) => {
+                tagsMap.set(tag.id, true);
+              });
+            }, 'meta-seed-tags');
+          }
+          syncNodeTagsFromYjs(normalizedAll);
+          return;
+        }
+
         setEntityTags(entity.map((tag) => ({ ...tag, color: null })));
       } else if (type === 'element') {
         const [all, entity] = await Promise.all([
@@ -59,14 +117,81 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
     } catch (error) {
       log.error('Failed to load tags:', error);
     }
-  }, [type, entityId, projectId, nodeTagUsecases, elementTagUsecases]);
+  }, [
+    type,
+    nodeTagUsecases,
+    projectId,
+    entityId,
+    isNodeYjsMode,
+    ydoc,
+    syncNodeTagsFromYjs,
+    elementTagUsecases,
+  ]);
 
   useEffect(() => {
-    loadTags();
+    void loadTags();
   }, [loadTags]);
+
+  useEffect(() => {
+    if (!isNodeYjsMode || !ydoc) return;
+
+    const meta = ydoc.getMap<unknown>('meta');
+    const handleMetaChange = () => {
+      syncNodeTagsFromYjs(allTags);
+    };
+
+    handleMetaChange();
+    meta.observeDeep(handleMetaChange);
+
+    return () => {
+      meta.unobserveDeep(handleMetaChange);
+    };
+  }, [allTags, isNodeYjsMode, syncNodeTagsFromYjs, ydoc]);
+
+  useEffect(() => {
+    if (!isNodeYjsMode || !isYjsTagsReady) return;
+
+    const tagKey = entityTagIds.join(',');
+    if (tagKey === lastProjectedTagKeyRef.current) {
+      return;
+    }
+
+    if (projectionTimerRef.current) {
+      clearTimeout(projectionTimerRef.current);
+    }
+
+    projectionTimerRef.current = setTimeout(() => {
+      lastProjectedTagKeyRef.current = tagKey;
+      void nodeTagUsecases.setNodeTags(entityId, entityTagIds, projectId).catch((error) => {
+        log.error('Failed to project yjs node tags:', error);
+      });
+    }, 250);
+
+    return () => {
+      if (projectionTimerRef.current) {
+        clearTimeout(projectionTimerRef.current);
+        projectionTimerRef.current = null;
+      }
+    };
+  }, [entityId, entityTagIds, isNodeYjsMode, isYjsTagsReady, nodeTagUsecases, projectId]);
+
+  useEffect(() => {
+    lastProjectedTagKeyRef.current = null;
+    setIsYjsTagsReady(false);
+    setEntityTagIds([]);
+  }, [entityId, isNodeYjsMode, ydoc]);
 
   const handleAddTag = async (tagId: string) => {
     try {
+      if (type === 'node' && isNodeYjsMode && ydoc) {
+        ydoc.transact(() => {
+          const tagsMap = ensureYjsNodeTagsMap(ydoc);
+          tagsMap.set(tagId, true);
+        }, 'meta:tags');
+        setShowDropdown(false);
+        return;
+      }
+
       if (type === 'node') {
         await nodeTagUsecases.addTagToNode(entityId, tagId, projectId);
       } else if (type === 'element') {
@@ -81,6 +206,14 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
 
   const handleRemoveTag = async (tagId: string) => {
     try {
+      if (type === 'node' && isNodeYjsMode && ydoc) {
+        ydoc.transact(() => {
+          const tagsMap = ensureYjsNodeTagsMap(ydoc);
+          tagsMap.delete(tagId);
+        }, 'meta:tags');
+        return;
+      }
+
       if (type === 'node') {
         await nodeTagUsecases.removeTagFromNode(entityId, tagId, projectId);
       } else if (type === 'element') {
@@ -93,18 +226,31 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
   };
 
   const handleCreateTag = async () => {
-    if (!newTagName.trim()) return;
+    const trimmedName = newTagName.trim();
+    if (!trimmedName) return;
 
     try {
-      if (type === 'node') {
+      if (type === 'node' && isNodeYjsMode && ydoc) {
+        const all = await nodeTagUsecases.loadTags(projectId);
+        const existing = all.find((tag) => tag.name === trimmedName);
+        const tag = existing ?? await nodeTagUsecases.createTag({
+          projectId,
+          name: trimmedName,
+        });
+
+        ydoc.transact(() => {
+          const tagsMap = ensureYjsNodeTagsMap(ydoc);
+          tagsMap.set(tag.id, true);
+        }, 'meta:tags');
+      } else if (type === 'node') {
         await nodeTagUsecases.createAndAddTagToNode(entityId, {
           projectId,
-          name: newTagName.trim(),
+          name: trimmedName,
         });
       } else if (type === 'element') {
         await elementTagUsecases.createAndAddTagToElement(entityId, {
           projectId,
-          name: newTagName.trim(),
+          name: trimmedName,
           color: generateRandomColor(),
         });
       }
@@ -294,7 +440,7 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
               No available tags
             </div>
           )}
-          
+
           <button
             onClick={() => {
               setShowDropdown(false);
@@ -325,7 +471,7 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
             <Plus size={14} />
             <span>Create New Tag</span>
           </button>
-          
+
           <button
             onClick={() => setShowDropdown(false)}
             style={{
@@ -369,7 +515,7 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
             onChange={(e) => setNewTagName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                handleCreateTag();
+                void handleCreateTag();
               } else if (e.key === 'Escape') {
                 setNewTagName('');
                 setIsCreating(false);
@@ -394,7 +540,9 @@ export function TagEditor({ type, entityId, projectId }: TagEditorProps) {
             }}
           />
           <button
-            onClick={handleCreateTag}
+            onClick={() => {
+              void handleCreateTag();
+            }}
             disabled={!newTagName.trim()}
             style={{
               padding: '6px 12px',
