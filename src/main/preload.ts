@@ -23,6 +23,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: (sql: string, params?: any[]) => ipcRenderer.invoke('db:get', sql, params),
     close: () => ipcRenderer.invoke('db:close'),
   },
+
+  // OAuth: open system browser for social login
+  auth: {
+    openOAuthBrowser: (provider: string) =>
+      ipcRenderer.invoke('auth:oauth-open-browser', provider),
+    onOAuthCallback: (
+      callback: (data: { token: string | null; error: string | null }) => void,
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { token: string | null; error: string | null },
+      ) => callback(data);
+      ipcRenderer.on('auth:oauth-callback', handler);
+      return () => ipcRenderer.removeListener('auth:oauth-callback', handler);
+    },
+  },
 });
 
 // Type definitions for TypeScript
@@ -41,6 +57,12 @@ export interface ElectronAPI {
     query: (sql: string, params?: any[]) => Promise<any[]>;
     get: (sql: string, params?: any[]) => Promise<any | undefined>;
     close: () => Promise<void>;
+  };
+  auth: {
+    openOAuthBrowser: (provider: string) => Promise<void>;
+    onOAuthCallback: (
+      callback: (data: { token: string | null; error: string | null }) => void,
+    ) => () => void;
   };
 }
 

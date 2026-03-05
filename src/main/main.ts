@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, shell, session } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
@@ -6,6 +6,51 @@ import { setupDatabase } from './database';
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (started) {
   app.quit();
+}
+
+// Register as default handler for drifting:// deep links
+// Must be called before app.whenReady()
+app.setAsDefaultProtocolClient('drifting');
+
+// macOS: handle deep link when app is already running
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
+
+async function handleDeepLink(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
+      const token = parsed.searchParams.get('token');
+      const error = parsed.searchParams.get('error');
+
+      // Set the session cookie in Electron's networking stack so authClient
+      // requests to localhost:3000 will automatically include it.
+      // MUST be awaited before sending the IPC message — the renderer calls
+      // checkSession() immediately on receipt, and the fetch needs the cookie.
+      if (token) {
+        const apiOrigin = process.env.API_BASE_URL ?? 'http://localhost:3000';
+        try {
+          await session.defaultSession.cookies.set({
+            url: apiOrigin,
+            name: 'better-auth.session_token',
+            value: token,
+            httpOnly: true,
+            secure: false,
+            sameSite: 'lax',
+            expirationDate: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+          });
+        } catch (err) {
+          console.error('[OAuth] Failed to set session cookie:', err);
+        }
+      }
+
+      mainWindow?.webContents.send('auth:oauth-callback', { token, error });
+    }
+  } catch (err) {
+    console.error('[OAuth] Failed to parse deep link:', err);
+  }
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -104,14 +149,27 @@ ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() ?? false;
 });
 
+// OAuth: open system browser for social login, then wait for deep-link callback.
+// We open the /oauth-redirect/:provider endpoint directly in the external browser
+// so that the OAuth state cookie is set in the browser's own cookie jar.
+// If we instead fetched the sign-in URL from the main process, the state cookie
+// would end up in Node's fetch context and cause a state_mismatch on the callback.
+ipcMain.handle('auth:oauth-open-browser', async (_event, provider: string) => {
+  const apiBase = process.env.API_BASE_URL ?? 'http://localhost:3000';
+  const url = `${apiBase}/api/auth/oauth-redirect/${encodeURIComponent(provider)}`;
+  await shell.openExternal(url);
+});
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    // Someone tried to run a second instance, focus our window instead
+  // Windows: deep link arrives as a command-line argument to the second instance
+  app.on('second-instance', (_event, commandLine) => {
+    const deepLink = commandLine.find((arg) => arg.startsWith('drifting://'));
+    if (deepLink) handleDeepLink(deepLink);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
