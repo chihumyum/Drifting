@@ -30,6 +30,7 @@ export function NodeEditorView() {
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
+  const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary } = useBookNode({
     projectId: projectId,
@@ -40,6 +41,11 @@ export function NodeEditorView() {
   });
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
+  const activeNodeIdRef = useRef<string | null>(nodeId ?? null);
+
+  useEffect(() => {
+    activeNodeIdRef.current = nodeId ?? null;
+  }, [nodeId]);
 
   // get nodeId from url params
   useEffect(() => {
@@ -62,25 +68,39 @@ export function NodeEditorView() {
       log.error('[NodeEditor] No nodeId provided in URL params');
       return;
     }
-    setIsContentLoaded(false);
+    const targetNodeId = nodeId;
+    let cancelled = false;
 
     const fetchContent = async () => {
       try {
-        log.debug('[NodeEditor] Fetching content for nodeId', nodeId);
-        const cont = await getContentByNodeId(nodeId);
+        log.debug('[NodeEditor] Fetching content for nodeId', targetNodeId);
+        const cont = await getContentByNodeId(targetNodeId);
+        if (cancelled || activeNodeIdRef.current !== targetNodeId) {
+          return;
+        }
         log.debug('[NodeEditor] Fetched content:', cont);
         if (!cont) {
-          log.warn('[NodeEditor] No content found for nodeId, editor will seed from Yjs/legacy', nodeId);
+          log.warn('[NodeEditor] No content found for nodeId, editor will seed from Yjs/legacy', targetNodeId);
         }
         setBookContent(cont);
       } catch (error) {
-        log.error('[NodeEditor] Failed to load/create chapter content', error);
-      } finally {
-        setIsContentLoaded(true);
+        if (!cancelled && activeNodeIdRef.current === targetNodeId) {
+          log.error('[NodeEditor] Failed to load/create chapter content', error);
+        }
       }
+
+      if (cancelled || activeNodeIdRef.current !== targetNodeId) {
+        return;
+      }
+      setLoadedNodeId(targetNodeId);
+      setIsContentLoaded(true);
     };
 
     void fetchContent();
+
+    return () => {
+      cancelled = true;
+    };
   }, [nodeId, getContentByNodeId]);
 
 
@@ -112,20 +132,24 @@ export function NodeEditorView() {
         const existing = await getContentByNodeId(targetNodeId);
         if (existing) {
           const updated = await updateContentByNodeId(targetNodeId, { contentJson: pmJson, outlineJson });
-          if (updated) {
+          if (updated && activeNodeIdRef.current === targetNodeId) {
             setBookContent(updated);
           }
           return;
         }
 
         const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
-        setBookContent(created);
+        if (activeNodeIdRef.current === targetNodeId) {
+          setBookContent(created);
+        }
       } catch (error) {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
     [createContent, getContentByNodeId, updateContentByNodeId]
   );
+
+  const isActiveNodeReady = Boolean(nodeId && curNode && isContentLoaded && loadedNodeId === nodeId);
 
   const handleElementClick = useCallback(
     (elementId: string) => {
@@ -166,8 +190,9 @@ export function NodeEditorView() {
               position: 'relative',
             }}
           >
-            {nodeId && isContentLoaded && curNode && (
+            {isActiveNodeReady && (
                 <ChapterEditor
+                  key={nodeId}
                   ref={editorRef}
                   nodeId={nodeId}
                   projectId={projectId}
