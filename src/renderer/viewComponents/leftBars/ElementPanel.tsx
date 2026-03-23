@@ -68,6 +68,7 @@ export function ElementPanel() {
 
   const {
     createCategory,
+    updateCategory,
     getCategoryColor,
   } = useElementCategory({
     projectId: activeProjectId,
@@ -77,6 +78,8 @@ export function ElementPanel() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingElementId, setEditingElementId] = useState<string | null>(null);
   const [editingElementName, setEditingElementName] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
 
   const [zoomRingVisible, setZoomRingVisible] = useState(false);
   const [zoomRingHovered, setZoomRingHovered] = useState(false);
@@ -108,6 +111,10 @@ export function ElementPanel() {
 
   const getCategoryLabel = useCallback((categoryId: string) => {
     return categoryById.get(categoryId)?.name ?? categoryId;
+  }, [categoryById]);
+
+  const isReservedCategory = useCallback((categoryId: string) => {
+    return categoryById.get(categoryId)?.name === 'others';
   }, [categoryById]);
 
   const categoryIds = useMemo(() => {
@@ -249,6 +256,26 @@ export function ElementPanel() {
       setEditingElementName('');
     }
   }, [editingElementName, updateElement]);
+
+  const handleSaveCategoryName = useCallback(async (categoryId: string) => {
+    const category = categoryById.get(categoryId);
+    const nextName = editingCategoryName.trim();
+
+    if (!category || category.name === 'others' || !nextName || nextName === category.name) {
+      setEditingCategoryId(null);
+      setEditingCategoryName('');
+      return;
+    }
+
+    try {
+      await updateCategory(categoryId, { name: nextName });
+    } catch (error) {
+      log.error('Failed to update category name', error);
+    } finally {
+      setEditingCategoryId(null);
+      setEditingCategoryName('');
+    }
+  }, [categoryById, editingCategoryName, updateCategory]);
 
   const measurePanelLayout = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -721,7 +748,59 @@ export function ElementPanel() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>{getCategoryLabel(categoryId)}</span>
+                  {editingCategoryId === categoryId ? (
+                    <input
+                      type="text"
+                      value={editingCategoryName}
+                      onChange={(event) => setEditingCategoryName(event.target.value)}
+                      onBlur={() => {
+                        void handleSaveCategoryName(categoryId);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                        if (event.key === 'Escape') {
+                          setEditingCategoryId(null);
+                          setEditingCategoryName('');
+                        }
+                      }}
+                      onFocus={(event) => event.target.select()}
+                      autoFocus
+                      onClick={(event) => event.stopPropagation()}
+                      style={{
+                        minWidth: 120,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'rgba(0, 0, 0, 0.75)',
+                        padding: '2px 6px',
+                        border: '1px solid var(--accent-border, #e8dcc8)',
+                        borderRadius: 4,
+                        background: 'var(--bg-paper, #fefdfb)',
+                        textTransform: 'none',
+                        letterSpacing: 'normal',
+                        outline: 'none',
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={(event) => {
+                        if (!categoryById.get(categoryId) || isReservedCategory(categoryId)) {
+                          return;
+                        }
+                        event.stopPropagation();
+                        setEditingCategoryId(categoryId);
+                        setEditingCategoryName(getCategoryLabel(categoryId));
+                      }}
+                      title={isReservedCategory(categoryId) ? 'Reserved category' : 'Double-click to rename'}
+                      style={{
+                        cursor: categoryById.get(categoryId) && !isReservedCategory(categoryId) ? 'text' : 'default',
+                      }}
+                    >
+                      {getCategoryLabel(categoryId)}
+                    </span>
+                  )}
                   <div
                     style={{
                       width: 8,

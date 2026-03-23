@@ -10,7 +10,6 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
-import type { BookElementCategory } from '../domain/book-element';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { X, Eye } from 'lucide-react';
@@ -52,12 +51,14 @@ export function CategoryEditorView() {
   });
   const { navigateToHome, navigateToElement } = useProjectNavigation();
 
-  const [curCategory, setCurCategory] = useState<BookElementCategory | null>(null);
   const [showElementsModal, setShowElementsModal] = useState(false);
+  const [editingNameCategoryId, setEditingNameCategoryId] = useState<string | null>(null);
+  const [categoryNameDraft, setCategoryNameDraft] = useState('');
 
   const isContentLoadedRef = useRef(false);
+  const loadedCategoryIdRef = useRef<string | null>(null);
 
-  // Get category data
+  // Redirect if category is missing from params.
   useEffect(() => {
     if (!projectId) {
       log.error('Project ID is missing');
@@ -65,17 +66,21 @@ export function CategoryEditorView() {
     }
     if (!categoryId) {
       navigateToHome();
-      return;
     }
-    const category = bookElementCategories.find(cat => cat.id === categoryId) || null;
-    setCurCategory(category);
-  }, [bookElementCategories, categoryId, navigateToHome, projectId]);
+  }, [categoryId, navigateToHome, projectId]);
+
+  const curCategory = useMemo(() => {
+    if (!categoryId) return null;
+    return bookElementCategories.find(cat => cat.id === categoryId) || null;
+  }, [bookElementCategories, categoryId]);
 
   // Get elements belonging to this category
   const categoryElements = useMemo(() => {
     if (!categoryId) return [];
     return bookElements.filter(el => el.categoryId === categoryId);
   }, [bookElements, categoryId]);
+  const isEditingCategoryName = curCategory ? editingNameCategoryId === curCategory.id : false;
+  const isReservedCategory = curCategory?.name === 'others';
 
   // Initialize editor
   const editor = useEditor({
@@ -128,17 +133,21 @@ export function CategoryEditorView() {
 
   // Load content into editor
   useEffect(() => {
-    if (!editor || !curCategory || isContentLoadedRef.current) return;
+    if (!editor || !curCategory) return;
+    if (loadedCategoryIdRef.current === curCategory.id) return;
 
     try {
       const content = curCategory.descriptionJson ? JSON.parse(curCategory.descriptionJson) : getDefaultDoc();
-      editor.commands.setContent(content);
-      isContentLoadedRef.current = true;
+      isContentLoadedRef.current = false;
+      editor.commands.setContent(content, { emitUpdate: false });
     } catch (error) {
       log.error('Failed to parse category description:', error);
-      editor.commands.setContent(getDefaultDoc());
-      isContentLoadedRef.current = true;
+      isContentLoadedRef.current = false;
+      editor.commands.setContent(getDefaultDoc(), { emitUpdate: false });
     }
+
+    loadedCategoryIdRef.current = curCategory.id;
+    isContentLoadedRef.current = true;
   }, [editor, curCategory]);
 
   // Save category description
@@ -147,6 +156,37 @@ export function CategoryEditorView() {
     await categoryUsecases.updateCategory(curCategory.id, {
       descriptionJson: content,
     });
+  };
+
+  const handleStartNameEdit = () => {
+    if (!curCategory || isReservedCategory) return;
+    setEditingNameCategoryId(curCategory.id);
+    setCategoryNameDraft(curCategory.name);
+  };
+
+  const handleCancelNameEdit = () => {
+    setEditingNameCategoryId(null);
+    setCategoryNameDraft('');
+  };
+
+  const handleSaveName = async () => {
+    if (!curCategory || editingNameCategoryId !== curCategory.id || isReservedCategory) return;
+
+    const nextName = categoryNameDraft.trim();
+    if (!nextName || nextName === curCategory.name) {
+      handleCancelNameEdit();
+      return;
+    }
+
+    try {
+      await categoryUsecases.updateCategory(curCategory.id, {
+        name: nextName,
+      });
+    } catch (error) {
+      log.error('Failed to update category name:', error);
+    } finally {
+      handleCancelNameEdit();
+    }
   };
 
   const handleContextAction = async (action: string) => {
@@ -223,14 +263,51 @@ export function CategoryEditorView() {
                 boxShadow: `0 2px 8px ${curCategory.color}40`,
               }} />
             )}
-            <h1 style={{
-              fontSize: 24,
-              fontWeight: 700,
-              color: 'rgba(0, 0, 0, 0.85)',
-              margin: 0,
-            }}>
-              {curCategory.name}
-            </h1>
+            {isEditingCategoryName ? (
+              <input
+                type="text"
+                value={categoryNameDraft}
+                onChange={(event) => setCategoryNameDraft(event.target.value)}
+                onBlur={() => {
+                  void handleSaveName();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                  if (event.key === 'Escape') {
+                    handleCancelNameEdit();
+                  }
+                }}
+                onFocus={(event) => event.target.select()}
+                autoFocus
+                style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: 'rgba(0, 0, 0, 0.85)',
+                  margin: 0,
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                }}
+              />
+            ) : (
+              <h1
+                onDoubleClick={handleStartNameEdit}
+                title={isReservedCategory ? 'Reserved category' : 'Double-click to rename'}
+                style={{
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: 'rgba(0, 0, 0, 0.85)',
+                  margin: 0,
+                  cursor: isReservedCategory ? 'default' : 'text',
+                }}
+              >
+                {curCategory.name}
+              </h1>
+            )}
           </div>
 
           {/* Element count */}
