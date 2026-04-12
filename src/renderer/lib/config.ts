@@ -5,21 +5,26 @@ import loglevel from "loglevel";
 const log = loglevel.getLogger("ConfigLib");
 log.setLevel(loglevel.levels.ERROR);
 
+function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
 /**
  * Local-first mode configuration (Obsidian-style)
  * When enabled, the app runs completely offline without any server dependencies
  */
 export const APP_CONFIG = {
   // Local-first mode: disable all network features
-  LOCAL_ONLY_MODE: true,
+  LOCAL_ONLY_MODE: readBooleanEnv(import.meta.env.VITE_LOCAL_ONLY_MODE, true),
 
   // Sync configuration
-  ENABLE_SYNC: false,  // Disable automatic sync to server
+  ENABLE_SYNC: readBooleanEnv(import.meta.env.VITE_ENABLE_SYNC, false),
 
   // Authentication
-  REQUIRE_AUTH: true,  // Skip authentication, work directly with local data
+  REQUIRE_AUTH: readBooleanEnv(import.meta.env.VITE_REQUIRE_AUTH, true),
 
-  // API endpoints (not used in local-only mode)
+  // API endpoints
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
 
   // Database

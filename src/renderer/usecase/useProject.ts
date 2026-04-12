@@ -8,6 +8,7 @@ import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
 import { initDatabase } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
+import { syncProjectCreate, syncProjectUpdate, syncProjectDelete, syncStorylineCreate, syncCategoryCreate } from './sync-helpers';
 import { randomColor } from '../utils';
 import { useDataStore } from '../store/data-store';
 import LogLevel from 'loglevel';
@@ -134,6 +135,18 @@ export function useProject({ userId }: UseProjectContext) {
     dataStore.setStorylines(safeStorylines.length > 0 ? safeStorylines : [defaultStoryline]);
     dataStore.setBookElementCategories(safeCategories.length > 0 ? safeCategories : [defaultCategory]);
 
+    // Sync to server (fire-and-forget)
+    syncProjectCreate(project.id, { id: project.id, name: project.name, descriptionJson: project.descriptionJson });
+    syncStorylineCreate(defaultStoryline.id, project.id, {
+      id: defaultStoryline.id, name: defaultStoryline.name, color: defaultStoryline.color,
+      summary: defaultStoryline.summary, orderKey: defaultStoryline.orderKey,
+      descriptionJson: defaultStoryline.descriptionJson,
+    });
+    syncCategoryCreate(defaultCategory.id, project.id, {
+      id: defaultCategory.id, name: defaultCategory.name, color: defaultCategory.color,
+      descriptionJson: defaultCategory.descriptionJson,
+    });
+
     return project;
   }, [repo, userId, ensureDb]);
 
@@ -143,17 +156,23 @@ export function useProject({ userId }: UseProjectContext) {
       return Promise.resolve(null);
     }
     await ensureDb();
-    return await repo.update(id, {
+    const result = await repo.update(id, {
       userId,
       name: input.name,
       descriptionJson: input.descriptionJson,
       updatedAt: new Date().toISOString(),
     });
+    if (result) {
+      syncProjectUpdate(id, { name: input.name, descriptionJson: input.descriptionJson });
+    }
+    return result;
   }, [repo, userId, ensureDb]);
 
   const deleteProject = useCallback(async (id: string): Promise<boolean> => {
     await ensureDb();
-    return await repo.delete(id);
+    const ok = await repo.delete(id);
+    if (ok) syncProjectDelete(id);
+    return ok;
   }, [repo, ensureDb]);
 
   return useMemo(() => ({

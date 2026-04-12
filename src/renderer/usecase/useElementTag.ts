@@ -5,6 +5,10 @@ import { initDatabase, getDb } from '../lib/db';
 import type { ElementTag } from '../domain/element-tag';
 import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
+import {
+  syncElementTagCreate, syncElementTagDelete,
+  syncElementTagLinkCreate, syncElementTagLinkDelete, syncElementTagsSet,
+} from './sync-helpers';
 import { v7 as uuidv7 } from 'uuid';
 
 export interface CreateElementTagInput {
@@ -65,18 +69,22 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
 
   const createTag = useCallback(async (input: CreateElementTagInput) => {
     const projectId = await ensureDb(input.projectId);
-    return tagRepo.create({
+    const tag = await tagRepo.create({
       id: uuidv7(),
       projectId,
       name: input.name,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    syncElementTagCreate(tag.id, projectId, { id: tag.id, name: tag.name });
+    return tag;
   }, [tagRepo, ensureDb]);
 
   const deleteTag = useCallback(async (id: string, projectId?: string) => {
-    await ensureDb(projectId);
-    return tagRepo.delete(id);
+    const pid = await ensureDb(projectId);
+    const result = await tagRepo.delete(id);
+    syncElementTagDelete(id, pid);
+    return result;
   }, [tagRepo, ensureDb]);
 
   // Element-Tag link operations
@@ -121,6 +129,7 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
           await tagLinkRepoTx.addTagToElement(elementId, tagId);
         });
       },
+      sync: () => syncElementTagLinkCreate(elementId, tagId, pid),
     });
   }, [ensureDb, updateElementTagIdsInStore]);
 
@@ -153,6 +162,7 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
           await tagLinkRepoTx.removeTagFromElement(elementId, tagId);
         });
       },
+      sync: () => syncElementTagLinkDelete(elementId, tagId, pid),
     });
   }, [ensureDb, updateElementTagIdsInStore]);
 
@@ -184,6 +194,7 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
           await tagLinkRepoTx.setTagsForElement(elementId, tagIds);
         });
       },
+      sync: () => syncElementTagsSet(elementId, pid, tagIds),
     });
   }, [ensureDb, updateElementTagIdsInStore]);
 

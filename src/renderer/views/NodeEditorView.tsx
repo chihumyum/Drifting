@@ -38,6 +38,7 @@ export function NodeEditorView() {
   });
   const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
     userId: userId,
+    projectId: projectId,
   });
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);

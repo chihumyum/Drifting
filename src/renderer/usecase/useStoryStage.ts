@@ -2,6 +2,7 @@ import { useMemo, useRef, useCallback } from 'react';
 import { createStoryStageRepository } from '../sqlite-repo/story-stage-repo';
 import { StoryStage } from '../domain/storystage';
 import { initDatabase } from '../lib/db';
+import { syncStageCreate, syncStageUpdate, syncStageDelete } from './sync-helpers';
 
 export interface CreateStoryStageInput {
   projectId?: string;
@@ -73,6 +74,12 @@ export function useStoryStage({ projectId, userId }: UseStoryStageContext) {
       descriptionJson: input.description ?? '{}',
       orderKey,
       color: input.color ?? '#000000',
+    }).then(created => {
+      syncStageCreate(created.id, projectId, {
+        id: created.id, name: created.name, descriptionJson: created.descriptionJson,
+        orderKey: created.orderKey, color: created.color,
+      });
+      return created;
     });
   }, [stageRepo, activeProjectId, ensureDb]);
 
@@ -90,7 +97,10 @@ export function useStoryStage({ projectId, userId }: UseStoryStageContext) {
     if (input.color !== undefined) updates.color = input.color;
     if (input.description !== undefined) updates.descriptionJson = input.description ?? '{}';
 
-    return stageRepo.update(id, updates);
+    return stageRepo.update(id, updates).then(updated => {
+      syncStageUpdate(id, pid, updates as Record<string, unknown>);
+      return updated;
+    });
   }, [stageRepo, activeProjectId, ensureDb]);
 
   const deleteStage = useCallback(async (id: string, projectId?: string) => {
@@ -99,7 +109,9 @@ export function useStoryStage({ projectId, userId }: UseStoryStageContext) {
       throw new Error('Project ID is required to delete stage');
     }
     await ensureDb();
-    return stageRepo.delete(id);
+    const result = await stageRepo.delete(id);
+    syncStageDelete(id, pid);
+    return result;
   }, [stageRepo, activeProjectId, ensureDb]);
 
   const reorderStage = useCallback(async (id: string, direction: 'up' | 'down', projectId?: string) => {
@@ -123,6 +135,8 @@ export function useStoryStage({ projectId, userId }: UseStoryStageContext) {
     // Swap positions
     await stageRepo.update(current.id, { orderKey: target.orderKey });
     await stageRepo.update(target.id, { orderKey: current.orderKey });
+    syncStageUpdate(current.id, pid, { orderKey: target.orderKey });
+    syncStageUpdate(target.id, pid, { orderKey: current.orderKey });
   }, [stageRepo, activeProjectId, ensureDb]);
 
   return useMemo(() => ({

@@ -60,6 +60,7 @@ export function BottomTimeline() {
   });
   const { getOutlineByNodeId } = useBookContent({
     userId: user?.id ?? '',
+    projectId: projectId ?? '',
   });
   const isAllNodesEditorRoute = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
   const activeSelectedNodeId = isAllNodesEditorRoute ? (selectedNodeId ?? nodeId) : nodeId;

@@ -3,13 +3,15 @@ import { useCallback, useRef, useMemo } from 'react';
 import { createBookContentRepository } from '../sqlite-repo/content-repo';
 import type { NodeContent } from '../domain/node-content';
 import { initDatabase } from '../lib/db';
+import { syncNodeContentUpdate } from './sync-helpers';
 
 
 export interface UseBookContentContext {
     userId: string;
+    projectId: string;
 }
 
-export function useBookContent({ userId }: UseBookContentContext) {
+export function useBookContent({ userId, projectId }: UseBookContentContext) {
     if (!userId) {
         throw new Error('useBookContent requires a userId');
     }
@@ -49,9 +51,14 @@ export function useBookContent({ userId }: UseBookContentContext) {
                 updatedAt: now,
             };
 
-            return contentRepo.update(cont.nodeId, updatedData);
+            const result = await contentRepo.update(cont.nodeId, updatedData);
+            syncNodeContentUpdate(nodeId, projectId, {
+                contentJson: updatedData.contentJson,
+                outlineJson: updatedData.outlineJson,
+            });
+            return result;
         },
-        [contentRepo, ensureDb]
+        [contentRepo, ensureDb, projectId]
     );
 
     const updateContentById = useCallback(
@@ -68,10 +75,14 @@ export function useBookContent({ userId }: UseBookContentContext) {
                 updatedAt: now,
             };
 
-
-            return contentRepo.update(cont.nodeId, updatedData);
+            const result = await contentRepo.update(cont.nodeId, updatedData);
+            syncNodeContentUpdate(cont.nodeId, projectId, {
+                contentJson: updatedData.contentJson,
+                outlineJson: updatedData.outlineJson,
+            });
+            return result;
         },
-        [contentRepo, ensureDb]
+        [contentRepo, ensureDb, projectId]
     );
 
 
@@ -86,9 +97,13 @@ export function useBookContent({ userId }: UseBookContentContext) {
             outlineJson: content.outlineJson,
         });
 
+        syncNodeContentUpdate(nodeId, projectId, {
+            contentJson: content.contentJson,
+            outlineJson: content.outlineJson,
+        });
 
         return created;
-    }, [contentRepo, ensureDb]);
+    }, [contentRepo, ensureDb, projectId]);
 
     const getOutlineByNodeId = useCallback(async (nodeId: string) => {
         await ensureDb();

@@ -8,6 +8,10 @@ import { v7 as uuidv7 } from 'uuid';
 import type { UpdateStorylineInput } from '../services';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import {
+  syncStorylineCreate, syncStorylineUpdate, syncStorylineDelete,
+  syncNodeStorylineLinkCreate, syncNodeStorylineLinkDelete, syncNodeStorylinesSet,
+} from './sync-helpers';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger("useStoryline");
 log.setLevel(LogLevel.levels.DEBUG);
@@ -126,6 +130,11 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         const current = getStorylinesState();
         setStorylinesState(current.map(sl => (sl.id === storyline.id ? storyline : sl)));
       },
+      sync: (storyline) => syncStorylineCreate(storyline.id, activeProjectId, {
+        id: storyline.id, name: storyline.name, color: storyline.color,
+        summary: storyline.summary, orderKey: storyline.orderKey,
+        descriptionJson: storyline.descriptionJson,
+      }),
     });
   }, [repo, addStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState]);
 
@@ -177,6 +186,10 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       onSuccess: (storyline) => {
         updateStorylineState(storyline.id, storyline);
       },
+      sync: (storyline) => syncStorylineUpdate(storyline.id, activeProjectId, {
+        name: storyline.name, color: storyline.color, summary: storyline.summary,
+        orderKey: storyline.orderKey, descriptionJson: storyline.descriptionJson,
+      }),
     });
   }, [repo, updateStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState]);
 
@@ -187,8 +200,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       apply: () => removeStorylineState(id),
       rollback: () => setStorylinesState(prevStorylines),
       effect: () => repo.deleteStoryline(id),
+      sync: () => syncStorylineDelete(id, activeProjectId),
     });
-  }, [repo, removeStorylineState, ensureDb, getStorylinesState, setStorylinesState]);
+  }, [repo, removeStorylineState, ensureDb, getStorylinesState, setStorylinesState, activeProjectId]);
 
   const addNodeToStoryline = useCallback(async (nodeId: string, storylineId: string): Promise<void> => {
     await ensureDb();
@@ -197,8 +211,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       apply: () => addNodeToStorylineMappingState(storylineId, nodeId),
       rollback: () => setStorylineNodeMappingState(prevMapping),
       effect: () => linkRepo.addNodeToStoryline(nodeId, storylineId),
+      sync: () => syncNodeStorylineLinkCreate(nodeId, storylineId, activeProjectId),
     });
-  }, [linkRepo, addNodeToStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
+  }, [linkRepo, addNodeToStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState, activeProjectId]);
 
   const removeNodeFromStoryline = useCallback(async (nodeId: string, storylineId: string): Promise<void> => {
     await ensureDb();
@@ -207,8 +222,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       apply: () => removeNodeFromStorylineMappingState(storylineId, nodeId),
       rollback: () => setStorylineNodeMappingState(prevMapping),
       effect: () => linkRepo.removeNodeFromStoryline(nodeId, storylineId),
+      sync: () => syncNodeStorylineLinkDelete(nodeId, storylineId, activeProjectId),
     });
-  }, [linkRepo, removeNodeFromStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
+  }, [linkRepo, removeNodeFromStorylineMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState, activeProjectId]);
 
   const getStorylinesByNode = useCallback(async (nodeId: string): Promise<Storyline[]> => {
     await ensureDb();
@@ -232,8 +248,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       apply: () => setNodeStorylinesMappingState(nodeId, storylineIds),
       rollback: () => setStorylineNodeMappingState(prevMapping),
       effect: () => linkRepo.setNodeStorylines(nodeId, storylineIds),
+      sync: () => syncNodeStorylinesSet(nodeId, activeProjectId, storylineIds),
     });
-  }, [linkRepo, setNodeStorylinesMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState]);
+  }, [linkRepo, setNodeStorylinesMappingState, ensureDb, cloneStorylineNodeMapping, getStorylineNodeMappingState, setStorylineNodeMappingState, activeProjectId]);
 
   return useMemo(() => ({
     loadStorylines,

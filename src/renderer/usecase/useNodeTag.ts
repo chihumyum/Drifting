@@ -4,6 +4,10 @@ import { createNodeTagRepository, createNodeTagLinkRepository } from '../sqlite-
 import { initDatabase, getDb } from '../lib/db';
 import type { NodeTag } from '../domain/node-tag';
 import { v7 as uuidv7 } from 'uuid';
+import {
+  syncNodeTagCreate, syncNodeTagDelete,
+  syncNodeTagLinkCreate, syncNodeTagLinkDelete, syncNodeTagsSet,
+} from './sync-helpers';
 
 export interface CreateNodeTagInput {
   projectId?: string;
@@ -56,18 +60,22 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
 
   const createTag = useCallback(async (input: CreateNodeTagInput) => {
     const projectId = await ensureDb(input.projectId);
-    return tagRepo.create({
+    const tag = await tagRepo.create({
       id: uuidv7(),
       projectId: projectId,
       name: input.name,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    syncNodeTagCreate(tag.id, projectId, { id: tag.id, name: tag.name });
+    return tag;
   }, [tagRepo, ensureDb]);
 
   const deleteTag = useCallback(async (id: string, projectId?: string) => {
-    await ensureDb(projectId);
-    return tagRepo.delete(id);
+    const pid = await ensureDb(projectId);
+    const result = await tagRepo.delete(id);
+    syncNodeTagDelete(id, pid);
+    return result;
   }, [tagRepo, ensureDb]);
   
   // Node-Tag link operations
@@ -91,6 +99,7 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
       if (!updated) throw new Error(`Node with id ${nodeId} not found`);
       await tagLinkRepoTx.addTagToNode(nodeId, tagId);
     });
+    syncNodeTagLinkCreate(nodeId, tagId, pid);
   }, [ensureDb]);
 
   const removeTagFromNode = useCallback(async (nodeId: string, tagId: string, projectId?: string) => {
@@ -103,6 +112,7 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
       if (!updated) throw new Error(`Node with id ${nodeId} not found`);
       await tagLinkRepoTx.removeTagFromNode(nodeId, tagId);
     });
+    syncNodeTagLinkDelete(nodeId, tagId, pid);
   }, [ensureDb]);
 
   const setNodeTags = useCallback(async (nodeId: string, tagIds: string[], projectId?: string) => {
@@ -118,6 +128,7 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
         await tagLinkRepoTx.addTagToNode(nodeId, tagId);
       }
     });
+    syncNodeTagsSet(nodeId, pid, tagIds);
   }, [ensureDb]);
 
   const createAndAddTagToNode = useCallback(async (nodeId: string, input: CreateNodeTagInput) => {

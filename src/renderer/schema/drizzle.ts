@@ -242,3 +242,11 @@ export const yjsSnapshots = sqliteTable('yjs_snapshots', {
 }, (t) => [
     index('idx_yjs_snapshot_doc').on(t.docId),
 ])
+
+// Yjs sync cursor: tracks push/pull progress per document
+export const yjsSyncCursor = sqliteTable('yjs_sync_cursor', {
+    docId: text('doc_id').primaryKey(),
+    lastServerSeq: integer('last_server_seq').notNull().default(0),
+    lastPushedLocalId: integer('last_pushed_local_id').notNull().default(0),
+    updatedAt: text('updated_at').notNull(),
+});

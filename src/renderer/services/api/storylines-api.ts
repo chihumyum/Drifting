@@ -1,19 +1,20 @@
 /**
  * Storylines API Service
  *
- * 调用后端 /api/projects/:projectId/storylines 相关接口
+ * Backend contract:
+ *   storyline: { id, projectId, name, color, summary, orderKey, descriptionJson, createdAt, updatedAt }
+ *   nodeStorylineLink: { nodeId, storylineId }
  */
 
 import apiClient from '../../lib/axios-config';
 
 export interface CreateStorylineDto {
-  id?: string;
+  id: string;
   name: string;
   color: string;
   summary?: string;
-  orderKey?: number;
-  pmJson?: Record<string, unknown>;
-  nodeIds?: string[];
+  orderKey: number;
+  descriptionJson?: string;
 }
 
 export interface UpdateStorylineDto {
@@ -21,8 +22,7 @@ export interface UpdateStorylineDto {
   color?: string;
   summary?: string;
   orderKey?: number;
-  pmJson?: Record<string, unknown>;
-  nodeIds?: string[];
+  descriptionJson?: string;
 }
 
 export interface Storyline {
@@ -30,67 +30,51 @@ export interface Storyline {
   projectId: string;
   name: string;
   color: string;
-  summary?: string;
-  orderKey?: number;
-  pmJson?: Record<string, unknown>;
-  nodeIds: string[];
+  summary: string;
+  orderKey: number;
+  descriptionJson: string;
   createdAt: string;
   updatedAt: string;
-  deletedAt?: string | null;
-  isDeleted?: boolean;
 }
 
-export interface ListStorylinesResponse {
-  items: Storyline[];
-  nextCursor: string | null;
-}
-
-/**
- * Storylines API 客户端
- */
 export const storylinesApi = {
-  /**
-   * 获取项目的所有故事线
-   * GET /api/projects/:projectId/storylines
-   */
-  async list(
-    projectId: string,
-    options?: { updatedAfter?: number; cursor?: string; limit?: number; includeDeleted?: boolean }
-  ): Promise<ListStorylinesResponse> {
-    const response = await apiClient.get<ListStorylinesResponse>(`/api/projects/${projectId}/storylines`, {
-      params: {
-        ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
-        ...(options?.cursor ? { cursor: options.cursor } : {}),
-        ...(options?.limit ? { limit: options.limit } : {}),
-        ...(options?.includeDeleted ? { includeDeleted: true } : {}),
-      },
-    });
+  /** Backend returns flat array (no pagination) */
+  async list(projectId: string): Promise<Storyline[]> {
+    const response = await apiClient.get<Storyline[]>(`/api/projects/${projectId}/storylines`);
     return response.data;
   },
 
-  /**
-   * 创建故事线
-   * POST /api/projects/:projectId/storylines
-   */
   async create(projectId: string, dto: CreateStorylineDto): Promise<Storyline> {
     const response = await apiClient.post<Storyline>(`/api/projects/${projectId}/storylines`, dto);
     return response.data;
   },
 
-  /**
-   * 更新故事线
-   * PATCH /api/projects/:projectId/storylines/:storylineId
-   */
   async update(projectId: string, storylineId: string, dto: UpdateStorylineDto): Promise<Storyline> {
     const response = await apiClient.patch<Storyline>(`/api/projects/${projectId}/storylines/${storylineId}`, dto);
     return response.data;
   },
 
-  /**
-   * 删除故事线
-   * DELETE /api/projects/:projectId/storylines/:storylineId
-   */
   async delete(projectId: string, storylineId: string): Promise<void> {
     await apiClient.delete(`/api/projects/${projectId}/storylines/${storylineId}`);
+  },
+
+  // ---- Node-Storyline relationships ----
+
+  async getNodesByStoryline(projectId: string, storylineId: string): Promise<string[]> {
+    const response = await apiClient.get<string[]>(`/api/projects/${projectId}/storylines/${storylineId}/nodes`);
+    return response.data;
+  },
+
+  async addNodeToStoryline(projectId: string, storylineId: string, nodeId: string): Promise<void> {
+    await apiClient.post(`/api/projects/${projectId}/storylines/${storylineId}/nodes/${nodeId}`);
+  },
+
+  async removeNodeFromStoryline(projectId: string, storylineId: string, nodeId: string): Promise<void> {
+    await apiClient.delete(`/api/projects/${projectId}/storylines/${storylineId}/nodes/${nodeId}`);
+  },
+
+  async getStorylinesByNode(projectId: string, nodeId: string): Promise<Storyline[]> {
+    const response = await apiClient.get<Storyline[]>(`/api/projects/${projectId}/storylines/by-node/${nodeId}`);
+    return response.data;
   },
 };

@@ -1,50 +1,38 @@
 /**
  * Content API Service
  *
- * 调用后端 /api/projects/:projectId/contents 相关接口
+ * Backend contract:
+ *   nodeContent: { nodeId, contentJson, outlineJson, createdAt, updatedAt }
+ *   Endpoints are under /api/projects/:projectId/nodes/:nodeId/content
  */
 
 import apiClient from '../../lib/axios-config';
 
 export interface RemoteContentItem {
   nodeId: string;
-  pmJson: unknown;
-  outline: string;
-  contentText: string;
-  wordCount: number;
-  version: number;
+  contentJson: string;
+  outlineJson: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface ListContentsResponse {
-  items: RemoteContentItem[];
-  nextCursor: number | null;
-}
-
 export const contentApi = {
-  async list(projectId: string, options?: { updatedAfter?: number; cursor?: number; limit?: number }): Promise<ListContentsResponse> {
-    const response = await apiClient.get<ListContentsResponse>(`/api/projects/${projectId}/contents`, {
-      params: {
-        ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
-        ...(options?.cursor ? { cursor: options.cursor } : {}),
-        ...(options?.limit ? { limit: options.limit } : {}),
-      },
-    });
-    return response.data;
-  },
-
   async getByNodeId(projectId: string, nodeId: string): Promise<RemoteContentItem> {
-    const response = await apiClient.get<RemoteContentItem>(`/api/projects/${projectId}/contents/${nodeId}`);
+    const response = await apiClient.get<RemoteContentItem>(
+      `/api/projects/${projectId}/nodes/${nodeId}/content`,
+    );
     return response.data;
   },
 
   async upsert(
     projectId: string,
     nodeId: string,
-    dto: { pmJson?: unknown; outline?: string; contentText?: string },
+    dto: { contentJson?: string; outlineJson?: string },
   ): Promise<RemoteContentItem> {
-    const response = await apiClient.put<RemoteContentItem>(`/api/projects/${projectId}/contents/${nodeId}`, dto);
+    const response = await apiClient.patch<RemoteContentItem>(
+      `/api/projects/${projectId}/nodes/${nodeId}/content`,
+      dto,
+    );
     return response.data;
   },
 };

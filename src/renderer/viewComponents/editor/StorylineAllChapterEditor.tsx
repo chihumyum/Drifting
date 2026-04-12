@@ -7,6 +7,7 @@ import type { BookNode } from '../../domain/book-node';
 import { useBookContent } from '../../usecase/useBookContent';
 import { ChapterSection } from './ChapterSection';
 import { useAuthStore } from '../../store/auth';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 interface StorylineAllChapterProps {
   nodes: BookNode[]; // 已按顺序排列的章节列表
@@ -21,8 +22,10 @@ interface ChapterData {
 
 export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: StorylineAllChapterProps) {
   const userId = useAuthStore((state) => state.user?.id);
+  const { projectId } = useProjectNavigation();
   const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent({
     userId: userId ?? '',
+    projectId: projectId ?? '',
   });
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
   const [currentChapterIndex] = useState(0);

@@ -6,6 +6,7 @@ import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createElementTagLinkRepository } from '../sqlite-repo/element-tag-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import { syncElementCreate, syncElementUpdate, syncElementDelete } from './sync-helpers';
 
 export interface CreateBookElementInput {
     categoryId: string;
@@ -78,6 +79,10 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
                 const updated = current.map(el => el.id === persisted.id ? { ...persisted, tagIds: newElement.tagIds, stageIds: newElement.stageIds } : el);
                 setElements(updated);
             },
+            sync: (persisted) => syncElementCreate(persisted.id, activeProjectId, {
+                id: persisted.id, categoryId: persisted.categoryId,
+                name: persisted.name, summary: persisted.summary, contentJson: persisted.contentJson,
+            }),
         });
     }, [elementRepo, getElements, setElements, ensureDb, activeProjectId]);
 
@@ -125,8 +130,12 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
                 };
                 setElements(current.map(el => el.id === id ? persistedWithTags : el));
             },
+            sync: (persisted) => syncElementUpdate(id, activeProjectId, {
+                categoryId: persisted.categoryId, name: persisted.name,
+                summary: persisted.summary, contentJson: persisted.contentJson,
+            }),
         });
-    }, [elementRepo, getElements, setElements, ensureDb]);
+    }, [elementRepo, getElements, setElements, ensureDb, activeProjectId]);
 
     const removeElement = useCallback(async (id: string) => {
         await ensureDb();
@@ -139,8 +148,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             apply: () => setElements(filtered),
             rollback: () => setElements(elements),
             effect: () => elementRepo.delete(id),
+            sync: () => syncElementDelete(id, activeProjectId),
         });
-    }, [elementRepo, getElements, setElements, ensureDb]);
+    }, [elementRepo, getElements, setElements, ensureDb, activeProjectId]);
 
     return useMemo(() => ({
         loadInitial,

@@ -84,7 +84,7 @@ export function useYjsDoc({ docId, userId }: UseYjsDocOptions): UseYjsDocResult 
     };
 
     const handleUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === 'load') return;
+      if (origin === 'load' || origin === 'remote') return;
       const updateCopy = new Uint8Array(update);
 
       enqueueWrite(async () => {

@@ -1,33 +1,32 @@
 /**
  * Node API Service
- * 
- * 调用后端 /api/projects/:projectId/nodes 相关接口
+ *
+ * Backend contract:
+ *   bookNode: { id, projectId, mainStorylineId, title, summary, start, end, positionX, positionY, storyStageId, createdAt, updatedAt }
+ *   nodeContent: { nodeId, contentJson, outlineJson, createdAt, updatedAt }
+ *   nodeEdge: { id, projectId, sourceNodeId, targetNodeId, label, weight, isDirected, styleJson, ... }
  */
 
 import apiClient from '../../lib/axios-config';
 import type { BookNode } from '../../domain/book-node';
 
-interface NodeResponse {
+/** Raw node shape from server */
+interface ServerNode {
   id: string;
   projectId: string;
-  mainStorylineId?: string | null;
+  mainStorylineId: string;
   title: string;
-  summary?: string | null;
-  start?: number | null;
-  end?: number | null;
-  posX?: number | null;
-  posY?: number | null;
-  storyStageId?: string | null;
+  summary: string;
+  start: number;
+  end: number;
+  positionX: number;
+  positionY: number;
+  storyStageId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-interface ListNodesResponse {
-  items: NodeResponse[];
-  nextCursor: string | null;
-}
-
-const toBookNode = (node: NodeResponse): BookNode => ({
+const toBookNode = (node: ServerNode): BookNode => ({
   id: node.id,
   projectId: node.projectId,
   title: node.title,
@@ -37,26 +36,25 @@ const toBookNode = (node: NodeResponse): BookNode => ({
   storyStageId: node.storyStageId ?? null,
   mainStorylineId: node.mainStorylineId ?? '',
   position: {
-    x: node.posX ?? 0,
-    y: node.posY ?? 0,
+    x: node.positionX ?? 0,
+    y: node.positionY ?? 0,
   },
   createdAt: new Date(node.createdAt).toISOString(),
   updatedAt: new Date(node.updatedAt).toISOString(),
-  storylineIds: [], // Not returned by API list
-  tagIds: [], // Not returned by API list
+  storylineIds: [],
+  tagIds: [],
 });
 
-// DTO 类型定义（与后端对齐）
 export interface CreateNodeDto {
-  id?: string;
+  id: string;
   title: string;
   start: number;
   end?: number;
   summary?: string;
-  storyStageId?: string;
-  mainStorylineId?: string;
-  posX?: number;
-  posY?: number;
+  storyStageId?: string | null;
+  mainStorylineId: string;
+  positionX?: number;
+  positionY?: number;
 }
 
 export interface UpdateNodeDto {
@@ -64,104 +62,58 @@ export interface UpdateNodeDto {
   start?: number;
   end?: number;
   summary?: string;
-  storyStageId?: string;
+  storyStageId?: string | null;
   mainStorylineId?: string;
-  posX?: number;
-  posY?: number;
-}
-
-export interface BulkCreateNodesDto {
-  nodes: CreateNodeDto[];
+  positionX?: number;
+  positionY?: number;
 }
 
 export interface UpdateNodeContentDto {
-  pmJson?: unknown;
-  outline?: string;
-  wordCount?: number;
-  contentText?: string;
+  contentJson?: string;
+  outlineJson?: string;
 }
 
 export const nodeApi = {
-  /**
-   * 获取项目的所有节点
-   * GET /api/projects/:projectId/nodes
-   */
-  async getAll(projectId: string, options?: { updatedAfter?: number }): Promise<BookNode[]> {
-    const items: BookNode[] = [];
-    let cursor: string | undefined;
-
-    // page through results (backend returns {items,nextCursor})
-    // keep page size conservative to avoid large payloads
-    for (let i = 0; i < 20; i++) {
-      const response = await apiClient.get<ListNodesResponse>(`/api/projects/${projectId}/nodes`, {
-        params: {
-          ...(options?.updatedAfter ? { updatedAfter: options.updatedAfter } : {}),
-          ...(cursor ? { cursor } : {}),
-          limit: 500,
-          includeDeleted: true,
-        },
-      });
-
-      const page = response.data.items.map(toBookNode);
-      items.push(...page);
-
-      if (!response.data.nextCursor) break;
-      cursor = response.data.nextCursor;
-    }
-
-    return items;
+  /** Backend returns flat array (no pagination) */
+  async getAll(projectId: string): Promise<BookNode[]> {
+    const response = await apiClient.get<ServerNode[]>(`/api/projects/${projectId}/nodes`);
+    return response.data.map(toBookNode);
   },
 
-  /**
-   * 创建节点
-   * POST /api/projects/:projectId/nodes
-   */
   async create(projectId: string, dto: CreateNodeDto): Promise<BookNode> {
-    const response = await apiClient.post<NodeResponse>(`/api/projects/${projectId}/nodes`, dto);
+    const response = await apiClient.post<ServerNode>(`/api/projects/${projectId}/nodes`, dto);
     return toBookNode(response.data);
   },
 
-  /**
-   * 获取单个节点
-   * GET /api/projects/:projectId/nodes/:nodeId
-   */
   async getById(projectId: string, nodeId: string): Promise<BookNode> {
-    const response = await apiClient.get<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`);
+    const response = await apiClient.get<ServerNode>(`/api/projects/${projectId}/nodes/${nodeId}`);
     return toBookNode(response.data);
   },
 
-  /**
-   * 更新节点
-   * PATCH /api/projects/:projectId/nodes/:nodeId
-   */
   async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<BookNode> {
-    const response = await apiClient.patch<NodeResponse>(`/api/projects/${projectId}/nodes/${nodeId}`, dto);
+    const response = await apiClient.patch<ServerNode>(`/api/projects/${projectId}/nodes/${nodeId}`, dto);
     return toBookNode(response.data);
   },
 
-  /**
-   * 删除节点
-   * DELETE /api/projects/:projectId/nodes/:nodeId
-   */
   async delete(projectId: string, nodeId: string): Promise<void> {
     await apiClient.delete(`/api/projects/${projectId}/nodes/${nodeId}`);
   },
 
-  /**
-   * 获取节点内容
-   * GET /api/projects/:projectId/nodes/:nodeId/content
-   */
   async getContent(projectId: string, nodeId: string): Promise<unknown> {
     const response = await apiClient.get(`/api/projects/${projectId}/nodes/${nodeId}/content`);
     return response.data;
   },
 
-  /**
-   * 更新节点内容
-   * PUT /api/projects/:projectId/nodes/:nodeId/content
-   */
   async updateContent(projectId: string, nodeId: string, dto: UpdateNodeContentDto): Promise<unknown> {
-    const response = await apiClient.put(`/api/projects/${projectId}/nodes/${nodeId}/content`, dto);
+    const response = await apiClient.patch(`/api/projects/${projectId}/nodes/${nodeId}/content`, dto);
     return response.data;
+  },
+
+  async swapOrder(projectId: string, first: { id: string; order: number }, second: { id: string; order: number }): Promise<void> {
+    await apiClient.post(`/api/projects/${projectId}/nodes/swap-order`, { first, second });
+  },
+
+  async setStorylines(projectId: string, nodeId: string, storylineIds: string[]): Promise<void> {
+    await apiClient.put(`/api/projects/${projectId}/nodes/${nodeId}/storylines`, { storylineIds });
   },
 };

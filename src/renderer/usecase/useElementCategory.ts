@@ -6,6 +6,7 @@ import { randomColor } from '../utils';
 import { useDataStore } from '../store/data-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import { syncCategoryCreate, syncCategoryUpdate, syncCategoryDelete } from './sync-helpers';
 import loglevel from "loglevel";
 
 const log = loglevel.getLogger("useElementCategory");
@@ -78,6 +79,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         const current = getCategoriesState();
         setCategoriesState(current.map(cat => (cat.id === created.id ? created : cat)));
       },
+      sync: (created) => syncCategoryCreate(created.id, activeProjectId, {
+        id: created.id, name: created.name, descriptionJson: created.descriptionJson, color: created.color,
+      }),
     });
   }, [activeProjectId, addCategoryState, ensureDb, getCategoriesState, repo, setCategoriesState]);
 
@@ -131,8 +135,11 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       onSuccess: (persisted) => {
         updateCategoryState(categoryId, persisted);
       },
+      sync: (persisted) => syncCategoryUpdate(categoryId, activeProjectId, {
+        name: persisted.name, descriptionJson: persisted.descriptionJson, color: persisted.color,
+      }),
     });
-  }, [ensureDb, getCategoriesState, repo, setCategoriesState, updateCategoryState]);
+  }, [ensureDb, getCategoriesState, repo, setCategoriesState, updateCategoryState, activeProjectId]);
 
   const deleteCategory = useCallback(async (categoryId: string): Promise<void> => {
     await ensureDb();
@@ -142,8 +149,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       apply: () => removeCategoryState(categoryId),
       rollback: () => setCategoriesState(prevCategories),
       effect: () => repo.delete(categoryId),
+      sync: () => syncCategoryDelete(categoryId, activeProjectId),
     });
-  }, [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState]);
+  }, [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId]);
 
   const getCategoryColor = useCallback((categoryId: string): string => {
     if (!categoryId) {
