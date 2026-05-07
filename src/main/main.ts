@@ -1,7 +1,53 @@
 import { app, BrowserWindow, ipcMain, screen, shell, session } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
+
+function parseEnvValue(raw: string): string {
+  const value = raw.trim();
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function loadEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const separator = trimmed.indexOf('=');
+    if (separator <= 0) continue;
+
+    const key = trimmed.slice(0, separator).trim();
+    const value = parseEnvValue(trimmed.slice(separator + 1));
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function loadLocalEnv(): void {
+  const candidates = [
+    path.join(process.cwd(), '.env.local'),
+    path.join(process.cwd(), '.env'),
+    path.join(__dirname, '../../.env.local'),
+    path.join(__dirname, '../../.env'),
+  ];
+
+  for (const filePath of candidates) {
+    loadEnvFile(filePath);
+  }
+}
+
+loadLocalEnv();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (started) {

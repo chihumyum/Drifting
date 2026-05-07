@@ -6,6 +6,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
+    "dev:sync": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "db:push": "pnpm run db:rebuild:electron && ELECTRON_RUN_AS_NODE=1 pnpm exec electron ./node_modules/drizzle-kit/bin.cjs push",

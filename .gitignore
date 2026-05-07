@@ -41,6 +41,7 @@ out
 
 # Database files
 databases/
+.local-data/
 *.db
 *.db-shm
 *.db-wal
