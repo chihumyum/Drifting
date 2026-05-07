@@ -18,7 +18,7 @@ import { TagEditor } from './TagEditor';
 import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
 import { useAuthStore } from '@/renderer/store/auth';
-import { useYjsSync } from '@/renderer/hooks/useYjsSync';
+import { useYjsDoc } from '@/renderer/hooks/useYjsDoc';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -103,10 +103,9 @@ export function ChapterEditor({
     throw new Error('ChapterEditor requires authenticated user');
   }
 
-  const { ydoc, isReady: isYjsReady, hasLocalState } = useYjsSync({
+  const { ydoc, isReady: isYjsReady, hasLocalState } = useYjsDoc({
     docId: `node-content:${nodeId}`,
     userId,
-    projectId: projectId ?? '',
   });
   const legacySeededRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);

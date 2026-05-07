@@ -11,7 +11,6 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
-import { StorylineAllChapterEditor } from '../viewComponents/editor/StorylineAllChapterEditor';
 import loglevel from "loglevel";
 const log = loglevel.getLogger("StorylineEditorView");
 log.setLevel(loglevel.levels.DEBUG);
@@ -33,7 +32,7 @@ export function StorylineEditorView() {
     log.error('No user in auth store, cannot render storyline editor');
     throw new Error('No user in auth store');
   };
-  const { bookNodes, storylines } = useDataStore();
+  const { storylines } = useDataStore();
   const storylineUsecases = useStoryline({
     projectId: projectId,
     userId: user.id,
@@ -53,15 +52,6 @@ export function StorylineEditorView() {
     return found;
   }, [storylineId, storylines]);
 
-  const currentNodes = useMemo(() => {
-    if (!storylineId) {
-      log.error('No storylineId in params, cannot find nodes');
-      return [];
-    };
-    const found = bookNodes.filter(node => node.storylineIds.includes(storylineId));
-    log.debug('Found nodes for storyline ', storylineId, found);
-    return found;
-  }, [storylineId, bookNodes]);
   const currentName = currentStoryline?.name ?? '';
   const currentSummary = currentStoryline?.summary ?? '';
   const [nameDraft, setNameDraft] = useState('');

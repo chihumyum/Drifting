@@ -5,7 +5,7 @@
  * for the entity sync service. Used by usecases.
  */
 
-import { enqueueSyncMutation, type EntityType, type MutationType, type SyncMutation } from '../services/entity-sync.service';
+import { enqueueSyncMutation, type EntityType, type MutationType } from '../services/entity-sync.service';
 
 export function enqueueSync(
   entityType: EntityType,

@@ -24,6 +24,9 @@ const DEFAULT_TIPTAP_DOC_JSON = JSON.stringify({
 
 export type CreateStorylineInput = {
   projectId?: string;
+  name?: string;
+  color?: string;
+  summary?: string;
   orderKey?: number;
 }
 
@@ -111,9 +114,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     const newStoryline: Storyline = {
       id: uuidv7(),
       projectId: activeProjectId,
-      name: 'New Storyline',
-      color: randomColor(),
-      summary: '',
+      name: input.name?.trim() || 'New Storyline',
+      color: input.color ?? randomColor(),
+      summary: input.summary ?? '',
       orderKey,
       descriptionJson: DEFAULT_TIPTAP_DOC_JSON,
       createdAt: now,

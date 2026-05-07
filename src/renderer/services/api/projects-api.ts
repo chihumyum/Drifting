@@ -80,20 +80,4 @@ export const projectsApi = {
     await apiClient.delete(`/api/projects/${id}`);
   },
 
-  // Collaborator endpoints — not yet implemented on server. Stubs kept for future.
-  /**
-   * 添加协作者
-   * POST /api/projects/:id/collaborators
-   */
-  async addCollaborator(projectId: string, dto: UpdateCollaboratorDto): Promise<void> {
-    await apiClient.post(`/api/projects/${projectId}/collaborators`, dto);
-  },
-
-  /**
-   * 移除协作者
-   * DELETE /api/projects/:id/collaborators/:collaboratorId
-   */
-  async removeCollaborator(projectId: string, collaboratorId: string): Promise<void> {
-    await apiClient.delete(`/api/projects/${projectId}/collaborators/${collaboratorId}`);
-  },
 };

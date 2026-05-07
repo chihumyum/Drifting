@@ -26,6 +26,8 @@ export function NodeEditorView() {
   if (!userId) {
     throw new Error('NodeEditorView requires a logged-in user');
   }
+  const activeProjectId = projectId;
+  const activeUserId = userId;
   const { bookNodes } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
@@ -33,12 +35,12 @@ export function NodeEditorView() {
   const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary } = useBookNode({
-    projectId: projectId,
-    userId: userId,
+    projectId: activeProjectId,
+    userId: activeUserId,
   });
   const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
-    userId: userId,
-    projectId: projectId,
+    userId: activeUserId,
+    projectId: activeProjectId,
   });
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
@@ -191,12 +193,12 @@ export function NodeEditorView() {
               position: 'relative',
             }}
           >
-            {isActiveNodeReady && (
+            {isActiveNodeReady && nodeId && curNode && (
                 <ChapterEditor
                   key={nodeId}
                   ref={editorRef}
                   nodeId={nodeId}
-                  projectId={projectId}
+                  projectId={activeProjectId}
                   content={bookContent?.contentJson ?? null}
                   title={curNode.title}
                   summary={curNode.summary || ''}
