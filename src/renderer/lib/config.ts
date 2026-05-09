@@ -15,11 +15,11 @@ function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
  * When enabled, the app runs completely offline without any server dependencies
  */
 export const APP_CONFIG = {
-  // Local-first mode: disable all network features
-  LOCAL_ONLY_MODE: readBooleanEnv(import.meta.env.VITE_LOCAL_ONLY_MODE, true),
+  // Local-only mode: disable all network features when explicitly requested.
+  LOCAL_ONLY_MODE: readBooleanEnv(import.meta.env.VITE_LOCAL_ONLY_MODE, false),
 
   // Sync configuration
-  ENABLE_SYNC: readBooleanEnv(import.meta.env.VITE_ENABLE_SYNC, false),
+  ENABLE_SYNC: readBooleanEnv(import.meta.env.VITE_ENABLE_SYNC, true),
 
   // Authentication
   REQUIRE_AUTH: readBooleanEnv(import.meta.env.VITE_REQUIRE_AUTH, true),

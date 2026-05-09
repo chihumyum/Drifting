@@ -6,8 +6,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
-    "dev:sync": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true DRIFTING_DB_DIR=.local-data/databases electron-forge start",
-    "dev:sync:trace": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true DRIFTING_DB_DIR=.local-data/databases DRIFTING_DB_TRACE=project DRIFTING_DB_TRACE_PROJECT_STATE=true DRIFTING_DB_TRACE_FILES=true electron-forge start",
+    "dev:local": "VITE_LOCAL_ONLY_MODE=true VITE_ENABLE_SYNC=false electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "db:inspect": "node scripts/inspect-local-db.js",
@@ -19,16 +18,8 @@
     "db:rebuild:node": "pnpm rebuild better-sqlite3",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "eslint ."
-  },
-  "pnpm": {
-    "overrides": {
-      "tar": "^7.5.4",
-      "esbuild": "^0.25.0"
-    },
-    "onlyBuiltDependencies": [
-      "better-sqlite3"
-    ]
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
   },
   "keywords": [
     "electron",
