@@ -6,9 +6,12 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
-    "dev:sync": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true electron-forge start",
+    "dev:sync": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true DRIFTING_DB_DIR=.local-data/databases electron-forge start",
+    "dev:sync:trace": "API_BASE_URL=http://localhost:3000 VITE_API_BASE_URL=http://localhost:3000 VITE_LOCAL_ONLY_MODE=false VITE_ENABLE_SYNC=true VITE_REQUIRE_AUTH=true DRIFTING_DB_DIR=.local-data/databases DRIFTING_DB_TRACE=project DRIFTING_DB_TRACE_PROJECT_STATE=true DRIFTING_DB_TRACE_FILES=true electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
+    "db:inspect": "node scripts/inspect-local-db.js",
+    "db:inspect:all": "DRIFTING_DB_INSPECT_USERDATA=1 node scripts/inspect-local-db.js",
     "db:push": "pnpm run db:rebuild:electron && ELECTRON_RUN_AS_NODE=1 pnpm exec electron ./node_modules/drizzle-kit/bin.cjs push",
     "db:push:node": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
