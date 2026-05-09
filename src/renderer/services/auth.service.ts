@@ -1,7 +1,7 @@
 import { authClient } from '../lib/auth-client';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("AuthService");
+const log = loglevel.getLogger('AuthService');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface User {
@@ -38,11 +38,11 @@ export const authService = {
         email,
         password,
       });
-      
+
       if (result.error) {
         throw new Error(result.error.message || 'Login failed');
       }
-      
+
       return result.data?.user as User;
     } catch (error) {
       throw new Error(`Login failed: ${error}`);
@@ -59,11 +59,11 @@ export const authService = {
         password: data.password,
         name: data.name,
       });
-      
+
       if (result.error) {
         throw new Error(result.error.message || 'Registration failed');
       }
-      
+
       return result.data?.user as User;
     } catch (error) {
       throw new Error(`Registration failed: ${error}`);

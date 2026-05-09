@@ -20,17 +20,17 @@ const defaultFeatures: AuthFeatureItem[] = [
   {
     title: 'AI 灵感伴侣',
     description: '根据章节结构自动生成提示，帮助你在写作时保持灵感流动。',
-    icon: <Sparkles className="h-5 w-5" />, 
+    icon: <Sparkles className="h-5 w-5" />,
   },
   {
     title: '多人协作',
     description: '邀请合作者一起编辑故事线，让复杂的世界观更容易管理。',
-    icon: <Users className="h-5 w-5" />, 
+    icon: <Users className="h-5 w-5" />,
   },
   {
     title: '版本守护',
     description: '自动保存与历史快照结合，让每一次修改都可追溯。',
-    icon: <ShieldCheck className="h-5 w-5" />, 
+    icon: <ShieldCheck className="h-5 w-5" />,
   },
 ];
 
@@ -80,9 +80,7 @@ export function AuthLayout({
                 </span>
               ) : null}
             </h1>
-            <p className="text-lg leading-relaxed text-slate-300">
-              {heroSubtitle}
-            </p>
+            <p className="text-lg leading-relaxed text-slate-300">{heroSubtitle}</p>
             <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
               <ShieldCheck className="h-4 w-4 text-[#b89968]" />
               云端数据加密存储

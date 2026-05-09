@@ -91,7 +91,10 @@ export const nodeApi = {
   },
 
   async update(projectId: string, nodeId: string, dto: UpdateNodeDto): Promise<BookNode> {
-    const response = await apiClient.patch<ServerNode>(`/api/projects/${projectId}/nodes/${nodeId}`, dto);
+    const response = await apiClient.patch<ServerNode>(
+      `/api/projects/${projectId}/nodes/${nodeId}`,
+      dto,
+    );
     return toBookNode(response.data);
   },
 
@@ -104,12 +107,23 @@ export const nodeApi = {
     return response.data;
   },
 
-  async updateContent(projectId: string, nodeId: string, dto: UpdateNodeContentDto): Promise<unknown> {
-    const response = await apiClient.patch(`/api/projects/${projectId}/nodes/${nodeId}/content`, dto);
+  async updateContent(
+    projectId: string,
+    nodeId: string,
+    dto: UpdateNodeContentDto,
+  ): Promise<unknown> {
+    const response = await apiClient.patch(
+      `/api/projects/${projectId}/nodes/${nodeId}/content`,
+      dto,
+    );
     return response.data;
   },
 
-  async swapOrder(projectId: string, first: { id: string; order: number }, second: { id: string; order: number }): Promise<void> {
+  async swapOrder(
+    projectId: string,
+    first: { id: string; order: number },
+    second: { id: string; order: number },
+  ): Promise<void> {
     await apiClient.post(`/api/projects/${projectId}/nodes/swap-order`, { first, second });
   },
 

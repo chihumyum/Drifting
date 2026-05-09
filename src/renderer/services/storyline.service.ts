@@ -1,8 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { Storyline } from '../domain/storyline';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("StorylineService");
+const log = loglevel.getLogger('StorylineService');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateStorylineInput {

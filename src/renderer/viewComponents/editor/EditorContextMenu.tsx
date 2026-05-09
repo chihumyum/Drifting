@@ -41,9 +41,7 @@ export function EditorContextMenu({ editorType, onAction }: EditorContextMenuPro
           { action: 'deleteElement', label: '🗑️ Delete Element', color: '#c04040' },
         ];
       case 'category':
-        return [
-          { action: 'deleteCategory', label: '🗑️ Delete Category', color: '#c04040' },
-        ];
+        return [{ action: 'deleteCategory', label: '🗑️ Delete Category', color: '#c04040' }];
       case 'storyline':
         return [
           { action: 'deleteStoryline', label: '🗑️ Delete Storyline', color: '#c04040' },

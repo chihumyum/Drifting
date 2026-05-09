@@ -1,8 +1,8 @@
 // Configuration for local-first development
 // This file controls whether the app uses online features or runs fully offline
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("ConfigLib");
+const log = loglevel.getLogger('ConfigLib');
 log.setLevel(loglevel.levels.ERROR);
 
 function readBooleanEnv(value: string | undefined, fallback: boolean): boolean {
@@ -25,7 +25,8 @@ export const APP_CONFIG = {
   REQUIRE_AUTH: readBooleanEnv(import.meta.env.VITE_REQUIRE_AUTH, true),
 
   // API endpoints
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  API_BASE_URL:
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
 
   // Database
   DEFAULT_DB_NAME: 'default-project.db',

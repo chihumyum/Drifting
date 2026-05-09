@@ -1,16 +1,14 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { getActiveTraceId } from './trace';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("ApiLib");
+const log = loglevel.getLogger('ApiLib');
 log.setLevel(loglevel.levels.ERROR);
 
 // API 基础配置
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:3000';
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // 创建 axios 实例
 export const apiClient: AxiosInstance = axios.create({
@@ -32,7 +30,7 @@ apiClient.interceptors.request.use(
   },
   (error: AxiosError) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // 响应拦截器：处理通用错误
@@ -44,12 +42,12 @@ apiClient.interceptors.response.use(
     // 401 错误：未认证，清除本地状态
     if (error.response?.status === 401) {
       log.error('[API] Unauthorized - session may have expired');
-      
+
       // 动态导入 auth store 避免循环依赖
       try {
         const { useAuthStore } = await import('../store/auth');
         const authStore = useAuthStore.getState();
-        
+
         // 只在当前认为已登录时才登出
         if (authStore.isAuthenticated) {
           await authStore.logout();
@@ -71,31 +69,31 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // API 错误处理工具
 export const handleApiError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-    
+
     if (axiosError.response?.data?.message) {
       return axiosError.response.data.message;
     }
-    
+
     if (axiosError.response?.data?.error) {
       return axiosError.response.data.error;
     }
-    
+
     if (axiosError.message) {
       return axiosError.message;
     }
   }
-  
+
   if (error instanceof Error) {
     return error.message;
   }
-  
+
   return 'An unknown error occurred';
 };
 

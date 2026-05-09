@@ -41,7 +41,9 @@ export const nodeTagsApi = {
   // ---- Node-Tag Links ----
 
   async getTagsByNode(projectId: string, nodeId: string): Promise<NodeTag[]> {
-    const response = await apiClient.get<NodeTag[]>(`/api/projects/${projectId}/node-tags/by-node/${nodeId}`);
+    const response = await apiClient.get<NodeTag[]>(
+      `/api/projects/${projectId}/node-tags/by-node/${nodeId}`,
+    );
     return response.data;
   },
 

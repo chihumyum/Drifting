@@ -20,8 +20,8 @@ import { TopTimelineTabs } from './TopTimelineTabs';
 import { TopTimelineDropdown } from './TopTimelineDropdown';
 import { useTimelineTabWidths } from './useTimelineTabWidths';
 import { sortElementsForTimeline, type ElementTimelineSortMode } from './element-timeline-sort';
-import loglevel from "loglevel";
-const log = loglevel.getLogger("TopTimeline");
+import loglevel from 'loglevel';
+const log = loglevel.getLogger('TopTimeline');
 log.setLevel(loglevel.levels.WARN);
 
 function safeDecodeURIComponent(value: string): string {
@@ -43,7 +43,7 @@ function safeDecodeURIComponent(value: string): string {
 */
 
 export function TopTimeline() {
-  const user = useAuthStore(state => state.user);
+  const user = useAuthStore((state) => state.user);
   const {
     projectId,
     navigateToStoryline,
@@ -67,10 +67,10 @@ export function TopTimeline() {
     categoryId?: string;
   }>();
   const location = useLocation();
-  const bookNodes = useDataStore(state => state.bookNodes);
-  const storylines = useDataStore(state => state.storylines);
-  const bookElements = useDataStore(state => state.bookElements);
-  const bookElementCategories = useDataStore(state => state.bookElementCategories);
+  const bookNodes = useDataStore((state) => state.bookNodes);
+  const storylines = useDataStore((state) => state.storylines);
+  const bookElements = useDataStore((state) => state.bookElements);
+  const bookElementCategories = useDataStore((state) => state.bookElementCategories);
   const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const selectedElementId = useUiStore((state) => state.elementUi.selectedId);
@@ -91,11 +91,19 @@ export function TopTimeline() {
     projectId: projectId,
     userId: user.id,
   });
-  const { loadTags: loadNodeTags, createTag: createNodeTag, getNodesWithTag } = useNodeTag({
+  const {
+    loadTags: loadNodeTags,
+    createTag: createNodeTag,
+    getNodesWithTag,
+  } = useNodeTag({
     projectId: projectId,
     userId: user.id,
   });
-  const { loadTags: loadElementTags, createTag: createElementTag, getElementsWithTag } = useElementTag({
+  const {
+    loadTags: loadElementTags,
+    createTag: createElementTag,
+    getElementsWithTag,
+  } = useElementTag({
     projectId: projectId,
     userId: user.id,
   });
@@ -114,7 +122,10 @@ export function TopTimeline() {
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [showStorylineDropdown, setShowStorylineDropdown] = useState(false);
-  const [storylineDropdownPosition, setStorylineDropdownPosition] = useState<{ x: number; y: number } | null>(null);
+  const [storylineDropdownPosition, setStorylineDropdownPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedNodeRef = useRef<HTMLDivElement>(null);
@@ -126,8 +137,12 @@ export function TopTimeline() {
   const isStorylineMode = Boolean(storylineId || nodeId);
   const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
   const isProjectHomeMode = location.pathname === `/project/${projectId}/home`;
-  const isAllNodesMode = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
-  const isAllElementsMode = location.pathname.includes('/home/all-elements') || location.pathname.includes('/editor/all-elements');
+  const isAllNodesMode =
+    location.pathname.includes('/home/all-nodes') ||
+    location.pathname.includes('/editor/all-nodes');
+  const isAllElementsMode =
+    location.pathname.includes('/home/all-elements') ||
+    location.pathname.includes('/editor/all-elements');
   const showAllNodeGroup = isAllNodesMode || (Boolean(nodeId) && preferAllNodeTimeline);
   const showAllElementGroup = isAllElementsMode || (Boolean(elementId) && preferAllElementTimeline);
   const isNodeTimelineMode = isStorylineMode || showAllNodeGroup;
@@ -156,13 +171,16 @@ export function TopTimeline() {
 
         if (storylineId) {
           // In storyline editor: directly load the storyline
-          targetStoryline = storylines.find(s => s.id === storylineId) ?? await getStorylineById(storylineId);
+          targetStoryline =
+            storylines.find((s) => s.id === storylineId) ?? (await getStorylineById(storylineId));
         } else if (nodeId) {
           // In node editor: use node's main storyline
-          const selectedNode = bookNodes.find(node => node.id === nodeId);
+          const selectedNode = bookNodes.find((node) => node.id === nodeId);
           const mainStorylineId = selectedNode?.mainStorylineId ?? null;
           if (mainStorylineId) {
-            targetStoryline = storylines.find(s => s.id === mainStorylineId) ?? await getStorylineById(mainStorylineId);
+            targetStoryline =
+              storylines.find((s) => s.id === mainStorylineId) ??
+              (await getStorylineById(mainStorylineId));
           }
         }
 
@@ -177,7 +195,7 @@ export function TopTimeline() {
 
           // Show only nodes whose primary storyline is the current storyline.
           const nodesInStoryline = bookNodes
-            .filter(n => n.mainStorylineId === targetStorylineId)
+            .filter((n) => n.mainStorylineId === targetStorylineId)
             .sort((a, b) => a.start - b.start);
 
           setStorylineNodes(nodesInStoryline);
@@ -191,7 +209,16 @@ export function TopTimeline() {
     }
 
     loadStorylineData();
-  }, [nodeId, storylineId, isElementMode, showAllNodeGroup, isStorylineMode, bookNodes, storylines, getStorylineById]);
+  }, [
+    nodeId,
+    storylineId,
+    isElementMode,
+    showAllNodeGroup,
+    isStorylineMode,
+    bookNodes,
+    storylines,
+    getStorylineById,
+  ]);
 
   useEffect(() => {
     if (!isElementMode || showAllElementGroup) {
@@ -206,21 +233,19 @@ export function TopTimeline() {
     let targetCategoryId: string | null = null;
 
     if (categoryId) {
-      targetCategory = bookElementCategories.find(
-        cat =>
-          cat.id === categoryId ||
-          cat.id === decodedCategoryId
-      ) ?? null;
+      targetCategory =
+        bookElementCategories.find(
+          (cat) => cat.id === categoryId || cat.id === decodedCategoryId,
+        ) ?? null;
       targetCategoryId = targetCategory?.id ?? decodedCategoryId ?? categoryId;
     }
 
     if (!targetCategoryId && elementId) {
-      const currentElement = bookElements.find(el => el.id === elementId) ?? null;
+      const currentElement = bookElements.find((el) => el.id === elementId) ?? null;
       targetCategoryId = currentElement?.categoryId ?? null;
       if (currentElement) {
-        targetCategory = bookElementCategories.find(
-          cat => cat.id === currentElement.categoryId
-        ) ?? null;
+        targetCategory =
+          bookElementCategories.find((cat) => cat.id === currentElement.categoryId) ?? null;
       }
     }
 
@@ -230,13 +255,14 @@ export function TopTimeline() {
     if (targetCategoryId) categoryKeys.add(targetCategoryId);
     if (targetCategory?.id) categoryKeys.add(targetCategory.id);
 
-    const elementsInCategory = categoryKeys.size > 0
-      ? sortElementsForTimeline(
-        bookElements.filter(el => categoryKeys.has(el.categoryId)),
-        bookElementCategories,
-        elementTimelineSortMode
-      )
-      : [];
+    const elementsInCategory =
+      categoryKeys.size > 0
+        ? sortElementsForTimeline(
+            bookElements.filter((el) => categoryKeys.has(el.categoryId)),
+            bookElementCategories,
+            elementTimelineSortMode,
+          )
+        : [];
 
     setCurrentCategory(targetCategory);
     setCategoryElements(elementsInCategory);
@@ -271,7 +297,7 @@ export function TopTimeline() {
     const sortedElements = sortElementsForTimeline(
       bookElements,
       bookElementCategories,
-      elementTimelineSortMode
+      elementTimelineSortMode,
     );
     setCategoryElements(sortedElements);
   }, [showAllElementGroup, bookElements, bookElementCategories, elementTimelineSortMode]);
@@ -287,10 +313,7 @@ export function TopTimeline() {
     if (!bookNodes.some((node) => node.id === nodeId)) {
       return;
     }
-    touchRecentEntity(
-      { projectId, entityId: nodeId, entityType: 'node' },
-      recentEntitiesLimit
-    );
+    touchRecentEntity({ projectId, entityId: nodeId, entityType: 'node' }, recentEntitiesLimit);
   }, [nodeId, projectId, bookNodes, touchRecentEntity, recentEntitiesLimit]);
 
   useEffect(() => {
@@ -302,7 +325,7 @@ export function TopTimeline() {
     }
     touchRecentEntity(
       { projectId, entityId: elementId, entityType: 'element' },
-      recentEntitiesLimit
+      recentEntitiesLimit,
     );
   }, [elementId, projectId, bookElements, touchRecentEntity, recentEntitiesLimit]);
 
@@ -315,9 +338,16 @@ export function TopTimeline() {
     }
     touchRecentEntity(
       { projectId, entityId: selectedNodeId, entityType: 'node' },
-      recentEntitiesLimit
+      recentEntitiesLimit,
     );
-  }, [showAllNodeGroup, selectedNodeId, projectId, bookNodes, touchRecentEntity, recentEntitiesLimit]);
+  }, [
+    showAllNodeGroup,
+    selectedNodeId,
+    projectId,
+    bookNodes,
+    touchRecentEntity,
+    recentEntitiesLimit,
+  ]);
 
   useEffect(() => {
     if (!showAllElementGroup || !selectedElementId) {
@@ -328,9 +358,16 @@ export function TopTimeline() {
     }
     touchRecentEntity(
       { projectId, entityId: selectedElementId, entityType: 'element' },
-      recentEntitiesLimit
+      recentEntitiesLimit,
     );
-  }, [showAllElementGroup, selectedElementId, projectId, bookElements, touchRecentEntity, recentEntitiesLimit]);
+  }, [
+    showAllElementGroup,
+    selectedElementId,
+    projectId,
+    bookElements,
+    touchRecentEntity,
+    recentEntitiesLimit,
+  ]);
 
   // Load full data for icon dropdown
   useEffect(() => {
@@ -379,7 +416,7 @@ export function TopTimeline() {
     async function applyNodeTagFilter() {
       try {
         const nodeIdGroups = await Promise.all(
-          selectedNodeTagIds.map(tagId => getNodesWithTag(tagId, projectId))
+          selectedNodeTagIds.map((tagId) => getNodesWithTag(tagId, projectId)),
         );
         if (cancelled) return;
 
@@ -389,8 +426,8 @@ export function TopTimeline() {
         }
 
         const [firstGroup, ...restGroups] = nodeIdGroups;
-        const intersection = firstGroup.filter(nodeId =>
-          restGroups.every(group => group.includes(nodeId))
+        const intersection = firstGroup.filter((nodeId) =>
+          restGroups.every((group) => group.includes(nodeId)),
         );
         setFilteredNodeIdSet(new Set(intersection));
       } catch (error) {
@@ -418,7 +455,7 @@ export function TopTimeline() {
     async function applyElementTagFilter() {
       try {
         const elementIdGroups = await Promise.all(
-          selectedElementTagIds.map(tagId => getElementsWithTag(tagId, projectId))
+          selectedElementTagIds.map((tagId) => getElementsWithTag(tagId, projectId)),
         );
         if (cancelled) return;
 
@@ -428,8 +465,8 @@ export function TopTimeline() {
         }
 
         const [firstGroup, ...restGroups] = elementIdGroups;
-        const intersection = firstGroup.filter(elementId =>
-          restGroups.every(group => group.includes(elementId))
+        const intersection = firstGroup.filter((elementId) =>
+          restGroups.every((group) => group.includes(elementId)),
         );
         setFilteredElementIdSet(new Set(intersection));
       } catch (error) {
@@ -503,10 +540,7 @@ export function TopTimeline() {
       const elementRect = element.getBoundingClientRect();
 
       // Check if element is not fully visible
-      if (
-        elementRect.left < containerRect.left ||
-        elementRect.right > containerRect.right
-      ) {
+      if (elementRect.left < containerRect.left || elementRect.right > containerRect.right) {
         // Scroll to center the selected element
         const scrollLeft = element.offsetLeft - container.offsetWidth / 2 + element.offsetWidth / 2;
         container.scrollTo({
@@ -544,24 +578,32 @@ export function TopTimeline() {
     : storylineNodes;
 
   const filteredNodeItems = filteredNodeIdSet
-    ? nodeItemsSource.filter(node => filteredNodeIdSet.has(node.id))
+    ? nodeItemsSource.filter((node) => filteredNodeIdSet.has(node.id))
     : nodeItemsSource;
 
   const filteredElementItems = filteredElementIdSet
-    ? categoryElements.filter(element => filteredElementIdSet.has(element.id))
+    ? categoryElements.filter((element) => filteredElementIdSet.has(element.id))
     : categoryElements;
 
   // Calculate dynamic widths based on available space
   const timelineItems: Array<BookNode | BookElement> = isProjectHomeMode
     ? recentTimelineItems
-    : (isElementTimelineMode ? filteredElementItems : filteredNodeItems);
+    : isElementTimelineMode
+      ? filteredElementItems
+      : filteredNodeItems;
   const selectedItemId = isProjectHomeMode
     ? null
-    : (isElementTimelineMode
-      ? (showAllElementGroup ? selectedElementId : elementId)
-      : (showAllNodeGroup ? selectedNodeId : nodeId));
+    : isElementTimelineMode
+      ? showAllElementGroup
+        ? selectedElementId
+        : elementId
+      : showAllNodeGroup
+        ? selectedNodeId
+        : nodeId;
   const storylineColorMap = new Map(storylines.map((storyline) => [storyline.id, storyline.color]));
-  const categoryColorMap = new Map(bookElementCategories.map((category) => [category.id, category.color]));
+  const categoryColorMap = new Map(
+    bookElementCategories.map((category) => [category.id, category.color]),
+  );
 
   // Safari-style tab width calculation
   const ICON_WIDTH = 32;
@@ -651,14 +693,14 @@ export function TopTimeline() {
   };
 
   const toggleNodeTagFilter = (tagId: string) => {
-    setSelectedNodeTagIds(prev =>
-      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    setSelectedNodeTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
     );
   };
 
   const toggleElementTagFilter = (tagId: string) => {
-    setSelectedElementTagIds(prev =>
-      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    setSelectedElementTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
     );
   };
 
@@ -817,7 +859,7 @@ export function TopTimeline() {
       {/* Hover Preview */}
       {isNodeTimelineMode && (
         <NodeHoverPreview
-          node={hoveredNodeId ? bookNodes.find((n) => n.id === hoveredNodeId) ?? null : null}
+          node={hoveredNodeId ? (bookNodes.find((n) => n.id === hoveredNodeId) ?? null) : null}
           position={hoverPosition}
         />
       )}

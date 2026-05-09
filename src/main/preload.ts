@@ -26,11 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // OAuth: open system browser for social login
   auth: {
-    openOAuthBrowser: (provider: string) =>
-      ipcRenderer.invoke('auth:oauth-open-browser', provider),
-    onOAuthCallback: (
-      callback: (data: { token: string | null; error: string | null }) => void,
-    ) => {
+    openOAuthBrowser: (provider: string) => ipcRenderer.invoke('auth:oauth-open-browser', provider),
+    onOAuthCallback: (callback: (data: { token: string | null; error: string | null }) => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
         data: { token: string | null; error: string | null },

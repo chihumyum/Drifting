@@ -1,28 +1,23 @@
-
-
 export interface BookNode {
   id: string;
   projectId: string;
   title: string;
   summary: string;
-  start: number;                     // Position on timeline (chapter order / story time start)
-  end: number;                // Timeline end position
+  start: number; // Position on timeline (chapter order / story time start)
+  end: number; // Timeline end position
   storyStageId: string | null;
   mainStorylineId: string;
-  storylineIds: string[];  // Associated storylines, could be multiple
-  tagIds: string[];       // Tags associated with this node
+  storylineIds: string[]; // Associated storylines, could be multiple
+  tagIds: string[]; // Tags associated with this node
   position: GraphViewNodePosition;
   createdAt: string;
   updatedAt: string;
 }
 
-
-
 export interface GraphViewNodePosition {
   x: number;
   y: number;
 }
-
 
 export interface BookNodeEdge {
   id: string;
@@ -51,4 +46,3 @@ export interface NodeElementBacklink {
   nodeId: string;
   elementId: string;
 }
-

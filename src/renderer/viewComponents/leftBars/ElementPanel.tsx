@@ -41,11 +41,7 @@ type ActiveTick = {
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
-  const {
-    elementUi,
-    setElementSelection,
-    timelineHeight,
-  } = useUiStore();
+  const { elementUi, setElementSelection, timelineHeight } = useUiStore();
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, navigateToCategory } = useProjectNavigation();
   const selectedBookElementId = elementUi.selectedId;
@@ -57,20 +53,12 @@ export function ElementPanel() {
     return projectId;
   }, [projectId]);
 
-  const {
-    createElement,
-    removeElement,
-    updateElement,
-  } = useBookElement({
+  const { createElement, removeElement, updateElement } = useBookElement({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
 
-  const {
-    createCategory,
-    updateCategory,
-    getCategoryColor,
-  } = useElementCategory({
+  const { createCategory, updateCategory, getCategoryColor } = useElementCategory({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
@@ -100,22 +88,26 @@ export function ElementPanel() {
   const zoomRingHoveredRef = useRef(false);
   const suppressRingUntilRef = useRef(0);
 
-  const panelHeight = useMemo(
-    () => `calc(100vh - 120px - ${timelineHeight}px)`,
-    [timelineHeight],
+  const panelHeight = useMemo(() => `calc(100vh - 120px - ${timelineHeight}px)`, [timelineHeight]);
+
+  const categoryById = useMemo(
+    () => new Map(bookElementCategories.map((category) => [category.id, category])),
+    [bookElementCategories],
   );
 
-  const categoryById = useMemo(() => (
-    new Map(bookElementCategories.map(category => [category.id, category]))
-  ), [bookElementCategories]);
+  const getCategoryLabel = useCallback(
+    (categoryId: string) => {
+      return categoryById.get(categoryId)?.name ?? categoryId;
+    },
+    [categoryById],
+  );
 
-  const getCategoryLabel = useCallback((categoryId: string) => {
-    return categoryById.get(categoryId)?.name ?? categoryId;
-  }, [categoryById]);
-
-  const isReservedCategory = useCallback((categoryId: string) => {
-    return categoryById.get(categoryId)?.name === 'others';
-  }, [categoryById]);
+  const isReservedCategory = useCallback(
+    (categoryId: string) => {
+      return categoryById.get(categoryId)?.name === 'others';
+    },
+    [categoryById],
+  );
 
   const categoryIds = useMemo(() => {
     const ids = new Set<string>();
@@ -198,25 +190,31 @@ export function ElementPanel() {
     };
   }, [clearHideRingTimer]);
 
-  const handleDeleteElement = useCallback(async (id: string) => {
-    try {
-      await removeElement(id);
-      if (selectedBookElementId === id) {
-        setElementSelection(null, 'ui');
+  const handleDeleteElement = useCallback(
+    async (id: string) => {
+      try {
+        await removeElement(id);
+        if (selectedBookElementId === id) {
+          setElementSelection(null, 'ui');
+        }
+      } catch (error) {
+        log.error('Failed to delete element', error);
       }
-    } catch (error) {
-      log.error('Failed to delete element', error);
-    }
-  }, [removeElement, selectedBookElementId, setElementSelection]);
+    },
+    [removeElement, selectedBookElementId, setElementSelection],
+  );
 
-  const handleCreateElement = useCallback(async (categoryId: string) => {
-    try {
-      const created = await createElement({ categoryId });
-      setElementSelection(created.id, 'ui');
-    } catch (error) {
-      log.error('Failed to create element', error);
-    }
-  }, [createElement, setElementSelection]);
+  const handleCreateElement = useCallback(
+    async (categoryId: string) => {
+      try {
+        const created = await createElement({ categoryId });
+        setElementSelection(created.id, 'ui');
+      } catch (error) {
+        log.error('Failed to create element', error);
+      }
+    },
+    [createElement, setElementSelection],
+  );
 
   const handleCreateCategory = useCallback(async () => {
     try {
@@ -239,43 +237,49 @@ export function ElementPanel() {
     }
   }, [createCategory, scheduleHideZoomRing, showZoomRing]);
 
-  const handleSaveElementName = useCallback(async (elementId: string) => {
-    const nextName = editingElementName.trim();
-    if (!nextName) {
-      setEditingElementId(null);
-      setEditingElementName('');
-      return;
-    }
+  const handleSaveElementName = useCallback(
+    async (elementId: string) => {
+      const nextName = editingElementName.trim();
+      if (!nextName) {
+        setEditingElementId(null);
+        setEditingElementName('');
+        return;
+      }
 
-    try {
-      await updateElement(elementId, { name: nextName });
-    } catch (error) {
-      log.error('Failed to update element name', error);
-    } finally {
-      setEditingElementId(null);
-      setEditingElementName('');
-    }
-  }, [editingElementName, updateElement]);
+      try {
+        await updateElement(elementId, { name: nextName });
+      } catch (error) {
+        log.error('Failed to update element name', error);
+      } finally {
+        setEditingElementId(null);
+        setEditingElementName('');
+      }
+    },
+    [editingElementName, updateElement],
+  );
 
-  const handleSaveCategoryName = useCallback(async (categoryId: string) => {
-    const category = categoryById.get(categoryId);
-    const nextName = editingCategoryName.trim();
+  const handleSaveCategoryName = useCallback(
+    async (categoryId: string) => {
+      const category = categoryById.get(categoryId);
+      const nextName = editingCategoryName.trim();
 
-    if (!category || category.name === 'others' || !nextName || nextName === category.name) {
-      setEditingCategoryId(null);
-      setEditingCategoryName('');
-      return;
-    }
+      if (!category || category.name === 'others' || !nextName || nextName === category.name) {
+        setEditingCategoryId(null);
+        setEditingCategoryName('');
+        return;
+      }
 
-    try {
-      await updateCategory(categoryId, { name: nextName });
-    } catch (error) {
-      log.error('Failed to update category name', error);
-    } finally {
-      setEditingCategoryId(null);
-      setEditingCategoryName('');
-    }
-  }, [categoryById, editingCategoryName, updateCategory]);
+      try {
+        await updateCategory(categoryId, { name: nextName });
+      } catch (error) {
+        log.error('Failed to update category name', error);
+      } finally {
+        setEditingCategoryId(null);
+        setEditingCategoryName('');
+      }
+    },
+    [categoryById, editingCategoryName, updateCategory],
+  );
 
   const measurePanelLayout = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -326,54 +330,52 @@ export function ElementPanel() {
     };
   }, [measurePanelLayout]);
 
-  const handlePanelScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    const container = event.currentTarget;
-    const now = performance.now();
-    const nextTop = container.scrollTop;
-    const delta = nextTop - lastScrollTopRef.current;
-    const absDelta = Math.abs(delta);
+  const handlePanelScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      const container = event.currentTarget;
+      const now = performance.now();
+      const nextTop = container.scrollTop;
+      const delta = nextTop - lastScrollTopRef.current;
+      const absDelta = Math.abs(delta);
 
-    lastScrollTopRef.current = nextTop;
-    setScrollTop(nextTop);
-    setViewportHeight(container.clientHeight);
-    setContentHeight(container.scrollHeight);
+      lastScrollTopRef.current = nextTop;
+      setScrollTop(nextTop);
+      setViewportHeight(container.clientHeight);
+      setContentHeight(container.scrollHeight);
 
-    if (Date.now() < suppressRingUntilRef.current) {
-      lastScrollVelocityRef.current = 0;
+      if (Date.now() < suppressRingUntilRef.current) {
+        lastScrollVelocityRef.current = 0;
+        lastScrollTimeRef.current = now;
+        return;
+      }
+
+      if (absDelta <= 0.5) {
+        lastScrollVelocityRef.current = 0;
+        lastScrollTimeRef.current = now;
+        return;
+      }
+
+      const dt = Math.max(lastScrollTimeRef.current ? now - lastScrollTimeRef.current : 16, 8);
+      const velocity = delta / dt;
+      const acceleration = (velocity - lastScrollVelocityRef.current) / dt;
+      const absVelocity = Math.abs(velocity);
+      const absAcceleration = Math.abs(acceleration);
+
+      const shouldShowByAcceleration =
+        absAcceleration >= ZOOM_RING_ACCELERATION_TRIGGER && absVelocity >= ZOOM_RING_MIN_VELOCITY;
+
+      if (shouldShowByAcceleration) {
+        showZoomRing();
+        scheduleHideZoomRing();
+      } else if (zoomRingVisibleRef.current && absVelocity >= ZOOM_RING_REFRESH_VELOCITY) {
+        scheduleHideZoomRing();
+      }
+
+      lastScrollVelocityRef.current = velocity;
       lastScrollTimeRef.current = now;
-      return;
-    }
-
-    if (absDelta <= 0.5) {
-      lastScrollVelocityRef.current = 0;
-      lastScrollTimeRef.current = now;
-      return;
-    }
-
-    const dt = Math.max(
-      lastScrollTimeRef.current ? now - lastScrollTimeRef.current : 16,
-      8,
-    );
-    const velocity = delta / dt;
-    const acceleration = (velocity - lastScrollVelocityRef.current) / dt;
-    const absVelocity = Math.abs(velocity);
-    const absAcceleration = Math.abs(acceleration);
-
-    const shouldShowByAcceleration = (
-      absAcceleration >= ZOOM_RING_ACCELERATION_TRIGGER
-      && absVelocity >= ZOOM_RING_MIN_VELOCITY
-    );
-
-    if (shouldShowByAcceleration) {
-      showZoomRing();
-      scheduleHideZoomRing();
-    } else if (zoomRingVisibleRef.current && absVelocity >= ZOOM_RING_REFRESH_VELOCITY) {
-      scheduleHideZoomRing();
-    }
-
-    lastScrollVelocityRef.current = velocity;
-    lastScrollTimeRef.current = now;
-  }, [scheduleHideZoomRing, showZoomRing]);
+    },
+    [scheduleHideZoomRing, showZoomRing],
+  );
 
   const activeTick = useMemo<ActiveTick>(() => {
     const container = scrollContainerRef.current;
@@ -394,7 +396,8 @@ export function ElementPanel() {
           return;
         }
         const cardRect = card.getBoundingClientRect();
-        const cardCenter = cardRect.top - containerRect.top + container.scrollTop + (cardRect.height / 2);
+        const cardCenter =
+          cardRect.top - containerRect.top + container.scrollTop + cardRect.height / 2;
         const distance = Math.abs(cardCenter - centerY);
         if (distance < nearestDistance) {
           nearestDistance = distance;
@@ -417,9 +420,7 @@ export function ElementPanel() {
     return clamp(availablePerBadge, ZOOM_RING_BADGE_HEIGHT_MIN, ZOOM_RING_BADGE_HEIGHT_MAX);
   }, [categoryIds.length, zoomTrackHeight]);
   const scrollRange = Math.max(contentHeight - viewportHeight, 0);
-  const tickDrift = scrollRange > 0
-    ? (scrollTop / scrollRange) * ZOOM_RING_MAX_DRIFT
-    : 0;
+  const tickDrift = scrollRange > 0 ? (scrollTop / scrollRange) * ZOOM_RING_MAX_DRIFT : 0;
 
   const categoryAnchors = useMemo(() => {
     const lastIndex = Math.max(categoryIds.length - 1, 1);
@@ -479,23 +480,26 @@ export function ElementPanel() {
     getCategoryLabel,
   ]);
 
-  const jumpToCategory = useCallback((categoryId: string) => {
-    const container = scrollContainerRef.current;
-    const section = categorySectionRefs.current[categoryId];
-    if (!container || !section) {
-      return;
-    }
+  const jumpToCategory = useCallback(
+    (categoryId: string) => {
+      const container = scrollContainerRef.current;
+      const section = categorySectionRefs.current[categoryId];
+      if (!container || !section) {
+        return;
+      }
 
-    clearHideRingTimer();
-    suppressRingUntilRef.current = Date.now() + 650;
-    setZoomRingVisible(false);
-    lastScrollVelocityRef.current = 0;
-    lastScrollTimeRef.current = null;
-    container.scrollTo({
-      top: Math.max(section.offsetTop - 8, 0),
-      behavior: 'smooth',
-    });
-  }, [clearHideRingTimer]);
+      clearHideRingTimer();
+      suppressRingUntilRef.current = Date.now() + 650;
+      setZoomRingVisible(false);
+      lastScrollVelocityRef.current = 0;
+      lastScrollTimeRef.current = null;
+      container.scrollTo({
+        top: Math.max(section.offsetTop - 8, 0),
+        behavior: 'smooth',
+      });
+    },
+    [clearHideRingTimer],
+  );
 
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
@@ -529,7 +533,9 @@ export function ElementPanel() {
           setElementSelection(element.id, 'ui');
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+        >
           <div
             style={{
               flex: 1,
@@ -793,9 +799,16 @@ export function ElementPanel() {
                         setEditingCategoryId(categoryId);
                         setEditingCategoryName(getCategoryLabel(categoryId));
                       }}
-                      title={isReservedCategory(categoryId) ? 'Reserved category' : 'Double-click to rename'}
+                      title={
+                        isReservedCategory(categoryId)
+                          ? 'Reserved category'
+                          : 'Double-click to rename'
+                      }
                       style={{
-                        cursor: categoryById.get(categoryId) && !isReservedCategory(categoryId) ? 'text' : 'default',
+                        cursor:
+                          categoryById.get(categoryId) && !isReservedCategory(categoryId)
+                            ? 'text'
+                            : 'default',
                       }}
                     >
                       {getCategoryLabel(categoryId)}
@@ -855,9 +868,9 @@ export function ElementPanel() {
                 </div>
               </div>
 
-              {(elementsByCategory[categoryId] ?? []).map((element, elementIndex) => (
-                renderElementCard(element, categoryId, elementIndex)
-              ))}
+              {(elementsByCategory[categoryId] ?? []).map((element, elementIndex) =>
+                renderElementCard(element, categoryId, elementIndex),
+              )}
             </div>
           ))}
 
@@ -909,9 +922,7 @@ export function ElementPanel() {
             width: '100%',
             borderRadius: 12,
             border: '1px solid rgba(90, 74, 58, 0.25)',
-            background: zoomRingHovered
-              ? 'rgba(250, 245, 237, 0.96)'
-              : 'rgba(250, 245, 237, 0.86)',
+            background: zoomRingHovered ? 'rgba(250, 245, 237, 0.96)' : 'rgba(250, 245, 237, 0.86)',
             boxShadow: zoomRingHovered
               ? '0 10px 22px rgba(50, 40, 30, 0.18)'
               : '0 6px 16px rgba(50, 40, 30, 0.12)',
@@ -950,17 +961,13 @@ export function ElementPanel() {
             }}
           >
             {categoryAnchors.map((anchor, index) => {
-              const nextAnchorTop = categoryAnchors[index + 1]?.anchorTop ?? (zoomTrackHeight - 2);
+              const nextAnchorTop = categoryAnchors[index + 1]?.anchorTop ?? zoomTrackHeight - 2;
               const tickRegionTopBase = anchor.anchorTop + categoryBadgeHeight + 4;
               const tickRegionBottomBase = Math.max(nextAnchorTop - 5, tickRegionTopBase + 8);
               const tickRegionHeight = Math.max(tickRegionBottomBase - tickRegionTopBase, 8);
-              const tickRegionTop = clamp(
-                tickRegionTopBase,
-                0,
-                Math.max(zoomTrackHeight - 8, 0),
-              );
+              const tickRegionTop = clamp(tickRegionTopBase, 0, Math.max(zoomTrackHeight - 8, 0));
               const isActiveCategory = activeTick?.categoryId === anchor.categoryId;
-              const activeTickIndex = isActiveCategory ? activeTick?.elementIndex ?? -1 : -1;
+              const activeTickIndex = isActiveCategory ? (activeTick?.elementIndex ?? -1) : -1;
 
               return (
                 <div key={anchor.categoryId}>

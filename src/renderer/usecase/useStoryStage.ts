@@ -38,113 +38,139 @@ export function useStoryStage({ projectId, userId }: UseStoryStageContext) {
     await initDatabase(userId);
   }, [userId]);
 
-  const loadStages = useCallback(async (projectId?: string) => {
-    const pid = projectId ?? activeProjectId;
-    if (!pid) {
-      throw new Error('Project ID is required to load stages');
-    }
-    await ensureDb();
-    return stageRepo.findAll(pid);
-  }, [stageRepo, activeProjectId, ensureDb]);
+  const loadStages = useCallback(
+    async (projectId?: string) => {
+      const pid = projectId ?? activeProjectId;
+      if (!pid) {
+        throw new Error('Project ID is required to load stages');
+      }
+      await ensureDb();
+      return stageRepo.findAll(pid);
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
 
-  const getStageById = useCallback(async (id: string, projectId?: string) => {
-    const pid = projectId ?? activeProjectId;
-    if (!pid) {
-      throw new Error('Project ID is required to get stage');
-    }
-    await ensureDb();
-    return stageRepo.findById(id);
-  }, [stageRepo, activeProjectId, ensureDb]);
+  const getStageById = useCallback(
+    async (id: string, projectId?: string) => {
+      const pid = projectId ?? activeProjectId;
+      if (!pid) {
+        throw new Error('Project ID is required to get stage');
+      }
+      await ensureDb();
+      return stageRepo.findById(id);
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
 
-  const createStage = useCallback(async (input: CreateStoryStageInput) => {
-    const projectId = input.projectId ?? activeProjectId;
-    if (!projectId) {
-      throw new Error('Project ID is required to create stage');
-    }
-    await ensureDb();
+  const createStage = useCallback(
+    async (input: CreateStoryStageInput) => {
+      const projectId = input.projectId ?? activeProjectId;
+      if (!projectId) {
+        throw new Error('Project ID is required to create stage');
+      }
+      await ensureDb();
 
-    // If orderKey not provided, get max and add 1
-    const stages = await stageRepo.findAll(projectId);
-    const maxOrder = stages.reduce((max, stage) => Math.max(max, stage.orderKey), 0);
-    const orderKey = input.orderKey ?? maxOrder + 1;
+      // If orderKey not provided, get max and add 1
+      const stages = await stageRepo.findAll(projectId);
+      const maxOrder = stages.reduce((max, stage) => Math.max(max, stage.orderKey), 0);
+      const orderKey = input.orderKey ?? maxOrder + 1;
 
-    return stageRepo.create({
-      projectId,
-      name: input.name,
-      descriptionJson: input.description ?? '{}',
-      orderKey,
-      color: input.color ?? '#000000',
-    }).then(created => {
-      syncStageCreate(created.id, projectId, {
-        id: created.id, name: created.name, descriptionJson: created.descriptionJson,
-        orderKey: created.orderKey, color: created.color,
+      return stageRepo
+        .create({
+          projectId,
+          name: input.name,
+          descriptionJson: input.description ?? '{}',
+          orderKey,
+          color: input.color ?? '#000000',
+        })
+        .then((created) => {
+          syncStageCreate(created.id, projectId, {
+            id: created.id,
+            name: created.name,
+            descriptionJson: created.descriptionJson,
+            orderKey: created.orderKey,
+            color: created.color,
+          });
+          return created;
+        });
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
+
+  const updateStage = useCallback(
+    async (id: string, input: UpdateStoryStageInput, projectId?: string) => {
+      const pid = projectId ?? activeProjectId;
+      if (!pid) {
+        throw new Error('Project ID is required to update stage');
+      }
+      await ensureDb();
+
+      // Map input to partial story stage
+      const updates: Partial<StoryStage> = {};
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.orderKey !== undefined) updates.orderKey = input.orderKey;
+      if (input.color !== undefined) updates.color = input.color;
+      if (input.description !== undefined) updates.descriptionJson = input.description ?? '{}';
+
+      return stageRepo.update(id, updates).then((updated) => {
+        syncStageUpdate(id, pid, updates as Record<string, unknown>);
+        return updated;
       });
-      return created;
-    });
-  }, [stageRepo, activeProjectId, ensureDb]);
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
 
-  const updateStage = useCallback(async (id: string, input: UpdateStoryStageInput, projectId?: string) => {
-    const pid = projectId ?? activeProjectId;
-    if (!pid) {
-      throw new Error('Project ID is required to update stage');
-    }
-    await ensureDb();
+  const deleteStage = useCallback(
+    async (id: string, projectId?: string) => {
+      const pid = projectId ?? activeProjectId;
+      if (!pid) {
+        throw new Error('Project ID is required to delete stage');
+      }
+      await ensureDb();
+      const result = await stageRepo.delete(id);
+      syncStageDelete(id, pid);
+      return result;
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
 
-    // Map input to partial story stage
-    const updates: Partial<StoryStage> = {};
-    if (input.name !== undefined) updates.name = input.name;
-    if (input.orderKey !== undefined) updates.orderKey = input.orderKey;
-    if (input.color !== undefined) updates.color = input.color;
-    if (input.description !== undefined) updates.descriptionJson = input.description ?? '{}';
+  const reorderStage = useCallback(
+    async (id: string, direction: 'up' | 'down', projectId?: string) => {
+      const pid = projectId ?? activeProjectId;
+      if (!pid) {
+        throw new Error('Project ID is required to reorder stage');
+      }
+      await ensureDb();
+      const stages = await stageRepo.findAll(pid);
+      const sortedStages = stages.slice().sort((a, b) => a.orderKey - b.orderKey);
+      const index = sortedStages.findIndex((stage) => stage.id === id);
 
-    return stageRepo.update(id, updates).then(updated => {
-      syncStageUpdate(id, pid, updates as Record<string, unknown>);
-      return updated;
-    });
-  }, [stageRepo, activeProjectId, ensureDb]);
+      if (index === -1) return;
 
-  const deleteStage = useCallback(async (id: string, projectId?: string) => {
-    const pid = projectId ?? activeProjectId;
-    if (!pid) {
-      throw new Error('Project ID is required to delete stage');
-    }
-    await ensureDb();
-    const result = await stageRepo.delete(id);
-    syncStageDelete(id, pid);
-    return result;
-  }, [stageRepo, activeProjectId, ensureDb]);
+      const swapIndex = direction === 'up' ? index - 1 : index + 1;
+      if (swapIndex < 0 || swapIndex >= sortedStages.length) return;
 
-  const reorderStage = useCallback(async (id: string, direction: 'up' | 'down', projectId?: string) => {
-    const pid = projectId ?? activeProjectId;
-    if (!pid) {
-      throw new Error('Project ID is required to reorder stage');
-    }
-    await ensureDb();
-    const stages = await stageRepo.findAll(pid);
-    const sortedStages = stages.slice().sort((a, b) => a.orderKey - b.orderKey);
-    const index = sortedStages.findIndex((stage) => stage.id === id);
+      const current = sortedStages[index];
+      const target = sortedStages[swapIndex];
 
-    if (index === -1) return;
+      // Swap positions
+      await stageRepo.update(current.id, { orderKey: target.orderKey });
+      await stageRepo.update(target.id, { orderKey: current.orderKey });
+      syncStageUpdate(current.id, pid, { orderKey: target.orderKey });
+      syncStageUpdate(target.id, pid, { orderKey: current.orderKey });
+    },
+    [stageRepo, activeProjectId, ensureDb],
+  );
 
-    const swapIndex = direction === 'up' ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= sortedStages.length) return;
-
-    const current = sortedStages[index];
-    const target = sortedStages[swapIndex];
-
-    // Swap positions
-    await stageRepo.update(current.id, { orderKey: target.orderKey });
-    await stageRepo.update(target.id, { orderKey: current.orderKey });
-    syncStageUpdate(current.id, pid, { orderKey: target.orderKey });
-    syncStageUpdate(target.id, pid, { orderKey: current.orderKey });
-  }, [stageRepo, activeProjectId, ensureDb]);
-
-  return useMemo(() => ({
-    loadStages,
-    getStageById,
-    createStage,
-    updateStage,
-    deleteStage,
-    reorderStage,
-  }), [loadStages, getStageById, createStage, updateStage, deleteStage, reorderStage]);
+  return useMemo(
+    () => ({
+      loadStages,
+      getStageById,
+      createStage,
+      updateStage,
+      deleteStage,
+      reorderStage,
+    }),
+    [loadStages, getStageById, createStage, updateStage, deleteStage, reorderStage],
+  );
 }

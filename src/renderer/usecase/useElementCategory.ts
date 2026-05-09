@@ -7,9 +7,9 @@ import { useDataStore } from '../store/data-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { syncCategoryCreate, syncCategoryUpdate, syncCategoryDelete } from './sync-helpers';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("useElementCategory");
+const log = loglevel.getLogger('useElementCategory');
 log.setLevel(loglevel.levels.WARN);
 
 export type CreateElementCategoryInput = {
@@ -55,124 +55,154 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
     useDataStore.getState().removeBookElementCategory(id);
   }, []);
 
-  const createCategory = useCallback(async (input: CreateElementCategoryInput = {}): Promise<BookElementCategory> => {
-    const resolved = input;
-    await ensureDb();
+  const createCategory = useCallback(
+    async (input: CreateElementCategoryInput = {}): Promise<BookElementCategory> => {
+      const resolved = input;
+      await ensureDb();
 
-    const now = new Date().toISOString();
-    const newCategory: BookElementCategory = {
-      id: uuidv7(),
-      projectId: activeProjectId,
-      name: resolved.name?.trim() || 'New Category',
-      descriptionJson: resolved.descriptionJson ?? '{}',
-      color: randomColor(),
-      createdAt: now,
-      updatedAt: now,
-    };
+      const now = new Date().toISOString();
+      const newCategory: BookElementCategory = {
+        id: uuidv7(),
+        projectId: activeProjectId,
+        name: resolved.name?.trim() || 'New Category',
+        descriptionJson: resolved.descriptionJson ?? '{}',
+        color: randomColor(),
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    const prevCategories = getCategoriesState().slice();
-    return withOptimisticUpdate({
-      apply: () => addCategoryState(newCategory),
-      rollback: () => setCategoriesState(prevCategories),
-      effect: () => repo.create(newCategory),
-      onSuccess: (created) => {
-        const current = getCategoriesState();
-        setCategoriesState(current.map(cat => (cat.id === created.id ? created : cat)));
-      },
-      sync: (created) => syncCategoryCreate(created.id, activeProjectId, {
-        id: created.id, name: created.name, descriptionJson: created.descriptionJson, color: created.color,
-      }),
-    });
-  }, [activeProjectId, addCategoryState, ensureDb, getCategoriesState, repo, setCategoriesState]);
+      const prevCategories = getCategoriesState().slice();
+      return withOptimisticUpdate({
+        apply: () => addCategoryState(newCategory),
+        rollback: () => setCategoriesState(prevCategories),
+        effect: () => repo.create(newCategory),
+        onSuccess: (created) => {
+          const current = getCategoriesState();
+          setCategoriesState(current.map((cat) => (cat.id === created.id ? created : cat)));
+        },
+        sync: (created) =>
+          syncCategoryCreate(created.id, activeProjectId, {
+            id: created.id,
+            name: created.name,
+            descriptionJson: created.descriptionJson,
+            color: created.color,
+          }),
+      });
+    },
+    [activeProjectId, addCategoryState, ensureDb, getCategoriesState, repo, setCategoriesState],
+  );
 
-  const loadCategories = useCallback(async (projectIdOverride?: string): Promise<BookElementCategory[]> => {
-    if (projectIdOverride && projectIdOverride !== activeProjectId) {
-      throw new Error('Input projectId does not match active projectId');
-    }
-    await ensureDb();
-    const categories = await repo.findAll();
-    setCategoriesState(categories);
-    return categories;
-  }, [repo, activeProjectId, setCategoriesState, ensureDb]);
+  const loadCategories = useCallback(
+    async (projectIdOverride?: string): Promise<BookElementCategory[]> => {
+      if (projectIdOverride && projectIdOverride !== activeProjectId) {
+        throw new Error('Input projectId does not match active projectId');
+      }
+      await ensureDb();
+      const categories = await repo.findAll();
+      setCategoriesState(categories);
+      return categories;
+    },
+    [repo, activeProjectId, setCategoriesState, ensureDb],
+  );
 
-  const updateCategory = useCallback(async (categoryId: string, updates: UpdateElementCategoryInput): Promise<BookElementCategory> => {
-    await ensureDb();
-    const prevCategories = getCategoriesState().slice();
-    let existing = prevCategories.find(cat => cat.id === categoryId);
-    if (!existing) {
-      const freshCategories = await repo.findAll();
-      setCategoriesState(freshCategories);
-      existing = freshCategories.find(cat => cat.id === categoryId);
-    }
-    if (!existing) {
-      throw new Error(`Category ${categoryId} not found`);
-    }
+  const updateCategory = useCallback(
+    async (
+      categoryId: string,
+      updates: UpdateElementCategoryInput,
+    ): Promise<BookElementCategory> => {
+      await ensureDb();
+      const prevCategories = getCategoriesState().slice();
+      let existing = prevCategories.find((cat) => cat.id === categoryId);
+      if (!existing) {
+        const freshCategories = await repo.findAll();
+        setCategoriesState(freshCategories);
+        existing = freshCategories.find((cat) => cat.id === categoryId);
+      }
+      if (!existing) {
+        throw new Error(`Category ${categoryId} not found`);
+      }
 
-    const now = new Date().toISOString();
-    const updated: BookElementCategory = {
-      ...existing,
-      name: updates.name ?? existing.name,
-      descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
-      color: updates.color ?? existing.color,
-      updatedAt: now,
-    };
+      const now = new Date().toISOString();
+      const updated: BookElementCategory = {
+        ...existing,
+        name: updates.name ?? existing.name,
+        descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
+        color: updates.color ?? existing.color,
+        updatedAt: now,
+      };
 
-    return withOptimisticUpdate({
-      apply: () => updateCategoryState(categoryId, updated),
-      rollback: () => setCategoriesState(prevCategories),
-      effect: async () => {
-        const persisted = await repo.update(categoryId, {
-          name: updated.name,
-          descriptionJson: updated.descriptionJson,
-          color: updated.color,
-          updatedAt: updated.updatedAt,
-        });
-        if (!persisted) {
-          throw new Error(`Category ${categoryId} not found`);
-        }
-        return persisted;
-      },
-      onSuccess: (persisted) => {
-        updateCategoryState(categoryId, persisted);
-      },
-      sync: (persisted) => syncCategoryUpdate(categoryId, activeProjectId, {
-        name: persisted.name, descriptionJson: persisted.descriptionJson, color: persisted.color,
-      }),
-    });
-  }, [ensureDb, getCategoriesState, repo, setCategoriesState, updateCategoryState, activeProjectId]);
+      return withOptimisticUpdate({
+        apply: () => updateCategoryState(categoryId, updated),
+        rollback: () => setCategoriesState(prevCategories),
+        effect: async () => {
+          const persisted = await repo.update(categoryId, {
+            name: updated.name,
+            descriptionJson: updated.descriptionJson,
+            color: updated.color,
+            updatedAt: updated.updatedAt,
+          });
+          if (!persisted) {
+            throw new Error(`Category ${categoryId} not found`);
+          }
+          return persisted;
+        },
+        onSuccess: (persisted) => {
+          updateCategoryState(categoryId, persisted);
+        },
+        sync: (persisted) =>
+          syncCategoryUpdate(categoryId, activeProjectId, {
+            name: persisted.name,
+            descriptionJson: persisted.descriptionJson,
+            color: persisted.color,
+          }),
+      });
+    },
+    [ensureDb, getCategoriesState, repo, setCategoriesState, updateCategoryState, activeProjectId],
+  );
 
-  const deleteCategory = useCallback(async (categoryId: string): Promise<void> => {
-    await ensureDb();
-    const prevCategories = getCategoriesState().slice();
+  const deleteCategory = useCallback(
+    async (categoryId: string): Promise<void> => {
+      await ensureDb();
+      const prevCategories = getCategoriesState().slice();
 
-    return withOptimisticUpdate({
-      apply: () => removeCategoryState(categoryId),
-      rollback: () => setCategoriesState(prevCategories),
-      effect: () => repo.delete(categoryId),
-      sync: () => syncCategoryDelete(categoryId, activeProjectId),
-    });
-  }, [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId]);
+      return withOptimisticUpdate({
+        apply: () => removeCategoryState(categoryId),
+        rollback: () => setCategoriesState(prevCategories),
+        effect: () => repo.delete(categoryId),
+        sync: () => syncCategoryDelete(categoryId, activeProjectId),
+      });
+    },
+    [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId],
+  );
 
-  const getCategoryColor = useCallback((categoryId: string): string => {
-    if (!categoryId) {
-      log.error('getCategoryColor called with empty categoryId');
-    }
+  const getCategoryColor = useCallback(
+    (categoryId: string): string => {
+      if (!categoryId) {
+        log.error('getCategoryColor called with empty categoryId');
+      }
 
-    const existing = getCategoriesState().find(cat => cat.id === categoryId);
-    const existingColor = existing?.color?.trim();
-    if (existingColor) {
-      return existingColor;
-    } else {
-      log.error(`Category ${categoryId} not found when getting color. Falling back to generated color.`);
-      return randomColor();
-    }
-  }, [getCategoriesState]);
+      const existing = getCategoriesState().find((cat) => cat.id === categoryId);
+      const existingColor = existing?.color?.trim();
+      if (existingColor) {
+        return existingColor;
+      } else {
+        log.error(
+          `Category ${categoryId} not found when getting color. Falling back to generated color.`,
+        );
+        return randomColor();
+      }
+    },
+    [getCategoriesState],
+  );
 
-  return useMemo(() => ({
-    createCategory,
-    loadCategories,
-    updateCategory,
-    deleteCategory,
-    getCategoryColor,
-  }), [createCategory, loadCategories, updateCategory, deleteCategory, getCategoryColor]);
+  return useMemo(
+    () => ({
+      createCategory,
+      loadCategories,
+      updateCategory,
+      deleteCategory,
+      getCategoryColor,
+    }),
+    [createCategory, loadCategories, updateCategory, deleteCategory, getCategoryColor],
+  );
 }

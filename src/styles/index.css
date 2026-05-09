@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../../tailwind.config.js";
 
 @layer base {
@@ -54,7 +54,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 }
 
@@ -86,7 +88,7 @@ button,
 
 /* Allow text selection in editors */
 .editor,
-[contenteditable="true"] {
+[contenteditable='true'] {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -159,4 +161,3 @@ button,
   pointer-events: none;
   height: 0;
 }
-

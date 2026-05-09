@@ -101,8 +101,16 @@ export function TopTimelineDropdown({
           alignItems: 'stretch',
         }}
       >
-        <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Storylines</div>
+        <div
+          style={{
+            borderRight: '1px solid rgba(90, 151, 199, 0.45)',
+            paddingRight: 12,
+            minWidth: 0,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>
+            Storylines
+          </div>
           <div
             onClick={(event) => {
               event.stopPropagation();
@@ -125,7 +133,7 @@ export function TopTimelineDropdown({
             All Nodes Editor
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {allStorylines.map(storyline => (
+            {allStorylines.map((storyline) => (
               <div
                 key={storyline.id}
                 onClick={(event) => {
@@ -139,7 +147,8 @@ export function TopTimelineDropdown({
                   padding: '6px 8px',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  background: storyline.id === currentStoryline?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                  background:
+                    storyline.id === currentStoryline?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
                 }}
               >
                 <div
@@ -183,8 +192,16 @@ export function TopTimelineDropdown({
           </div>
         </div>
 
-        <div style={{ borderRight: '1px solid rgba(90, 151, 199, 0.45)', paddingRight: 12, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Categories</div>
+        <div
+          style={{
+            borderRight: '1px solid rgba(90, 151, 199, 0.45)',
+            paddingRight: 12,
+            minWidth: 0,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>
+            Categories
+          </div>
           <div
             onClick={(event) => {
               event.stopPropagation();
@@ -207,7 +224,7 @@ export function TopTimelineDropdown({
             All Elements Editor
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {allCategories.map(category => (
+            {allCategories.map((category) => (
               <div
                 key={category.id}
                 onClick={(event) => {
@@ -221,7 +238,8 @@ export function TopTimelineDropdown({
                   padding: '6px 8px',
                   borderRadius: 6,
                   cursor: 'pointer',
-                  background: category.id === currentCategory?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
+                  background:
+                    category.id === currentCategory?.id ? 'rgba(0, 0, 0, 0.06)' : 'transparent',
                 }}
               >
                 <div
@@ -266,13 +284,17 @@ export function TopTimelineDropdown({
         </div>
 
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>Tags Filter</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 8 }}>
+            Tags Filter
+          </div>
 
           {isNodeTagFilterEnabled && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Chapter Tags</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Chapter Tags
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {allNodeTags.map(tag => {
+                {allNodeTags.map((tag) => {
                   const selected = selectedNodeTagIds.includes(tag.id);
                   return (
                     <div
@@ -288,7 +310,9 @@ export function TopTimelineDropdown({
                         borderRadius: 6,
                         cursor: 'pointer',
                         border: '1px solid rgba(0, 0, 0, 0.14)',
-                        background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
+                        background: selected
+                          ? 'rgba(93, 138, 168, 0.16)'
+                          : 'rgba(255, 255, 255, 0.75)',
                       }}
                     >
                       <div
@@ -328,9 +352,19 @@ export function TopTimelineDropdown({
 
           {isElementTagFilterEnabled && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginTop: isNodeTagFilterEnabled ? 10 : 0, marginBottom: 6 }}>Element Tags</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#374151',
+                  marginTop: isNodeTagFilterEnabled ? 10 : 0,
+                  marginBottom: 6,
+                }}
+              >
+                Element Tags
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {allElementTags.map(tag => {
+                {allElementTags.map((tag) => {
                   const selected = selectedElementTagIds.includes(tag.id);
                   return (
                     <div
@@ -346,7 +380,9 @@ export function TopTimelineDropdown({
                         borderRadius: 6,
                         cursor: 'pointer',
                         border: '1px solid rgba(0, 0, 0, 0.14)',
-                        background: selected ? 'rgba(93, 138, 168, 0.16)' : 'rgba(255, 255, 255, 0.75)',
+                        background: selected
+                          ? 'rgba(93, 138, 168, 0.16)'
+                          : 'rgba(255, 255, 255, 0.75)',
                       }}
                     >
                       <div

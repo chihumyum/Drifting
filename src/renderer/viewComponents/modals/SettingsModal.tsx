@@ -31,7 +31,9 @@ const ACCENT_COLORS: AccentColorOption[] = [
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [selectedColor, setSelectedColor] = useState<string>('brown');
-  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced' | 'account'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced' | 'account'>(
+    'appearance',
+  );
   const [showDebugModal, setShowDebugModal] = useState(false);
 
   useEffect(() => {
@@ -60,7 +62,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleColorChange = (colorName: string) => {
     setSelectedColor(colorName);
-    const colorOption = ACCENT_COLORS.find(c => c.name === colorName);
+    const colorOption = ACCENT_COLORS.find((c) => c.name === colorName);
     if (colorOption) {
       // Save to localStorage
       localStorage.setItem('accentColor', colorName);
@@ -70,7 +72,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       applyAccentColor(colorOption.hue);
 
       // Trigger a custom event for other components to react
-      window.dispatchEvent(new CustomEvent('accentColorChange', { detail: { hue: colorOption.hue } }));
+      window.dispatchEvent(
+        new CustomEvent('accentColorChange', { detail: { hue: colorOption.hue } }),
+      );
     }
   };
 
@@ -225,7 +229,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                borderLeft: activeTab === 'appearance' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+                borderLeft:
+                  activeTab === 'appearance'
+                    ? '3px solid var(--accent, #b89968)'
+                    : '3px solid transparent',
               }}
             >
               <span>🎨</span>
@@ -246,7 +253,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                borderLeft: activeTab === 'editor' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+                borderLeft:
+                  activeTab === 'editor'
+                    ? '3px solid var(--accent, #b89968)'
+                    : '3px solid transparent',
               }}
             >
               <span>✏️</span>
@@ -267,7 +277,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                borderLeft: activeTab === 'advanced' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+                borderLeft:
+                  activeTab === 'advanced'
+                    ? '3px solid var(--accent, #b89968)'
+                    : '3px solid transparent',
               }}
             >
               <span>⚙️</span>
@@ -288,7 +301,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                borderLeft: activeTab === 'account' ? '3px solid var(--accent, #b89968)' : '3px solid transparent',
+                borderLeft:
+                  activeTab === 'account'
+                    ? '3px solid var(--accent, #b89968)'
+                    : '3px solid transparent',
               }}
             >
               <span>👤</span>
@@ -396,7 +412,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           alignItems: 'center',
                           gap: '8px',
                           padding: '12px',
-                          border: selectedColor === color.name ? '2px solid var(--accent, #b89968)' : '1px solid #e8dcc8',
+                          border:
+                            selectedColor === color.name
+                              ? '2px solid var(--accent, #b89968)'
+                              : '1px solid #e8dcc8',
                           borderRadius: '8px',
                           background: selectedColor === color.name ? '#f9f6f1' : '#fefdfb',
                           cursor: 'pointer',
@@ -509,7 +528,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     marginBottom: '24px',
                   }}
                 >
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e40af', marginBottom: '8px' }}>
+                  <div
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#1e40af',
+                      marginBottom: '8px',
+                    }}
+                  >
                     📖 本地优先模式（Local-First Mode）
                   </div>
                   <div style={{ fontSize: '13px', color: '#3b5998', lineHeight: 1.6 }}>
@@ -521,8 +547,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <li>专注于本地创作体验</li>
                     </ul>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px', fontStyle: 'italic' }}>
-                    提示：在 {APP_CONFIG.LOCAL_ONLY_MODE ? 'src/renderer/lib/config.ts' : 'config'} 中可以切换模式
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#6b7280',
+                      marginTop: '8px',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    提示：在 {APP_CONFIG.LOCAL_ONLY_MODE ? 'src/renderer/lib/config.ts' : 'config'}{' '}
+                    中可以切换模式
                   </div>
                 </div>
 

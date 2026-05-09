@@ -46,19 +46,27 @@ export function createNodeTagRepository(dbOverride?: DbExecutor): NodeTagReposit
   const dbProvider = createDbProvider(dbOverride);
 
   const findById = async (id: string): Promise<NodeTag | null> => {
-    const rows = await dbProvider().select().from(NodeTagTable).where(eq(NodeTagTable.id, id)).limit(1);
+    const rows = await dbProvider()
+      .select()
+      .from(NodeTagTable)
+      .where(eq(NodeTagTable.id, id))
+      .limit(1);
     return rows[0] ? nodeTagRecordToDomain(rows[0]) : null;
   };
 
   const findAll = async (projectId: string): Promise<NodeTag[]> => {
-    const rows = await dbProvider().select().from(NodeTagTable)
+    const rows = await dbProvider()
+      .select()
+      .from(NodeTagTable)
       .where(eq(NodeTagTable.projectId, projectId))
       .orderBy(asc(NodeTagTable.name));
     return rows.map(nodeTagRecordToDomain);
   };
 
   const findByName = async (projectId: string, name: string): Promise<NodeTag | null> => {
-    const rows = await dbProvider().select().from(NodeTagTable)
+    const rows = await dbProvider()
+      .select()
+      .from(NodeTagTable)
       .where(and(eq(NodeTagTable.projectId, projectId), eq(NodeTagTable.name, name)))
       .limit(1);
     return rows[0] ? nodeTagRecordToDomain(rows[0]) : null;
@@ -95,13 +103,14 @@ export function createNodeTagLinkRepository(dbOverride?: DbExecutor): NodeTagLin
   const dbProvider = createDbProvider(dbOverride);
 
   const findTagsByNodeId = async (nodeId: string): Promise<NodeTag[]> => {
-    const rows = await dbProvider().select({
-      id: NodeTagTable.id,
-      projectId: NodeTagTable.projectId,
-      name: NodeTagTable.name,
-      createdAt: NodeTagTable.createdAt,
-      updatedAt: NodeTagTable.updatedAt,
-    })
+    const rows = await dbProvider()
+      .select({
+        id: NodeTagTable.id,
+        projectId: NodeTagTable.projectId,
+        name: NodeTagTable.name,
+        createdAt: NodeTagTable.createdAt,
+        updatedAt: NodeTagTable.updatedAt,
+      })
       .from(NodeTagTable)
       .innerJoin(nodeTagsLink, eq(NodeTagTable.id, nodeTagsLink.tagId))
       .where(eq(nodeTagsLink.nodeId, nodeId))
@@ -111,29 +120,28 @@ export function createNodeTagLinkRepository(dbOverride?: DbExecutor): NodeTagLin
   };
 
   const findNodeIdsByTagId = async (tagId: string): Promise<string[]> => {
-    const rows = await dbProvider().select({ nodeId: nodeTagsLink.nodeId })
+    const rows = await dbProvider()
+      .select({ nodeId: nodeTagsLink.nodeId })
       .from(nodeTagsLink)
       .where(eq(nodeTagsLink.tagId, tagId));
-    return rows.map(r => r.nodeId);
+    return rows.map((r) => r.nodeId);
   };
 
   const addTagToNode = async (nodeId: string, tagId: string): Promise<NodeTagLink> => {
-    await dbProvider().insert(nodeTagsLink)
-      .values({ nodeId, tagId })
-      .onConflictDoNothing();
+    await dbProvider().insert(nodeTagsLink).values({ nodeId, tagId }).onConflictDoNothing();
 
     return { nodeId, tagId };
   };
 
   const removeTagFromNode = async (nodeId: string, tagId: string): Promise<boolean> => {
-    const result = await dbProvider().delete(nodeTagsLink)
+    const result = await dbProvider()
+      .delete(nodeTagsLink)
       .where(and(eq(nodeTagsLink.nodeId, nodeId), eq(nodeTagsLink.tagId, tagId)));
     return (result as any).rowsAffected > 0;
   };
 
   const removeAllTagsFromNode = async (nodeId: string): Promise<boolean> => {
-    const result = await dbProvider().delete(nodeTagsLink)
-      .where(eq(nodeTagsLink.nodeId, nodeId));
+    const result = await dbProvider().delete(nodeTagsLink).where(eq(nodeTagsLink.nodeId, nodeId));
     return (result as any).rowsAffected > 0;
   };
 

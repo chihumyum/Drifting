@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("StorylineAllChapterEditor");
+const log = loglevel.getLogger('StorylineAllChapterEditor');
 log.setLevel(loglevel.levels.ERROR);
 import type { BookNode } from '../../domain/book-node';
 import { useBookContent } from '../../usecase/useBookContent';
@@ -20,7 +20,10 @@ interface ChapterData {
   content: string | null; // pm_json
 }
 
-export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: StorylineAllChapterProps) {
+export function StorylineAllChapterEditor({
+  nodes,
+  onCurrentChapterChange,
+}: StorylineAllChapterProps) {
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId } = useProjectNavigation();
   const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent({
@@ -34,7 +37,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
   // 加载所有章节的内容
   useEffect(() => {
     let isMounted = true;
-    
+
     async function loadAllContents() {
       const dataPromises = nodes.map(async (node) => {
         try {
@@ -63,7 +66,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
     if (nodes.length > 0) {
       loadAllContents();
     }
-    
+
     return () => {
       isMounted = false;
     };
@@ -72,7 +75,7 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
   // 内容更新处理
   const handleContentUpdate = useCallback(
     async (nodeId: string, pmJson: string, outlineJson: string) => {
-      const node = nodes.find(n => n.id === nodeId);
+      const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
 
       // 先尝试获取现有内容以判断是更新还是创建
@@ -90,14 +93,10 @@ export function StorylineAllChapterEditor({ nodes, onCurrentChapterChange }: Sto
 
       // 更新本地状态
       setChaptersData((prev) =>
-        prev.map((item) =>
-          item.nodeId === nodeId
-            ? { ...item, content: pmJson }
-            : item
-        )
+        prev.map((item) => (item.nodeId === nodeId ? { ...item, content: pmJson } : item)),
       );
     },
-    [nodes, getContentByNodeId, updateContentByNodeId, createContent]
+    [nodes, getContentByNodeId, updateContentByNodeId, createContent],
   );
 
   // 滚动到指定章节

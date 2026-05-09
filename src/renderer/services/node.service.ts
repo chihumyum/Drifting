@@ -1,8 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookNode } from '../domain/book-node';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("NodeService");
+const log = loglevel.getLogger('NodeService');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface BookNodeCreateData {
@@ -104,7 +104,7 @@ export const nodeService = {
    */
   async swapOrder(
     first: { id: string; order: number },
-    second: { id: string; order: number }
+    second: { id: string; order: number },
   ): Promise<void> {
     try {
       await apiClient.post('/nodes/swap-order', { first, second });

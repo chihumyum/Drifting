@@ -11,17 +11,17 @@ const MAX_HEIGHT = 400; // 最大高度（像素）
 
 export function NodeHoverPreview({ node, position, showAbove = false }: NodeHoverPreviewProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
     if (!contentRef.current || !node) return;
 
     // 处理鼠标滚轮事件，滚动浮窗内容
     const handleWheel = (e: WheelEvent) => {
       if (!contentRef.current) return;
-      
+
       const scrollableContent = contentRef.current;
       const isScrollable = scrollableContent.scrollHeight > scrollableContent.clientHeight;
-      
+
       if (isScrollable) {
         e.preventDefault();
         e.stopPropagation();
@@ -31,7 +31,7 @@ export function NodeHoverPreview({ node, position, showAbove = false }: NodeHove
 
     // 将监听器添加到 window 上，捕获阶段
     window.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    
+
     return () => {
       window.removeEventListener('wheel', handleWheel, { capture: true });
     };
@@ -75,7 +75,7 @@ export function NodeHoverPreview({ node, position, showAbove = false }: NodeHove
       >
         {node.title || 'Untitled Chapter'}
       </div>
-      
+
       {/* 内容区域 - 可滚动 */}
       <div
         ref={contentRef}
@@ -95,9 +95,7 @@ export function NodeHoverPreview({ node, position, showAbove = false }: NodeHove
         className="hover-preview-content"
       >
         {node.summary ? (
-          <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
-            {node.summary}
-          </div>
+          <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{node.summary}</div>
         ) : (
           <div
             style={{

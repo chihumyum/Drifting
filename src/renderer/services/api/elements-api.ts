@@ -128,12 +128,17 @@ export const elementsApi = {
   },
 
   async getById(projectId: string, elementId: string): Promise<Element> {
-    const response = await apiClient.get<Element>(`/api/projects/${projectId}/elements/${elementId}`);
+    const response = await apiClient.get<Element>(
+      `/api/projects/${projectId}/elements/${elementId}`,
+    );
     return response.data;
   },
 
   async update(projectId: string, elementId: string, dto: UpdateElementDto): Promise<Element> {
-    const response = await apiClient.patch<Element>(`/api/projects/${projectId}/elements/${elementId}`, dto);
+    const response = await apiClient.patch<Element>(
+      `/api/projects/${projectId}/elements/${elementId}`,
+      dto,
+    );
     return response.data;
   },
 
@@ -153,8 +158,15 @@ export const elementsApi = {
     return response.data;
   },
 
-  async updateCategory(projectId: string, categoryId: string, dto: UpdateCategoryDto): Promise<Category> {
-    const response = await apiClient.patch<Category>(`/api/projects/${projectId}/categories/${categoryId}`, dto);
+  async updateCategory(
+    projectId: string,
+    categoryId: string,
+    dto: UpdateCategoryDto,
+  ): Promise<Category> {
+    const response = await apiClient.patch<Category>(
+      `/api/projects/${projectId}/categories/${categoryId}`,
+      dto,
+    );
     return response.data;
   },
 
@@ -170,7 +182,10 @@ export const elementsApi = {
   },
 
   async createTag(projectId: string, dto: CreateElementTagDto): Promise<ElementTag> {
-    const response = await apiClient.post<ElementTag>(`/api/projects/${projectId}/element-tags`, dto);
+    const response = await apiClient.post<ElementTag>(
+      `/api/projects/${projectId}/element-tags`,
+      dto,
+    );
     return response.data;
   },
 
@@ -181,7 +196,9 @@ export const elementsApi = {
   // ==================== Element-Tag Links ====================
 
   async getElementTags(projectId: string, elementId: string): Promise<string[]> {
-    const response = await apiClient.get<string[]>(`/api/projects/${projectId}/elements/${elementId}/tags`);
+    const response = await apiClient.get<string[]>(
+      `/api/projects/${projectId}/elements/${elementId}/tags`,
+    );
     return response.data;
   },
 
@@ -200,17 +217,34 @@ export const elementsApi = {
   // ==================== Element Stages ====================
 
   async listStages(projectId: string, elementId: string): Promise<ElementStage[]> {
-    const response = await apiClient.get<ElementStage[]>(`/api/projects/${projectId}/elements/${elementId}/stages`);
+    const response = await apiClient.get<ElementStage[]>(
+      `/api/projects/${projectId}/elements/${elementId}/stages`,
+    );
     return response.data;
   },
 
-  async createStage(projectId: string, elementId: string, dto: CreateElementStageDto): Promise<ElementStage> {
-    const response = await apiClient.post<ElementStage>(`/api/projects/${projectId}/elements/${elementId}/stages`, dto);
+  async createStage(
+    projectId: string,
+    elementId: string,
+    dto: CreateElementStageDto,
+  ): Promise<ElementStage> {
+    const response = await apiClient.post<ElementStage>(
+      `/api/projects/${projectId}/elements/${elementId}/stages`,
+      dto,
+    );
     return response.data;
   },
 
-  async updateStage(projectId: string, elementId: string, stageId: string, dto: UpdateElementStageDto): Promise<ElementStage> {
-    const response = await apiClient.patch<ElementStage>(`/api/projects/${projectId}/elements/${elementId}/stages/${stageId}`, dto);
+  async updateStage(
+    projectId: string,
+    elementId: string,
+    stageId: string,
+    dto: UpdateElementStageDto,
+  ): Promise<ElementStage> {
+    const response = await apiClient.patch<ElementStage>(
+      `/api/projects/${projectId}/elements/${elementId}/stages/${stageId}`,
+      dto,
+    );
     return response.data;
   },
 

@@ -28,7 +28,7 @@ export interface ElementOccurrenceRepository {
     elementMatches: Array<{
       elementId: string;
       matches: Array<{ text: string; position: number; length: number }>;
-    }>
+    }>,
   ): Promise<void>;
   getOccurrencesByNode(nodeId: string): Promise<ElementOccurrenceRecord[]>;
   getOccurrencesByElement(elementId: string): Promise<ElementBacklinkRecord[]>;
@@ -51,13 +51,15 @@ function toOccurrenceRecord(
   };
 }
 
-export function createElementOccurrenceRepository(_projectId?: string): ElementOccurrenceRepository {
+export function createElementOccurrenceRepository(
+  _projectId?: string,
+): ElementOccurrenceRepository {
   const saveOccurrencesForNode = async (
     nodeId: string,
     elementMatches: Array<{
       elementId: string;
       matches: Array<{ text: string; position: number; length: number }>;
-    }>
+    }>,
   ): Promise<void> => {
     const db = getDb();
     const now = new Date().toISOString();
@@ -123,7 +125,9 @@ export function createElementOccurrenceRepository(_projectId?: string): ElementO
   };
 
   const deleteOccurrencesByElement = async (elementId: string): Promise<void> => {
-    await getDb().delete(ElementOccurrenceTable).where(eq(ElementOccurrenceTable.elementId, elementId));
+    await getDb()
+      .delete(ElementOccurrenceTable)
+      .where(eq(ElementOccurrenceTable.elementId, elementId));
   };
 
   const countOccurrencesByElement = async (elementId: string): Promise<number> => {

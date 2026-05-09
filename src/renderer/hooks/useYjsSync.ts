@@ -37,9 +37,7 @@ export function useYjsSync({ docId, userId, projectId }: UseYjsSyncOptions): Use
   const yjsResult = useYjsDoc({ docId, userId });
   const { ydoc, isReady } = yjsResult;
 
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(
-    isSyncEnabled() ? 'idle' : 'disabled',
-  );
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSyncEnabled() ? 'idle' : 'disabled');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

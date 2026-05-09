@@ -26,7 +26,10 @@ export function ChaptersOutlinePanel({
   onOutlineSummaryUpdate,
 }: ChaptersOutlinePanelProps) {
   const [chaptersOutline, setChaptersOutline] = useState<ChapterOutlineData[]>([]);
-  const [editingSummary, setEditingSummary] = useState<{ nodeId: string; outlineId: string } | null>(null);
+  const [editingSummary, setEditingSummary] = useState<{
+    nodeId: string;
+    outlineId: string;
+  } | null>(null);
   const [summaryInput, setSummaryInput] = useState('');
 
   // 提取所有章节的outline
@@ -34,7 +37,7 @@ export function ChaptersOutlinePanel({
     const outlineData: ChapterOutlineData[] = nodes.map((node, index) => {
       const pmJson = contentsMap.get(node.id);
       const outline = pmJson ? extractOutline(pmJson) : [];
-      
+
       return {
         node,
         outline,
@@ -48,9 +51,7 @@ export function ChaptersOutlinePanel({
   // 切换章节展开状态
   const toggleChapter = (index: number) => {
     setChaptersOutline((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, isExpanded: !item.isExpanded } : item
-      )
+      prev.map((item, i) => (i === index ? { ...item, isExpanded: !item.isExpanded } : item)),
     );
   };
 
@@ -78,7 +79,7 @@ export function ChaptersOutlinePanel({
   // 统计章节字数
   const getChapterWordCount = (pmJson: string | undefined): number => {
     if (!pmJson) return 0;
-    
+
     try {
       const json = JSON.parse(pmJson);
       const extractText = (node: any): string => {
@@ -93,7 +94,7 @@ export function ChaptersOutlinePanel({
         }
         return text;
       };
-      
+
       const text = extractText(json);
       // 简单的字数统计（中文字符 + 英文单词）
       const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
@@ -148,7 +149,7 @@ export function ChaptersOutlinePanel({
         {chaptersOutline.map((chapter, index) => {
           const isActive = index === currentChapterIndex;
           const wordCount = getChapterWordCount(contentsMap.get(chapter.node.id));
-          
+
           return (
             <div key={chapter.node.id} style={{ marginBottom: 4 }}>
               {/* 章节标题行 */}
@@ -163,7 +164,9 @@ export function ChaptersOutlinePanel({
                   padding: '8px 12px 8px 16px',
                   cursor: 'pointer',
                   background: isActive ? 'rgba(184, 153, 104, 0.15)' : 'transparent',
-                  borderLeft: isActive ? '3px solid rgba(184, 153, 104, 1)' : '3px solid transparent',
+                  borderLeft: isActive
+                    ? '3px solid rgba(184, 153, 104, 1)'
+                    : '3px solid transparent',
                   transition: 'all 0.2s ease',
                 }}
                 onMouseEnter={(e) => {
@@ -214,8 +217,10 @@ export function ChaptersOutlinePanel({
                 <div style={{ paddingLeft: 28, paddingRight: 12 }}>
                   {chapter.outline.map((item, itemIndex) => {
                     const indent = (item.level - 1) * 12;
-                    const isEditing = editingSummary?.nodeId === chapter.node.id && editingSummary?.outlineId === item.id;
-                    
+                    const isEditing =
+                      editingSummary?.nodeId === chapter.node.id &&
+                      editingSummary?.outlineId === item.id;
+
                     return (
                       <div
                         key={`${chapter.node.id}-outline-${itemIndex}`}
@@ -241,7 +246,8 @@ export function ChaptersOutlinePanel({
                           }}
                           onMouseEnter={(e) => {
                             if (!isEditing) {
-                              e.currentTarget.parentElement!.style.background = 'rgba(184, 153, 104, 0.08)';
+                              e.currentTarget.parentElement!.style.background =
+                                'rgba(184, 153, 104, 0.08)';
                             }
                           }}
                           onMouseLeave={(e) => {
@@ -255,14 +261,12 @@ export function ChaptersOutlinePanel({
                               flex: 1,
                               fontWeight: item.level === 1 ? 600 : 400,
                               color:
-                                item.level === 1
-                                  ? 'rgba(0, 0, 0, 0.65)'
-                                  : 'rgba(0, 0, 0, 0.50)',
+                                item.level === 1 ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.50)',
                             }}
                           >
                             {item.text}
                           </span>
-                          
+
                           {/* 编辑按钮 */}
                           {!isEditing && (
                             <Edit2

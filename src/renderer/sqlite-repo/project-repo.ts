@@ -2,8 +2,8 @@ import { getDb } from '../lib/db';
 import { ProjectTable } from '../schema/drizzle';
 import { eq, desc } from 'drizzle-orm';
 import type { Project } from '../domain/project';
-import LogLevel  from 'loglevel';
-const log = LogLevel.getLogger("ProjectRepositorySQLite");
+import LogLevel from 'loglevel';
+const log = LogLevel.getLogger('ProjectRepositorySQLite');
 log.setLevel(LogLevel.levels.WARN);
 
 export type ProjectUpdateData = Partial<Omit<Project, 'id' | 'createdAt'>> & { updatedAt: string };
@@ -17,7 +17,6 @@ export interface ProjectRepository {
 
   // Element category management for projects
 }
-
 
 // Helper to map DB record to Domain entity
 // Drizzle returns the inferred type from schema, which matches our domain mostly
@@ -47,7 +46,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
 
   const findAll = async (): Promise<Project[]> => {
     if (!currentUserId) {
-      log.warn("No authenticated user found, loading anonymous projects");
+      log.warn('No authenticated user found, loading anonymous projects');
     }
 
     const rows = await getDb()
@@ -60,7 +59,9 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
 
   const create = async (input: Project): Promise<Project> => {
     if (input.userId !== userId) {
-      throw new Error(`Cannot create project: userId mismatch. Expected ${userId}, got ${input.userId}`);
+      throw new Error(
+        `Cannot create project: userId mismatch. Expected ${userId}, got ${input.userId}`,
+      );
     }
 
     const newProject: typeof ProjectTable.$inferInsert = {
@@ -84,7 +85,9 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
       return null;
     }
     if (data.userId !== undefined && data.userId !== userId) {
-      throw new Error(`Cannot update project: userId mismatch. Expected ${userId}, got ${data.userId}`);
+      throw new Error(
+        `Cannot update project: userId mismatch. Expected ${userId}, got ${data.userId}`,
+      );
     }
 
     const updateValues: Partial<typeof ProjectTable.$inferInsert> = {
@@ -94,9 +97,11 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.descriptionJson !== undefined) updateValues.descriptionJson = data.descriptionJson;
     if (data.userId !== undefined) updateValues.userId = data.userId;
-    const res = await getDb().update(ProjectTable)
+    const res = await getDb()
+      .update(ProjectTable)
       .set(updateValues)
-      .where(eq(ProjectTable.id, id)).returning();
+      .where(eq(ProjectTable.id, id))
+      .returning();
 
     return res[0] ? recordToDomain(res[0]) : null;
   };

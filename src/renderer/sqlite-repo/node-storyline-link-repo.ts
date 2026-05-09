@@ -26,11 +26,15 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
   };
 }
 
-export function createNodeStorylineLinkRepository(projectId: string, dbOverride?: DbExecutor): NodeStorylineLinkRepository {
+export function createNodeStorylineLinkRepository(
+  projectId: string,
+  dbOverride?: DbExecutor,
+): NodeStorylineLinkRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
   const ensureStorylineInProject = async (storylineId: string): Promise<void> => {
-    const rows = await dbProvider().select({ id: StorylineTable.id })
+    const rows = await dbProvider()
+      .select({ id: StorylineTable.id })
       .from(StorylineTable)
       .where(and(eq(StorylineTable.projectId, projectId), eq(StorylineTable.id, storylineId)))
       .limit(1);
@@ -40,7 +44,8 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
   };
 
   const ensureNodeInProject = async (nodeId: string): Promise<void> => {
-    const rows = await dbProvider().select({ id: BookNodeTable.id })
+    const rows = await dbProvider()
+      .select({ id: BookNodeTable.id })
       .from(BookNodeTable)
       .where(and(eq(BookNodeTable.projectId, projectId), eq(BookNodeTable.id, nodeId)))
       .limit(1);
@@ -50,12 +55,10 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
   };
 
   const addNodeToStoryline = async (nodeId: string, storylineId: string): Promise<void> => {
-    await Promise.all([
-      ensureStorylineInProject(storylineId),
-      ensureNodeInProject(nodeId),
-    ]);
+    await Promise.all([ensureStorylineInProject(storylineId), ensureNodeInProject(nodeId)]);
 
-    await dbProvider().insert(NodeStorylineLinkTable)
+    await dbProvider()
+      .insert(NodeStorylineLinkTable)
       .values({
         nodeId,
         storylineId,
@@ -64,41 +67,49 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
   };
 
   const removeNodeFromStoryline = async (nodeId: string, storylineId: string): Promise<void> => {
-    await dbProvider().delete(NodeStorylineLinkTable)
-      .where(and(
-        eq(NodeStorylineLinkTable.nodeId, nodeId),
-        eq(NodeStorylineLinkTable.storylineId, storylineId)
-      ));
+    await dbProvider()
+      .delete(NodeStorylineLinkTable)
+      .where(
+        and(
+          eq(NodeStorylineLinkTable.nodeId, nodeId),
+          eq(NodeStorylineLinkTable.storylineId, storylineId),
+        ),
+      );
   };
 
   const getStorylinesByNode = async (nodeId: string): Promise<Storyline[]> => {
-    const rows = await dbProvider().select({
-      storyline: StorylineTable
-    })
+    const rows = await dbProvider()
+      .select({
+        storyline: StorylineTable,
+      })
       .from(StorylineTable)
       .innerJoin(NodeStorylineLinkTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
-      .where(and(
-        eq(NodeStorylineLinkTable.nodeId, nodeId),
-        eq(StorylineTable.projectId, projectId)
-      ))
+      .where(
+        and(eq(NodeStorylineLinkTable.nodeId, nodeId), eq(StorylineTable.projectId, projectId)),
+      )
       .orderBy(asc(StorylineTable.orderKey));
 
-    return rows.map(r => toStoryline(r.storyline));
+    return rows.map((r) => toStoryline(r.storyline));
   };
 
-  const getStorylinesByNodeIds = async (nodeIds: string[]): Promise<Record<string, Storyline[]>> => {
+  const getStorylinesByNodeIds = async (
+    nodeIds: string[],
+  ): Promise<Record<string, Storyline[]>> => {
     if (nodeIds.length === 0) return {};
 
-    const rows = await dbProvider().select({
-      nodeId: NodeStorylineLinkTable.nodeId,
-      storyline: StorylineTable,
-    })
+    const rows = await dbProvider()
+      .select({
+        nodeId: NodeStorylineLinkTable.nodeId,
+        storyline: StorylineTable,
+      })
       .from(NodeStorylineLinkTable)
       .innerJoin(StorylineTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
-      .where(and(
-        inArray(NodeStorylineLinkTable.nodeId, nodeIds),
-        eq(StorylineTable.projectId, projectId)
-      ))
+      .where(
+        and(
+          inArray(NodeStorylineLinkTable.nodeId, nodeIds),
+          eq(StorylineTable.projectId, projectId),
+        ),
+      )
       .orderBy(asc(StorylineTable.orderKey));
 
     const grouped: Record<string, Storyline[]> = {};
@@ -116,23 +127,24 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
   const getNodeIdsByStoryline = async (storylineId: string): Promise<string[]> => {
     await ensureStorylineInProject(storylineId);
 
-    const rows = await dbProvider().select({ nodeId: NodeStorylineLinkTable.nodeId })
+    const rows = await dbProvider()
+      .select({ nodeId: NodeStorylineLinkTable.nodeId })
       .from(NodeStorylineLinkTable)
       .where(eq(NodeStorylineLinkTable.storylineId, storylineId));
 
-    return rows.map(r => r.nodeId);
+    return rows.map((r) => r.nodeId);
   };
 
   const setNodeStorylines = async (nodeId: string, storylineIds: string[]): Promise<void> => {
     await ensureNodeInProject(nodeId);
 
     if (storylineIds.length > 0) {
-      const rows = await dbProvider().select({ id: StorylineTable.id })
+      const rows = await dbProvider()
+        .select({ id: StorylineTable.id })
         .from(StorylineTable)
-        .where(and(
-          eq(StorylineTable.projectId, projectId),
-          inArray(StorylineTable.id, storylineIds)
-        ));
+        .where(
+          and(eq(StorylineTable.projectId, projectId), inArray(StorylineTable.id, storylineIds)),
+        );
       if (rows.length !== storylineIds.length) {
         throw new Error('One or more storylines do not belong to the active project.');
       }
@@ -146,7 +158,7 @@ export function createNodeStorylineLinkRepository(projectId: string, dbOverride?
           storylineIds.map((sid) => ({
             nodeId,
             storylineId: sid,
-          }))
+          })),
         );
       }
     });

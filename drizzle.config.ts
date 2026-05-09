@@ -6,6 +6,6 @@ export default defineConfig({
   dialect: 'sqlite',
   dbCredentials: {
     // dev db path
-    url: '/Users/example/Library/Application Support/Drifting/databases/JqhsLzV8eBuD7G2atU8nzrAkHQD3gtTP_drifting.db'
-  }
+    url: '/Users/example/Library/Application Support/Drifting/databases/JqhsLzV8eBuD7G2atU8nzrAkHQD3gtTP_drifting.db',
+  },
 });

@@ -52,11 +52,10 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     };
   }, [isResizing, setSidebarWidth, setResizingSidebar, sidebarType]);
 
-
   return (
     <div
       style={{
-        width: isExpanded ? expandedWidth : (collapsedContent ? undefined : 0),
+        width: isExpanded ? expandedWidth : collapsedContent ? undefined : 0,
         display: 'flex',
         flexDirection: 'column',
         background: '#fefdfb',
@@ -67,11 +66,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       }}
     >
       {/* 顶部固定区域 */}
-      {topBar && (
-        <div style={{ flexShrink: 0 }}>
-          {topBar}
-        </div>
-      )}
+      {topBar && <div style={{ flexShrink: 0 }}>{topBar}</div>}
 
       {/* 可插拔的内容区域 */}
       <div
@@ -86,7 +81,6 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       >
         {/* 内容区域 - 根据展开状态显示 */}
         {isExpanded ? children : collapsedContent}
-
       </div>
 
       {isExpanded && (

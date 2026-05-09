@@ -1,26 +1,26 @@
-import { Extension } from '@tiptap/core'
-import type { SuggestionOptions } from '@tiptap/suggestion'
-import Suggestion from '@tiptap/suggestion'
+import { Extension } from '@tiptap/core';
+import type { SuggestionOptions } from '@tiptap/suggestion';
+import Suggestion from '@tiptap/suggestion';
 
-export type SlashMenuItem = any
+export type SlashMenuItem = any;
 
 export interface SlashMenuOptions<I = SlashMenuItem> {
-  pluginKey?: any
-  char: string
-  allowSpaces: boolean
-  allowToIncludeChar: boolean
-  startOfLine: boolean
-  allowedPrefixes: string[] | null
-  decorationTag: string
-  decorationClass: string
-  decorationContent: string
-  decorationEmptyClass: string
+  pluginKey?: any;
+  char: string;
+  allowSpaces: boolean;
+  allowToIncludeChar: boolean;
+  startOfLine: boolean;
+  allowedPrefixes: string[] | null;
+  decorationTag: string;
+  decorationClass: string;
+  decorationContent: string;
+  decorationEmptyClass: string;
   // Provide items and what to do when user selects one
-  items: SuggestionOptions<I>['items']
-  command: SuggestionOptions<I>['command']
+  items: SuggestionOptions<I>['items'];
+  command: SuggestionOptions<I>['command'];
   // Optional custom render lifecycle, usually used by frameworks (React/Vue) via ReactRenderer, etc.
-  render?: SuggestionOptions<I>['render']
-  allow?: SuggestionOptions<I>['allow']
+  render?: SuggestionOptions<I>['render'];
+  allow?: SuggestionOptions<I>['allow'];
 }
 
 /**
@@ -47,7 +47,7 @@ export const SlashMenu = Extension.create<SlashMenuOptions>({
       command: () => null,
       render: undefined,
       allow: undefined,
-    }
+    };
   },
 
   addProseMirrorPlugins() {
@@ -66,10 +66,10 @@ export const SlashMenu = Extension.create<SlashMenuOptions>({
       command: this.options.command,
       render: this.options.render,
       allow: this.options.allow,
-    }
+    };
 
-    return [Suggestion({ editor: this.editor, ...suggestionOptions })]
+    return [Suggestion({ editor: this.editor, ...suggestionOptions })];
   },
-})
+});
 
-export default SlashMenu
+export default SlashMenu;

@@ -26,7 +26,7 @@ export class ElementParserService {
    */
   static parseElementsFromContent(
     content: JSONContent,
-    availableElements: BookElement[]
+    availableElements: BookElement[],
   ): ElementMatch[] {
     const matches = new Map<string, ElementMatch>();
 
@@ -75,7 +75,7 @@ export class ElementParserService {
    */
   private static findMatches(
     text: string,
-    searchTerm: string
+    searchTerm: string,
   ): Array<{ text: string; position: number; length: number }> {
     const matches: Array<{ text: string; position: number; length: number }> = [];
     const regex = new RegExp(this.escapeRegExp(searchTerm), 'g');
@@ -103,10 +103,7 @@ export class ElementParserService {
    * 检查两个元素匹配结果是否有差异
    * 用于判断是否需要更新数据库
    */
-  static hasChanges(
-    oldMatches: ElementMatch[],
-    newMatches: ElementMatch[]
-  ): boolean {
+  static hasChanges(oldMatches: ElementMatch[], newMatches: ElementMatch[]): boolean {
     if (oldMatches.length !== newMatches.length) {
       return true;
     }

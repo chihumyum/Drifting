@@ -108,11 +108,7 @@ export async function pushUpdates(
 
 // ───── Pull ─────
 
-export async function pullUpdates(
-  docId: string,
-  ydoc: Y.Doc,
-  repo?: YjsRepository,
-): Promise<void> {
+export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsRepository): Promise<void> {
   if (!isSyncEnabled()) return;
 
   const r = repo ?? createYjsRepository();

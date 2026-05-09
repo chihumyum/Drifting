@@ -44,7 +44,7 @@ export function useTimelineTabWidths({
       const titleWidth = measureTextWidth(
         title || ('title' in item ? 'Untitled Chapter' : 'Untitled Element'),
         13,
-        400
+        400,
       );
       return Math.min(Math.max(titleWidth + padding, minWidth), maxWidth);
     });
@@ -98,4 +98,3 @@ export function useTimelineTabWidths({
 
   return { widths, getNodeWidth };
 }
-

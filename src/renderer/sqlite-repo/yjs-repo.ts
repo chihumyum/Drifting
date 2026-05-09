@@ -47,17 +47,18 @@ function normalizeBlob(input: unknown): Uint8Array {
 
 export function createYjsRepository(): YjsRepository {
   const listUpdates = async (docId: string, sinceId?: number): Promise<YjsUpdateRow[]> => {
-    const rows = sinceId === undefined
-      ? await getDb()
-        .select()
-        .from(yjsUpdates)
-        .where(eq(yjsUpdates.docId, docId))
-        .orderBy(asc(yjsUpdates.id))
-      : await getDb()
-        .select()
-        .from(yjsUpdates)
-        .where(and(eq(yjsUpdates.docId, docId), gt(yjsUpdates.id, sinceId)))
-        .orderBy(asc(yjsUpdates.id));
+    const rows =
+      sinceId === undefined
+        ? await getDb()
+            .select()
+            .from(yjsUpdates)
+            .where(eq(yjsUpdates.docId, docId))
+            .orderBy(asc(yjsUpdates.id))
+        : await getDb()
+            .select()
+            .from(yjsUpdates)
+            .where(and(eq(yjsUpdates.docId, docId), gt(yjsUpdates.id, sinceId)))
+            .orderBy(asc(yjsUpdates.id));
 
     return rows.map((row) => ({
       id: row.id,

@@ -30,10 +30,10 @@ export function BackButton() {
         transition: 'all 0.2s ease',
         zIndex: 10,
       }}
-      onMouseEnter={e => {
+      onMouseEnter={(e) => {
         e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
       }}
-      onMouseLeave={e => {
+      onMouseLeave={(e) => {
         e.currentTarget.style.background = 'white';
       }}
     >

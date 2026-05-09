@@ -5,118 +5,129 @@ import type { NodeContent } from '../domain/node-content';
 import { initDatabase } from '../lib/db';
 import { syncNodeContentUpdate } from './sync-helpers';
 
-
 export interface UseBookContentContext {
-    userId: string;
-    projectId: string;
+  userId: string;
+  projectId: string;
 }
 
 export function useBookContent({ userId, projectId }: UseBookContentContext) {
-    if (!userId) {
-        throw new Error('useBookContent requires a userId');
-    }
-    const contentRepoRef = useRef(createBookContentRepository());
-    const contentRepo = contentRepoRef.current;
-    const ensureDb = useCallback(async () => {
-        await initDatabase(userId);
-    }, [userId]);
+  if (!userId) {
+    throw new Error('useBookContent requires a userId');
+  }
+  const contentRepoRef = useRef(createBookContentRepository());
+  const contentRepo = contentRepoRef.current;
+  const ensureDb = useCallback(async () => {
+    await initDatabase(userId);
+  }, [userId]);
 
-    const getContentByNodeId = useCallback(
-        async (nodeId: string) => {
-            await ensureDb();
-            return contentRepo.findByNodeId(nodeId);
-        },
-        [contentRepo, ensureDb]
-    );
+  const getContentByNodeId = useCallback(
+    async (nodeId: string) => {
+      await ensureDb();
+      return contentRepo.findByNodeId(nodeId);
+    },
+    [contentRepo, ensureDb],
+  );
 
-    const getContentById = useCallback(
-        async (id: string) => {
-            await ensureDb();
-            return contentRepo.findById(id);
-        },
-        [contentRepo, ensureDb]
-    );
+  const getContentById = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      return contentRepo.findById(id);
+    },
+    [contentRepo, ensureDb],
+  );
 
-    const updateContentByNodeId = useCallback(
-        async (nodeId: string, updates: Partial<NodeContent>) => {
-            await ensureDb();
-            const cont = await contentRepo.findByNodeId(nodeId);
-            if (!cont) {
-                throw new Error(`Content with nodeId: ${nodeId} not found`);
-            }
-            const now = new Date().toISOString();
-            const updatedData = {
-                ...cont,
-                ...updates,
-                updatedAt: now,
-            };
+  const updateContentByNodeId = useCallback(
+    async (nodeId: string, updates: Partial<NodeContent>) => {
+      await ensureDb();
+      const cont = await contentRepo.findByNodeId(nodeId);
+      if (!cont) {
+        throw new Error(`Content with nodeId: ${nodeId} not found`);
+      }
+      const now = new Date().toISOString();
+      const updatedData = {
+        ...cont,
+        ...updates,
+        updatedAt: now,
+      };
 
-            const result = await contentRepo.update(cont.nodeId, updatedData);
-            syncNodeContentUpdate(nodeId, projectId, {
-                contentJson: updatedData.contentJson,
-                outlineJson: updatedData.outlineJson,
-            });
-            return result;
-        },
-        [contentRepo, ensureDb, projectId]
-    );
+      const result = await contentRepo.update(cont.nodeId, updatedData);
+      syncNodeContentUpdate(nodeId, projectId, {
+        contentJson: updatedData.contentJson,
+        outlineJson: updatedData.outlineJson,
+      });
+      return result;
+    },
+    [contentRepo, ensureDb, projectId],
+  );
 
-    const updateContentById = useCallback(
-        async (id: string, updates: Partial<NodeContent>) => {
-            await ensureDb();
-            const cont = await contentRepo.findById(id);
-            if (!cont) {
-                throw new Error(`Content with id: ${id} not found`);
-            }
-            const now = new Date().toISOString();
-            const updatedData = {
-                ...cont,
-                ...updates,
-                updatedAt: now,
-            };
+  const updateContentById = useCallback(
+    async (id: string, updates: Partial<NodeContent>) => {
+      await ensureDb();
+      const cont = await contentRepo.findById(id);
+      if (!cont) {
+        throw new Error(`Content with id: ${id} not found`);
+      }
+      const now = new Date().toISOString();
+      const updatedData = {
+        ...cont,
+        ...updates,
+        updatedAt: now,
+      };
 
-            const result = await contentRepo.update(cont.nodeId, updatedData);
-            syncNodeContentUpdate(cont.nodeId, projectId, {
-                contentJson: updatedData.contentJson,
-                outlineJson: updatedData.outlineJson,
-            });
-            return result;
-        },
-        [contentRepo, ensureDb, projectId]
-    );
+      const result = await contentRepo.update(cont.nodeId, updatedData);
+      syncNodeContentUpdate(cont.nodeId, projectId, {
+        contentJson: updatedData.contentJson,
+        outlineJson: updatedData.outlineJson,
+      });
+      return result;
+    },
+    [contentRepo, ensureDb, projectId],
+  );
 
+  const createContent = useCallback(
+    async (nodeId: string, content: Partial<NodeContent>) => {
+      await ensureDb();
+      const created = await contentRepo.create({
+        nodeId,
+        contentJson: content.contentJson,
+        outlineJson: content.outlineJson,
+      });
 
-    const createContent = useCallback(async (
-        nodeId: string,
-        content: Partial<NodeContent>
-    ) => {
-        await ensureDb();
-        const created = await contentRepo.create({
-            nodeId,
-            contentJson: content.contentJson,
-            outlineJson: content.outlineJson,
-        });
+      syncNodeContentUpdate(nodeId, projectId, {
+        contentJson: content.contentJson,
+        outlineJson: content.outlineJson,
+      });
 
-        syncNodeContentUpdate(nodeId, projectId, {
-            contentJson: content.contentJson,
-            outlineJson: content.outlineJson,
-        });
+      return created;
+    },
+    [contentRepo, ensureDb, projectId],
+  );
 
-        return created;
-    }, [contentRepo, ensureDb, projectId]);
+  const getOutlineByNodeId = useCallback(
+    async (nodeId: string) => {
+      await ensureDb();
+      const content = await contentRepo.findByNodeId(nodeId);
+      return content?.outlineJson;
+    },
+    [contentRepo, ensureDb],
+  );
 
-    const getOutlineByNodeId = useCallback(async (nodeId: string) => {
-        await ensureDb();
-        const content = await contentRepo.findByNodeId(nodeId);
-        return content?.outlineJson;
-    }, [contentRepo, ensureDb]);
-
-    return useMemo(() => ({
-        getContentByNodeId,
-        getContentById,
-        updateContentById,
-        updateContentByNodeId,
-        createContent,
-        getOutlineByNodeId,
-    }), [getContentByNodeId, getContentById, updateContentById, updateContentByNodeId, createContent, getOutlineByNodeId]);
+  return useMemo(
+    () => ({
+      getContentByNodeId,
+      getContentById,
+      updateContentById,
+      updateContentByNodeId,
+      createContent,
+      getOutlineByNodeId,
+    }),
+    [
+      getContentByNodeId,
+      getContentById,
+      updateContentById,
+      updateContentByNodeId,
+      createContent,
+      getOutlineByNodeId,
+    ],
+  );
 }

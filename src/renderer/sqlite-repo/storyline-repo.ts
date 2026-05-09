@@ -3,10 +3,12 @@ import { StorylineTable } from '../schema/drizzle';
 import { eq, asc } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
 import LogLevel from 'loglevel';
-const log = LogLevel.getLogger("StorylineRepository");
+const log = LogLevel.getLogger('StorylineRepository');
 log.setLevel(LogLevel.levels.WARN);
 
-export type UpdateStorylineInput = Partial<Omit<Storyline, 'id' | 'createdAt'>> & { updatedAt: string };
+export type UpdateStorylineInput = Partial<Omit<Storyline, 'id' | 'createdAt'>> & {
+  updatedAt: string;
+};
 export interface StorylineRepository {
   // Storyline CRUD
   createStoryline(input: Storyline): Promise<Storyline>;
@@ -15,7 +17,6 @@ export interface StorylineRepository {
   updateStoryline(id: string, input: UpdateStorylineInput): Promise<Storyline>;
   deleteStoryline(id: string): Promise<void>;
 }
-
 
 function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
   return {
@@ -31,13 +32,18 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
   };
 }
 
-export function createStorylineRepository(projectId: string, dbOverride?: DbExecutor): StorylineRepository {
+export function createStorylineRepository(
+  projectId: string,
+  dbOverride?: DbExecutor,
+): StorylineRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
   const createStoryline = async (input: Storyline): Promise<Storyline> => {
-    log.debug("Creating storyline:", input);
+    log.debug('Creating storyline:', input);
     if (input.projectId !== projectId) {
-      throw new Error(`Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`);
+      throw new Error(
+        `Cannot create storyline: projectId mismatch. Expected ${projectId}, got ${input.projectId}`,
+      );
     }
 
     const newStoryline: typeof StorylineTable.$inferInsert = {
@@ -51,8 +57,8 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
-    log.debug("Inserting storyline into database:", newStoryline);
-    
+    log.debug('Inserting storyline into database:', newStoryline);
+
     const inserted = await dbProvider().insert(StorylineTable).values(newStoryline).returning();
     if (inserted.length > 0) {
       const candidate = toStoryline(inserted[0]);
@@ -61,11 +67,11 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
       }
       log.warn('Insert returning payload incomplete, fallback to re-query by id:', inserted[0]);
     } else {
-      log.warn("Failed to insert storyline, no rows returned");
+      log.warn('Failed to insert storyline, no rows returned');
     }
-    log.debug("Inserted storyline, now re-querying to confirm:", newStoryline.id);
+    log.debug('Inserted storyline, now re-querying to confirm:', newStoryline.id);
     const reloaded = await getStorylineById(newStoryline.id);
-    log.debug("Reloaded storyline after insert attempt:", reloaded);
+    log.debug('Reloaded storyline after insert attempt:', reloaded);
     if (!reloaded) {
       throw new Error(`Failed to create storyline ${newStoryline.id}`);
     }
@@ -73,8 +79,12 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
   };
 
   const getStorylineById = async (id: string): Promise<Storyline | null> => {
-    const rows = await dbProvider().select().from(StorylineTable).where(eq(StorylineTable.id, id)).limit(1);
-    if (rows.length === 0) { 
+    const rows = await dbProvider()
+      .select()
+      .from(StorylineTable)
+      .where(eq(StorylineTable.id, id))
+      .limit(1);
+    if (rows.length === 0) {
       log.warn(`Storyline with id ${id} not found`);
       return null;
     }
@@ -83,7 +93,8 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
   };
 
   const getStorylinesByProject = async (): Promise<Storyline[]> => {
-    const rows = await dbProvider().select()
+    const rows = await dbProvider()
+      .select()
       .from(StorylineTable)
       .where(eq(StorylineTable.projectId, projectId))
       .orderBy(asc(StorylineTable.orderKey));
@@ -109,14 +120,15 @@ export function createStorylineRepository(projectId: string, dbOverride?: DbExec
     if (input.orderKey !== undefined) updateValues.orderKey = input.orderKey;
     if (input.descriptionJson !== undefined) updateValues.descriptionJson = input.descriptionJson;
 
-
-    const res = await dbProvider().update(StorylineTable)
+    const res = await dbProvider()
+      .update(StorylineTable)
       .set(updateValues)
-      .where(eq(StorylineTable.id, id)).returning();
+      .where(eq(StorylineTable.id, id))
+      .returning();
 
     if (!res || res.length === 0) {
       throw new Error(`Failed to update storyline ${id}`);
-    } 
+    }
     return toStoryline(res[0]);
   };
 

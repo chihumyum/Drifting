@@ -29,7 +29,7 @@ Drifting is a desktop application designed for writers and storytellers to organ
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - pnpm (recommended) or npm
 
 ### Installation

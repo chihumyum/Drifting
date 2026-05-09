@@ -14,11 +14,11 @@ import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../viewComponents/editor/TagEditor';
 import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
 import { BacklinksPanel } from '../viewComponents/editor/BacklinksPanel';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 
-const log = loglevel.getLogger("ElementEditorView");
+const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
 
 const DEFAULT_DOC_STRING = JSON.stringify({
@@ -66,7 +66,7 @@ export function ElementEditorView() {
       return;
     }
 
-    const element = bookElements.find(e => e.id === elementId) || null;
+    const element = bookElements.find((e) => e.id === elementId) || null;
     setCurElement(element);
     setNameValue(element?.name || '');
     setSummaryValue(element?.summary || '');
@@ -209,39 +209,45 @@ export function ElementEditorView() {
 
   if (!elementId || !curElement) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: '#999',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: '#999',
+        }}
+      >
         Select an element to edit
       </div>
     );
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      position: 'relative',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        position: 'relative',
+      }}
+    >
       {/* Header Section */}
-      <div style={{
-        padding: '60px 80px 24px 80px',
-        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
-      }}>
+      <div
+        style={{
+          padding: '60px 80px 24px 80px',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+        }}
+      >
         {/* Name */}
         <div style={{ marginBottom: 16 }}>
           {editingName ? (
             <input
               type="text"
               value={nameValue}
-              onChange={e => setNameValue(e.target.value)}
+              onChange={(e) => setNameValue(e.target.value)}
               onBlur={handleSaveName}
-              onKeyDown={e => {
+              onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveName();
                 if (e.key === 'Escape') {
                   setNameValue(curElement.name);
@@ -273,10 +279,10 @@ export function ElementEditorView() {
                 color: 'rgba(0, 0, 0, 0.85)',
                 transition: 'color 0.2s ease',
               }}
-              onMouseEnter={e => {
+              onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'rgba(0, 0, 0, 0.6)';
               }}
-              onMouseLeave={e => {
+              onMouseLeave={(e) => {
                 e.currentTarget.style.color = 'rgba(0, 0, 0, 0.85)';
               }}
             >
@@ -290,9 +296,9 @@ export function ElementEditorView() {
           {editingSummary ? (
             <textarea
               value={summaryValue}
-              onChange={e => setSummaryValue(e.target.value)}
+              onChange={(e) => setSummaryValue(e.target.value)}
               onBlur={handleSaveSummary}
-              onKeyDown={e => {
+              onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setSummaryValue(curElement.summary);
                   setEditingSummary(false);
@@ -323,10 +329,10 @@ export function ElementEditorView() {
                 transition: 'background 0.2s ease',
                 minHeight: 24,
               }}
-              onMouseEnter={e => {
+              onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(0, 0, 0, 0.03)';
               }}
-              onMouseLeave={e => {
+              onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
               }}
             >
@@ -346,7 +352,7 @@ export function ElementEditorView() {
               <>
                 <select
                   value={categoryValue}
-                  onChange={e => {
+                  onChange={(e) => {
                     const val = e.target.value;
                     if (val === '__new__') {
                       setShowNewCategoryModal(true);
@@ -376,7 +382,7 @@ export function ElementEditorView() {
                     cursor: 'pointer',
                   }}
                 >
-                  {bookElementCategories.map(cat => (
+                  {bookElementCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
@@ -386,32 +392,34 @@ export function ElementEditorView() {
 
                 {/* New Category Modal */}
                 {showNewCategoryModal && (
-                  <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0, 0, 0, 0.5)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                  }}
+                  <div
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000,
+                    }}
                     onClick={() => {
                       setShowNewCategoryModal(false);
                       setNewCategoryName('');
                       setEditingCategory(false);
                     }}
                   >
-                    <div style={{
-                      background: 'white',
-                      borderRadius: 12,
-                      padding: 24,
-                      minWidth: 320,
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                    }}
-                      onClick={e => e.stopPropagation()}
+                    <div
+                      style={{
+                        background: 'white',
+                        borderRadius: 12,
+                        padding: 24,
+                        minWidth: 320,
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600 }}>
                         New Category
@@ -419,8 +427,8 @@ export function ElementEditorView() {
                       <input
                         type="text"
                         value={newCategoryName}
-                        onChange={e => setNewCategoryName(e.target.value)}
-                        onKeyDown={e => {
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
                           if (e.key === 'Enter') handleCreateNewCategory();
                           if (e.key === 'Escape') {
                             setShowNewCategoryModal(false);
@@ -491,7 +499,8 @@ export function ElementEditorView() {
                   border: '1px solid var(--accent-border, #e8dcc8)',
                 }}
               >
-                {bookElementCategories.find(cat => cat.id === curElement.categoryId)?.name ?? curElement.categoryId}
+                {bookElementCategories.find((cat) => cat.id === curElement.categoryId)?.name ??
+                  curElement.categoryId}
               </div>
             )}
           </div>
@@ -511,19 +520,18 @@ export function ElementEditorView() {
       </div>
 
       {/* Editor Content */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        padding: '32px 80px',
-      }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: '32px 80px',
+        }}
+      >
         <EditorContent editor={editor} />
       </div>
 
       {/* Editor Context Menu */}
-      <EditorContextMenu
-        editorType="element"
-        onAction={handleContextAction}
-      />
+      <EditorContextMenu editorType="element" onAction={handleContextAction} />
 
       {/* Right Vertical Buttons */}
     </div>

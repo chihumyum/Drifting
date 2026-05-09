@@ -1,6 +1,6 @@
 /**
  * Axios Configuration
- * 
+ *
  * 配置 Axios 实例和拦截器
  * - 附带 trace id
  * - 基于 better-auth cookie 会话处理 401
@@ -11,9 +11,7 @@ import { useAuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
 
 const BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:3000';
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // 创建 Axios 实例
 export const apiClient = axios.create({
@@ -37,7 +35,7 @@ apiClient.interceptors.request.use(
   },
   (error: AxiosError) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // ==================== Response Interceptor ====================
@@ -59,10 +57,10 @@ apiClient.interceptors.response.use(
         // noop
       }
     }
-    
+
     // 其他错误直接返回
     return Promise.reject(error);
-  }
+  },
 );
 
 // 导出配置好的 axios 实例

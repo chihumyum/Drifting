@@ -31,12 +31,14 @@ export function OutlineSummaryPanel({ outline, onSummaryUpdate }: OutlineSummary
 
   if (outline.length === 0) {
     return (
-      <div style={{
-        padding: 16,
-        fontSize: 12,
-        color: 'rgba(0, 0, 0, 0.45)',
-        textAlign: 'center',
-      }}>
+      <div
+        style={{
+          padding: 16,
+          fontSize: 12,
+          color: 'rgba(0, 0, 0, 0.45)',
+          textAlign: 'center',
+        }}
+      >
         No headings in this chapter. Add headings to see outline.
       </div>
     );
@@ -59,18 +61,22 @@ export function OutlineSummaryPanel({ outline, onSummaryUpdate }: OutlineSummary
             }}
           >
             {/* Heading */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginBottom: item.summary || isEditing ? 6 : 0,
-            }}>
-              <span style={{
-                flex: 1,
-                fontSize: 13,
-                fontWeight: item.level === 1 ? 600 : 500,
-                color: item.level === 1 ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
-              }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: item.summary || isEditing ? 6 : 0,
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  fontWeight: item.level === 1 ? 600 : 500,
+                  color: item.level === 1 ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
+                }}
+              >
                 {item.text}
               </span>
 
@@ -150,15 +156,17 @@ export function OutlineSummaryPanel({ outline, onSummaryUpdate }: OutlineSummary
                 </div>
               </div>
             ) : item.summary ? (
-              <div style={{
-                padding: 8,
-                fontSize: 12,
-                color: 'rgba(0, 0, 0, 0.65)',
-                background: 'rgba(184, 153, 104, 0.05)',
-                borderRadius: 4,
-                borderLeft: '2px solid rgba(184, 153, 104, 0.4)',
-                lineHeight: 1.5,
-              }}>
+              <div
+                style={{
+                  padding: 8,
+                  fontSize: 12,
+                  color: 'rgba(0, 0, 0, 0.65)',
+                  background: 'rgba(184, 153, 104, 0.05)',
+                  borderRadius: 4,
+                  borderLeft: '2px solid rgba(184, 153, 104, 0.4)',
+                  lineHeight: 1.5,
+                }}
+              >
                 {item.summary}
               </div>
             ) : null}

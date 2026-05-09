@@ -73,7 +73,11 @@ const PULL_INTERVAL_MS = 30_000;
 function setStatus(s: SyncStatus, detail?: string) {
   currentStatus = s;
   for (const listener of statusListeners) {
-    try { listener(s, detail); } catch { /* ignore */ }
+    try {
+      listener(s, detail);
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -83,7 +87,9 @@ export function getSyncStatus(): SyncStatus {
 
 export function onSyncStatusChange(listener: SyncStatusListener): () => void {
   statusListeners.add(listener);
-  return () => { statusListeners.delete(listener); };
+  return () => {
+    statusListeners.delete(listener);
+  };
 }
 
 // ==================== Push ====================
@@ -97,9 +103,10 @@ export function enqueueSyncMutation(mutation: SyncMutation): void {
 
   // Coalesce: if same entity+type already queued, replace payload
   const existing = pushQueue.findIndex(
-    (m) => m.entityType === mutation.entityType
-      && m.entityId === mutation.entityId
-      && m.mutationType === mutation.mutationType,
+    (m) =>
+      m.entityType === mutation.entityType &&
+      m.entityId === mutation.entityId &&
+      m.mutationType === mutation.mutationType,
   );
   if (existing >= 0) {
     pushQueue[existing] = mutation;
@@ -211,7 +218,9 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
         // parentId = storylineId, entityId = nodeId
         await apiClient.post(`/api/projects/${projectId}/storylines/${parentId}/nodes/${entityId}`);
       } else if (mutationType === 'delete') {
-        await apiClient.delete(`/api/projects/${projectId}/storylines/${parentId}/nodes/${entityId}`);
+        await apiClient.delete(
+          `/api/projects/${projectId}/storylines/${parentId}/nodes/${entityId}`,
+        );
       } else if (mutationType === 'update') {
         // "update" = set node storylines (bulk replace)
         await apiClient.put(`/api/projects/${projectId}/nodes/${entityId}/storylines`, payload);
@@ -245,9 +254,14 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
       if (mutationType === 'create') {
         await apiClient.post(`/api/projects/${projectId}/elements/${parentId}/stages`, payload);
       } else if (mutationType === 'update') {
-        await apiClient.patch(`/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`, payload);
+        await apiClient.patch(
+          `/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`,
+          payload,
+        );
       } else {
-        await apiClient.delete(`/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`);
+        await apiClient.delete(
+          `/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`,
+        );
       }
       break;
 
@@ -288,7 +302,9 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
         // entityId = nodeId, parentId = tagId
         await apiClient.post(`/api/projects/${projectId}/node-tags/${parentId}/nodes/${entityId}`);
       } else if (mutationType === 'delete') {
-        await apiClient.delete(`/api/projects/${projectId}/node-tags/${parentId}/nodes/${entityId}`);
+        await apiClient.delete(
+          `/api/projects/${projectId}/node-tags/${parentId}/nodes/${entityId}`,
+        );
       } else if (mutationType === 'update') {
         // Bulk set
         await apiClient.put(`/api/projects/${projectId}/node-tags/by-node/${entityId}`, payload);
@@ -335,13 +351,34 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
   try {
     const [nodes, storylines, elements, categories, stages, nodeTags, elementTags] =
       await Promise.all([
-        apiClient.get(`/api/projects/${projectId}/nodes`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/storylines`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/elements`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/categories`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/stages`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/node-tags`).then(r => r.data).catch(() => []),
-        apiClient.get(`/api/projects/${projectId}/element-tags`).then(r => r.data).catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/nodes`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/storylines`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/elements`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/categories`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/stages`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/node-tags`)
+          .then((r) => r.data)
+          .catch(() => []),
+        apiClient
+          .get(`/api/projects/${projectId}/element-tags`)
+          .then((r) => r.data)
+          .catch(() => []),
       ]);
 
     setStatus('idle');

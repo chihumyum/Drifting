@@ -4,10 +4,10 @@ import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 import { useAuthStore } from '../../store/auth';
 
-const log = loglevel.getLogger("LeftQuickButtons");
+const log = loglevel.getLogger('LeftQuickButtons');
 log.setLevel(loglevel.levels.ERROR);
 
 // Storyline color palette
@@ -35,8 +35,8 @@ export function LeftQuickButtons() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const bookNodes = useDataStore(state => state.bookNodes);
-  const storylines = useDataStore(state => state.storylines);
+  const bookNodes = useDataStore((state) => state.bookNodes);
+  const storylines = useDataStore((state) => state.storylines);
 
   // Check if we're currently in a storyline editor
   const getCurrentStorylineId = (): string | null => {
@@ -48,12 +48,13 @@ export function LeftQuickButtons() {
     try {
       // Find the maximum end position among all nodes
       // If no nodes exist, start from position 1
-      const maxEnd = bookNodes.length > 0
-        ? bookNodes.reduce((max, node) => {
-          const nodeEnd = node.end ?? node.start;
-          return Math.max(max, nodeEnd);
-        }, 0)
-        : 0; // Start from 0 so first node begins at 1
+      const maxEnd =
+        bookNodes.length > 0
+          ? bookNodes.reduce((max, node) => {
+              const nodeEnd = node.end ?? node.start;
+              return Math.max(max, nodeEnd);
+            }, 0)
+          : 0; // Start from 0 so first node begins at 1
       const newStart = maxEnd + 1;
       const newEnd = newStart + 10; // Default chapter length
 
@@ -97,7 +98,9 @@ export function LeftQuickButtons() {
 
       // Scroll timeline to the new chapter position
       setTimeout(() => {
-        const timelineContainer = document.querySelector('[data-timeline-container]') as HTMLElement;
+        const timelineContainer = document.querySelector(
+          '[data-timeline-container]',
+        ) as HTMLElement;
         if (timelineContainer) {
           const GRID_UNIT = 20; // Same as TIMELINE_CONFIG.GRID_UNIT
           const scrollPosition = newStart * GRID_UNIT;
@@ -163,11 +166,11 @@ export function LeftQuickButtons() {
           transition: 'all 0.2s ease',
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
-        onMouseEnter={e => {
+        onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-1px)';
           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         }}
-        onMouseLeave={e => {
+        onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
         }}
@@ -194,11 +197,11 @@ export function LeftQuickButtons() {
           transition: 'all 0.2s ease',
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
-        onMouseEnter={e => {
+        onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-1px)';
           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         }}
-        onMouseLeave={e => {
+        onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
         }}

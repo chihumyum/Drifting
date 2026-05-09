@@ -1,8 +1,8 @@
 import { drizzle } from 'drizzle-orm/sqlite-proxy';
 import * as schema from '../schema/drizzle';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("DbLib");
+const log = loglevel.getLogger('DbLib');
 // log.setLevel(loglevel.levels.WARN);
 log.setLevel(loglevel.levels.TRACE);
 
@@ -25,11 +25,10 @@ function toArrayRows(rows: unknown[]): unknown[][] {
   return rows.map((row) => toArrayRow(row));
 }
 
-
 // DB singleton for the renderer process
 export function getDb() {
   if (!dbInitialized || !db) {
-    throw new Error("Database not initialized. Call initDatabase() first.");
+    throw new Error('Database not initialized. Call initDatabase() first.');
   }
   return db;
 }
@@ -52,11 +51,13 @@ export function getDbName(userIdOrDbName: string): string {
  * Initialize database and Drizzle proxy.
  */
 export async function initDatabase(userId: string): Promise<void> {
-  const targetDbName = getDbName(userId); 
+  const targetDbName = getDbName(userId);
   if (dbInitialized && currentDbName === targetDbName) {
     return Promise.resolve();
   }
-  log.debug(`[DB] Target DB Name: ${targetDbName}; Current DB Name: ${currentDbName}; Initialized: ${dbInitialized}`);
+  log.debug(
+    `[DB] Target DB Name: ${targetDbName}; Current DB Name: ${currentDbName}; Initialized: ${dbInitialized}`,
+  );
 
   if (dbInitialized && currentDbName !== targetDbName) {
     log.info(`[DB] Switching database from ${currentDbName} to ${targetDbName}`);
@@ -75,45 +76,45 @@ export async function initDatabase(userId: string): Promise<void> {
       currentDbName = targetDbName;
       dbInitialized = true;
 
-      db = drizzle(async (sql, params, method) => {
-        try {
-          // If the query is a SELECT / reading data
-          if (method === 'all') {
-            const result = await window.electronAPI.db.query(sql, params);
-            return { rows: toArrayRows(result) };
+      db = drizzle(
+        async (sql, params, method) => {
+          try {
+            // If the query is a SELECT / reading data
+            if (method === 'all') {
+              const result = await window.electronAPI.db.query(sql, params);
+              return { rows: toArrayRows(result) };
+            }
+
+            if (method === 'run') {
+              const result = await window.electronAPI.db.run(sql, params);
+              return {
+                rows: [],
+                rowsAffected: result.changes,
+                insertId: result.lastInsertRowid,
+              };
+            }
+
+            if (method === 'get') {
+              const result = await window.electronAPI.db.get(sql, params);
+              return { rows: result ? [toArrayRow(result)] : [] };
+            }
+
+            if (method === 'values') {
+              const result = await window.electronAPI.db.query(sql, params);
+              return { rows: toArrayRows(result) };
+            }
+
+            const rows = await window.electronAPI.db.query(sql, params);
+            return { rows: toArrayRows(rows) };
+          } catch (e) {
+            log.error('Drizzle Proxy Error:', e);
+            throw e;
           }
-
-
-          if (method === 'run') {
-            const result = await window.electronAPI.db.run(sql, params);
-            return {
-              rows: [],
-              rowsAffected: result.changes,
-              insertId: result.lastInsertRowid
-            };
-          }
-
-          if (method === 'get') {
-            const result = await window.electronAPI.db.get(sql, params);
-            return { rows: result ? [toArrayRow(result)] : [] };
-          }
-
-          if (method === 'values') {
-            const result = await window.electronAPI.db.query(sql, params);
-            return { rows: toArrayRows(result) };
-          }
-
-          const rows = await window.electronAPI.db.query(sql, params);
-          return { rows: toArrayRows(rows) };
-
-        } catch (e) {
-          log.error('Drizzle Proxy Error:', e);
-          throw e;
-        }
-      }, { schema });
+        },
+        { schema },
+      );
 
       log.info('[DB] Drizzle Proxy initialized successfully');
-
     } catch (error) {
       log.error('[DB] Failed to initialize database:', error);
       throw error;

@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron';
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
-import log from "loglevel";
+import log from 'loglevel';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from '../renderer/schema/drizzle';
@@ -50,14 +50,21 @@ function tableExists(tableName: string): boolean {
 function traceProjectState(label: string): void {
   if (!isTruthyEnv(process.env.DRIFTING_DB_TRACE_PROJECT_STATE)) return;
   if (!db || !tableExists('project')) {
-    log.info(`[Database trace] ${label}: project table not present; db=${currentDbPath ?? '<none>'}`);
+    log.info(
+      `[Database trace] ${label}: project table not present; db=${currentDbPath ?? '<none>'}`,
+    );
     return;
   }
 
   const rows = db
-    .prepare('SELECT id, user_id, name, created_at, updated_at FROM project ORDER BY created_at DESC')
+    .prepare(
+      'SELECT id, user_id, name, created_at, updated_at FROM project ORDER BY created_at DESC',
+    )
     .all();
-  log.info(`[Database trace] ${label}: db=${currentDbPath ?? '<none>'}; projects=${rows.length}`, rows);
+  log.info(
+    `[Database trace] ${label}: db=${currentDbPath ?? '<none>'}; projects=${rows.length}`,
+    rows,
+  );
 }
 
 function traceSql(label: string, sql: string, params?: any[]): void {
@@ -187,7 +194,7 @@ function runMigrations(): void {
 
   try {
     const drizzleDb = drizzle(db, { schema });
-    
+
     // Apply migrations from drizzle/ folder
     // Comment this out if you prefer to rebuild from scratch during development
     let migrationsFolder = path.join(__dirname, '../../drizzle');
@@ -196,7 +203,7 @@ function runMigrations(): void {
       migrationsFolder = path.join(process.resourcesPath, 'drizzle');
     }
     migrate(drizzleDb, { migrationsFolder });
-    
+
     log.info('[Database] Migrations applied successfully');
   } catch (e) {
     log.error('[Database] Migration failed:', e);

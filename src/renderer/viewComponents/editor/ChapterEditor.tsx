@@ -1,4 +1,12 @@
-import { useEffect, useRef, useMemo, useImperativeHandle, useState, useCallback, type Ref } from 'react';
+import {
+  useEffect,
+  useRef,
+  useMemo,
+  useImperativeHandle,
+  useState,
+  useCallback,
+  type Ref,
+} from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
@@ -97,13 +105,17 @@ export function ChapterEditor({
   compact = false,
 }: ChapterEditorProps) {
   const { bookElements } = useDataStore();
-  const { autoElementLinkEnabled }= useSettingsStore();
+  const { autoElementLinkEnabled } = useSettingsStore();
   const userId = useAuthStore((state) => state.user?.id);
   if (!userId) {
     throw new Error('ChapterEditor requires authenticated user');
   }
 
-  const { ydoc, isReady: isYjsReady, hasLocalState } = useYjsDoc({
+  const {
+    ydoc,
+    isReady: isYjsReady,
+    hasLocalState,
+  } = useYjsDoc({
     docId: `node-content:${nodeId}`,
     userId,
   });
@@ -114,8 +126,6 @@ export function ChapterEditor({
 
   const [titleValue, setTitleValue] = useState(title);
   const [summaryValue, setSummaryValue] = useState(summary);
-
-
 
   // 同步外部 title/summary 变化
   useEffect(() => {
@@ -131,15 +141,18 @@ export function ChapterEditor({
     return typeof raw === 'string' ? raw : null;
   }, []);
 
-  const setMetaString = useCallback((key: string, value: string, origin: string) => {
-    const meta = ydoc.getMap<unknown>('meta');
-    const current = getMetaString(meta, key);
-    if (current === value) return;
-    log.debug(`Setting meta ${key} to`, value, 'with origin', origin);
-    ydoc.transact(() => {
-      meta.set(key, value);
-    }, origin);
-  }, [getMetaString, ydoc]);
+  const setMetaString = useCallback(
+    (key: string, value: string, origin: string) => {
+      const meta = ydoc.getMap<unknown>('meta');
+      const current = getMetaString(meta, key);
+      if (current === value) return;
+      log.debug(`Setting meta ${key} to`, value, 'with origin', origin);
+      ydoc.transact(() => {
+        meta.set(key, value);
+      }, origin);
+    },
+    [getMetaString, ydoc],
+  );
 
   useEffect(() => {
     if (!isYjsReady) return;
@@ -154,10 +167,10 @@ export function ChapterEditor({
       setSummaryValue(ySummary ?? summary);
 
       if (
-        onTitleUpdate
-        && yTitle !== null
-        && yTitle !== title
-        && yTitle !== lastProjectedTitleRef.current
+        onTitleUpdate &&
+        yTitle !== null &&
+        yTitle !== title &&
+        yTitle !== lastProjectedTitleRef.current
       ) {
         lastProjectedTitleRef.current = yTitle;
         void Promise.resolve(onTitleUpdate(nodeId, yTitle)).catch((error) => {
@@ -166,10 +179,10 @@ export function ChapterEditor({
       }
 
       if (
-        onSummaryUpdate
-        && ySummary !== null
-        && ySummary !== summary
-        && ySummary !== lastProjectedSummaryRef.current
+        onSummaryUpdate &&
+        ySummary !== null &&
+        ySummary !== summary &&
+        ySummary !== lastProjectedSummaryRef.current
       ) {
         lastProjectedSummaryRef.current = ySummary;
         void Promise.resolve(onSummaryUpdate(nodeId, ySummary)).catch((error) => {
@@ -212,87 +225,104 @@ export function ChapterEditor({
     return map;
   }, [bookElements]);
 
-  const parseAndSaveElementOccurrences = useCallback((jsonContent: JSONContent) => {
-    if (!autoElementLinkEnabled) return;
+  const parseAndSaveElementOccurrences = useCallback(
+    (jsonContent: JSONContent) => {
+      if (!autoElementLinkEnabled) return;
 
-    if (parseTimeoutRef.current) {
-      clearTimeout(parseTimeoutRef.current);
-    }
-
-    parseTimeoutRef.current = setTimeout(async () => {
-      try {
-        // TODO: maybe there is a performance issue here
-        const matches = ElementParserService.parseElementsFromContent(jsonContent, bookElements);
-        const repo = createElementOccurrenceRepository();
-        await repo.saveOccurrencesForNode(
-          nodeId,
-          matches.map((m) => ({
-            elementId: m.elementId,
-            matches: m.matches,
-          }))
-        );
-      } catch (error) {
-        log.error('Failed to parse and save element occurrences:', error);
+      if (parseTimeoutRef.current) {
+        clearTimeout(parseTimeoutRef.current);
       }
-    }, 1000);
-  }, [autoElementLinkEnabled, nodeId, bookElements]);
+
+      parseTimeoutRef.current = setTimeout(async () => {
+        try {
+          // TODO: maybe there is a performance issue here
+          const matches = ElementParserService.parseElementsFromContent(jsonContent, bookElements);
+          const repo = createElementOccurrenceRepository();
+          await repo.saveOccurrencesForNode(
+            nodeId,
+            matches.map((m) => ({
+              elementId: m.elementId,
+              matches: m.matches,
+            })),
+          );
+        } catch (error) {
+          log.error('Failed to parse and save element occurrences:', error);
+        }
+      }, 1000);
+    },
+    [autoElementLinkEnabled, nodeId, bookElements],
+  );
 
   // TipTap editor
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-        codeBlock: {},
-        undoRedo: false,
-        underline: false,
-        link: false,
-      }),
-      Collaboration.configure({
-        document: ydoc,
-        field: 'default',
-      }),
-      Underline,
-      Link.configure({ openOnClick: false, autolink: true }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
-        defaultAlignment: 'left',
-      }),
-      ElementAutoLink.configure({
-        elementNames: elementNamesMap,
-        autoDetectEnabled: autoElementLinkEnabled,
-        onClick: onElementClick,
-      }),
-      createDefaultSlashMenu(),
-    ],
-    content: null,
-    autofocus: autoFocus ? 'end' : false,
-    editable: isYjsReady,
-    editorProps: {
-      attributes: {
-        class: 'prose max-w-none focus:outline-none',
-        style: `min-height: ${minHeight}`,
-        spellcheck: 'false',
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+          bulletList: { keepMarks: true },
+          orderedList: { keepMarks: true },
+          codeBlock: {},
+          undoRedo: false,
+          underline: false,
+          link: false,
+        }),
+        Collaboration.configure({
+          document: ydoc,
+          field: 'default',
+        }),
+        Underline,
+        Link.configure({ openOnClick: false, autolink: true }),
+        TextAlign.configure({
+          types: ['heading', 'paragraph'],
+          alignments: ['left', 'center', 'right'],
+          defaultAlignment: 'left',
+        }),
+        ElementAutoLink.configure({
+          elementNames: elementNamesMap,
+          autoDetectEnabled: autoElementLinkEnabled,
+          onClick: onElementClick,
+        }),
+        createDefaultSlashMenu(),
+      ],
+      content: null,
+      autofocus: autoFocus ? 'end' : false,
+      editable: isYjsReady,
+      editorProps: {
+        attributes: {
+          class: 'prose max-w-none focus:outline-none',
+          style: `min-height: ${minHeight}`,
+          spellcheck: 'false',
+        },
+      },
+      onUpdate: ({ editor: ed }) => {
+        if (!isYjsReady) return;
+
+        const json = ed.getJSON();
+        const pmJson = JSON.stringify(json);
+
+        // TODO: check if we have a performance issue here
+        const outline = extractOutline(pmJson);
+        // log.debug('Extracted outline:', outline);
+        const outlineJson = serializeOutline(outline);
+        // log.debug('Outline JSON:', outlineJson);
+        parseAndSaveElementOccurrences(json);
+        // log.debug('Updating node', nodeId, 'with content:', pmJson);
+        onContentUpdate(nodeId, pmJson, outlineJson);
       },
     },
-    onUpdate: ({ editor: ed }) => {
-      if (!isYjsReady) return;
-
-      const json = ed.getJSON();
-      const pmJson = JSON.stringify(json);
-
-      // TODO: check if we have a performance issue here
-      const outline = extractOutline(pmJson);
-      // log.debug('Extracted outline:', outline);
-      const outlineJson = serializeOutline(outline);
-      // log.debug('Outline JSON:', outlineJson);
-      parseAndSaveElementOccurrences(json);
-      // log.debug('Updating node', nodeId, 'with content:', pmJson);
-      onContentUpdate(nodeId, pmJson, outlineJson);
-    },
-  }, [nodeId, ydoc, elementNamesMap, autoElementLinkEnabled, onElementClick, autoFocus, minHeight, onContentUpdate, parseAndSaveElementOccurrences, isYjsReady]);
+    [
+      nodeId,
+      ydoc,
+      elementNamesMap,
+      autoElementLinkEnabled,
+      onElementClick,
+      autoFocus,
+      minHeight,
+      onContentUpdate,
+      parseAndSaveElementOccurrences,
+      isYjsReady,
+    ],
+  );
 
   // Seed Yjs document from legacy JSON once for old docs without local yjs state.
   useEffect(() => {
@@ -322,19 +352,22 @@ export function ChapterEditor({
   }, [nodeId]);
 
   // 暴露方法给父组件
-  useImperativeHandle(forwardedRef, () => ({
-    editor,
-    focusEditor: () => {
-      editor?.commands.focus('end');
-    },
-  }), [editor]);
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      editor,
+      focusEditor: () => {
+        editor?.commands.focus('end');
+      },
+    }),
+    [editor],
+  );
 
   // 更新元素自动链接配置
   useEffect(() => {
     elementAutoLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
     elementAutoLinkConfig.elementNames = elementNamesMap;
   }, [autoElementLinkEnabled, elementNamesMap]);
-
 
   // 清理定时器
   useEffect(() => {
@@ -377,7 +410,6 @@ export function ChapterEditor({
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
-
       {/* Title and Summary Header */}
       {(showTitle || showSummary) && (
         <div
@@ -494,7 +526,6 @@ export function ChapterEditor({
       <div style={{ padding: compact ? '16px 24px' : '0' }}>
         <EditorContent editor={editor} />
       </div>
-
     </div>
   );
 }

@@ -6,9 +6,9 @@ import { isAuthRequired } from '../lib/config';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
 import { events } from '../lib/events';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("AuthStore");
+const log = loglevel.getLogger('AuthStore');
 log.setLevel(loglevel.levels.ERROR);
 
 // 用户信息类型
@@ -50,7 +50,7 @@ interface AuthState {
   isAuthenticated: boolean;
   session: Session | null;
   user: User | null;
-  
+
   // Actions
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
@@ -74,11 +74,13 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       // 初始状态
-      ...(isAuthRequired() ? {
-        isAuthenticated: false,
-        session: null,
-        user: null,
-      } : getLocalAuthState()),
+      ...(isAuthRequired()
+        ? {
+            isAuthenticated: false,
+            session: null,
+            user: null,
+          }
+        : getLocalAuthState()),
 
       // 登录
       login: async (email: string, password: string) => {
@@ -86,12 +88,12 @@ export const useAuthStore = create<AuthState>()(
           if (isAppClosedForPublic) {
             throw new Error(APP_CLOSED_MESSAGE);
           }
-          
+
           const result = await authClient.signIn.email({
             email,
             password,
           });
-          
+
           if (result.error) {
             throw new Error(result.error.message || 'Login failed');
           }
@@ -104,7 +106,7 @@ export const useAuthStore = create<AuthState>()(
           if (!resolvedUser?.id) {
             throw new Error('Login failed: missing user in session');
           }
-          
+
           set({
             isAuthenticated: true,
             session,
@@ -112,13 +114,13 @@ export const useAuthStore = create<AuthState>()(
           });
 
           log.info('[Auth] Login successful:', result.data?.user?.email);
-          
+
           // 登录成功后：切换到用户专属数据库
           try {
             await resetDatabase();
             await initDatabase(resolvedUser.id);
             events.emit('db:ready');
-            
+
             log.info('[Auth] User database initialized:', resolvedUser.id);
           } catch (error) {
             log.error('[Auth] Failed to initialize user database:', error);
@@ -135,13 +137,13 @@ export const useAuthStore = create<AuthState>()(
           if (isAppClosedForPublic) {
             throw new Error(APP_CLOSED_MESSAGE);
           }
-          
+
           const result = await authClient.signUp.email({
             email,
             password,
             name,
           });
-          
+
           if (result.error) {
             throw new Error(result.error.message || 'Registration failed');
           }
@@ -154,7 +156,7 @@ export const useAuthStore = create<AuthState>()(
           if (!resolvedUser?.id) {
             throw new Error('Registration failed: missing user in session');
           }
-          
+
           set({
             isAuthenticated: true,
             session,
@@ -162,13 +164,13 @@ export const useAuthStore = create<AuthState>()(
           });
 
           log.info('[Auth] Registration successful:', result.data?.user?.email);
-          
+
           // 注册成功后：切换到用户专属数据库
           try {
             await resetDatabase();
             const dbFileName = getDbFileName(resolvedUser.id);
             await initDatabase(dbFileName);
-            
+
             log.info('[Auth] User database initialized:', resolvedUser.id);
           } catch (error) {
             log.error('[Auth] Failed to initialize user database:', error);
@@ -231,7 +233,7 @@ export const useAuthStore = create<AuthState>()(
           const result = await authClient.getSession();
           const session = result.data || null;
           const sessionUser = session?.user as User | undefined;
-          
+
           if (session && sessionUser?.id) {
             set({
               isAuthenticated: true,
@@ -268,8 +270,8 @@ export const useAuthStore = create<AuthState>()(
         session: state.session,
         user: state.user,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // 导出 Auth Store 类型

@@ -1,9 +1,9 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { NodeTag } from '../domain/node-tag';
 import type { StoryStage } from '../domain/storystage';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("StageService");
+const log = loglevel.getLogger('StageService');
 log.setLevel(loglevel.levels.ERROR);
 
 /**

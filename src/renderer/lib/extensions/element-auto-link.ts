@@ -122,15 +122,18 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
           //   autoDetectEnabled: elementAutoLinkConfig.autoDetectEnabled,
           //   elementNamesSize: elementAutoLinkConfig.elementNames.size,
           // });
-          
+
           // 只有在自动检测开启时才自动添加链接
-          if (!elementAutoLinkConfig.autoDetectEnabled || elementAutoLinkConfig.elementNames.size === 0) {
+          if (
+            !elementAutoLinkConfig.autoDetectEnabled ||
+            elementAutoLinkConfig.elementNames.size === 0
+          ) {
             // console.log('[ElementAutoLink Plugin] Skipping');
             return null;
           }
 
           // 检查是否有文本内容变化
-          const hasContentChange = transactions.some(tr => tr.docChanged);
+          const hasContentChange = transactions.some((tr) => tr.docChanged);
           if (!hasContentChange) {
             return null;
           }
@@ -139,7 +142,11 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
           let modified = false;
 
           // 收集所有需要添加 mark 的位置
-          const marksToAdd: Array<{from: number; to: number; element: {id: string; name: string; category: string}}> = [];
+          const marksToAdd: Array<{
+            from: number;
+            to: number;
+            element: { id: string; name: string; category: string };
+          }> = [];
 
           // 只处理变化的范围，而不是整个文档
           transactions.forEach((transaction) => {
@@ -147,12 +154,12 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
 
             transaction.steps.forEach((_step, index) => {
               const stepMap = transaction.mapping.maps[index];
-              
+
               // 获取这个 step 影响的范围
               stepMap.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
                 // newStart 到 newEnd 是新插入/修改的内容范围
                 if (newStart === newEnd) return; // 没有新内容
-                
+
                 // console.log('[ElementAutoLink] Processing changed range:', { from: newStart, to: newEnd });
 
                 // 在这个范围内查找匹配的元素
@@ -164,16 +171,16 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
                   const text = node.text;
                   const nodeStart = pos;
                   const nodeEnd = pos + text.length;
-                  
+
                   // 计算这个节点与变化范围的交集
                   const rangeStart = Math.max(nodeStart, newStart);
                   const rangeEnd = Math.min(nodeEnd, newEnd);
-                  
+
                   if (rangeStart >= rangeEnd) return;
-                  
+
                   // 只检查变化范围内的文本
                   const relevantText = text.substring(rangeStart - nodeStart, rangeEnd - nodeStart);
-                  
+
                   elementAutoLinkConfig.elementNames.forEach((element) => {
                     const regex = new RegExp(escapeRegExp(element.name), 'g');
                     let match;
@@ -183,7 +190,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
                       const matchEnd = matchStart + element.name.length;
 
                       // 检查这个位置是否已有 elementLink mark
-                      const hasElementLink = node.marks.some(mark => mark.type === markType);
+                      const hasElementLink = node.marks.some((mark) => mark.type === markType);
 
                       if (!hasElementLink) {
                         // console.log('[ElementAutoLink] Found match in changed range:', element.name, matchStart, matchEnd);
@@ -205,7 +212,7 @@ export const ElementAutoLink = Mark.create<ElementAutoLinkOptions>({
                 elementId: element.id,
                 elementName: element.name,
                 category: element.category,
-              })
+              }),
             );
             modified = true;
           });

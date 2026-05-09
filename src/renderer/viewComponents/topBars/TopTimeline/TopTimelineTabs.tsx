@@ -68,59 +68,74 @@ export function TopTimelineTabs({
       >
         <div
           onClick={onHeaderClick}
-          style={{
-            width: iconWidth,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 4,
-            background: isProjectHomeMode
-              ? '#6e7b8b'
-              : isAllElementsMode
-              ? '#5d8aa8'
-              : isElementMode
-              ? (currentCategory?.color || '#b89968')
-              : isAllNodesMode
-              ? '#8b7355'
-              : (currentStoryline?.color || '#b89968'),
-            cursor: canShowHeaderDropdown || (isElementMode && Boolean(currentCategory)) ? 'pointer' : 'default',
-            fontSize: 14,
-            fontWeight: 600,
-            color: '#fff',
-            transition: 'all 0.2s',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            WebkitAppRegion: 'no-drag',
-          } as CSSProperties}
-          onMouseEnter={event => {
+          style={
+            {
+              width: iconWidth,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 4,
+              background: isProjectHomeMode
+                ? '#6e7b8b'
+                : isAllElementsMode
+                  ? '#5d8aa8'
+                  : isElementMode
+                    ? currentCategory?.color || '#b89968'
+                    : isAllNodesMode
+                      ? '#8b7355'
+                      : currentStoryline?.color || '#b89968',
+              cursor:
+                canShowHeaderDropdown || (isElementMode && Boolean(currentCategory))
+                  ? 'pointer'
+                  : 'default',
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              transition: 'all 0.2s',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              WebkitAppRegion: 'no-drag',
+            } as CSSProperties
+          }
+          onMouseEnter={(event) => {
             event.currentTarget.style.transform = 'scale(1.05)';
             event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
             if (canShowHeaderDropdown) {
               onShowDropdown(event);
             }
           }}
-          onMouseLeave={event => {
+          onMouseLeave={(event) => {
             event.currentTarget.style.transform = 'scale(1)';
             event.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
             if (canShowHeaderDropdown) {
               onHideDropdown();
             }
           }}
-          title={isAllElementsMode
-            ? 'All Elements'
-            : isProjectHomeMode
-            ? `Recent Entities (${recentEntitiesLimit})`
-            : isElementMode
-            ? (currentCategory?.name || 'Category')
-            : (isAllNodesMode ? 'All Nodes' : (currentStoryline?.name || 'Storyline'))}
+          title={
+            isAllElementsMode
+              ? 'All Elements'
+              : isProjectHomeMode
+                ? `Recent Entities (${recentEntitiesLimit})`
+                : isElementMode
+                  ? currentCategory?.name || 'Category'
+                  : isAllNodesMode
+                    ? 'All Nodes'
+                    : currentStoryline?.name || 'Storyline'
+          }
         >
           {isProjectHomeMode
             ? 'R'
             : isAllElementsMode
-            ? 'E'
-            : isElementMode
-            ? (currentCategory?.name ? currentCategory.name.charAt(0).toUpperCase() : '?')
-            : (isAllNodesMode ? 'A' : (currentStoryline?.name ? currentStoryline.name.charAt(0).toUpperCase() : '?'))}
+              ? 'E'
+              : isElementMode
+                ? currentCategory?.name
+                  ? currentCategory.name.charAt(0).toUpperCase()
+                  : '?'
+                : isAllNodesMode
+                  ? 'A'
+                  : currentStoryline?.name
+                    ? currentStoryline.name.charAt(0).toUpperCase()
+                    : '?'}
         </div>
       </div>
 
@@ -145,12 +160,12 @@ export function TopTimelineTabs({
         {timelineItems.map((item, index) => {
           const isSelected = item.id === selectedItemId;
           const width = getNodeWidth(index);
-          const label = 'title' in item
-            ? (item.title || 'Untitled Chapter')
-            : (item.name || 'Untitled Element');
-          const baseColor = 'title' in item
-            ? storylineColorMap.get(item.mainStorylineId)
-            : categoryColorMap.get(item.categoryId);
+          const label =
+            'title' in item ? item.title || 'Untitled Chapter' : item.name || 'Untitled Element';
+          const baseColor =
+            'title' in item
+              ? storylineColorMap.get(item.mainStorylineId)
+              : categoryColorMap.get(item.categoryId);
           const tone = getSubtleTabTone(baseColor);
           const idleBackground = isSelected ? tone.selectedBackground : tone.normalBackground;
           const idleBorderColor = isSelected ? tone.selectedBorder : 'rgba(255, 255, 255, 0.28)';
@@ -181,30 +196,32 @@ export function TopTimelineTabs({
                   event.currentTarget.style.boxShadow = idleShadow;
                 }
               }}
-              style={{
-                flexShrink: 0,
-                maxWidth: width,
-                minWidth: 0,
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                paddingLeft: 10,
-                paddingRight: 10,
-                borderRadius: 7,
-                background: idleBackground,
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                border: `1px solid ${idleBorderColor}`,
-                boxShadow: idleShadow,
-                cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                fontSize: 13,
-                color: isSelected ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                WebkitAppRegion: 'no-drag',
-              } as CSSProperties}
+              style={
+                {
+                  flexShrink: 0,
+                  maxWidth: width,
+                  minWidth: 0,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  borderRadius: 7,
+                  background: idleBackground,
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  border: `1px solid ${idleBorderColor}`,
+                  boxShadow: idleShadow,
+                  cursor: 'pointer',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  fontSize: 13,
+                  color: isSelected ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  WebkitAppRegion: 'no-drag',
+                } as CSSProperties
+              }
             >
               {label}
             </div>

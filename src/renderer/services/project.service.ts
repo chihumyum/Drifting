@@ -1,7 +1,7 @@
 import apiClient, { handleApiError } from '../lib/api';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("ProjectService");
+const log = loglevel.getLogger('ProjectService');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface Project {

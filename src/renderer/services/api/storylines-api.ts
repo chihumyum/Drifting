@@ -49,8 +49,15 @@ export const storylinesApi = {
     return response.data;
   },
 
-  async update(projectId: string, storylineId: string, dto: UpdateStorylineDto): Promise<Storyline> {
-    const response = await apiClient.patch<Storyline>(`/api/projects/${projectId}/storylines/${storylineId}`, dto);
+  async update(
+    projectId: string,
+    storylineId: string,
+    dto: UpdateStorylineDto,
+  ): Promise<Storyline> {
+    const response = await apiClient.patch<Storyline>(
+      `/api/projects/${projectId}/storylines/${storylineId}`,
+      dto,
+    );
     return response.data;
   },
 
@@ -61,7 +68,9 @@ export const storylinesApi = {
   // ---- Node-Storyline relationships ----
 
   async getNodesByStoryline(projectId: string, storylineId: string): Promise<string[]> {
-    const response = await apiClient.get<string[]>(`/api/projects/${projectId}/storylines/${storylineId}/nodes`);
+    const response = await apiClient.get<string[]>(
+      `/api/projects/${projectId}/storylines/${storylineId}/nodes`,
+    );
     return response.data;
   },
 
@@ -69,12 +78,18 @@ export const storylinesApi = {
     await apiClient.post(`/api/projects/${projectId}/storylines/${storylineId}/nodes/${nodeId}`);
   },
 
-  async removeNodeFromStoryline(projectId: string, storylineId: string, nodeId: string): Promise<void> {
+  async removeNodeFromStoryline(
+    projectId: string,
+    storylineId: string,
+    nodeId: string,
+  ): Promise<void> {
     await apiClient.delete(`/api/projects/${projectId}/storylines/${storylineId}/nodes/${nodeId}`);
   },
 
   async getStorylinesByNode(projectId: string, nodeId: string): Promise<Storyline[]> {
-    const response = await apiClient.get<Storyline[]>(`/api/projects/${projectId}/storylines/by-node/${nodeId}`);
+    const response = await apiClient.get<Storyline[]>(
+      `/api/projects/${projectId}/storylines/by-node/${nodeId}`,
+    );
     return response.data;
   },
 };

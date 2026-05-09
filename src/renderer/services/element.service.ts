@@ -1,8 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("ElementService");
+const log = loglevel.getLogger('ElementService');
 log.setLevel(loglevel.levels.ERROR);
 
 /**
@@ -252,12 +252,12 @@ export const elementCategoryService = {
    */
   async update(
     name: string,
-    updates: { color?: string; description_json?: string }
+    updates: { color?: string; description_json?: string },
   ): Promise<BookElementCategory | null> {
     try {
       const response = await apiClient.patch<BookElementCategory>(
         `/elements/categories/${name}`,
-        updates
+        updates,
       );
       return response.data;
     } catch (error) {

@@ -19,7 +19,8 @@ export const useSettingsStore = create<SettingsState>()(
       autoElementLinkEnabled: true,
       setAutoElementLinkEnabled: (enabled) => set({ autoElementLinkEnabled: enabled }),
       recentEntitiesLimit: 10,
-      setRecentEntitiesLimit: (count) => set({ recentEntitiesLimit: sanitizeRecentEntitiesLimit(count) }),
+      setRecentEntitiesLimit: (count) =>
+        set({ recentEntitiesLimit: sanitizeRecentEntitiesLimit(count) }),
     }),
     {
       name: 'settings-storage',
@@ -28,6 +29,6 @@ export const useSettingsStore = create<SettingsState>()(
         autoElementLinkEnabled: state.autoElementLinkEnabled,
         recentEntitiesLimit: state.recentEntitiesLimit,
       }),
-    }
-  )
+    },
+  ),
 );

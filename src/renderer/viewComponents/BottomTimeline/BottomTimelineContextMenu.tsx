@@ -4,7 +4,12 @@ import type { BottomTimelineContextMenuAction, BottomTimelineContextMenuState } 
 interface BottomTimelineContextMenuProps {
   contextMenu: BottomTimelineContextMenuState | null;
   contextMenuRef: React.RefObject<HTMLDivElement | null>;
-  getContextMenuPosition: (x: number, y: number, menuWidth: number, menuHeight: number) => { x: number; y: number };
+  getContextMenuPosition: (
+    x: number,
+    y: number,
+    menuWidth: number,
+    menuHeight: number,
+  ) => { x: number; y: number };
   onAction: (action: BottomTimelineContextMenuAction) => void;
 }
 
@@ -29,7 +34,7 @@ function renderMenuButton(
   action: BottomTimelineContextMenuAction,
   onAction: (action: BottomTimelineContextMenuAction) => void,
   hoverBg = 'var(--accent-hover, #f5f0e8)',
-  color = '#2a1a0a'
+  color = '#2a1a0a',
 ) {
   return (
     <button
@@ -119,7 +124,8 @@ export function BottomTimelineContextMenu({
       {contextMenu.type === 'storyline' && (
         <>
           {renderMenuButton('➕ Add New Node', 'createChapter', onAction)}
-          {contextMenu.canAddCurrentNode && renderMenuButton('➕ Add to Storyline', 'addToStoryline', onAction)}
+          {contextMenu.canAddCurrentNode &&
+            renderMenuButton('➕ Add to Storyline', 'addToStoryline', onAction)}
         </>
       )}
 
@@ -168,8 +174,9 @@ export function BottomTimelineContextMenu({
           </div>
 
           {renderMenuButton('✏️ Edit Chapter', 'editChapter', onAction)}
-          {contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1
-            && renderMenuButton('➖ Remove Node from Storyline', 'removeFromStoryline', onAction)}
+          {contextMenu.nodeStorylines &&
+            contextMenu.nodeStorylines.length > 1 &&
+            renderMenuButton('➖ Remove Node from Storyline', 'removeFromStoryline', onAction)}
           {renderMenuButton('🗑️ Delete Entire Node', 'deleteNode', onAction, '#fff0f0', '#c04040')}
         </>
       )}

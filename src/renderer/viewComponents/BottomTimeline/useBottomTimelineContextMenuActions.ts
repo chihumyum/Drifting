@@ -65,7 +65,11 @@ export function useBottomTimelineContextMenuActions({
     try {
       switch (action) {
         case 'createChapter':
-          if (contextMenu.type === 'storyline' && contextMenu.storylineId && contextMenu.position !== undefined) {
+          if (
+            contextMenu.type === 'storyline' &&
+            contextMenu.storylineId &&
+            contextMenu.position !== undefined
+          ) {
             const newNode = await createNode({
               start: contextMenu.position,
               end: contextMenu.position + nodeDefaultWidth,
@@ -94,8 +98,10 @@ export function useBottomTimelineContextMenuActions({
               }
             } else {
               const nodeInTimeline = nodesWithStorylines.find((n) => n.id === contextMenu.nodeId);
-              const currentPrimaryStorylineId = nodeInTimeline?.mainStorylineId ?? nodeStorylines[0]?.id;
-              const isRemovingPrimaryStoryline = currentPrimaryStorylineId === contextMenu.storylineId;
+              const currentPrimaryStorylineId =
+                nodeInTimeline?.mainStorylineId ?? nodeStorylines[0]?.id;
+              const isRemovingPrimaryStoryline =
+                currentPrimaryStorylineId === contextMenu.storylineId;
 
               if (isRemovingPrimaryStoryline) {
                 const remainingStorylineIds = nodeStorylines
@@ -104,7 +110,9 @@ export function useBottomTimelineContextMenuActions({
 
                 await setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
                 if (remainingStorylineIds.length > 0) {
-                  await updateNode(contextMenu.nodeId, { mainStorylineId: remainingStorylineIds[0] });
+                  await updateNode(contextMenu.nodeId, {
+                    mainStorylineId: remainingStorylineIds[0],
+                  });
                 }
               } else {
                 await removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
@@ -135,7 +143,12 @@ export function useBottomTimelineContextMenuActions({
           break;
 
         case 'addToStoryline':
-          if (contextMenu.type === 'storyline' && contextMenu.storylineId && contextMenu.canAddCurrentNode && currentRouteNodeId) {
+          if (
+            contextMenu.type === 'storyline' &&
+            contextMenu.storylineId &&
+            contextMenu.canAddCurrentNode &&
+            currentRouteNodeId
+          ) {
             await addNodeToStoryline(currentRouteNodeId, contextMenu.storylineId);
             if (shouldRestoreScroll && scrollContainer) {
               requestAnimationFrame(() => {

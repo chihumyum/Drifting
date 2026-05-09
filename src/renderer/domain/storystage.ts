@@ -1,7 +1,6 @@
 // story stage for the whole book
 // span across multiple storylines
 
-
 export interface StoryStage {
   id: string;
   projectId: string;

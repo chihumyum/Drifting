@@ -58,8 +58,18 @@ function PlaceholderPanel({
         }}
       >
         <div style={{ fontSize: 14, fontWeight: 700, color: '#57462f' }}>{title}</div>
-        <div style={{ fontSize: 12, color: '#6b6257', marginTop: 8, lineHeight: 1.5 }}>{description}</div>
-        <ul style={{ margin: '10px 0 0 18px', padding: 0, color: '#7a6f61', fontSize: 12, lineHeight: 1.8 }}>
+        <div style={{ fontSize: 12, color: '#6b6257', marginTop: 8, lineHeight: 1.5 }}>
+          {description}
+        </div>
+        <ul
+          style={{
+            margin: '10px 0 0 18px',
+            padding: 0,
+            color: '#7a6f61',
+            fontSize: 12,
+            lineHeight: 1.8,
+          }}
+        >
           {items.map((item) => (
             <li key={item}>{item}</li>
           ))}

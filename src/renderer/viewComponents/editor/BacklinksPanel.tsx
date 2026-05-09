@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import loglevel from 'loglevel';
-const log = loglevel.getLogger("BacklinksPanel");
+const log = loglevel.getLogger('BacklinksPanel');
 log.setLevel(loglevel.levels.ERROR);
 import { createElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -59,19 +59,15 @@ export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
     return (
       <div className="backlinks-panel p-4">
         <h3 className="text-sm font-semibold text-gray-300 mb-2">被引用于</h3>
-        <div className="text-sm text-gray-500 italic">
-          此元素尚未在任何章节中被引用
-        </div>
+        <div className="text-sm text-gray-500 italic">此元素尚未在任何章节中被引用</div>
       </div>
     );
   }
 
   return (
     <div className="backlinks-panel p-4">
-      <h3 className="text-sm font-semibold text-gray-300 mb-3">
-        被引用于 ({backlinks.length})
-      </h3>
-      
+      <h3 className="text-sm font-semibold text-gray-300 mb-3">被引用于 ({backlinks.length})</h3>
+
       <div className="space-y-2">
         {backlinks.map((backlink) => {
           const spans = JSON.parse(backlink.spans_json) as Array<{
@@ -92,11 +88,9 @@ export function BacklinksPanel({ elementId }: BacklinksPanelProps) {
                   <div className="text-sm text-gray-200 group-hover:text-white">
                     {backlink.node_title || '未命名章节'}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    出现 {occurrenceCount} 次
-                  </div>
+                  <div className="text-xs text-gray-500 mt-1">出现 {occurrenceCount} 次</div>
                 </div>
-                
+
                 <div className="ml-2">
                   <svg
                     className="w-4 h-4 text-gray-500 group-hover:text-gray-300"

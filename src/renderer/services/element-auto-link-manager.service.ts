@@ -1,5 +1,8 @@
 import type { Database } from 'better-sqlite3';
-import { createElementOccurrenceRepository, type ElementOccurrenceRepository } from '../sqlite-repo/element-occr-repo';
+import {
+  createElementOccurrenceRepository,
+  type ElementOccurrenceRepository,
+} from '../sqlite-repo/element-occr-repo';
 import type { BookElement } from '../domain/book-element';
 import type { JSONContent } from '@tiptap/core';
 import { ElementParserService, type ElementMatch } from './element-parser.service';
@@ -35,13 +38,10 @@ export class ElementAutoLinkManager {
   async parseAndSave(
     nodeId: string,
     content: JSONContent,
-    availableElements: BookElement[]
+    availableElements: BookElement[],
   ): Promise<ElementMatch[]> {
     // 解析内容
-    const matches = ElementParserService.parseElementsFromContent(
-      content,
-      availableElements
-    );
+    const matches = ElementParserService.parseElementsFromContent(content, availableElements);
 
     // 保存到数据库
     if (this.repo) {
@@ -50,7 +50,7 @@ export class ElementAutoLinkManager {
         matches.map((m) => ({
           elementId: m.elementId,
           matches: m.matches,
-        }))
+        })),
       );
     }
 

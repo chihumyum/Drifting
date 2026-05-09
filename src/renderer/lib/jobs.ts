@@ -17,14 +17,19 @@ interface JobResult {
 
 class JobsManager {
   private worker: Worker | null = null;
-  private pendingJobs = new Map<string, {
-    resolve: (result: Record<string, unknown>) => void;
-    reject: (error: Error) => void;
-  }>();
+  private pendingJobs = new Map<
+    string,
+    {
+      resolve: (result: Record<string, unknown>) => void;
+      reject: (error: Error) => void;
+    }
+  >();
 
   private getWorker(): Worker {
     if (!this.worker) {
-      this.worker = new Worker(new URL('../workers/jobs.worker.ts', import.meta.url), { type: 'module' });
+      this.worker = new Worker(new URL('../workers/jobs.worker.ts', import.meta.url), {
+        type: 'module',
+      });
       this.worker.addEventListener('message', this.handleWorkerMessage.bind(this));
     }
     return this.worker;
@@ -33,7 +38,7 @@ class JobsManager {
   private handleWorkerMessage(ev: MessageEvent) {
     const { id, type, payload, error }: JobResult = ev.data;
     const pending = this.pendingJobs.get(id);
-    
+
     if (!pending) return;
 
     if (type === 'completed') {
@@ -53,13 +58,13 @@ class JobsManager {
 
     return new Promise((resolve, reject) => {
       this.pendingJobs.set(jobId, { resolve, reject });
-      
+
       events.emit('jobs:started', { jobId, type: options.type });
-      
+
       worker.postMessage({
         id: jobId,
         type: options.type,
-        payload: options.payload
+        payload: options.payload,
       });
 
       // Timeout after 30 seconds
@@ -73,7 +78,6 @@ class JobsManager {
     });
   }
 
-
   terminate(): void {
     if (this.worker) {
       this.worker.terminate();
@@ -84,7 +88,5 @@ class JobsManager {
 }
 
 export const jobsManager = new JobsManager();
-
-
 
 export default jobsManager;

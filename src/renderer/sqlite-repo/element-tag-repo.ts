@@ -42,19 +42,27 @@ export function createElementTagRepository(dbOverride?: DbExecutor): ElementTagR
   const dbProvider = createDbProvider(dbOverride);
 
   const findById = async (id: string): Promise<ElementTag | null> => {
-    const rows = await dbProvider().select().from(ElementTagTable).where(eq(ElementTagTable.id, id)).limit(1);
+    const rows = await dbProvider()
+      .select()
+      .from(ElementTagTable)
+      .where(eq(ElementTagTable.id, id))
+      .limit(1);
     return rows[0] ? elementTagRecordToDomain(rows[0]) : null;
   };
 
   const findAll = async (projectId: string): Promise<ElementTag[]> => {
-    const rows = await dbProvider().select().from(ElementTagTable)
+    const rows = await dbProvider()
+      .select()
+      .from(ElementTagTable)
       .where(eq(ElementTagTable.projectId, projectId))
       .orderBy(asc(ElementTagTable.name));
     return rows.map(elementTagRecordToDomain);
   };
 
   const findByName = async (projectId: string, name: string): Promise<ElementTag | null> => {
-    const rows = await dbProvider().select().from(ElementTagTable)
+    const rows = await dbProvider()
+      .select()
+      .from(ElementTagTable)
       .where(and(eq(ElementTagTable.projectId, projectId), eq(ElementTagTable.name, name)))
       .limit(1);
     return rows[0] ? elementTagRecordToDomain(rows[0]) : null;
@@ -91,13 +99,14 @@ export function createElementTagLinkRepository(dbOverride?: DbExecutor): Element
   const dbProvider = createDbProvider(dbOverride);
 
   const findTagsByElementId = async (elementId: string): Promise<ElementTag[]> => {
-    const rows = await dbProvider().select({
-      id: ElementTagTable.id,
-      projectId: ElementTagTable.projectId,
-      name: ElementTagTable.name,
-      createdAt: ElementTagTable.createdAt,
-      updatedAt: ElementTagTable.updatedAt,
-    })
+    const rows = await dbProvider()
+      .select({
+        id: ElementTagTable.id,
+        projectId: ElementTagTable.projectId,
+        name: ElementTagTable.name,
+        createdAt: ElementTagTable.createdAt,
+        updatedAt: ElementTagTable.updatedAt,
+      })
       .from(ElementTagTable)
       .innerJoin(elementTagsLink, eq(ElementTagTable.id, elementTagsLink.tagId))
       .where(eq(elementTagsLink.elementId, elementId))
@@ -107,19 +116,23 @@ export function createElementTagLinkRepository(dbOverride?: DbExecutor): Element
   };
 
   const findTagIdsByElementId = async (elementId: string): Promise<string[]> => {
-    const rows = await dbProvider().select({ tagId: elementTagsLink.tagId })
+    const rows = await dbProvider()
+      .select({ tagId: elementTagsLink.tagId })
       .from(elementTagsLink)
       .where(eq(elementTagsLink.elementId, elementId));
-    return rows.map(r => r.tagId);
+    return rows.map((r) => r.tagId);
   };
 
-  const findTagIdsByElementIds = async (elementIds: string[]): Promise<Record<string, string[]>> => {
+  const findTagIdsByElementIds = async (
+    elementIds: string[],
+  ): Promise<Record<string, string[]>> => {
     if (!elementIds.length) return {};
 
-    const rows = await dbProvider().select({
-      elementId: elementTagsLink.elementId,
-      tagId: elementTagsLink.tagId,
-    })
+    const rows = await dbProvider()
+      .select({
+        elementId: elementTagsLink.elementId,
+        tagId: elementTagsLink.tagId,
+      })
       .from(elementTagsLink)
       .where(inArray(elementTagsLink.elementId, elementIds));
 
@@ -132,27 +145,28 @@ export function createElementTagLinkRepository(dbOverride?: DbExecutor): Element
   };
 
   const findElementIdsByTagId = async (tagId: string): Promise<string[]> => {
-    const rows = await dbProvider().select({ elementId: elementTagsLink.elementId })
+    const rows = await dbProvider()
+      .select({ elementId: elementTagsLink.elementId })
       .from(elementTagsLink)
       .where(eq(elementTagsLink.tagId, tagId));
-    return rows.map(r => r.elementId);
+    return rows.map((r) => r.elementId);
   };
 
   const addTagToElement = async (elementId: string, tagId: string): Promise<ElementTagLink> => {
-    await dbProvider().insert(elementTagsLink)
-      .values({ elementId, tagId })
-      .onConflictDoNothing();
+    await dbProvider().insert(elementTagsLink).values({ elementId, tagId }).onConflictDoNothing();
     return { elementId, tagId };
   };
 
   const removeTagFromElement = async (elementId: string, tagId: string): Promise<boolean> => {
-    const result = await dbProvider().delete(elementTagsLink)
+    const result = await dbProvider()
+      .delete(elementTagsLink)
       .where(and(eq(elementTagsLink.elementId, elementId), eq(elementTagsLink.tagId, tagId)));
     return (result as any).rowsAffected > 0;
   };
 
   const removeAllTagsFromElement = async (elementId: string): Promise<boolean> => {
-    const result = await dbProvider().delete(elementTagsLink)
+    const result = await dbProvider()
+      .delete(elementTagsLink)
       .where(eq(elementTagsLink.elementId, elementId));
     return (result as any).rowsAffected > 0;
   };

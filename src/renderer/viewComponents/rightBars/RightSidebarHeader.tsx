@@ -38,7 +38,9 @@ export function RightSidebarHeader({ inline = false }: RightSidebarHeaderProps) 
               flex: 1,
               height: 28,
               borderRadius: 6,
-              border: isActive ? '1px solid rgba(184, 153, 104, 0.6)' : '1px solid rgba(184, 153, 104, 0.2)',
+              border: isActive
+                ? '1px solid rgba(184, 153, 104, 0.6)'
+                : '1px solid rgba(184, 153, 104, 0.2)',
               background: isActive ? 'rgba(184, 153, 104, 0.16)' : 'transparent',
               color: isActive ? '#6f5532' : '#7d7467',
               fontSize: 12,

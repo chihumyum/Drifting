@@ -74,12 +74,15 @@ export function TagEditor({ type, entityId, projectId, ydoc }: TagEditorProps) {
     setEntityTags(nextTags);
   }, []);
 
-  const syncNodeTagsFromYjs = useCallback((tagsPool: TagRecord[]) => {
-    if (!isNodeYjsMode || !ydoc) return;
-    const ids = readYjsNodeTagIds(ydoc);
-    setEntityTagsFromIds(ids, tagsPool);
-    setIsYjsTagsReady(true);
-  }, [isNodeYjsMode, setEntityTagsFromIds, ydoc]);
+  const syncNodeTagsFromYjs = useCallback(
+    (tagsPool: TagRecord[]) => {
+      if (!isNodeYjsMode || !ydoc) return;
+      const ids = readYjsNodeTagIds(ydoc);
+      setEntityTagsFromIds(ids, tagsPool);
+      setIsYjsTagsReady(true);
+    },
+    [isNodeYjsMode, setEntityTagsFromIds, ydoc],
+  );
 
   const loadTags = useCallback(async () => {
     try {
@@ -233,10 +236,12 @@ export function TagEditor({ type, entityId, projectId, ydoc }: TagEditorProps) {
       if (type === 'node' && isNodeYjsMode && ydoc) {
         const all = await nodeTagUsecases.loadTags(projectId);
         const existing = all.find((tag) => tag.name === trimmedName);
-        const tag = existing ?? await nodeTagUsecases.createTag({
-          projectId,
-          name: trimmedName,
-        });
+        const tag =
+          existing ??
+          (await nodeTagUsecases.createTag({
+            projectId,
+            name: trimmedName,
+          }));
 
         ydoc.transact(() => {
           const tagsMap = ensureYjsNodeTagsMap(ydoc);
@@ -264,15 +269,19 @@ export function TagEditor({ type, entityId, projectId, ydoc }: TagEditorProps) {
 
   const generateRandomColor = () => {
     const colors = [
-      '#b89968', '#6b9080', '#a3b18a', '#bc6c25',
-      '#588157', '#8b7355', '#7a9e9f', '#946b54',
+      '#b89968',
+      '#6b9080',
+      '#a3b18a',
+      '#bc6c25',
+      '#588157',
+      '#8b7355',
+      '#7a9e9f',
+      '#946b54',
     ];
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  const availableTags = allTags.filter(
-    tag => !entityTags.some(nt => nt.id === tag.id)
-  );
+  const availableTags = allTags.filter((tag) => !entityTags.some((nt) => nt.id === tag.id));
 
   return (
     <div

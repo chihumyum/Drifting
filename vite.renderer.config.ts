@@ -21,7 +21,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'tiptap': [
+          tiptap: [
             '@tiptap/core',
             '@tiptap/react',
             '@tiptap/starter-kit',

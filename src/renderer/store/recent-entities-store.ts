@@ -42,7 +42,7 @@ export const useRecentEntitiesStore = create<RecentEntitiesState>()(
                 item.projectId === input.projectId &&
                 item.entityType === input.entityType &&
                 item.entityId === input.entityId
-              )
+              ),
           );
           const next: RecentEntityRecord[] = [
             {
@@ -72,6 +72,6 @@ export const useRecentEntitiesStore = create<RecentEntitiesState>()(
       name: 'recent-entities-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ items: state.items }),
-    }
-  )
+    },
+  ),
 );

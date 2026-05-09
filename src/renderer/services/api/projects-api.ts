@@ -79,5 +79,4 @@ export const projectsApi = {
   async delete(id: string): Promise<void> {
     await apiClient.delete(`/api/projects/${id}`);
   },
-
 };

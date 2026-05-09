@@ -13,7 +13,6 @@ export interface StoryStageRepository {
   delete(id: string): Promise<boolean>;
 }
 
-
 // ==================== Converters ====================
 
 function storyStageRecordToDomain(record: typeof StoryStageTable.$inferSelect): StoryStage {
@@ -32,14 +31,19 @@ function storyStageRecordToDomain(record: typeof StoryStageTable.$inferSelect): 
 // ==================== Story Stage Repository ====================
 
 export function createStoryStageRepository(): StoryStageRepository {
-
   const findById = async (id: string): Promise<StoryStage | null> => {
-    const rows = await getDb().select().from(StoryStageTable).where(eq(StoryStageTable.id, id)).limit(1);
+    const rows = await getDb()
+      .select()
+      .from(StoryStageTable)
+      .where(eq(StoryStageTable.id, id))
+      .limit(1);
     return rows[0] ? storyStageRecordToDomain(rows[0]) : null;
   };
 
   const findAll = async (projectId: string): Promise<StoryStage[]> => {
-    const rows = await getDb().select().from(StoryStageTable)
+    const rows = await getDb()
+      .select()
+      .from(StoryStageTable)
       .where(eq(StoryStageTable.projectId, projectId))
       .orderBy(asc(StoryStageTable.orderKey));
     return rows.map(storyStageRecordToDomain);
@@ -75,9 +79,10 @@ export function createStoryStageRepository(): StoryStageRepository {
 
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.descriptionJson !== undefined) {
-      updateValues.descriptionJson = typeof data.descriptionJson === 'string'
-        ? data.descriptionJson
-        : JSON.stringify(data.descriptionJson);
+      updateValues.descriptionJson =
+        typeof data.descriptionJson === 'string'
+          ? data.descriptionJson
+          : JSON.stringify(data.descriptionJson);
     }
     if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
     if (data.color !== undefined) updateValues.color = data.color;

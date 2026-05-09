@@ -9,12 +9,12 @@ const heroFeatures = [
   {
     title: '角色卡片系统',
     description: '在一个视图里管理角色设定、动机与发展轨迹。',
-    icon: <UserRound className="h-5 w-5" />, 
+    icon: <UserRound className="h-5 w-5" />,
   },
   {
     title: '多维灵感库',
     description: '将场景、灵感与章节绑定，不再担心创作碎片遗失。',
-    icon: <NotebookPen className="h-5 w-5" />, 
+    icon: <NotebookPen className="h-5 w-5" />,
   },
 ];
 
@@ -72,7 +72,10 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor="email"
+              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+            >
               邮箱
             </label>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm focus-within:border-[#b89968] focus-within:ring-2 focus-within:ring-[#b89968]/30">
@@ -91,7 +94,10 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label
+              htmlFor="password"
+              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+            >
               密码
             </label>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm focus-within:border-[#b89968] focus-within:ring-2 focus-within:ring-[#b89968]/30">

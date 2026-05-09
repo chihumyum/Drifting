@@ -3,15 +3,13 @@ import type { BookElement, BookElementCategory } from '../../../domain/book-elem
 export type ElementTimelineSortMode = 'category-then-created-at';
 
 function buildCategoryOrderMap(categories: BookElementCategory[]): Map<string, number> {
-  const sortedCategories = categories
-    .slice()
-    .sort((a, b) => {
-      const createdAtCompare = a.createdAt.localeCompare(b.createdAt);
-      if (createdAtCompare !== 0) {
-        return createdAtCompare;
-      }
-      return a.id.localeCompare(b.id);
-    });
+  const sortedCategories = categories.slice().sort((a, b) => {
+    const createdAtCompare = a.createdAt.localeCompare(b.createdAt);
+    if (createdAtCompare !== 0) {
+      return createdAtCompare;
+    }
+    return a.id.localeCompare(b.id);
+  });
 
   const orderMap = new Map<string, number>();
   sortedCategories.forEach((category, index) => {
@@ -23,7 +21,7 @@ function buildCategoryOrderMap(categories: BookElementCategory[]): Map<string, n
 function compareByCategoryThenCreatedAt(
   a: BookElement,
   b: BookElement,
-  categoryOrderMap: Map<string, number>
+  categoryOrderMap: Map<string, number>,
 ): number {
   const categoryOrderA = categoryOrderMap.get(a.categoryId) ?? Number.MAX_SAFE_INTEGER;
   const categoryOrderB = categoryOrderMap.get(b.categoryId) ?? Number.MAX_SAFE_INTEGER;
@@ -42,7 +40,7 @@ function compareByCategoryThenCreatedAt(
 export function sortElementsForTimeline(
   elements: BookElement[],
   categories: BookElementCategory[],
-  mode: ElementTimelineSortMode = 'category-then-created-at'
+  mode: ElementTimelineSortMode = 'category-then-created-at',
 ): BookElement[] {
   const categoryOrderMap = buildCategoryOrderMap(categories);
 
@@ -54,4 +52,3 @@ export function sortElementsForTimeline(
         .sort((a, b) => compareByCategoryThenCreatedAt(a, b, categoryOrderMap));
   }
 }
-

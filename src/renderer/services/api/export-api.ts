@@ -1,15 +1,13 @@
 /**
  * Export API Service
- * 
+ *
  * 调用后端 /api/projects/:projectId/export 相关接口
  */
 
 import axios from 'axios';
 
 const BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:3000';
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // DTO 类型定义
 export interface CreateExportDto {

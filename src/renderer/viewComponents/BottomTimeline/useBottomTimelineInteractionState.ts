@@ -50,7 +50,7 @@ const initialInteractionState: BottomTimelineInteractionState = {
 
 function interactionReducer(
   state: BottomTimelineInteractionState,
-  action: BottomTimelineInteractionAction
+  action: BottomTimelineInteractionAction,
 ): BottomTimelineInteractionState {
   switch (action.type) {
     case 'setDraggedNode':
@@ -89,9 +89,12 @@ function interactionReducer(
 export function useBottomTimelineInteractionState() {
   const [state, dispatch] = useReducer(interactionReducer, initialInteractionState);
 
-  const setDraggedNode = useCallback((payload: { node: TimelineNode; storylineId: string } | null) => {
-    dispatch({ type: 'setDraggedNode', payload });
-  }, []);
+  const setDraggedNode = useCallback(
+    (payload: { node: TimelineNode; storylineId: string } | null) => {
+      dispatch({ type: 'setDraggedNode', payload });
+    },
+    [],
+  );
 
   const setDragOverPosition = useCallback((payload: BottomTimelineDragOverPosition | null) => {
     dispatch({ type: 'setDragOverPosition', payload });
@@ -109,13 +112,19 @@ export function useBottomTimelineInteractionState() {
     dispatch({ type: 'clearContextMenu' });
   }, []);
 
-  const setHoveredEdge = useCallback((payload: { nodeId: string; edge: 'left' | 'right' } | null) => {
-    dispatch({ type: 'setHoveredEdge', payload });
-  }, []);
+  const setHoveredEdge = useCallback(
+    (payload: { nodeId: string; edge: 'left' | 'right' } | null) => {
+      dispatch({ type: 'setHoveredEdge', payload });
+    },
+    [],
+  );
 
-  const setHoverPreview = useCallback((payload: { nodeId: string; position: { x: number; y: number } }) => {
-    dispatch({ type: 'setHoverPreview', payload });
-  }, []);
+  const setHoverPreview = useCallback(
+    (payload: { nodeId: string; position: { x: number; y: number } }) => {
+      dispatch({ type: 'setHoverPreview', payload });
+    },
+    [],
+  );
 
   const clearHoverPreview = useCallback(() => {
     dispatch({ type: 'clearHoverPreview' });

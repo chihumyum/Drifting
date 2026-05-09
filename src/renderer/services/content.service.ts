@@ -1,8 +1,8 @@
 import apiClient, { handleApiError } from '../lib/api';
 import type { NodeContent } from '../domain/node-content';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("ContentService");
+const log = loglevel.getLogger('ContentService');
 log.setLevel(loglevel.levels.ERROR);
 
 /**

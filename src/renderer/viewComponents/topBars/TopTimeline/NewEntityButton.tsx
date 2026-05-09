@@ -7,11 +7,11 @@ import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 import { useAuthStore } from '../../../store/auth';
 import { useUiStore } from '../../../store/ui-store';
 
-const log = loglevel.getLogger("NewEntityButton");
+const log = loglevel.getLogger('NewEntityButton');
 log.setLevel(loglevel.levels.ERROR);
 
 function safeDecodeURIComponent(value: string): string {
@@ -62,8 +62,12 @@ export function NewEntityButton() {
   const [dropdownPosition, setDropdownPosition] = useState<{ x: number; y: number } | null>(null);
   const hideDropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const isAllNodesMode = location.pathname.includes('/home/all-nodes') || location.pathname.includes('/editor/all-nodes');
-  const isAllElementsMode = location.pathname.includes('/home/all-elements') || location.pathname.includes('/editor/all-elements');
+  const isAllNodesMode =
+    location.pathname.includes('/home/all-nodes') ||
+    location.pathname.includes('/editor/all-nodes');
+  const isAllElementsMode =
+    location.pathname.includes('/home/all-elements') ||
+    location.pathname.includes('/editor/all-elements');
   const showAllNodeGroup = isAllNodesMode || (Boolean(nodeId) && preferAllNodeTimeline);
   const showAllElementGroup = isAllElementsMode || (Boolean(elementId) && preferAllElementTimeline);
   const isAllEditorMode = showAllNodeGroup || showAllElementGroup;
@@ -134,7 +138,9 @@ export function NewEntityButton() {
         defaultStorylineId = createdStoryline.id;
       }
 
-      const storylineNodes = currentNodes.filter((node) => node.mainStorylineId === defaultStorylineId);
+      const storylineNodes = currentNodes.filter(
+        (node) => node.mainStorylineId === defaultStorylineId,
+      );
       const maxStorylineEnd = storylineNodes.reduce((maxEnd, node) => {
         const nodeEnd = Math.max(node.end ?? node.start, node.start);
         return Math.max(maxEnd, nodeEnd);
@@ -164,7 +170,9 @@ export function NewEntityButton() {
 
       // Scroll timeline to the new chapter
       setTimeout(() => {
-        const timelineContainer = document.querySelector('[data-timeline-container]') as HTMLElement;
+        const timelineContainer = document.querySelector(
+          '[data-timeline-container]',
+        ) as HTMLElement;
         if (timelineContainer) {
           const GRID_UNIT = 20;
           const scrollPosition = newStart * GRID_UNIT;
@@ -250,7 +258,7 @@ export function NewEntityButton() {
           transition: 'all 0.2s ease',
           WebkitAppRegion: 'no-drag',
         }}
-        onMouseEnter={e => {
+        onMouseEnter={(e) => {
           e.currentTarget.style.background = 'rgba(184, 153, 104, 0.2)';
           e.currentTarget.style.borderColor = 'rgba(184, 153, 104, 0.4)';
           if (isAllEditorMode) {
@@ -258,7 +266,7 @@ export function NewEntityButton() {
             showDropdownFromButton();
           }
         }}
-        onMouseLeave={e => {
+        onMouseLeave={(e) => {
           e.currentTarget.style.background = 'rgba(184, 153, 104, 0.1)';
           e.currentTarget.style.borderColor = 'rgba(184, 153, 104, 0.3)';
           if (isAllEditorMode) {
@@ -293,7 +301,14 @@ export function NewEntityButton() {
         >
           {showAllNodeGroup && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', padding: '4px 6px 8px 6px' }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#6b7280',
+                  padding: '4px 6px 8px 6px',
+                }}
+              >
                 Create Chapter In Storyline
               </div>
               {storylines.map((storyline) => (
@@ -366,7 +381,14 @@ export function NewEntityButton() {
 
           {showAllElementGroup && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', padding: '4px 6px 8px 6px' }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#6b7280',
+                  padding: '4px 6px 8px 6px',
+                }}
+              >
                 Create Element In Category
               </div>
               {bookElementCategories.map((category) => (

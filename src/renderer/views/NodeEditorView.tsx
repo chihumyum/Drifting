@@ -4,13 +4,13 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
 import { BookNode } from '../domain/book-node';
 import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 
-const log = loglevel.getLogger("NodeEditorView");
+const log = loglevel.getLogger('NodeEditorView');
 log.setLevel(loglevel.levels.ERROR);
 // log.setLevel(loglevel.levels.DEBUG);
 
@@ -62,7 +62,7 @@ export function NodeEditorView() {
       return null;
     }
 
-    return bookNodes.find(n => n.id === nodeId) || null;
+    return bookNodes.find((n) => n.id === nodeId) || null;
   }, [bookNodes, nodeId]);
 
   // load content when node changes
@@ -83,7 +83,10 @@ export function NodeEditorView() {
         }
         log.debug('[NodeEditor] Fetched content:', cont);
         if (!cont) {
-          log.warn('[NodeEditor] No content found for nodeId, editor will seed from Yjs/legacy', targetNodeId);
+          log.warn(
+            '[NodeEditor] No content found for nodeId, editor will seed from Yjs/legacy',
+            targetNodeId,
+          );
         }
         setBookContent(cont);
       } catch (error) {
@@ -106,7 +109,6 @@ export function NodeEditorView() {
     };
   }, [nodeId, getContentByNodeId]);
 
-
   const handleTitleUpdate = useCallback(
     async (targetNodeId: string, title: string) => {
       try {
@@ -115,7 +117,7 @@ export function NodeEditorView() {
         log.error('[NodeEditor] Failed to update title:', error);
       }
     },
-    [renameNode]
+    [renameNode],
   );
 
   const handleSummaryUpdate = useCallback(
@@ -126,7 +128,7 @@ export function NodeEditorView() {
         log.error('[NodeEditor] Failed to update summary:', error);
       }
     },
-    [updateNodeSummary]
+    [updateNodeSummary],
   );
 
   const handleContentUpdate = useCallback(
@@ -134,7 +136,10 @@ export function NodeEditorView() {
       try {
         const existing = await getContentByNodeId(targetNodeId);
         if (existing) {
-          const updated = await updateContentByNodeId(targetNodeId, { contentJson: pmJson, outlineJson });
+          const updated = await updateContentByNodeId(targetNodeId, {
+            contentJson: pmJson,
+            outlineJson,
+          });
           if (updated && activeNodeIdRef.current === targetNodeId) {
             setBookContent(updated);
           }
@@ -149,16 +154,18 @@ export function NodeEditorView() {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [createContent, getContentByNodeId, updateContentByNodeId]
+    [createContent, getContentByNodeId, updateContentByNodeId],
   );
 
-  const isActiveNodeReady = Boolean(nodeId && curNode && isContentLoaded && loadedNodeId === nodeId);
+  const isActiveNodeReady = Boolean(
+    nodeId && curNode && isContentLoaded && loadedNodeId === nodeId,
+  );
 
   const handleElementClick = useCallback(
     (elementId: string) => {
       navigateToElement(elementId);
     },
-    [navigateToElement]
+    [navigateToElement],
   );
 
   return (
@@ -170,11 +177,13 @@ export function NodeEditorView() {
     >
       {/* Main Editor Container */}
       <div
-      className='main-editor'
-        style={{
-          // flex: 1,
-          // overflow: 'auto',
-        }}
+        className="main-editor"
+        style={
+          {
+            // flex: 1,
+            // overflow: 'auto',
+          }
+        }
       >
         <div
           style={{
@@ -194,28 +203,27 @@ export function NodeEditorView() {
             }}
           >
             {isActiveNodeReady && nodeId && curNode && (
-                <ChapterEditor
-                  key={nodeId}
-                  ref={editorRef}
-                  nodeId={nodeId}
-                  projectId={activeProjectId}
-                  content={bookContent?.contentJson ?? null}
-                  title={curNode.title}
-                  summary={curNode.summary || ''}
-                  onContentUpdate={handleContentUpdate}
-                  onTitleUpdate={handleTitleUpdate}
-                  onSummaryUpdate={handleSummaryUpdate}
-                  onElementClick={handleElementClick}
-                  showTitle={true}
-                  showSummary={true}
-                  showTags={true}
-                  editableTitle={true}
-                  editableSummary={true}
-                  autoFocus={true}
-                  minHeight="400px"
-                />
-              )
-            }
+              <ChapterEditor
+                key={nodeId}
+                ref={editorRef}
+                nodeId={nodeId}
+                projectId={activeProjectId}
+                content={bookContent?.contentJson ?? null}
+                title={curNode.title}
+                summary={curNode.summary || ''}
+                onContentUpdate={handleContentUpdate}
+                onTitleUpdate={handleTitleUpdate}
+                onSummaryUpdate={handleSummaryUpdate}
+                onElementClick={handleElementClick}
+                showTitle={true}
+                showSummary={true}
+                showTags={true}
+                editableTitle={true}
+                editableSummary={true}
+                autoFocus={true}
+                minHeight="400px"
+              />
+            )}
           </div>
         </div>
       </div>

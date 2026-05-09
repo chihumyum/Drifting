@@ -29,9 +29,9 @@ import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("App");
+const log = loglevel.getLogger('App');
 // log.setLevel(loglevel.levels.ERROR);
 log.setLevel(loglevel.levels.TRACE);
 
@@ -49,7 +49,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isChecking) {
     return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          height: '100vh',
+          width: '100vw',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         Checking authentication...
       </div>
     );
@@ -75,7 +83,15 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (isChecking) {
     return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          height: '100vh',
+          width: '100vw',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         Checking authentication...
       </div>
     );
@@ -101,7 +117,9 @@ function Layout() {
     throw new Error('User must be authenticated');
   }
   const isEditorRoute = location.pathname.includes('/editor');
-  const isProjectDashboardHome = Boolean(projectId && location.pathname === `/project/${projectId}/home`);
+  const isProjectDashboardHome = Boolean(
+    projectId && location.pathname === `/project/${projectId}/home`,
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
@@ -130,23 +148,25 @@ function Layout() {
 
     log.info('[App] Initializing database for user:', userId);
 
-    initDatabase(userId).then(async () => {
-      // Initialize project-specific data (stores etc)
-      await Promise.all([
-        nodeUsecases.loadNodes(),
-        nodeUsecases.loadEdges(),
-        storylineUsecases.loadStorylines(),
-        elementUsecases.loadInitial(),
-        categoryUsecases.loadCategories(),
-      ]);
+    initDatabase(userId)
+      .then(async () => {
+        // Initialize project-specific data (stores etc)
+        await Promise.all([
+          nodeUsecases.loadNodes(),
+          nodeUsecases.loadEdges(),
+          storylineUsecases.loadStorylines(),
+          elementUsecases.loadInitial(),
+          categoryUsecases.loadCategories(),
+        ]);
 
-      events.emit('db:ready');
-      log.info('[App] Database ready for project:', projectId);
-      setDbReady(true);
-    }).catch(error => {
-      log.error('[App] Failed to initialize database:', error);
-      events.emit('db:error', { error: error.message });
-    });
+        events.emit('db:ready');
+        log.info('[App] Database ready for project:', projectId);
+        setDbReady(true);
+      })
+      .catch((error) => {
+        log.error('[App] Failed to initialize database:', error);
+        events.emit('db:error', { error: error.message });
+      });
   }, [projectId, userId, nodeUsecases, storylineUsecases, elementUsecases, categoryUsecases]); // Re-init when projectId or user changes
 
   // listen for left topbar events
@@ -163,10 +183,7 @@ function Layout() {
       events.off('left-sidebar:toggle', handleToggleLeftSidebar);
       events.off('right-sidebar:toggle', handleToggleRightSidebar);
     };
-
   }, []);
-
-
 
   // Global Shortcut for Graph View (Cmd + Shift + \)
   const activeSuperView = useUiStore((state) => state.activeSuperView);
@@ -192,7 +209,15 @@ function Layout() {
 
   if (!dbReady) {
     return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          height: '100vh',
+          width: '100vw',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         Loading Project...
       </div>
     );
@@ -212,10 +237,9 @@ function Layout() {
       <AppTopbar hideNewEntityButton={isProjectDashboardHome} />
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
         {/* Left Sidebar */}
         {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
-        <Sidebar sidebarType="left" >
+        <Sidebar sidebarType="left">
           <div style={{ flexShrink: 0 }}>
             <LeftSidebarHeader />
           </div>
@@ -243,7 +267,6 @@ function Layout() {
             background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
           }}
         >
-
           {/* Debug Location */}
           <div style={{ flexShrink: 0 }}>{location.pathname}</div>
 
@@ -260,7 +283,7 @@ function Layout() {
             <Outlet />
           </div>
         </main>
-        <Sidebar sidebarType="right" >
+        <Sidebar sidebarType="right">
           <div
             style={{
               flex: 1,
@@ -271,7 +294,6 @@ function Layout() {
             <RightSidebarPanels />
           </div>
         </Sidebar>
-
       </div>
 
       {/* 3. 底部时间轴：固定在底部，自然高度 */}
@@ -296,65 +318,98 @@ export default function App() {
   return (
     <Routes>
       {/* 公开路由 */}
-      <Route path="/login" element={
-        <PublicRoute>
-          <LoginPage />
-        </PublicRoute>
-      } />
-      <Route path="/register" element={
-        <PublicRoute>
-          <RegisterPage />
-        </PublicRoute>
-      } />
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <PublicRoute>
+            <RegisterPage />
+          </PublicRoute>
+        }
+      />
 
       {/* 受保护的路由 */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <ProjectHomeView />
-        </ProtectedRoute>
-      } />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <ProjectHomeView />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Project-scoped routes */}
-      <Route path="/project/:projectId" element={
-        <ProtectedRoute>
-          <Layout />
-        </ProtectedRoute>
-      }>
+      <Route
+        path="/project/:projectId"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<ProjectDashboard />} />
-        <Route path="home/all-nodes" element={
-          <EditorShell view="all-nodes-editor">
-            <AllNodesEditorView />
-          </EditorShell>
-        } />
-        <Route path="home/all-elements" element={
-          <EditorShell view="all-elements-editor">
-            <AllElementsEditorView />
-          </EditorShell>
-        } />
+        <Route
+          path="home/all-nodes"
+          element={
+            <EditorShell view="all-nodes-editor">
+              <AllNodesEditorView />
+            </EditorShell>
+          }
+        />
+        <Route
+          path="home/all-elements"
+          element={
+            <EditorShell view="all-elements-editor">
+              <AllElementsEditorView />
+            </EditorShell>
+          }
+        />
         <Route path="editor" element={<Navigate to="../home" replace />} />
         <Route path="editor/all-nodes" element={<Navigate to="../home/all-nodes" replace />} />
-        <Route path="editor/all-elements" element={<Navigate to="../home/all-elements" replace />} />
-        <Route path="editor/:nodeId" element={
-          <EditorShell view="node-editor">
-            <NodeEditorView />
-          </EditorShell>
-        } />
-        <Route path="editor/storyline/:storylineId" element={
-          <EditorShell view="storyline-editor">
-            <StorylineEditorView />
-          </EditorShell>
-        } />
-        <Route path="element/:elementId" element={
-          <EditorShell view="element-editor">
-            <ElementEditorView />
-          </EditorShell>
-        } />
-        <Route path="category/:categoryId" element={
-          <EditorShell view="category-editor">
-            <CategoryEditorView />
-          </EditorShell>
-        } />
+        <Route
+          path="editor/all-elements"
+          element={<Navigate to="../home/all-elements" replace />}
+        />
+        <Route
+          path="editor/:nodeId"
+          element={
+            <EditorShell view="node-editor">
+              <NodeEditorView />
+            </EditorShell>
+          }
+        />
+        <Route
+          path="editor/storyline/:storylineId"
+          element={
+            <EditorShell view="storyline-editor">
+              <StorylineEditorView />
+            </EditorShell>
+          }
+        />
+        <Route
+          path="element/:elementId"
+          element={
+            <EditorShell view="element-editor">
+              <ElementEditorView />
+            </EditorShell>
+          }
+        />
+        <Route
+          path="category/:categoryId"
+          element={
+            <EditorShell view="category-editor">
+              <CategoryEditorView />
+            </EditorShell>
+          }
+        />
       </Route>
     </Routes>
   );

@@ -11,8 +11,8 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
-import loglevel from "loglevel";
-const log = loglevel.getLogger("StorylineEditorView");
+import loglevel from 'loglevel';
+const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.DEBUG);
 log.setLevel(loglevel.levels.WARN);
 
@@ -23,15 +23,15 @@ const DEFAULT_DOC = {
 
 export function StorylineEditorView() {
   const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
-  const user = useAuthStore(state => state.user);
+  const user = useAuthStore((state) => state.user);
   if (!projectId) {
     log.error('No projectId in params, cannot render storyline editor');
     throw new Error('No projectId in params');
-  };
+  }
   if (!user) {
     log.error('No user in auth store, cannot render storyline editor');
     throw new Error('No user in auth store');
-  };
+  }
   const { storylines } = useDataStore();
   const storylineUsecases = useStoryline({
     projectId: projectId,
@@ -43,8 +43,8 @@ export function StorylineEditorView() {
     if (!storylineId) {
       log.error('No storylineId in params, cannot find storyline');
       return null;
-    };
-    const found = storylines.find(sl => sl.id === storylineId);
+    }
+    const found = storylines.find((sl) => sl.id === storylineId);
     if (!found) {
       log.warn('Storyline not found for id:', storylineId);
       return null;
@@ -64,53 +64,55 @@ export function StorylineEditorView() {
   const displayedSummary = isEditingSummary ? summaryDraft : currentSummary;
 
   // editor for storyline description
-  const editorSL = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-        codeBlock: {},
-        underline: false,
-        link: false, // disable these two to avoid duplicate extensions warning
-      }),
-      Underline,
-      Link.configure({ openOnClick: false, autolink: true }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
-        defaultAlignment: 'left',
-      }),
-      Placeholder.configure({
-        placeholder: 'Empty',
-      }),
-      createDefaultSlashMenu(),
-    ],
-    content: null,
-    editorProps: {
-      attributes: {
-        class: 'prose max-w-none focus:outline-none',
-        spellcheck: 'false',
+  const editorSL = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+          bulletList: { keepMarks: true },
+          orderedList: { keepMarks: true },
+          codeBlock: {},
+          underline: false,
+          link: false, // disable these two to avoid duplicate extensions warning
+        }),
+        Underline,
+        Link.configure({ openOnClick: false, autolink: true }),
+        TextAlign.configure({
+          types: ['heading', 'paragraph'],
+          alignments: ['left', 'center', 'right'],
+          defaultAlignment: 'left',
+        }),
+        Placeholder.configure({
+          placeholder: 'Empty',
+        }),
+        createDefaultSlashMenu(),
+      ],
+      content: null,
+      editorProps: {
+        attributes: {
+          class: 'prose max-w-none focus:outline-none',
+          spellcheck: 'false',
+        },
+      },
+      onUpdate: ({ editor: ed }) => {
+        if (!storylineId) {
+          log.warn('No storylineId, cannot save description update');
+          return;
+        }
+        const json = ed.getJSON();
+        void storylineUsecases.updateStoryline({
+          id: storylineId,
+          pmJson: JSON.stringify(json),
+        });
       },
     },
-    onUpdate: ({ editor: ed }) => {
-      if (!storylineId) {
-        log.warn('No storylineId, cannot save description update');
-        return;
-      }
-      const json = ed.getJSON();
-      void storylineUsecases.updateStoryline({
-        id: storylineId,
-        pmJson: JSON.stringify(json),
-      });
-    },
-  }, [storylineId, storylineUsecases]);
+    [storylineId, storylineUsecases],
+  );
 
   // load editor content when change storylines
   useEffect(() => {
     const alreadyLoadedForTarget =
-      loadedStorylineRef.current === storylineId &&
-      loadedEditorRef.current === editorSL;
+      loadedStorylineRef.current === storylineId && loadedEditorRef.current === editorSL;
     if (alreadyLoadedForTarget) {
       return;
     }
@@ -157,18 +159,20 @@ export function StorylineEditorView() {
   };
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      position: 'relative',
-      overflow: 'auto',
-      paddingLeft: 64,
-      paddingRight: 'auto',
-      paddingTop: 16,
-      paddingBottom: 16,
-      scrollbarWidth: 'none',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        position: 'relative',
+        overflow: 'auto',
+        paddingLeft: 64,
+        paddingRight: 'auto',
+        paddingTop: 16,
+        paddingBottom: 16,
+        scrollbarWidth: 'none',
+      }}
+    >
       {/* let the whole area scrollable */}
       <div>
         {/* Storyline Name */}
@@ -180,9 +184,9 @@ export function StorylineEditorView() {
               setNameDraft(currentName);
               setIsEditingName(true);
             }}
-            onChange={e => setNameDraft(e.target.value)}
+            onChange={(e) => setNameDraft(e.target.value)}
             onCompositionStart={() => setIsComposingName(true)}
-            onCompositionEnd={e => {
+            onCompositionEnd={(e) => {
               setIsComposingName(false);
               setNameDraft(e.currentTarget.value);
             }}
@@ -192,7 +196,7 @@ export function StorylineEditorView() {
                 void commitName();
               }
             }}
-            onKeyDown={e => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
                 e.preventDefault();
                 e.currentTarget.blur();
@@ -224,9 +228,9 @@ export function StorylineEditorView() {
               setSummaryDraft(currentSummary);
               setIsEditingSummary(true);
             }}
-            onChange={e => setSummaryDraft(e.target.value)}
+            onChange={(e) => setSummaryDraft(e.target.value)}
             onCompositionStart={() => setIsComposingSummary(true)}
-            onCompositionEnd={e => {
+            onCompositionEnd={(e) => {
               setIsComposingSummary(false);
               setSummaryDraft(e.currentTarget.value);
             }}
@@ -236,7 +240,7 @@ export function StorylineEditorView() {
                 void commitSummary();
               }
             }}
-            onKeyDown={e => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingSummary) {
                 e.preventDefault();
                 e.currentTarget.blur();
@@ -246,7 +250,7 @@ export function StorylineEditorView() {
                 e.currentTarget.blur();
               }
             }}
-            placeholder='add a summary...'
+            placeholder="add a summary..."
             style={{
               maxWidth: '50vw',
               fontSize: 14,
@@ -265,7 +269,6 @@ export function StorylineEditorView() {
         </div>
 
         {/* <StorylineAllChapterEditor nodes={currentNodes} onCurrentChapterChange={() => { }} /> */}
-
       </div>
     </div>
   );

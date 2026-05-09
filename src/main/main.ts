@@ -133,9 +133,7 @@ const createWindow = () => {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    );
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
   mainWindow.on('closed', () => {
@@ -147,7 +145,7 @@ const createWindow = () => {
 app.whenReady().then(async () => {
   // Setup database IPC handlers
   setupDatabase();
-  
+
   createWindow();
 
   app.on('activate', () => {
@@ -170,9 +168,12 @@ ipcMain.handle('app:getVersion', () => {
   return app.getVersion();
 });
 
-ipcMain.handle('app:getPath', (_event, name: 'home' | 'appData' | 'userData' | 'temp' | 'documents') => {
-  return app.getPath(name);
-});
+ipcMain.handle(
+  'app:getPath',
+  (_event, name: 'home' | 'appData' | 'userData' | 'temp' | 'documents') => {
+    return app.getPath(name);
+  },
+);
 
 // Window control handlers
 ipcMain.handle('window:minimize', () => {

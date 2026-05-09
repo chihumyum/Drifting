@@ -1,5 +1,5 @@
 import LogLevel from 'loglevel';
-const log = LogLevel.getLogger("optimistic-update");
+const log = LogLevel.getLogger('optimistic-update');
 log.setLevel(LogLevel.levels.WARN);
 
 export type OptimisticUpdateOptions<T> = {
@@ -24,13 +24,15 @@ export async function withOptimisticUpdate<T>({
     const result = await effect();
     if (onSuccess) onSuccess(result);
     if (sync) {
-      try { sync(result); } catch (e) {
-        log.warn("Sync enqueue failed (non-fatal):", e);
+      try {
+        sync(result);
+      } catch (e) {
+        log.warn('Sync enqueue failed (non-fatal):', e);
       }
     }
     return result;
   } catch (error) {
-    log.error("Optimistic update failed, rolling back.", error);
+    log.error('Optimistic update failed, rolling back.', error);
     rollback();
     throw error;
   }

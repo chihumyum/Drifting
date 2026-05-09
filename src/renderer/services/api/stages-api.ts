@@ -45,7 +45,10 @@ export const stagesApi = {
   },
 
   async update(projectId: string, stageId: string, dto: UpdateStageDto): Promise<StoryStage> {
-    const response = await apiClient.patch<StoryStage>(`/api/projects/${projectId}/stages/${stageId}`, dto);
+    const response = await apiClient.patch<StoryStage>(
+      `/api/projects/${projectId}/stages/${stageId}`,
+      dto,
+    );
     return response.data;
   },
 

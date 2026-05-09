@@ -76,11 +76,9 @@ export function useYjsDoc({ docId, userId }: UseYjsDocOptions): UseYjsDocResult 
     if (!isReady) return;
 
     const enqueueWrite = (task: () => Promise<void>) => {
-      writeQueueRef.current = writeQueueRef.current
-        .then(task)
-        .catch((error) => {
-          log.error(`[useYjsDoc] write failed for ${docId}:`, error);
-        });
+      writeQueueRef.current = writeQueueRef.current.then(task).catch((error) => {
+        log.error(`[useYjsDoc] write failed for ${docId}:`, error);
+      });
     };
 
     const handleUpdate = (update: Uint8Array, origin: unknown) => {

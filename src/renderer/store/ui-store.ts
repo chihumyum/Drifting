@@ -53,7 +53,6 @@ interface UiState {
   setSidebarOpen: (type: SidebarType, isOpen: boolean) => void;
   setSidebarWidth: (type: SidebarType, width: number) => void;
 
-
   nodeUi: NodeUiContextState;
   setNodeSelection: (id: string | null, source?: SelectionSource) => void;
   setNodeActiveStorylineId: (storylineId: string | null) => void;
@@ -329,6 +328,6 @@ export const useUiStore = create<UiState>()(
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
       }),
-    }
-  )
+    },
+  ),
 );

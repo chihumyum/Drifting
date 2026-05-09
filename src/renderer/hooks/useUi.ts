@@ -7,13 +7,16 @@ import { useUiStore } from '../store/ui-store';
  */
 export function useUi() {
   const isGraphViewOpen = useUiStore((state) => state.activeSuperView === 'graph');
-  
+
   const setGraphViewOpen = useCallback((isOpen: boolean) => {
     useUiStore.getState().setActiveSuperView(isOpen ? 'graph' : 'none');
   }, []);
 
-  return useMemo(() => ({
-    isGraphViewOpen,
-    setGraphViewOpen,
-  }), [isGraphViewOpen, setGraphViewOpen]);
+  return useMemo(
+    () => ({
+      isGraphViewOpen,
+      setGraphViewOpen,
+    }),
+    [isGraphViewOpen, setGraphViewOpen],
+  );
 }

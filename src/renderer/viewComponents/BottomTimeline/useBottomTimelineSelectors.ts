@@ -66,7 +66,9 @@ export function useBottomTimelineSelectors({
 
   const maxNodeEnd = useMemo(() => {
     if (nodesWithStorylines.length === 0) return minStart + nodeDefaultWidth;
-    return Math.max(...nodesWithStorylines.map((node) => node.end ?? (node.start + nodeDefaultWidth)));
+    return Math.max(
+      ...nodesWithStorylines.map((node) => node.end ?? node.start + nodeDefaultWidth),
+    );
   }, [nodesWithStorylines, minStart, nodeDefaultWidth]);
 
   const maxEnd = Math.max(maxNodeEnd, minStart + nodeDefaultWidth);
@@ -77,29 +79,38 @@ export function useBottomTimelineSelectors({
   // 收起时固定自动缩放；展开时使用手势缩放值
   const collapsedAutoScale = Math.min(1, availableWidth / (timelineRange * gridUnit));
   const scaleFactor = isExpanded ? expandedScale : collapsedAutoScale;
-  const extraSpace = isExpanded ? (viewportWidth * 0.25) : 40;
+  const extraSpace = isExpanded ? viewportWidth * 0.25 : 40;
   const timelineWidth = timelineRange * gridUnit * scaleFactor + extraSpace;
 
-  const getNodeWidth = useCallback((nodeId: string): number => {
-    const node = nodeById.get(nodeId);
-    if (!node) return nodeDefaultWidth * gridUnit * scaleFactor;
+  const getNodeWidth = useCallback(
+    (nodeId: string): number => {
+      const node = nodeById.get(nodeId);
+      if (!node) return nodeDefaultWidth * gridUnit * scaleFactor;
 
-    const end = nodeEnds.get(nodeId) ?? node.end;
-    if (end === null || end === undefined) {
-      return nodeDefaultWidth * gridUnit * scaleFactor;
-    }
+      const end = nodeEnds.get(nodeId) ?? node.end;
+      if (end === null || end === undefined) {
+        return nodeDefaultWidth * gridUnit * scaleFactor;
+      }
 
-    const width = (end - node.start) * gridUnit * scaleFactor;
-    return Math.max(width, nodeMinWidth);
-  }, [nodeById, nodeEnds, nodeDefaultWidth, gridUnit, scaleFactor, nodeMinWidth]);
+      const width = (end - node.start) * gridUnit * scaleFactor;
+      return Math.max(width, nodeMinWidth);
+    },
+    [nodeById, nodeEnds, nodeDefaultWidth, gridUnit, scaleFactor, nodeMinWidth],
+  );
 
-  const startToPosition = useCallback((start: number) => {
-    return (start - minStart) * gridUnit * scaleFactor;
-  }, [minStart, gridUnit, scaleFactor]);
+  const startToPosition = useCallback(
+    (start: number) => {
+      return (start - minStart) * gridUnit * scaleFactor;
+    },
+    [minStart, gridUnit, scaleFactor],
+  );
 
-  const getNodesInStoryline = useCallback((storylineId: string) => {
-    return nodesByStoryline.get(storylineId) ?? [];
-  }, [nodesByStoryline]);
+  const getNodesInStoryline = useCallback(
+    (storylineId: string) => {
+      return nodesByStoryline.get(storylineId) ?? [];
+    },
+    [nodesByStoryline],
+  );
 
   return {
     nodeById,

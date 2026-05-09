@@ -1,6 +1,6 @@
 /**
  * Debug Modal Component
- * 
+ *
  * 显示服务器端和 SQLite 端的所有用户数据
  */
 
@@ -8,12 +8,17 @@ import { useState } from 'react';
 import { X, Database, Server, RefreshCw, Copy, Check } from 'lucide-react';
 import { debugApi, type DebugData } from '../../services/api/debug-api';
 import { useAuthStore } from '../../store/auth';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("DebugModal");
+const log = loglevel.getLogger('DebugModal');
 log.setLevel(loglevel.levels.ERROR);
 import { getDb } from '../../lib/db';
-import { BookNodeTable, StorylineTable, BookElementTable, ElementCategoryTable } from '../../schema/drizzle';
+import {
+  BookNodeTable,
+  StorylineTable,
+  BookElementTable,
+  ElementCategoryTable,
+} from '../../schema/drizzle';
 
 interface DebugModalProps {
   isOpen: boolean;
@@ -103,11 +108,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
   // 渲染 JSON 数据
   const renderData = (data: LocalDebugData | DebugData['serverData'] | null, title: string) => {
     if (!data) {
-      return (
-        <div className="text-center py-8 text-gray-500">
-          点击"刷新"按钮加载数据
-        </div>
-      );
+      return <div className="text-center py-8 text-gray-500">点击"刷新"按钮加载数据</div>;
     }
 
     return (
@@ -133,23 +134,48 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
           <div className="bg-blue-50 p-2 rounded">
             <div className="text-blue-600 font-medium">项目</div>
-            <div className="text-blue-900">{Array.isArray((data as LocalDebugData).projects) ? (data as LocalDebugData).projects.length : 0} 个</div>
+            <div className="text-blue-900">
+              {Array.isArray((data as LocalDebugData).projects)
+                ? (data as LocalDebugData).projects.length
+                : 0}{' '}
+              个
+            </div>
           </div>
           <div className="bg-green-50 p-2 rounded">
             <div className="text-green-600 font-medium">节点</div>
-            <div className="text-green-900">{Array.isArray((data as LocalDebugData).nodes) ? (data as LocalDebugData).nodes.length : 0} 个</div>
+            <div className="text-green-900">
+              {Array.isArray((data as LocalDebugData).nodes)
+                ? (data as LocalDebugData).nodes.length
+                : 0}{' '}
+              个
+            </div>
           </div>
           <div className="bg-purple-50 p-2 rounded">
             <div className="text-purple-600 font-medium">故事线</div>
-            <div className="text-purple-900">{Array.isArray((data as LocalDebugData).storylines) ? (data as LocalDebugData).storylines.length : 0} 个</div>
+            <div className="text-purple-900">
+              {Array.isArray((data as LocalDebugData).storylines)
+                ? (data as LocalDebugData).storylines.length
+                : 0}{' '}
+              个
+            </div>
           </div>
           <div className="bg-yellow-50 p-2 rounded">
             <div className="text-yellow-600 font-medium">元素</div>
-            <div className="text-yellow-900">{Array.isArray((data as LocalDebugData).elements) ? (data as LocalDebugData).elements.length : 0} 个</div>
+            <div className="text-yellow-900">
+              {Array.isArray((data as LocalDebugData).elements)
+                ? (data as LocalDebugData).elements.length
+                : 0}{' '}
+              个
+            </div>
           </div>
           <div className="bg-pink-50 p-2 rounded">
             <div className="text-pink-600 font-medium">分类</div>
-            <div className="text-pink-900">{Array.isArray((data as LocalDebugData).categories) ? (data as LocalDebugData).categories.length : 0} 个</div>
+            <div className="text-pink-900">
+              {Array.isArray((data as LocalDebugData).categories)
+                ? (data as LocalDebugData).categories.length
+                : 0}{' '}
+              个
+            </div>
           </div>
           <div className="bg-indigo-50 p-2 rounded">
             <div className="text-indigo-600 font-medium">用户</div>
@@ -163,11 +189,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
   // 对比视图
   const renderComparison = () => {
     if (!serverData || !sqliteData) {
-      return (
-        <div className="text-center py-8 text-gray-500">
-          请先加载服务器和 SQLite 数据
-        </div>
-      );
+      return <div className="text-center py-8 text-gray-500">请先加载服务器和 SQLite 数据</div>;
     }
 
     const compareCount = (serverCount: number, sqliteCount: number) => {
@@ -175,9 +197,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         return <span className="text-green-600">✓ 一致</span>;
       }
       return (
-        <span className="text-red-600">
-          ✗ 不一致 (差异: {Math.abs(serverCount - sqliteCount)})
-        </span>
+        <span className="text-red-600">✗ 不一致 (差异: {Math.abs(serverCount - sqliteCount)})</span>
       );
     };
 
@@ -219,10 +239,16 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
           <h4 className="font-medium text-yellow-800 mb-2">⚠️ 同步建议</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
             {serverData.projects?.length > sqliteData.projects?.length && (
-              <li>• SQLite 缺少 {serverData.projects.length - sqliteData.projects.length} 个项目，建议执行同步拉取</li>
+              <li>
+                • SQLite 缺少 {serverData.projects.length - sqliteData.projects.length}{' '}
+                个项目，建议执行同步拉取
+              </li>
             )}
             {sqliteData.projects?.length > serverData.projects?.length && (
-              <li>• 服务器缺少 {sqliteData.projects.length - serverData.projects.length} 个项目，建议执行同步推送</li>
+              <li>
+                • 服务器缺少 {sqliteData.projects.length - serverData.projects.length}{' '}
+                个项目，建议执行同步推送
+              </li>
             )}
             {serverData.nodes?.length > sqliteData.nodes?.length && (
               <li>• SQLite 缺少 {serverData.nodes.length - sqliteData.nodes.length} 个节点</li>
@@ -258,10 +284,7 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
               {loading ? '加载中...' : '刷新数据'}
             </button>
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-            >
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -271,30 +294,33 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
         <div className="flex border-b">
           <button
             onClick={() => setActiveTab('server')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'server'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
-              }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
+              activeTab === 'server'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             <Server size={18} />
             服务器数据
           </button>
           <button
             onClick={() => setActiveTab('sqlite')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'sqlite'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
-              }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
+              activeTab === 'sqlite'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             <Database size={18} />
             SQLite 数据
           </button>
           <button
             onClick={() => setActiveTab('compare')}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${activeTab === 'compare'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
-              }`}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors ${
+              activeTab === 'compare'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
           >
             对比分析
           </button>
@@ -314,7 +340,8 @@ export function DebugModal({ isOpen, onClose }: DebugModalProps) {
               当前用户: <span className="font-medium text-gray-700">{user?.email || '未登录'}</span>
             </div>
             <div>
-              数据刷新时间: {serverData || sqliteData ? new Date().toLocaleString('zh-CN') : '未加载'}
+              数据刷新时间:{' '}
+              {serverData || sqliteData ? new Date().toLocaleString('zh-CN') : '未加载'}
             </div>
           </div>
         </div>

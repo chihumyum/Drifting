@@ -15,7 +15,7 @@ export function EditorSettings() {
   return (
     <div className="editor-settings p-4 bg-gray-800 rounded-lg">
       <h3 className="text-sm font-semibold text-gray-200 mb-3">编辑器设置</h3>
-      
+
       <div className="space-y-2">
         <label className="flex items-center justify-between cursor-pointer group">
           <div className="flex-1">
@@ -26,7 +26,7 @@ export function EditorSettings() {
               自动识别并高亮文本中的元素名称（如角色、地点等）
             </div>
           </div>
-          
+
           <div className="ml-3">
             <input
               type="checkbox"

@@ -1,8 +1,8 @@
 import type { JSONContent } from '@tiptap/core';
 import { uuidv7 } from 'uuidv7';
-import loglevel from "loglevel";
+import loglevel from 'loglevel';
 
-const log = loglevel.getLogger("OutlineLib");
+const log = loglevel.getLogger('OutlineLib');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface OutlineItem {
@@ -27,7 +27,11 @@ export function extractOutline(pmJson: string): OutlineItem[] {
     let currentHeadingIndex = -1;
 
     const traverse = (node: JSONContent) => {
-      if (node.type === 'heading' && node.attrs?.level && (node.attrs.level === 1 || node.attrs.level === 2 || node.attrs.level === 3)) {
+      if (
+        node.type === 'heading' &&
+        node.attrs?.level &&
+        (node.attrs.level === 1 || node.attrs.level === 2 || node.attrs.level === 3)
+      ) {
         const text = extractTextFromNode(node);
         if (text.trim()) {
           outline.push({
@@ -42,12 +46,13 @@ export function extractOutline(pmJson: string): OutlineItem[] {
         }
       } else if (node.type === 'paragraph' && currentHeadingIndex >= 0) {
         // Count paragraphs after the current heading
-        outline[currentHeadingIndex].paragraphsAfter = (outline[currentHeadingIndex].paragraphsAfter || 0) + 1;
+        outline[currentHeadingIndex].paragraphsAfter =
+          (outline[currentHeadingIndex].paragraphsAfter || 0) + 1;
       }
 
       // Traverse child nodes
       if (node.content && Array.isArray(node.content)) {
-        node.content.forEach(child => traverse(child));
+        node.content.forEach((child) => traverse(child));
       }
     };
 
@@ -68,7 +73,7 @@ function extractTextFromNode(node: JSONContent): string {
   }
 
   if (node.content && Array.isArray(node.content)) {
-    return node.content.map(child => extractTextFromNode(child)).join('');
+    return node.content.map((child) => extractTextFromNode(child)).join('');
   }
 
   return '';

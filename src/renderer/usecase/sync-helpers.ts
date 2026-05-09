@@ -5,7 +5,11 @@
  * for the entity sync service. Used by usecases.
  */
 
-import { enqueueSyncMutation, type EntityType, type MutationType } from '../services/entity-sync.service';
+import {
+  enqueueSyncMutation,
+  type EntityType,
+  type MutationType,
+} from '../services/entity-sync.service';
 
 export function enqueueSync(
   entityType: EntityType,
@@ -52,7 +56,11 @@ export function syncNodeDelete(id: string, projectId: string) {
   enqueueSync('node', 'delete', id, projectId);
 }
 
-export function syncNodeContentUpdate(nodeId: string, projectId: string, payload: Record<string, unknown>) {
+export function syncNodeContentUpdate(
+  nodeId: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('nodeContent', 'update', nodeId, projectId, payload);
 }
 
@@ -68,11 +76,19 @@ export function syncEdgeDelete(id: string, projectId: string) {
   enqueueSync('nodeEdge', 'delete', id, projectId);
 }
 
-export function syncStorylineCreate(id: string, projectId: string, payload: Record<string, unknown>) {
+export function syncStorylineCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('storyline', 'create', id, projectId, payload);
 }
 
-export function syncStorylineUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
+export function syncStorylineUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('storyline', 'update', id, projectId, payload);
 }
 
@@ -80,11 +96,19 @@ export function syncStorylineDelete(id: string, projectId: string) {
   enqueueSync('storyline', 'delete', id, projectId);
 }
 
-export function syncNodeStorylineLinkCreate(nodeId: string, storylineId: string, projectId: string) {
+export function syncNodeStorylineLinkCreate(
+  nodeId: string,
+  storylineId: string,
+  projectId: string,
+) {
   enqueueSync('nodeStorylineLink', 'create', nodeId, projectId, undefined, storylineId);
 }
 
-export function syncNodeStorylineLinkDelete(nodeId: string, storylineId: string, projectId: string) {
+export function syncNodeStorylineLinkDelete(
+  nodeId: string,
+  storylineId: string,
+  projectId: string,
+) {
   enqueueSync('nodeStorylineLink', 'delete', nodeId, projectId, undefined, storylineId);
 }
 
@@ -104,11 +128,19 @@ export function syncElementDelete(id: string, projectId: string) {
   enqueueSync('element', 'delete', id, projectId);
 }
 
-export function syncCategoryCreate(id: string, projectId: string, payload: Record<string, unknown>) {
+export function syncCategoryCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('elementCategory', 'create', id, projectId, payload);
 }
 
-export function syncCategoryUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
+export function syncCategoryUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('elementCategory', 'update', id, projectId, payload);
 }
 
@@ -148,7 +180,11 @@ export function syncNodeTagsSet(nodeId: string, projectId: string, tagIds: strin
   enqueueSync('nodeTagLink', 'update', nodeId, projectId, { tagIds });
 }
 
-export function syncElementTagCreate(id: string, projectId: string, payload: Record<string, unknown>) {
+export function syncElementTagCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
   enqueueSync('elementTag', 'create', id, projectId, payload);
 }
 
