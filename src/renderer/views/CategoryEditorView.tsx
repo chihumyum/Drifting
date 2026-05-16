@@ -10,7 +10,7 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
-import { EditorContextMenu } from '../viewComponents/editor/EditorContextMenu';
+import { EditorContextMenu } from '../components/editor/EditorContextMenu';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { X, Eye } from 'lucide-react';
 import loglevel from 'loglevel';

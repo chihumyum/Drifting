@@ -84,6 +84,21 @@ function toSafeDoc(input: unknown): JSONContent {
   return DEFAULT_DOC;
 }
 
+function parseLegacyDoc(content: string | null): JSONContent | null {
+  if (!content) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(content);
+    const doc = toSafeDoc(parsed);
+    return doc === DEFAULT_DOC ? null : doc;
+  } catch (error) {
+    log.warn('Failed to parse legacy chapter content, keeping empty Yjs doc:', error);
+    return null;
+  }
+}
+
 export function ChapterEditor({
   nodeId,
   content,
@@ -330,18 +345,18 @@ export function ChapterEditor({
       return;
     }
 
+    const legacyDoc = parseLegacyDoc(content);
     legacySeededRef.current = true;
-    if (!content) {
-      editor.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
+
+    if (!legacyDoc) {
       return;
     }
 
     try {
-      const parsed = JSON.parse(content);
-      editor.commands.setContent(toSafeDoc(parsed), { emitUpdate: true });
+      editor.commands.setContent(legacyDoc, { emitUpdate: true });
     } catch (error) {
-      log.warn('Failed to parse legacy chapter content, fallback to empty doc:', error);
-      editor.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
+      legacySeededRef.current = false;
+      log.warn('Failed to seed Yjs document from legacy chapter content:', error);
     }
   }, [content, editor, hasLocalState, isYjsReady]);
 

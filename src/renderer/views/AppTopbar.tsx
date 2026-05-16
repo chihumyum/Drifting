@@ -1,9 +1,9 @@
 import { useUiStore } from '../store/ui-store';
-import { LeftSidebarTopBar } from '../viewComponents/topBars/LeftSidebarTopBar';
-import { MainTopBar } from '../viewComponents/topBars/MainTopBar';
-import { RightSidebarTopBar } from '../viewComponents/topBars/RightSidebarTopBar';
-import { NewEntityButton } from '../viewComponents/topBars/TopTimeline/NewEntityButton';
-import { TopTimeline } from '../viewComponents/topBars/TopTimeline/TopTimeline';
+import { LeftSidebarTopBar } from '../components/topBars/LeftSidebarTopBar';
+import { MainTopBar } from '../components/topBars/MainTopBar';
+import { RightSidebarTopBar } from '../components/topBars/RightSidebarTopBar';
+import { NewEntityButton } from '../components/topBars/TopTimeline/NewEntityButton';
+import { TopTimeline } from '../components/topBars/TopTimeline/TopTimeline';
 
 interface AppTopbarProps {
   hideNewEntityButton?: boolean;

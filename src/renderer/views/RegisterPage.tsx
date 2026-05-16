@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, NotebookPen, Sparkles, UserRound, Mail, Lock } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
-import { AuthLayout } from '../viewComponents/auth/AuthLayout';
-import { BetaClosedDialog } from '../viewComponents/auth/BetaClosedDialog';
+import { AuthLayout } from '../components/auth/AuthLayout';
+import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 
 const heroFeatures = [

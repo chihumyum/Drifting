@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
 import { BookNode } from '../domain/book-node';
-import { ChapterEditor, type ChapterEditorRef } from '../viewComponents/editor/ChapterEditor';
+import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
