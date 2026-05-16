@@ -347,6 +347,12 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const removeNodeFromStoryline = useCallback(
     async (nodeId: string, storylineId: string): Promise<void> => {
       await ensureDb();
+      const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
+      if (node && node.mainStorylineId === storylineId) {
+        throw new Error(
+          `Cannot unlink node ${nodeId} from its main storyline. Change the main storyline first.`,
+        );
+      }
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
       return withOptimisticUpdate({
         apply: () => removeNodeFromStorylineMappingState(storylineId, nodeId),
@@ -393,12 +399,17 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const setNodeStorylines = useCallback(
     async (nodeId: string, storylineIds: string[]): Promise<void> => {
       await ensureDb();
+      const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
+      const effectiveIds =
+        node && !storylineIds.includes(node.mainStorylineId)
+          ? [node.mainStorylineId, ...storylineIds]
+          : storylineIds;
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
       return withOptimisticUpdate({
-        apply: () => setNodeStorylinesMappingState(nodeId, storylineIds),
+        apply: () => setNodeStorylinesMappingState(nodeId, effectiveIds),
         rollback: () => setStorylineNodeMappingState(prevMapping),
-        effect: () => linkRepo.setNodeStorylines(nodeId, storylineIds),
-        sync: () => syncNodeStorylinesSet(nodeId, activeProjectId, storylineIds),
+        effect: () => linkRepo.setNodeStorylines(nodeId, effectiveIds),
+        sync: () => syncNodeStorylinesSet(nodeId, activeProjectId, effectiveIds),
       });
     },
     [

@@ -1,4 +1,4 @@
-import { getDb } from '../lib/db';
+import { getDb, type DbExecutor } from '../lib/db';
 import { NodeContentTable } from '../schema/drizzle';
 import { eq } from 'drizzle-orm';
 import type { NodeContent } from '../domain/node-content';
@@ -29,13 +29,14 @@ function toNodeContent(record: typeof NodeContentTable.$inferSelect): NodeConten
   };
 }
 
-export function createBookContentRepository(): BookContentRepository {
+export function createBookContentRepository(dbOverride?: DbExecutor): BookContentRepository {
+  const dbProvider = () => dbOverride ?? getDb();
   const findById = async (id: string): Promise<NodeContent | null> => {
     return findByNodeId(id);
   };
 
   const findByNodeId = async (nodeId: string): Promise<NodeContent | null> => {
-    const rows = await getDb()
+    const rows = await dbProvider()
       .select()
       .from(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, nodeId))
@@ -54,7 +55,7 @@ export function createBookContentRepository(): BookContentRepository {
       updatedAt: now,
     };
 
-    await getDb().insert(NodeContentTable).values(newContent);
+    await dbProvider().insert(NodeContentTable).values(newContent);
     return toNodeContent(newContent as typeof NodeContentTable.$inferSelect);
   };
 
@@ -68,7 +69,10 @@ export function createBookContentRepository(): BookContentRepository {
     if (data.contentJson !== undefined) updateValues.contentJson = data.contentJson;
     if (data.outlineJson !== undefined) updateValues.outlineJson = data.outlineJson;
 
-    await getDb().update(NodeContentTable).set(updateValues).where(eq(NodeContentTable.nodeId, id));
+    await dbProvider()
+      .update(NodeContentTable)
+      .set(updateValues)
+      .where(eq(NodeContentTable.nodeId, id));
 
     return findById(id);
   };
@@ -83,12 +87,14 @@ export function createBookContentRepository(): BookContentRepository {
   };
 
   const deleteById = async (id: string): Promise<boolean> => {
-    const result = await getDb().delete(NodeContentTable).where(eq(NodeContentTable.nodeId, id));
+    const result = await dbProvider()
+      .delete(NodeContentTable)
+      .where(eq(NodeContentTable.nodeId, id));
     return (result as any).rowsAffected > 0;
   };
 
   const deleteByNodeId = async (nodeId: string): Promise<boolean> => {
-    const result = await getDb()
+    const result = await dbProvider()
       .delete(NodeContentTable)
       .where(eq(NodeContentTable.nodeId, nodeId));
     return (result as any).rowsAffected > 0;

@@ -7,7 +7,7 @@ import {
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node.ts';
-import { initDatabase } from '../lib/db';
+import { initDatabase, getDb } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import { withOptimisticUpdate } from './optimistic';
@@ -15,6 +15,7 @@ import {
   syncNodeCreate,
   syncNodeUpdate,
   syncNodeDelete,
+  syncNodeStorylineLinkCreate,
   syncEdgeCreate,
   syncEdgeUpdate,
   syncEdgeDelete,
@@ -149,23 +150,18 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
-          const created = await nodeRepo.create(newNode);
-          try {
-            await linkRepo.addNodeToStoryline(created.id, created.mainStorylineId);
-          } catch (error) {
-            await nodeRepo.delete(created.id);
-            throw error;
-          }
-          try {
-            await contentRepo.create({
+          return await getDb().transaction(async (tx) => {
+            const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
+            const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
+            const contentRepoTx = createBookContentRepository(tx);
+            const created = await nodeRepoTx.create(newNode);
+            await linkRepoTx.addNodeToStoryline(created.id, created.mainStorylineId);
+            await contentRepoTx.create({
               nodeId: created.id,
               contentJson: defaultDocJson,
             });
-            log.debug('Created default content for new node:', created.id);
-          } catch (error) {
-            log.error('Failed to create default content for new node:', error);
-          }
-          return created;
+            return created;
+          });
         },
         onSuccess: (created) => {
           const current = getNodesState();
@@ -326,16 +322,44 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         serverUpdates.positionY = updates.position.y;
         delete serverUpdates.position;
       }
+
+      const mainChanged =
+        updates.mainStorylineId !== undefined && updates.mainStorylineId !== existing.mainStorylineId;
+
       return withOptimisticUpdate({
-        apply: () => updateNodeState(id, { ...updates, updatedAt }),
+        apply: () => {
+          updateNodeState(id, { ...updates, updatedAt });
+          if (mainChanged && updates.mainStorylineId) {
+            addNodeToStorylineMappingState(updates.mainStorylineId, id);
+          }
+        },
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
-          await nodeRepo.update(id, { ...updates, updatedAt });
+          await getDb().transaction(async (tx) => {
+            const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
+            await nodeRepoTx.update(id, { ...updates, updatedAt });
+            if (mainChanged && updates.mainStorylineId) {
+              const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
+              await linkRepoTx.addNodeToStoryline(id, updates.mainStorylineId);
+            }
+          });
         },
-        sync: () => syncNodeUpdate(id, activeProjectId, serverUpdates),
+        sync: () => {
+          syncNodeUpdate(id, activeProjectId, serverUpdates);
+          if (mainChanged && updates.mainStorylineId) {
+            syncNodeStorylineLinkCreate(id, updates.mainStorylineId, activeProjectId);
+          }
+        },
       });
     },
-    [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState, activeProjectId],
+    [
+      ensureDb,
+      getNodesState,
+      updateNodeState,
+      setNodesState,
+      addNodeToStorylineMappingState,
+      activeProjectId,
+    ],
   );
 
   const deleteNode = useCallback(
