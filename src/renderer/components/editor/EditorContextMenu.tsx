@@ -32,8 +32,8 @@ export function EditorContextMenu({ editorType, onAction }: EditorContextMenuPro
     switch (editorType) {
       case 'node':
         return [
-          { action: 'deleteNode', label: '🗑️ Delete Node', color: '#c04040' },
-          { action: 'threadPicker', label: '🔀 Manage Storylines', color: '#2a1a0a' },
+          { action: 'editNodeStorylines', label: 'Edit Storylines', color: '#2a1a0a' },
+          { action: 'deleteNode', label: 'Delete Node', color: '#c04040' },
         ];
       case 'element':
         return [

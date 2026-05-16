@@ -23,7 +23,6 @@ interface UseBottomTimelineContextMenuActionsParams {
   getStorylinesByNode: (nodeId: string) => Promise<Storyline[]>;
   deleteNode: (nodeId: string) => Promise<void>;
   removeNodeFromStoryline: (nodeId: string, storylineId: string) => Promise<void>;
-  setNodeStorylines: (nodeId: string, storylineIds: string[]) => Promise<void>;
   updateNode: (id: string, updates: Partial<BookNode>) => Promise<void>;
   navigateToNode: (nodeId: string) => void;
   navigateToHome: () => void;
@@ -43,7 +42,6 @@ export function useBottomTimelineContextMenuActions({
   getStorylinesByNode,
   deleteNode,
   removeNodeFromStoryline,
-  setNodeStorylines,
   updateNode,
   navigateToNode,
   navigateToHome,
@@ -107,12 +105,19 @@ export function useBottomTimelineContextMenuActions({
                 const remainingStorylineIds = nodeStorylines
                   .filter((t) => t.id !== contextMenu.storylineId)
                   .map((t) => t.id);
-
-                await setNodeStorylines(contextMenu.nodeId, remainingStorylineIds);
-                if (remainingStorylineIds.length > 0) {
+                if (remainingStorylineIds.length === 0) {
+                  // Cannot remove the last storyline; fall back to deleting the node.
+                  await deleteNode(contextMenu.nodeId);
+                  if (currentRouteNodeId === contextMenu.nodeId) {
+                    navigateToHome();
+                  }
+                } else {
+                  // Promote a different storyline to main first so the unlink of
+                  // the old main passes the guard in removeNodeFromStoryline.
                   await updateNode(contextMenu.nodeId, {
                     mainStorylineId: remainingStorylineIds[0],
                   });
+                  await removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);
                 }
               } else {
                 await removeNodeFromStoryline(contextMenu.nodeId, contextMenu.storylineId);

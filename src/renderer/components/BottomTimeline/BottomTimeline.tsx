@@ -48,12 +48,7 @@ export function BottomTimeline() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const {
-    addNodeToStoryline,
-    getStorylinesByNode,
-    removeNodeFromStoryline,
-    setNodeStorylines,
-  } = useStoryline({
+  const { addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -318,7 +313,6 @@ export function BottomTimeline() {
     getStorylinesByNode,
     deleteNode,
     removeNodeFromStoryline,
-    setNodeStorylines,
     updateNode,
     navigateToNode,
     navigateToHome,
@@ -351,6 +345,8 @@ export function BottomTimeline() {
 
   // Handle drag start
   const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
+    clearHoverPreview();
+    setHoveredEdge(null);
     setDraggedNode({ node, storylineId });
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -386,6 +382,8 @@ export function BottomTimeline() {
   // Handle drop
   const handleDrop = async (e: React.DragEvent, targetStorylineId: string) => {
     e.preventDefault();
+    clearHoverPreview();
+    setHoveredEdge(null);
     if (!draggedNode || !dragOverPosition) return;
 
     const { node, storylineId: sourceStorylineId } = draggedNode;
@@ -405,16 +403,14 @@ export function BottomTimeline() {
       }
 
       if (sourceStorylineId !== targetStorylineId) {
-        if (isTargetInNodeStorylines) {
-          // Keep memberships, only switch primary storyline.
-          await updateNode(node.id, { mainStorylineId: targetStorylineId });
-        } else {
+        // Change main first. updateNode auto-links the target into the
+        // node_storyline_link table, so the row exists before we remove the
+        // old main (otherwise removeNodeFromStoryline would reject the unlink).
+        await updateNode(node.id, { mainStorylineId: targetStorylineId });
+        if (!isTargetInNodeStorylines) {
+          // Source was the old main and isn't supposed to remain as a secondary
+          // membership; unlink it now that the node's main has moved.
           await removeNodeFromStoryline(node.id, sourceStorylineId);
-          const remainingStorylineIds = node.storylines
-            .filter((t) => t.id !== sourceStorylineId)
-            .map((t) => t.id);
-          await setNodeStorylines(node.id, [targetStorylineId, ...remainingStorylineIds]);
-          await updateNode(node.id, { mainStorylineId: targetStorylineId });
         }
       }
 
@@ -429,11 +425,15 @@ export function BottomTimeline() {
     } catch (error) {
       log.error('Failed to handle drop:', error);
     } finally {
+      clearHoverPreview();
+      setHoveredEdge(null);
       clearDragState();
     }
   };
 
   const handleDragEnd = () => {
+    clearHoverPreview();
+    setHoveredEdge(null);
     clearDragState();
   };
 
@@ -580,6 +580,8 @@ export function BottomTimeline() {
 
   // 悬停预览事件处理
   const handleNodeMouseEnter = (node: TimelineNode, e: React.MouseEvent) => {
+    if (draggedNode) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverPreview({
       nodeId: node.id,
@@ -681,6 +683,12 @@ export function BottomTimeline() {
     const edgeHover = hoveredEdge?.nodeId === node.id ? hoveredEdge.edge : null;
 
     const handleMouseMove = (e: React.MouseEvent) => {
+      if (draggedNode) {
+        clearHoverPreview();
+        setHoveredEdge(null);
+        return;
+      }
+
       // 收起时不检测边缘
       if (isExpanded) {
         const rect = e.currentTarget.getBoundingClientRect();
