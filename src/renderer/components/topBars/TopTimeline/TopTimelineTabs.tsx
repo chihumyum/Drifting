@@ -57,8 +57,37 @@ export function TopTimelineTabs({
   storylineColorMap,
   categoryColorMap,
 }: TopTimelineTabsProps) {
+  // Header pill — square with first letter, color from current scope
+  const headerColor = isProjectHomeMode
+    ? 'hsl(var(--ink-2))'
+    : isAllElementsMode
+      ? 'hsl(var(--story-2))'
+      : isElementMode
+        ? currentCategory?.color || 'hsl(var(--story-4))'
+        : isAllNodesMode
+          ? 'hsl(var(--story-4))'
+          : currentStoryline?.color || 'hsl(var(--story-1))';
+
+  const headerLetter = isProjectHomeMode
+    ? 'R'
+    : isAllElementsMode
+      ? 'E'
+      : isElementMode
+        ? currentCategory?.name
+          ? currentCategory.name.charAt(0).toUpperCase()
+          : '?'
+        : isAllNodesMode
+          ? 'A'
+          : currentStoryline?.name
+            ? currentStoryline.name.charAt(0).toUpperCase()
+            : '?';
+
+  const headerInteractive =
+    canShowHeaderDropdown || (isElementMode && Boolean(currentCategory));
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap }}>
+      {/* Header anchor — scope indicator */}
       <div
         ref={storylineIconRef}
         style={{
@@ -71,45 +100,30 @@ export function TopTimelineTabs({
           style={
             {
               width: iconWidth,
-              height: 28,
+              height: 26,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 4,
-              background: isProjectHomeMode
-                ? '#6e7b8b'
-                : isAllElementsMode
-                  ? '#5d8aa8'
-                  : isElementMode
-                    ? currentCategory?.color || '#b89968'
-                    : isAllNodesMode
-                      ? '#8b7355'
-                      : currentStoryline?.color || '#b89968',
-              cursor:
-                canShowHeaderDropdown || (isElementMode && Boolean(currentCategory))
-                  ? 'pointer'
-                  : 'default',
+              background: headerColor,
+              cursor: headerInteractive ? 'pointer' : 'default',
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
               fontSize: 14,
-              fontWeight: 600,
-              color: '#fff',
-              transition: 'all 0.2s',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+              fontWeight: 500,
+              color: 'hsl(var(--paper))',
+              transition: 'filter 0.15s, transform 0.15s',
               WebkitAppRegion: 'no-drag',
+              letterSpacing: '0.01em',
             } as CSSProperties
           }
           onMouseEnter={(event) => {
-            event.currentTarget.style.transform = 'scale(1.05)';
-            event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-            if (canShowHeaderDropdown) {
-              onShowDropdown(event);
-            }
+            event.currentTarget.style.filter = 'brightness(1.08)';
+            if (canShowHeaderDropdown) onShowDropdown(event);
           }}
           onMouseLeave={(event) => {
-            event.currentTarget.style.transform = 'scale(1)';
-            event.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-            if (canShowHeaderDropdown) {
-              onHideDropdown();
-            }
+            event.currentTarget.style.filter = 'none';
+            if (canShowHeaderDropdown) onHideDropdown();
           }}
           title={
             isAllElementsMode
@@ -123,31 +137,20 @@ export function TopTimelineTabs({
                     : currentStoryline?.name || 'Storyline'
           }
         >
-          {isProjectHomeMode
-            ? 'R'
-            : isAllElementsMode
-              ? 'E'
-              : isElementMode
-                ? currentCategory?.name
-                  ? currentCategory.name.charAt(0).toUpperCase()
-                  : '?'
-                : isAllNodesMode
-                  ? 'A'
-                  : currentStoryline?.name
-                    ? currentStoryline.name.charAt(0).toUpperCase()
-                    : '?'}
+          {headerLetter}
         </div>
       </div>
 
+      {/* Tab list */}
       <div
         ref={containerRef}
         style={{
           flex: 1,
           minWidth: 0,
           display: 'flex',
-          alignItems: 'center',
-          gap,
-          height: 28,
+          alignItems: 'stretch',
+          gap: 2,
+          height: 42,
           overflowX: 'auto',
           overflowY: 'hidden',
           paddingRight: 16,
@@ -159,19 +162,16 @@ export function TopTimelineTabs({
       >
         {timelineItems.map((item, index) => {
           const isSelected = item.id === selectedItemId;
+          const isNode = 'title' in item;
           const width = getNodeWidth(index);
-          const label =
-            'title' in item ? item.title || 'Untitled Chapter' : item.name || 'Untitled Element';
-          const baseColor =
-            'title' in item
-              ? storylineColorMap.get(item.mainStorylineId)
-              : categoryColorMap.get(item.categoryId);
+          const label = isNode
+            ? item.title || 'Untitled Chapter'
+            : item.name || 'Untitled Element';
+          const baseColor = isNode
+            ? storylineColorMap.get(item.mainStorylineId)
+            : categoryColorMap.get(item.categoryId);
           const tone = getSubtleTabTone(baseColor);
-          const idleBackground = isSelected ? tone.selectedBackground : tone.normalBackground;
-          const idleBorderColor = isSelected ? tone.selectedBorder : 'rgba(255, 255, 255, 0.28)';
-          const idleShadow = isSelected
-            ? '0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7)'
-            : '0 1px 3px rgba(0, 0, 0, 0.05)';
+          const accent = baseColor || 'hsl(var(--ink-3))';
 
           return (
             <div
@@ -179,21 +179,15 @@ export function TopTimelineTabs({
               ref={isSelected ? selectedNodeRef : null}
               onClick={() => onItemClick(item)}
               onMouseEnter={(event) => {
-                if ('title' in item) {
-                  onNodeMouseEnter(item, event);
-                }
+                if (isNode) onNodeMouseEnter(item, event);
                 if (!isSelected) {
                   event.currentTarget.style.background = tone.hoverBackground;
-                  event.currentTarget.style.borderColor = tone.selectedBorder;
-                  event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
                 }
               }}
               onMouseLeave={(event) => {
                 onItemMouseLeave();
                 if (!isSelected) {
-                  event.currentTarget.style.background = idleBackground;
-                  event.currentTarget.style.borderColor = idleBorderColor;
-                  event.currentTarget.style.boxShadow = idleShadow;
+                  event.currentTarget.style.background = 'transparent';
                 }
               }}
               style={
@@ -201,42 +195,71 @@ export function TopTimelineTabs({
                   flexShrink: 0,
                   maxWidth: width,
                   minWidth: 0,
-                  height: 28,
                   display: 'flex',
                   alignItems: 'center',
+                  gap: 7,
                   paddingLeft: 10,
                   paddingRight: 10,
-                  borderRadius: 7,
-                  background: idleBackground,
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  border: `1px solid ${idleBorderColor}`,
-                  boxShadow: idleShadow,
+                  background: isSelected ? tone.selectedBackground : 'transparent',
                   cursor: 'pointer',
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  fontSize: 13,
-                  color: isSelected ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.65)',
+                  transition: 'background 0.18s ease',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 12.5,
+                  color: isSelected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+                  fontWeight: isSelected ? 500 : 400,
+                  borderBottom: isSelected
+                    ? `2px solid ${accent}`
+                    : '2px solid transparent',
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   WebkitAppRegion: 'no-drag',
+                  height: '100%',
                 } as CSSProperties
               }
             >
-              {label}
+              {/* Leading symbol — § for node, ◆ for element */}
+              <span
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontStyle: 'italic',
+                  fontSize: 13,
+                  color: accent,
+                  flexShrink: 0,
+                  lineHeight: 1,
+                }}
+                aria-hidden
+              >
+                {isNode ? '§' : '◆'}
+              </span>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1,
+                  minWidth: 0,
+                  letterSpacing: '-0.005em',
+                }}
+              >
+                {label}
+              </span>
             </div>
           );
         })}
         {isProjectHomeMode && timelineItems.length === 0 && (
           <div
             style={{
-              fontSize: 12,
-              color: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 11,
+              color: 'hsl(var(--ink-4))',
+              fontStyle: 'italic',
+              fontFamily: 'var(--font-serif)',
               whiteSpace: 'nowrap',
-              paddingLeft: 4,
+              paddingLeft: 6,
             }}
           >
-            No recent entities yet
+            no recent entities
           </div>
         )}
       </div>

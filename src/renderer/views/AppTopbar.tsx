@@ -33,7 +33,7 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
         style={{
           width: leftWidth,
           transition: resizingSidebar === 'left' ? 'none' : 'width 0.2s',
-          borderRight: '1px solid rgba(213, 213, 213, 0.3)',
+          borderRight: '1px solid hsl(var(--rule))',
           flexShrink: 0,
           overflow: 'hidden',
         }}
@@ -53,7 +53,7 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
         style={{
           width: rightWidth,
           transition: resizingSidebar === 'right' ? 'none' : 'width 0.2s',
-          borderLeft: '1px solid rgba(213, 213, 213, 0.3)',
+          borderLeft: '1px solid hsl(var(--rule))',
           flexShrink: 0,
         }}
       >

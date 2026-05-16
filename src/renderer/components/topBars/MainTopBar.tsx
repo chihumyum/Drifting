@@ -19,12 +19,11 @@ export function MainTopBar({ children, leftContent, rightContent }: MainTopBarPr
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingLeft: 16,
-          paddingRight: 16,
+          paddingLeft: 12,
+          paddingRight: 12,
           flexShrink: 0,
           WebkitAppRegion: 'drag',
-          borderBottom: '1px solid rgba(213, 213, 213, 0.05)',
-          border: '2px solid rgba(0, 0, 0, 1)',
+          borderBottom: '1px solid hsl(var(--rule))',
         } as React.CSSProperties
       }
     >

@@ -11,7 +11,7 @@ export function RightSidebarTopBar() {
     return null;
   }
 
-  const iconSize = 20;
+  const iconSize = 16;
 
   return (
     <div
@@ -21,10 +21,10 @@ export function RightSidebarTopBar() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: isRightSidebarOpen ? 'flex-start' : 'flex-end',
-          paddingLeft: isRightSidebarOpen ? 6 : 8,
+          paddingLeft: isRightSidebarOpen ? 8 : 8,
           paddingRight: 8,
-          gap: isRightSidebarOpen ? 6 : 0,
-          borderBottom: '1px solid rgba(213, 213, 213, 0.15)',
+          gap: isRightSidebarOpen ? 8 : 0,
+          borderBottom: '1px solid hsl(var(--rule))',
           width: '100%',
           WebkitAppRegion: 'drag',
         } as React.CSSProperties
@@ -32,36 +32,38 @@ export function RightSidebarTopBar() {
     >
       <button
         onClick={() => toggleSidebar('right')}
+        title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar'}
         style={
           {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: 6,
+            width: 26,
+            height: 26,
+            borderRadius: 4,
             border: 'none',
             background: 'transparent',
-            color: '#5a5a5a',
+            color: 'hsl(var(--ink-3))',
             cursor: 'pointer',
-            transition: 'all 0.15s ease',
+            transition: 'background 0.15s ease, color 0.15s ease',
             WebkitAppRegion: 'no-drag',
+            padding: 0,
+            flexShrink: 0,
           } as React.CSSProperties
         }
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
+          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+          e.currentTarget.style.color = 'hsl(var(--ink-1))';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
+          e.currentTarget.style.color = 'hsl(var(--ink-3))';
         }}
-        title="Toggle Right Sidebar"
       >
         {isRightSidebarOpen ? (
-          <PanelRightClose size={iconSize} />
+          <PanelRightClose size={iconSize} strokeWidth={1.6} />
         ) : (
-          <PanelRightOpen size={iconSize} />
+          <PanelRightOpen size={iconSize} strokeWidth={1.6} />
         )}
       </button>
       {isRightSidebarOpen && (

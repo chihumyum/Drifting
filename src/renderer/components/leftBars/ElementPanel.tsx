@@ -519,8 +519,8 @@ export function ElementPanel() {
         className="bg-paper shadow-paper hover:shadow-paper-lg transition-shadow"
         style={{
           border: selected
-            ? '1px solid var(--accent, #b89968)'
-            : '1px solid var(--accent-border, #e8dcc8)',
+            ? '1px solid hsl(var(--accent))'
+            : '1px solid hsl(var(--rule))',
           padding: '14px 16px',
           borderRadius: 12,
           display: 'flex',
@@ -541,7 +541,7 @@ export function ElementPanel() {
               flex: 1,
               fontSize: 14,
               fontWeight: 600,
-              color: '#3a2a1a',
+              color: 'hsl(var(--ink-1))',
             }}
           >
             {editingElementId === element.id ? (
@@ -569,10 +569,10 @@ export function ElementPanel() {
                   fontSize: 14,
                   fontWeight: 600,
                   padding: '2px 4px',
-                  border: '1px solid var(--accent-border, #e8dcc8)',
+                  border: '1px solid hsl(var(--rule))',
                   borderRadius: 4,
-                  background: 'var(--bg-paper)',
-                  color: '#3a2a1a',
+                  background: 'hsl(var(--surface))',
+                  color: 'hsl(var(--ink-1))',
                 }}
               />
             ) : (
@@ -596,7 +596,7 @@ export function ElementPanel() {
               }}
               className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
               style={{
-                border: '1px solid var(--accent-border, #e8dcc8)',
+                border: '1px solid hsl(var(--rule))',
                 borderRadius: 6,
                 padding: 6,
                 cursor: 'pointer',
@@ -624,10 +624,10 @@ export function ElementPanel() {
                     top: '100%',
                     right: 0,
                     marginTop: 4,
-                    background: '#fefdfb',
-                    border: '1px solid var(--accent-border, #e8dcc8)',
+                    background: 'hsl(var(--surface))',
+                    border: '1px solid hsl(var(--rule))',
                     borderRadius: 8,
-                    boxShadow: '0 4px 12px rgba(139, 115, 85, 0.15)',
+                    boxShadow: '0 4px 12px hsl(var(--ink-1) / 0.10)',
                     minWidth: 120,
                     zIndex: 20,
                     overflow: 'hidden',
@@ -646,7 +646,7 @@ export function ElementPanel() {
                       padding: '10px 12px',
                       border: 'none',
                       background: 'transparent',
-                      color: '#dc2626',
+                      color: 'hsl(var(--destructive))',
                       fontSize: 13,
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -661,7 +661,7 @@ export function ElementPanel() {
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: '#8b7355' }}>
+        <div style={{ fontSize: 11, color: 'hsl(var(--ink-3))' }}>
           {new Date(element.updatedAt).toLocaleDateString()}
         </div>
       </div>
@@ -699,10 +699,10 @@ export function ElementPanel() {
               gap: 6,
               padding: '6px 12px',
               borderRadius: 8,
-              border: '1px solid var(--accent-border, #e8dcc8)',
+              border: '1px solid hsl(var(--rule))',
               fontSize: 12,
               fontWeight: 600,
-              color: '#5a4a3a',
+              color: 'hsl(var(--ink-2))',
               cursor: 'pointer',
             }}
           >
@@ -745,12 +745,12 @@ export function ElementPanel() {
                   justifyContent: 'space-between',
                   fontSize: 12,
                   fontWeight: 600,
-                  color: 'rgba(0, 0, 0, 0.5)',
+                  color: 'hsl(var(--ink-3))',
                   marginBottom: 8,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   padding: '6px 8px 6px 0',
-                  background: 'var(--bg-paper, #fefdfb)',
+                  background: 'hsl(var(--surface))',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -779,11 +779,11 @@ export function ElementPanel() {
                         minWidth: 120,
                         fontSize: 12,
                         fontWeight: 600,
-                        color: 'rgba(0, 0, 0, 0.75)',
+                        color: 'hsl(var(--ink-2))',
                         padding: '2px 6px',
-                        border: '1px solid var(--accent-border, #e8dcc8)',
+                        border: '1px solid hsl(var(--rule))',
                         borderRadius: 4,
-                        background: 'var(--bg-paper, #fefdfb)',
+                        background: 'hsl(var(--surface))',
                         textTransform: 'none',
                         letterSpacing: 'normal',
                         outline: 'none',
@@ -831,10 +831,10 @@ export function ElementPanel() {
                     style={{
                       padding: '4px 12px',
                       borderRadius: 6,
-                      border: '1px solid var(--accent-border, #e8dcc8)',
+                      border: '1px solid hsl(var(--rule))',
                       fontSize: 11,
                       fontWeight: 600,
-                      color: '#5a4a3a',
+                      color: 'hsl(var(--ink-2))',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -878,12 +878,12 @@ export function ElementPanel() {
             <div
               style={{
                 fontSize: 13,
-                color: '#8b7355',
+                color: 'hsl(var(--ink-3))',
                 padding: '32px 20px',
                 textAlign: 'center',
-                background: '#f9f6f1',
+                background: 'hsl(var(--paper-deep))',
                 borderRadius: 12,
-                border: '1px dashed var(--accent-border, #e8dcc8)',
+                border: '1px dashed hsl(var(--rule))',
               }}
             >
               No elements yet.
@@ -921,11 +921,11 @@ export function ElementPanel() {
             margin: '12px 0',
             width: '100%',
             borderRadius: 12,
-            border: '1px solid rgba(90, 74, 58, 0.25)',
-            background: zoomRingHovered ? 'rgba(250, 245, 237, 0.96)' : 'rgba(250, 245, 237, 0.86)',
+            border: '1px solid hsl(var(--rule))',
+            background: zoomRingHovered ? 'hsl(var(--surface) / 0.96)' : 'hsl(var(--surface) / 0.88)',
             boxShadow: zoomRingHovered
-              ? '0 10px 22px rgba(50, 40, 30, 0.18)'
-              : '0 6px 16px rgba(50, 40, 30, 0.12)',
+              ? '0 10px 22px hsl(var(--ink-1) / 0.16)'
+              : '0 6px 16px hsl(var(--ink-1) / 0.10)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -937,7 +937,7 @@ export function ElementPanel() {
               bottom: 0,
               left: ZOOM_RING_COLUMN_LEFT + ZOOM_RING_AXIS_OFFSET,
               width: 1,
-              background: 'rgba(80, 65, 48, 0.45)',
+              background: 'hsl(var(--ink-4))',
             }}
           />
 
@@ -948,7 +948,7 @@ export function ElementPanel() {
               top: '50%',
               width: 14,
               height: 1,
-              background: 'rgba(66, 54, 40, 0.7)',
+              background: 'hsl(var(--ink-3))',
               transform: 'translateY(-0.5px)',
             }}
           />
@@ -981,9 +981,9 @@ export function ElementPanel() {
                       width: ZOOM_RING_COLUMN_WIDTH,
                       height: categoryBadgeHeight,
                       borderRadius: 0,
-                      border: `1px solid ${isActiveCategory ? anchor.color : 'rgba(90, 74, 58, 0.45)'}`,
-                      background: '#f8f3ea',
-                      color: '#2f2418',
+                      border: `1px solid ${isActiveCategory ? anchor.color : 'hsl(var(--ink-4))'}`,
+                      background: 'hsl(var(--paper-deep))',
+                      color: 'hsl(var(--ink-1))',
                       fontSize: 11,
                       fontWeight: isActiveCategory ? 700 : 600,
                       textAlign: 'left',
@@ -1042,7 +1042,7 @@ export function ElementPanel() {
                               height: isActiveTick ? 3 : 2,
                               borderRadius: 2,
                               transform: 'translateY(-50%)',
-                              background: isActiveTick ? anchor.color : 'rgba(58, 45, 30, 0.8)',
+                              background: isActiveTick ? anchor.color : 'hsl(var(--ink-2))',
                               boxShadow: isActiveTick ? `0 0 0 1px ${anchor.color}33` : 'none',
                               opacity: isActiveTick || isActiveCategory ? 1 : 0.8,
                               transition: 'width 100ms ease, background 100ms ease',

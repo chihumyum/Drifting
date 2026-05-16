@@ -3,9 +3,9 @@ import { useUiStore } from '../../store/ui-store';
 type RightPanelId = 'references' | 'inspirations' | 'ai';
 
 const PANELS: Array<{ id: RightPanelId; label: string }> = [
-  { id: 'references', label: '参考资料' },
-  { id: 'inspirations', label: '灵感片段' },
-  { id: 'ai', label: 'AI功能' },
+  { id: 'references', label: '参考' },
+  { id: 'inspirations', label: '灵感' },
+  { id: 'ai', label: 'AI' },
 ];
 
 interface RightSidebarHeaderProps {
@@ -23,9 +23,11 @@ export function RightSidebarHeader({ inline = false }: RightSidebarHeaderProps) 
         height: inline ? 28 : 40,
         width: '100%',
         alignItems: 'center',
-        gap: 4,
-        padding: inline ? 0 : '0 6px',
-        borderBottom: inline ? 'none' : '1px solid rgba(213, 213, 213, 0.3)',
+        gap: 0,
+        padding: 2,
+        background: inline ? 'hsl(var(--paper-deep))' : 'transparent',
+        borderRadius: inline ? 4 : 0,
+        borderBottom: inline ? 'none' : '1px solid hsl(var(--rule))',
       }}
     >
       {PANELS.map((panel) => {
@@ -36,17 +38,26 @@ export function RightSidebarHeader({ inline = false }: RightSidebarHeaderProps) 
             onClick={() => setActiveRightPanel(panel.id)}
             style={{
               flex: 1,
-              height: 28,
-              borderRadius: 6,
-              border: isActive
-                ? '1px solid rgba(184, 153, 104, 0.6)'
-                : '1px solid rgba(184, 153, 104, 0.2)',
-              background: isActive ? 'rgba(184, 153, 104, 0.16)' : 'transparent',
-              color: isActive ? '#6f5532' : '#7d7467',
-              fontSize: 12,
-              fontWeight: 600,
+              height: inline ? 22 : 26,
+              borderRadius: 3,
+              border: 'none',
+              background: isActive ? 'hsl(var(--surface))' : 'transparent',
+              color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
+              boxShadow: isActive ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-1))';
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-3))';
             }}
           >
             {panel.label}

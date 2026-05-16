@@ -11,19 +11,11 @@ export function LeftSidebarTopBar() {
     return null;
   }
 
-  const handleOpenSettings = () => {
-    events.emit('settings:open');
-  };
+  const handleOpenSettings = () => events.emit('settings:open');
+  const handleOpenSearch = () => events.emit('search:open');
+  const handleToggleLeftSidebar = () => toggleSidebar('left');
 
-  const handleOpenSearch = () => {
-    events.emit('search:open');
-  };
-
-  const handleToggleLeftSidebar = () => {
-    toggleSidebar('left');
-  };
-
-  const iconSize = 20;
+  const iconSize = 16;
 
   return (
     <div
@@ -32,109 +24,76 @@ export function LeftSidebarTopBar() {
           height: 42,
           display: 'flex',
           alignItems: 'center',
-          paddingLeft: 90, // 为红绿灯留空间
-          paddingRight: 16,
+          paddingLeft: 78, // 红绿灯 (traffic lights) 让位
+          paddingRight: 8,
           flexShrink: 0,
-          borderBottom: '1px solid rgba(213, 213, 213, 0.15)',
-          WebkitAppRegion: 'drag', // 允许拖拽窗口
-          // border: '2px solid rgba(0, 0, 0, 1)',
+          borderBottom: '1px solid hsl(var(--rule))',
+          WebkitAppRegion: 'drag',
           width: '100%',
+          gap: 2,
         } as React.CSSProperties
       }
     >
-      <button
-        onClick={handleOpenSettings}
-        style={
-          {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: '#5a5a5a',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            WebkitAppRegion: 'no-drag', // 按钮区域不可拖拽
-          } as React.CSSProperties
-        }
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
-        }}
-        title="Settings"
-      >
-        <Settings size={iconSize} />
-      </button>
-      <button
-        onClick={handleOpenSearch}
-        style={
-          {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: '#5a5a5a',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties
-        }
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
-        }}
-        title="Search"
-      >
-        <Search size={iconSize} />
-      </button>
-
-      {/* white space */}
-      <button
+      <GhostIconBtn onClick={handleOpenSettings} title="Settings" icon={<Settings size={iconSize} strokeWidth={1.6} />} />
+      <GhostIconBtn onClick={handleOpenSearch} title="Search" icon={<Search size={iconSize} strokeWidth={1.6} />} />
+      <GhostIconBtn
         onClick={handleToggleLeftSidebar}
-        style={
-          {
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            border: 'none',
-            background: 'transparent',
-            color: '#5a5a5a',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            WebkitAppRegion: 'no-drag',
-            marginLeft: isLeftSidebarOpen ? 'auto' : '8px',
-          } as React.CSSProperties
+        title={isLeftSidebarOpen ? 'Close Left Sidebar' : 'Open Left Sidebar'}
+        marginLeftAuto={isLeftSidebarOpen}
+        marginLeft={isLeftSidebarOpen ? 'auto' : 6}
+        icon={
+          isLeftSidebarOpen ? (
+            <PanelLeftClose size={iconSize} strokeWidth={1.6} />
+          ) : (
+            <PanelLeftOpen size={iconSize} strokeWidth={1.6} />
+          )
         }
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(139, 127, 168, 0.1)';
-          e.currentTarget.style.color = '#3a3a3a';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#5a5a5a';
-        }}
-        title="Toggle Left Sidebar"
-      >
-        {isLeftSidebarOpen ? <PanelLeftClose size={iconSize} /> : <PanelLeftOpen size={iconSize} />}
-      </button>
+      />
     </div>
+  );
+}
+
+interface GhostIconBtnProps {
+  onClick: () => void;
+  title: string;
+  icon: React.ReactNode;
+  marginLeftAuto?: boolean;
+  marginLeft?: number | 'auto';
+}
+
+function GhostIconBtn({ onClick, title, icon, marginLeft }: GhostIconBtnProps) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={
+        {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 26,
+          height: 26,
+          borderRadius: 4,
+          border: 'none',
+          background: 'transparent',
+          color: 'hsl(var(--ink-3))',
+          cursor: 'pointer',
+          transition: 'background 0.15s ease, color 0.15s ease',
+          WebkitAppRegion: 'no-drag',
+          padding: 0,
+          marginLeft,
+        } as React.CSSProperties
+      }
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+        e.currentTarget.style.color = 'hsl(var(--ink-1))';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = 'hsl(var(--ink-3))';
+      }}
+    >
+      {icon}
+    </button>
   );
 }

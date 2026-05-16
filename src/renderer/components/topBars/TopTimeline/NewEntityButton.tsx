@@ -247,34 +247,39 @@ export function NewEntityButton() {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 6,
-          padding: '6px 12px',
-          borderRadius: 6,
-          border: '1px solid rgba(184, 153, 104, 0.3)',
-          background: 'rgba(184, 153, 104, 0.1)',
-          color: 'rgba(0, 0, 0, 0.75)',
-          fontSize: 13,
+          padding: '5px 10px',
+          borderRadius: 4,
+          border: '1px solid hsl(var(--rule))',
+          background: 'transparent',
+          color: 'hsl(var(--ink-2))',
+          fontSize: 11.5,
+          fontFamily: 'var(--font-mono)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
           fontWeight: 500,
           cursor: 'pointer',
-          transition: 'all 0.2s ease',
+          transition: 'all 0.15s ease',
           WebkitAppRegion: 'no-drag',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(184, 153, 104, 0.2)';
-          e.currentTarget.style.borderColor = 'rgba(184, 153, 104, 0.4)';
+          e.currentTarget.style.background = 'hsl(var(--ink-1))';
+          e.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
+          e.currentTarget.style.color = 'hsl(var(--paper))';
           if (isAllEditorMode) {
             clearHideDropdownTimeout();
             showDropdownFromButton();
           }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'rgba(184, 153, 104, 0.1)';
-          e.currentTarget.style.borderColor = 'rgba(184, 153, 104, 0.3)';
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = 'hsl(var(--rule))';
+          e.currentTarget.style.color = 'hsl(var(--ink-2))';
           if (isAllEditorMode) {
             scheduleHideDropdown();
           }
         }}
       >
-        <Plus size={16} />
+        <Plus size={13} strokeWidth={1.8} />
         <span>{buttonLabel}</span>
       </button>
 
@@ -287,13 +292,13 @@ export function NewEntityButton() {
             width: 280,
             maxHeight: '60vh',
             overflowY: 'auto',
-            background: 'rgba(255, 255, 255, 0.96)',
+            background: 'hsl(var(--surface))',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
-            borderRadius: 8,
-            border: '1px solid rgba(0, 0, 0, 0.08)',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
-            padding: 8,
+            borderRadius: 6,
+            border: '1px solid hsl(var(--rule))',
+            boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
+            padding: 6,
             zIndex: 12000,
           }}
           onMouseEnter={clearHideDropdownTimeout}
@@ -304,8 +309,11 @@ export function NewEntityButton() {
               <div
                 style={{
                   fontSize: 12,
-                  fontWeight: 700,
-                  color: '#6b7280',
+                  color: 'hsl(var(--ink-3))',
+                  fontFamily: 'var(--font-mono)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontWeight: 500,
                   padding: '4px 6px 8px 6px',
                 }}
               >
@@ -330,7 +338,7 @@ export function NewEntityButton() {
                     background: 'transparent',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
+                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -348,7 +356,9 @@ export function NewEntityButton() {
                   <div
                     style={{
                       fontSize: 13,
-                      color: 'rgba(0, 0, 0, 0.88)',
+                      color: 'hsl(var(--ink-1))',
+                      fontFamily: 'var(--font-serif)',
+                      fontStyle: 'italic',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -370,7 +380,9 @@ export function NewEntityButton() {
                     borderRadius: 6,
                     cursor: 'pointer',
                     fontSize: 13,
-                    color: 'rgba(0, 0, 0, 0.72)',
+                    color: 'hsl(var(--ink-2))',
+                    fontFamily: 'var(--font-serif)',
+                    fontStyle: 'italic',
                   }}
                 >
                   Create in new storyline
@@ -384,8 +396,11 @@ export function NewEntityButton() {
               <div
                 style={{
                   fontSize: 12,
-                  fontWeight: 700,
-                  color: '#6b7280',
+                  color: 'hsl(var(--ink-3))',
+                  fontFamily: 'var(--font-mono)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontWeight: 500,
                   padding: '4px 6px 8px 6px',
                 }}
               >
@@ -410,7 +425,7 @@ export function NewEntityButton() {
                     background: 'transparent',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
+                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -428,7 +443,9 @@ export function NewEntityButton() {
                   <div
                     style={{
                       fontSize: 13,
-                      color: 'rgba(0, 0, 0, 0.88)',
+                      color: 'hsl(var(--ink-1))',
+                      fontFamily: 'var(--font-serif)',
+                      fontStyle: 'italic',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -450,7 +467,9 @@ export function NewEntityButton() {
                     borderRadius: 6,
                     cursor: 'pointer',
                     fontSize: 13,
-                    color: 'rgba(0, 0, 0, 0.72)',
+                    color: 'hsl(var(--ink-2))',
+                    fontFamily: 'var(--font-serif)',
+                    fontStyle: 'italic',
                   }}
                 >
                   Create in new category
