@@ -58,9 +58,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         width: isExpanded ? expandedWidth : collapsedContent ? undefined : 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fefdfb',
-        borderRight: sidebarType === 'left' ? '1px solid rgba(213, 213, 213, 0.3)' : 'none',
-        borderLeft: sidebarType === 'right' ? '1px solid rgba(213, 213, 213, 0.3)' : 'none',
+        background: 'hsl(var(--paper))',
+        borderRight: sidebarType === 'left' ? '1px solid hsl(var(--rule))' : 'none',
+        borderLeft: sidebarType === 'right' ? '1px solid hsl(var(--rule))' : 'none',
         position: 'relative',
         overflow: 'visible',
       }}

@@ -250,7 +250,7 @@ function Layout() {
             style={{
               flex: 1,
               minHeight: 0, // 关键：防止 flex 子元素溢出
-              borderTop: '1px solid rgba(145, 145, 145, 0.25)',
+              borderTop: '1px solid hsl(var(--rule))',
               position: 'relative',
             }}
           >
@@ -267,12 +267,9 @@ function Layout() {
             flexDirection: 'column',
             position: 'relative',
             minWidth: 0, // 关键：防止 flex 子元素被宽内容撑爆
-            background: isEditorRoute ? 'rgba(251, 249, 243, 1)' : 'transparent',
+            background: isEditorRoute ? 'hsl(var(--page))' : 'hsl(var(--surface))',
           }}
         >
-          {/* Debug Location */}
-          <div style={{ flexShrink: 0 }}>{location.pathname}</div>
-
           {/* Scrollable Content */}
           {/* flex: 1 这里的 overflow: auto 才是真正的滚动区域 */}
           <div

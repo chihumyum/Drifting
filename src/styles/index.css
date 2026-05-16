@@ -1,50 +1,127 @@
 @import 'tailwindcss';
 @config "../../tailwind.config.js";
 
+/* ============================================================
+   Drifting Design System — tokens
+   Aesthetic: literary journal · manuscript paper · ink stamp
+   Type:      Newsreader (serif) · Inter Tight (sans) · JetBrains Mono
+   ============================================================ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    /* ─── shadcn-compatible tokens (HSL triplets, no hsl() wrapper) ─── */
+    --background:            40 22% 93%;   /* paper #F2EDE2 */
+    --foreground:            30  8% 10%;   /* ink   #1C1813 */
+
+    --card:                  43 50% 98%;   /* page  #FCFAF4 */
+    --card-foreground:       30  8% 10%;
+
+    --popover:               40 35% 97%;   /* surface */
+    --popover-foreground:    30  8% 10%;
+
+    --primary:               30  8% 10%;   /* ink — main button bg */
+    --primary-foreground:    40 22% 93%;
+
+    --secondary:             40 22% 87%;   /* paper-deep */
+    --secondary-foreground:  30 12% 20%;
+
+    --muted:                 40 22% 89%;
+    --muted-foreground:      30 11% 38%;
+
+    --accent:                  8 55% 33%;  /* 印章红 oxblood #8A2A1E */
+    --accent-foreground:     40 22% 93%;
+
+    --destructive:           14 55% 38%;
+    --destructive-foreground:40 22% 93%;
+
+    --border:                35 15% 84%;
+    --input:                 35 15% 84%;
+    --ring:                    8 55% 33%;
+
+    --radius: 0.375rem;
+
+    /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
+    --paper:                 40 22% 93%;   /* same as background */
+    --paper-deep:            40 22% 87%;
+    --surface:               40 35% 97%;
+    --page:                  43 50% 98%;
+
+    --ink-1:                 30  8% 10%;   /* near-black warm */
+    --ink-2:                 30 12% 20%;
+    --ink-3:                 30 11% 38%;
+    --ink-4:                 32 12% 58%;
+    --ink-5:                 35 15% 75%;
+    --rule:                  35 15% 84%;
+
+    /* Storyline track palette — curated, museum-quality */
+    --story-1:                 8 55% 33%;  /* 朱砂 oxblood   #8A2A1E */
+    --story-2:               212 41% 30%;  /* 群青 ink blue  #2D4A6B */
+    --story-3:                78 30% 32%;  /* 苔绿 moss      #5A6B3A */
+    --story-4:                40 51% 36%;  /* 赭黄 ochre     #8B6B2E */
+    --story-5:               300 22% 39%;  /* 梅紫 plum      #5C3A5C */
+    --story-6:               165 40% 30%;  /* 鸭蓝 teal      #2E6B5C */
+
+    /* Element category semantic aliases (you can rebind these freely) */
+    --el-person:             var(--story-1);
+    --el-place:              var(--story-3);
+    --el-item:               var(--story-4);
+    --el-period:             var(--story-2);
+    --el-lex:                var(--story-5);
+
+    /* Type stacks */
+    --font-serif:  'Newsreader', 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+    --font-sans:   'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+    --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    /* "Ink mode" — late-night writing */
+    --background:            36  8% 10%;   /* deep paper-dark */
+    --foreground:            42 25% 88%;
+
+    --card:                  36  8% 12%;
+    --card-foreground:       42 25% 88%;
+
+    --popover:               36  8% 13%;
+    --popover-foreground:    42 25% 88%;
+
+    --primary:               42 25% 88%;
+    --primary-foreground:    36  8% 10%;
+
+    --secondary:             36  8% 16%;
+    --secondary-foreground:  42 25% 80%;
+
+    --muted:                 36  8% 16%;
+    --muted-foreground:      36 12% 55%;
+
+    --accent:                 13 45% 60%;
+    --accent-foreground:     36  8% 10%;
+
+    --destructive:           14 45% 50%;
+    --destructive-foreground:42 25% 88%;
+
+    --border:                36  8% 20%;
+    --input:                 36  8% 20%;
+    --ring:                   13 45% 60%;
+
+    --paper:                 36  8% 10%;
+    --paper-deep:            36  8%  8%;
+    --surface:               36  8% 12%;
+    --page:                  36  8% 13%;
+
+    --ink-1:                 42 25% 88%;
+    --ink-2:                 40 22% 76%;
+    --ink-3:                 38 15% 58%;
+    --ink-4:                 36 12% 42%;
+    --ink-5:                 36  8% 25%;
+    --rule:                  36  8% 22%;
+
+    --story-1:                13 45% 60%;
+    --story-2:               210 35% 60%;
+    --story-3:                75 22% 58%;
+    --story-4:                40 45% 60%;
+    --story-5:               295 15% 60%;
+    --story-6:               165 25% 56%;
   }
 }
 
@@ -52,112 +129,98 @@
   * {
     @apply border-border;
   }
+  html, body {
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01', 'kern', 'liga';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+  }
+
+  /* Literary defaults for content surfaces */
+  .font-serif      { font-family: var(--font-serif); font-feature-settings: 'liga', 'kern', 'onum'; }
+  .font-sans       { font-family: var(--font-sans); }
+  .font-mono       { font-family: var(--font-mono); }
+
+  /* Mono micro-label, used everywhere for section heads / kickers */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: hsl(var(--ink-3));
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ============================================================
+   Scrollbars — quiet
+   ============================================================ */
+::-webkit-scrollbar         { width: 8px; height: 8px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: hsl(var(--rule)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
+
+/* ============================================================
+   Selection / utilities
+   ============================================================ */
+::selection {
+  background: hsl(var(--accent) / 0.15);
+  color: hsl(var(--accent));
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+button, .no-select { -webkit-user-select: none; user-select: none; }
+.editor, [contenteditable='true'] { -webkit-user-select: text; user-select: text; }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground));
-}
-
-/* Disable text selection for UI elements */
-button,
-.no-select {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* Allow text selection in editors */
-.editor,
-[contenteditable='true'] {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-/* Element Link Styles - 持久化的元素链接 */
+/* ============================================================
+   Element Link — was hardcoded #3b82f6 etc, now reads from tokens
+   The category color is exposed via a CSS var on the link itself.
+   ============================================================ */
 .element-link {
-  color: #3b82f6;
-  text-decoration: underline;
-  text-decoration-style: solid;
-  text-decoration-thickness: 1px;
-  border-radius: 2px;
-  padding: 0 2px;
-  transition: all 0.2s;
+  color: hsl(var(--el-color, var(--accent)));
+  text-decoration: none;
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--el-color, var(--accent)) / 0.10) 0,
+    hsl(var(--el-color, var(--accent)) / 0.10) 28%,
+    transparent 28%
+  );
+  border-radius: 1px;
+  padding: 0 1px;
+  cursor: pointer;
+  transition: background-image 0.15s;
 }
-
 .element-link:hover {
-  background-color: rgba(59, 130, 246, 0.1);
-  text-decoration-thickness: 2px;
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--el-color, var(--accent)) / 0.22) 0,
+    hsl(var(--el-color, var(--accent)) / 0.22) 100%,
+    transparent 100%
+  );
 }
 
-/* Category-specific colors */
-.element-link-character {
-  color: #10b981;
-}
+/* Category-specific colors — semantic, all rebindable */
+.element-link-character  { --el-color: var(--el-person); }
+.element-link-location   { --el-color: var(--el-place);  }
+.element-link-item       { --el-color: var(--el-item);   }
+.element-link-period     { --el-color: var(--el-period); }
+.element-link-lex        { --el-color: var(--el-lex);    }
 
-.element-link-character:hover {
-  background-color: rgba(16, 185, 129, 0.1);
-}
-
-.element-link-location {
-  color: #8b5cf6;
-}
-
-.element-link-location:hover {
-  background-color: rgba(139, 92, 246, 0.1);
-}
-
-.element-link-item {
-  color: #f59e0b;
-}
-
-.element-link-item:hover {
-  background-color: rgba(245, 158, 11, 0.1);
-}
-
-/* Node Hover Preview Scrollbar */
-.hover-preview-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.hover-preview-content::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 4px 0;
-}
-
-.hover-preview-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
-}
-
-.hover-preview-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
-
-/* TipTap Placeholder Styles */
+/* ============================================================
+   Tiptap placeholder
+   ============================================================ */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: rgba(0, 0, 0, 0.3);
+  color: hsl(var(--ink-4));
+  font-style: italic;
   pointer-events: none;
   height: 0;
 }
+
+/* Hover preview scrollbar (kept) */
+.hover-preview-content::-webkit-scrollbar         { width: 6px; }
+.hover-preview-content::-webkit-scrollbar-track   { background: transparent; margin: 4px 0; }
+.hover-preview-content::-webkit-scrollbar-thumb   { background: hsl(var(--rule)); border-radius: 3px; }
+.hover-preview-content::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
