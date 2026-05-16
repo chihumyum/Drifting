@@ -1,20 +1,35 @@
 import { useMemo, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
+import type { BookNode } from '../domain/book-node';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
+import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { useDataStore } from '../store/data-store';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
-import { initDatabase } from '../lib/db';
+import { initDatabase, getDb } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import {
   syncStorylineCreate,
   syncStorylineUpdate,
   syncStorylineDelete,
+  syncNodeUpdate,
   syncNodeStorylineLinkCreate,
   syncNodeStorylineLinkDelete,
   syncNodeStorylinesSet,
 } from './sync-helpers';
+
+export class StorylineHasMainReferencesError extends Error {
+  constructor(
+    public readonly storylineId: string,
+    public readonly affectedNodeIds: string[],
+  ) {
+    super(
+      `Storyline ${storylineId} is the main storyline of ${affectedNodeIds.length} node(s); pass reassignMainTo to delete.`,
+    );
+    this.name = 'StorylineHasMainReferencesError';
+  }
+}
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('useStoryline');
 log.setLevel(LogLevel.levels.DEBUG);
@@ -238,17 +253,73 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   );
 
   const deleteStoryline = useCallback(
-    async (id: string): Promise<void> => {
+    async (id: string, opts?: { reassignMainTo?: string }): Promise<void> => {
       await ensureDb();
       const prevStorylines = getStorylinesState().slice();
+
+      if (!prevStorylines.some((sl) => sl.id === id)) {
+        return;
+      }
+      if (prevStorylines.length <= 1) {
+        throw new Error('Cannot delete the last storyline in the project.');
+      }
+      if (opts?.reassignMainTo === id) {
+        throw new Error('Reassign target cannot be the storyline being deleted.');
+      }
+
+      const prevNodes = useDataStore.getState().bookNodes.slice();
+      const affectedNodes = prevNodes.filter((n) => n.mainStorylineId === id);
+      const reassignTo = opts?.reassignMainTo;
+
+      if (affectedNodes.length > 0 && !reassignTo) {
+        throw new StorylineHasMainReferencesError(
+          id,
+          affectedNodes.map((n) => n.id),
+        );
+      }
+      if (reassignTo && !prevStorylines.some((sl) => sl.id === reassignTo)) {
+        throw new Error(`Reassign target storyline ${reassignTo} not found in project.`);
+      }
+
+      const now = new Date().toISOString();
+      const nextNodes: BookNode[] = reassignTo
+        ? prevNodes.map((n) =>
+            n.mainStorylineId === id ? { ...n, mainStorylineId: reassignTo, updatedAt: now } : n,
+          )
+        : prevNodes;
+
       return withOptimisticUpdate({
-        apply: () => removeStorylineState(id),
-        rollback: () => setStorylinesState(prevStorylines),
-        effect: () => repo.deleteStoryline(id),
-        sync: () => syncStorylineDelete(id, activeProjectId),
+        apply: () => {
+          if (reassignTo) useDataStore.getState().setBookNodes(nextNodes);
+          removeStorylineState(id);
+        },
+        rollback: () => {
+          setStorylinesState(prevStorylines);
+          if (reassignTo) useDataStore.getState().setBookNodes(prevNodes);
+        },
+        effect: async () => {
+          await getDb().transaction(async (tx) => {
+            if (reassignTo && affectedNodes.length > 0) {
+              const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
+              for (const node of affectedNodes) {
+                await nodeRepoTx.update(node.id, { mainStorylineId: reassignTo, updatedAt: now });
+              }
+            }
+            const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
+            await storylineRepoTx.deleteStoryline(id);
+          });
+        },
+        sync: () => {
+          if (reassignTo) {
+            affectedNodes.forEach((n) =>
+              syncNodeUpdate(n.id, activeProjectId, { mainStorylineId: reassignTo }),
+            );
+          }
+          syncStorylineDelete(id, activeProjectId);
+        },
       });
     },
-    [repo, removeStorylineState, ensureDb, getStorylinesState, setStorylinesState, activeProjectId],
+    [removeStorylineState, ensureDb, getStorylinesState, setStorylinesState, activeProjectId],
   );
 
   const addNodeToStoryline = useCallback(

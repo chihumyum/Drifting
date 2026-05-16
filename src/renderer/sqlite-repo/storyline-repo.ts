@@ -133,16 +133,6 @@ export function createStorylineRepository(
   };
 
   const deleteStoryline = async (id: string): Promise<void> => {
-    const sl = await getStorylineById(id);
-    if (!sl) return;
-
-    // TODO: move this to usecase layer
-    // Check invariant: Project must have at least one storyline
-    const allStorylines = await getStorylinesByProject();
-    if (allStorylines.length <= 1) {
-      throw new Error('Cannot delete the last storyline in the project.');
-    }
-
     await dbProvider().delete(StorylineTable).where(eq(StorylineTable.id, id));
   };
 
