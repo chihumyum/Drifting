@@ -23,10 +23,6 @@ export type { Project, CreateProjectInput, UpdateProjectInput } from './project.
 export { nodeService, nodeEdgeService } from './node.service';
 export type { BookNodeCreateData, BookNodeUpdateData, BookNodeEdge } from './node.service';
 
-// 故事线服务
-export { storylineService } from './storyline.service';
-export type { CreateStorylineInput, UpdateStorylineInput } from './storyline.service';
-
 // 元素服务
 export { elementService, elementCategoryService } from './element.service';
 

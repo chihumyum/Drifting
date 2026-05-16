@@ -128,8 +128,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         summary: '',
         storyStageId: input.storyStageId ?? null,
         mainStorylineId: input.mainStorylineId,
-        storylineIds: [input.mainStorylineId],
-        tagIds: [], // create a new node comes with no tags by default
         position: input.position ?? {
           // TODO: properly fit the graph node
           x: (Math.random() - 0.5) * 600,
@@ -167,10 +165,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           } catch (error) {
             log.error('Failed to create default content for new node:', error);
           }
-          return {
-            ...created,
-            storylineIds: [created.mainStorylineId],
-          };
+          return created;
         },
         onSuccess: (created) => {
           const current = getNodesState();

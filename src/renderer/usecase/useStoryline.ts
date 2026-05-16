@@ -5,7 +5,6 @@ import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline
 import { useDataStore } from '../store/data-store';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
-import type { UpdateStorylineInput } from '../services';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import {
@@ -32,6 +31,15 @@ export type CreateStorylineInput = {
   color?: string;
   summary?: string;
   orderKey?: number;
+};
+
+export type UpdateStorylineInput = {
+  id: string;
+  name?: string;
+  color?: string;
+  summary?: string;
+  orderKey?: number;
+  descriptionJson?: string;
 };
 
 export interface UseStorylineContext {
@@ -196,7 +204,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         color: input.color ?? existing.color,
         summary: input.summary ?? existing.summary,
         orderKey: input.orderKey ?? existing.orderKey,
-        descriptionJson: input.pmJson ?? existing.descriptionJson,
+        descriptionJson: input.descriptionJson ?? existing.descriptionJson,
         updatedAt: now,
       };
       log.debug(`updated storyline is: `, updated);

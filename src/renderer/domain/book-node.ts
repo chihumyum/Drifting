@@ -7,8 +7,6 @@ export interface BookNode {
   end: number; // Timeline end position
   storyStageId: string | null;
   mainStorylineId: string;
-  storylineIds: string[]; // Associated storylines, could be multiple
-  tagIds: string[]; // Tags associated with this node
   position: GraphViewNodePosition;
   createdAt: string;
   updatedAt: string;

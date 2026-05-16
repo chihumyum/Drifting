@@ -98,7 +98,7 @@ export function StorylineEditorView() {
         const json = ed.getJSON();
         void storylineUsecases.updateStoryline({
           id: storylineId,
-          pmJson: JSON.stringify(json),
+          descriptionJson: JSON.stringify(json),
         });
       },
     },

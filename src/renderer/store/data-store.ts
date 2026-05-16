@@ -3,14 +3,7 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { NodeTag } from '../domain/node-tag';
-// Type definition moved from schema
-export interface ElementTag {
-  id: string;
-  element_id: string;
-  stage_id?: string;
-  name: string;
-  created_at: string;
-}
+import type { ElementTag } from '../domain/element-tag';
 
 interface DataState {
   storylines: Storyline[];

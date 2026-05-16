@@ -1,4 +1,4 @@
-// Domain model for Node Tag
+// Domain model for Element Tag
 export interface ElementTag {
   id: string;
   projectId: string;

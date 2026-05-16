@@ -41,8 +41,6 @@ const toBookNode = (node: ServerNode): BookNode => ({
   },
   createdAt: new Date(node.createdAt).toISOString(),
   updatedAt: new Date(node.updatedAt).toISOString(),
-  storylineIds: [],
-  tagIds: [],
 });
 
 export interface CreateNodeDto {

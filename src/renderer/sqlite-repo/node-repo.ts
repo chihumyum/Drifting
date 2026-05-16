@@ -8,10 +8,10 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger('BookNodeRepository');
 log.setLevel(loglevel.levels.WARN);
 
-export type BookNodeCreateData = Omit<BookNode, 'storylineIds' | 'tagIds'>;
-export type BookNodeUpdateData = Partial<
-  Omit<BookNode, 'id' | 'createdAt' | 'storylineIds' | 'tagIds'>
-> & { updatedAt: string };
+export type BookNodeCreateData = BookNode;
+export type BookNodeUpdateData = Partial<Omit<BookNode, 'id' | 'createdAt'>> & {
+  updatedAt: string;
+};
 export type BookNodeEdgeUpdateData = Partial<BookNodeEdge>;
 
 export interface BookNodeRepository {
@@ -48,8 +48,6 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     summary: record.summary,
     storyStageId: record.storyStageId ?? null,
     mainStorylineId: record.mainStorylineId,
-    storylineIds: [], // TODO: Implement join if needed, or separate fetch
-    tagIds: [], // TODO: Implement join if needed
     position: {
       x: record.positionX,
       y: record.positionY,
