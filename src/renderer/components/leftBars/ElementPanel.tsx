@@ -27,6 +27,16 @@ const ZOOM_RING_AXIS_OFFSET = 10;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+const formatShortDate = (input: string | number | Date) => {
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getDate()}`.padStart(2, '0');
+  return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
+};
+
 type CategorySectionMetric = {
   categoryId: string;
   top: number;
@@ -503,6 +513,7 @@ export function ElementPanel() {
 
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
+    const categoryColor = getCategoryColor(categoryId);
 
     return (
       <div
@@ -516,153 +527,223 @@ export function ElementPanel() {
         }}
         data-category-id={categoryId}
         data-element-index={elementIndex}
-        className="bg-paper shadow-paper hover:shadow-paper-lg transition-shadow"
         style={{
-          border: selected
-            ? '1px solid hsl(var(--accent))'
-            : '1px solid hsl(var(--rule))',
-          padding: '14px 16px',
-          borderRadius: 12,
           display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 10px 7px 14px',
           cursor: 'pointer',
-          marginBottom: 8,
+          position: 'relative',
+          background: selected ? 'hsl(var(--accent) / 0.08)' : 'transparent',
+          transition: 'background 0.12s ease',
+        }}
+        onMouseEnter={(event) => {
+          if (!selected) {
+            event.currentTarget.style.background = 'hsl(var(--paper-deep))';
+          }
+        }}
+        onMouseLeave={(event) => {
+          if (!selected) {
+            event.currentTarget.style.background = 'transparent';
+          }
         }}
         onClick={() => {
           setElementSelection(element.id, 'ui');
         }}
       >
-        <div
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
-        >
-          <div
+        {selected && (
+          <span
+            aria-hidden
             style={{
-              flex: 1,
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'hsl(var(--ink-1))',
+              position: 'absolute',
+              left: 0,
+              top: 5,
+              bottom: 5,
+              width: 2,
+              background: 'hsl(var(--accent))',
             }}
-          >
-            {editingElementId === element.id ? (
-              <input
-                type="text"
-                value={editingElementName}
-                onChange={(event) => setEditingElementName(event.target.value)}
-                onBlur={() => {
+          />
+        )}
+
+        {/* Element mark — diamond in category color */}
+        <span
+          aria-hidden
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: 12,
+            color: categoryColor,
+            flexShrink: 0,
+            lineHeight: 1,
+            width: 10,
+            textAlign: 'center',
+          }}
+        >
+          ◆
+        </span>
+
+        {/* Name */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 13,
+            color: 'hsl(var(--ink-1))',
+            fontWeight: selected ? 500 : 400,
+            letterSpacing: '-0.005em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {editingElementId === element.id ? (
+            <input
+              type="text"
+              value={editingElementName}
+              onChange={(event) => setEditingElementName(event.target.value)}
+              onBlur={() => {
+                void handleSaveElementName(element.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
                   void handleSaveElementName(element.id);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    void handleSaveElementName(element.id);
-                  }
-                  if (event.key === 'Escape') {
-                    setEditingElementId(null);
-                    setEditingElementName('');
-                  }
-                }}
-                onFocus={(event) => event.target.select()}
-                autoFocus
-                onClick={(event) => event.stopPropagation()}
-                style={{
-                  width: '100%',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  padding: '2px 4px',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 4,
-                  background: 'hsl(var(--surface))',
-                  color: 'hsl(var(--ink-1))',
-                }}
-              />
-            ) : (
-              <span
-                onDoubleClick={(event) => {
-                  event.stopPropagation();
-                  setEditingElementId(element.id);
-                  setEditingElementName(element.name);
-                }}
-                style={{ cursor: 'text' }}
-              >
-                {element.name}
-              </span>
-            )}
-          </div>
-
-          <div style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-            <button
-              onClick={() => {
-                setOpenMenuId(openMenuId === element.id ? null : element.id);
+                }
+                if (event.key === 'Escape') {
+                  setEditingElementId(null);
+                  setEditingElementName('');
+                }
               }}
-              className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
+              onFocus={(event) => event.target.select()}
+              autoFocus
+              onClick={(event) => event.stopPropagation()}
               style={{
+                width: '100%',
+                fontSize: 13,
+                padding: '1px 4px',
                 border: '1px solid hsl(var(--rule))',
-                borderRadius: 6,
-                padding: 6,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
+                borderRadius: 3,
+                background: 'hsl(var(--surface))',
+                color: 'hsl(var(--ink-1))',
+                outline: 'none',
               }}
-              title="Options"
+            />
+          ) : (
+            <span
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                setEditingElementId(element.id);
+                setEditingElementName(element.name);
+              }}
+              style={{ cursor: 'text' }}
             >
-              <MoreVertical size={14} />
-            </button>
-
-            {openMenuId === element.id && (
-              <>
-                <div
-                  style={{
-                    position: 'fixed',
-                    inset: 0,
-                    zIndex: 10,
-                  }}
-                  onClick={() => setOpenMenuId(null)}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    right: 0,
-                    marginTop: 4,
-                    background: 'hsl(var(--surface))',
-                    border: '1px solid hsl(var(--rule))',
-                    borderRadius: 8,
-                    boxShadow: '0 4px 12px hsl(var(--ink-1) / 0.10)',
-                    minWidth: 120,
-                    zIndex: 20,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      void handleDeleteElement(element.id);
-                      setOpenMenuId(null);
-                    }}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 12px',
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'hsl(var(--destructive))',
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+              {element.name}
+            </span>
+          )}
         </div>
 
-        <div style={{ fontSize: 11, color: 'hsl(var(--ink-3))' }}>
-          {new Date(element.updatedAt).toLocaleDateString()}
+        {/* Date */}
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            color: 'hsl(var(--ink-4))',
+            flexShrink: 0,
+            letterSpacing: '0.04em',
+          }}
+        >
+          {formatShortDate(element.updatedAt)}
+        </span>
+
+        {/* Overflow menu */}
+        <div style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
+          <button
+            onClick={() => {
+              setOpenMenuId(openMenuId === element.id ? null : element.id);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+              borderRadius: 3,
+              border: 'none',
+              background: 'transparent',
+              color: 'hsl(var(--ink-4))',
+              cursor: 'pointer',
+              padding: 0,
+              opacity: openMenuId === element.id ? 1 : 0.6,
+              transition: 'opacity 0.12s, background 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.background = 'hsl(var(--ink-1) / 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = openMenuId === element.id ? '1' : '0.6';
+              e.currentTarget.style.background = 'transparent';
+            }}
+            title="Options"
+          >
+            <MoreVertical size={13} strokeWidth={1.6} />
+          </button>
+
+          {openMenuId === element.id && (
+            <>
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 10,
+                }}
+                onClick={() => setOpenMenuId(null)}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  background: 'hsl(var(--surface))',
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 6,
+                  boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
+                  minWidth: 120,
+                  zIndex: 20,
+                  overflow: 'hidden',
+                }}
+              >
+                <button
+                  onClick={() => {
+                    void handleDeleteElement(element.id);
+                    setOpenMenuId(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'hsl(var(--destructive))',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'hsl(var(--destructive) / 0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <Trash2 size={13} strokeWidth={1.6} />
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -677,7 +758,7 @@ export function ElementPanel() {
           height: panelHeight,
           display: 'flex',
           flexDirection: 'column',
-          padding: 5,
+          padding: 0,
         }}
       >
         <div
@@ -685,28 +766,43 @@ export function ElementPanel() {
             flexShrink: 0,
             display: 'flex',
             justifyContent: 'flex-end',
-            padding: '4px 8px 10px',
+            padding: '8px 10px 8px 12px',
+            borderBottom: '1px solid hsl(var(--rule))',
           }}
         >
           <button
             onClick={() => {
               void handleCreateCategory();
             }}
-            className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              padding: '6px 12px',
-              borderRadius: 8,
+              padding: '5px 10px',
+              borderRadius: 3,
               border: '1px solid hsl(var(--rule))',
-              fontSize: 12,
-              fontWeight: 600,
+              background: 'transparent',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              fontWeight: 500,
               color: 'hsl(var(--ink-2))',
               cursor: 'pointer',
+              transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'hsl(var(--ink-1))';
+              e.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
+              e.currentTarget.style.color = 'hsl(var(--paper))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = 'hsl(var(--rule))';
+              e.currentTarget.style.color = 'hsl(var(--ink-2))';
             }}
           >
-            <Plus size={13} />
+            <Plus size={11} strokeWidth={2} />
             New Category
           </button>
         </div>
@@ -719,7 +815,7 @@ export function ElementPanel() {
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
+            gap: 4,
             paddingRight: 6,
           }}
         >
@@ -733,7 +829,7 @@ export function ElementPanel() {
                 }
                 delete categorySectionRefs.current[categoryId];
               }}
-              style={{ marginBottom: 16 }}
+              style={{ marginBottom: 8 }}
             >
               <div
                 style={{
@@ -743,17 +839,24 @@ export function ElementPanel() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'hsl(var(--ink-3))',
-                  marginBottom: 8,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  padding: '6px 8px 6px 0',
-                  background: 'hsl(var(--surface))',
+                  gap: 8,
+                  marginBottom: 2,
+                  padding: '14px 10px 6px 12px',
+                  background: 'hsl(var(--paper))',
+                  borderBottom: '1px solid hsl(var(--rule) / 0.5)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 2,
+                      background: getCategoryColor(categoryId),
+                      flexShrink: 0,
+                    }}
+                  />
                   {editingCategoryId === categoryId ? (
                     <input
                       type="text"
@@ -777,15 +880,15 @@ export function ElementPanel() {
                       onClick={(event) => event.stopPropagation()}
                       style={{
                         minWidth: 120,
-                        fontSize: 12,
-                        fontWeight: 600,
+                        fontSize: 11,
+                        fontFamily: 'var(--font-mono)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
                         color: 'hsl(var(--ink-2))',
-                        padding: '2px 6px',
+                        padding: '2px 4px',
                         border: '1px solid hsl(var(--rule))',
-                        borderRadius: 4,
+                        borderRadius: 3,
                         background: 'hsl(var(--surface))',
-                        textTransform: 'none',
-                        letterSpacing: 'normal',
                         outline: 'none',
                       }}
                     />
@@ -805,65 +908,95 @@ export function ElementPanel() {
                           : 'Double-click to rename'
                       }
                       style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9.5,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                        color: 'hsl(var(--ink-3))',
+                        fontWeight: 500,
                         cursor:
                           categoryById.get(categoryId) && !isReservedCategory(categoryId)
                             ? 'text'
                             : 'default',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {getCategoryLabel(categoryId)}
                     </span>
                   )}
-                  <div
+                  <span
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: getCategoryColor(categoryId),
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={() => navigateToCategory(encodeURIComponent(categoryId))}
-                    className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
-                    style={{
-                      padding: '4px 12px',
-                      borderRadius: 6,
-                      border: '1px solid hsl(var(--rule))',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'hsl(var(--ink-2))',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9.5,
+                      color: 'hsl(var(--ink-4))',
+                      flexShrink: 0,
                     }}
                   >
-                    <Edit3 size={11} />
-                    Edit
+                    · {(elementsByCategory[categoryId] ?? []).length}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button
+                    onClick={() => navigateToCategory(encodeURIComponent(categoryId))}
+                    title="Open category"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 3,
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'hsl(var(--ink-4))',
+                      cursor: 'pointer',
+                      padding: 0,
+                      transition: 'background 0.12s, color 0.12s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                      e.currentTarget.style.color = 'hsl(var(--ink-1))';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'hsl(var(--ink-4))';
+                    }}
+                  >
+                    <Edit3 size={12} strokeWidth={1.6} />
                   </button>
 
                   <button
                     onClick={() => {
                       void handleCreateElement(categoryId);
                     }}
-                    className="bg-accent hover:bg-accent-hover text-paper transition-colors"
+                    title="New element in this category"
                     style={{
-                      padding: '4px 12px',
-                      borderRadius: 6,
-                      border: 'none',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 4,
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 3,
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'hsl(var(--ink-4))',
+                      cursor: 'pointer',
+                      padding: 0,
+                      transition: 'background 0.12s, color 0.12s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                      e.currentTarget.style.color = 'hsl(var(--ink-1))';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = 'hsl(var(--ink-4))';
                     }}
                   >
-                    <Plus size={12} />
-                    New
+                    <Plus size={13} strokeWidth={1.6} />
                   </button>
                 </div>
               </div>
@@ -877,16 +1010,15 @@ export function ElementPanel() {
           {!hasElements && (
             <div
               style={{
-                fontSize: 13,
+                fontSize: 12,
+                fontFamily: 'var(--font-serif)',
+                fontStyle: 'italic',
                 color: 'hsl(var(--ink-3))',
-                padding: '32px 20px',
+                padding: '40px 20px',
                 textAlign: 'center',
-                background: 'hsl(var(--paper-deep))',
-                borderRadius: 12,
-                border: '1px dashed hsl(var(--rule))',
               }}
             >
-              No elements yet.
+              no elements yet.
             </div>
           )}
         </div>
@@ -918,14 +1050,14 @@ export function ElementPanel() {
       >
         <div
           style={{
-            margin: '12px 0',
+            margin: '8px 0',
             width: '100%',
-            borderRadius: 12,
+            borderRadius: 4,
             border: '1px solid hsl(var(--rule))',
-            background: zoomRingHovered ? 'hsl(var(--surface) / 0.96)' : 'hsl(var(--surface) / 0.88)',
+            background: zoomRingHovered ? 'hsl(var(--surface) / 0.98)' : 'hsl(var(--surface) / 0.92)',
             boxShadow: zoomRingHovered
-              ? '0 10px 22px hsl(var(--ink-1) / 0.16)'
-              : '0 6px 16px hsl(var(--ink-1) / 0.10)',
+              ? '0 6px 18px hsl(var(--ink-1) / 0.12)'
+              : '0 2px 8px hsl(var(--ink-1) / 0.06)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -980,29 +1112,32 @@ export function ElementPanel() {
                       left: ZOOM_RING_COLUMN_LEFT,
                       width: ZOOM_RING_COLUMN_WIDTH,
                       height: categoryBadgeHeight,
-                      borderRadius: 0,
-                      border: `1px solid ${isActiveCategory ? anchor.color : 'hsl(var(--ink-4))'}`,
-                      background: 'hsl(var(--paper-deep))',
-                      color: 'hsl(var(--ink-1))',
-                      fontSize: 11,
-                      fontWeight: isActiveCategory ? 700 : 600,
+                      borderRadius: 2,
+                      border: 'none',
+                      borderLeft: `2px solid ${isActiveCategory ? anchor.color : 'transparent'}`,
+                      background: isActiveCategory ? 'hsl(var(--paper-deep))' : 'transparent',
+                      color: isActiveCategory ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9.5,
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
                       textAlign: 'left',
-                      padding: '0 10px',
+                      padding: '0 8px',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 7,
-                      boxShadow: isActiveCategory ? `0 0 0 1px ${anchor.color}33` : 'none',
-                      transition: 'border-color 120ms ease, box-shadow 120ms ease',
+                      gap: 6,
+                      transition: 'background 120ms ease, color 120ms ease',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                     }}
                   >
                     <span
                       style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: '50%',
+                        width: 6,
+                        height: 6,
+                        borderRadius: 1,
                         background: anchor.color,
                         flexShrink: 0,
                       }}

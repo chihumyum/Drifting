@@ -622,7 +622,7 @@ export function BottomTimeline() {
     const storyline = storylineById.get(storylineId);
     const isSelected = activeSelectedNodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
-    const defaultColor = '#00355bff';
+    const defaultColor = '#2D4A6B'; // matches --story-2; hex form needed for `${color}xx` alpha concatenation
 
     // startToPosition 已经处理了 minStart 偏移和缩放
     const leftPosition = startToPosition(node.start);
@@ -660,7 +660,7 @@ export function BottomTimeline() {
             border: isExpanded ? `2px solid ${storyline?.color || defaultColor}` : 'none',
             boxShadow: isSelected
               ? isExpanded
-                ? `0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 5px ${storyline?.color || defaultColor}`
+                ? `0 0 0 2px hsl(var(--paper) / 0.95), 0 0 0 4px ${storyline?.color || defaultColor}`
                 : `0 0 8px 2px ${storyline?.color || defaultColor}80, 0 0 16px 4px ${storyline?.color || defaultColor}40`
               : isExpanded
                 ? `0 2px 4px ${storyline?.color}60`
@@ -742,7 +742,7 @@ export function BottomTimeline() {
           width: nodeWidth,
           height: '100%',
           background: isExpanded
-            ? '#fefdfb'
+            ? 'hsl(var(--surface))'
             : isSelected
               ? `linear-gradient(135deg, ${storyline?.color || defaultColor} 0%, ${storyline?.color || defaultColor}dd 50%, ${storyline?.color || defaultColor} 100%)`
               : storyline?.color || defaultColor,
@@ -755,7 +755,7 @@ export function BottomTimeline() {
           boxShadow: isExpanded
             ? isSelected
               ? `0 2px 8px ${storyline?.color || defaultColor}40`
-              : '0 1px 4px rgba(90, 74, 58, 0.1)'
+              : '0 1px 3px hsl(var(--ink-1) / 0.06)'
             : isSelected
               ? `0 0 12px 3px ${storyline?.color || defaultColor}60, inset 0 0 20px ${storyline?.color || defaultColor}20`
               : 'none',
@@ -895,8 +895,8 @@ export function BottomTimeline() {
                       width: pos.isParagraph ? 0.5 : 1,
                       height: pos.isParagraph ? 4 : pos.level === 1 ? 8 : pos.level === 2 ? 6 : 4,
                       backgroundColor: pos.isParagraph
-                        ? 'rgba(128, 128, 128, 0.4)'
-                        : storyline?.color || '#b89968',
+                        ? 'hsl(var(--ink-4) / 0.55)'
+                        : storyline?.color || 'hsl(var(--story-4))',
                       borderRadius: 0.5,
                       opacity: pos.isParagraph ? 0.6 : 0.8,
                     }}
@@ -926,7 +926,7 @@ export function BottomTimeline() {
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: 'rgba(71, 71, 71, 0.85)',
+                color: 'hsl(var(--ink-1))',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -941,7 +941,7 @@ export function BottomTimeline() {
               <div
                 style={{
                   fontSize: 9,
-                  color: 'rgba(71, 71, 71, 0.65)',
+                  color: 'hsl(var(--ink-3))',
                   overflow: 'hidden',
                   flex: 1,
                   minHeight: 0,
@@ -980,8 +980,9 @@ export function BottomTimeline() {
           // 检查是否点击在节点上
           const target = e.target as HTMLElement;
           const isNodeClick = target.closest('[data-node-card]');
+          const isRailClick = target.closest('[data-track-rail]');
 
-          if (!isNodeClick) {
+          if (!isNodeClick && !isRailClick) {
             if (storylineId && storylineId === storyline.id) {
               navigateToHome();
             } else {
@@ -1052,10 +1053,96 @@ export function BottomTimeline() {
           marginTop: isExpanded
             ? TIMELINE_CONFIG.STORYLINE_GAP
             : TIMELINE_CONFIG.STORYLINE_GAP_COMPACT,
-          gap: isExpanded ? 12 : 8, // 收起时减小 gap
+          gap: 0,
           // padding: `${isExpanded ? TIMELINE_CONFIG.STORYLINE_PADDING : TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT}px 0`,
         }}
       >
+        {/* Track rail — sticky left, shows storyline identity */}
+        <div
+          data-track-rail
+          onClick={(e) => {
+            e.stopPropagation();
+            if (storylineId === storyline.id) {
+              navigateToHome();
+            } else {
+              navigateToStoryline(storyline.id);
+            }
+          }}
+          title={storyline.name || 'Untitled Storyline'}
+          style={{
+            position: 'sticky',
+            left: 0,
+            flexShrink: 0,
+            alignSelf: 'stretch',
+            width: isExpanded ? 152 : 10,
+            background:
+              storylineId === storyline.id
+                ? 'hsl(var(--paper))'
+                : 'hsl(var(--paper-deep))',
+            borderRight: '1px solid hsl(var(--rule))',
+            display: 'flex',
+            alignItems: 'center',
+            gap: isExpanded ? 10 : 0,
+            paddingLeft: isExpanded ? 16 : 0,
+            paddingRight: isExpanded ? 10 : 0,
+            zIndex: 5,
+            cursor: 'pointer',
+            overflow: 'hidden',
+            transition: 'background 0.15s',
+          }}
+        >
+          {/* Color stripe — full height */}
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 3,
+              background: storyline.color || 'hsl(var(--story-4))',
+              opacity: storylineId === storyline.id ? 1 : 0.7,
+            }}
+          />
+          {isExpanded && (
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, marginLeft: 4 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontStyle: 'italic',
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color:
+                    storylineId === storyline.id
+                      ? 'hsl(var(--ink-1))'
+                      : 'hsl(var(--ink-2))',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1.2,
+                  letterSpacing: '-0.005em',
+                }}
+              >
+                {storyline.name || 'Untitled'}
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  color: 'hsl(var(--ink-4))',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  lineHeight: 1.2,
+                }}
+              >
+                <span>{nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}</span>
+              </div>
+            </div>
+          )}
+        </div>
         {/* Node container with absolute positioning */}
         <div
           data-node-container
@@ -1066,10 +1153,12 @@ export function BottomTimeline() {
             background:
               storylineId === storyline.id
                 ? isExpanded
-                  ? `${storyline.color || '#b89968'}15`
+                  ? storyline.color
+                    ? `${storyline.color}15`
+                    : 'hsl(var(--story-4) / 0.10)'
                   : 'transparent'
                 : isExpanded
-                  ? 'rgba(90, 74, 58, 0.04)'
+                  ? 'hsl(var(--ink-1) / 0.025)'
                   : 'transparent',
             borderRadius: 4,
             minWidth: timelineWidth,
@@ -1085,7 +1174,7 @@ export function BottomTimeline() {
                 top: 0,
                 width: 2,
                 height: '100%',
-                background: storyline.color || 'var(--accent, #b89968)',
+                background: storyline.color || 'hsl(var(--accent))',
                 opacity: 0.7,
                 pointerEvents: 'none',
               }}
@@ -1104,7 +1193,7 @@ export function BottomTimeline() {
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
                 fontSize: 11,
-                color: 'rgba(71, 71, 71, 0.35)',
+                color: 'hsl(var(--ink-4))',
                 fontStyle: 'italic',
                 whiteSpace: 'nowrap',
               }}
@@ -1127,8 +1216,8 @@ export function BottomTimeline() {
         left: 0,
         right: 0,
         height: getTimelineHeight(),
-        background: 'linear-gradient(to top, #f9f6f1, #fefdfb)',
-        borderTop: '1px solid var(--accent-border, #e8dcc8)',
+        background: 'hsl(var(--paper-deep))',
+        borderTop: '1px solid hsl(var(--rule))',
         zIndex: 20,
         overflow: 'hidden',
         display: 'flex',
@@ -1168,7 +1257,7 @@ export function BottomTimeline() {
           flex: 1,
           overflowX: 'auto',
           overflowY: 'hidden',
-          paddingLeft: isExpanded ? 16 : 0, // 左侧 padding
+          paddingLeft: 0, // rail 处理自身左侧内边距
           paddingRight: isExpanded ? 16 : 0, // 右侧 padding
           justifyContent: isExpanded ? 'flex-start' : 'center', // 收起时垂直居中
           // 隐藏滚动条但保持滚动功能
@@ -1189,7 +1278,7 @@ export function BottomTimeline() {
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: 'rgba(71, 71, 71, 0.5)',
+              color: 'hsl(var(--ink-3))',
               fontSize: 14,
             }}
           >

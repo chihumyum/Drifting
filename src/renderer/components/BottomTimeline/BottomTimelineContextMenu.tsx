@@ -13,7 +13,7 @@ interface BottomTimelineContextMenuProps {
   onAction: (action: BottomTimelineContextMenuAction) => void;
 }
 
-function menuButtonStyle(color = '#2a1a0a'): React.CSSProperties {
+function menuButtonStyle(color = 'hsl(var(--ink-1))'): React.CSSProperties {
   return {
     display: 'flex',
     alignItems: 'center',
@@ -33,8 +33,8 @@ function renderMenuButton(
   label: string,
   action: BottomTimelineContextMenuAction,
   onAction: (action: BottomTimelineContextMenuAction) => void,
-  hoverBg = 'var(--accent-hover, #f5f0e8)',
-  color = '#2a1a0a',
+  hoverBg = 'hsl(var(--paper-deep))',
+  color = 'hsl(var(--ink-1))',
 ) {
   return (
     <button
@@ -70,8 +70,8 @@ function renderStorylineTags(storylines: Storyline[]) {
             fontSize: 10,
             padding: '2px 6px',
             borderRadius: 4,
-            background: t.color || 'var(--accent, #b89968)',
-            color: '#fff',
+            background: t.color || 'hsl(var(--accent))',
+            color: 'hsl(var(--paper))',
             fontWeight: 500,
           }}
         >
@@ -111,10 +111,10 @@ export function BottomTimelineContextMenu({
         position: 'fixed',
         left: position.x,
         top: position.y,
-        background: '#fefdfb',
-        border: '1px solid var(--accent-border, #e8dcc8)',
+        background: 'hsl(var(--surface))',
+        border: '1px solid hsl(var(--rule))',
         borderRadius: 8,
-        boxShadow: '0 4px 12px rgba(42, 26, 10, 0.15)',
+        boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
         minWidth: 200,
         maxWidth: 320,
         zIndex: 1000,
@@ -134,15 +134,15 @@ export function BottomTimelineContextMenu({
           <div
             style={{
               padding: '12px 16px',
-              borderBottom: '1px solid var(--accent-border, #e8dcc8)',
-              background: '#f9f6f1',
+              borderBottom: '1px solid hsl(var(--rule))',
+              background: 'hsl(var(--paper-deep))',
             }}
           >
             <div
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#2a1a0a',
+                color: 'hsl(var(--ink-1))',
                 marginBottom: 6,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -156,7 +156,7 @@ export function BottomTimelineContextMenu({
               <div
                 style={{
                   fontSize: 11,
-                  color: '#5a4a3a',
+                  color: 'hsl(var(--ink-3))',
                   lineHeight: 1.4,
                   maxHeight: 60,
                   overflow: 'hidden',
@@ -177,7 +177,7 @@ export function BottomTimelineContextMenu({
           {contextMenu.nodeStorylines &&
             contextMenu.nodeStorylines.length > 1 &&
             renderMenuButton('➖ Remove Node from Storyline', 'removeFromStoryline', onAction)}
-          {renderMenuButton('🗑️ Delete Entire Node', 'deleteNode', onAction, '#fff0f0', '#c04040')}
+          {renderMenuButton('🗑️ Delete Entire Node', 'deleteNode', onAction, 'hsl(var(--destructive) / 0.08)', 'hsl(var(--destructive))')}
         </>
       )}
     </div>
