@@ -19,6 +19,7 @@ import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperVi
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { initAccentColor } from './lib/theme';
 import { useUiStore } from './store/ui-store';
 import { useAuthStore } from './store/auth';
@@ -307,6 +308,7 @@ function Layout() {
       {activeSuperView === 'element' && <SuperElementView />}
       {activeSuperView === 'reference' && <SuperReferenceView />}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SyncStatusHUD />
     </div>
   );
 }

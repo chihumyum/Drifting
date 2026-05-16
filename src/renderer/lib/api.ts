@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { getActiveTraceId } from './trace';
+import { getDeviceId } from './device-id';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('ApiLib');
@@ -25,6 +26,9 @@ apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     if (config.headers && !('x-trace-id' in config.headers)) {
       config.headers['x-trace-id'] = getActiveTraceId();
+    }
+    if (config.headers && !('x-device-id' in config.headers)) {
+      config.headers['x-device-id'] = getDeviceId();
     }
     return config;
   },

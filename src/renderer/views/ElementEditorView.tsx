@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -17,18 +16,10 @@ import { BacklinksPanel } from '../components/editor/BacklinksPanel';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
-
-const DEFAULT_DOC_STRING = JSON.stringify({
-  type: 'doc',
-  content: [],
-});
-
-function getDefaultDoc(): JSONContent {
-  return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
-}
 
 export function ElementEditorView() {
   const navigate = useNavigate();
@@ -109,7 +100,7 @@ export function ElementEditorView() {
       }),
       createDefaultSlashMenu(),
     ],
-    content: getDefaultDoc(),
+    content: createEmptyTiptapDoc(),
     autofocus: 'end',
     editorProps: {
       attributes: {
@@ -138,24 +129,21 @@ export function ElementEditorView() {
   // Update editor content when element changes
   useEffect(() => {
     if (!editor || !curElement) return;
+    if (editor.isDestroyed) return;
 
     const contentJson = curElement.contentJson;
-    if (!contentJson) {
-      editor.commands.setContent(getDefaultDoc());
-      return;
-    }
+    const json = parseTiptapDocJson(contentJson, (error) => {
+      log.error('Failed to parse element content', error);
+    });
+    const currentJson = editor.getJSON();
+    const currentString = JSON.stringify(currentJson);
 
     try {
-      const json = JSON.parse(contentJson) as JSONContent;
-      const currentJson = editor.getJSON();
-      const currentString = JSON.stringify(currentJson);
-
       if (contentJson !== currentString) {
         editor.commands.setContent(json);
       }
     } catch (error) {
-      log.error('Failed to parse element content', error);
-      editor.commands.setContent(getDefaultDoc());
+      log.error('Failed to load element content into editor:', error);
     }
   }, [editor, curElement]);
 

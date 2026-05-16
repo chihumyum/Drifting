@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../store/ui-store';
-import { Network, BookOpen, Layers } from 'lucide-react';
+import { Network, BookOpen, Layers, Home } from 'lucide-react';
 import useMeasure from 'react-use-measure';
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 export function LeftSidebarHeader() {
+  const { navigateToHome } = useProjectNavigation();
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
@@ -71,6 +73,29 @@ export function LeftSidebarHeader() {
           isActive={activeLeftPanel === 'elements'}
           onClick={() => setActiveLeftPanel('elements')}
         />
+      </div>
+
+      {/* Home Button - Navigates to ProjectHomeView */}
+      <div
+        onClick={() => navigateToHome()}
+        title="Project Home"
+        style={{
+          flexShrink: 0,
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          background: '#e0e0e0',
+          color: '#333',
+          transition: 'background 0.2s',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = '#cfcfcf')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = '#e0e0e0')}
+      >
+        <Home size={14} />
       </div>
 
       {/* Super Buttons (Right Side) - Occupy remaining space */}

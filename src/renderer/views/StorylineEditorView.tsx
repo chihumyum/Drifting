@@ -11,15 +11,11 @@ import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { parseTiptapDocJson } from '../utils/tiptap-doc';
 import loglevel from 'loglevel';
 const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.DEBUG);
 log.setLevel(loglevel.levels.WARN);
-
-const DEFAULT_DOC = {
-  type: 'doc',
-  content: [],
-};
 
 export function StorylineEditorView() {
   const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
@@ -124,21 +120,24 @@ export function StorylineEditorView() {
       log.warn('Editor or active storyline not ready yet');
       return;
     }
+    if (editorSL.isDestroyed) {
+      log.warn('Storyline editor is already destroyed, skip content load');
+      return;
+    }
     loadedStorylineRef.current = storylineId;
     loadedEditorRef.current = editorSL;
-    if (currentStoryline.descriptionJson) {
-      try {
-        const content = JSON.parse(currentStoryline.descriptionJson);
-        log.debug('Loading storyline description content for storyline ', storylineId, content);
-        editorSL.commands.setContent(content, { emitUpdate: false });
-        return;
-      } catch (error) {
-        log.warn('Failed to parse storyline pmJson, fallback to empty doc:', error);
-      }
-    } else {
-      log.warn('No pmJson content for storyline:', storylineId);
+    const content = parseTiptapDocJson(currentStoryline.descriptionJson, (error) => {
+      log.warn('Failed to parse storyline pmJson, using empty doc:', error);
+    });
+    log.debug('Loading storyline description content for storyline ', storylineId, content);
+
+    try {
+      editorSL.commands.setContent(content, { emitUpdate: false });
+    } catch (error) {
+      loadedStorylineRef.current = null;
+      loadedEditorRef.current = null;
+      log.warn('Failed to load storyline editor content:', error);
     }
-    editorSL.commands.setContent(DEFAULT_DOC, { emitUpdate: false });
   }, [projectId, storylineId, editorSL, currentStoryline]);
 
   const commitName = async () => {

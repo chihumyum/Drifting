@@ -2,6 +2,31 @@ import mitt from 'mitt';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 
+export type SyncOperationEvent = {
+  requestId: string;
+  kind: 'yjs' | 'crud';
+  phase: 'push' | 'pull';
+  state: 'started' | 'succeeded' | 'failed';
+  operation: 'create' | 'update' | 'delete' | 'push' | 'pull';
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  endpoint: string;
+  docId?: string;
+  entityType?: string;
+  entityId?: string;
+  entityName?: string;
+  projectId?: string;
+  deviceId?: string;
+  localUpdateCount?: number;
+  remoteUpdateCount?: number;
+  appliedUpdateCount?: number;
+  skippedUpdateCount?: number;
+  serverSeqCount?: number;
+  resourceCount?: number;
+  durationMs?: number;
+  error?: string;
+  at: number;
+};
+
 export type AppEvents = {
   'graph:select': { nodeId: string | null };
   'graph:node-created': { node: BookNode };
@@ -32,6 +57,8 @@ export type AppEvents = {
   'jobs:started': { jobId: string; type: string };
   'jobs:completed': { jobId: string; result?: unknown };
   'jobs:failed': { jobId: string; error: string };
+
+  'sync:operation': SyncOperationEvent;
 
   'ui:sidecar-toggled': { open: boolean };
   'ui:command-palette-toggled': { open: boolean };

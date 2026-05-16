@@ -9,6 +9,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
+import { getDeviceId } from './device-id';
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -29,6 +30,9 @@ apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (config.headers && !('x-trace-id' in config.headers)) {
       config.headers['x-trace-id'] = getActiveTraceId();
+    }
+    if (config.headers && !('x-device-id' in config.headers)) {
+      config.headers['x-device-id'] = getDeviceId();
     }
 
     return config;

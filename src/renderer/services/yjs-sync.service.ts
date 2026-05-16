@@ -8,6 +8,8 @@ import { getDb } from '../lib/db';
 import { yjsSyncCursor } from '../schema/drizzle';
 import { isSyncEnabled } from '../lib/config';
 import { apiClient } from '../lib/axios-config';
+import { getDeviceId } from '../lib/device-id';
+import { events, type SyncOperationEvent } from '../lib/events';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
 import loglevel from 'loglevel';
 
@@ -15,6 +17,32 @@ const log = loglevel.getLogger('yjs-sync');
 log.setLevel(loglevel.levels.WARN);
 
 const PUSH_BATCH_SIZE = 50;
+
+export function getYjsDeviceId(): string {
+  return getDeviceId();
+}
+
+function nowMs(): number {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+function createRequestId(phase: SyncOperationEvent['phase'], docId: string): string {
+  return `${phase}:${docId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+}
+
+function getNodeIdFromDocId(docId: string): string | undefined {
+  if (!docId.startsWith('node-content:')) return undefined;
+  return docId.slice('node-content:'.length) || undefined;
+}
+
+function emitSyncOperation(event: Omit<SyncOperationEvent, 'at'>): void {
+  events.emit('sync:operation', { ...event, at: Date.now() });
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 // ───── Cursor helpers ─────
 
@@ -83,25 +111,85 @@ export async function pushUpdates(
   const unpushed = await r.listUpdates(docId, cursor.lastPushedLocalId);
   if (unpushed.length === 0) return;
 
+  const deviceId = getYjsDeviceId();
+
   for (let i = 0; i < unpushed.length; i += PUSH_BATCH_SIZE) {
     const batch = unpushed.slice(i, i + PUSH_BATCH_SIZE);
+    const requestId = createRequestId('push', docId);
+    const startedAt = nowMs();
     const payload = {
       docId,
       projectId,
+      deviceId,
       updates: batch.map((u) => ({
-        clientUpdateId: `${docId}:${u.id}`,
+        clientUpdateId: `${docId}:${deviceId}:${u.id}`,
         data: uint8ToBase64(u.updateBlob),
       })),
     };
 
-    const res = await apiClient.post('/api/sync/push', payload);
-    if (res.data?.success) {
+    emitSyncOperation({
+      requestId,
+      kind: 'yjs',
+      phase: 'push',
+      state: 'started',
+      operation: 'push',
+      method: 'POST',
+      endpoint: '/api/sync/push',
+      docId,
+      entityType: 'nodeContent',
+      entityId: getNodeIdFromDocId(docId),
+      projectId,
+      deviceId,
+      localUpdateCount: batch.length,
+    });
+
+    try {
+      const res = await apiClient.post('/api/sync/push', payload);
+      if (!res.data?.success) {
+        log.error(`[push] ${docId}: server returned failure`, res.data);
+        throw new Error('Sync push failed');
+      }
+
       const lastLocalId = batch[batch.length - 1].id;
+      const serverSeqs = Array.isArray(res.data.serverSeqs) ? res.data.serverSeqs : [];
       await updateCursor(docId, { lastPushedLocalId: lastLocalId });
+      emitSyncOperation({
+        requestId,
+        kind: 'yjs',
+        phase: 'push',
+        state: 'succeeded',
+        operation: 'push',
+        method: 'POST',
+        endpoint: '/api/sync/push',
+        docId,
+        entityType: 'nodeContent',
+        entityId: getNodeIdFromDocId(docId),
+        projectId,
+        deviceId,
+        localUpdateCount: batch.length,
+        serverSeqCount: serverSeqs.length,
+        durationMs: nowMs() - startedAt,
+      });
       log.info(`[push] ${docId}: pushed ${batch.length} updates, lastLocalId=${lastLocalId}`);
-    } else {
-      log.error(`[push] ${docId}: server returned failure`, res.data);
-      throw new Error('Sync push failed');
+    } catch (error) {
+      emitSyncOperation({
+        requestId,
+        kind: 'yjs',
+        phase: 'push',
+        state: 'failed',
+        operation: 'push',
+        method: 'POST',
+        endpoint: '/api/sync/push',
+        docId,
+        entityType: 'nodeContent',
+        entityId: getNodeIdFromDocId(docId),
+        projectId,
+        deviceId,
+        localUpdateCount: batch.length,
+        durationMs: nowMs() - startedAt,
+        error: getErrorMessage(error),
+      });
+      throw error;
     }
   }
 }
@@ -113,36 +201,116 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
 
   const r = repo ?? createYjsRepository();
   const cursor = await getCursor(docId);
+  const deviceId = getYjsDeviceId();
+  const requestId = createRequestId('pull', docId);
+  const startedAt = nowMs();
 
-  const res = await apiClient.get('/api/sync/pull', {
-    params: { docId, sinceSeq: cursor.lastServerSeq },
+  emitSyncOperation({
+    requestId,
+    kind: 'yjs',
+    phase: 'pull',
+    state: 'started',
+    operation: 'pull',
+    method: 'GET',
+    endpoint: '/api/sync/pull',
+    docId,
+    entityType: 'nodeContent',
+    entityId: getNodeIdFromDocId(docId),
+    deviceId,
   });
 
-  const updates: Array<{ serverSeq: number; data: string; clientUpdateId: string }> =
-    res.data?.updates ?? [];
+  try {
+    const res = await apiClient.get('/api/sync/pull', {
+      params: { docId, sinceSeq: cursor.lastServerSeq },
+    });
 
-  if (updates.length === 0) return;
+    const updates: Array<{
+      serverSeq: number;
+      data: string;
+      clientUpdateId: string;
+      deviceId: string | null;
+    }> = res.data?.updates ?? [];
 
-  let maxSeq = cursor.lastServerSeq;
-
-  for (const u of updates) {
-    // Skip self-originated updates (already in local DB)
-    if (u.clientUpdateId && u.clientUpdateId.startsWith(`${docId}:`)) {
-      maxSeq = Math.max(maxSeq, u.serverSeq);
-      continue;
+    if (updates.length === 0) {
+      emitSyncOperation({
+        requestId,
+        kind: 'yjs',
+        phase: 'pull',
+        state: 'succeeded',
+        operation: 'pull',
+        method: 'GET',
+        endpoint: '/api/sync/pull',
+        docId,
+        entityType: 'nodeContent',
+        entityId: getNodeIdFromDocId(docId),
+        deviceId,
+        remoteUpdateCount: 0,
+        appliedUpdateCount: 0,
+        skippedUpdateCount: 0,
+        durationMs: nowMs() - startedAt,
+      });
+      return;
     }
 
-    const blob = base64ToUint8(u.data);
-    Y.applyUpdate(ydoc, blob, 'remote');
-    maxSeq = Math.max(maxSeq, u.serverSeq);
+    let maxSeq = cursor.lastServerSeq;
+    let appliedCount = 0;
+    let skippedCount = 0;
+
+    for (const u of updates) {
+      // Skip self-originated updates (already in local DB)
+      if (u.deviceId === deviceId) {
+        maxSeq = Math.max(maxSeq, u.serverSeq);
+        skippedCount += 1;
+        continue;
+      }
+
+      const blob = base64ToUint8(u.data);
+      Y.applyUpdate(ydoc, blob, 'remote');
+      maxSeq = Math.max(maxSeq, u.serverSeq);
+      appliedCount += 1;
+    }
+
+    // Save a snapshot after applying remote updates
+    const fullState = Y.encodeStateAsUpdate(ydoc);
+    await r.upsertSnapshot(docId, fullState);
+
+    await updateCursor(docId, { lastServerSeq: maxSeq });
+    emitSyncOperation({
+      requestId,
+      kind: 'yjs',
+      phase: 'pull',
+      state: 'succeeded',
+      operation: 'pull',
+      method: 'GET',
+      endpoint: '/api/sync/pull',
+      docId,
+      entityType: 'nodeContent',
+      entityId: getNodeIdFromDocId(docId),
+      deviceId,
+      remoteUpdateCount: updates.length,
+      appliedUpdateCount: appliedCount,
+      skippedUpdateCount: skippedCount,
+      durationMs: nowMs() - startedAt,
+    });
+    log.info(`[pull] ${docId}: applied ${appliedCount} remote updates, lastServerSeq=${maxSeq}`);
+  } catch (error) {
+    emitSyncOperation({
+      requestId,
+      kind: 'yjs',
+      phase: 'pull',
+      state: 'failed',
+      operation: 'pull',
+      method: 'GET',
+      endpoint: '/api/sync/pull',
+      docId,
+      entityType: 'nodeContent',
+      entityId: getNodeIdFromDocId(docId),
+      deviceId,
+      durationMs: nowMs() - startedAt,
+      error: getErrorMessage(error),
+    });
+    throw error;
   }
-
-  // Save a snapshot after applying remote updates
-  const fullState = Y.encodeStateAsUpdate(ydoc);
-  await r.upsertSnapshot(docId, fullState);
-
-  await updateCursor(docId, { lastServerSeq: maxSeq });
-  log.info(`[pull] ${docId}: applied ${updates.length} remote updates, lastServerSeq=${maxSeq}`);
 }
 
 // ───── Full sync cycle ─────

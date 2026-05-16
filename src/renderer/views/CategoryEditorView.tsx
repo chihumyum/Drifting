@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import type { JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -12,21 +11,13 @@ import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
 import { EditorContextMenu } from '../components/editor/EditorContextMenu';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 import { X, Eye } from 'lucide-react';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 
 const log = loglevel.getLogger('CategoryEditorView');
 log.setLevel(loglevel.levels.ERROR);
-
-const DEFAULT_DOC_STRING = JSON.stringify({
-  type: 'doc',
-  content: [],
-});
-
-function getDefaultDoc(): JSONContent {
-  return JSON.parse(DEFAULT_DOC_STRING) as JSONContent;
-}
 
 export function CategoryEditorView() {
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
@@ -107,7 +98,7 @@ export function CategoryEditorView() {
       }),
       createDefaultSlashMenu(),
     ],
-    content: getDefaultDoc(),
+    content: createEmptyTiptapDoc(),
     autofocus: 'end',
     editorProps: {
       attributes: {
@@ -135,17 +126,18 @@ export function CategoryEditorView() {
   useEffect(() => {
     if (!editor || !curCategory) return;
     if (loadedCategoryIdRef.current === curCategory.id) return;
+    if (editor.isDestroyed) return;
 
+    const content = parseTiptapDocJson(curCategory.descriptionJson, (error) => {
+      log.error('Failed to parse category description:', error);
+    });
     try {
-      const content = curCategory.descriptionJson
-        ? JSON.parse(curCategory.descriptionJson)
-        : getDefaultDoc();
       isContentLoadedRef.current = false;
       editor.commands.setContent(content, { emitUpdate: false });
     } catch (error) {
-      log.error('Failed to parse category description:', error);
+      log.error('Failed to load category description into editor:', error);
       isContentLoadedRef.current = false;
-      editor.commands.setContent(getDefaultDoc(), { emitUpdate: false });
+      return;
     }
 
     loadedCategoryIdRef.current = curCategory.id;

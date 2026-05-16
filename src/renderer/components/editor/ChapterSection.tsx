@@ -3,6 +3,7 @@ import { ChapterEditor } from './ChapterEditor';
 
 interface ChapterSectionProps {
   node: BookNode;
+  projectId: string;
   content: string | null;
   onContentUpdate: (nodeId: string, pmJson: string, outlineJson: string) => void;
   isActive?: boolean;
@@ -12,6 +13,7 @@ interface ChapterSectionProps {
 
 export function ChapterSection({
   node,
+  projectId,
   content,
   onContentUpdate,
   isActive = false,
@@ -43,6 +45,7 @@ export function ChapterSection({
 
       <ChapterEditor
         nodeId={node.id}
+        projectId={projectId}
         content={content}
         title={node.title}
         summary={node.summary || ''}

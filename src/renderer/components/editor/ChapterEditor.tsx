@@ -26,7 +26,7 @@ import { TagEditor } from './TagEditor';
 import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
 import { useAuthStore } from '@/renderer/store/auth';
-import { useYjsDoc } from '@/renderer/hooks/useYjsDoc';
+import { useYjsSync } from '@/renderer/hooks/useYjsSync';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -38,7 +38,7 @@ interface ChapterEditorProps {
   content: string | null; // legacy pm_json string (migration seed only)
   title?: string;
   summary?: string;
-  projectId?: string;
+  projectId: string;
   ref?: Ref<ChapterEditorRef>;
 
   // 内容更新回调
@@ -125,14 +125,18 @@ export function ChapterEditor({
   if (!userId) {
     throw new Error('ChapterEditor requires authenticated user');
   }
+  if (!projectId) {
+    throw new Error('ChapterEditor requires projectId');
+  }
 
   const {
     ydoc,
     isReady: isYjsReady,
     hasLocalState,
-  } = useYjsDoc({
+  } = useYjsSync({
     docId: `node-content:${nodeId}`,
     userId,
+    projectId,
   });
   const legacySeededRef = useRef(false);
   const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);

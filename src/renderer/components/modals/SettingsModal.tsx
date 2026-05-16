@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Bug } from 'lucide-react';
+import { X, Bug, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { applyAccentColor } from '../../lib/theme';
 import { DebugModal } from './DebugModal';
 import { APP_CONFIG } from '../../lib/config';
@@ -30,6 +31,7 @@ const ACCENT_COLORS: AccentColorOption[] = [
 ];
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const navigate = useNavigate();
   const [selectedColor, setSelectedColor] = useState<string>('brown');
   const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced' | 'account'>(
     'appearance',
@@ -309,6 +311,41 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               <span>👤</span>
               <span>Account</span>
+            </button>
+          </div>
+
+          {/* Footer - Back to Project Home */}
+          <div style={{ flex: 1 }} />
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #e8dcc8' }}>
+            <button
+              onClick={() => {
+                onClose();
+                navigate('/');
+              }}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #e8dcc8',
+                borderRadius: '6px',
+                background: 'transparent',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: '#5a4a3a',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#f5f0e8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              title="Back to Project Home"
+            >
+              <LogOut size={14} />
+              <span>Back to Project Home</span>
             </button>
           </div>
         </div>

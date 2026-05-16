@@ -26,9 +26,16 @@ export function StorylineAllChapterEditor({
 }: StorylineAllChapterProps) {
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId } = useProjectNavigation();
+  if (!userId) {
+    throw new Error('StorylineAllChapterEditor requires authenticated user');
+  }
+  if (!projectId) {
+    throw new Error('StorylineAllChapterEditor requires projectId');
+  }
+
   const { updateContentByNodeId, createContent, getContentByNodeId } = useBookContent({
-    userId: userId ?? '',
-    projectId: projectId ?? '',
+    userId,
+    projectId,
   });
   const [chaptersData, setChaptersData] = useState<ChapterData[]>([]);
   const [currentChapterIndex] = useState(0);
@@ -145,6 +152,7 @@ export function StorylineAllChapterEditor({
         <div key={chapterData.nodeId} data-chapter-index={index}>
           <ChapterSection
             node={chapterData.node}
+            projectId={projectId}
             content={chapterData.content}
             onContentUpdate={handleContentUpdate}
             isActive={index === currentChapterIndex}
