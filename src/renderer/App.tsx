@@ -159,6 +159,8 @@ function Layout() {
           elementUsecases.loadInitial(),
           categoryUsecases.loadCategories(),
         ]);
+        // Node-storyline mapping depends on nodes being loaded first.
+        await storylineUsecases.loadNodeStorylineMapping();
 
         events.emit('db:ready');
         log.info('[App] Database ready for project:', projectId);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -40,7 +40,7 @@ export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
-  const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
   const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
@@ -51,7 +51,6 @@ export function BottomTimeline() {
   const {
     addNodeToStoryline,
     getStorylinesByNode,
-    getStorylinesByNodeIds,
     removeNodeFromStoryline,
     setNodeStorylines,
   } = useStoryline({
@@ -67,51 +66,29 @@ export function BottomTimeline() {
     location.pathname.includes('/editor/all-nodes');
   const activeSelectedNodeId = isAllNodesEditorRoute ? (selectedNodeId ?? nodeId) : nodeId;
 
-  const [nodesWithStorylines, setNodesWithStorylines] = useState<TimelineNode[]>([]);
+  // Drag-time overrides for `start`; cleared automatically when the store
+  // update flows back (see useMemo below). Resize uses setStartOverrides to
+  // preview without mutating the store mid-drag.
+  const [startOverrides, setStartOverrides] = useState<Map<string, number>>(new Map());
+
+  // Node↔storyline relationships derived from the store; the mapping is
+  // pre-loaded once at app boot (App.tsx -> loadNodeStorylineMapping).
+  const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
+    const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));
+    return bookNodes.map((node) => ({
+      ...node,
+      start: startOverrides.get(node.id) ?? node.start,
+      storylines: (nodeStorylineMapping[node.id] || [])
+        .map((slId) => storylineById.get(slId))
+        .filter((sl): sl is Storyline => Boolean(sl)),
+    }));
+  }, [bookNodes, nodeStorylineMapping, storylines, startOverrides]);
 
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
 
   const [isExpanded, setIsExpanded] = useState(true);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [customTotalHeight, setCustomTotalHeight] = useState<number | null>(null); // 用户自定义的bottomTimeline总高度
-
-  // Load node-storyline relationships
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadData() {
-      try {
-        // Load storyline info in batch to avoid per-node queries (N+1).
-        const nodeIds = bookNodes.map((node) => node.id);
-        const storylinesByNode = await getStorylinesByNodeIds(nodeIds);
-        if (!isActive) return;
-        const nodesWithStorylineInfo = bookNodes.map((node) => ({
-          ...node,
-          storylines: storylinesByNode[node.id] ?? [],
-        }));
-        if (!isActive) return;
-        setNodesWithStorylines(nodesWithStorylineInfo);
-
-        // Initialize end state from database
-        const endsMap = new Map<string, number | null>();
-        bookNodes.forEach((node) => {
-          endsMap.set(node.id, node.end ?? null);
-        });
-        if (!isActive) return;
-        setNodeEnds(endsMap);
-      } catch (error) {
-        if (isActive) {
-          log.error('Failed to load timeline data:', error);
-        }
-      }
-    }
-
-    // Refresh timeline relationship data whenever nodes or mapping changes.
-    void loadData();
-    return () => {
-      isActive = false;
-    };
-  }, [bookNodes, storylineNodeMapping, getStorylinesByNodeIds]);
 
   // Load outlines for all nodes
   useEffect(() => {
@@ -523,9 +500,11 @@ export function BottomTimeline() {
         const validStart = Math.min(newStart, originalEnd - 1);
 
         // 只更新节点位置，end 保持不变
-        setNodesWithStorylines((prev) =>
-          prev.map((n) => (n.id === resizingNode.nodeId ? { ...n, start: validStart } : n)),
-        );
+        setStartOverrides((prev) => {
+          const next = new Map(prev);
+          next.set(resizingNode.nodeId, validStart);
+          return next;
+        });
       }
     };
 
@@ -557,6 +536,14 @@ export function BottomTimeline() {
         if (Object.keys(updates).length > 0) {
           await updateNode(resizingNode.nodeId, updates);
         }
+
+        // 清理本次 drag 的临时覆盖（store 更新会把 node.start 同步到目标值）
+        setStartOverrides((prev) => {
+          if (!prev.has(resizingNode.nodeId)) return prev;
+          const next = new Map(prev);
+          next.delete(resizingNode.nodeId);
+          return next;
+        });
 
         // 保存滚动位置
         const scrollContainer = scrollContainerRef.current;

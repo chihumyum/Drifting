@@ -7,7 +7,10 @@ import type { ElementTag } from '../domain/element-tag';
 
 interface DataState {
   storylines: Storyline[];
+  /** storyline.id → nodeId[] */
   storylineNodeMapping: Record<string, string[]>;
+  /** node.id → storylineId[]; reverse of storylineNodeMapping, kept in sync by reducers */
+  nodeStorylineMapping: Record<string, string[]>;
   setStorylines: (storylines: Storyline[]) => void;
   addStoryline: (storyline: Storyline) => void;
   updateStoryline: (id: string, updates: Partial<Storyline>) => void;
@@ -51,9 +54,27 @@ interface DataState {
   removeElementTag: (id: string) => void;
 }
 
+function deriveNodeStorylineMapping(
+  forward: Record<string, string[]>,
+): Record<string, string[]> {
+  const reverse: Record<string, string[]> = {};
+  Object.entries(forward).forEach(([storylineId, nodeIds]) => {
+    nodeIds.forEach((nodeId) => {
+      const arr = reverse[nodeId] || [];
+      if (!arr.includes(storylineId)) {
+        reverse[nodeId] = [...arr, storylineId];
+      } else {
+        reverse[nodeId] = arr;
+      }
+    });
+  });
+  return reverse;
+}
+
 export const useDataStore = create<DataState>((set) => ({
   storylines: [],
   storylineNodeMapping: {},
+  nodeStorylineMapping: {},
   addStoryline: (storyline) => set((state) => ({ storylines: [...state.storylines, storyline] })),
   setStorylines: (storylines) => set({ storylines }),
   updateStoryline: (id, updates) =>
@@ -63,46 +84,69 @@ export const useDataStore = create<DataState>((set) => ({
       ),
     })),
   removeStoryline: (id) =>
-    set((state) => ({ storylines: state.storylines.filter((storyline) => storyline.id !== id) })),
-  setStorylineNodeMapping: (mapping) => set({ storylineNodeMapping: mapping }),
+    set((state) => {
+      const remainingForward = { ...state.storylineNodeMapping };
+      delete remainingForward[id];
+      return {
+        storylines: state.storylines.filter((storyline) => storyline.id !== id),
+        storylineNodeMapping: remainingForward,
+        nodeStorylineMapping: deriveNodeStorylineMapping(remainingForward),
+      };
+    }),
+  setStorylineNodeMapping: (mapping) =>
+    set({
+      storylineNodeMapping: mapping,
+      nodeStorylineMapping: deriveNodeStorylineMapping(mapping),
+    }),
   addNodeToStorylineMapping: (storylineId, nodeId) =>
-    set((state) => ({
-      storylineNodeMapping: {
+    set((state) => {
+      const existingForward = state.storylineNodeMapping[storylineId] || [];
+      if (existingForward.includes(nodeId)) return state;
+      const forward = {
         ...state.storylineNodeMapping,
-        [storylineId]: (state.storylineNodeMapping[storylineId] || []).includes(nodeId)
-          ? state.storylineNodeMapping[storylineId] || []
-          : [...(state.storylineNodeMapping[storylineId] || []), nodeId],
-      },
-    })),
+        [storylineId]: [...existingForward, nodeId],
+      };
+      const existingReverse = state.nodeStorylineMapping[nodeId] || [];
+      const reverse = existingReverse.includes(storylineId)
+        ? state.nodeStorylineMapping
+        : { ...state.nodeStorylineMapping, [nodeId]: [...existingReverse, storylineId] };
+      return { storylineNodeMapping: forward, nodeStorylineMapping: reverse };
+    }),
   removeNodeFromStorylineMapping: (storylineId, nodeId) =>
-    set((state) => ({
-      storylineNodeMapping: {
+    set((state) => {
+      const forward = {
         ...state.storylineNodeMapping,
         [storylineId]: (state.storylineNodeMapping[storylineId] || []).filter(
           (id) => id !== nodeId,
         ),
-      },
-    })),
+      };
+      const reverse = {
+        ...state.nodeStorylineMapping,
+        [nodeId]: (state.nodeStorylineMapping[nodeId] || []).filter((id) => id !== storylineId),
+      };
+      return { storylineNodeMapping: forward, nodeStorylineMapping: reverse };
+    }),
   setNodeStorylinesMapping: (nodeId, storylineIds) =>
     set((state) => {
-      const newMapping = { ...state.storylineNodeMapping };
-
+      const forward = { ...state.storylineNodeMapping };
       // Remove nodeId from all storylines where it shouldn't be
-      Object.keys(newMapping).forEach((slId) => {
+      Object.keys(forward).forEach((slId) => {
         if (!storylineIds.includes(slId)) {
-          newMapping[slId] = newMapping[slId].filter((id) => id !== nodeId);
+          forward[slId] = forward[slId].filter((id) => id !== nodeId);
         }
       });
-
       // Add nodeId to all storylines where it should be
       storylineIds.forEach((slId) => {
-        const existingNodes = newMapping[slId] || [];
+        const existingNodes = forward[slId] || [];
         if (!existingNodes.includes(nodeId)) {
-          newMapping[slId] = [...existingNodes, nodeId];
+          forward[slId] = [...existingNodes, nodeId];
         }
       });
-
-      return { storylineNodeMapping: newMapping };
+      const reverse = {
+        ...state.nodeStorylineMapping,
+        [nodeId]: [...storylineIds],
+      };
+      return { storylineNodeMapping: forward, nodeStorylineMapping: reverse };
     }),
 
   bookNodes: [],

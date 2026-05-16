@@ -136,6 +136,24 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     [repo, setStorylinesState, activeProjectId, ensureDb],
   );
 
+  const loadNodeStorylineMapping = useCallback(async (): Promise<void> => {
+    await ensureDb();
+    const nodeIds = useDataStore.getState().bookNodes.map((n) => n.id);
+    if (nodeIds.length === 0) {
+      setStorylineNodeMappingState({});
+      return;
+    }
+    const grouped = await linkRepo.getStorylinesByNodeIds(nodeIds);
+    const forward: Record<string, string[]> = {};
+    Object.entries(grouped).forEach(([nodeId, storylines]) => {
+      storylines.forEach((sl) => {
+        const arr = forward[sl.id] || [];
+        if (!arr.includes(nodeId)) forward[sl.id] = [...arr, nodeId];
+      });
+    });
+    setStorylineNodeMappingState(forward);
+  }, [linkRepo, ensureDb, setStorylineNodeMappingState]);
+
   const createStoryline = useCallback(
     async (input: CreateStorylineInput): Promise<Storyline> => {
       if (input.projectId && input.projectId !== activeProjectId) {
@@ -426,6 +444,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   return useMemo(
     () => ({
       loadStorylines,
+      loadNodeStorylineMapping,
       createStoryline,
       getStorylineById,
       getStorylinesByProject,
@@ -440,6 +459,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     }),
     [
       loadStorylines,
+      loadNodeStorylineMapping,
       createStoryline,
       getStorylineById,
       getStorylinesByProject,
