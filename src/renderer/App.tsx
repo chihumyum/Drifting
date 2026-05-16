@@ -357,7 +357,14 @@ export default function App() {
         }
       >
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<ProjectDashboard />} />
+        <Route
+          path="home"
+          element={
+            <EditorShell view="project-dashboard">
+              <ProjectDashboard />
+            </EditorShell>
+          }
+        />
         <Route
           path="home/all-nodes"
           element={
