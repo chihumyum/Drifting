@@ -76,35 +76,6 @@ export function ChaptersOutlinePanel({
     setSummaryInput('');
   };
 
-  // 统计章节字数
-  const getChapterWordCount = (pmJson: string | undefined): number => {
-    if (!pmJson) return 0;
-
-    try {
-      const json = JSON.parse(pmJson);
-      const extractText = (node: any): string => {
-        let text = '';
-        if (node.type === 'text' && node.text) {
-          text += node.text;
-        }
-        if (node.content) {
-          node.content.forEach((child: any) => {
-            text += extractText(child);
-          });
-        }
-        return text;
-      };
-
-      const text = extractText(json);
-      // 简单的字数统计（中文字符 + 英文单词）
-      const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-      const englishWords = (text.match(/[a-zA-Z]+/g) || []).length;
-      return chineseChars + englishWords;
-    } catch {
-      return 0;
-    }
-  };
-
   return (
     <div
       style={{
@@ -148,7 +119,7 @@ export function ChaptersOutlinePanel({
       <div style={{ padding: '12px 0' }}>
         {chaptersOutline.map((chapter, index) => {
           const isActive = index === currentChapterIndex;
-          const wordCount = getChapterWordCount(contentsMap.get(chapter.node.id));
+          const wordCount = chapter.node.wordCount;
 
           return (
             <div key={chapter.node.id} style={{ marginBottom: 4 }}>

@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Project } from '../domain/project';
 import type { Storyline } from '../domain/storyline';
@@ -6,7 +7,11 @@ import type { BookElementCategory } from '../domain/book-element';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
-import { initDatabase } from '../lib/db';
+import { getDb, initDatabase } from '../lib/db';
+import apiClient from '../lib/axios-config';
+import { isSyncEnabled } from '../lib/config';
+import { getDeviceId } from '../lib/device-id';
+import { events, type SyncOperationEvent } from '../lib/events';
 import { v7 as uuidv7 } from 'uuid';
 import {
   syncProjectCreate,
@@ -17,6 +22,23 @@ import {
 } from './sync-helpers';
 import { randomColor } from '../utils';
 import { useDataStore } from '../store/data-store';
+import { useProjectStore } from '../store/project-store';
+import {
+  BookElementTable,
+  BookNodeTable,
+  ElementCategoryTable,
+  ElementOccurrenceTable,
+  ElementStageTable,
+  ElementTagLinkTable,
+  ElementTagTable,
+  NodeEdgeTable,
+  NodeStorylineLinkTable,
+  NodeTagLinkTable,
+  NodeTagTable,
+  ProjectTable,
+  StorylineTable,
+  StoryStageTable,
+} from '../schema/drizzle';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('UseProject');
 log.setLevel(LogLevel.levels.WARN);
@@ -29,6 +51,319 @@ export type UpdateProjectInput = Omit<Project, 'id' | 'userId' | 'createdAt' | '
 
 export interface UseProjectContext {
   userId: string;
+}
+
+export interface ProjectStats {
+  nodes: number;
+  words: number;
+  storylines: number;
+  storylineLinks: number;
+  elements: number;
+  categories: number;
+  elementStages: number;
+  storyStages: number;
+  edges: number;
+  nodeTags: number;
+  nodeTagLinks: number;
+  elementTags: number;
+  elementTagLinks: number;
+  elementOccurrences: number;
+}
+
+export type ProjectSummary = Project & {
+  stats: ProjectStats;
+  source: 'local' | 'server';
+};
+
+type ServerProjectSummary = {
+  id: string;
+  userId: string;
+  name: string;
+  descriptionJson?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  stats?: Partial<ProjectStats> | null;
+};
+
+const EMPTY_PROJECT_STATS: ProjectStats = {
+  nodes: 0,
+  words: 0,
+  storylines: 0,
+  storylineLinks: 0,
+  elements: 0,
+  categories: 0,
+  elementStages: 0,
+  storyStages: 0,
+  edges: 0,
+  nodeTags: 0,
+  nodeTagLinks: 0,
+  elementTags: 0,
+  elementTagLinks: 0,
+  elementOccurrences: 0,
+};
+
+function createRequestId(prefix: string): string {
+  return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+}
+
+function nowMs(): number {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function emitSyncOperation(event: Omit<SyncOperationEvent, 'at'>): void {
+  events.emit('sync:operation', { ...event, at: Date.now() });
+}
+
+function normalizeDateText(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string' && value.trim()) return value;
+  return new Date().toISOString();
+}
+
+function normalizeProjectStats(stats?: Partial<ProjectStats> | null): ProjectStats {
+  return {
+    ...EMPTY_PROJECT_STATS,
+    ...stats,
+  };
+}
+
+function normalizeServerProjectSummary(row: ServerProjectSummary, userId: string): ProjectSummary {
+  return {
+    id: row.id,
+    userId: row.userId || userId,
+    name: row.name,
+    descriptionJson: row.descriptionJson ?? '{}',
+    createdAt: normalizeDateText(row.createdAt),
+    updatedAt: normalizeDateText(row.updatedAt),
+    stats: normalizeProjectStats(row.stats),
+    source: 'server',
+  };
+}
+
+function sortProjectSummaries(a: ProjectSummary, b: ProjectSummary): number {
+  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+}
+
+async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> {
+  const db = getDb();
+  const [
+    nodes,
+    nodeEdges,
+    storylines,
+    elements,
+    elementCategories,
+    storyStages,
+    nodeTags,
+    elementTags,
+  ] = await Promise.all([
+    db
+      .select({ id: BookNodeTable.id, wordCount: BookNodeTable.wordCount })
+      .from(BookNodeTable)
+      .where(eq(BookNodeTable.projectId, projectId)),
+    db.select({ id: NodeEdgeTable.id }).from(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId)),
+    db
+      .select({ id: StorylineTable.id })
+      .from(StorylineTable)
+      .where(eq(StorylineTable.projectId, projectId)),
+    db
+      .select({ id: BookElementTable.id })
+      .from(BookElementTable)
+      .where(eq(BookElementTable.projectId, projectId)),
+    db
+      .select({ id: ElementCategoryTable.id })
+      .from(ElementCategoryTable)
+      .where(eq(ElementCategoryTable.projectId, projectId)),
+    db
+      .select({ id: StoryStageTable.id })
+      .from(StoryStageTable)
+      .where(eq(StoryStageTable.projectId, projectId)),
+    db.select({ id: NodeTagTable.id }).from(NodeTagTable).where(eq(NodeTagTable.projectId, projectId)),
+    db
+      .select({ id: ElementTagTable.id })
+      .from(ElementTagTable)
+      .where(eq(ElementTagTable.projectId, projectId)),
+  ]);
+
+  const nodeIds = nodes.map((node) => node.id);
+  const elementIds = elements.map((element) => element.id);
+  const nodeTagIds = nodeTags.map((tag) => tag.id);
+  const elementTagIds = elementTags.map((tag) => tag.id);
+
+  const [
+    nodeStorylineLinks,
+    nodeTagLinks,
+    elementTagLinks,
+    elementStages,
+    elementOccurrences,
+  ] = await Promise.all([
+    nodeIds.length
+      ? db
+          .select({
+            nodeId: NodeStorylineLinkTable.nodeId,
+            storylineId: NodeStorylineLinkTable.storylineId,
+          })
+          .from(NodeStorylineLinkTable)
+          .where(inArray(NodeStorylineLinkTable.nodeId, nodeIds))
+      : [],
+    nodeIds.length && nodeTagIds.length
+      ? db
+          .select({ nodeId: NodeTagLinkTable.nodeId, tagId: NodeTagLinkTable.tagId })
+          .from(NodeTagLinkTable)
+          .where(
+            and(inArray(NodeTagLinkTable.nodeId, nodeIds), inArray(NodeTagLinkTable.tagId, nodeTagIds)),
+          )
+      : [],
+    elementIds.length && elementTagIds.length
+      ? db
+          .select({ elementId: ElementTagLinkTable.elementId, tagId: ElementTagLinkTable.tagId })
+          .from(ElementTagLinkTable)
+          .where(
+            and(
+              inArray(ElementTagLinkTable.elementId, elementIds),
+              inArray(ElementTagLinkTable.tagId, elementTagIds),
+            ),
+          )
+      : [],
+    elementIds.length
+      ? db
+          .select({ id: ElementStageTable.id })
+          .from(ElementStageTable)
+          .where(inArray(ElementStageTable.elementId, elementIds))
+      : [],
+    nodeIds.length
+      ? db
+          .select({ id: ElementOccurrenceTable.id })
+          .from(ElementOccurrenceTable)
+          .where(inArray(ElementOccurrenceTable.nodeId, nodeIds))
+      : [],
+  ]);
+
+  return {
+    nodes: nodes.length,
+    words: nodes.reduce((total, node) => total + (node.wordCount ?? 0), 0),
+    storylines: storylines.length,
+    storylineLinks: nodeStorylineLinks.length,
+    elements: elements.length,
+    categories: elementCategories.length,
+    elementStages: elementStages.length,
+    storyStages: storyStages.length,
+    edges: nodeEdges.length,
+    nodeTags: nodeTags.length,
+    nodeTagLinks: nodeTagLinks.length,
+    elementTags: elementTags.length,
+    elementTagLinks: elementTagLinks.length,
+    elementOccurrences: elementOccurrences.length,
+  };
+}
+
+async function buildLocalProjectSummaries(projects: Project[]): Promise<ProjectSummary[]> {
+  const summaries = await Promise.all(
+    projects.map(async (project) => ({
+      ...project,
+      stats: await buildLocalProjectStats(project.id),
+      source: 'local' as const,
+    })),
+  );
+  return summaries.sort(sortProjectSummaries);
+}
+
+async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promise<void> {
+  if (summaries.length === 0) return;
+
+  await getDb().transaction(async (tx) => {
+    for (const project of summaries) {
+      await tx
+        .insert(ProjectTable)
+        .values({
+          id: project.id,
+          userId: project.userId,
+          name: project.name,
+          descriptionJson: project.descriptionJson,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: ProjectTable.id,
+          set: {
+            userId: project.userId,
+            name: project.name,
+            descriptionJson: project.descriptionJson,
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
+          },
+        });
+    }
+  });
+}
+
+async function pullProjectSummariesFromServer(userId: string): Promise<ProjectSummary[]> {
+  const requestId = createRequestId('crud:projects:summaries');
+  const deviceId = getDeviceId();
+  const startedAt = nowMs();
+
+  emitSyncOperation({
+    requestId,
+    kind: 'crud',
+    phase: 'pull',
+    state: 'started',
+    operation: 'pull',
+    method: 'GET',
+    endpoint: '/api/projects/summaries',
+    entityType: 'project',
+    deviceId,
+  });
+
+  try {
+    const response = await apiClient.get<ServerProjectSummary[]>('/api/projects/summaries');
+    const summaries = response.data.map((row) => normalizeServerProjectSummary(row, userId));
+    await upsertServerProjectSummaries(summaries);
+
+    emitSyncOperation({
+      requestId,
+      kind: 'crud',
+      phase: 'pull',
+      state: 'succeeded',
+      operation: 'pull',
+      method: 'GET',
+      endpoint: '/api/projects/summaries',
+      entityType: 'project',
+      deviceId,
+      resourceCount: summaries.length,
+      durationMs: nowMs() - startedAt,
+    });
+
+    return summaries;
+  } catch (error) {
+    emitSyncOperation({
+      requestId,
+      kind: 'crud',
+      phase: 'pull',
+      state: 'failed',
+      operation: 'pull',
+      method: 'GET',
+      endpoint: '/api/projects/summaries',
+      entityType: 'project',
+      deviceId,
+      durationMs: nowMs() - startedAt,
+      error: getErrorMessage(error),
+    });
+    throw error;
+  }
+}
+
+function mergeProjectSummaries(
+  localSummaries: ProjectSummary[],
+  serverSummaries: ProjectSummary[],
+): ProjectSummary[] {
+  const byId = new Map<string, ProjectSummary>();
+  localSummaries.forEach((summary) => byId.set(summary.id, summary));
+  serverSummaries.forEach((summary) => byId.set(summary.id, summary));
+  return Array.from(byId.values()).sort(sortProjectSummaries);
 }
 
 export function useProject({ userId }: UseProjectContext) {
@@ -45,6 +380,30 @@ export function useProject({ userId }: UseProjectContext) {
     await ensureDb();
     return await repo.findAll();
   }, [repo, ensureDb]);
+
+  const loadProjectSummaries = useCallback(
+    async (options: { pullRemote?: boolean } = {}): Promise<ProjectSummary[]> => {
+      await ensureDb();
+
+      const localSummaries = await buildLocalProjectSummaries(await repo.findAll());
+      let summaries = localSummaries;
+
+      if (options.pullRemote ?? true) {
+        if (isSyncEnabled()) {
+          try {
+            const serverSummaries = await pullProjectSummariesFromServer(userId);
+            summaries = mergeProjectSummaries(localSummaries, serverSummaries);
+          } catch (error) {
+            log.warn('Failed to pull project summaries; using local project list', error);
+          }
+        }
+      }
+
+      useProjectStore.getState().setProjects(summaries);
+      return summaries;
+    },
+    [repo, userId, ensureDb],
+  );
 
   const loadProject = useCallback(
     async (id: string): Promise<Project | null> => {
@@ -207,11 +566,12 @@ export function useProject({ userId }: UseProjectContext) {
   return useMemo(
     () => ({
       loadProjects,
+      loadProjectSummaries,
       loadProject,
       createProject,
       updateProject,
       deleteProject,
     }),
-    [loadProjects, loadProject, createProject, updateProject, deleteProject],
+    [loadProjects, loadProjectSummaries, loadProject, createProject, updateProject, deleteProject],
   );
 }

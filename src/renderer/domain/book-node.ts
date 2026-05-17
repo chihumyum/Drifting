@@ -8,6 +8,13 @@ export interface BookNode {
   storyStageId: string | null;
   mainStorylineId: string;
   position: GraphViewNodePosition;
+  /**
+   * Materialized word count derived from this node's content.
+   * Counted as: CJK chars + non-CJK whitespace-separated tokens with
+   * at least one alphanumeric (matches MS Word's "字数").
+   * 0 for never-edited nodes; backfilled on first save after open.
+   */
+  wordCount: number;
   createdAt: string;
   updatedAt: string;
 }

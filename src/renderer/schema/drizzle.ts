@@ -103,6 +103,9 @@ export const BookNodeTable = sqliteTable(
     mainStorylineId: text('main_storyline_id')
       .notNull()
       .references(() => StorylineTable.id, { onDelete: 'restrict' }),
+    // Materialized word count, derived from this node's content.
+    // Updated on every save; defaults to 0 for nodes that have never been edited.
+    wordCount: integer('word_count').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     // graph view positions
@@ -345,3 +348,27 @@ export const yjsSyncCursor = sqliteTable('yjs_sync_cursor', {
   lastPushedLocalId: integer('last_pushed_local_id').notNull().default(0),
   updatedAt: text('updated_at').notNull(),
 });
+
+export const LocalSyncMutationTable = sqliteTable(
+  'local_sync_mutation',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    entityType: text('entity_type').notNull(),
+    mutationType: text('mutation_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    projectId: text('project_id').notNull(),
+    parentId: text('parent_id'),
+    payloadJson: text('payload_json'),
+    mutationTs: integer('mutation_ts').notNull(),
+    status: text('status').notNull().default('pending'),
+    retryCount: integer('retry_count').notNull().default(0),
+    lastError: text('last_error'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_local_sync_mutation_status_id').on(t.status, t.id),
+    index('idx_local_sync_mutation_project').on(t.projectId),
+    index('idx_local_sync_mutation_entity').on(t.entityType, t.entityId, t.mutationType),
+  ],
+);

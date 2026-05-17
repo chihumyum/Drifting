@@ -52,6 +52,7 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
       x: record.positionX,
       y: record.positionY,
     },
+    wordCount: record.wordCount ?? 0,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -131,6 +132,7 @@ export function createBookNodeSqliteRepository(
         mainStorylineId: data.mainStorylineId,
         positionX: data.position.x,
         positionY: data.position.y,
+        wordCount: data.wordCount ?? 0,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       };
@@ -141,6 +143,7 @@ export function createBookNodeSqliteRepository(
         ...newNode,
         positionX: newNode.positionX!,
         positionY: newNode.positionY!,
+        wordCount: newNode.wordCount ?? 0,
       } as typeof BookNodeTable.$inferSelect);
     },
 
@@ -168,6 +171,7 @@ export function createBookNodeSqliteRepository(
       if (updates.mainStorylineId !== undefined)
         updateValues.mainStorylineId = updates.mainStorylineId;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
+      if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
 
       if (updates.position) {
         if (updates.position.x !== undefined && updates.position.x !== null)

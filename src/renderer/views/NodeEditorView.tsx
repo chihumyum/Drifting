@@ -12,6 +12,28 @@ import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { countWordsInPmJson } from '../lib/word-count';
+
+const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+function toRoman(n: number): string {
+  if (n <= 0) return String(n);
+  if (n < ROMAN_NUMERALS.length) return ROMAN_NUMERALS[n];
+  // Fallback simple Roman composition for >10
+  const map: [number, string][] = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+  ];
+  let out = '';
+  let rest = n;
+  for (const [v, s] of map) {
+    while (rest >= v) {
+      out += s;
+      rest -= v;
+    }
+  }
+  return out;
+}
 
 const log = loglevel.getLogger('NodeEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -20,7 +42,8 @@ log.setLevel(loglevel.levels.ERROR);
 export function NodeEditorView() {
   // stuff for geting a node
   const navigate = useNavigate();
-  const { navigateToElement, navigateToHome } = useProjectNavigation();
+  const { navigateToElement, navigateToHome, navigateToNode, navigateToStoryline } =
+    useProjectNavigation();
   const { nodeId, projectId } = useParams<{ nodeId: string; projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
@@ -31,7 +54,7 @@ export function NodeEditorView() {
   }
   const activeProjectId = projectId;
   const activeUserId = userId;
-  const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, storylineNodeMapping } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
@@ -39,6 +62,8 @@ export function NodeEditorView() {
   const [editingStorylines, setEditingStorylines] = useState(false);
   const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
   const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);
+  const [openCrumb, setOpenCrumb] = useState<'storyline' | 'node' | null>(null);
+  const wordCountBackfillRef = useRef<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({
     projectId: activeProjectId,
@@ -96,6 +121,23 @@ export function NodeEditorView() {
 
   const mainStoryline =
     (curNode ? storylineById.get(curNode.mainStorylineId) : null) ?? currentStorylines[0] ?? null;
+
+  // Nodes in the current main storyline, sorted by their position on the timeline
+  const bookNodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
+  const sameStorylineNodes = useMemo(() => {
+    if (!mainStoryline) return [] as BookNode[];
+    const ids = storylineNodeMapping[mainStoryline.id] ?? [];
+    return ids
+      .map((id) => bookNodeById.get(id))
+      .filter((n): n is BookNode => Boolean(n))
+      .sort((a, b) => a.start - b.start);
+  }, [bookNodeById, mainStoryline, storylineNodeMapping]);
+
+  const chapterIndex = useMemo(() => {
+    if (!nodeId) return 0;
+    const idx = sameStorylineNodes.findIndex((n) => n.id === nodeId);
+    return idx >= 0 ? idx + 1 : 0;
+  }, [nodeId, sameStorylineNodes]);
 
   useEffect(() => {
     if (!editingStorylines) return;
@@ -176,8 +218,27 @@ export function NodeEditorView() {
     [updateNodeSummary],
   );
 
+  // Persists wordCount onto BookNode if it diverged from what's in state.
+  // Dedup is essential: typing within a word doesn't change the count and
+  // we don't want a DB write per keystroke when nothing changed.
+  const persistWordCountIfChanged = useCallback(
+    (targetNodeId: string, nextWordCount: number) => {
+      const current = useDataStore.getState().bookNodes.find((n) => n.id === targetNodeId);
+      if (!current || current.wordCount === nextWordCount) return;
+      void updateNode(targetNodeId, { wordCount: nextWordCount }).catch((error) => {
+        log.error('[NodeEditor] Failed to persist wordCount:', error);
+      });
+    },
+    [updateNode],
+  );
+
   const handleContentUpdate = useCallback(
-    async (targetNodeId: string, pmJson: string, outlineJson: string) => {
+    async (
+      targetNodeId: string,
+      pmJson: string,
+      outlineJson: string,
+      nextWordCount: number,
+    ) => {
       try {
         const existing = await getContentByNodeId(targetNodeId);
         if (existing) {
@@ -188,19 +249,40 @@ export function NodeEditorView() {
           if (updated && activeNodeIdRef.current === targetNodeId) {
             setBookContent(updated);
           }
-          return;
+        } else {
+          const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
+          if (activeNodeIdRef.current === targetNodeId) {
+            setBookContent(created);
+          }
         }
-
-        const created = await createContent(targetNodeId, { contentJson: pmJson, outlineJson });
-        if (activeNodeIdRef.current === targetNodeId) {
-          setBookContent(created);
-        }
+        persistWordCountIfChanged(targetNodeId, nextWordCount);
       } catch (error) {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [createContent, getContentByNodeId, updateContentByNodeId],
+    [createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged],
   );
+
+  // One-shot backfill: legacy nodes whose word_count is still 0 but whose
+  // saved content has text. We compute from pmJson once per node-open so the
+  // bar/folio show the right number before the user types anything. Guarded
+  // by a ref so we don't spam updates if React re-runs the effect.
+  useEffect(() => {
+    if (!nodeId || !curNode || !bookContent) return;
+    if (curNode.wordCount > 0) return;
+    if (wordCountBackfillRef.current === nodeId) return;
+    const computed = countWordsInPmJson(bookContent.contentJson);
+    if (computed <= 0) return;
+    wordCountBackfillRef.current = nodeId;
+    void updateNode(nodeId, { wordCount: computed }).catch((error) => {
+      log.error('[NodeEditor] wordCount backfill failed:', error);
+      wordCountBackfillRef.current = null;
+    });
+  }, [bookContent, curNode, nodeId, updateNode]);
+
+  useEffect(() => {
+    wordCountBackfillRef.current = null;
+  }, [nodeId]);
 
   const isActiveNodeReady = Boolean(
     nodeId && curNode && isContentLoaded && loadedNodeId === nodeId,
@@ -297,177 +379,169 @@ export function NodeEditorView() {
     [curNode, deleteNode, navigateToHome, nodeId, openStorylineEditor],
   );
 
-  const renderStorylineBadge = (storyline: Storyline, isMain: boolean) => (
-    <button
-      key={storyline.id}
-      type="button"
-      onClick={openStorylineEditor}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        minHeight: 28,
-        padding: '5px 9px',
-        borderRadius: 6,
-        border: `1px solid ${storyline.color || '#b89968'}55`,
-        background: isMain ? `${storyline.color || '#b89968'}1f` : '#fffaf2',
-        color: '#4b3f32',
-        fontSize: 12,
-        fontWeight: isMain ? 700 : 500,
-        cursor: 'pointer',
-      }}
-      title={isMain ? 'Main storyline' : 'Storyline'}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: storyline.color || '#b89968',
-          flex: '0 0 auto',
-        }}
-      />
-      <span>{storyline.name}</span>
-      {isMain && <span style={{ color: '#7a6a56', fontWeight: 600 }}>Main</span>}
-    </button>
-  );
+  const storylineColor = mainStoryline?.color || '#8A2A1E';
+  const chapterRoman = chapterIndex > 0 ? toRoman(chapterIndex) : '–';
 
   return (
     <div
+      className="editor-shell"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         position: 'relative',
       }}
     >
       <EditorContextMenu editorType="node" onAction={handleContextAction} />
 
-      {/* Main Editor Container */}
-      <div
-        className="main-editor"
-        style={
-          {
-            // flex: 1,
-            // overflow: 'auto',
-          }
-        }
-      >
-        <div
-          style={{
-            maxWidth: '960px',
-            margin: '0 auto',
-            width: '100%',
-          }}
-        >
-          <div
-            style={{
-              background: '#fefdfb',
-              borderRadius: 12,
-              boxShadow: '0 2px 8px rgba(139, 115, 85, 0.12)',
-              padding: '32px 38px',
-              minHeight: 'calc(100vh - 300px)',
-              position: 'relative',
-            }}
-          >
-            {isActiveNodeReady && nodeId && curNode && (
-              <>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 16,
-                    marginBottom: 20,
-                    paddingBottom: 14,
-                    borderBottom: '1px solid rgba(184, 153, 104, 0.18)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      minWidth: 0,
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: '#7a6a56',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
+      {isActiveNodeReady && nodeId && curNode && (
+        <>
+          {/* Sticky breadcrumb bar */}
+          <div className="editor-bar">
+            <div className="editor-crumbs">
+              <span
+                className="editor-crumb editor-crumb-storyline"
+                style={{ ['--crumb-color' as string]: storylineColor }}
+                onMouseEnter={() => setOpenCrumb('storyline')}
+                onMouseLeave={() => setOpenCrumb(null)}
+              >
+                <span className="editor-crumb-dot" />
+                <span>{mainStoryline?.name ?? 'No storyline'}</span>
+                {openCrumb === 'storyline' && (
+                  <div className="crumb-dropdown">
+                    {storylines.length === 0 ? (
+                      <div className="crumb-dropdown__empty">No storylines yet</div>
+                    ) : (
+                      storylines.map((s) => {
+                        const isActive = s.id === mainStoryline?.id;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                            onClick={() => {
+                              setOpenCrumb(null);
+                              navigateToStoryline(s.id);
+                            }}
+                          >
+                            <span
+                              className="crumb-dropdown__dot"
+                              style={{ background: s.color || '#8A2A1E' }}
+                            />
+                            <span>{s.name}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div className="crumb-dropdown__divider" />
+                    <div
+                      className="crumb-dropdown__footer"
+                      onClick={() => {
+                        setOpenCrumb(null);
+                        openStorylineEditor();
                       }}
                     >
-                      Storylines
-                    </span>
-                    {currentStorylines.length > 0 ? (
-                      currentStorylines.map((storyline) =>
-                        renderStorylineBadge(storyline, storyline.id === mainStoryline?.id),
-                      )
+                      Edit node storylines…
+                    </div>
+                  </div>
+                )}
+              </span>
+
+              <span className="editor-bar__sep">›</span>
+
+              <span
+                className="editor-crumb"
+                onMouseEnter={() => setOpenCrumb('node')}
+                onMouseLeave={() => setOpenCrumb(null)}
+              >
+                <span className="editor-crumb-num">Chapter {chapterRoman}</span>
+                <span className="editor-crumb-sep">·</span>
+                <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
+                {openCrumb === 'node' && (
+                  <div className="crumb-dropdown">
+                    {sameStorylineNodes.length === 0 ? (
+                      <div className="crumb-dropdown__empty">No chapters in this storyline</div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={openStorylineEditor}
-                        style={{
-                          padding: '5px 9px',
-                          borderRadius: 6,
-                          border: '1px solid var(--accent-border, #e8dcc8)',
-                          background: '#fffaf2',
-                          color: '#7a6a56',
-                          fontSize: 12,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        No storyline
-                      </button>
+                      sameStorylineNodes.map((n, idx) => {
+                        const isActive = n.id === nodeId;
+                        return (
+                          <div
+                            key={n.id}
+                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                            onClick={() => {
+                              setOpenCrumb(null);
+                              if (!isActive) navigateToNode(n.id);
+                            }}
+                          >
+                            <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
+                            <span>{n.title || 'Untitled'}</span>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={openStorylineEditor}
-                    style={{
-                      padding: '7px 11px',
-                      borderRadius: 6,
-                      border: '1px solid var(--accent-border, #e8dcc8)',
-                      background: '#fefdfb',
-                      color: '#5a4a3a',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      flex: '0 0 auto',
-                    }}
-                  >
-                    Edit
-                  </button>
-                </div>
+                )}
+              </span>
+            </div>
 
-                <ChapterEditor
-                  key={nodeId}
-                  ref={editorRef}
-                  nodeId={nodeId}
-                  projectId={activeProjectId}
-                  content={bookContent?.contentJson ?? null}
-                  title={curNode.title}
-                  summary={curNode.summary || ''}
-                  onContentUpdate={handleContentUpdate}
-                  onTitleUpdate={handleTitleUpdate}
-                  onSummaryUpdate={handleSummaryUpdate}
-                  onElementClick={handleElementClick}
-                  showTitle={true}
-                  showSummary={true}
-                  showTags={true}
-                  editableTitle={true}
-                  editableSummary={true}
-                  autoFocus={true}
-                  minHeight="400px"
-                />
-              </>
-            )}
+            <div className="editor-bar__right">
+              <span>
+                {curNode.wordCount.toLocaleString()} 字
+              </span>
+              {currentStorylines.length > 1 && (
+                <>
+                  <span className="editor-bar__sep">·</span>
+                  <span>{currentStorylines.length} threads</span>
+                </>
+              )}
+              <button
+                type="button"
+                className="editor-bar__icon"
+                title="Edit storylines"
+                onClick={openStorylineEditor}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="3" cy="8" r="1.3" />
+                  <circle cx="8" cy="8" r="1.3" />
+                  <circle cx="13" cy="8" r="1.3" />
+                </svg>
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+
+          {/* Manuscript page */}
+          <div className="page">
+            <aside className="page__folio" aria-hidden="true">
+              <span className="page__folio-line">Chapter</span>
+              <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
+              <span className="page__folio-line">· {curNode.wordCount.toLocaleString()} 字</span>
+            </aside>
+
+            {mainStoryline && (
+              <div className="page__chapter-mark">— {mainStoryline.name} —</div>
+            )}
+
+            <ChapterEditor
+              key={nodeId}
+              ref={editorRef}
+              nodeId={nodeId}
+              projectId={activeProjectId}
+              content={bookContent?.contentJson ?? null}
+              title={curNode.title}
+              summary={curNode.summary || ''}
+              onContentUpdate={handleContentUpdate}
+              onTitleUpdate={handleTitleUpdate}
+              onSummaryUpdate={handleSummaryUpdate}
+              onElementClick={handleElementClick}
+              showTitle={true}
+              showSummary={true}
+              showTags={true}
+              editableTitle={true}
+              editableSummary={true}
+              autoFocus={true}
+              minHeight="400px"
+            />
+
+            <div className="page__ornament" aria-hidden="true">⁂</div>
+          </div>
+        </>
+      )}
 
       {editingStorylines && curNode && (
         <div

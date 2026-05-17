@@ -134,6 +134,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           x: (Math.random() - 0.5) * 600,
           y: (Math.random() - 0.5) * 600,
         },
+        wordCount: 0,
         createdAt: now,
         updatedAt: now,
       };
@@ -335,10 +336,15 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         },
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
+          if (!mainChanged) {
+            await nodeRepo.update(id, { ...updates, updatedAt });
+            return;
+          }
+
           await getDb().transaction(async (tx) => {
             const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
             await nodeRepoTx.update(id, { ...updates, updatedAt });
-            if (mainChanged && updates.mainStorylineId) {
+            if (updates.mainStorylineId) {
               const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
               await linkRepoTx.addNodeToStoryline(id, updates.mainStorylineId);
             }
@@ -359,6 +365,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       setNodesState,
       addNodeToStorylineMappingState,
       activeProjectId,
+      nodeRepo,
     ],
   );
 

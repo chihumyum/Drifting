@@ -9,6 +9,7 @@ log.setLevel(loglevel.levels.TRACE);
 let dbInitialized = false;
 let initPromise: Promise<void> | null = null;
 let currentDbName: string | null = null;
+let transactionQueueTail: Promise<void> = Promise.resolve();
 
 // Internal unexported db instance
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -36,6 +37,33 @@ export function getDb() {
 export type DbClient = ReturnType<typeof getDb>;
 export type DbTransaction = Parameters<Parameters<DbClient['transaction']>[0]>[0];
 export type DbExecutor = DbClient | DbTransaction;
+
+async function enqueueTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = transactionQueueTail;
+  let release!: () => void;
+
+  transactionQueueTail = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+function serializeTopLevelTransactions<TDb extends ReturnType<typeof drizzle<typeof schema>>>(
+  target: TDb,
+): TDb {
+  const rawTransaction = target.transaction.bind(target);
+
+  target.transaction = ((transaction, config) =>
+    enqueueTransaction(() => rawTransaction(transaction as never, config))) as TDb['transaction'];
+
+  return target;
+}
 
 /**
  * Generate the database filename based on userId or return a provided db filename.
@@ -76,42 +104,44 @@ export async function initDatabase(userId: string): Promise<void> {
       currentDbName = targetDbName;
       dbInitialized = true;
 
-      db = drizzle(
-        async (sql, params, method) => {
-          try {
-            // If the query is a SELECT / reading data
-            if (method === 'all') {
-              const result = await window.electronAPI.db.query(sql, params);
-              return { rows: toArrayRows(result) };
-            }
+      db = serializeTopLevelTransactions(
+        drizzle(
+          async (sql, params, method) => {
+            try {
+              // If the query is a SELECT / reading data
+              if (method === 'all') {
+                const result = await window.electronAPI.db.query(sql, params);
+                return { rows: toArrayRows(result) };
+              }
 
-            if (method === 'run') {
-              const result = await window.electronAPI.db.run(sql, params);
-              return {
-                rows: [],
-                rowsAffected: result.changes,
-                insertId: result.lastInsertRowid,
-              };
-            }
+              if (method === 'run') {
+                const result = await window.electronAPI.db.run(sql, params);
+                return {
+                  rows: [],
+                  rowsAffected: result.changes,
+                  insertId: result.lastInsertRowid,
+                };
+              }
 
-            if (method === 'get') {
-              const result = await window.electronAPI.db.get(sql, params);
-              return { rows: result ? [toArrayRow(result)] : [] };
-            }
+              if (method === 'get') {
+                const result = await window.electronAPI.db.get(sql, params);
+                return { rows: result ? [toArrayRow(result)] : [] };
+              }
 
-            if (method === 'values') {
-              const result = await window.electronAPI.db.query(sql, params);
-              return { rows: toArrayRows(result) };
-            }
+              if (method === 'values') {
+                const result = await window.electronAPI.db.query(sql, params);
+                return { rows: toArrayRows(result) };
+              }
 
-            const rows = await window.electronAPI.db.query(sql, params);
-            return { rows: toArrayRows(rows) };
-          } catch (e) {
-            log.error('Drizzle Proxy Error:', e);
-            throw e;
-          }
-        },
-        { schema },
+              const rows = await window.electronAPI.db.query(sql, params);
+              return { rows: toArrayRows(rows) };
+            } catch (e) {
+              log.error('Drizzle Proxy Error:', e);
+              throw e;
+            }
+          },
+          { schema },
+        ),
       );
 
       log.info('[DB] Drizzle Proxy initialized successfully');
@@ -133,10 +163,12 @@ export async function resetDatabase(): Promise<void> {
     dbInitialized = false;
     currentDbName = null;
     initPromise = null;
+    transactionQueueTail = Promise.resolve();
   } catch (error) {
     log.error('[DB] Error resetting database:', error);
     dbInitialized = false;
     currentDbName = null;
     initPromise = null;
+    transactionQueueTail = Promise.resolve();
   }
 }

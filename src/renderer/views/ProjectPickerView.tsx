@@ -1,29 +1,38 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProject } from '../usecase/useProject';
+import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
-import { Project } from '../domain/project';
+import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import loglevel from 'loglevel';
 
-const log = loglevel.getLogger('ProjectHomeView');
+const log = loglevel.getLogger('ProjectPickerView');
 // log.setLevel(loglevel.levels.ERROR);
 log.setLevel(loglevel.levels.DEBUG);
 
-export function ProjectHomeView() {
+function formatStat(value: number): string {
+  return value.toLocaleString();
+}
+
+function formatUpdatedDate(value: string): string {
+  if (!value) return '';
+  return new Date(value).toLocaleDateString();
+}
+
+export function ProjectPickerView() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const { loadProjects, createProject } = useProject({ userId: user?.id ?? '' });
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { loadProjectSummaries, createProject } = useProject({ userId: user?.id ?? '' });
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchProjects = useCallback(async () => {
-    const data = await loadProjects();
-    log.debug('Loaded projects:', data);
+    const data = await loadProjectSummaries({ pullRemote: true });
+    log.debug('Loaded project summaries:', data);
     setProjects(data);
-  }, [loadProjects]);
+  }, [loadProjectSummaries]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -66,6 +75,7 @@ export function ProjectHomeView() {
     return (
       <div style={styles.container}>
         <div style={styles.loadingText}>Loading Projects...</div>
+        <SyncStatusHUD />
       </div>
     );
   }
@@ -94,11 +104,39 @@ export function ProjectHomeView() {
             style={styles.card}
             onClick={() => navigate(`/project/${project.id}`)}
           >
-            <h3 style={styles.projectName}>{project.name}</h3>
-            <p style={styles.projectAuthor}>by {user?.name ?? 'You'}</p>
+            <div>
+              <h3 style={styles.projectName}>{project.name}</h3>
+              <p style={styles.projectAuthor}>by {user?.name ?? 'You'}</p>
+            </div>
+            <div style={styles.statsGrid}>
+              <div style={styles.statItem}>
+                <span style={styles.statValue}>{formatStat(project.stats.nodes)}</span>
+                <span style={styles.statLabel}>Chapters</span>
+              </div>
+              <div style={styles.statItem}>
+                <span style={styles.statValue}>{formatStat(project.stats.words)}</span>
+                <span style={styles.statLabel}>Words</span>
+              </div>
+              <div style={styles.statItem}>
+                <span style={styles.statValue}>{formatStat(project.stats.elements)}</span>
+                <span style={styles.statLabel}>Elements</span>
+              </div>
+              <div style={styles.statItem}>
+                <span style={styles.statValue}>{formatStat(project.stats.storylines)}</span>
+                <span style={styles.statLabel}>Lines</span>
+              </div>
+            </div>
+            <div style={styles.detailStats}>
+              <span>{formatStat(project.stats.categories)} categories</span>
+              <span>{formatStat(project.stats.edges)} edges</span>
+              <span>{formatStat(project.stats.nodeTags + project.stats.elementTags)} tags</span>
+            </div>
             <div style={styles.cardFooter}>
+              <span style={project.source === 'server' ? styles.serverBadge : styles.localBadge}>
+                {project.source === 'server' ? 'Server' : 'Local'}
+              </span>
               <span style={styles.date}>
-                {project.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : ''}
+                {formatUpdatedDate(project.updatedAt)}
               </span>
             </div>
           </div>
@@ -136,6 +174,7 @@ export function ProjectHomeView() {
           </div>
         </div>
       )}
+      <SyncStatusHUD />
     </div>
   );
 }
@@ -182,14 +221,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     backgroundColor: '#2C2C2C',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '24px',
     cursor: 'pointer',
     transition: 'transform 0.2s, box-shadow 0.2s',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    minHeight: '160px',
+    minHeight: '228px',
     boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
   },
   createCard: {
@@ -220,11 +259,74 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#888',
     margin: 0,
   },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '10px',
+    marginTop: '20px',
+  },
+  statItem: {
+    minWidth: 0,
+    padding: '10px',
+    borderRadius: '8px',
+    backgroundColor: '#242424',
+    border: '1px solid #383838',
+  },
+  statValue: {
+    display: 'block',
+    color: '#F4F4F4',
+    fontSize: '1rem',
+    fontWeight: 700,
+    lineHeight: 1.1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  statLabel: {
+    display: 'block',
+    marginTop: '5px',
+    color: '#9B9B9B',
+    fontSize: '0.72rem',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  detailStats: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginTop: '14px',
+    color: '#8B8B8B',
+    fontSize: '0.78rem',
+  },
   cardFooter: {
     marginTop: '20px',
     fontSize: '0.8rem',
     color: '#666',
-    textAlign: 'right',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  serverBadge: {
+    color: '#8FD3A2',
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    border: '1px solid rgba(34, 197, 94, 0.25)',
+    borderRadius: '999px',
+    padding: '3px 8px',
+    fontSize: '0.72rem',
+  },
+  localBadge: {
+    color: '#D6C27A',
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    border: '1px solid rgba(212, 175, 55, 0.25)',
+    borderRadius: '999px',
+    padding: '3px 8px',
+    fontSize: '0.72rem',
+  },
+  date: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   modalOverlay: {
     position: 'fixed',

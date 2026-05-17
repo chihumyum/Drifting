@@ -27,6 +27,7 @@ import loglevel from 'loglevel';
 import { useDataStore } from '@/renderer/store/data-store';
 import { useAuthStore } from '@/renderer/store/auth';
 import { useYjsSync } from '@/renderer/hooks/useYjsSync';
+import { countWords } from '@/renderer/lib/word-count';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -41,8 +42,14 @@ interface ChapterEditorProps {
   projectId: string;
   ref?: Ref<ChapterEditorRef>;
 
-  // 内容更新回调
-  onContentUpdate: (nodeId: string, pmJson: string, outlineJson: string) => void;
+  // 内容更新回调 — wordCount is the materialized count derived from the
+  // editor's plain text via the shared `countWords` algorithm.
+  onContentUpdate: (
+    nodeId: string,
+    pmJson: string,
+    outlineJson: string,
+    wordCount: number,
+  ) => void;
   onTitleUpdate?: (nodeId: string, title: string) => void;
   onSummaryUpdate?: (nodeId: string, summary: string) => void;
   onElementClick?: (elementId: string) => void;
@@ -326,7 +333,8 @@ export function ChapterEditor({
         // log.debug('Outline JSON:', outlineJson);
         parseAndSaveElementOccurrences(json);
         // log.debug('Updating node', nodeId, 'with content:', pmJson);
-        onContentUpdate(nodeId, pmJson, outlineJson);
+        const wordCount = countWords(ed.getText());
+        onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
       },
     },
     [
@@ -427,28 +435,31 @@ export function ChapterEditor({
     return null;
   }
 
+  const literary = !compact;
+
   return (
     <div style={{ position: 'relative', width: '100%' }}>
       {/* Title and Summary Header */}
       {(showTitle || showSummary) && (
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            gap: compact ? '12px' : '24px',
-            marginBottom: compact ? '12px' : '20px',
-            padding: compact ? '16px 24px' : '0',
-            borderBottom: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
+            display: literary ? 'block' : 'flex',
+            justifyContent: literary ? undefined : 'space-between',
+            alignItems: literary ? undefined : 'flex-start',
+            gap: literary ? 0 : '12px',
+            marginBottom: literary ? 0 : '12px',
+            padding: literary ? 0 : '16px 24px',
+            borderBottom: literary ? 'none' : '1px solid rgba(184, 153, 104, 0.15)',
           }}
         >
           {/* Title */}
           {showTitle && (
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: literary ? undefined : 1 }}>
               {editableTitle ? (
                 <input
                   type="text"
                   value={titleValue}
+                  placeholder="Untitled Chapter"
                   onChange={(e) => setTitleValue(e.target.value)}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => {
@@ -466,45 +477,38 @@ export function ChapterEditor({
                     }
                   }}
                   onFocus={(e) => e.target.select()}
-                  style={{
-                    width: '100%',
-                    fontSize: compact ? 20 : 28,
-                    fontWeight: 700,
-                    background: 'transparent',
-                    outline: 'none',
-                  }}
+                  className={literary ? 'page__title' : undefined}
+                  style={
+                    literary
+                      ? undefined
+                      : {
+                          width: '100%',
+                          fontSize: 20,
+                          fontWeight: 700,
+                          background: 'transparent',
+                          outline: 'none',
+                        }
+                  }
                 />
+              ) : literary ? (
+                <h1 className="page__title" style={{ margin: '0 0 10px' }}>
+                  {titleValue || 'Untitled Chapter'}
+                </h1>
               ) : (
-                <div
-                  style={{
-                    fontSize: compact ? 20 : 28,
-                    fontWeight: 600,
-                    background: 'transparent',
-                  }}
-                >
+                <div style={{ fontSize: 20, fontWeight: 600, background: 'transparent' }}>
                   {titleValue || 'Untitled Chapter'}
                 </div>
               )}
             </div>
           )}
 
-          {/* Tags */}
-          {showTags && (
-            <div
-              style={{
-                padding: compact ? '12px 24px' : '0',
-                borderLeft: compact ? '1px solid rgba(184, 153, 104, 0.15)' : 'none',
-              }}
-            >
-              <TagEditor type="node" entityId={nodeId} projectId={projectId} ydoc={ydoc} />
-            </div>
-          )}
           {/* Summary */}
           {showSummary && (
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: literary ? undefined : 1 }}>
               {editableSummary ? (
                 <textarea
                   value={summaryValue}
+                  placeholder={literary ? 'A subtitle, or an epigraph…' : 'Click to add summary...'}
                   onChange={(e) => setSummaryValue(e.target.value)}
                   onBlur={handleSummarySave}
                   onKeyDown={(e) => {
@@ -514,35 +518,55 @@ export function ChapterEditor({
                       e.currentTarget.blur();
                     }
                   }}
-                  style={{
-                    width: '100%',
-                    fontSize: 14,
-                    fontWeight: 400,
-                    background: 'transparent',
-                    color: '#5a4a3a',
-                    resize: 'none',
-                    overflow: 'hidden',
-                    outline: 'none',
-                  }}
+                  rows={literary ? 2 : undefined}
+                  className={literary ? 'page__sub' : undefined}
+                  style={
+                    literary
+                      ? undefined
+                      : {
+                          width: '100%',
+                          fontSize: 14,
+                          fontWeight: 400,
+                          background: 'transparent',
+                          color: '#5a4a3a',
+                          resize: 'none',
+                          overflow: 'hidden',
+                          outline: 'none',
+                        }
+                  }
                 />
+              ) : literary ? (
+                summaryValue ? (
+                  <p className="page__sub" style={{ marginBottom: 28 }}>
+                    {summaryValue}
+                  </p>
+                ) : null
               ) : (
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 400,
-                    background: 'transparent',
-                  }}
-                >
+                <div style={{ fontSize: 14, fontWeight: 400, background: 'transparent' }}>
                   {summaryValue || (editableSummary ? 'Click to add summary...' : '')}
                 </div>
               )}
             </div>
           )}
+
+          {/* Tags */}
+          {showTags && (
+            <div
+              style={{
+                padding: literary ? '0 0 18px' : '12px 24px',
+                borderLeft: literary ? 'none' : '1px solid rgba(184, 153, 104, 0.15)',
+              }}
+            >
+              <TagEditor type="node" entityId={nodeId} projectId={projectId} ydoc={ydoc} />
+            </div>
+          )}
+
+          {literary && <hr className="page__rule" />}
         </div>
       )}
 
       {/* Editor Content */}
-      <div style={{ padding: compact ? '16px 24px' : '0' }}>
+      <div className={literary ? 'page__body' : undefined} style={{ padding: compact ? '16px 24px' : '0' }}>
         <EditorContent editor={editor} />
       </div>
     </div>

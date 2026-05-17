@@ -30,6 +30,7 @@ import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
+import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
@@ -165,6 +166,9 @@ function Layout() {
         events.emit('db:ready');
         log.info('[App] Database ready for project:', projectId);
         setDbReady(true);
+        void pullAndHydrateProjectGraph(projectId).catch((error) => {
+          log.warn('[App] Project graph hydrate failed:', error);
+        });
       })
       .catch((error) => {
         log.error('[App] Failed to initialize database:', error);
@@ -312,7 +316,7 @@ function Layout() {
   );
 }
 
-import { ProjectHomeView } from './views/ProjectHomeView';
+import { ProjectPickerView } from './views/ProjectPickerView';
 import { ProjectDashboard } from './views/ProjectDashboard';
 
 export default function App() {
@@ -341,7 +345,7 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <ProjectHomeView />
+            <ProjectPickerView />
           </ProtectedRoute>
         }
       />

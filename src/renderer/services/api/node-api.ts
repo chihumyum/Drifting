@@ -21,6 +21,7 @@ interface ServerNode {
   end: number;
   positionX: number;
   positionY: number;
+  wordCount?: number;
   storyStageId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +40,7 @@ const toBookNode = (node: ServerNode): BookNode => ({
     x: node.positionX ?? 0,
     y: node.positionY ?? 0,
   },
+  wordCount: node.wordCount ?? 0,
   createdAt: new Date(node.createdAt).toISOString(),
   updatedAt: new Date(node.updatedAt).toISOString(),
 });

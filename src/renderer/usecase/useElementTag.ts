@@ -247,6 +247,7 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
       const projectId = await ensureDb(input.projectId);
       const db = getDb();
       let createdTag: ElementTag | null = null;
+      let insertedNewTag = false;
       const updatedAt = new Date().toISOString();
 
       return withOptimisticUpdate({
@@ -260,6 +261,7 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
 
             let tag = await tagRepoTx.findByName(projectId, input.name);
             if (!tag) {
+              insertedNewTag = true;
               tag = await tagRepoTx.create({
                 id: uuidv7(),
                 projectId,
@@ -275,6 +277,13 @@ export function useElementTag({ projectId, userId }: UseElementTagContext) {
             createdTag = tag;
           });
           return createdTag;
+        },
+        sync: (tag) => {
+          if (!tag) return;
+          if (insertedNewTag) {
+            syncElementTagCreate(tag.id, projectId, { id: tag.id, name: tag.name });
+          }
+          syncElementTagLinkCreate(elementId, tag.id, projectId);
         },
         onSuccess: (tag) => {
           if (!tag) return;

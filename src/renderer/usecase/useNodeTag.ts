@@ -172,6 +172,7 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
       const projectId = await ensureDb(input.projectId);
       const db = getDb();
       let createdTag: NodeTag | null = null;
+      let insertedNewTag = false;
 
       await db.transaction(async (tx) => {
         const tagRepoTx = createNodeTagRepository(tx);
@@ -180,6 +181,7 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
 
         let tag = await tagRepoTx.findByName(projectId, input.name);
         if (!tag) {
+          insertedNewTag = true;
           tag = await tagRepoTx.create({
             id: uuidv7(),
             projectId,
@@ -194,6 +196,14 @@ export function useNodeTag({ projectId, userId }: UseNodeTagContext) {
         await tagLinkRepoTx.addTagToNode(nodeId, tag.id);
         createdTag = tag;
       });
+
+      const tagToSync = createdTag as NodeTag | null;
+      if (tagToSync) {
+        if (insertedNewTag) {
+          syncNodeTagCreate(tagToSync.id, projectId, { id: tagToSync.id, name: tagToSync.name });
+        }
+        syncNodeTagLinkCreate(nodeId, tagToSync.id, projectId);
+      }
 
       return createdTag;
     },
