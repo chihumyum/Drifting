@@ -444,6 +444,10 @@ function Layout() {
           >
             <Outlet />
           </div>
+          {/* 底部时间轴：嵌入中间栏底部，左右栏延伸至最底 */}
+          <div style={{ flexShrink: 0, zIndex: 10 }}>
+            <BottomTimeline />
+          </div>
         </main>
         <Sidebar sidebarType="right">
           <div
@@ -456,12 +460,6 @@ function Layout() {
             <RightSidebarPanels />
           </div>
         </Sidebar>
-      </div>
-
-      {/* 3. 底部时间轴：固定在底部，自然高度 */}
-      {/* 不使用 position: fixed，而是作为 flex 的最后一个子元素 */}
-      <div style={{ flexShrink: 0, zIndex: 10 }}>
-        <BottomTimeline />
       </div>
 
       {/* Overlays / Modals (绝对定位层) */}

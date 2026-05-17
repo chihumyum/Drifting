@@ -18,6 +18,7 @@ import { useBottomTimelineInteractionState } from './useBottomTimelineInteractio
 import { BottomTimelineContextMenu } from './BottomTimelineContextMenu';
 import type { BottomTimelineContextMenuAction, TimelineNode } from './types';
 import { useUiStore } from '../../store/ui-store';
+import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import loglevel from 'loglevel';
 import '../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
@@ -40,9 +41,11 @@ const TIMELINE_CONFIG = {
   RAIL_WIDTH: 148,
   RAIL_WIDTH_STRIP: 8,
   HEAD_HEIGHT: 30,
+  AXIS_HEIGHT: 22,
   MINIMAP_HEIGHT: 60,
-  DEFAULT_NORMAL_HEIGHT: 240,
-  DEFAULT_MAX_HEIGHT: 420,
+  // Defaults already include head + axis + a comfortable rows area.
+  DEFAULT_NORMAL_HEIGHT: 260,
+  DEFAULT_MAX_HEIGHT: 440,
 };
 
 function readPersistedMode(): TimelineState {
@@ -147,12 +150,158 @@ function computeOutlineRulerPositions(outline: OutlineItem[]): RulerTick[] {
   return positions;
 }
 
+interface TimelinePinProps {
+  marker: import('../../domain/timeline-marker').TimelineMarker;
+  snapStarts: number[];
+  startToPosition: (start: number) => number;
+  // x-offset added before each pin's start-derived x (the rail width
+  // so pins line up with the chapter tracks, not the rail).
+  xOffset: number;
+  // Live display start — equals marker.start at rest, the tentative snap
+  // target during drag. Lifted to parent so the per-track vertical line
+  // can track the drag in lockstep.
+  displayStart: number;
+  // True while the user is actively dragging this pin; lets us style the
+  // head/label with the accent color while the per-track line does the
+  // same (separate element, but same state).
+  isDragging: boolean;
+  pinHeight: number;
+  editOnMount?: boolean;
+  onChange: (patch: { start?: number; label?: string }) => void;
+  onDelete: () => void;
+  // Report drag start/move (number) and drag end (null) so the parent
+  // can update its lifted drag map.
+  onDragMove: (nextStart: number | null) => void;
+}
+
+// One draggable pin head (label + triangle). The pin's vertical line is
+// rendered separately, INSIDE each storyline track, so it paints behind
+// the chapter clips. Drag the head/label horizontally to snap to the
+// nearest valid start; double-click the label to rename; clearing the
+// label saves as delete.
+function TimelinePin({
+  marker,
+  snapStarts,
+  startToPosition,
+  xOffset,
+  displayStart,
+  isDragging,
+  pinHeight,
+  editOnMount = false,
+  onChange,
+  onDelete,
+  onDragMove,
+}: TimelinePinProps) {
+  const [editing, setEditing] = useState(editOnMount);
+  const labelRef = useRef<HTMLDivElement>(null);
+
+  const x = xOffset + startToPosition(displayStart);
+
+  const startDrag = useCallback(
+    (e: React.MouseEvent) => {
+      if (editing) return;
+      if (snapStarts.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const startMouseX = e.clientX;
+      const startPixel = startToPosition(marker.start);
+      let nearest = marker.start;
+      const onMove = (ev: MouseEvent) => {
+        const newPixel = startPixel + (ev.clientX - startMouseX);
+        let best = snapStarts[0];
+        let bestDist = Infinity;
+        for (const s of snapStarts) {
+          const d = Math.abs(startToPosition(s) - newPixel);
+          if (d < bestDist) {
+            bestDist = d;
+            best = s;
+          }
+        }
+        nearest = best;
+        onDragMove(best);
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        onDragMove(null);
+        if (nearest !== marker.start) onChange({ start: nearest });
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [editing, snapStarts, marker.start, startToPosition, onChange, onDragMove],
+  );
+
+  useEffect(() => {
+    if (editing && labelRef.current) {
+      labelRef.current.focus();
+      const r = document.createRange();
+      r.selectNodeContents(labelRef.current);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+    }
+  }, [editing]);
+
+  const className = [
+    'btl-pin',
+    isDragging ? 'is-dragging' : '',
+    editing ? 'is-editing' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div className={className} style={{ left: x, height: pinHeight }}>
+      {/* Label sits at the top (in the axis row); editable on click */}
+      <div
+        ref={labelRef}
+        className="btl-pin__label"
+        contentEditable={editing}
+        suppressContentEditableWarning
+        onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
+        onDoubleClick={(e) => {
+          if (!editing) {
+            e.stopPropagation();
+            setEditing(true);
+          }
+        }}
+        onBlur={(e) => {
+          const text = (e.currentTarget.textContent ?? '').trim();
+          setEditing(false);
+          if (!text) onDelete();
+          else if (text !== marker.label) onChange({ label: text });
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLDivElement).blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            (e.currentTarget as HTMLDivElement).textContent = marker.label;
+            (e.currentTarget as HTMLDivElement).blur();
+          }
+        }}
+        title={editing ? '回车保存，留空删除' : '双击编辑名称'}
+      >
+        {marker.label}
+      </div>
+      {/* Down-pointing triangle below the label, exactly at the pin's x.
+          The pin's grid line is NOT here — it's rendered inside each track
+          (so it paints behind the chapter clips). */}
+      <div className="btl-pin__head" onMouseDown={startDrag} title="拖动调整位置" />
+    </div>
+  );
+}
+
 export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
-  const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
+  const readingProgress = useUiStore((state) => state.readingProgress);
+  const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
+  const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
   const { createNode, updateNode, deleteNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
@@ -306,6 +455,7 @@ export function BottomTimeline() {
       const windowHeight = window.innerHeight;
       const minHeight =
         TIMELINE_CONFIG.HEAD_HEIGHT +
+        TIMELINE_CONFIG.AXIS_HEIGHT +
         (timelineMode === 'max' ? TIMELINE_CONFIG.MINIMAP_HEIGHT : 0) +
         Math.max(storylines.length, 1) * (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP);
       const next = Math.max(minHeight, windowHeight - e.clientY);
@@ -353,6 +503,7 @@ export function BottomTimeline() {
     storylineById,
     getNodesInStoryline,
     minStart,
+    maxEnd,
     scaleFactor,
     timelineWidth,
     getNodeWidth,
@@ -712,15 +863,11 @@ export function BottomTimeline() {
     clearHoverPreview();
   };
 
-  // Handle timeline background click (deselect)
+  // Handle timeline background click — only dismiss menus, never navigate.
+  // Left-click navigation on the timeline was removed by user request: the
+  // timeline is for viewing/editing structure, not routing.
   const handleTimelineClick = () => {
     clearContextMenu();
-    // 只在展开时响应点击
-    if (!isExpanded) return;
-    // 点击任何空白处都导航到 home（事件会被节点和按钮拦截）
-    if (nodeId || storylineId) {
-      navigateToHome();
-    }
   };
 
   // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
@@ -755,20 +902,35 @@ export function BottomTimeline() {
     return m;
   }, [nodesWithStorylines, storylines]);
 
-  // Cross-storyline link paths: for each node belonging to multiple
-  // storylines, draw a curve from the node's center on its main storyline
-  // row to the next node (by start order) on each secondary storyline.
+  // No default background grid — the only grid lines on the timeline are
+  // the vertical lines drawn by user-added time pins. Adding/removing a
+  // pin adds/removes a divider; the grid is whatever the user defines.
+
+  // Cross-storyline link paths: for each node N that belongs to multiple
+  // storylines (main = M, secondary = S₁…Sₖ), draw curves that visualise
+  // N's role as a transit point on every secondary storyline.
+  // For each secondary storyline S:
+  //   prev (on S row)  →  N (on M row, where the tile lives)
+  //   N (on M row)     →  next (on S row)
+  // If prev/next is missing (N is first/last on S), that half is omitted.
+  // We compute adjacency from N's index in the start-sorted lane on S
+  // rather than start comparisons so ties are handled deterministically.
   const crossStorylineLinks = useMemo(() => {
     if (timelineMode === 'strip') return [];
 
-    const links: {
+    type Link = {
       key: string;
       fromX: number;
-      fromY: number;
+      fromY: number; // row index
       toX: number;
-      toY: number;
+      toY: number; // row index
       color: string;
-    }[] = [];
+      // endpoint marker rules: only mark the secondary-row end. The other
+      // end lands on the tile, which is its own visual anchor.
+      markFrom: boolean;
+      markTo: boolean;
+    };
+    const links: Link[] = [];
 
     for (const node of nodesWithStorylines) {
       if (node.storylines.length <= 1) continue;
@@ -777,30 +939,49 @@ export function BottomTimeline() {
         ? node.mainStorylineId
         : fallbackMainId;
       if (!mainId) continue;
-      const fromRowIdx = storylineRowIndex.get(mainId);
-      if (fromRowIdx === undefined) continue;
+      const mainRowIdx = storylineRowIndex.get(mainId);
+      if (mainRowIdx === undefined) continue;
 
-      const fromX = startToPosition(node.start) + getNodeWidth(node.id) / 2;
+      const nodeMidX = startToPosition(node.start) + getNodeWidth(node.id) / 2;
 
       for (const sl of node.storylines) {
         if (sl.id === mainId) continue;
-        const toRowIdx = storylineRowIndex.get(sl.id);
-        if (toRowIdx === undefined) continue;
+        const sRowIdx = storylineRowIndex.get(sl.id);
+        if (sRowIdx === undefined) continue;
 
         const lane = sortedNodesByStoryline.get(sl.id) ?? [];
-        const next = lane.find((n) => n.id !== node.id && n.start >= node.start);
-        if (!next) continue;
+        const idxInLane = lane.findIndex((n) => n.id === node.id);
+        if (idxInLane < 0) continue;
+        const prev = idxInLane > 0 ? lane[idxInLane - 1] : null;
+        const next = idxInLane < lane.length - 1 ? lane[idxInLane + 1] : null;
+        const color = sl.color || 'hsl(var(--ink-4))';
 
-        const toX = startToPosition(next.start) + getNodeWidth(next.id) / 2;
-
-        links.push({
-          key: `${node.id}->${sl.id}`,
-          fromX,
-          fromY: fromRowIdx,
-          toX,
-          toY: toRowIdx,
-          color: sl.color || 'hsl(var(--ink-4))',
-        });
+        if (prev) {
+          const prevMidX = startToPosition(prev.start) + getNodeWidth(prev.id) / 2;
+          links.push({
+            key: `${sl.id}:${prev.id}->${node.id}`,
+            fromX: prevMidX,
+            fromY: sRowIdx,
+            toX: nodeMidX,
+            toY: mainRowIdx,
+            color,
+            markFrom: true,
+            markTo: false,
+          });
+        }
+        if (next) {
+          const nextMidX = startToPosition(next.start) + getNodeWidth(next.id) / 2;
+          links.push({
+            key: `${sl.id}:${node.id}->${next.id}`,
+            fromX: nodeMidX,
+            fromY: mainRowIdx,
+            toX: nextMidX,
+            toY: sRowIdx,
+            color,
+            markFrom: false,
+            markTo: true,
+          });
+        }
       }
     }
     return links;
@@ -818,6 +999,12 @@ export function BottomTimeline() {
     const storyline = storylineById.get(storylineId);
     const isSelected = activeSelectedNodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
+
+    // Multi-storyline nodes only show their tile on the main storyline.
+    // On every other storyline they belong to, the cross-storyline trails
+    // (prev→node, node→next) represent the node's transit instead.
+    if (!isPrimary) return null;
+
     const defaultColor = '#2D4A6B'; // matches --story-2; hex form needed for `${color}xx` alpha concatenation
     const clipColor = storyline?.color || defaultColor;
 
@@ -825,7 +1012,6 @@ export function BottomTimeline() {
     const leftPosition = startToPosition(node.start);
     const nodeWidth = getNodeWidth(node.id);
 
-    // Primary storyline → render the full clip
     const edgeHover = hoveredEdge?.nodeId === node.id ? hoveredEdge.edge : null;
     const isDraft = node.wordCount === 0;
 
@@ -939,14 +1125,10 @@ export function BottomTimeline() {
     const selectedNodeBelongsToStoryline =
       selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
-    const trackBg =
-      timelineMode === 'strip'
-        ? 'transparent'
-        : isRouteActive
-          ? storyline.color
-            ? `${storyline.color}15`
-            : 'hsl(var(--story-4) / 0.10)'
-          : 'hsl(var(--ink-1) / 0.025)';
+    // Tracks render on a near-white page color in normal/max, matching the
+    // design's clean grid look. Strip mode stays transparent so the dock
+    // bg shows through.
+    const trackBg = timelineMode === 'strip' ? 'transparent' : 'hsl(var(--page))';
 
     return (
       <div
@@ -955,13 +1137,10 @@ export function BottomTimeline() {
         onDragOver={(e) => isExpanded && handleNodeDragOver(e, storyline.id)}
         onDrop={(e) => isExpanded && handleDrop(e, storyline.id)}
         onClick={(e) => {
+          // Left-click on a storyline row does NOT navigate. Clip clicks still
+          // navigate to the node (handled in renderNodeCard).
           e.stopPropagation();
           clearContextMenu();
-          const target = e.target as HTMLElement;
-          if (!target.closest('[data-node-card]') && !target.closest('[data-track-rail]')) {
-            if (isRouteActive) navigateToHome();
-            else navigateToStoryline(storyline.id);
-          }
         }}
         onContextMenu={(e) => {
           if (!isExpanded) return;
@@ -1001,15 +1180,11 @@ export function BottomTimeline() {
           }
         }}
       >
-        {/* Rail — sticky left, shows storyline identity */}
+        {/* Rail — sticky left, shows storyline identity (no nav on click) */}
         <div
           data-track-rail
           className={`btl-rail ${isRouteActive ? 'is-active' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isRouteActive) navigateToHome();
-            else navigateToStoryline(storyline.id);
-          }}
+          onClick={(e) => e.stopPropagation()}
           title={storyline.name || 'Untitled Storyline'}
           style={{
             width:
@@ -1039,12 +1214,28 @@ export function BottomTimeline() {
           )}
         </div>
 
-        {/* Track — absolute-positioned clips live here */}
+        {/* Track — absolute-positioned grid lines (behind) + clips (in front) */}
         <div
           data-node-container
           className="btl-track"
           style={{ background: trackBg, minWidth: timelineWidth }}
         >
+          {/* Time-pin grid lines — one per marker, rendered BEFORE clips
+              so the chapter tiles paint on top. Position tracks the lifted
+              drag state so the line follows the pin head/label live. */}
+          {timelineMode !== 'strip' &&
+            markers.map((m) => {
+              const isDragging = pinDragStarts.has(m.id);
+              const displayStart = getPinDisplayStart(m.id, m.start);
+              return (
+                <div
+                  key={`pinline-${m.id}`}
+                  className={`btl-pin-line${isDragging ? ' is-dragging' : ''}`}
+                  style={{ left: startToPosition(displayStart) }}
+                />
+              );
+            })}
+
           {dragOverPosition && dragOverPosition.storylineId === storyline.id && (
             <div
               className="btl-drop-indicator"
@@ -1064,13 +1255,18 @@ export function BottomTimeline() {
   const totalHeight = getTimelineHeight();
   const minimapHeight =
     timelineMode === 'max' && storylines.length > 0 ? TIMELINE_CONFIG.MINIMAP_HEIGHT : 0;
+  const axisHeight =
+    timelineMode !== 'strip' && storylines.length > 0 ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
   const rowsAreaHeight = Math.max(
     0,
-    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - minimapHeight,
+    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - minimapHeight - axisHeight,
   );
   const rowHeight = storylines.length > 0 ? rowsAreaHeight / storylines.length : 0;
 
-  const rowCenterY = (idx: number) => idx * rowHeight + rowHeight / 2;
+  // SVG overlay sits inside the scroll container which now has the axis
+  // row as a sibling; offset Y so the overlay aligns with the rows area.
+  const overlayTopOffset = axisHeight;
+  const rowCenterY = (idx: number) => overlayTopOffset + idx * rowHeight + rowHeight / 2;
   const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
   const railOffset = timelineMode === 'strip'
     ? TIMELINE_CONFIG.RAIL_WIDTH_STRIP
@@ -1116,6 +1312,87 @@ export function BottomTimeline() {
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  // Pin snap positions — every integer in the visible timeline range.
+  // Using just node.start values gives only a handful of drop targets
+  // (one per chapter); since `start` is an integer-unit grid (1 unit =
+  // 20px at scale 1), enumerating every integer in [minStart, maxEnd]
+  // gives smooth, predictable drag without sub-pixel placement.
+  const snapStarts = useMemo(() => {
+    if (nodesWithStorylines.length === 0) return [];
+    const lo = Math.floor(minStart);
+    const hi = Math.ceil(maxEnd);
+    const out: number[] = [];
+    for (let i = lo; i <= hi; i++) out.push(i);
+    return out;
+  }, [nodesWithStorylines, minStart, maxEnd]);
+
+  // Track of newly-added marker id so it opens in edit mode on mount.
+  const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
+
+  // Lifted drag state for time pins: TimelinePin reports its tentative
+  // start during drag, and the per-track vertical line reads it so the
+  // line and the head/label stay aligned through the drag.
+  const [pinDragStarts, setPinDragStarts] = useState<Map<string, number>>(new Map());
+  const handlePinDragMove = useCallback((id: string, nextStart: number | null) => {
+    setPinDragStarts((prev) => {
+      const next = new Map(prev);
+      if (nextStart === null) next.delete(id);
+      else next.set(id, nextStart);
+      return next;
+    });
+  }, []);
+  const getPinDisplayStart = (markerId: string, persistedStart: number) =>
+    pinDragStarts.get(markerId) ?? persistedStart;
+
+  const handleAddPin = useCallback(() => {
+    if (snapStarts.length === 0) return;
+    // Default placement: the start nearest to the current scroll-viewport center
+    const container = scrollContainerRef.current;
+    let target = snapStarts[0];
+    if (container) {
+      const centerX =
+        container.scrollLeft + container.clientWidth / 2 - TIMELINE_CONFIG.RAIL_WIDTH;
+      let bestDist = Infinity;
+      for (const s of snapStarts) {
+        const d = Math.abs(startToPosition(s) - centerX);
+        if (d < bestDist) {
+          bestDist = d;
+          target = s;
+        }
+      }
+    }
+    const created = addMarker(target, '标记');
+    if (created) setNewlyAddedMarkerId(created.id);
+  }, [snapStarts, addMarker, startToPosition]);
+
+  const renderTimeAxis = () => {
+    if (timelineMode === 'strip' || storylines.length === 0) return null;
+    return (
+      <div className="btl-axis">
+        <div
+          className="btl-axis__rail"
+          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
+          title="时间标记：点击 + 添加可拖动的时间 pin"
+        >
+          <span>Time</span>
+          <button
+            type="button"
+            className="btl-axis__rail-add"
+            title={snapStarts.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
+            disabled={snapStarts.length === 0}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddPin();
+            }}
+          >
+            +
+          </button>
+        </div>
+        <div className="btl-axis__track" style={{ minWidth: timelineWidth }} />
       </div>
     );
   };
@@ -1217,37 +1494,118 @@ export function BottomTimeline() {
           touchAction: isExpanded ? 'pan-x pinch-zoom' : 'pan-x',
         }}
       >
+        {renderTimeAxis()}
+
         {storylines.length > 0 ? (
           storylines.map((storyline) => renderStorylineRow(storyline))
         ) : (
           <div className="btl-loading">Loading storylines…</div>
         )}
 
-        {/* Cross-storyline connection lines — overlays the tracks area, sits
-            visually below the sticky rails (rails have higher z-index). */}
-        {crossStorylineLinks.length > 0 && storylines.length > 0 && rowHeight > 0 && (
-          <svg
-            className="btl-crosslinks"
-            width={scrollContentWidth}
-            height={rowsAreaHeight}
-            style={{ width: scrollContentWidth, height: rowsAreaHeight }}
-          >
-            {crossStorylineLinks.map((link) => {
-              const x1 = railOffset + link.fromX;
-              const x2 = railOffset + link.toX;
-              const y1 = rowCenterY(link.fromY);
-              const y2 = rowCenterY(link.toY);
-              const midY = (y1 + y2) / 2;
-              const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-              return (
-                <g key={link.key}>
-                  <path d={d} stroke={link.color} strokeWidth="1.2" strokeDasharray="3 3" fill="none" opacity="0.7" />
-                  <circle cx={x2} cy={y2} r="2.5" fill={link.color} opacity="0.85" />
-                </g>
-              );
-            })}
-          </svg>
-        )}
+        {/* Time pin heads (label + triangle). The grid line is rendered
+            inside each storyline track so it paints below clips; this
+            overlay only carries the interactive head/label. */}
+        {timelineMode !== 'strip' &&
+          storylines.length > 0 &&
+          markers.map((m) => (
+            <TimelinePin
+              key={`pin-${m.id}`}
+              marker={m}
+              snapStarts={snapStarts}
+              startToPosition={startToPosition}
+              xOffset={railOffset}
+              displayStart={getPinDisplayStart(m.id, m.start)}
+              isDragging={pinDragStarts.has(m.id)}
+              pinHeight={overlayTopOffset}
+              editOnMount={m.id === newlyAddedMarkerId}
+              onChange={(patch) => {
+                if (m.id === newlyAddedMarkerId) setNewlyAddedMarkerId(null);
+                updateMarker(m.id, patch);
+              }}
+              onDelete={() => {
+                if (m.id === newlyAddedMarkerId) setNewlyAddedMarkerId(null);
+                deleteMarker(m.id);
+              }}
+              onDragMove={(nextStart) => handlePinDragMove(m.id, nextStart)}
+            />
+          ))}
+
+        {/* Playhead — anchored to whichever node the user is currently
+            viewing/editing. Prefers live reading-progress (set by
+            NodeEditorView on scroll); falls back to the route node at
+            percent=0 so the playhead is still visible the moment a
+            chapter is opened. */}
+        {(() => {
+          if (storylines.length === 0) return null;
+          const targetId = readingProgress?.nodeId ?? activeSelectedNodeId ?? null;
+          if (!targetId) return null;
+          const node = nodesWithStorylines.find((n) => n.id === targetId);
+          if (!node) return null;
+          const percent = readingProgress?.nodeId === node.id ? readingProgress.percent : 0;
+          const x =
+            railOffset + startToPosition(node.start) + getNodeWidth(node.id) * percent;
+          // Spans axis + rows so the triangle pin sits at the top of the
+          // dock (above the axis labels) and the line drops through the
+          // chapter tracks below, matching the design.
+          const fullHeight = overlayTopOffset + rowsAreaHeight;
+          return (
+            <div
+              className="btl-playhead"
+              style={{ left: x, top: 0, height: fullHeight }}
+              aria-hidden
+            >
+              <div className="btl-playhead__head" />
+              <div className="btl-playhead__glow" />
+            </div>
+          );
+        })()}
+
+        {/* Cross-storyline links overlay — sits above the tracks area, below
+            sticky rails (rails z-index 5, SVG z-index 4). Grid lines are
+            rendered inside each track div so they paint behind clips.
+            The SVG spans the full scroll content so rowCenterY can include
+            the axis offset; this keeps coordinates aligned with rows. */}
+        {crossStorylineLinks.length > 0 &&
+          storylines.length > 0 &&
+          rowHeight > 0 &&
+          timelineMode !== 'strip' && (
+            <svg
+              className="btl-crosslinks"
+              width={scrollContentWidth}
+              height={overlayTopOffset + rowsAreaHeight}
+              style={{ width: scrollContentWidth, height: overlayTopOffset + rowsAreaHeight }}
+            >
+              {crossStorylineLinks.map((link) => {
+                const x1 = railOffset + link.fromX;
+                const x2 = railOffset + link.toX;
+                const y1 = rowCenterY(link.fromY);
+                const y2 = rowCenterY(link.toY);
+                // Smooth S-curve: anchors held vertical for a literary,
+                // hand-drawn feel rather than diagonal straight lines.
+                const midY = (y1 + y2) / 2;
+                const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+                return (
+                  <g key={link.key}>
+                    <path
+                      d={d}
+                      stroke={link.color}
+                      strokeWidth="1"
+                      strokeDasharray="2 3"
+                      strokeLinecap="round"
+                      fill="none"
+                      opacity="0.6"
+                    />
+                    {link.markFrom && (
+                      <circle cx={x1} cy={y1} r="2" fill={link.color} opacity="0.85" />
+                    )}
+                    {link.markTo && (
+                      <circle cx={x2} cy={y2} r="2" fill={link.color} opacity="0.85" />
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
       </div>
 
       <BottomTimelineContextMenu

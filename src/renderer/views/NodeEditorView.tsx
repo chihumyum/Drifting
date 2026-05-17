@@ -17,7 +17,7 @@ import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { usePromoteCurrentTab } from '../store/ui-store';
+import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -77,6 +77,38 @@ export function NodeEditorView() {
     scrollEl,
     outline.map((h) => h.id),
   );
+
+  // Reading-progress emitter: push (nodeId, scroll percent 0..1) to the UI
+  // store on every scroll so the BottomTimeline playhead stays in sync.
+  // Cleared when nodeId changes (so the playhead doesn't stick on the prior
+  // chapter) and on unmount.
+  const setReadingProgress = useUiStore((s) => s.setReadingProgress);
+  useEffect(() => {
+    if (!scrollEl || !nodeId) return;
+    let rafId: number | null = null;
+    const emit = () => {
+      rafId = null;
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      const percent = max > 0 ? Math.min(1, Math.max(0, scrollEl.scrollTop / max)) : 0;
+      setReadingProgress({ nodeId, percent });
+    };
+    // Initial reading position once the element mounts / nodeId changes.
+    emit();
+    const onScroll = () => {
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(emit);
+    };
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', onScroll);
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+    };
+  }, [scrollEl, nodeId, setReadingProgress]);
+
+  // Clear when leaving the node view entirely so the playhead disappears.
+  useEffect(() => {
+    return () => setReadingProgress(null);
+  }, [setReadingProgress]);
   const [editingStorylines, setEditingStorylines] = useState(false);
   const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
   const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);
@@ -503,22 +535,23 @@ export function NodeEditorView() {
             </EditorCrumb>
           </EditorTopBar>
 
-          {/* Spread layout: TOC | manuscript page | (margin annotations — deferred) */}
-          <div className="editor-scroll" ref={setScrollEl}>
-            <div className="editor__spread">
-              <EditorOutlinePanel
-                title="本章 · OUTLINE"
-                items={outline.map<OutlineEntry>((h) => ({
-                  id: h.id,
-                  level: h.level,
-                  text: h.text,
-                }))}
-                activeId={activeOutlineId}
-                onItemClick={scrollToOutlineAnchor}
-                footRight={`${curNode.wordCount.toLocaleString()} 字`}
-                emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
-              />
-
+          {/* Editor body: TOC sits OUTSIDE the scroll container as a layout
+              sibling, so it stays put without relying on position:sticky. */}
+          <div className="editor-body">
+            <EditorOutlinePanel
+              title="本章 · OUTLINE"
+              items={outline.map<OutlineEntry>((h) => ({
+                id: h.id,
+                level: h.level,
+                text: h.text,
+              }))}
+              activeId={activeOutlineId}
+              onItemClick={scrollToOutlineAnchor}
+              footRight={`${curNode.wordCount.toLocaleString()} 字`}
+              emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
+            />
+            <div className="editor-scroll" ref={setScrollEl}>
+              <div className="editor__spread">
               <article className="page">
                 <div className="page__folio" aria-hidden="true">
                   <span className="page__folio-line">Chapter</span>
@@ -558,12 +591,13 @@ export function NodeEditorView() {
 
                 <div className="page__ornament" aria-hidden="true">⁂</div>
               </article>
-
-              {/* DEFERRED: right-side margin annotations (Word-style notes anchored
-                  to paragraphs / blocks). Needs a generic annotation system first;
-                  AI features (Copilot / Shadow notes) will layer on top of it. */}
-              <div className="editor__margin" aria-hidden="true" />
+              </div>
             </div>
+            {/* DEFERRED: right-side margin annotations (Word-style notes
+                anchored to paragraphs / blocks). No column reserved while
+                the feature doesn't exist — page gets the recovered width.
+                When annotations land, drop a right-aligned column inside
+                .editor-body and restore the spread's flex behaviour. */}
           </div>
         </>
       )}

@@ -93,6 +93,19 @@ interface UiState {
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
 
+  // The currently-reading node + scroll progress (0..1) inside its body.
+  // Drives the BottomTimeline playhead; set by NodeEditorView on scroll,
+  // cleared when the node view unmounts.
+  readingProgress: { nodeId: string; percent: number } | null;
+  setReadingProgress: (progress: { nodeId: string; percent: number } | null) => void;
+
+  // Left outline rail (per-editor TOC) collapse state. Shared across all
+  // entity editors so the toggle persists when switching between chapter /
+  // element / storyline / category tabs.
+  outlineCollapsed: boolean;
+  setOutlineCollapsed: (collapsed: boolean) => void;
+  toggleOutlineCollapsed: () => void;
+
   resizingSidebar: SidebarType | null;
   setResizingSidebar: (type: SidebarType | null) => void;
 
@@ -278,6 +291,14 @@ export const useUiStore = create<UiState>()(
         })),
       timelineHeight: 200,
       setTimelineHeight: (height) => set({ timelineHeight: height }),
+
+      readingProgress: null,
+      setReadingProgress: (progress) => set({ readingProgress: progress }),
+
+      outlineCollapsed: false,
+      setOutlineCollapsed: (collapsed) => set({ outlineCollapsed: collapsed }),
+      toggleOutlineCollapsed: () =>
+        set((state) => ({ outlineCollapsed: !state.outlineCollapsed })),
 
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
@@ -469,6 +490,7 @@ export const useUiStore = create<UiState>()(
         lastActiveSuperView: state.lastActiveSuperView,
         shadowMode: state.shadowMode,
         tabsByProject: state.tabsByProject,
+        outlineCollapsed: state.outlineCollapsed,
       }),
       // Older persisted state used 'references' | 'inspirations' | 'ai' for
       // activeRightPanel. Coerce any unknown value back to the default so the

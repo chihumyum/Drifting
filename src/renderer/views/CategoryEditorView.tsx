@@ -130,28 +130,34 @@ export function CategoryEditorView() {
     placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
   });
 
-  // Two-level TOC: outer = static section framework (h2), inner = body
-  // headings (h3). 元素模版 sits between 概述 and 元素清单 — see the schema
-  // section below for the template-editor section it points to.
-  const sections: OutlineEntry[] = [
+  // Two-block TOC: outer (frameworkItems) = static section anchors —
+  // 概述 / 元素模版 / 元素清单 / 札记. Inner (bodyOutlineItems) = headings
+  // parsed from the 札记 TipTap body at their natural h1/h2/h3 levels.
+  // Rendered as separate groups so the body outline reads as its own
+  // hierarchy rather than blurring into the framework.
+  const frameworkItems: OutlineEntry[] = [
     { id: 'cat-overview', level: 2, num: '一', text: '概述' },
     { id: 'cat-template', level: 2, num: '二', text: '元素模版' },
   ];
   if (cEls.length > 0) {
-    sections.push({ id: 'cat-elements', level: 2, num: '三', text: '元素清单' });
+    frameworkItems.push({ id: 'cat-elements', level: 2, num: '三', text: '元素清单' });
   }
-  sections.push({
+  frameworkItems.push({
     id: 'cat-scratch',
     level: 2,
     num: cEls.length > 0 ? '四' : '三',
     text: '札记',
   });
-  const outlineItems: OutlineEntry[] = [
-    ...sections,
-    ...outline.map<OutlineEntry>((h) => ({ id: h.id, level: 3, text: h.text })),
-  ];
+  const bodyOutlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
+    id: h.id,
+    level: h.level,
+    text: h.text,
+  }));
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineItems.map((i) => i.id));
+  const activeOutlineId = useOutlineScrollspy(
+    scrollEl,
+    [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
+  );
 
   const handleContextAction = async (action: string) => {
     if (!curCategory) return;
@@ -221,18 +227,18 @@ export function CategoryEditorView() {
         </EditorCrumb>
       </EditorTopBar>
 
-      <div className="editor-scroll" ref={setScrollEl}>
-        <div className="editor__spread">
-          <EditorOutlinePanel
-            title={`${curCategory.name} · OUTLINE`}
-            items={outlineItems}
-            activeId={activeOutlineId}
-            onItemClick={scrollToOutlineAnchor}
-            footLeft={`c.${categoryShortId}`}
-            footRight={`${cEls.length} 元素`}
-            emptyHint=""
-          />
-
+      <div className="editor-body">
+        <EditorOutlinePanel
+          title={`${curCategory.name} · OUTLINE`}
+          items={frameworkItems}
+          secondaryItems={bodyOutlineItems}
+          activeId={activeOutlineId}
+          onItemClick={scrollToOutlineAnchor}
+          footLeft={`c.${categoryShortId}`}
+          footRight={`${cEls.length} 元素`}
+        />
+        <div className="editor-scroll" ref={setScrollEl}>
+          <div className="editor__spread">
           <article className="page" style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">Category</span>
@@ -401,10 +407,9 @@ export function CategoryEditorView() {
               <EditorContent editor={editor} />
             </div>
           </article>
-
-          {/* DEFERRED: right-side margin annotations. */}
-          <div className="editor__margin" aria-hidden="true" />
+          </div>
         </div>
+        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
     </div>
   );

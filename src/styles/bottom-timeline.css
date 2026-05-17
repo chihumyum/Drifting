@@ -158,9 +158,11 @@
   align-items: center;
   border-right: 1px solid hsl(var(--rule));
   background: hsl(var(--paper-deep));
-  cursor: pointer;
+  cursor: default;
   overflow: hidden;
-  z-index: 5;
+  /* Above clips (incl. selected) and pins so the sticky rail always
+     covers content scrolling under it. */
+  z-index: 20;
   transition: background 0.12s;
 }
 .btl-rail.is-active {
@@ -220,7 +222,161 @@
   flex: 1;
   height: 100%;
   border-radius: 4px;
+  cursor: default;
+}
+
+/* ---------------- Time axis row (above storyline rows) ---------------- */
+.btl-axis {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 22px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  position: relative;
+}
+.btl[data-state='strip'] .btl-axis {
+  display: none;
+}
+.btl-axis__rail {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  padding: 0 10px 0 16px;
+  /* Match storyline rail — sits above pin labels that may translate into
+     the rail area at the leftmost snap position. */
+  z-index: 20;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.btl-axis__rail-add {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
   cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  margin-left: 6px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl-axis__rail-add:hover {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+.btl-axis__track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  cursor: default;
+}
+/* ---------------- Time pin (draggable marker) ----------------
+   A pin spans the axis + rows. Top-to-bottom:
+     1. editable label (sits in the axis row)
+     2. small down-pointing triangle (precise position pointer)
+     3. vertical line down through the chapter rows (the grid divider)
+   Drag the label or the triangle horizontally to reposition — pins
+   snap to node.start values. Click the label to rename (clear to
+   delete). The pin's line IS the user's grid divider; the dock has
+   no other default grid. */
+.btl-pin {
+  position: absolute;
+  top: 0;
+  width: 0;
+  z-index: 7;
+}
+.btl[data-state='strip'] .btl-pin {
+  display: none;
+}
+.btl-pin__label {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 13px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-2));
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: grab;
+  outline: none;
+  min-width: 22px;
+  text-align: center;
+  user-select: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btl-pin.is-editing .btl-pin__label {
+  cursor: text;
+  user-select: text;
+  border-color: hsl(var(--accent));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  overflow: visible;
+}
+.btl-pin.is-dragging .btl-pin__label {
+  cursor: grabbing;
+  border-color: hsl(var(--accent));
+  color: hsl(var(--accent));
+}
+.btl-pin__head {
+  position: absolute;
+  /* Sits just below the label inside the axis row (label ~16px tall) */
+  top: 15px;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid hsl(var(--ink-4));
+  transform: translateX(-4px);
+  cursor: grab;
+}
+.btl-pin.is-dragging .btl-pin__head {
+  cursor: grabbing;
+  border-top-color: hsl(var(--accent));
+}
+/* Pin grid line — rendered inside each storyline track (NOT inside the
+   pin overlay) so it paints below the chapter clips. One per marker per
+   track; positioned via inline `left`. The `.is-dragging` modifier is
+   driven by the same lifted state as the pin head, so line and head
+   move in lockstep through a drag. */
+.btl-pin-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: hsl(var(--rule));
+  pointer-events: none;
+  z-index: 0;
+}
+.btl-pin-line.is-dragging {
+  background: hsl(var(--accent) / 0.55);
+}
+.btl[data-state='strip'] .btl-pin-line {
+  display: none;
 }
 
 /* ---------------- Clip (chapter card) ---------------- */
@@ -244,7 +400,9 @@
 .btl-clip.is-selected {
   outline: 2px solid hsl(var(--ink-1));
   outline-offset: 1px;
-  z-index: 10;
+  /* Just above sibling clips so the outline isn't clipped by an adjacent
+     clip's left edge; kept well below the sticky rail (z-index 20). */
+  z-index: 2;
   box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.2);
 }
 .btl-clip.is-draft {
@@ -404,6 +562,46 @@
   left: 0;
   pointer-events: none;
   z-index: 4;
+}
+
+/* ---------------- Playhead (currently-reading position) ---------------- */
+.btl-playhead {
+  position: absolute;
+  top: 0;
+  width: 1.5px;
+  background: hsl(var(--accent));
+  pointer-events: none;
+  z-index: 6;
+  transform: translateX(-0.75px);
+}
+.btl-playhead__head {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid hsl(var(--accent));
+  transform: translateX(-50%);
+  filter: drop-shadow(0 1px 2px hsl(var(--accent) / 0.35));
+}
+.btl-playhead__glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    hsl(var(--accent) / 0.22),
+    transparent
+  );
+  transform: translateX(-3px);
+}
+.btl[data-state='strip'] .btl-playhead__head,
+.btl[data-state='strip'] .btl-playhead__glow {
+  display: none;
 }
 
 /* ---------------- Minimap (max-state overview) ---------------- */

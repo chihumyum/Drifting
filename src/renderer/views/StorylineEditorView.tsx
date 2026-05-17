@@ -115,18 +115,26 @@ export function StorylineEditorView() {
     placeholder: '札记 · scratch——本线的速记、灵感、风格备忘…',
   });
 
-  // Two-level TOC: outer = static section framework (h2), inner = headings
-  // parsed live from the scratch body, rendered as h3 so they read as
-  // sub-items under 札记. Body has no per-section split, so all dynamic
-  // headings sit under the trailing 札记 entry regardless of level.
-  const outlineItems: OutlineEntry[] = [
+  // Two-block TOC: outer (frameworkItems) = static section anchors —
+  // 概述 / 章节序列 / 札记. Inner (bodyOutlineItems) = headings parsed from
+  // the 札记 TipTap body at their natural h1/h2/h3 levels. The two render
+  // as separate groups in the TOC so the body outline reads as its own
+  // hierarchy rather than blurring into the framework.
+  const frameworkItems: OutlineEntry[] = [
     { id: 'sl-overview', level: 2, num: '一', text: '概述' },
     ...(sNodes.length > 0 ? [{ id: 'sl-chapters', level: 2 as const, num: '二', text: '章节序列' }] : []),
     { id: 'sl-scratch',  level: 2, num: sNodes.length > 0 ? '三' : '二', text: '札记' },
-    ...outline.map<OutlineEntry>((h) => ({ id: h.id, level: 3, text: h.text })),
   ];
+  const bodyOutlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
+    id: h.id,
+    level: h.level,
+    text: h.text,
+  }));
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
-  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineItems.map((i) => i.id));
+  const activeOutlineId = useOutlineScrollspy(
+    scrollEl,
+    [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
+  );
 
   const handleContextAction = useCallback(
     async (action: string) => {
@@ -202,18 +210,18 @@ export function StorylineEditorView() {
         </EditorCrumb>
       </EditorTopBar>
 
-      <div className="editor-scroll" ref={setScrollEl}>
-        <div className="editor__spread">
-          <EditorOutlinePanel
-            title={`${currentStoryline.name || 'STORYLINE'} · OUTLINE`}
-            items={outlineItems}
-            activeId={activeOutlineId}
-            onItemClick={scrollToOutlineAnchor}
-            footLeft={`s.${storylineShortId}`}
-            footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
-            emptyHint=""
-          />
-
+      <div className="editor-body">
+        <EditorOutlinePanel
+          title={`${currentStoryline.name || 'STORYLINE'} · OUTLINE`}
+          items={frameworkItems}
+          secondaryItems={bodyOutlineItems}
+          activeId={activeOutlineId}
+          onItemClick={scrollToOutlineAnchor}
+          footLeft={`s.${storylineShortId}`}
+          footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
+        />
+        <div className="editor-scroll" ref={setScrollEl}>
+          <div className="editor__spread">
           <article className="page" style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">Storyline</span>
@@ -392,10 +400,9 @@ export function StorylineEditorView() {
               <EditorContent editor={editor} />
             </div>
           </article>
-
-          {/* DEFERRED: right-side margin annotations. */}
-          <div className="editor__margin" aria-hidden="true" />
+          </div>
         </div>
+        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
     </div>
   );

@@ -201,18 +201,19 @@ export function ElementEditorView() {
         </EditorCrumb>
       </EditorTopBar>
 
-      {/* Spread layout: TOC | element page | (margin annotations — deferred) */}
-      <div className="editor-scroll" ref={setScrollEl}>
-        <div className="editor__spread">
-          <EditorOutlinePanel
-            title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
-            items={outlineItems}
-            activeId={activeOutlineId}
-            onItemClick={scrollToOutlineAnchor}
-            footLeft={`e.${elementShortId}`}
-            emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
-          />
-
+      {/* Editor body: TOC sits OUTSIDE the scroll container as a layout
+          sibling — stays put without relying on position:sticky. */}
+      <div className="editor-body">
+        <EditorOutlinePanel
+          title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
+          items={outlineItems}
+          activeId={activeOutlineId}
+          onItemClick={scrollToOutlineAnchor}
+          footLeft={`e.${elementShortId}`}
+          emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
+        />
+        <div className="editor-scroll" ref={setScrollEl}>
+          <div className="editor__spread">
           <article className="page">
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">Element</span>
@@ -300,10 +301,9 @@ export function ElementEditorView() {
               </div>
             )}
           </article>
-
-          {/* DEFERRED: right-side margin annotations. */}
-          <div className="editor__margin" aria-hidden="true" />
+          </div>
         </div>
+        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
 
       {/* Category picker (triggered from 3-dot menu) */}
