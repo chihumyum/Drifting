@@ -18,35 +18,17 @@ function safeDecodeURIComponent(value: string): string {
 
 function buildRuntime(view: EditorShellView) {
   switch (view) {
-    case 'all-nodes-editor':
-      return {
-        view,
-        activeEntityType: 'node' as const,
-        isAllNodesEditor: true,
-        isAllElementsEditor: false,
-      };
-    case 'all-elements-editor':
-      return {
-        view,
-        activeEntityType: 'element' as const,
-        isAllNodesEditor: false,
-        isAllElementsEditor: true,
-      };
     case 'node-editor':
     case 'storyline-editor':
       return {
         view,
         activeEntityType: 'node' as const,
-        isAllNodesEditor: false,
-        isAllElementsEditor: false,
       };
     case 'element-editor':
     case 'category-editor':
       return {
         view,
         activeEntityType: 'element' as const,
-        isAllNodesEditor: false,
-        isAllElementsEditor: false,
       };
     case 'project-home':
     case 'project-dashboard':
@@ -54,8 +36,6 @@ function buildRuntime(view: EditorShellView) {
       return {
         view,
         activeEntityType: 'none' as const,
-        isAllNodesEditor: false,
-        isAllElementsEditor: false,
       };
   }
 }
@@ -67,7 +47,7 @@ export function EditorShell({ view, children }: EditorShellProps) {
     storylineId?: string;
     categoryId?: string;
   }>();
-  const { navigateToNode, navigateToElement } = useProjectNavigation();
+  const { projectId, navigateToNode, navigateToElement } = useProjectNavigation();
   const runtime = useMemo(() => buildRuntime(view), [view]);
 
   const setEditorRuntime = useUiStore((state) => state.setEditorRuntime);
@@ -75,10 +55,8 @@ export function EditorShell({ view, children }: EditorShellProps) {
   const setElementSelection = useUiStore((state) => state.setElementSelection);
   const setNodeActiveStorylineId = useUiStore((state) => state.setNodeActiveStorylineId);
   const setElementActiveCategoryId = useUiStore((state) => state.setElementActiveCategoryId);
-  const setPreferAllNodeTimeline = useUiStore((state) => state.setPreferAllNodeTimeline);
-  const setPreferAllElementTimeline = useUiStore((state) => state.setPreferAllElementTimeline);
-  const preferAllNodeTimeline = useUiStore((state) => state.preferAllNodeTimeline);
-  const preferAllElementTimeline = useUiStore((state) => state.preferAllElementTimeline);
+  const openEntityTab = useUiStore((state) => state.openEntityTab);
+  const setActiveTab = useUiStore((state) => state.setActiveTab);
   const nodeSelectedId = useUiStore((state) => state.nodeUi.selectedId);
   const nodeSelectedFrom = useUiStore((state) => state.nodeUi.selectedFrom);
   const elementSelectedId = useUiStore((state) => state.elementUi.selectedId);
@@ -101,26 +79,6 @@ export function EditorShell({ view, children }: EditorShellProps) {
   }, [elementId, setElementSelection]);
 
   useEffect(() => {
-    if (view === 'all-nodes-editor') {
-      setPreferAllNodeTimeline(true);
-      return;
-    }
-    if (view === 'storyline-editor') {
-      setPreferAllNodeTimeline(false);
-    }
-  }, [view, setPreferAllNodeTimeline]);
-
-  useEffect(() => {
-    if (view === 'all-elements-editor') {
-      setPreferAllElementTimeline(true);
-      return;
-    }
-    if (view === 'category-editor') {
-      setPreferAllElementTimeline(false);
-    }
-  }, [view, setPreferAllElementTimeline]);
-
-  useEffect(() => {
     if (view === 'storyline-editor') {
       setNodeActiveStorylineId(storylineId ?? null);
       return;
@@ -140,36 +98,45 @@ export function EditorShell({ view, children }: EditorShellProps) {
     if (nodeSelectedFrom !== 'ui') return;
     if (!nodeSelectedId) return;
     if (nodeSelectedId === nodeId) return;
-    if (runtime.isAllNodesEditor || preferAllNodeTimeline) {
-      setPreferAllNodeTimeline(true);
-    }
     navigateToNode(nodeSelectedId);
-  }, [
-    runtime.isAllNodesEditor,
-    preferAllNodeTimeline,
-    nodeSelectedFrom,
-    nodeSelectedId,
-    nodeId,
-    navigateToNode,
-    setPreferAllNodeTimeline,
-  ]);
+  }, [nodeSelectedFrom, nodeSelectedId, nodeId, navigateToNode]);
 
   useEffect(() => {
     if (elementSelectedFrom !== 'ui') return;
     if (!elementSelectedId) return;
     if (elementSelectedId === elementId) return;
-    if (runtime.isAllElementsEditor || preferAllElementTimeline) {
-      setPreferAllElementTimeline(true);
-    }
     navigateToElement(elementSelectedId);
+  }, [elementSelectedFrom, elementSelectedId, elementId, navigateToElement]);
+
+  // URL → tab sync. Ensures the entity in the URL has an open tab (idempotent
+  // for already-open tabs — preserves dedicated state) and is the active tab.
+  // Dashboard routes clear the active tab without touching the open list.
+  useEffect(() => {
+    if (!projectId) return;
+    if (view === 'node-editor' && nodeId) {
+      openEntityTab(projectId, { entityType: 'node', id: nodeId }, { preview: true });
+    } else if (view === 'storyline-editor' && storylineId) {
+      openEntityTab(projectId, { entityType: 'storyline', id: storylineId }, { preview: true });
+    } else if (view === 'element-editor' && elementId) {
+      openEntityTab(projectId, { entityType: 'element', id: elementId }, { preview: true });
+    } else if (view === 'category-editor' && categoryId) {
+      openEntityTab(
+        projectId,
+        { entityType: 'category', id: safeDecodeURIComponent(categoryId) },
+        { preview: true },
+      );
+    } else {
+      setActiveTab(projectId, null);
+    }
   }, [
-    runtime.isAllElementsEditor,
-    preferAllElementTimeline,
-    elementSelectedFrom,
-    elementSelectedId,
+    projectId,
+    view,
+    nodeId,
+    storylineId,
     elementId,
-    navigateToElement,
-    setPreferAllElementTimeline,
+    categoryId,
+    openEntityTab,
+    setActiveTab,
   ]);
 
   return <>{children}</>;

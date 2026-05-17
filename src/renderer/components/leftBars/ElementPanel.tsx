@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef, type UIEvent } from 'react';
-import { Plus, Trash2, MoreVertical, Edit3 } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
 import { useDataStore } from '../../store/data-store';
-import { useUiStore } from '../../store/ui-store';
+import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
@@ -51,9 +51,10 @@ type ActiveTick = {
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
-  const { elementUi, setElementSelection, timelineHeight } = useUiStore();
+  const { elementUi, timelineHeight } = useUiStore();
   const userId = useAuthStore((state) => state.user?.id);
-  const { projectId, navigateToCategory } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedBookElementId = elementUi.selectedId;
 
   const activeProjectId = useMemo(() => {
@@ -63,7 +64,7 @@ export function ElementPanel() {
     return projectId;
   }, [projectId]);
 
-  const { createElement, removeElement, updateElement } = useBookElement({
+  const { createElement } = useBookElement({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
@@ -73,11 +74,21 @@ export function ElementPanel() {
     userId: userId ?? '',
   });
 
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [editingElementId, setEditingElementId] = useState<string | null>(null);
-  const [editingElementName, setEditingElementName] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
+
+  const toggleCategoryCollapsed = useCallback((id: string) => {
+    setCollapsedCategoryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const [zoomRingVisible, setZoomRingVisible] = useState(false);
   const [zoomRingHovered, setZoomRingHovered] = useState(false);
@@ -200,30 +211,16 @@ export function ElementPanel() {
     };
   }, [clearHideRingTimer]);
 
-  const handleDeleteElement = useCallback(
-    async (id: string) => {
-      try {
-        await removeElement(id);
-        if (selectedBookElementId === id) {
-          setElementSelection(null, 'ui');
-        }
-      } catch (error) {
-        log.error('Failed to delete element', error);
-      }
-    },
-    [removeElement, selectedBookElementId, setElementSelection],
-  );
-
   const handleCreateElement = useCallback(
     async (categoryId: string) => {
       try {
         const created = await createElement({ categoryId });
-        setElementSelection(created.id, 'ui');
+        openEntity({ entityType: 'element', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create element', error);
       }
     },
-    [createElement, setElementSelection],
+    [createElement, openEntity],
   );
 
   const handleCreateCategory = useCallback(async () => {
@@ -246,27 +243,6 @@ export function ElementPanel() {
       log.error('Failed to create new category', error);
     }
   }, [createCategory, scheduleHideZoomRing, showZoomRing]);
-
-  const handleSaveElementName = useCallback(
-    async (elementId: string) => {
-      const nextName = editingElementName.trim();
-      if (!nextName) {
-        setEditingElementId(null);
-        setEditingElementName('');
-        return;
-      }
-
-      try {
-        await updateElement(elementId, { name: nextName });
-      } catch (error) {
-        log.error('Failed to update element name', error);
-      } finally {
-        setEditingElementId(null);
-        setEditingElementName('');
-      }
-    },
-    [editingElementName, updateElement],
-  );
 
   const handleSaveCategoryName = useCallback(
     async (categoryId: string) => {
@@ -548,7 +524,10 @@ export function ElementPanel() {
           }
         }}
         onClick={() => {
-          setElementSelection(element.id, 'ui');
+          openEntity({ entityType: 'element', id: element.id });
+        }}
+        onDoubleClick={() => {
+          promoteCurrentTab();
         }}
       >
         {selected && (
@@ -596,49 +575,7 @@ export function ElementPanel() {
             whiteSpace: 'nowrap',
           }}
         >
-          {editingElementId === element.id ? (
-            <input
-              type="text"
-              value={editingElementName}
-              onChange={(event) => setEditingElementName(event.target.value)}
-              onBlur={() => {
-                void handleSaveElementName(element.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  void handleSaveElementName(element.id);
-                }
-                if (event.key === 'Escape') {
-                  setEditingElementId(null);
-                  setEditingElementName('');
-                }
-              }}
-              onFocus={(event) => event.target.select()}
-              autoFocus
-              onClick={(event) => event.stopPropagation()}
-              style={{
-                width: '100%',
-                fontSize: 13,
-                padding: '1px 4px',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 3,
-                background: 'hsl(var(--surface))',
-                color: 'hsl(var(--ink-1))',
-                outline: 'none',
-              }}
-            />
-          ) : (
-            <span
-              onDoubleClick={(event) => {
-                event.stopPropagation();
-                setEditingElementId(element.id);
-                setEditingElementName(element.name);
-              }}
-              style={{ cursor: 'text' }}
-            >
-              {element.name}
-            </span>
-          )}
+          <span>{element.name}</span>
         </div>
 
         {/* Date */}
@@ -654,97 +591,6 @@ export function ElementPanel() {
           {formatShortDate(element.updatedAt)}
         </span>
 
-        {/* Overflow menu */}
-        <div style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-          <button
-            onClick={() => {
-              setOpenMenuId(openMenuId === element.id ? null : element.id);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 20,
-              height: 20,
-              borderRadius: 3,
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-              padding: 0,
-              opacity: openMenuId === element.id ? 1 : 0.6,
-              transition: 'opacity 0.12s, background 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '1';
-              e.currentTarget.style.background = 'hsl(var(--ink-1) / 0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = openMenuId === element.id ? '1' : '0.6';
-              e.currentTarget.style.background = 'transparent';
-            }}
-            title="Options"
-          >
-            <MoreVertical size={13} strokeWidth={1.6} />
-          </button>
-
-          {openMenuId === element.id && (
-            <>
-              <div
-                style={{
-                  position: 'fixed',
-                  inset: 0,
-                  zIndex: 10,
-                }}
-                onClick={() => setOpenMenuId(null)}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  background: 'hsl(var(--surface))',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 6,
-                  boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
-                  minWidth: 120,
-                  zIndex: 20,
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  onClick={() => {
-                    void handleDeleteElement(element.id);
-                    setOpenMenuId(null);
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'hsl(var(--destructive))',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--destructive) / 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <Trash2 size={13} strokeWidth={1.6} />
-                  Delete
-                </button>
-              </div>
-            </>
-          )}
-        </div>
       </div>
     );
   };
@@ -832,6 +678,8 @@ export function ElementPanel() {
               style={{ marginBottom: 8 }}
             >
               <div
+                onClick={() => openEntity({ entityType: 'category', id: categoryId })}
+                onDoubleClick={() => promoteCurrentTab()}
                 style={{
                   position: 'sticky',
                   top: 0,
@@ -844,9 +692,36 @@ export function ElementPanel() {
                   padding: '14px 10px 6px 12px',
                   background: 'hsl(var(--paper))',
                   borderBottom: '1px solid hsl(var(--rule) / 0.5)',
+                  cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleCategoryCollapsed(categoryId);
+                    }}
+                    title={collapsedCategoryIds.has(categoryId) ? 'Expand' : 'Collapse'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 16,
+                      height: 16,
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'hsl(var(--ink-4))',
+                      cursor: 'pointer',
+                      padding: 0,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {collapsedCategoryIds.has(categoryId) ? (
+                      <ChevronRight size={12} strokeWidth={2} />
+                    ) : (
+                      <ChevronDown size={12} strokeWidth={2} />
+                    )}
+                  </button>
                   <span
                     aria-hidden
                     style={{
@@ -940,36 +815,8 @@ export function ElementPanel() {
 
                 <div style={{ display: 'flex', gap: 2 }}>
                   <button
-                    onClick={() => navigateToCategory(encodeURIComponent(categoryId))}
-                    title="Open category"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 3,
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'hsl(var(--ink-4))',
-                      cursor: 'pointer',
-                      padding: 0,
-                      transition: 'background 0.12s, color 0.12s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                      e.currentTarget.style.color = 'hsl(var(--ink-1))';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = 'hsl(var(--ink-4))';
-                    }}
-                  >
-                    <Edit3 size={12} strokeWidth={1.6} />
-                  </button>
-
-                  <button
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
                       void handleCreateElement(categoryId);
                     }}
                     title="New element in this category"
@@ -1001,9 +848,10 @@ export function ElementPanel() {
                 </div>
               </div>
 
-              {(elementsByCategory[categoryId] ?? []).map((element, elementIndex) =>
-                renderElementCard(element, categoryId, elementIndex),
-              )}
+              {!collapsedCategoryIds.has(categoryId) &&
+                (elementsByCategory[categoryId] ?? []).map((element, elementIndex) =>
+                  renderElementCard(element, categoryId, elementIndex),
+                )}
             </div>
           ))}
 

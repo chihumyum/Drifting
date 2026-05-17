@@ -25,7 +25,7 @@ const STORYLINE_COLORS = [
 export function LeftQuickButtons() {
   const location = useLocation();
   const { nodeId } = useParams<{ nodeId?: string }>();
-  const { projectId, navigateToNode, navigateToStoryline } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const { createNode } = useBookNode({
     projectId: projectId ?? '',
@@ -93,8 +93,8 @@ export function LeftQuickButtons() {
         mainStorylineId: defaultStorylineId,
       });
 
-      // Navigate to the new chapter
-      navigateToNode(newNode.id);
+      // Open as dedicated tab and navigate
+      openEntity({ entityType: 'node', id: newNode.id }, { preview: false });
 
       // Scroll timeline to the new chapter position
       setTimeout(() => {
@@ -130,8 +130,8 @@ export function LeftQuickButtons() {
         summary: '',
       });
 
-      // Navigate to storyline editor
-      navigateToStoryline(newStoryline.id);
+      // Open as dedicated tab and navigate
+      openEntity({ entityType: 'storyline', id: newStoryline.id }, { preview: false });
     } catch (error) {
       log.error('Failed to create storyline:', error);
     }

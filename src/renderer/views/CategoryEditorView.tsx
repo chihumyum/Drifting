@@ -11,6 +11,7 @@ import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { usePromoteCurrentTab } from '../store/ui-store';
 import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 import { X, Eye } from 'lucide-react';
 import loglevel from 'loglevel';
@@ -21,6 +22,7 @@ log.setLevel(loglevel.levels.ERROR);
 
 export function CategoryEditorView() {
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
     log.error('Project ID is missing in params');
@@ -117,6 +119,7 @@ export function CategoryEditorView() {
       if (contentJson === curCategory?.descriptionJson) return;
 
       if (curCategory) {
+        promoteCurrentTab();
         void handleSaveContent(contentJson);
       }
     },
@@ -173,6 +176,7 @@ export function CategoryEditorView() {
     }
 
     try {
+      promoteCurrentTab();
       await categoryUsecases.updateCategory(curCategory.id, {
         name: nextName,
       });

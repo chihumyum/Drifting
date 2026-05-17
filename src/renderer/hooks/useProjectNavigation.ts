@@ -1,5 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback } from 'react';
+import { useUiStore, type TabRef } from '../store/ui-store';
+
 const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
 
 /**
@@ -55,6 +57,31 @@ export function useProjectNavigation() {
     [navigate, currentProjectId],
   );
 
+  // VSCode-style "open as tab" entry point. Records the tab in store (with the
+  // requested preview flag) and navigates to its URL. The id is the raw entity
+  // id (decoded for categories); URL encoding is applied internally.
+  const openEntity = useCallback(
+    (ref: TabRef, options?: { preview?: boolean }) => {
+      const preview = options?.preview ?? true;
+      useUiStore.getState().openEntityTab(currentProjectId, ref, { preview });
+      switch (ref.entityType) {
+        case 'node':
+          navigate(`/project/${currentProjectId}/editor/${ref.id}`);
+          return;
+        case 'storyline':
+          navigate(`/project/${currentProjectId}/editor/storyline/${ref.id}`);
+          return;
+        case 'element':
+          navigate(`/project/${currentProjectId}/element/${ref.id}`);
+          return;
+        case 'category':
+          navigate(`/project/${currentProjectId}/category/${encodeURIComponent(ref.id)}`);
+          return;
+      }
+    },
+    [navigate, currentProjectId],
+  );
+
   return {
     projectId: currentProjectId,
     navigateToNode,
@@ -63,6 +90,7 @@ export function useProjectNavigation() {
     navigateToCategory,
     navigateToHome,
     navigateTo,
+    openEntity,
     // Also expose raw navigate for edge cases
     navigate,
   };

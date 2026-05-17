@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Plus, Trash2, MoreVertical, Edit3, AlignLeft, GitBranch } from 'lucide-react';
+import { Plus, AlignLeft, GitBranch, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
-import { useUiStore } from '../../store/ui-store';
+import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
@@ -27,9 +27,10 @@ const formatShortDate = (input: string | number | Date) => {
 
 export function NodesPanel() {
   const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
-  const { nodeUi, setNodeSelection, timelineHeight } = useUiStore();
+  const { nodeUi, timelineHeight } = useUiStore();
   const userId = useAuthStore((state) => state.user?.id);
-  const { projectId, navigateToStoryline } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
 
   const activeProjectId = useMemo(() => {
@@ -39,7 +40,7 @@ export function NodesPanel() {
     return projectId;
   }, [projectId]);
 
-  const { createNode, renameNode, deleteNode } = useBookNode({
+  const { createNode } = useBookNode({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
@@ -50,11 +51,21 @@ export function NodesPanel() {
   });
 
   const [viewMode, setViewMode] = useState<ViewMode>('global');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editingNodeName, setEditingNodeName] = useState('');
   const [editingStorylineId, setEditingStorylineId] = useState<string | null>(null);
   const [editingStorylineName, setEditingStorylineName] = useState('');
+  const [collapsedStorylineIds, setCollapsedStorylineIds] = useState<Set<string>>(new Set());
+
+  const toggleStorylineCollapsed = useCallback((id: string) => {
+    setCollapsedStorylineIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const panelHeight = useMemo(() => `calc(100vh - 120px - ${timelineHeight}px)`, [timelineHeight]);
 
@@ -105,12 +116,12 @@ export function NodesPanel() {
           end: newEnd,
           mainStorylineId,
         });
-        setNodeSelection(created.id, 'ui');
+        openEntity({ entityType: 'node', id: created.id }, { preview: false });
       } catch (error) {
         log.error('Failed to create node', error);
       }
     },
-    [storylines, bookNodes, createNode, createStoryline, activeProjectId, setNodeSelection],
+    [storylines, bookNodes, createNode, createStoryline, activeProjectId, openEntity],
   );
 
   const handleCreateStoryline = useCallback(async () => {
@@ -120,40 +131,6 @@ export function NodesPanel() {
       log.error('Failed to create storyline', error);
     }
   }, [createStoryline, activeProjectId]);
-
-  const handleDeleteNode = useCallback(
-    async (id: string) => {
-      try {
-        await deleteNode(id);
-        if (selectedNodeId === id) {
-          setNodeSelection(null, 'ui');
-        }
-      } catch (error) {
-        log.error('Failed to delete node', error);
-      }
-    },
-    [deleteNode, selectedNodeId, setNodeSelection],
-  );
-
-  const handleSaveNodeName = useCallback(
-    async (id: string) => {
-      const nextName = editingNodeName.trim();
-      if (!nextName) {
-        setEditingNodeId(null);
-        setEditingNodeName('');
-        return;
-      }
-      try {
-        await renameNode(id, nextName);
-      } catch (error) {
-        log.error('Failed to rename node', error);
-      } finally {
-        setEditingNodeId(null);
-        setEditingNodeName('');
-      }
-    },
-    [editingNodeName, renameNode],
-  );
 
   const handleSaveStorylineName = useCallback(
     async (id: string) => {
@@ -205,7 +182,10 @@ export function NodesPanel() {
           }
         }}
         onClick={() => {
-          setNodeSelection(node.id, 'ui');
+          openEntity({ entityType: 'node', id: node.id });
+        }}
+        onDoubleClick={() => {
+          promoteCurrentTab();
         }}
       >
         {selected && (
@@ -248,49 +228,7 @@ export function NodesPanel() {
             whiteSpace: 'nowrap',
           }}
         >
-          {editingNodeId === node.id ? (
-            <input
-              type="text"
-              value={editingNodeName}
-              onChange={(event) => setEditingNodeName(event.target.value)}
-              onBlur={() => {
-                void handleSaveNodeName(node.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  void handleSaveNodeName(node.id);
-                }
-                if (event.key === 'Escape') {
-                  setEditingNodeId(null);
-                  setEditingNodeName('');
-                }
-              }}
-              onFocus={(event) => event.target.select()}
-              autoFocus
-              onClick={(event) => event.stopPropagation()}
-              style={{
-                width: '100%',
-                fontSize: 13,
-                padding: '1px 4px',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 3,
-                background: 'hsl(var(--surface))',
-                color: 'hsl(var(--ink-1))',
-                outline: 'none',
-              }}
-            />
-          ) : (
-            <span
-              onDoubleClick={(event) => {
-                event.stopPropagation();
-                setEditingNodeId(node.id);
-                setEditingNodeName(node.title);
-              }}
-              style={{ cursor: 'text' }}
-            >
-              {node.title || 'Untitled'}
-            </span>
-          )}
+          <span>{node.title || 'Untitled'}</span>
         </div>
 
         {/* Date */}
@@ -306,94 +244,6 @@ export function NodesPanel() {
           {formatShortDate(node.updatedAt)}
         </span>
 
-        {/* Overflow menu */}
-        <div style={{ position: 'relative' }} onClick={(event) => event.stopPropagation()}>
-          <button
-            onClick={() => {
-              setOpenMenuId(openMenuId === node.id ? null : node.id);
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 20,
-              height: 20,
-              borderRadius: 3,
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-              padding: 0,
-              opacity: openMenuId === node.id ? 1 : 0.6,
-              transition: 'opacity 0.12s, background 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '1';
-              e.currentTarget.style.background = 'hsl(var(--ink-1) / 0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = openMenuId === node.id ? '1' : '0.6';
-              e.currentTarget.style.background = 'transparent';
-            }}
-            title="Options"
-          >
-            <MoreVertical size={13} strokeWidth={1.6} />
-          </button>
-
-          {openMenuId === node.id && (
-            <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 10 }}
-                onClick={() => setOpenMenuId(null)}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  background: 'hsl(var(--surface))',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 6,
-                  boxShadow:
-                    '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
-                  minWidth: 120,
-                  zIndex: 20,
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  onClick={() => {
-                    void handleDeleteNode(node.id);
-                    setOpenMenuId(null);
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'hsl(var(--destructive))',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--destructive) / 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <Trash2 size={13} strokeWidth={1.6} />
-                  Delete
-                </button>
-              </div>
-            </>
-          )}
-        </div>
       </div>
     );
   };
@@ -560,6 +410,8 @@ export function NodesPanel() {
               {storylines.map((storyline) => (
                 <div key={storyline.id} style={{ marginBottom: 8 }}>
                   <div
+                    onClick={() => openEntity({ entityType: 'storyline', id: storyline.id })}
+                    onDoubleClick={() => promoteCurrentTab()}
                     style={{
                       position: 'sticky',
                       top: 0,
@@ -572,6 +424,7 @@ export function NodesPanel() {
                       padding: '14px 10px 6px 12px',
                       background: 'hsl(var(--paper))',
                       borderBottom: '1px solid hsl(var(--rule) / 0.5)',
+                      cursor: 'pointer',
                     }}
                   >
                     <div
@@ -583,6 +436,34 @@ export function NodesPanel() {
                         flex: 1,
                       }}
                     >
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleStorylineCollapsed(storyline.id);
+                        }}
+                        title={
+                          collapsedStorylineIds.has(storyline.id) ? 'Expand' : 'Collapse'
+                        }
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 16,
+                          height: 16,
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'hsl(var(--ink-4))',
+                          cursor: 'pointer',
+                          padding: 0,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {collapsedStorylineIds.has(storyline.id) ? (
+                          <ChevronRight size={12} strokeWidth={2} />
+                        ) : (
+                          <ChevronDown size={12} strokeWidth={2} />
+                        )}
+                      </button>
                       <span
                         aria-hidden
                         style={{
@@ -666,36 +547,8 @@ export function NodesPanel() {
 
                     <div style={{ display: 'flex', gap: 2 }}>
                       <button
-                        onClick={() => navigateToStoryline(storyline.id)}
-                        title="Open storyline"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: 22,
-                          height: 22,
-                          borderRadius: 3,
-                          border: 'none',
-                          background: 'transparent',
-                          color: 'hsl(var(--ink-4))',
-                          cursor: 'pointer',
-                          padding: 0,
-                          transition: 'background 0.12s, color 0.12s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                          e.currentTarget.style.color = 'hsl(var(--ink-1))';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.color = 'hsl(var(--ink-4))';
-                        }}
-                      >
-                        <Edit3 size={12} strokeWidth={1.6} />
-                      </button>
-
-                      <button
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           void handleCreateNode(storyline.id);
                         }}
                         title="New chapter in this storyline"
@@ -727,7 +580,8 @@ export function NodesPanel() {
                     </div>
                   </div>
 
-                  {(nodesByStoryline[storyline.id] ?? []).map((node) => renderNodeCard(node))}
+                  {!collapsedStorylineIds.has(storyline.id) &&
+                    (nodesByStoryline[storyline.id] ?? []).map((node) => renderNodeCard(node))}
                 </div>
               ))}
 

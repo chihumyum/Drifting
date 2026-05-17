@@ -1,7 +1,33 @@
+import { useCallback } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type SidebarType = 'left' | 'right';
+
+export type TabEntityType = 'node' | 'storyline' | 'element' | 'category';
+
+export interface TabRef {
+  entityType: TabEntityType;
+  id: string;
+}
+
+export interface Tab extends TabRef {
+  isPreview: boolean;
+}
+
+export interface ProjectTabsState {
+  openTabs: Tab[];
+  activeTabKey: string | null;
+}
+
+export function tabKey(ref: TabRef): string {
+  return `${ref.entityType}:${ref.id}`;
+}
+
+const EMPTY_PROJECT_TABS: ProjectTabsState = Object.freeze({
+  openTabs: [] as Tab[],
+  activeTabKey: null,
+}) as ProjectTabsState;
 
 export interface SidebarState {
   isOpen: boolean;
@@ -14,10 +40,8 @@ export type EditorShellView =
   | 'project-dashboard'
   | 'node-editor'
   | 'storyline-editor'
-  | 'all-nodes-editor'
   | 'element-editor'
   | 'category-editor'
-  | 'all-elements-editor'
   | 'unknown';
 
 interface EntitySelectionState {
@@ -39,8 +63,6 @@ interface ElementUiContextState extends EntitySelectionState {
 interface EditorRuntimeState {
   view: EditorShellView;
   activeEntityType: 'node' | 'element' | 'none';
-  isAllNodesEditor: boolean;
-  isAllElementsEditor: boolean;
 }
 
 interface UiState {
@@ -69,10 +91,6 @@ interface UiState {
 
   editorRuntime: EditorRuntimeState;
   setEditorRuntime: (runtime: EditorRuntimeState) => void;
-  preferAllNodeTimeline: boolean;
-  setPreferAllNodeTimeline: (prefer: boolean) => void;
-  preferAllElementTimeline: boolean;
-  setPreferAllElementTimeline: (prefer: boolean) => void;
 
   selectedElementId: string | null;
   setSelectedElementId: (id: string | null) => void;
@@ -93,6 +111,14 @@ interface UiState {
   setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
   lastActiveSuperView: 'element' | 'graph' | 'reference' | null;
   setLastActiveSuperView: (view: 'element' | 'graph' | 'reference' | null) => void;
+
+  tabsByProject: Record<string, ProjectTabsState>;
+  openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
+  promoteTab: (projectId: string, ref?: TabRef) => void;
+  closeTab: (projectId: string, ref: TabRef) => { nextActive: Tab | null };
+  reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
+  setActiveTab: (projectId: string, ref: TabRef | null) => void;
+  clearProjectTabs: (projectId: string) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -261,14 +287,8 @@ export const useUiStore = create<UiState>()(
       editorRuntime: {
         view: 'unknown',
         activeEntityType: 'none',
-        isAllNodesEditor: false,
-        isAllElementsEditor: false,
       },
       setEditorRuntime: (runtime) => set({ editorRuntime: runtime }),
-      preferAllNodeTimeline: false,
-      setPreferAllNodeTimeline: (prefer) => set({ preferAllNodeTimeline: prefer }),
-      preferAllElementTimeline: false,
-      setPreferAllElementTimeline: (prefer) => set({ preferAllElementTimeline: prefer }),
 
       selectedElementId: null,
       setSelectedElementId: (id) =>
@@ -315,19 +335,160 @@ export const useUiStore = create<UiState>()(
       },
       lastActiveSuperView: null,
       setLastActiveSuperView: (view) => set({ lastActiveSuperView: view }),
+
+      tabsByProject: {},
+
+      openEntityTab: (projectId, ref, options) =>
+        set((state) => {
+          const preview = options?.preview ?? true;
+          const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
+          const key = tabKey(ref);
+          const existingIdx = project.openTabs.findIndex((t) => tabKey(t) === key);
+
+          let nextOpenTabs: Tab[];
+          if (existingIdx >= 0) {
+            // Already open — just activate. Preserve isPreview (don't demote dedicated → preview).
+            nextOpenTabs = project.openTabs;
+          } else if (preview) {
+            // Replace existing preview tab in place, or append new preview tab.
+            const previewIdx = project.openTabs.findIndex((t) => t.isPreview);
+            const newTab: Tab = { ...ref, isPreview: true };
+            if (previewIdx >= 0) {
+              nextOpenTabs = project.openTabs.slice();
+              nextOpenTabs[previewIdx] = newTab;
+            } else {
+              nextOpenTabs = [...project.openTabs, newTab];
+            }
+          } else {
+            // Dedicated tab — append.
+            nextOpenTabs = [...project.openTabs, { ...ref, isPreview: false }];
+          }
+
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: key },
+            },
+          };
+        }),
+
+      promoteTab: (projectId, ref) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const targetKey = ref ? tabKey(ref) : project.activeTabKey;
+          if (!targetKey) return {};
+          const idx = project.openTabs.findIndex((t) => tabKey(t) === targetKey);
+          if (idx < 0 || !project.openTabs[idx].isPreview) return {};
+          const nextOpenTabs = project.openTabs.slice();
+          nextOpenTabs[idx] = { ...nextOpenTabs[idx], isPreview: false };
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs: nextOpenTabs },
+            },
+          };
+        }),
+
+      closeTab: (projectId, ref) => {
+        let nextActive: Tab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const key = tabKey(ref);
+          const idx = project.openTabs.findIndex((t) => tabKey(t) === key);
+          if (idx < 0) return {};
+          const nextOpenTabs = project.openTabs.slice();
+          nextOpenTabs.splice(idx, 1);
+
+          let nextActiveTabKey: string | null = project.activeTabKey;
+          if (project.activeTabKey === key) {
+            if (nextOpenTabs.length === 0) {
+              nextActiveTabKey = null;
+            } else {
+              // Prefer right neighbor (now at `idx`), else fall back to new last.
+              const successor =
+                idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
+              nextActiveTabKey = tabKey(successor);
+              nextActive = successor;
+            }
+          }
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      reorderTabs: (projectId, fromIndex, toIndex) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          if (
+            fromIndex === toIndex ||
+            fromIndex < 0 ||
+            toIndex < 0 ||
+            fromIndex >= project.openTabs.length ||
+            toIndex >= project.openTabs.length
+          ) {
+            return {};
+          }
+          const nextOpenTabs = project.openTabs.slice();
+          const [moved] = nextOpenTabs.splice(fromIndex, 1);
+          nextOpenTabs.splice(toIndex, 0, moved);
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs: nextOpenTabs },
+            },
+          };
+        }),
+
+      setActiveTab: (projectId, ref) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
+          const nextKey = ref ? tabKey(ref) : null;
+          if (project.activeTabKey === nextKey) return {};
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, activeTabKey: nextKey },
+            },
+          };
+        }),
+
+      clearProjectTabs: (projectId) =>
+        set((state) => {
+          if (!state.tabsByProject[projectId]) return {};
+          const rest = { ...state.tabsByProject };
+          delete rest[projectId];
+          return { tabsByProject: rest };
+        }),
     }),
     {
       name: 'ui-storage', // unique name
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
-        preferAllNodeTimeline: state.preferAllNodeTimeline,
-        preferAllElementTimeline: state.preferAllElementTimeline,
         activeLeftPanel: state.activeLeftPanel,
         activeRightPanel: state.activeRightPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
+        tabsByProject: state.tabsByProject,
       }),
     },
   ),
 );
+
+export function useProjectTabs(projectId: string | undefined | null): ProjectTabsState {
+  return useUiStore((s) => (projectId ? s.tabsByProject[projectId] : undefined) ?? EMPTY_PROJECT_TABS);
+}
+
+export function usePromoteCurrentTab(projectId: string | undefined | null): () => void {
+  return useCallback(() => {
+    if (projectId) useUiStore.getState().promoteTab(projectId);
+  }, [projectId]);
+}

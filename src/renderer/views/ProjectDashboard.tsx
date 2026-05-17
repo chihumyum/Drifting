@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
@@ -10,8 +9,7 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger('ProjectDashboard');
 
 export function ProjectDashboard() {
-  const navigate = useNavigate();
-  const { projectId } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const { storylines, bookElements, bookElementCategories } = useDataStore();
 
@@ -35,7 +33,7 @@ export function ProjectDashboard() {
         name: 'Untitled Storyline',
         summary: '',
       });
-      navigate(`../editor/storyline/${newStoryline.id}`);
+      openEntity({ entityType: 'storyline', id: newStoryline.id }, { preview: false });
     } catch (e) {
       log.error('Failed to create storyline', e);
     }
@@ -99,7 +97,7 @@ export function ProjectDashboard() {
           {storylines.map((sl) => (
             <div
               key={sl.id}
-              onClick={() => navigate(`../editor/storyline/${sl.id}`)}
+              onClick={() => openEntity({ entityType: 'storyline', id: sl.id })}
               className="group bg-white rounded-xl shadow-sm hover:shadow-md border border-gray-100 hover:border-blue-200 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col h-48"
             >
               <div className="h-2 w-full" style={{ backgroundColor: sl.color || '#3B82F6' }} />
@@ -144,26 +142,10 @@ export function ProjectDashboard() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          <div
-            onClick={() => navigate('../home/all-nodes')}
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 cursor-pointer transition-all flex items-center gap-3"
-          >
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            <span className="text-sm font-medium text-gray-700">All Nodes</span>
-          </div>
-
-          <div
-            onClick={() => navigate('../home/all-elements')}
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 cursor-pointer transition-all flex items-center gap-3"
-          >
-            <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-            <span className="text-sm font-medium text-gray-700">All Elements</span>
-          </div>
-
           {bookElementCategories.map((cat) => (
             <div
               key={cat.id}
-              onClick={() => navigate(`../category/${encodeURIComponent(cat.name)}`)}
+              onClick={() => openEntity({ entityType: 'category', id: cat.id })}
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 cursor-pointer transition-all flex items-center gap-3"
             >
               <div

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
@@ -38,10 +38,8 @@ const TIMELINE_CONFIG = {
 
 export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
-  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
-  const selectedNodeId = useUiStore((state) => state.nodeUi.selectedId);
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const { projectId, navigateToNode, navigateToStoryline, navigateToHome } = useProjectNavigation();
   const { createNode, updateNode, deleteNode } = useBookNode({
@@ -56,10 +54,7 @@ export function BottomTimeline() {
     userId: user?.id ?? '',
     projectId: projectId ?? '',
   });
-  const isAllNodesEditorRoute =
-    location.pathname.includes('/home/all-nodes') ||
-    location.pathname.includes('/editor/all-nodes');
-  const activeSelectedNodeId = isAllNodesEditorRoute ? (selectedNodeId ?? nodeId) : nodeId;
+  const activeSelectedNodeId = nodeId;
 
   // Drag-time overrides for `start`; cleared automatically when the store
   // update flows back (see useMemo below). Resize uses setStartOverrides to

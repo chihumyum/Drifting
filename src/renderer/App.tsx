@@ -4,8 +4,6 @@ import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
-import { AllNodesEditorView } from './views/AllNodesEditorView';
-import { AllElementsEditorView } from './views/AllElementsEditorView';
 import { GraphView } from './views/GraphView';
 import { LoginPage } from './views/LoginPage';
 import { RegisterPage } from './views/RegisterPage';
@@ -368,28 +366,7 @@ export default function App() {
             </EditorShell>
           }
         />
-        <Route
-          path="home/all-nodes"
-          element={
-            <EditorShell view="all-nodes-editor">
-              <AllNodesEditorView />
-            </EditorShell>
-          }
-        />
-        <Route
-          path="home/all-elements"
-          element={
-            <EditorShell view="all-elements-editor">
-              <AllElementsEditorView />
-            </EditorShell>
-          }
-        />
         <Route path="editor" element={<Navigate to="../home" replace />} />
-        <Route path="editor/all-nodes" element={<Navigate to="../home/all-nodes" replace />} />
-        <Route
-          path="editor/all-elements"
-          element={<Navigate to="../home/all-elements" replace />}
-        />
         <Route
           path="editor/:nodeId"
           element={

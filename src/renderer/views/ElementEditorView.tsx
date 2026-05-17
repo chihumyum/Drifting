@@ -16,6 +16,7 @@ import { BacklinksPanel } from '../components/editor/BacklinksPanel';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { usePromoteCurrentTab } from '../store/ui-store';
 import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 
 const log = loglevel.getLogger('ElementEditorView');
@@ -25,6 +26,7 @@ export function ElementEditorView() {
   const navigate = useNavigate();
   const { navigateToHome } = useProjectNavigation();
   const { elementId, projectId } = useParams<{ elementId: string; projectId: string }>();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
   const { bookElements, bookElementCategories } = useDataStore();
 
@@ -118,6 +120,7 @@ export function ElementEditorView() {
       const contentJson = JSON.stringify(json);
       if (contentJson === curElement?.contentJson) return;
 
+      promoteCurrentTab();
       if (elementId) {
         void updateElement(elementId, {
           contentJson: contentJson,
@@ -149,12 +152,14 @@ export function ElementEditorView() {
 
   const handleSaveName = async () => {
     if (!elementId || !nameValue.trim()) return;
+    promoteCurrentTab();
     await updateElement(elementId, { name: nameValue.trim() });
     setEditingName(false);
   };
 
   const handleSaveSummary = async () => {
     if (!elementId) return;
+    promoteCurrentTab();
     await updateElement(elementId, { summary: summaryValue });
     setEditingSummary(false);
   };

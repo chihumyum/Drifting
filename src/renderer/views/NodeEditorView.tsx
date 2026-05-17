@@ -12,6 +12,7 @@ import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { usePromoteCurrentTab } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -54,6 +55,7 @@ export function NodeEditorView() {
   }
   const activeProjectId = projectId;
   const activeUserId = userId;
+  const promoteCurrentTab = usePromoteCurrentTab(activeProjectId);
   const { bookNodes, storylines, nodeStorylineMapping, storylineNodeMapping } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
@@ -197,24 +199,26 @@ export function NodeEditorView() {
 
   const handleTitleUpdate = useCallback(
     async (targetNodeId: string, title: string) => {
+      promoteCurrentTab();
       try {
         await renameNode(targetNodeId, title);
       } catch (error) {
         log.error('[NodeEditor] Failed to update title:', error);
       }
     },
-    [renameNode],
+    [renameNode, promoteCurrentTab],
   );
 
   const handleSummaryUpdate = useCallback(
     async (targetNodeId: string, summary: string) => {
+      promoteCurrentTab();
       try {
         await updateNodeSummary(targetNodeId, summary);
       } catch (error) {
         log.error('[NodeEditor] Failed to update summary:', error);
       }
     },
-    [updateNodeSummary],
+    [updateNodeSummary, promoteCurrentTab],
   );
 
   // Persists wordCount onto BookNode if it diverged from what's in state.
@@ -238,6 +242,7 @@ export function NodeEditorView() {
       outlineJson: string,
       nextWordCount: number,
     ) => {
+      promoteCurrentTab();
       try {
         const existing = await getContentByNodeId(targetNodeId);
         if (existing) {
@@ -259,7 +264,7 @@ export function NodeEditorView() {
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged],
+    [createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged, promoteCurrentTab],
   );
 
   // One-shot backfill: legacy nodes whose word_count is still 0 but whose

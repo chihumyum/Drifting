@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useBookNode } from '../../../usecase/useBookNode';
 import { useStoryline } from '../../../usecase/useStoryline';
 import { useBookElement } from '../../../usecase/useBookElement';
@@ -9,7 +8,6 @@ import { useDataStore } from '../../../store/data-store';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../../../store/auth';
-import { useUiStore } from '../../../store/ui-store';
 
 const log = loglevel.getLogger('NewEntityButton');
 log.setLevel(loglevel.levels.ERROR);
@@ -22,11 +20,8 @@ function safeDecodeURIComponent(value: string): string {
   }
 }
 
-// TODO: make this dynamic to create different entity types
-// if we're in storyline editor, get from URL, create new node
-// if we're at a node editor, get the node's current main storyline, create new node
-// if at element category editor, create element in this category
-// if at element editor, create element in this element's category
+// Self-adapting create button. Element-context (element/category route) → "Element";
+// otherwise → "Chapter". Hidden on the project dashboard by AppTopbar.
 export function NewEntityButton() {
   const { nodeId, storylineId, elementId, categoryId } = useParams<{
     nodeId?: string;
@@ -34,12 +29,7 @@ export function NewEntityButton() {
     elementId?: string;
     categoryId?: string;
   }>();
-  const location = useLocation();
-  const { projectId } = useProjectNavigation();
-  const setNodeSelection = useUiStore((state) => state.setNodeSelection);
-  const setElementSelection = useUiStore((state) => state.setElementSelection);
-  const preferAllNodeTimeline = useUiStore((state) => state.preferAllNodeTimeline);
-  const preferAllElementTimeline = useUiStore((state) => state.preferAllElementTimeline);
+  const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const { createNode } = useBookNode({
     projectId: projectId ?? '',
@@ -58,107 +48,42 @@ export function NewEntityButton() {
     userId: userId ?? '',
   });
   const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStore();
-  const [showCreateTargetDropdown, setShowCreateTargetDropdown] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState<{ x: number; y: number } | null>(null);
-  const hideDropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const isAllNodesMode =
-    location.pathname.includes('/home/all-nodes') ||
-    location.pathname.includes('/editor/all-nodes');
-  const isAllElementsMode =
-    location.pathname.includes('/home/all-elements') ||
-    location.pathname.includes('/editor/all-elements');
-  const showAllNodeGroup = isAllNodesMode || (Boolean(nodeId) && preferAllNodeTimeline);
-  const showAllElementGroup = isAllElementsMode || (Boolean(elementId) && preferAllElementTimeline);
-  const isAllEditorMode = showAllNodeGroup || showAllElementGroup;
   const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
-  const isElementContext = Boolean(elementId || categoryId || showAllElementGroup);
+  const isElementContext = Boolean(elementId || categoryId);
   const buttonLabel = isElementContext ? 'Element' : 'Chapter';
 
-  const showDropdownFromButton = () => {
-    const button = buttonRef.current;
-    if (!button) {
-      return;
-    }
-    const rect = button.getBoundingClientRect();
-    setDropdownPosition({ x: rect.left, y: rect.bottom + 4 });
-    setShowCreateTargetDropdown(true);
-  };
-
-  const clearHideDropdownTimeout = () => {
-    if (hideDropdownTimeoutRef.current) {
-      clearTimeout(hideDropdownTimeoutRef.current);
-      hideDropdownTimeoutRef.current = null;
-    }
-  };
-
-  const scheduleHideDropdown = () => {
-    clearHideDropdownTimeout();
-    hideDropdownTimeoutRef.current = setTimeout(() => {
-      setShowCreateTargetDropdown(false);
-      setDropdownPosition(null);
-    }, 120);
-  };
-
-  useEffect(() => {
-    return () => {
-      clearHideDropdownTimeout();
-    };
-  }, []);
-
-  const handleCreateChapter = async (targetStorylineId?: string) => {
+  const handleCreateChapter = async () => {
     try {
-      const currentNodes = bookNodes;
+      let defaultStorylineId: string | null = null;
 
-      // Determine target storyline
-      let defaultStorylineId: string | null = targetStorylineId ?? null;
-
-      // Priority 1: Use current storyline if in storyline editor
-      if (!defaultStorylineId && storylineId) {
+      // Priority 1: current storyline if in storyline editor.
+      if (storylineId) {
         defaultStorylineId = storylineId;
-      }
-      // Priority 2: Use selected node's primary storyline
-      else if (!defaultStorylineId && nodeId) {
-        const selectedNode = currentNodes.find((node) => node.id === nodeId);
+      } else if (nodeId) {
+        // Priority 2: selected node's primary storyline.
+        const selectedNode = bookNodes.find((node) => node.id === nodeId);
         defaultStorylineId = selectedNode?.mainStorylineId ?? null;
       }
-
-      // Priority 3: Use first available storyline
+      // Priority 3: first available storyline.
       if (!defaultStorylineId) {
-        const availableStorylines = storylines;
-        defaultStorylineId = availableStorylines[0]?.id ?? null;
+        defaultStorylineId = storylines[0]?.id ?? null;
+      }
+      // Priority 4: create one.
+      if (!defaultStorylineId) {
+        const created = await createStoryline({ projectId });
+        defaultStorylineId = created.id;
       }
 
-      // Calculate insertion position
-      let newStart = 1;
-      const newLength = 10;
-
-      if (!defaultStorylineId) {
-        const createdStoryline = await createStoryline({ projectId });
-        defaultStorylineId = createdStoryline.id;
-      }
-
-      const storylineNodes = currentNodes.filter(
+      const storylineNodes = bookNodes.filter(
         (node) => node.mainStorylineId === defaultStorylineId,
       );
       const maxStorylineEnd = storylineNodes.reduce((maxEnd, node) => {
         const nodeEnd = Math.max(node.end ?? node.start, node.start);
         return Math.max(maxEnd, nodeEnd);
       }, 0);
-      const maxAllNodesEnd = currentNodes.reduce((maxEnd, node) => {
-        const nodeEnd = Math.max(node.end ?? node.start, node.start);
-        return Math.max(maxEnd, nodeEnd);
-      }, 0);
+      const newStart = maxStorylineEnd > 0 ? maxStorylineEnd + 1 : 1;
+      const newEnd = newStart + 10;
 
-      if (preferAllNodeTimeline) {
-        newStart = maxAllNodesEnd > 0 ? maxAllNodesEnd + 1 : 1;
-      } else {
-        newStart = maxStorylineEnd > 0 ? maxStorylineEnd + 1 : 1;
-      }
-
-      const newEnd = newStart + newLength;
-
-      // Create the new node
       const newNode = await createNode({
         title: 'New Chapter',
         mainStorylineId: defaultStorylineId,
@@ -166,18 +91,16 @@ export function NewEntityButton() {
         end: newEnd,
       });
 
-      setNodeSelection(newNode.id, 'ui');
+      openEntity({ entityType: 'node', id: newNode.id }, { preview: false });
 
-      // Scroll timeline to the new chapter
       setTimeout(() => {
         const timelineContainer = document.querySelector(
           '[data-timeline-container]',
-        ) as HTMLElement;
+        ) as HTMLElement | null;
         if (timelineContainer) {
           const GRID_UNIT = 20;
-          const scrollPosition = newStart * GRID_UNIT;
           timelineContainer.scrollTo({
-            left: scrollPosition,
+            left: newStart * GRID_UNIT,
             behavior: 'smooth',
           });
         }
@@ -187,62 +110,48 @@ export function NewEntityButton() {
     }
   };
 
-  const handleCreateElement = async (targetCategoryIdInput?: string) => {
+  const handleCreateElement = async () => {
     try {
-      let targetCategoryId: string | null = targetCategoryIdInput ?? null;
+      let targetCategoryId: string | null = null;
 
-      if (!targetCategoryId && categoryId) {
+      if (categoryId) {
         targetCategoryId = decodedCategoryId ?? categoryId;
-      }
-
-      if (!targetCategoryId && elementId) {
+      } else if (elementId) {
         const element = bookElements.find((el) => el.id === elementId) ?? null;
         targetCategoryId = element?.categoryId ?? null;
       }
-
       if (!targetCategoryId) {
-        const categories = bookElementCategories;
-        targetCategoryId = categories[0]?.id ?? null;
+        targetCategoryId = bookElementCategories[0]?.id ?? null;
       }
-
       if (!targetCategoryId) {
         const created = await createCategory();
         targetCategoryId = created.id;
       }
-
       if (!targetCategoryId) {
         log.error('No category available for new element');
         return;
       }
 
       const newElement = await createElement({ categoryId: targetCategoryId });
-      setElementSelection(newElement.id, 'ui');
+      openEntity({ entityType: 'element', id: newElement.id }, { preview: false });
     } catch (error) {
       log.error('Failed to create element:', error);
     }
   };
 
-  const handleMainButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (isAllEditorMode) {
-      e.preventDefault();
-      clearHideDropdownTimeout();
-      showDropdownFromButton();
-      return;
-    }
-
+  const handleClick = () => {
     if (isElementContext) {
       void handleCreateElement();
-      return;
+    } else {
+      void handleCreateChapter();
     }
-    void handleCreateChapter();
   };
 
   return (
-    <>
-      <button
-        ref={buttonRef}
-        onClick={handleMainButtonClick}
-        style={{
+    <button
+      onClick={handleClick}
+      style={
+        {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -260,225 +169,21 @@ export function NewEntityButton() {
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           WebkitAppRegion: 'no-drag',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'hsl(var(--ink-1))';
-          e.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
-          e.currentTarget.style.color = 'hsl(var(--paper))';
-          if (isAllEditorMode) {
-            clearHideDropdownTimeout();
-            showDropdownFromButton();
-          }
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = 'hsl(var(--rule))';
-          e.currentTarget.style.color = 'hsl(var(--ink-2))';
-          if (isAllEditorMode) {
-            scheduleHideDropdown();
-          }
-        }}
-      >
-        <Plus size={13} strokeWidth={1.8} />
-        <span>{buttonLabel}</span>
-      </button>
-
-      {isAllEditorMode && showCreateTargetDropdown && dropdownPosition && (
-        <div
-          style={{
-            position: 'fixed',
-            left: Math.max(12, Math.min(dropdownPosition.x, window.innerWidth - 280)),
-            top: dropdownPosition.y,
-            width: 280,
-            maxHeight: '60vh',
-            overflowY: 'auto',
-            background: 'hsl(var(--surface))',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            borderRadius: 6,
-            border: '1px solid hsl(var(--rule))',
-            boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
-            padding: 6,
-            zIndex: 12000,
-          }}
-          onMouseEnter={clearHideDropdownTimeout}
-          onMouseLeave={scheduleHideDropdown}
-        >
-          {showAllNodeGroup && (
-            <>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: 'hsl(var(--ink-3))',
-                  fontFamily: 'var(--font-mono)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontWeight: 500,
-                  padding: '4px 6px 8px 6px',
-                }}
-              >
-                Create Chapter In Storyline
-              </div>
-              {storylines.map((storyline) => (
-                <div
-                  key={storyline.id}
-                  onClick={() => {
-                    void handleCreateChapter(storyline.id);
-                    setShowCreateTargetDropdown(false);
-                    setDropdownPosition(null);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 8px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    marginBottom: 4,
-                    background: 'transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 3,
-                      background: storyline.color || '#5d8aa8',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: 'hsl(var(--ink-1))',
-                      fontFamily: 'var(--font-serif)',
-                      fontStyle: 'italic',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {storyline.name || 'Untitled Storyline'}
-                  </div>
-                </div>
-              ))}
-              {storylines.length === 0 && (
-                <div
-                  onClick={() => {
-                    void handleCreateChapter();
-                    setShowCreateTargetDropdown(false);
-                    setDropdownPosition(null);
-                  }}
-                  style={{
-                    padding: '6px 8px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: 'hsl(var(--ink-2))',
-                    fontFamily: 'var(--font-serif)',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Create in new storyline
-                </div>
-              )}
-            </>
-          )}
-
-          {showAllElementGroup && (
-            <>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: 'hsl(var(--ink-3))',
-                  fontFamily: 'var(--font-mono)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontWeight: 500,
-                  padding: '4px 6px 8px 6px',
-                }}
-              >
-                Create Element In Category
-              </div>
-              {bookElementCategories.map((category) => (
-                <div
-                  key={category.id}
-                  onClick={() => {
-                    void handleCreateElement(category.id);
-                    setShowCreateTargetDropdown(false);
-                    setDropdownPosition(null);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 8px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    marginBottom: 4,
-                    background: 'transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 3,
-                      background: category.color || '#5d8aa8',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: 'hsl(var(--ink-1))',
-                      fontFamily: 'var(--font-serif)',
-                      fontStyle: 'italic',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {category.name || 'Untitled Category'}
-                  </div>
-                </div>
-              ))}
-              {bookElementCategories.length === 0 && (
-                <div
-                  onClick={() => {
-                    void handleCreateElement();
-                    setShowCreateTargetDropdown(false);
-                    setDropdownPosition(null);
-                  }}
-                  style={{
-                    padding: '6px 8px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: 'hsl(var(--ink-2))',
-                    fontFamily: 'var(--font-serif)',
-                    fontStyle: 'italic',
-                  }}
-                >
-                  Create in new category
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </>
+        } as React.CSSProperties
+      }
+      onMouseEnter={(event) => {
+        event.currentTarget.style.background = 'hsl(var(--ink-1))';
+        event.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
+        event.currentTarget.style.color = 'hsl(var(--paper))';
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = 'transparent';
+        event.currentTarget.style.borderColor = 'hsl(var(--rule))';
+        event.currentTarget.style.color = 'hsl(var(--ink-2))';
+      }}
+    >
+      <Plus size={13} strokeWidth={1.8} />
+      <span>{buttonLabel}</span>
+    </button>
   );
 }
