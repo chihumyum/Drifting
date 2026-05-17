@@ -1,145 +1,429 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, NotebookPen, Sparkles, UserRound, Mail, Lock } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
-import { AuthLayout } from '../components/auth/AuthLayout';
-import { OAuthButtons } from '../components/auth/OAuthButtons';
+import type { SupportedOAuthProvider } from '../lib/oauth-providers';
+import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
+import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
+import '../../styles/signin.css';
 
-const heroFeatures = [
+type Mode = 'signin' | 'signup' | 'forgot';
+
+interface SocialProvider {
+  key: string;
+  iconClass: string;
+  icon: string;
+  signInLabel: string;
+  signUpLabel: string;
+  sub: string;
+  oauth?: SupportedOAuthProvider;
+}
+
+const SOCIAL_PROVIDERS: SocialProvider[] = [
   {
-    title: '角色卡片系统',
-    description: '在一个视图里管理角色设定、动机与发展轨迹。',
-    icon: <UserRound className="h-5 w-5" />,
+    key: 'google',
+    iconClass: 'si-soc-btn__icon--g',
+    icon: 'G',
+    signInLabel: '用 Google 登录',
+    signUpLabel: '用 Google 注册',
+    sub: 'OAuth',
+    oauth: 'google',
   },
   {
-    title: '多维灵感库',
-    description: '将场景、灵感与章节绑定，不再担心创作碎片遗失。',
-    icon: <NotebookPen className="h-5 w-5" />,
+    key: 'apple',
+    iconClass: 'si-soc-btn__icon--a',
+    icon: '⌘',
+    signInLabel: '用 Apple 登录',
+    signUpLabel: '用 Apple 注册',
+    sub: 'Sign in with Apple',
+  },
+  {
+    key: 'wechat',
+    iconClass: 'si-soc-btn__icon--w',
+    icon: '微',
+    signInLabel: '用微信登录',
+    signUpLabel: '用微信注册',
+    sub: 'WeChat',
   },
 ];
 
-export function LoginPage() {
+interface LoginPageProps {
+  initialMode?: Exclude<Mode, 'forgot'>;
+}
+
+export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
+  const checkSession = useAuthStore((state) => state.checkSession);
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [isLoading, setIsLoading] = useState(false);
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<SupportedOAuthProvider | null>(null);
+  const [showClosedDialog, setShowClosedDialog] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError(null);
+  };
+
+  useEffect(() => {
+    const cleanup = window.electronAPI.auth.onOAuthCallback(
+      async ({ token, error: callbackError }) => {
+        setOauthLoading(null);
+        if (callbackError || !token) {
+          setError('OAuth 登录失败，请重试。');
+          return;
+        }
+        try {
+          await checkSession();
+        } catch {
+          setError('无法获取登录状态，请重试。');
+        }
+      },
+    );
+    return cleanup;
+  }, [checkSession]);
+
+  const handleOAuth = async (provider: SupportedOAuthProvider) => {
+    setError(null);
+    setOauthLoading(provider);
+    try {
+      await window.electronAPI.auth.openOAuthBrowser(provider);
+    } catch {
+      setError('无法打开浏览器，请重试。');
+      setOauthLoading(null);
+    }
+  };
+
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    setIsLoading(true);
 
+    if (mode === 'signup' && isAppClosedForPublic) {
+      setError(APP_CLOSED_MESSAGE);
+      setShowClosedDialog(true);
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      await login(formData.email, formData.password);
+      if (mode === 'signin') {
+        await login(email, password);
+      } else {
+        await register(email, password, name);
+      }
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败，请检查邮箱和密码');
+      const fallback = mode === 'signin' ? '登录失败，请检查邮箱和密码' : '注册失败，请稍后重试';
+      setError(err instanceof Error ? err.message : fallback);
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <AuthLayout
-      heroEyebrow="Welcome Back"
-      heroTitle="继续你的创作旅程"
-      heroHighlight=""
-      heroSubtitle="登录 Drifting，回到你构建的世界观。"
-      features={heroFeatures}
-    >
-      <div className="space-y-8">
-        <div className="space-y-3 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#f2e7d7] px-3 py-1 text-xs font-semibold text-[#8b6f47]">
-            <Sparkles className="h-3.5 w-3.5" />
-            Continue your story
+    <div className="signin">
+      {/* ═══ Left · editorial / brand ═══ */}
+      <aside className="si-left">
+        <div className="si-brand">
+          <span className="si-brand__glyph">渡</span>
+          <span className="si-brand__name">Drifting</span>
+          <span className="si-brand__sep">·</span>
+          <span className="si-brand__cn">渡舟</span>
+        </div>
+
+        <div className="si-quote">
+          <div className="si-quote__kicker">
+            <span className="si-quote__kicker-dot"></span>
+            <span>WRITING STUDIO</span>
+            <span className="si-quote__kicker-sep">·</span>
+            <span>FOR SERIOUS NOVELISTS</span>
           </div>
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-900">登录 Drifting</h2>
-            <p className="mt-1 text-sm text-slate-500">使用邮箱和密码登录。</p>
+          <h1 className="si-quote__title">
+            写作是一场<em>漫长的渡</em>。<br />
+            这里给你一艘<em>足够稳的船</em>。
+          </h1>
+          <p className="si-quote__body">
+            Drifting 把章节、故事线、人物、地点、物件、灵感 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。
+          </p>
+
+          <div className="si-feats">
+            <div className="si-feat">
+              <span className="si-feat__mark">§</span>
+              <div className="si-feat__body">
+                <span className="si-feat__title">
+                  章节 · <em>scene & beat</em> 大纲
+                </span>
+                <span className="si-feat__sub">markdown header · scrollspy · 大纲即正文</span>
+              </div>
+            </div>
+            <div className="si-feat">
+              <span className="si-feat__mark">◆</span>
+              <div className="si-feat__body">
+                <span className="si-feat__title">元素 · 自定义类目 + 字段</span>
+                <span className="si-feat__sub">人物 / 地点 / 物件 / 时代纪 / 语汇 / 你自己的</span>
+              </div>
+            </div>
+            <div className="si-feat">
+              <span className="si-feat__mark">¶</span>
+              <div className="si-feat__body">
+                <span className="si-feat__title">
+                  故事线 · <em>多视角</em>叙事
+                </span>
+                <span className="si-feat__sub">时间轴 · 叙事弧 · 跨线索引</span>
+              </div>
+            </div>
+            <div className="si-feat">
+              <span className="si-feat__mark">◐</span>
+              <div className="si-feat__body">
+                <span className="si-feat__title">Shadow · 离线 AI 校读</span>
+                <span className="si-feat__sub">人物年龄 / 视角越界 / 设定矛盾</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {error && (
-          <div className="rounded-2xl border border-[#f97316]/30 bg-[#fff1e6] px-4 py-3 text-sm text-[#9a4a1c]">
-            {error}
-          </div>
-        )}
+        <div className="si-foot">
+          <span>Drifting Writing Studio · v3.2</span>
+          <span className="si-foot__orn">⁂</span>
+          <span>本地优先 · 端到端加密</span>
+        </div>
+      </aside>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
-            >
-              邮箱
-            </label>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm focus-within:border-[#b89968] focus-within:ring-2 focus-within:ring-[#b89968]/30">
-              <Mail className="h-4 w-4 text-slate-400" />
+      {/* ═══ Right · form ═══ */}
+      <main className="si-right">
+        <div className="si-tabs">
+          <button
+            type="button"
+            className={`si-tab ${mode === 'signin' ? 'si-tab--active' : ''}`}
+            onClick={() => switchMode('signin')}
+          >
+            <span className="si-tab__cn">登录</span>
+            <span>SIGN IN</span>
+          </button>
+          <button
+            type="button"
+            className={`si-tab ${mode === 'signup' ? 'si-tab--active' : ''}`}
+            onClick={() => switchMode('signup')}
+          >
+            <span className="si-tab__cn">注册</span>
+            <span>SIGN UP</span>
+          </button>
+        </div>
+
+        {mode === 'forgot' ? (
+          <ForgotForm onCancel={() => switchMode('signin')} />
+        ) : (
+          <form className="si-form" onSubmit={submit}>
+            <div className="si-kicker">
+              <span className="si-kicker-dot"></span>
+              <span>{mode === 'signin' ? 'WELCOME BACK · 继续写作' : 'NEW HERE · 起航'}</span>
+            </div>
+            <h2 className="si-form__title">
+              {mode === 'signin' ? (
+                <Fragment>
+                  <em>登录</em> Drifting
+                </Fragment>
+              ) : (
+                <Fragment>
+                  <em>新建</em>账号
+                </Fragment>
+              )}
+            </h2>
+            <p className="si-form__sub">
+              {mode === 'signin'
+                ? '回到你已经构建的世界 — 章节、故事线、元素、灵感都还在。'
+                : '注册一个账号，开始你的第一本书。我们不会把你的稿子用于任何模型训练。'}
+            </p>
+
+            {error && <div className="si-error">{error}</div>}
+
+            {mode === 'signup' && (
+              <div className="si-field">
+                <span className="si-field__k">笔名 · PEN NAME</span>
+                <input
+                  className="si-field__input"
+                  placeholder="例：望舒"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="si-field">
+              <span className="si-field__k">邮箱 · EMAIL</span>
               <input
-                id="email"
+                className="si-field__input"
                 type="email"
                 placeholder="your@email.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
                 required
-                disabled={isLoading}
-                className="h-6 w-full border-none bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:text-slate-400"
+                autoFocus={mode === 'signin'}
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="password"
-              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
-            >
-              密码
-            </label>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm focus-within:border-[#b89968] focus-within:ring-2 focus-within:ring-[#b89968]/30">
-              <Lock className="h-4 w-4 text-slate-400" />
-              <input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                disabled={isLoading}
-                className="h-6 w-full border-none bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:text-slate-400"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-2xl bg-[#8b6f47] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#8b6f47]/20 transition-all hover:bg-[#b89968] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                登录中...
+            <div className="si-field">
+              <span className="si-field__k">
+                密码 · PASSWORD
+                {mode === 'signin' && (
+                  <a onClick={() => switchMode('forgot')}>忘了？</a>
+                )}
               </span>
-            ) : (
-              '登录'
+              <input
+                className="si-field__input"
+                type="password"
+                placeholder={mode === 'signup' ? '至少 10 字符' : '••••••••'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
+                required
+                minLength={mode === 'signup' ? 10 : undefined}
+              />
+            </div>
+
+            {mode === 'signin' && (
+              <div
+                className={`si-remember ${remember ? 'si-remember--on' : ''}`}
+                onClick={() => setRemember((v) => !v)}
+              >
+                <span className="si-remember__box"></span>
+                <span>记住我 — 这台机器</span>
+              </div>
             )}
-          </button>
-        </form>
 
-        <OAuthButtons />
+            <button type="submit" className="si-submit" disabled={isSubmitting}>
+              <span className="si-submit__cn">
+                {isSubmitting
+                  ? mode === 'signin'
+                    ? '登录中…'
+                    : '创建中…'
+                  : mode === 'signin'
+                  ? '登录'
+                  : '创建账号'}
+              </span>
+              <span>{mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}</span>
+              <span className="si-submit__arrow">→</span>
+            </button>
 
-        <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-          <span>还没有账号？</span>
-          <Link to="/register" className="font-semibold text-[#8b6f47] hover:text-[#b89968]">
-            立即注册
-          </Link>
-        </div>
-      </div>
-    </AuthLayout>
+            <div className="si-or">OR · 用第三方</div>
+
+            <div className="si-social">
+              {SOCIAL_PROVIDERS.map((p) => {
+                const enabled = !!p.oauth;
+                const loading = p.oauth && oauthLoading === p.oauth;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    className="si-soc-btn"
+                    onClick={enabled ? () => handleOAuth(p.oauth as SupportedOAuthProvider) : undefined}
+                    disabled={!enabled || isSubmitting || oauthLoading !== null}
+                    title={enabled ? undefined : '即将开放'}
+                  >
+                    <span className={`si-soc-btn__icon ${p.iconClass}`}>{p.icon}</span>
+                    <span className="si-soc-btn__label">
+                      {loading
+                        ? '等待浏览器授权…'
+                        : mode === 'signin'
+                        ? p.signInLabel
+                        : p.signUpLabel}
+                    </span>
+                    <span className="si-soc-btn__sub">
+                      {enabled ? p.sub : '即将开放'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="si-foot-right">
+              {mode === 'signin' ? (
+                <Fragment>
+                  <span>还没有账号？</span>
+                  <a onClick={() => switchMode('signup')}>立即注册 →</a>
+                </Fragment>
+              ) : (
+                <Fragment>
+                  <span>已经有账号？</span>
+                  <a onClick={() => switchMode('signin')}>登录 →</a>
+                </Fragment>
+              )}
+            </div>
+
+            <div className="si-legal">
+              {mode === 'signup' && (
+                <Fragment>
+                  注册即代表你同意我们的 <a>服务条款</a> 与 <a>隐私政策</a>。<br />
+                </Fragment>
+              )}
+              本地优先 · 端到端加密 · 不用作模型训练
+            </div>
+          </form>
+        )}
+      </main>
+
+      <BetaClosedDialog open={showClosedDialog} onClose={() => setShowClosedDialog(false)} />
+    </div>
   );
 }
+
+const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
+  const [sent, setSent] = useState(false);
+  const [email, setEmail] = useState('');
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSent(true);
+  };
+
+  return (
+    <form className="si-form" onSubmit={submit}>
+      <div className="si-kicker">
+        <span className="si-kicker-dot"></span>
+        <span>RESET · 重置密码</span>
+      </div>
+      <h2 className="si-form__title">
+        <em>找回</em>账号
+      </h2>
+      <p className="si-form__sub">填邮箱 — 我们寄一封带链接的信去。点开就可重设密码。</p>
+
+      <div className="si-field">
+        <span className="si-field__k">邮箱 · EMAIL</span>
+        <input
+          className="si-field__input"
+          type="email"
+          placeholder="your@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoFocus
+          required
+        />
+      </div>
+
+      {sent ? (
+        <div className="si-sent">已寄出。请去 {email || '邮箱'} 查收。</div>
+      ) : (
+        <button type="submit" className="si-submit">
+          <span className="si-submit__cn">寄出</span>
+          <span>SEND LINK</span>
+          <span className="si-submit__arrow">→</span>
+        </button>
+      )}
+
+      <div className="si-foot-right">
+        <a onClick={onCancel}>← 回到登录</a>
+      </div>
+    </form>
+  );
+};
+
