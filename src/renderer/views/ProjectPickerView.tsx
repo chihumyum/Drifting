@@ -129,7 +129,7 @@ export function ProjectPickerView() {
             <div style={styles.detailStats}>
               <span>{formatStat(project.stats.categories)} categories</span>
               <span>{formatStat(project.stats.edges)} edges</span>
-              <span>{formatStat(project.stats.nodeTags + project.stats.elementTags)} tags</span>
+              <span>{formatStat(project.stats.entityReferences)} references</span>
             </div>
             <div style={styles.cardFooter}>
               <span style={project.source === 'server' ? styles.serverBadge : styles.localBadge}>

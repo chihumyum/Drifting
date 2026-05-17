@@ -26,7 +26,8 @@ log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateNodeUsecaseInput {
   storyStageId?: string;
-  mainStorylineId: string;
+  // null = drift node (no storyline membership)
+  mainStorylineId: string | null;
   start: number;
   end?: number;
   title?: string;
@@ -115,10 +116,6 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         throw new Error('Project ID is required to create a node');
       }
 
-      if (!input.mainStorylineId) {
-        throw new Error('Main storyline is required to create a node');
-      }
-
       const now = new Date().toISOString();
       const newNode: BookNode = {
         id: uuidv7(),
@@ -156,7 +153,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
             const contentRepoTx = createBookContentRepository(tx);
             const created = await nodeRepoTx.create(newNode);
-            await linkRepoTx.addNodeToStoryline(created.id, created.mainStorylineId);
+            if (created.mainStorylineId) {
+              await linkRepoTx.addNodeToStoryline(created.id, created.mainStorylineId);
+            }
             await contentRepoTx.create({
               nodeId: created.id,
               contentJson: defaultDocJson,
@@ -170,7 +169,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             .map((node) => (node.id === created.id ? created : node))
             .sort((a, b) => a.start - b.start);
           setNodesState(merged);
-          addNodeToStorylineMappingState(created.mainStorylineId, created.id);
+          if (created.mainStorylineId) {
+            addNodeToStorylineMappingState(created.mainStorylineId, created.id);
+          }
         },
         sync: (created) =>
           syncNodeCreate(created.id, activeProjectId, {

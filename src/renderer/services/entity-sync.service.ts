@@ -14,7 +14,7 @@
  *   from the server and reconcile with local state (server wins on conflict).
  */
 
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { apiClient } from '../lib/axios-config';
 import { APP_CONFIG, isSyncEnabled } from '../lib/config';
 import { getDb } from '../lib/db';
@@ -24,23 +24,19 @@ import {
   BookElementTable,
   BookNodeTable,
   ElementCategoryTable,
-  ElementOccurrenceTable,
-  ElementStageTable,
-  ElementTagLinkTable,
-  ElementTagTable,
+  ElementPatchTable,
+  EntityReferenceTable,
   LocalSyncMutationTable,
   NodeContentTable,
   NodeEdgeTable,
-  NodeElementBacklinkTable,
   NodeStorylineLinkTable,
-  NodeTagLinkTable,
-  NodeTagTable,
   ProjectTable,
   StorylineTable,
   StoryStageTable,
 } from '../schema/drizzle';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
+import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('EntitySyncService');
@@ -57,11 +53,6 @@ export type EntityType =
   | 'nodeStorylineLink'
   | 'element'
   | 'elementCategory'
-  | 'elementStage'
-  | 'elementTag'
-  | 'elementTagLink'
-  | 'nodeTag'
-  | 'nodeTagLink'
   | 'storyStage';
 
 export type MutationType = 'create' | 'update' | 'delete';
@@ -113,13 +104,9 @@ export interface ProjectGraphPayload {
   nodeStorylineLinks: Record<string, unknown>[];
   elements: Record<string, unknown>[];
   elementCategories: Record<string, unknown>[];
-  elementStages: Record<string, unknown>[];
   storyStages: Record<string, unknown>[];
-  nodeTags: Record<string, unknown>[];
-  nodeTagLinks: Record<string, unknown>[];
-  elementTags: Record<string, unknown>[];
-  elementTagLinks: Record<string, unknown>[];
-  elementOccurrences: Record<string, unknown>[];
+  entityReferences: Record<string, unknown>[];
+  entityPatches: Record<string, unknown>[];
 }
 
 function shouldPersistOutbox(): boolean {
@@ -484,99 +471,6 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/categories/${entityId}` };
 
-    // ---- Element Stage ----
-    case 'elementStage':
-      if (mutationType === 'create') {
-        return {
-          method: 'POST',
-          endpoint: `/api/projects/${projectId}/elements/${parentId}/stages`,
-          data: payload,
-        };
-      } else if (mutationType === 'update') {
-        return {
-          method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`,
-          data: payload,
-        };
-      }
-      return {
-        method: 'DELETE',
-        endpoint: `/api/projects/${projectId}/elements/${parentId}/stages/${entityId}`,
-      };
-
-    // ---- Element Tag ----
-    case 'elementTag':
-      if (mutationType === 'create') {
-        return {
-          method: 'POST',
-          endpoint: `/api/projects/${projectId}/element-tags`,
-          data: payload,
-        };
-      }
-      if (mutationType === 'delete') {
-        return {
-          method: 'DELETE',
-          endpoint: `/api/projects/${projectId}/element-tags/${entityId}`,
-        };
-      }
-      return null;
-
-    // ---- Element Tag Link ----
-    case 'elementTagLink':
-      if (mutationType === 'create') {
-        // entityId = elementId, parentId = tagId
-        return {
-          method: 'POST',
-          endpoint: `/api/projects/${projectId}/elements/${entityId}/tags/${parentId}`,
-        };
-      } else if (mutationType === 'delete') {
-        return {
-          method: 'DELETE',
-          endpoint: `/api/projects/${projectId}/elements/${entityId}/tags/${parentId}`,
-        };
-      }
-      // Bulk set
-      return {
-        method: 'PUT',
-        endpoint: `/api/projects/${projectId}/elements/${entityId}/tags`,
-        data: payload,
-      };
-
-    // ---- Node Tag ----
-    case 'nodeTag':
-      if (mutationType === 'create') {
-        return {
-          method: 'POST',
-          endpoint: `/api/projects/${projectId}/node-tags`,
-          data: payload,
-        };
-      }
-      if (mutationType === 'delete') {
-        return { method: 'DELETE', endpoint: `/api/projects/${projectId}/node-tags/${entityId}` };
-      }
-      return null;
-
-    // ---- Node Tag Link ----
-    case 'nodeTagLink':
-      if (mutationType === 'create') {
-        // entityId = nodeId, parentId = tagId
-        return {
-          method: 'POST',
-          endpoint: `/api/projects/${projectId}/node-tags/${parentId}/nodes/${entityId}`,
-        };
-      } else if (mutationType === 'delete') {
-        return {
-          method: 'DELETE',
-          endpoint: `/api/projects/${projectId}/node-tags/${parentId}/nodes/${entityId}`,
-        };
-      }
-      // Bulk set
-      return {
-        method: 'PUT',
-        endpoint: `/api/projects/${projectId}/node-tags/by-node/${entityId}`,
-        data: payload,
-      };
-
     // ---- Story Stage ----
     case 'storyStage':
       if (mutationType === 'create') {
@@ -656,14 +550,10 @@ export interface PullResult {
   nodeStorylineLinks?: unknown[];
   elements?: unknown[];
   elementCategories?: unknown[];
-  elementStages?: unknown[];
   categories?: unknown[];
   stages?: unknown[];
-  nodeTags?: unknown[];
-  nodeTagLinks?: unknown[];
-  elementTags?: unknown[];
-  elementTagLinks?: unknown[];
-  elementOccurrences?: unknown[];
+  entityReferences?: unknown[];
+  entityPatches?: unknown[];
 }
 
 /**
@@ -682,14 +572,10 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     nodeStorylineLinks: graph.nodeStorylineLinks,
     elements: graph.elements,
     elementCategories: graph.elementCategories,
-    elementStages: graph.elementStages,
     categories: graph.elementCategories,
     stages: graph.storyStages,
-    nodeTags: graph.nodeTags,
-    nodeTagLinks: graph.nodeTagLinks,
-    elementTags: graph.elementTags,
-    elementTagLinks: graph.elementTagLinks,
-    elementOccurrences: graph.elementOccurrences,
+    entityReferences: graph.entityReferences,
+    entityPatches: graph.entityPatches,
   };
 }
 
@@ -744,40 +630,7 @@ function buildStorylineNodeMapping(
   return mapping;
 }
 
-function groupLinkIds(
-  rows: Record<string, unknown>[],
-  ownerKey: 'nodeId' | 'elementId',
-  childKey: 'tagId' | 'storylineId',
-): Record<string, string[]> {
-  const grouped: Record<string, string[]> = {};
-  rows.forEach((row) => {
-    const ownerId = stringValue(row, ownerKey);
-    const childId = stringValue(row, childKey);
-    if (!ownerId || !childId) return;
-    const values = grouped[ownerId] ?? [];
-    if (!values.includes(childId)) grouped[ownerId] = [...values, childId];
-  });
-  return grouped;
-}
-
-function groupRowIds(
-  rows: Record<string, unknown>[],
-  ownerKey: 'nodeId' | 'elementId',
-): Record<string, string[]> {
-  const grouped: Record<string, string[]> = {};
-  rows.forEach((row) => {
-    const ownerId = stringValue(row, ownerKey);
-    const id = stringValue(row, 'id');
-    if (!ownerId || !id) return;
-    const values = grouped[ownerId] ?? [];
-    if (!values.includes(id)) grouped[ownerId] = [...values, id];
-  });
-  return grouped;
-}
-
 function applyGraphToStores(graph: ProjectGraphPayload): void {
-  const elementTagIds = groupLinkIds(graph.elementTagLinks, 'elementId', 'tagId');
-  const elementStageIds = groupRowIds(graph.elementStages, 'elementId');
   const nodeStorylineLinks = graph.nodeStorylineLinks
     .map((row) => ({
       nodeId: stringValue(row, 'nodeId'),
@@ -808,7 +661,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       start: numberValue(row, 'start'),
       end: numberValue(row, 'end'),
       storyStageId: nullableStringValue(row, 'storyStageId'),
-      mainStorylineId: stringValue(row, 'mainStorylineId'),
+      mainStorylineId: nullableStringValue(row, 'mainStorylineId'),
       position: {
         x: numberValue(row, 'positionX'),
         y: numberValue(row, 'positionY'),
@@ -857,26 +710,6 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       name: stringValue(row, 'name'),
       summary: stringValue(row, 'summary'),
       contentJson: stringValue(row, 'contentJson', '{}'),
-      tagIds: elementTagIds[stringValue(row, 'id')] ?? [],
-      stageIds: elementStageIds[stringValue(row, 'id')] ?? [],
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
-  );
-  dataStore.setNodeTags(
-    graph.nodeTags.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
-  );
-  dataStore.setElementTags(
-    graph.elementTags.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })),
@@ -916,13 +749,27 @@ function normalizeRows(
   return rows.map(mapper);
 }
 
+interface ManualReferenceKeyInput {
+  fromKind: string;
+  fromId: string;
+  toKind: string;
+  toId: string;
+  toBlockId: string | null;
+}
+
+function manualReferenceKey(row: ManualReferenceKeyInput): string {
+  return `${row.fromKind}:${row.fromId}->${row.toKind}:${row.toId}:${row.toBlockId ?? ''}`;
+}
+
 async function countPendingMutations(projectId?: string): Promise<number> {
-  const base = getDb()
+  // Successful mutations are deleted from the outbox, so anything still here
+  // is unfinished (pending, in_flight, or last attempt failed). Treat all of
+  // them as "would be lost by a destructive hydrate".
+  const conditions = projectId ? [eq(LocalSyncMutationTable.projectId, projectId)] : [];
+  const rows = await getDb()
     .select({ id: LocalSyncMutationTable.id })
-    .from(LocalSyncMutationTable);
-  const rows = projectId
-    ? await base.where(eq(LocalSyncMutationTable.projectId, projectId))
-    : await base.where(eq(LocalSyncMutationTable.status, 'pending'));
+    .from(LocalSyncMutationTable)
+    .where(conditions.length ? and(...conditions) : undefined);
   return rows.length;
 }
 
@@ -933,6 +780,16 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
   const db = getDb();
 
   await db.transaction(async (tx) => {
+    const localManualReferences = await tx
+      .select()
+      .from(EntityReferenceTable)
+      .where(
+        and(
+          eq(EntityReferenceTable.projectId, projectId),
+          isNull(EntityReferenceTable.fromBlockId),
+        ),
+      );
+
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
       .from(BookNodeTable)
@@ -945,52 +802,104 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       .select({ id: StorylineTable.id })
       .from(StorylineTable)
       .where(eq(StorylineTable.projectId, projectId));
-    const oldNodeTags = await tx
-      .select({ id: NodeTagTable.id })
-      .from(NodeTagTable)
-      .where(eq(NodeTagTable.projectId, projectId));
-    const oldElementTags = await tx
-      .select({ id: ElementTagTable.id })
-      .from(ElementTagTable)
-      .where(eq(ElementTagTable.projectId, projectId));
+    const oldCategories = await tx
+      .select({ id: ElementCategoryTable.id })
+      .from(ElementCategoryTable)
+      .where(eq(ElementCategoryTable.projectId, projectId));
 
     const oldNodeIds = oldNodes.map((row) => row.id);
     const oldElementIds = oldElements.map((row) => row.id);
     const oldStorylineIds = oldStorylines.map((row) => row.id);
-    const oldNodeTagIds = oldNodeTags.map((row) => row.id);
-    const oldElementTagIds = oldElementTags.map((row) => row.id);
+    const oldCategoryIds = oldCategories.map((row) => row.id);
 
     if (oldNodeIds.length > 0) {
       await tx.delete(NodeContentTable).where(inArray(NodeContentTable.nodeId, oldNodeIds));
       await tx.delete(NodeStorylineLinkTable).where(inArray(NodeStorylineLinkTable.nodeId, oldNodeIds));
-      await tx.delete(NodeTagLinkTable).where(inArray(NodeTagLinkTable.nodeId, oldNodeIds));
-      await tx.delete(ElementOccurrenceTable).where(inArray(ElementOccurrenceTable.nodeId, oldNodeIds));
-      await tx.delete(NodeElementBacklinkTable).where(inArray(NodeElementBacklinkTable.nodeId, oldNodeIds));
+      // Polymorphic refs: drop any reference whose `from` or `to` was an
+      // about-to-be-deleted node. We can't express the from/to OR via inArray
+      // in a single delete, so issue two deletes.
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.fromKind, 'node'),
+            inArray(EntityReferenceTable.fromId, oldNodeIds),
+          ),
+        );
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.toKind, 'node'),
+            inArray(EntityReferenceTable.toId, oldNodeIds),
+          ),
+        );
+      // ElementPatch.sourceNodeId is ON DELETE SET NULL — letting the BookNode
+      // deletion below cascade is enough; rows themselves are owned by elements
+      // and will be cleared when those cascade.
     }
     if (oldElementIds.length > 0) {
-      await tx.delete(ElementStageTable).where(inArray(ElementStageTable.elementId, oldElementIds));
-      await tx.delete(ElementTagLinkTable).where(inArray(ElementTagLinkTable.elementId, oldElementIds));
+      // Polymorphic refs touching the elements being deleted (either side).
       await tx
-        .delete(NodeElementBacklinkTable)
-        .where(inArray(NodeElementBacklinkTable.elementId, oldElementIds));
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.fromKind, 'element'),
+            inArray(EntityReferenceTable.fromId, oldElementIds),
+          ),
+        );
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.toKind, 'element'),
+            inArray(EntityReferenceTable.toId, oldElementIds),
+          ),
+        );
     }
     if (oldStorylineIds.length > 0) {
       await tx
         .delete(NodeStorylineLinkTable)
         .where(inArray(NodeStorylineLinkTable.storylineId, oldStorylineIds));
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.fromKind, 'storyline'),
+            inArray(EntityReferenceTable.fromId, oldStorylineIds),
+          ),
+        );
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.toKind, 'storyline'),
+            inArray(EntityReferenceTable.toId, oldStorylineIds),
+          ),
+        );
     }
-    if (oldNodeTagIds.length > 0) {
-      await tx.delete(NodeTagLinkTable).where(inArray(NodeTagLinkTable.tagId, oldNodeTagIds));
-    }
-    if (oldElementTagIds.length > 0) {
-      await tx.delete(ElementTagLinkTable).where(inArray(ElementTagLinkTable.tagId, oldElementTagIds));
+    if (oldCategoryIds.length > 0) {
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.fromKind, 'category'),
+            inArray(EntityReferenceTable.fromId, oldCategoryIds),
+          ),
+        );
+      await tx
+        .delete(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.toKind, 'category'),
+            inArray(EntityReferenceTable.toId, oldCategoryIds),
+          ),
+        );
     }
 
     await tx.delete(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
-    await tx.delete(NodeTagTable).where(eq(NodeTagTable.projectId, projectId));
-    await tx.delete(ElementTagTable).where(eq(ElementTagTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
     await tx.delete(StoryStageTable).where(eq(StoryStageTable.projectId, projectId));
     await tx.delete(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, projectId));
@@ -1060,7 +969,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       start: numberValue(row, 'start'),
       end: numberValue(row, 'end'),
       storyStageId: nullableStringValue(row, 'storyStageId'),
-      mainStorylineId: stringValue(row, 'mainStorylineId'),
+      mainStorylineId: nullableStringValue(row, 'mainStorylineId'),
       positionX: numberValue(row, 'positionX'),
       positionY: numberValue(row, 'positionY'),
       wordCount: numberValue(row, 'wordCount'),
@@ -1115,44 +1024,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(BookElementTable).values(elements as any[]);
     }
 
-    const elementStages = normalizeRows(graph.elementStages, (row) => ({
-      id: stringValue(row, 'id'),
-      elementId: stringValue(row, 'elementId'),
-      stageName: stringValue(row, 'stageName'),
-      summary: stringValue(row, 'summary'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      orderKey: numberValue(row, 'orderKey'),
-      startNodeId: nullableStringValue(row, 'startNodeId'),
-      endNodeId: nullableStringValue(row, 'endNodeId'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (elementStages.length > 0) {
-      await tx.insert(ElementStageTable).values(elementStages as any[]);
-    }
-
-    const nodeTags = normalizeRows(graph.nodeTags, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (nodeTags.length > 0) {
-      await tx.insert(NodeTagTable).values(nodeTags as any[]);
-    }
-
-    const elementTags = normalizeRows(graph.elementTags, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (elementTags.length > 0) {
-      await tx.insert(ElementTagTable).values(elementTags as any[]);
-    }
-
     const nodeStorylineLinks = normalizeRows(graph.nodeStorylineLinks, (row) => ({
       nodeId: stringValue(row, 'nodeId'),
       storylineId: stringValue(row, 'storylineId'),
@@ -1161,33 +1032,69 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(NodeStorylineLinkTable).values(nodeStorylineLinks as any[]);
     }
 
-    const nodeTagLinks = normalizeRows(graph.nodeTagLinks, (row) => ({
-      nodeId: stringValue(row, 'nodeId'),
-      tagId: stringValue(row, 'tagId'),
-    })).filter((row) => row.nodeId && row.tagId);
-    if (nodeTagLinks.length > 0) {
-      await tx.insert(NodeTagLinkTable).values(nodeTagLinks as any[]);
-    }
-
-    const elementTagLinks = normalizeRows(graph.elementTagLinks, (row) => ({
-      elementId: stringValue(row, 'elementId'),
-      tagId: stringValue(row, 'tagId'),
-    })).filter((row) => row.elementId && row.tagId);
-    if (elementTagLinks.length > 0) {
-      await tx.insert(ElementTagLinkTable).values(elementTagLinks as any[]);
-    }
-
-    const elementOccurrences = normalizeRows(graph.elementOccurrences, (row) => ({
+    const entityReferences = normalizeRows(graph.entityReferences, (row) => ({
       id: stringValue(row, 'id'),
-      elementId: stringValue(row, 'elementId'),
-      nodeId: stringValue(row, 'nodeId'),
-      blockId: stringValue(row, 'blockId'),
-      spansJson: stringValue(row, 'spansJson', '[]'),
+      projectId: stringValue(row, 'projectId'),
+      fromKind: stringValue(row, 'fromKind'),
+      fromId: stringValue(row, 'fromId'),
+      fromBlockId: nullableStringValue(row, 'fromBlockId'),
+      fromSpansJson: nullableStringValue(row, 'fromSpansJson'),
+      toKind: stringValue(row, 'toKind'),
+      toId: stringValue(row, 'toId'),
+      toBlockId: nullableStringValue(row, 'toBlockId'),
+      origin: stringValue(row, 'origin', 'manual'),
+      confidence: typeof row.confidence === 'number' ? row.confidence : null,
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.elementId && row.nodeId);
-    if (elementOccurrences.length > 0) {
-      await tx.insert(ElementOccurrenceTable).values(elementOccurrences as any[]);
+    })).filter((row) => row.id && row.fromId && row.toId);
+    if (entityReferences.length > 0) {
+      await tx.insert(EntityReferenceTable).values(entityReferences as any[]);
+    }
+
+    if (localManualReferences.length > 0) {
+      const currentManualReferences = await tx
+        .select({
+          fromKind: EntityReferenceTable.fromKind,
+          fromId: EntityReferenceTable.fromId,
+          toKind: EntityReferenceTable.toKind,
+          toId: EntityReferenceTable.toId,
+          toBlockId: EntityReferenceTable.toBlockId,
+        })
+        .from(EntityReferenceTable)
+        .where(
+          and(
+            eq(EntityReferenceTable.projectId, projectId),
+            isNull(EntityReferenceTable.fromBlockId),
+          ),
+        );
+      const currentManualKeys = new Set(currentManualReferences.map(manualReferenceKey));
+      const manualReferencesToRestore = localManualReferences.filter(
+        (row) => !currentManualKeys.has(manualReferenceKey(row)),
+      );
+      if (manualReferencesToRestore.length > 0) {
+        await tx
+          .insert(EntityReferenceTable)
+          .values(manualReferencesToRestore as any[])
+          .onConflictDoNothing();
+      }
+    }
+
+    // ElementPatch rows are owned by their element; they were cascade-deleted
+    // by the BookElement wipe above, so a fresh insert from the payload is safe.
+    const entityPatches = normalizeRows(graph.entityPatches, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      elementId: stringValue(row, 'elementId'),
+      sourceNodeId: nullableStringValue(row, 'sourceNodeId'),
+      sourceBlockId: nullableStringValue(row, 'sourceBlockId'),
+      title: nullableStringValue(row, 'title'),
+      contentJson: stringValue(row, 'contentJson', '{}'),
+      orderKey: numberValue(row, 'orderKey', 0),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.elementId);
+    if (entityPatches.length > 0) {
+      await tx.insert(ElementPatchTable).values(entityPatches as any[]);
     }
   });
 
@@ -1197,10 +1104,16 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
 export async function pullAndHydrateProjectGraph(projectId: string): Promise<ProjectGraphPayload | null> {
   if (!isSyncEnabled()) return null;
 
+  // Try to drain the outbox first. If anything is still queued after the
+  // flush attempt, hydrate would destructively overwrite that work, so we
+  // refuse and let the flush retry on its own schedule.
   await forceFlush();
 
   const pendingForProject = await countPendingMutations(projectId);
   if (pendingForProject > 0) {
+    log.warn(
+      `[sync] skipping hydrate of ${projectId}: ${pendingForProject} unflushed local mutations`,
+    );
     setStatus('error', `${pendingForProject} pending local mutations`);
     return null;
   }
@@ -1227,6 +1140,9 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
   try {
     const response = await apiClient.get<ProjectGraphPayload>(`/api/projects/${projectId}/graph`);
     await hydrateProjectGraph(response.data);
+    await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
+      log.warn('[sync] reference index rebuild after hydrate failed:', error);
+    });
     const resourceCount =
       response.data.nodes.length +
       response.data.nodeContents.length +
@@ -1235,13 +1151,9 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.nodeStorylineLinks.length +
       response.data.elements.length +
       response.data.elementCategories.length +
-      response.data.elementStages.length +
       response.data.storyStages.length +
-      response.data.nodeTags.length +
-      response.data.nodeTagLinks.length +
-      response.data.elementTags.length +
-      response.data.elementTagLinks.length +
-      response.data.elementOccurrences.length;
+      response.data.entityReferences.length +
+      response.data.entityPatches.length;
 
     setStatus('idle');
     emitSyncOperation({
@@ -1299,8 +1211,6 @@ export function startPeriodicPull(projectId: string, onData: (data: PullResult) 
       elements: graph.elements,
       categories: graph.elementCategories,
       stages: graph.storyStages,
-      nodeTags: graph.nodeTags,
-      elementTags: graph.elementTags,
     });
   });
 
@@ -1313,8 +1223,6 @@ export function startPeriodicPull(projectId: string, onData: (data: PullResult) 
         elements: graph.elements,
         categories: graph.elementCategories,
         stages: graph.storyStages,
-        nodeTags: graph.nodeTags,
-        elementTags: graph.elementTags,
       });
     });
   }, PULL_INTERVAL_MS);

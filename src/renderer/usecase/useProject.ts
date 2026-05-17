@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import type { Project } from '../domain/project';
 import type { Storyline } from '../domain/storyline';
@@ -27,14 +27,9 @@ import {
   BookElementTable,
   BookNodeTable,
   ElementCategoryTable,
-  ElementOccurrenceTable,
-  ElementStageTable,
-  ElementTagLinkTable,
-  ElementTagTable,
+  EntityReferenceTable,
   NodeEdgeTable,
   NodeStorylineLinkTable,
-  NodeTagLinkTable,
-  NodeTagTable,
   ProjectTable,
   StorylineTable,
   StoryStageTable,
@@ -60,14 +55,9 @@ export interface ProjectStats {
   storylineLinks: number;
   elements: number;
   categories: number;
-  elementStages: number;
   storyStages: number;
   edges: number;
-  nodeTags: number;
-  nodeTagLinks: number;
-  elementTags: number;
-  elementTagLinks: number;
-  elementOccurrences: number;
+  entityReferences: number;
 }
 
 export type ProjectSummary = Project & {
@@ -92,14 +82,9 @@ const EMPTY_PROJECT_STATS: ProjectStats = {
   storylineLinks: 0,
   elements: 0,
   categories: 0,
-  elementStages: 0,
   storyStages: 0,
   edges: 0,
-  nodeTags: 0,
-  nodeTagLinks: 0,
-  elementTags: 0,
-  elementTagLinks: 0,
-  elementOccurrences: 0,
+  entityReferences: 0,
 };
 
 function createRequestId(prefix: string): string {
@@ -158,8 +143,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     elements,
     elementCategories,
     storyStages,
-    nodeTags,
-    elementTags,
   ] = await Promise.all([
     db
       .select({ id: BookNodeTable.id, wordCount: BookNodeTable.wordCount })
@@ -182,25 +165,11 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
       .select({ id: StoryStageTable.id })
       .from(StoryStageTable)
       .where(eq(StoryStageTable.projectId, projectId)),
-    db.select({ id: NodeTagTable.id }).from(NodeTagTable).where(eq(NodeTagTable.projectId, projectId)),
-    db
-      .select({ id: ElementTagTable.id })
-      .from(ElementTagTable)
-      .where(eq(ElementTagTable.projectId, projectId)),
   ]);
 
   const nodeIds = nodes.map((node) => node.id);
-  const elementIds = elements.map((element) => element.id);
-  const nodeTagIds = nodeTags.map((tag) => tag.id);
-  const elementTagIds = elementTags.map((tag) => tag.id);
 
-  const [
-    nodeStorylineLinks,
-    nodeTagLinks,
-    elementTagLinks,
-    elementStages,
-    elementOccurrences,
-  ] = await Promise.all([
+  const [nodeStorylineLinks, entityReferences] = await Promise.all([
     nodeIds.length
       ? db
           .select({
@@ -210,37 +179,11 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
           .from(NodeStorylineLinkTable)
           .where(inArray(NodeStorylineLinkTable.nodeId, nodeIds))
       : [],
-    nodeIds.length && nodeTagIds.length
-      ? db
-          .select({ nodeId: NodeTagLinkTable.nodeId, tagId: NodeTagLinkTable.tagId })
-          .from(NodeTagLinkTable)
-          .where(
-            and(inArray(NodeTagLinkTable.nodeId, nodeIds), inArray(NodeTagLinkTable.tagId, nodeTagIds)),
-          )
-      : [],
-    elementIds.length && elementTagIds.length
-      ? db
-          .select({ elementId: ElementTagLinkTable.elementId, tagId: ElementTagLinkTable.tagId })
-          .from(ElementTagLinkTable)
-          .where(
-            and(
-              inArray(ElementTagLinkTable.elementId, elementIds),
-              inArray(ElementTagLinkTable.tagId, elementTagIds),
-            ),
-          )
-      : [],
-    elementIds.length
-      ? db
-          .select({ id: ElementStageTable.id })
-          .from(ElementStageTable)
-          .where(inArray(ElementStageTable.elementId, elementIds))
-      : [],
-    nodeIds.length
-      ? db
-          .select({ id: ElementOccurrenceTable.id })
-          .from(ElementOccurrenceTable)
-          .where(inArray(ElementOccurrenceTable.nodeId, nodeIds))
-      : [],
+    // Polymorphic refs are filtered by project_id directly; no FK to nodes.
+    db
+      .select({ id: EntityReferenceTable.id })
+      .from(EntityReferenceTable)
+      .where(eq(EntityReferenceTable.projectId, projectId)),
   ]);
 
   return {
@@ -250,14 +193,9 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     storylineLinks: nodeStorylineLinks.length,
     elements: elements.length,
     categories: elementCategories.length,
-    elementStages: elementStages.length,
     storyStages: storyStages.length,
     edges: nodeEdges.length,
-    nodeTags: nodeTags.length,
-    nodeTagLinks: nodeTagLinks.length,
-    elementTags: elementTags.length,
-    elementTagLinks: elementTagLinks.length,
-    elementOccurrences: elementOccurrences.length,
+    entityReferences: entityReferences.length,
   };
 }
 

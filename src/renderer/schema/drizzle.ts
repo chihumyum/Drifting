@@ -99,10 +99,12 @@ export const BookNodeTable = sqliteTable(
     storyStageId: text('story_stage_id').references(() => StoryStageTable.id, {
       onDelete: 'set null',
     }),
-    // TODO: need to reassign all nodes before deleting main storyline
-    mainStorylineId: text('main_storyline_id')
-      .notNull()
-      .references(() => StorylineTable.id, { onDelete: 'restrict' }),
+    // Nullable: drift nodes (free-floating inspiration notes) have no main
+    // storyline. When a storyline is deleted, affected nodes are reassigned to
+    // one of their other storylines, or fall back to drift if none remain.
+    mainStorylineId: text('main_storyline_id').references(() => StorylineTable.id, {
+      onDelete: 'set null',
+    }),
     // Materialized word count, derived from this node's content.
     // Updated on every save; defaults to 0 for nodes that have never been edited.
     wordCount: integer('word_count').notNull().default(0),
@@ -186,23 +188,6 @@ export const BookElementTable = sqliteTable('element', {
   updatedAt: text('updated_at').notNull(),
 });
 
-// Element Stages
-// Domain: BookElementStage
-export const ElementStageTable = sqliteTable('element_stage', {
-  id: text('id').primaryKey(),
-  elementId: text('element_id')
-    .notNull()
-    .references(() => BookElementTable.id, { onDelete: 'cascade' }),
-  stageName: text('stage_name').notNull(),
-  summary: text('summary').default(''),
-  contentJson: text('content_json').default('{}'),
-  orderKey: integer('order_key').notNull(),
-  startNodeId: text('start_node_id').references(() => BookNodeTable.id, { onDelete: 'set null' }),
-  endNodeId: text('end_node_id').references(() => BookNodeTable.id, { onDelete: 'set null' }),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
-
 // Node <-> Storyline (Many-to-Many)
 export const NodeStorylineLinkTable = sqliteTable(
   'node_storyline_link',
@@ -221,103 +206,93 @@ export const NodeStorylineLinkTable = sqliteTable(
   ],
 );
 
-// Node Tags
-export const NodeTagTable = sqliteTable(
-  'node_tag',
+// Element Patch
+// Author-written addendum to an element, anchored at a chapter (or specific
+// block within a chapter). Patches are additive content — they never override
+// the element's canonical fields. UI groups them on the element page and
+// surfaces block-level patches as marginalia inside the chapter.
+//
+//   sourceNodeId | sourceBlockId | meaning
+//   -------------|---------------|----------------------------
+//   non-null     | null          | chapter-level: "from this chapter onwards"
+//   non-null     | non-null      | block-level: annotation on a specific block
+//   null         | null          | floating: no chapter affiliation yet
+//   null         | non-null      | (invalid — enforced in app layer)
+export const ElementPatchTable = sqliteTable(
+  'element_patch',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
+    elementId: text('element_id')
+      .notNull()
+      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
+
+    sourceNodeId: text('source_node_id').references(() => BookNodeTable.id, {
+      onDelete: 'set null',
+    }),
+    sourceBlockId: text('source_block_id'),
+
+    title: text('title'),
+    contentJson: text('content_json').notNull().default('{}'),
+
+    orderKey: integer('order_key').notNull().default(0),
+
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    uniqueIndex('idx_unique_node_tag_per_project').on(t.projectId, t.name),
-    index('idx_node_tag_project').on(t.projectId),
+    index('idx_patch_element').on(t.elementId),
+    index('idx_patch_source_node').on(t.sourceNodeId),
+    index('idx_patch_project').on(t.projectId),
   ],
 );
 
-export const NodeTagLinkTable = sqliteTable(
-  'node_tag_link',
-  {
-    nodeId: text('node_id')
-      .notNull()
-      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
-    tagId: text('tag_id')
-      .notNull()
-      .references(() => NodeTagTable.id, { onDelete: 'cascade' }),
-  },
-  (t) => [primaryKey({ columns: [t.nodeId, t.tagId] })],
-);
-
-export const ElementTagTable = sqliteTable(
-  'element_tag',
+// Entity Reference
+// A directed reference: "the document (fromKind, fromId) references the entity (toKind, toId)".
+// Both ends are polymorphic across nodes / elements / patches. The reference can be
+// inline (sitting in the from-document's content) or manual (an asserted relation
+// without any content mark). The target may be the whole entity or a specific block.
+//
+//   fromBlockId   | toBlockId      | meaning
+//   --------------|----------------|----------------------------------
+//   non-null      | null           | mention in fromBlock points to whole entity
+//   non-null      | non-null       | mention in fromBlock deep-links to a block
+//   null          | null           | manual whole-to-whole relation (no content)
+//   null          | non-null       | manual whole-to-block relation (rare)
+//
+// origin records who created the reference: 'manual' (user), 'auto' (auto-detect),
+// 'ai' (applied AI suggestion). FK enforcement is skipped on the polymorphic columns;
+// cleanup of orphaned rows is done explicitly when an entity is deleted.
+export const EntityReferenceTable = sqliteTable(
+  'entity_reference',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
+
+    fromKind: text('from_kind').notNull(), // 'node' | 'element' | 'patch'
+    fromId: text('from_id').notNull(),
+    fromBlockId: text('from_block_id'),
+    fromSpansJson: text('from_spans_json'),
+
+    toKind: text('to_kind').notNull(), // 'node' | 'element' | 'patch'
+    toId: text('to_id').notNull(),
+    toBlockId: text('to_block_id'),
+
+    origin: text('origin').notNull().default('manual'), // 'manual' | 'auto' | 'ai'
+    confidence: real('confidence'),
+
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    uniqueIndex('idx_unique_element_tag_per_project').on(t.projectId, t.name),
-    index('idx_element_tag_project').on(t.projectId),
+    index('idx_ref_from').on(t.fromKind, t.fromId),
+    index('idx_ref_to').on(t.toKind, t.toId),
+    index('idx_ref_project').on(t.projectId),
   ],
-);
-
-export const ElementTagLinkTable = sqliteTable(
-  'element_tag_link',
-  {
-    elementId: text('element_id')
-      .notNull()
-      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
-    tagId: text('tag_id')
-      .notNull()
-      .references(() => ElementTagTable.id, { onDelete: 'cascade' }),
-  },
-  (t) => [primaryKey({ columns: [t.elementId, t.tagId] })],
-);
-
-// Element Occurrence (mentions in chapter content)
-// Domain: element mention backlinks
-export const ElementOccurrenceTable = sqliteTable(
-  'element_occurrence',
-  {
-    id: text('id').primaryKey(),
-    elementId: text('element_id')
-      .notNull()
-      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
-    nodeId: text('node_id')
-      .notNull()
-      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
-    blockId: text('block_id').notNull().default(''),
-    spansJson: text('spans_json').notNull().default('[]'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    index('idx_element_occurrence_element').on(t.elementId),
-    index('idx_element_occurrence_node').on(t.nodeId),
-  ],
-);
-
-// Node <-> Element (Mentions)
-// Domain: BookNodeElementLink
-export const NodeElementBacklinkTable = sqliteTable(
-  'node_element_backlink',
-  {
-    nodeId: text('node_id')
-      .notNull()
-      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
-    elementId: text('element_id')
-      .notNull()
-      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
-  },
-  (t) => [primaryKey({ columns: [t.nodeId, t.elementId] })],
 );
 
 export const yjsUpdates = sqliteTable(

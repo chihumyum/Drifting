@@ -1,6 +1,7 @@
 import mitt from 'mitt';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
+import type { EntityKind } from './extensions/entity-link';
 
 export type SyncOperationEvent = {
   requestId: string;
@@ -38,6 +39,13 @@ export type AppEvents = {
   'editor:saved': { nodeId: string; content: string };
   'editor:block-updated': { blockId: string; content: string };
   'editor:mention-detected': { blockId: string; mentions: string[] };
+
+  'references:changed': {
+    projectId: string;
+    fromKind?: EntityKind;
+    fromId?: string;
+    targetKeys?: string[];
+  };
 
   'element:element-created': { element: BookElement };
   'element:element-updated': { elementId: string; updates: Partial<BookElement> };

@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { EditorContent, useEditor } from '@tiptap/react';
+import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import { Placeholder } from '@tiptap/extensions';
-import { createDefaultSlashMenu } from '../lib/slash-menu';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
-import { parseTiptapDocJson } from '../utils/tiptap-doc';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useEntityEditor } from '../hooks/useEntityEditor';
 import loglevel from 'loglevel';
 const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.DEBUG);
@@ -36,8 +30,6 @@ export function StorylineEditorView() {
     projectId: projectId,
     userId: user.id,
   });
-  const loadedEditorRef = useRef<Editor | null>(null);
-  const loadedStorylineRef = useRef<string | null>(null);
   const currentStoryline = useMemo(() => {
     if (!storylineId) {
       log.error('No storylineId in params, cannot find storyline');
@@ -62,86 +54,28 @@ export function StorylineEditorView() {
   const displayedName = isEditingName ? nameDraft : currentName;
   const displayedSummary = isEditingSummary ? summaryDraft : currentSummary;
 
-  // editor for storyline description
-  const editorSL = useEditor(
-    {
-      extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2, 3] },
-          bulletList: { keepMarks: true },
-          orderedList: { keepMarks: true },
-          codeBlock: {},
-          underline: false,
-          link: false, // disable these two to avoid duplicate extensions warning
-        }),
-        Underline,
-        Link.configure({ openOnClick: false, autolink: true }),
-        TextAlign.configure({
-          types: ['heading', 'paragraph'],
-          alignments: ['left', 'center', 'right'],
-          defaultAlignment: 'left',
-        }),
-        Placeholder.configure({
-          placeholder: 'Empty',
-        }),
-        createDefaultSlashMenu(),
-      ],
-      content: null,
-      editorProps: {
-        attributes: {
-          class: 'prose max-w-none focus:outline-none',
-          spellcheck: 'false',
-        },
-      },
-      onUpdate: ({ editor: ed }) => {
-        if (!storylineId) {
-          log.warn('No storylineId, cannot save description update');
-          return;
-        }
-        const json = ed.getJSON();
-        void storylineUsecases.updateStoryline({
-          id: storylineId,
-          descriptionJson: JSON.stringify(json),
-        });
-      },
+  // Persist storyline description on every editor update (reference projection
+  // is handled inside the hook).
+  const handlePersist = useCallback(
+    (ed: Editor) => {
+      if (!storylineId) return;
+      void storylineUsecases.updateStoryline({
+        id: storylineId,
+        descriptionJson: JSON.stringify(ed.getJSON()),
+      });
     },
     [storylineId, storylineUsecases],
   );
 
-  // load editor content when change storylines
-  useEffect(() => {
-    const alreadyLoadedForTarget =
-      loadedStorylineRef.current === storylineId && loadedEditorRef.current === editorSL;
-    if (alreadyLoadedForTarget) {
-      return;
-    }
-    if (!projectId || !storylineId) {
-      log.warn('No projectId or storylineId, cannot load storyline content');
-      return;
-    }
-    if (!editorSL || !currentStoryline) {
-      log.warn('Editor or active storyline not ready yet');
-      return;
-    }
-    if (editorSL.isDestroyed) {
-      log.warn('Storyline editor is already destroyed, skip content load');
-      return;
-    }
-    loadedStorylineRef.current = storylineId;
-    loadedEditorRef.current = editorSL;
-    const content = parseTiptapDocJson(currentStoryline.descriptionJson, (error) => {
-      log.warn('Failed to parse storyline pmJson, using empty doc:', error);
-    });
-    log.debug('Loading storyline description content for storyline ', storylineId, content);
-
-    try {
-      editorSL.commands.setContent(content, { emitUpdate: false });
-    } catch (error) {
-      loadedStorylineRef.current = null;
-      loadedEditorRef.current = null;
-      log.warn('Failed to load storyline editor content:', error);
-    }
-  }, [projectId, storylineId, editorSL, currentStoryline]);
+  const { editor: editorSL } = useEntityEditor({
+    sourceKind: 'storyline',
+    sourceId: currentStoryline?.id ?? '',
+    projectId,
+    content: currentStoryline?.descriptionJson ?? null,
+    onPersist: handlePersist,
+    placeholder: 'Empty',
+    editorClass: 'prose max-w-none focus:outline-none',
+  });
 
   const handleContextAction = useCallback(
     async (action: string) => {

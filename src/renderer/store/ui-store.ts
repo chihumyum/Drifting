@@ -52,12 +52,10 @@ interface EntitySelectionState {
 
 interface NodeUiContextState extends EntitySelectionState {
   activeStorylineId: string | null;
-  tagFilterIds: string[];
 }
 
 interface ElementUiContextState extends EntitySelectionState {
   activeCategoryId: string | null;
-  tagFilterIds: string[];
 }
 
 interface EditorRuntimeState {
@@ -78,15 +76,11 @@ interface UiState {
   nodeUi: NodeUiContextState;
   setNodeSelection: (id: string | null, source?: SelectionSource) => void;
   setNodeActiveStorylineId: (storylineId: string | null) => void;
-  setNodeTagFilters: (tagIds: string[]) => void;
-  toggleNodeTagFilter: (tagId: string) => void;
   clearNodeUiContext: () => void;
 
   elementUi: ElementUiContextState;
   setElementSelection: (id: string | null, source?: SelectionSource) => void;
   setElementActiveCategoryId: (categoryId: string | null) => void;
-  setElementTagFilters: (tagIds: string[]) => void;
-  toggleElementTagFilter: (tagId: string) => void;
   clearElementUiContext: () => void;
 
   editorRuntime: EditorRuntimeState;
@@ -102,8 +96,8 @@ interface UiState {
   resizingSidebar: SidebarType | null;
   setResizingSidebar: (type: SidebarType | null) => void;
 
-  activeLeftPanel: 'nodes' | 'elements';
-  setActiveLeftPanel: (panel: 'nodes' | 'elements') => void;
+  activeLeftPanel: 'nodes' | 'elements' | 'drift';
+  setActiveLeftPanel: (panel: 'nodes' | 'elements' | 'drift') => void;
   activeRightPanel: 'references' | 'inspirations' | 'ai';
   setActiveRightPanel: (panel: 'references' | 'inspirations' | 'ai') => void;
 
@@ -177,7 +171,6 @@ export const useUiStore = create<UiState>()(
         selectedFrom: null,
         selectedAt: null,
         activeStorylineId: null,
-        tagFilterIds: [],
       },
       setNodeSelection: (id, source = 'ui') =>
         set((state) => ({
@@ -196,25 +189,6 @@ export const useUiStore = create<UiState>()(
             activeStorylineId: storylineId,
           },
         })),
-      setNodeTagFilters: (tagIds) =>
-        set((state) => ({
-          nodeUi: {
-            ...state.nodeUi,
-            tagFilterIds: tagIds,
-          },
-        })),
-      toggleNodeTagFilter: (tagId) =>
-        set((state) => {
-          const exists = state.nodeUi.tagFilterIds.includes(tagId);
-          return {
-            nodeUi: {
-              ...state.nodeUi,
-              tagFilterIds: exists
-                ? state.nodeUi.tagFilterIds.filter((id) => id !== tagId)
-                : [...state.nodeUi.tagFilterIds, tagId],
-            },
-          };
-        }),
       clearNodeUiContext: () =>
         set((state) => ({
           selectedNodeId: null,
@@ -224,7 +198,6 @@ export const useUiStore = create<UiState>()(
             selectedFrom: null,
             selectedAt: null,
             activeStorylineId: null,
-            tagFilterIds: [],
           },
         })),
 
@@ -233,7 +206,6 @@ export const useUiStore = create<UiState>()(
         selectedFrom: null,
         selectedAt: null,
         activeCategoryId: null,
-        tagFilterIds: [],
       },
       setElementSelection: (id, source = 'ui') =>
         set((state) => ({
@@ -252,25 +224,6 @@ export const useUiStore = create<UiState>()(
             activeCategoryId: categoryId,
           },
         })),
-      setElementTagFilters: (tagIds) =>
-        set((state) => ({
-          elementUi: {
-            ...state.elementUi,
-            tagFilterIds: tagIds,
-          },
-        })),
-      toggleElementTagFilter: (tagId) =>
-        set((state) => {
-          const exists = state.elementUi.tagFilterIds.includes(tagId);
-          return {
-            elementUi: {
-              ...state.elementUi,
-              tagFilterIds: exists
-                ? state.elementUi.tagFilterIds.filter((id) => id !== tagId)
-                : [...state.elementUi.tagFilterIds, tagId],
-            },
-          };
-        }),
       clearElementUiContext: () =>
         set((state) => ({
           selectedElementId: null,
@@ -280,7 +233,6 @@ export const useUiStore = create<UiState>()(
             selectedFrom: null,
             selectedAt: null,
             activeCategoryId: null,
-            tagFilterIds: [],
           },
         })),
 

@@ -1,15 +1,17 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import type { BookElement } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
-import { createElementTagLinkRepository } from '../sqlite-repo/element-tag-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { syncElementCreate, syncElementUpdate, syncElementDelete } from './sync-helpers';
 
 export interface CreateBookElementInput {
   categoryId: string;
+  // Optional initial name; when omitted the element is created as "New Element"
+  // and renamed by the user via the editor.
+  name?: string;
 }
 export type UpdateElementUsecaseInput = Partial<
   Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>
@@ -33,8 +35,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     () => createBookElementSqliteRepository(activeProjectId),
     [activeProjectId],
   );
-  const elementTagLinkRepoRef = useRef(createElementTagLinkRepository());
-  const elementTagLinkRepo = elementTagLinkRepoRef.current;
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -52,14 +52,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       }
       await ensureDb();
       const elements = await elementRepo.findAll();
-      const tagMap = await elementTagLinkRepo.findTagIdsByElementIds(elements.map((el) => el.id));
-      const hydrated = elements.map((el) => ({
-        ...el,
-        tagIds: tagMap[el.id] ?? [],
-      }));
-      setElements(hydrated);
+      setElements(elements);
     },
-    [elementRepo, elementTagLinkRepo, setElements, activeProjectId, ensureDb],
+    [elementRepo, setElements, activeProjectId, ensureDb],
   );
 
   const createElement = useCallback(
@@ -71,13 +66,11 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         id: uuidv7(),
         projectId: activeProjectId,
         categoryId: input.categoryId,
-        name: 'New Element',
+        name: input.name?.trim() || 'New Element',
         summary: '',
         contentJson: '{}', // TODO: fix this
         createdAt: now,
         updatedAt: now,
-        tagIds: [],
-        stageIds: [],
       };
 
       return withOptimisticUpdate({
@@ -86,11 +79,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         effect: () => elementRepo.create(newElement),
         onSuccess: (persisted) => {
           const current = getElements();
-          const updated = current.map((el) =>
-            el.id === persisted.id
-              ? { ...persisted, tagIds: newElement.tagIds, stageIds: newElement.stageIds }
-              : el,
-          );
+          const updated = current.map((el) => (el.id === persisted.id ? persisted : el));
           setElements(updated);
         },
         sync: (persisted) =>
@@ -120,7 +109,6 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         ...existing,
         categoryId: updates.categoryId ?? existing.categoryId,
         name: updates.name ?? existing.name,
-        stageIds: updates.stageIds ?? existing.stageIds,
         contentJson: updates.contentJson ?? existing.contentJson,
         summary: updates.summary ?? existing.summary,
         updatedAt: now.toISOString(),
@@ -144,12 +132,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         },
         onSuccess: (persisted) => {
           const current = getElements();
-          const persistedWithTags = {
-            ...persisted,
-            tagIds: updatedElement.tagIds,
-            stageIds: updatedElement.stageIds,
-          };
-          setElements(current.map((el) => (el.id === id ? persistedWithTags : el)));
+          setElements(current.map((el) => (el.id === id ? persisted : el)));
         },
         sync: (persisted) =>
           syncElementUpdate(id, activeProjectId, {

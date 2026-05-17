@@ -164,10 +164,15 @@
 
 /* ============================================================
    Selection / utilities
+   The previous rule used `0.15` alpha which was effectively invisible
+   on the cream background of the editor, and forced the text color to
+   --accent which clashed with --el-color spans (entity-link marks).
+   Use a solid tinted background and keep text color as inherited so
+   foreground stays legible.
    ============================================================ */
 ::selection {
-  background: hsl(var(--accent) / 0.15);
-  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.32);
+  color: inherit;
 }
 
 button, .no-select { -webkit-user-select: none; user-select: none; }
@@ -206,6 +211,94 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 .element-link-item       { --el-color: var(--el-item);   }
 .element-link-period     { --el-color: var(--el-period); }
 .element-link-lex        { --el-color: var(--el-lex);    }
+
+/* ============================================================
+   Entity Link — the unified inline reference mark (entityLink).
+   Reuses the .element-link visual language but split by:
+   - data-target-kind: element / node / patch / category / storyline
+   - data-origin:      manual / auto / ai
+   Manual marks render fully styled; auto marks render with a
+   dotted underline as a "candidate" affordance until the user
+   confirms them; ai marks use a dashed underline.
+   ============================================================ */
+.entity-link {
+  color: hsl(var(--el-color, var(--accent)));
+  text-decoration: none;
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--el-color, var(--accent)) / 0.10) 0,
+    hsl(var(--el-color, var(--accent)) / 0.10) 28%,
+    transparent 28%
+  );
+  border-radius: 1px;
+  padding: 0 1px;
+  cursor: pointer;
+  transition: background-image 0.15s, border-color 0.15s;
+}
+.entity-link:hover {
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--el-color, var(--accent)) / 0.22) 0,
+    hsl(var(--el-color, var(--accent)) / 0.22) 100%,
+    transparent 100%
+  );
+}
+
+/* Target kind palette — re-uses element link tokens for elements,
+   plus distinct shades for chapter/patch targets. */
+.entity-link--element   { --el-color: var(--el-person); }
+.entity-link--node      { --el-color: var(--story-2); }
+.entity-link--patch     { --el-color: var(--el-period); }
+.entity-link--category  { --el-color: var(--story-3); }
+.entity-link--storyline { --el-color: var(--story-6); }
+
+.entity-link--node {
+  font-weight: 600;
+  text-underline-offset: 0.16em;
+}
+
+/* Origin treatment — auto/ai marks get an underline cue so users can
+   tell at a glance whether they confirmed the link themselves. */
+.entity-link--auto {
+  background-image: none;
+  border-bottom: 1px dotted hsl(var(--el-color, var(--accent)) / 0.65);
+}
+.entity-link--auto:hover {
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--el-color, var(--accent)) / 0.16) 0,
+    hsl(var(--el-color, var(--accent)) / 0.16) 100%,
+    transparent 100%
+  );
+}
+.entity-link--ai {
+  background-image: none;
+  border-bottom: 1px dashed hsl(var(--el-color, var(--accent)) / 0.65);
+}
+
+/* Deep-link indicator (mention points at a specific block of the target). */
+.entity-link--deep::after {
+  content: '↳';
+  font-size: 0.75em;
+  margin-left: 1px;
+  opacity: 0.6;
+}
+
+/* ============================================================
+   Text selection — diagnostic high-contrast rule, overrides every
+   other ::selection in the cascade. If this doesn't render the
+   highlight is being suppressed by something outside CSS (e.g. a
+   ProseMirror decoration drawn above the selection layer, or an
+   `-webkit-user-select` ancestor).
+   ============================================================ */
+::selection,
+*::selection,
+.ProseMirror ::selection,
+.ProseMirror::selection,
+.ProseMirror *::selection {
+  background-color: rgba(56, 132, 255, 0.45) !important;
+  color: inherit !important;
+}
 
 /* ============================================================
    Tiptap placeholder

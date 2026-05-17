@@ -3,9 +3,9 @@ import { BookElementTable } from '../schema/drizzle';
 import { eq, desc, and } from 'drizzle-orm';
 import type { BookElement } from '../domain/book-element';
 
-export type ElementCreateData = Omit<BookElement, 'tagIds' | 'stageIds'>;
+export type ElementCreateData = BookElement;
 export type ElementUpdateData = Partial<
-  Omit<BookElement, 'id' | 'createdAt' | 'tagIds' | 'stageIds'>
+  Omit<BookElement, 'id' | 'createdAt'>
 > & { updatedAt: string };
 
 export interface ElementRepository {
@@ -25,8 +25,6 @@ function toDomain(record: typeof BookElementTable.$inferSelect): BookElement {
     name: record.name,
     summary: record.summary,
     contentJson: record.contentJson,
-    tagIds: [],
-    stageIds: [],
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };

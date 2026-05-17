@@ -1,23 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import { createDefaultSlashMenu } from '../lib/slash-menu';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { EditorContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
-import type { BookElement } from '../domain/book-element';
-import { TagEditor } from '../components/editor/TagEditor';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { BacklinksPanel } from '../components/editor/BacklinksPanel';
+import { ReferencesPanel } from '../components/editor/ReferencesPanel';
+import { PatchesSection } from '../components/editor/PatchesSection';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
-import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -39,7 +34,7 @@ export function ElementEditorView() {
     userId: userId ?? '',
   });
   const { updateElement } = elementUsecases;
-  const [curElement, setCurElement] = useState<BookElement | null>(null);
+
   const [editingName, setEditingName] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [editingCategory, setEditingCategory] = useState(false);
@@ -49,106 +44,67 @@ export function ElementEditorView() {
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  const isContentLoadedRef = useRef(false);
-  const loadedElementIdRef = useRef<string | null>(null);
 
-  // Get element from URL and update current element
+  // Derive curElement from the store at render time. Local edit-state values
+  // (nameValue, summaryValue, categoryValue) reset whenever the underlying
+  // element id changes — done via the prev-snapshot pattern below to avoid
+  // the "setState in effect" anti-pattern.
+  const navigateIfMissingRef = useRef(false);
   useEffect(() => {
-    if (!elementId) {
+    if (!elementId && !navigateIfMissingRef.current) {
+      navigateIfMissingRef.current = true;
       navigate('/', { replace: true });
-      return;
     }
+  }, [elementId, navigate]);
 
-    const element = bookElements.find((e) => e.id === elementId) || null;
-    setCurElement(element);
-    setNameValue(element?.name || '');
-    setSummaryValue(element?.summary || '');
-    setCategoryValue(element?.categoryId || '');
-
+  const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
+  const [syncedElementKey, setSyncedElementKey] = useState({
+    routeId: elementId ?? null,
+    entityId: curElement?.id ?? null,
+  });
+  if (
+    syncedElementKey.routeId !== (elementId ?? null) ||
+    syncedElementKey.entityId !== (curElement?.id ?? null)
+  ) {
+    setSyncedElementKey({
+      routeId: elementId ?? null,
+      entityId: curElement?.id ?? null,
+    });
+    setNameValue(curElement?.name || '');
+    setSummaryValue(curElement?.summary || '');
+    setCategoryValue(curElement?.categoryId || '');
     // Auto-enter edit mode for newly created elements
-    if (element?.name === 'New Element') {
+    if (curElement?.name === 'New Element') {
       setEditingName(true);
     }
-  }, [bookElements, elementId, navigate]);
+  }
 
-  // Load content when elementId changes
-  useEffect(() => {
-    if (!elementId || !curElement) return;
+  // No separate reset effect: local input drafts follow the loaded entity id
+  // above, while editor content stays owned by useEntityEditor.
 
-    isContentLoadedRef.current = false;
-    loadedElementIdRef.current = null;
-
-    // Content is already in the element
-    isContentLoadedRef.current = true;
-    loadedElementIdRef.current = elementId;
-  }, [elementId, curElement]);
-
-  // Tiptap editor setup
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-        codeBlock: {},
-        link: false, // 禁用 StarterKit 自带的 link，使用自定义配置
-      }),
-      Underline,
-      Link.configure({ openOnClick: false, autolink: true }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
-        defaultAlignment: 'left',
-      }),
-      createDefaultSlashMenu(),
-    ],
-    content: createEmptyTiptapDoc(),
-    autofocus: 'end',
-    editorProps: {
-      attributes: {
-        class: 'prose max-w-none focus:outline-none min-h-[400px]',
-        spellcheck: 'false',
-      },
-    },
-    onUpdate: ({ editor: ed }) => {
-      if (!isContentLoadedRef.current) {
-        log.debug('Skipping save: content not yet loaded');
-        return;
-      }
-
-      const json = ed.getJSON();
-      const contentJson = JSON.stringify(json);
+  // Persist element content on every editor update (reference projection,
+  // mark sync, picker, slash menu, undo depth, Cmd+S registration — all
+  // owned by the hook).
+  const handlePersist = useCallback(
+    (ed: Editor) => {
+      if (!elementId) return;
+      const contentJson = JSON.stringify(ed.getJSON());
       if (contentJson === curElement?.contentJson) return;
-
       promoteCurrentTab();
-      if (elementId) {
-        void updateElement(elementId, {
-          contentJson: contentJson,
-        });
-      }
+      void updateElement(elementId, { contentJson });
     },
+    [elementId, curElement?.contentJson, updateElement, promoteCurrentTab],
+  );
+
+  const { editor } = useEntityEditor({
+    sourceKind: 'element',
+    sourceId: curElement?.id ?? '',
+    projectId: projectId ?? '',
+    content: curElement?.contentJson ?? null,
+    onPersist: handlePersist,
+    autoFocus: true,
+    editorClass: 'prose max-w-none focus:outline-none min-h-[400px]',
   });
-
-  // Update editor content when element changes
-  useEffect(() => {
-    if (!editor || !curElement) return;
-    if (editor.isDestroyed) return;
-
-    const contentJson = curElement.contentJson;
-    const json = parseTiptapDocJson(contentJson, (error) => {
-      log.error('Failed to parse element content', error);
-    });
-    const currentJson = editor.getJSON();
-    const currentString = JSON.stringify(currentJson);
-
-    try {
-      if (contentJson !== currentString) {
-        editor.commands.setContent(json);
-      }
-    } catch (error) {
-      log.error('Failed to load element content into editor:', error);
-    }
-  }, [editor, curElement]);
 
   const handleSaveName = async () => {
     if (!elementId || !nameValue.trim()) return;
@@ -375,7 +331,7 @@ export function ElementEditorView() {
           )}
         </div>
 
-        {/* Category and Tags */}
+        {/* Category */}
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
           {/* Category */}
           <div style={{ flex: 1 }}>
@@ -539,16 +495,19 @@ export function ElementEditorView() {
             )}
           </div>
 
-          {/* Tags */}
-          <div style={{ flex: 2 }}>
-            <TagEditor type="element" entityId={elementId} projectId={projectId} />
-          </div>
         </div>
 
-        {/* Backlinks Panel */}
-        {elementId && (
+        {/* References Panel — incoming + outgoing inline mentions plus manual relations */}
+        {elementId && projectId && (
           <div className="mt-4">
-            <BacklinksPanel elementId={elementId} />
+            <ReferencesPanel entityKind="element" entityId={elementId} projectId={projectId} />
+          </div>
+        )}
+
+        {/* Patches Section — author addendum anchored to chapters / blocks */}
+        {elementId && projectId && (
+          <div className="mt-4">
+            <PatchesSection elementId={elementId} projectId={projectId} />
           </div>
         )}
       </div>

@@ -33,7 +33,6 @@ interface LocalDebugData {
   elements: unknown[];
   categories: unknown[];
   stages?: unknown[];
-  tags?: unknown[];
 }
 
 export function DebugModal({ isOpen, onClose }: DebugModalProps) {

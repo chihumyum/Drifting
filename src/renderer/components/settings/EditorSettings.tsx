@@ -10,6 +10,8 @@ export function EditorSettings() {
     setAutoElementLinkEnabled,
     recentEntitiesLimit,
     setRecentEntitiesLimit,
+    editorUndoDepth,
+    setEditorUndoDepth,
   } = useSettingsStore();
 
   return (
@@ -54,6 +56,28 @@ export function EditorSettings() {
               value={recentEntitiesLimit}
               onChange={(e) => setRecentEntitiesLimit(Number(e.target.value))}
               className="w-16 px-2 py-1 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </label>
+
+        <label className="flex items-center justify-between cursor-pointer group">
+          <div className="flex-1">
+            <div className="text-sm text-gray-300 group-hover:text-white transition-colors">
+              编辑器撤销步数
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              编辑器最多保留多少步可撤销操作（10-1000，越大占内存越多）
+            </div>
+          </div>
+          <div className="ml-3">
+            <input
+              type="number"
+              min={10}
+              max={1000}
+              step={10}
+              value={editorUndoDepth}
+              onChange={(e) => setEditorUndoDepth(Number(e.target.value))}
+              className="w-20 px-2 py-1 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </label>

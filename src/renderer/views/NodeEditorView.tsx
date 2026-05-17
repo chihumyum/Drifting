@@ -6,6 +6,7 @@ import { useBookContent } from '../usecase/useBookContent';
 import { BookNode } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
+import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
@@ -43,8 +44,13 @@ log.setLevel(loglevel.levels.ERROR);
 export function NodeEditorView() {
   // stuff for geting a node
   const navigate = useNavigate();
-  const { navigateToElement, navigateToHome, navigateToNode, navigateToStoryline } =
-    useProjectNavigation();
+  const {
+    navigateToElement,
+    navigateToHome,
+    navigateToNode,
+    navigateToStoryline,
+    navigateToCategory,
+  } = useProjectNavigation();
   const { nodeId, projectId } = useParams<{ nodeId: string; projectId: string }>();
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
@@ -121,7 +127,9 @@ export function NodeEditorView() {
   }, [currentStorylineIds, storylineById]);
 
   const mainStoryline =
-    (curNode ? storylineById.get(curNode.mainStorylineId) : null) ?? currentStorylines[0] ?? null;
+    (curNode?.mainStorylineId ? storylineById.get(curNode.mainStorylineId) : null) ??
+    currentStorylines[0] ??
+    null;
 
   // Nodes in the current main storyline, sorted by their position on the timeline
   const bookNodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
@@ -142,15 +150,18 @@ export function NodeEditorView() {
 
   useEffect(() => {
     if (!editingStorylines) return;
-    if (draftStorylineIds.length === 0) {
-      if (draftMainStorylineId) {
-        setDraftMainStorylineId(null);
+    const timer = window.setTimeout(() => {
+      if (draftStorylineIds.length === 0) {
+        if (draftMainStorylineId) {
+          setDraftMainStorylineId(null);
+        }
+        return;
       }
-      return;
-    }
-    if (!draftMainStorylineId || !draftStorylineIds.includes(draftMainStorylineId)) {
-      setDraftMainStorylineId(draftStorylineIds[0]);
-    }
+      if (!draftMainStorylineId || !draftStorylineIds.includes(draftMainStorylineId)) {
+        setDraftMainStorylineId(draftStorylineIds[0]);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [draftMainStorylineId, draftStorylineIds, editingStorylines]);
 
   // load content when node changes
@@ -292,11 +303,20 @@ export function NodeEditorView() {
     nodeId && curNode && isContentLoaded && loadedNodeId === nodeId,
   );
 
-  const handleElementClick = useCallback(
-    (elementId: string) => {
-      navigateToElement(elementId);
+  const handleEntityClick = useCallback(
+    (ref: EntityLinkRef) => {
+      if (ref.targetKind === 'element') {
+        navigateToElement(ref.targetId);
+      } else if (ref.targetKind === 'node') {
+        navigateToNode(ref.targetId);
+      } else if (ref.targetKind === 'storyline') {
+        navigateToStoryline(ref.targetId);
+      } else if (ref.targetKind === 'category') {
+        navigateToCategory(ref.targetId);
+      }
+      // patch navigation isn't wired up here yet.
     },
-    [navigateToElement],
+    [navigateToCategory, navigateToElement, navigateToNode, navigateToStoryline],
   );
 
   const openStorylineEditor = useCallback(() => {
@@ -309,7 +329,7 @@ export function NodeEditorView() {
           : [];
     setDraftStorylineIds(initialIds);
     setDraftMainStorylineId(
-      initialIds.includes(curNode.mainStorylineId)
+      curNode.mainStorylineId && initialIds.includes(curNode.mainStorylineId)
         ? curNode.mainStorylineId
         : initialIds[0] || null,
     );
@@ -496,10 +516,9 @@ export function NodeEditorView() {
               onContentUpdate={handleContentUpdate}
               onTitleUpdate={handleTitleUpdate}
               onSummaryUpdate={handleSummaryUpdate}
-              onElementClick={handleElementClick}
+              onEntityClick={handleEntityClick}
               showTitle={true}
               showSummary={true}
-              showTags={true}
               editableTitle={true}
               editableSummary={true}
               autoFocus={true}

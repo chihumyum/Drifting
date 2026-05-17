@@ -6,6 +6,7 @@ import { DebugModal } from './DebugModal';
 import { APP_CONFIG } from '../../lib/config';
 import { EditorSettings } from '../settings/EditorSettings';
 import { AccountSettings } from '../settings/AccountSettings';
+import { ShortcutsSettings } from '../settings/ShortcutsSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -33,9 +34,9 @@ const ACCENT_COLORS: AccentColorOption[] = [
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const navigate = useNavigate();
   const [selectedColor, setSelectedColor] = useState<string>('brown');
-  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'advanced' | 'account'>(
-    'appearance',
-  );
+  const [activeTab, setActiveTab] = useState<
+    'appearance' | 'editor' | 'shortcuts' | 'advanced' | 'account'
+  >('appearance');
   const [showDebugModal, setShowDebugModal] = useState(false);
 
   useEffect(() => {
@@ -181,24 +182,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <span>📝</span>
               <span>Published Content</span>
             </button>
-            <button
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#5a4a3a',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <span>#</span>
-              <span>Tags</span>
-            </button>
           </div>
 
           {/* General Settings Section */}
@@ -263,6 +246,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               <span>✏️</span>
               <span>Editor</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('shortcuts')}
+              style={{
+                width: '100%',
+                padding: '10px 24px',
+                textAlign: 'left',
+                border: 'none',
+                background: activeTab === 'shortcuts' ? '#fefdfb' : 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: activeTab === 'shortcuts' ? '#2a1a0a' : '#5a4a3a',
+                fontWeight: activeTab === 'shortcuts' ? 600 : 400,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderLeft:
+                  activeTab === 'shortcuts'
+                    ? '3px solid var(--accent, #b89968)'
+                    : '3px solid transparent',
+              }}
+            >
+              <span>⌨️</span>
+              <span>Shortcuts</span>
             </button>
             <button
               onClick={() => setActiveTab('advanced')}
@@ -372,6 +379,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             >
               {activeTab === 'appearance' && 'Appearance'}
               {activeTab === 'editor' && 'Editor Settings'}
+              {activeTab === 'shortcuts' && 'Keyboard Shortcuts'}
               {activeTab === 'account' && 'Account Settings'}
               {activeTab === 'advanced' && 'Advanced'}
             </h3>
@@ -544,6 +552,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {activeTab === 'editor' && (
               <div>
                 <EditorSettings />
+              </div>
+            )}
+
+            {activeTab === 'shortcuts' && (
+              <div>
+                <ShortcutsSettings />
               </div>
             )}
 

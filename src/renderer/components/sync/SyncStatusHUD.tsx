@@ -9,7 +9,7 @@ type SyncToast = SyncOperationEvent & {
 };
 
 const MAX_TOASTS = 4;
-const SUCCESS_VISIBLE_MS = 9999;
+const SUCCESS_VISIBLE_MS = 2000;
 const ERROR_VISIBLE_MS = 9999;
 
 function getExpiry(event: SyncOperationEvent): number | null {
@@ -113,16 +113,6 @@ function getEntityTypeLabel(entityType?: string): string {
       return 'Element';
     case 'elementCategory':
       return 'Element category';
-    case 'elementStage':
-      return 'Element stage';
-    case 'elementTag':
-      return 'Element tag';
-    case 'elementTagLink':
-      return 'Element tag link';
-    case 'nodeTag':
-      return 'Node tag';
-    case 'nodeTagLink':
-      return 'Node tag link';
     case 'storyStage':
       return 'Story stage';
     default:
@@ -140,8 +130,6 @@ export function SyncStatusHUD() {
   const storylines = useDataStore((state) => state.storylines);
   const bookElements = useDataStore((state) => state.bookElements);
   const bookElementCategories = useDataStore((state) => state.bookElementCategories);
-  const nodeTags = useDataStore((state) => state.nodeTags);
-  const elementTags = useDataStore((state) => state.elementTags);
   const projects = useProjectStore((state) => state.projects);
   const currentProject = useProjectStore((state) => state.currentProject);
 
@@ -156,16 +144,12 @@ export function SyncStatusHUD() {
     bookElementCategories.forEach((category) =>
       map.set(`elementCategory:${category.id}`, category.name),
     );
-    nodeTags.forEach((tag) => map.set(`nodeTag:${tag.id}`, tag.name));
-    elementTags.forEach((tag) => map.set(`elementTag:${tag.id}`, tag.name));
     return map;
   }, [
     bookElementCategories,
     bookElements,
     bookNodes,
     currentProject,
-    elementTags,
-    nodeTags,
     projects,
     storylines,
   ]);

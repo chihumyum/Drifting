@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, Outlet, useLocation, useParams } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
@@ -12,14 +20,22 @@ import { events } from './lib/events';
 import { ElementPanel } from './components/leftBars/ElementPanel';
 import { LeftSidebarHeader } from './components/leftBars/LeftSidebarHeader';
 import { NodesPanel } from './components/leftBars/NodesPanel';
+import { DriftPanel } from './components/leftBars/DriftPanel';
 import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
 import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
+import { EditorFindPanel } from './components/search/EditorFindPanel';
+import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { initAccentColor } from './lib/theme';
-import { useUiStore } from './store/ui-store';
+import { useUiStore, tabKey } from './store/ui-store';
+import { useShortcutsStore } from './store/shortcuts-store';
+import { matchesAccelerator } from './lib/shortcuts';
+import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
+import type { Editor } from '@tiptap/core';
+import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useAuthStore } from './store/auth';
 import { useBookNode } from './usecase/useBookNode';
 import { useStoryline } from './usecase/useStoryline';
@@ -29,6 +45,7 @@ import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
 import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
+import { rebuildProjectInlineReferenceIndex } from './services/reference-index.service';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
@@ -122,6 +139,10 @@ function Layout() {
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
+  const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const { openEntity, navigateToHome } = useProjectNavigation();
+  const navigate = useNavigate();
   const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
@@ -160,6 +181,9 @@ function Layout() {
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
+        await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
+          log.warn('[App] Reference index rebuild failed:', error);
+        });
 
         events.emit('db:ready');
         log.info('[App] Database ready for project:', projectId);
@@ -212,6 +236,107 @@ function Layout() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeSuperView, setActiveSuperView]);
 
+  // User-configurable shortcuts (close tab, find in editor, global search).
+  // Subscribe to the store via getState() inside the handler so we read the
+  // latest bindings without re-binding the listener on every change.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const { bindings } = useShortcutsStore.getState();
+
+      if (matchesAccelerator(e, bindings.globalSearch)) {
+        e.preventDefault();
+        setFindPanelEditor(null);
+        setIsGlobalSearchOpen(true);
+        return;
+      }
+
+      if (matchesAccelerator(e, bindings.findInEditor)) {
+        const editor = getActiveEditor();
+        if (editor) {
+          e.preventDefault();
+          setFindPanelEditor(editor);
+        }
+        return;
+      }
+
+      if (matchesAccelerator(e, bindings.saveCurrentEditor)) {
+        // Always swallow Cmd+S — the browser's default save-page dialog would
+        // be useless inside the app. If no editor is active the call is a noop.
+        e.preventDefault();
+        saveActiveEditor();
+        return;
+      }
+
+      if (matchesAccelerator(e, bindings.goBack)) {
+        e.preventDefault();
+        navigate(-1);
+        return;
+      }
+
+      if (matchesAccelerator(e, bindings.goForward)) {
+        e.preventDefault();
+        navigate(1);
+        return;
+      }
+
+      if (
+        matchesAccelerator(e, bindings.prevTab) ||
+        matchesAccelerator(e, bindings.nextTab)
+      ) {
+        const state = useUiStore.getState();
+        const project = state.tabsByProject[projectId];
+        if (!project || project.openTabs.length === 0) return;
+        e.preventDefault();
+        const activeKey = project.activeTabKey;
+        const currentIdx = activeKey
+          ? project.openTabs.findIndex((t) => tabKey(t) === activeKey)
+          : -1;
+        const direction = matchesAccelerator(e, bindings.nextTab) ? 1 : -1;
+        // If no current selection (e.g. on project home), step from the edge
+        // so Cmd+Alt+Right starts at the first tab and Cmd+Alt+Left at the last.
+        const baseIdx = currentIdx === -1 ? (direction > 0 ? -1 : 0) : currentIdx;
+        const nextIdx =
+          (baseIdx + direction + project.openTabs.length) % project.openTabs.length;
+        const nextTab = project.openTabs[nextIdx];
+        openEntity({ entityType: nextTab.entityType, id: nextTab.id });
+      }
+
+      if (matchesAccelerator(e, bindings.closeActiveTab)) {
+        const state = useUiStore.getState();
+        const project = state.tabsByProject[projectId];
+        const activeKey = project?.activeTabKey;
+        if (!activeKey) return;
+        const activeTab = project.openTabs.find(
+          (t) => `${t.entityType}:${t.id}` === activeKey,
+        );
+        if (!activeTab) return;
+        e.preventDefault();
+        const { nextActive } = state.closeTab(projectId, {
+          entityType: activeTab.entityType,
+          id: activeTab.id,
+        });
+        if (nextActive) {
+          openEntity({ entityType: nextActive.entityType, id: nextActive.id });
+        } else {
+          navigateToHome();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [projectId, openEntity, navigateToHome]);
+
+  // Drop the find panel if the active editor goes away (e.g. user navigated
+  // to a new view and the previous editor unmounted).
+  useEffect(() => {
+    return subscribeActiveEditor((editor) => {
+      if (!editor) {
+        setFindPanelEditor(null);
+      }
+    });
+  }, []);
+
   if (!dbReady) {
     return (
       <div
@@ -256,7 +381,13 @@ function Layout() {
               position: 'relative',
             }}
           >
-            {activeLeftPanel === 'elements' ? <ElementPanel /> : <NodesPanel />}
+            {activeLeftPanel === 'elements' ? (
+              <ElementPanel />
+            ) : activeLeftPanel === 'drift' ? (
+              <DriftPanel />
+            ) : (
+              <NodesPanel />
+            )}
           </div>
         </Sidebar>
 
@@ -309,6 +440,16 @@ function Layout() {
       {activeSuperView === 'element' && <SuperElementView />}
       {activeSuperView === 'reference' && <SuperReferenceView />}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+      />
+      {findPanelEditor && (
+        <EditorFindPanel
+          editor={findPanelEditor}
+          onClose={() => setFindPanelEditor(null)}
+        />
+      )}
       <SyncStatusHUD />
     </div>
   );

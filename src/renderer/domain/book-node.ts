@@ -6,7 +6,9 @@ export interface BookNode {
   start: number; // Position on timeline (chapter order / story time start)
   end: number; // Timeline end position
   storyStageId: string | null;
-  mainStorylineId: string;
+  // null for "drift" nodes — free-floating notes/inspiration that don't
+  // belong to any storyline and don't appear in timelines or graph view.
+  mainStorylineId: string | null;
   position: GraphViewNodePosition;
   /**
    * Materialized word count derived from this node's content.
@@ -45,9 +47,4 @@ export interface BookNodeEdge {
   controlPointOffset?: { x: number; y: number }; // Offset from the midpoint for curvature
   sourceAnchor?: { x: number; y: number }; // Relative to node top-left
   targetAnchor?: { x: number; y: number }; // Relative to node top-left
-}
-
-export interface NodeElementBacklink {
-  nodeId: string;
-  elementId: string;
 }

@@ -86,7 +86,9 @@ export function TopTimeline() {
         case 'node': {
           const n = bookNodes.find((b) => b.id === tab.id);
           if (!n) return undefined;
-          return storylines.find((s) => s.id === n.mainStorylineId)?.color;
+          return n.mainStorylineId
+            ? storylines.find((s) => s.id === n.mainStorylineId)?.color
+            : undefined;
         }
         case 'storyline':
           return storylines.find((s) => s.id === tab.id)?.color;

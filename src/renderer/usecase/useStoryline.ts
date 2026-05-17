@@ -19,17 +19,6 @@ import {
   syncNodeStorylinesSet,
 } from './sync-helpers';
 
-export class StorylineHasMainReferencesError extends Error {
-  constructor(
-    public readonly storylineId: string,
-    public readonly affectedNodeIds: string[],
-  ) {
-    super(
-      `Storyline ${storylineId} is the main storyline of ${affectedNodeIds.length} node(s); pass reassignMainTo to delete.`,
-    );
-    this.name = 'StorylineHasMainReferencesError';
-  }
-}
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('useStoryline');
 log.setLevel(LogLevel.levels.DEBUG);
@@ -278,66 +267,86 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       if (!prevStorylines.some((sl) => sl.id === id)) {
         return;
       }
-      if (prevStorylines.length <= 1) {
-        throw new Error('Cannot delete the last storyline in the project.');
-      }
       if (opts?.reassignMainTo === id) {
         throw new Error('Reassign target cannot be the storyline being deleted.');
       }
+      if (opts?.reassignMainTo && !prevStorylines.some((sl) => sl.id === opts.reassignMainTo)) {
+        throw new Error(`Reassign target storyline ${opts.reassignMainTo} not found in project.`);
+      }
 
       const prevNodes = useDataStore.getState().bookNodes.slice();
+      const prevForwardMapping = getStorylineNodeMappingState();
+      const reverseMapping = cloneStorylineNodeMapping(prevForwardMapping);
       const affectedNodes = prevNodes.filter((n) => n.mainStorylineId === id);
-      const reassignTo = opts?.reassignMainTo;
 
-      if (affectedNodes.length > 0 && !reassignTo) {
-        throw new StorylineHasMainReferencesError(
-          id,
-          affectedNodes.map((n) => n.id),
-        );
-      }
-      if (reassignTo && !prevStorylines.some((sl) => sl.id === reassignTo)) {
-        throw new Error(`Reassign target storyline ${reassignTo} not found in project.`);
-      }
+      // Resolve per-node fallback main:
+      //   - explicit reassignMainTo (if given), else
+      //   - any other storyline this node still belongs to, else
+      //   - null → node becomes a drift node
+      const otherStorylineIds = (nodeId: string): string[] => {
+        const out: string[] = [];
+        Object.entries(prevForwardMapping).forEach(([slId, nodeIds]) => {
+          if (slId !== id && nodeIds.includes(nodeId)) out.push(slId);
+        });
+        return out;
+      };
 
       const now = new Date().toISOString();
-      const nextNodes: BookNode[] = reassignTo
-        ? prevNodes.map((n) =>
-            n.mainStorylineId === id ? { ...n, mainStorylineId: reassignTo, updatedAt: now } : n,
-          )
-        : prevNodes;
+      type Reassignment = { nodeId: string; newMain: string | null };
+      const reassignments: Reassignment[] = affectedNodes.map((n) => {
+        if (opts?.reassignMainTo) return { nodeId: n.id, newMain: opts.reassignMainTo };
+        const others = otherStorylineIds(n.id);
+        return { nodeId: n.id, newMain: others[0] ?? null };
+      });
+
+      const reassignByNode = new Map(reassignments.map((r) => [r.nodeId, r.newMain]));
+      const nextNodes: BookNode[] = prevNodes.map((n) =>
+        reassignByNode.has(n.id)
+          ? { ...n, mainStorylineId: reassignByNode.get(n.id) ?? null, updatedAt: now }
+          : n,
+      );
 
       return withOptimisticUpdate({
         apply: () => {
-          if (reassignTo) useDataStore.getState().setBookNodes(nextNodes);
+          useDataStore.getState().setBookNodes(nextNodes);
           removeStorylineState(id);
         },
         rollback: () => {
           setStorylinesState(prevStorylines);
-          if (reassignTo) useDataStore.getState().setBookNodes(prevNodes);
+          useDataStore.getState().setBookNodes(prevNodes);
+          setStorylineNodeMappingState(reverseMapping);
         },
         effect: async () => {
           await getDb().transaction(async (tx) => {
-            if (reassignTo && affectedNodes.length > 0) {
-              const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
-              for (const node of affectedNodes) {
-                await nodeRepoTx.update(node.id, { mainStorylineId: reassignTo, updatedAt: now });
-              }
+            const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
+            for (const r of reassignments) {
+              await nodeRepoTx.update(r.nodeId, { mainStorylineId: r.newMain, updatedAt: now });
             }
             const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
+            // FK: the storyline → node_storyline_link rows cascade; the
+            // book_node.main_storyline_id FK is ON DELETE SET NULL so any nodes
+            // we missed degrade safely to drift instead of blocking the delete.
             await storylineRepoTx.deleteStoryline(id);
           });
         },
         sync: () => {
-          if (reassignTo) {
-            affectedNodes.forEach((n) =>
-              syncNodeUpdate(n.id, activeProjectId, { mainStorylineId: reassignTo }),
-            );
-          }
+          reassignments.forEach((r) =>
+            syncNodeUpdate(r.nodeId, activeProjectId, { mainStorylineId: r.newMain }),
+          );
           syncStorylineDelete(id, activeProjectId);
         },
       });
     },
-    [removeStorylineState, ensureDb, getStorylinesState, setStorylinesState, activeProjectId],
+    [
+      removeStorylineState,
+      ensureDb,
+      getStorylinesState,
+      setStorylinesState,
+      activeProjectId,
+      cloneStorylineNodeMapping,
+      getStorylineNodeMappingState,
+      setStorylineNodeMappingState,
+    ],
   );
 
   const addNodeToStoryline = useCallback(
@@ -418,8 +427,10 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     async (nodeId: string, storylineIds: string[]): Promise<void> => {
       await ensureDb();
       const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
-      const effectiveIds =
-        node && !storylineIds.includes(node.mainStorylineId)
+      // Auto-pin the node's main storyline into the membership set (drift nodes
+      // have no main; pin nothing in that case).
+      const effectiveIds: string[] =
+        node && node.mainStorylineId && !storylineIds.includes(node.mainStorylineId)
           ? [node.mainStorylineId, ...storylineIds]
           : storylineIds;
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());

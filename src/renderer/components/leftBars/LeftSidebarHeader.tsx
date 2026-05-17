@@ -79,7 +79,7 @@ export function LeftSidebarHeader() {
         <Home size={13} strokeWidth={1.6} />
       </button>
 
-      {/* Panel Tabs — Nodes / Elements segmented switch */}
+      {/* Panel Tabs — Nodes / Elements / Drift segmented switch */}
       <div
         style={{
           display: 'flex',
@@ -99,6 +99,11 @@ export function LeftSidebarHeader() {
           label="Elements"
           isActive={activeLeftPanel === 'elements'}
           onClick={() => setActiveLeftPanel('elements')}
+        />
+        <PanelTab
+          label="Drift"
+          isActive={activeLeftPanel === 'drift'}
+          onClick={() => setActiveLeftPanel('drift')}
         />
       </div>
 

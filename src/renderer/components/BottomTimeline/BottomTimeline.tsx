@@ -628,7 +628,7 @@ export function BottomTimeline() {
       const markerSize = isExpanded ? 12 : 6;
       const isHovered = hoveredNodeId === node.id;
       const primaryStorylineName =
-        storylineById.get(node.mainStorylineId)?.name ??
+        (node.mainStorylineId ? storylineById.get(node.mainStorylineId)?.name : undefined) ??
         node.storylines[0]?.name ??
         'another storyline';
       return (

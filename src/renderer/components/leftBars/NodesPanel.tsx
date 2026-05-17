@@ -75,9 +75,14 @@ export function NodesPanel() {
   );
   const nodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
 
-  // Global view: every node, sorted by timeline start.
+  // Global view: every storyline-anchored node, sorted by timeline start.
+  // Drift nodes (mainStorylineId == null) live in the dedicated Drift panel.
   const sortedNodesGlobal = useMemo(
-    () => bookNodes.slice().sort((a, b) => a.start - b.start),
+    () =>
+      bookNodes
+        .filter((n) => n.mainStorylineId != null)
+        .slice()
+        .sort((a, b) => a.start - b.start),
     [bookNodes],
   );
 
@@ -155,7 +160,7 @@ export function NodesPanel() {
 
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
-    const storyline = storylineById.get(node.mainStorylineId);
+    const storyline = node.mainStorylineId ? storylineById.get(node.mainStorylineId) : undefined;
     const color = storyline?.color || 'hsl(var(--ink-3))';
 
     return (

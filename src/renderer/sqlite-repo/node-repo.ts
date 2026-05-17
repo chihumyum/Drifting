@@ -47,7 +47,7 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     end: record.end ?? 0, // Domain requires number, default to 0 if null
     summary: record.summary,
     storyStageId: record.storyStageId ?? null,
-    mainStorylineId: record.mainStorylineId,
+    mainStorylineId: record.mainStorylineId ?? null,
     position: {
       x: record.positionX,
       y: record.positionY,
@@ -129,7 +129,7 @@ export function createBookNodeSqliteRepository(
         end: data.end,
         summary: data.summary,
         storyStageId: data.storyStageId ?? null,
-        mainStorylineId: data.mainStorylineId,
+        mainStorylineId: data.mainStorylineId ?? null,
         positionX: data.position.x,
         positionY: data.position.y,
         wordCount: data.wordCount ?? 0,
@@ -169,7 +169,7 @@ export function createBookNodeSqliteRepository(
       if (updates.storyStageId !== undefined)
         updateValues.storyStageId = updates.storyStageId ?? null;
       if (updates.mainStorylineId !== undefined)
-        updateValues.mainStorylineId = updates.mainStorylineId;
+        updateValues.mainStorylineId = updates.mainStorylineId ?? null;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
       if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
 

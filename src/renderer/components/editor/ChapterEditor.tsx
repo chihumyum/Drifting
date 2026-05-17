@@ -1,33 +1,13 @@
-import {
-  useEffect,
-  useRef,
-  useMemo,
-  useImperativeHandle,
-  useState,
-  useCallback,
-  type Ref,
-} from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useCallback, useImperativeHandle, useState, type Ref } from 'react';
+import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import type { JSONContent } from '@tiptap/core';
-import * as Y from 'yjs';
-import StarterKit from '@tiptap/starter-kit';
-import Collaboration from '@tiptap/extension-collaboration';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import { createDefaultSlashMenu } from '../../lib/slash-menu';
 import { extractOutline, serializeOutline } from '../../lib/outline';
-import { ElementAutoLink, elementAutoLinkConfig } from '../../lib/extensions/element-auto-link';
-import { ElementParserService } from '../../services/element-parser.service';
-import { createElementOccurrenceRepository } from '../../sqlite-repo/element-occr-repo';
-import { useSettingsStore } from '@/renderer/store/settings-store';
-import { TagEditor } from './TagEditor';
+import { type EntityLinkRef } from '../../lib/extensions/entity-link';
+import { isBlockType } from '../../lib/extensions/block-id';
+import { useEntityEditor } from '../../hooks/useEntityEditor';
 import loglevel from 'loglevel';
-import { useDataStore } from '@/renderer/store/data-store';
-import { useAuthStore } from '@/renderer/store/auth';
-import { useYjsSync } from '@/renderer/hooks/useYjsSync';
 import { countWords } from '@/renderer/lib/word-count';
+import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -52,12 +32,11 @@ interface ChapterEditorProps {
   ) => void;
   onTitleUpdate?: (nodeId: string, title: string) => void;
   onSummaryUpdate?: (nodeId: string, summary: string) => void;
-  onElementClick?: (elementId: string) => void;
+  onEntityClick?: (ref: EntityLinkRef) => void;
 
   // 显示选项
   showTitle?: boolean;
   showSummary?: boolean;
-  showTags?: boolean;
 
   // 编辑选项
   editableTitle?: boolean;
@@ -74,38 +53,6 @@ export interface ChapterEditorRef {
   focusEditor: () => void;
 }
 
-const DEFAULT_DOC: JSONContent = {
-  type: 'doc',
-  content: [],
-};
-const META_KEY_TITLE = 'title';
-const META_KEY_SUMMARY = 'summary';
-
-function toSafeDoc(input: unknown): JSONContent {
-  if (input && typeof input === 'object') {
-    const maybe = input as { type?: unknown; content?: unknown };
-    if (maybe.type === 'doc' && Array.isArray(maybe.content)) {
-      return maybe as JSONContent;
-    }
-  }
-  return DEFAULT_DOC;
-}
-
-function parseLegacyDoc(content: string | null): JSONContent | null {
-  if (!content) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(content);
-    const doc = toSafeDoc(parsed);
-    return doc === DEFAULT_DOC ? null : doc;
-  } catch (error) {
-    log.warn('Failed to parse legacy chapter content, keeping empty Yjs doc:', error);
-    return null;
-  }
-}
-
 export function ChapterEditor({
   nodeId,
   content,
@@ -116,269 +63,91 @@ export function ChapterEditor({
   onContentUpdate,
   onTitleUpdate,
   onSummaryUpdate,
-  onElementClick,
+  onEntityClick,
   showTitle = false,
   showSummary = false,
-  showTags = false,
   editableTitle = false,
   editableSummary = false,
   autoFocus = false,
   minHeight = '300px',
   compact = false,
 }: ChapterEditorProps) {
-  const { bookElements } = useDataStore();
-  const { autoElementLinkEnabled } = useSettingsStore();
-  const userId = useAuthStore((state) => state.user?.id);
-  if (!userId) {
-    throw new Error('ChapterEditor requires authenticated user');
-  }
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
   }
 
-  const {
-    ydoc,
-    isReady: isYjsReady,
-    hasLocalState,
-  } = useYjsSync({
-    docId: `node-content:${nodeId}`,
-    userId,
-    projectId,
-  });
-  const legacySeededRef = useRef(false);
-  const parseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastProjectedTitleRef = useRef<string | null>(null);
-  const lastProjectedSummaryRef = useRef<string | null>(null);
-
   const [titleValue, setTitleValue] = useState(title);
   const [summaryValue, setSummaryValue] = useState(summary);
-
-  // 同步外部 title/summary 变化
-  useEffect(() => {
+  // Reset local title/summary state when the parent's nodeId or props change,
+  // using the prev-snapshot pattern to avoid the setState-in-effect anti-pattern.
+  const [syncedKey, setSyncedKey] = useState({ nodeId, title, summary });
+  if (
+    syncedKey.nodeId !== nodeId ||
+    syncedKey.title !== title ||
+    syncedKey.summary !== summary
+  ) {
+    setSyncedKey({ nodeId, title, summary });
     setTitleValue(title);
-  }, [title]);
-
-  useEffect(() => {
     setSummaryValue(summary);
-  }, [summary]);
+  }
 
-  const getMetaString = useCallback((meta: Y.Map<unknown>, key: string): string | null => {
-    const raw = meta.get(key);
-    return typeof raw === 'string' ? raw : null;
-  }, []);
-
-  const setMetaString = useCallback(
-    (key: string, value: string, origin: string) => {
-      const meta = ydoc.getMap<unknown>('meta');
-      const current = getMetaString(meta, key);
-      if (current === value) return;
-      log.debug(`Setting meta ${key} to`, value, 'with origin', origin);
-      ydoc.transact(() => {
-        meta.set(key, value);
-      }, origin);
+  // /patch slash command pipeline: opens a modal asking which element this
+  // chapter (or specific block under the cursor) should patch.
+  const [patchAnchor, setPatchAnchor] = useState<PatchAnchor | null>(null);
+  const openPatchModal = useCallback(
+    (editor: Editor) => {
+      const { state } = editor;
+      const resolved = state.doc.resolve(state.selection.from);
+      let blockId: string | null = null;
+      for (let depth = resolved.depth; depth >= 0; depth--) {
+        const node = resolved.node(depth);
+        if (isBlockType(node.type.name)) {
+          const id = node.attrs?.id as string | null | undefined;
+          if (id) {
+            blockId = id;
+            break;
+          }
+        }
+      }
+      setPatchAnchor({ sourceNodeId: nodeId, sourceBlockId: blockId });
     },
-    [getMetaString, ydoc],
+    [nodeId],
   );
 
-  useEffect(() => {
-    if (!isYjsReady) return;
-
-    const meta = ydoc.getMap<unknown>('meta');
-
-    const syncMeta = () => {
-      const yTitle = getMetaString(meta, META_KEY_TITLE);
-      const ySummary = getMetaString(meta, META_KEY_SUMMARY);
-
-      setTitleValue(yTitle ?? title);
-      setSummaryValue(ySummary ?? summary);
-
-      if (
-        onTitleUpdate &&
-        yTitle !== null &&
-        yTitle !== title &&
-        yTitle !== lastProjectedTitleRef.current
-      ) {
-        lastProjectedTitleRef.current = yTitle;
-        void Promise.resolve(onTitleUpdate(nodeId, yTitle)).catch((error) => {
-          log.error('[ChapterEditor] failed to project yjs title:', error);
-        });
-      }
-
-      if (
-        onSummaryUpdate &&
-        ySummary !== null &&
-        ySummary !== summary &&
-        ySummary !== lastProjectedSummaryRef.current
-      ) {
-        lastProjectedSummaryRef.current = ySummary;
-        void Promise.resolve(onSummaryUpdate(nodeId, ySummary)).catch((error) => {
-          log.error('[ChapterEditor] failed to project yjs summary:', error);
-        });
-      }
-    };
-
-    const needsSeedTitle = !meta.has(META_KEY_TITLE);
-    const needsSeedSummary = !meta.has(META_KEY_SUMMARY);
-    if (needsSeedTitle || needsSeedSummary) {
-      ydoc.transact(() => {
-        if (needsSeedTitle) {
-          meta.set(META_KEY_TITLE, title);
-        }
-        if (needsSeedSummary) {
-          meta.set(META_KEY_SUMMARY, summary);
-        }
-      }, 'meta-seed');
-    }
-
-    syncMeta();
-    meta.observeDeep(syncMeta);
-
-    return () => {
-      meta.unobserveDeep(syncMeta);
-    };
-  }, [getMetaString, isYjsReady, nodeId, onSummaryUpdate, onTitleUpdate, summary, title, ydoc]);
-
-  // element tracking
-  const elementNamesMap = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; category: string }>();
-    bookElements.forEach((element) => {
-      map.set(element.name, {
-        id: element.id,
-        name: element.name,
-        category: element.categoryId,
-      });
-    });
-    return map;
-  }, [bookElements]);
-
-  const parseAndSaveElementOccurrences = useCallback(
-    (jsonContent: JSONContent) => {
-      if (!autoElementLinkEnabled) return;
-
-      if (parseTimeoutRef.current) {
-        clearTimeout(parseTimeoutRef.current);
-      }
-
-      parseTimeoutRef.current = setTimeout(async () => {
-        try {
-          // TODO: maybe there is a performance issue here
-          const matches = ElementParserService.parseElementsFromContent(jsonContent, bookElements);
-          const repo = createElementOccurrenceRepository();
-          await repo.saveOccurrencesForNode(
-            nodeId,
-            matches.map((m) => ({
-              elementId: m.elementId,
-              matches: m.matches,
-            })),
-          );
-        } catch (error) {
-          log.error('Failed to parse and save element occurrences:', error);
-        }
-      }, 1000);
+  // Persist chapter content: derive outline + word count from the doc and
+  // forward to the parent's onContentUpdate. Reference projection is owned
+  // by the hook.
+  const handlePersist = useCallback(
+    (ed: Editor) => {
+      const json = ed.getJSON();
+      const pmJson = JSON.stringify(json);
+      const outline = extractOutline(pmJson);
+      const outlineJson = serializeOutline(outline);
+      const wordCount = countWords(ed.getText());
+      onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
     },
-    [autoElementLinkEnabled, nodeId, bookElements],
+    [nodeId, onContentUpdate],
   );
 
-  // TipTap editor
-  const editor = useEditor(
-    {
-      extensions: [
-        StarterKit.configure({
-          heading: { levels: [1, 2, 3] },
-          bulletList: { keepMarks: true },
-          orderedList: { keepMarks: true },
-          codeBlock: {},
-          undoRedo: false,
-          underline: false,
-          link: false,
-        }),
-        Collaboration.configure({
-          document: ydoc,
-          field: 'default',
-        }),
-        Underline,
-        Link.configure({ openOnClick: false, autolink: true }),
-        TextAlign.configure({
-          types: ['heading', 'paragraph'],
-          alignments: ['left', 'center', 'right'],
-          defaultAlignment: 'left',
-        }),
-        ElementAutoLink.configure({
-          elementNames: elementNamesMap,
-          autoDetectEnabled: autoElementLinkEnabled,
-          onClick: onElementClick,
-        }),
-        createDefaultSlashMenu(),
-      ],
-      content: null,
-      autofocus: autoFocus ? 'end' : false,
-      editable: isYjsReady,
-      editorProps: {
-        attributes: {
-          class: 'prose max-w-none focus:outline-none',
-          style: `min-height: ${minHeight}`,
-          spellcheck: 'false',
-        },
+  const { editor } = useEntityEditor({
+    sourceKind: 'node',
+    sourceId: nodeId,
+    projectId,
+    content,
+    onPersist: handlePersist,
+    onEntityClick,
+    autoFocus,
+    minHeight,
+    slashExtraItems: [
+      {
+        id: 'patch',
+        title: '元素补丁',
+        run: ({ editor }) => openPatchModal(editor),
       },
-      onUpdate: ({ editor: ed }) => {
-        if (!isYjsReady) return;
-
-        const json = ed.getJSON();
-        const pmJson = JSON.stringify(json);
-
-        // TODO: check if we have a performance issue here
-        const outline = extractOutline(pmJson);
-        // log.debug('Extracted outline:', outline);
-        const outlineJson = serializeOutline(outline);
-        // log.debug('Outline JSON:', outlineJson);
-        parseAndSaveElementOccurrences(json);
-        // log.debug('Updating node', nodeId, 'with content:', pmJson);
-        const wordCount = countWords(ed.getText());
-        onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
-      },
-    },
-    [
-      nodeId,
-      ydoc,
-      elementNamesMap,
-      autoElementLinkEnabled,
-      onElementClick,
-      autoFocus,
-      minHeight,
-      onContentUpdate,
-      parseAndSaveElementOccurrences,
-      isYjsReady,
     ],
-  );
+  });
 
-  // Seed Yjs document from legacy JSON once for old docs without local yjs state.
-  useEffect(() => {
-    if (!editor || !isYjsReady || hasLocalState || legacySeededRef.current) {
-      return;
-    }
-
-    const legacyDoc = parseLegacyDoc(content);
-    legacySeededRef.current = true;
-
-    if (!legacyDoc) {
-      return;
-    }
-
-    try {
-      editor.commands.setContent(legacyDoc, { emitUpdate: true });
-    } catch (error) {
-      legacySeededRef.current = false;
-      log.warn('Failed to seed Yjs document from legacy chapter content:', error);
-    }
-  }, [content, editor, hasLocalState, isYjsReady]);
-
-  useEffect(() => {
-    legacySeededRef.current = false;
-    lastProjectedTitleRef.current = null;
-    lastProjectedSummaryRef.current = null;
-  }, [nodeId]);
-
-  // 暴露方法给父组件
+  // Expose editor + focus helper to the parent (NodeEditorView's ref).
   useImperativeHandle(
     forwardedRef,
     () => ({
@@ -390,44 +159,22 @@ export function ChapterEditor({
     [editor],
   );
 
-  // 更新元素自动链接配置
-  useEffect(() => {
-    elementAutoLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
-    elementAutoLinkConfig.elementNames = elementNamesMap;
-  }, [autoElementLinkEnabled, elementNamesMap]);
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (parseTimeoutRef.current) {
-        clearTimeout(parseTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleTitleSave = () => {
     const nextTitle = titleValue.trim();
     if (!nextTitle) {
       setTitleValue(title);
       return;
     }
-    if (!isYjsReady) {
-      if (onTitleUpdate && nextTitle !== title) {
-        onTitleUpdate(nodeId, nextTitle);
-      }
-      return;
+    if (onTitleUpdate && nextTitle !== title) {
+      onTitleUpdate(nodeId, nextTitle);
     }
-    setMetaString(META_KEY_TITLE, nextTitle, 'meta:title');
   };
 
   const handleSummarySave = () => {
-    if (!isYjsReady) {
-      if (onSummaryUpdate && summaryValue !== summary) {
-        onSummaryUpdate(nodeId, summaryValue.trim());
-      }
-      return;
+    const nextSummary = summaryValue.trim();
+    if (onSummaryUpdate && nextSummary !== summary) {
+      onSummaryUpdate(nodeId, nextSummary);
     }
-    setMetaString(META_KEY_SUMMARY, summaryValue.trim(), 'meta:summary');
   };
 
   if (!editor) {
@@ -471,8 +218,7 @@ export function ChapterEditor({
                       e.preventDefault();
                       editor?.commands.focus('start');
                     } else if (e.key === 'Escape') {
-                      const meta = ydoc.getMap<unknown>('meta');
-                      setTitleValue(getMetaString(meta, META_KEY_TITLE) ?? title);
+                      setTitleValue(title);
                       e.currentTarget.blur();
                     }
                   }}
@@ -513,8 +259,7 @@ export function ChapterEditor({
                   onBlur={handleSummarySave}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
-                      const meta = ydoc.getMap<unknown>('meta');
-                      setSummaryValue(getMetaString(meta, META_KEY_SUMMARY) ?? summary);
+                      setSummaryValue(summary);
                       e.currentTarget.blur();
                     }
                   }}
@@ -549,17 +294,6 @@ export function ChapterEditor({
             </div>
           )}
 
-          {/* Tags */}
-          {showTags && (
-            <div
-              style={{
-                padding: literary ? '0 0 18px' : '12px 24px',
-                borderLeft: literary ? 'none' : '1px solid rgba(184, 153, 104, 0.15)',
-              }}
-            >
-              <TagEditor type="node" entityId={nodeId} projectId={projectId} ydoc={ydoc} />
-            </div>
-          )}
 
           {literary && <hr className="page__rule" />}
         </div>
@@ -569,6 +303,12 @@ export function ChapterEditor({
       <div className={literary ? 'page__body' : undefined} style={{ padding: compact ? '16px 24px' : '0' }}>
         <EditorContent editor={editor} />
       </div>
+
+      <PatchTargetModal
+        projectId={projectId}
+        anchor={patchAnchor}
+        onClose={() => setPatchAnchor(null)}
+      />
     </div>
   );
 }

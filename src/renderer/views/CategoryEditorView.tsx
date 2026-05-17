@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import { createDefaultSlashMenu } from '../lib/slash-menu';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { EditorContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
-import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 import { X, Eye } from 'lucide-react';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
@@ -48,9 +44,6 @@ export function CategoryEditorView() {
   const [editingNameCategoryId, setEditingNameCategoryId] = useState<string | null>(null);
   const [categoryNameDraft, setCategoryNameDraft] = useState('');
 
-  const isContentLoadedRef = useRef(false);
-  const loadedCategoryIdRef = useRef<string | null>(null);
-
   // Redirect if category is missing from params.
   useEffect(() => {
     if (!projectId) {
@@ -75,85 +68,30 @@ export function CategoryEditorView() {
   const isEditingCategoryName = curCategory ? editingNameCategoryId === curCategory.id : false;
   const isReservedCategory = curCategory?.name === 'others';
 
-  // Initialize editor
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-        codeBlock: {},
-        link: false, // 禁用 StarterKit 自带的 link，使用自定义配置
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: {
-          class: 'text-blue-600 underline cursor-pointer',
-        },
-      }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
-        defaultAlignment: 'left',
-      }),
-      createDefaultSlashMenu(),
-    ],
-    content: createEmptyTiptapDoc(),
-    autofocus: 'end',
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
-        spellcheck: 'false',
-      },
+  // Persist category description on every editor update (reference projection
+  // is handled inside the hook).
+  const handlePersist = useCallback(
+    (ed: Editor) => {
+      if (!curCategory) return;
+      const contentJson = JSON.stringify(ed.getJSON());
+      if (contentJson === curCategory.descriptionJson) return;
+      promoteCurrentTab();
+      void categoryUsecases.updateCategory(curCategory.id, {
+        descriptionJson: contentJson,
+      });
     },
-    onUpdate: ({ editor: ed }) => {
-      if (!isContentLoadedRef.current) {
-        log.debug('Skipping save: content not yet loaded');
-        return;
-      }
+    [curCategory, categoryUsecases, promoteCurrentTab],
+  );
 
-      const json = ed.getJSON();
-      const contentJson = JSON.stringify(json);
-      if (contentJson === curCategory?.descriptionJson) return;
-
-      if (curCategory) {
-        promoteCurrentTab();
-        void handleSaveContent(contentJson);
-      }
-    },
+  const { editor } = useEntityEditor({
+    sourceKind: 'category',
+    sourceId: curCategory?.id ?? '',
+    projectId,
+    content: curCategory?.descriptionJson ?? null,
+    onPersist: handlePersist,
+    autoFocus: true,
+    editorClass: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
   });
-
-  // Load content into editor
-  useEffect(() => {
-    if (!editor || !curCategory) return;
-    if (loadedCategoryIdRef.current === curCategory.id) return;
-    if (editor.isDestroyed) return;
-
-    const content = parseTiptapDocJson(curCategory.descriptionJson, (error) => {
-      log.error('Failed to parse category description:', error);
-    });
-    try {
-      isContentLoadedRef.current = false;
-      editor.commands.setContent(content, { emitUpdate: false });
-    } catch (error) {
-      log.error('Failed to load category description into editor:', error);
-      isContentLoadedRef.current = false;
-      return;
-    }
-
-    loadedCategoryIdRef.current = curCategory.id;
-    isContentLoadedRef.current = true;
-  }, [editor, curCategory]);
-
-  // Save category description
-  const handleSaveContent = async (content: string) => {
-    if (!curCategory) return;
-    await categoryUsecases.updateCategory(curCategory.id, {
-      descriptionJson: content,
-    });
-  };
 
   const handleStartNameEdit = () => {
     if (!curCategory || isReservedCategory) return;

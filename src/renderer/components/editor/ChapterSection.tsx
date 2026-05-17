@@ -1,5 +1,6 @@
 import type { BookNode } from '../../domain/book-node';
 import { ChapterEditor } from './ChapterEditor';
+import type { EntityLinkRef } from '../../lib/extensions/entity-link';
 
 interface ChapterSectionProps {
   node: BookNode;
@@ -8,7 +9,7 @@ interface ChapterSectionProps {
   onContentUpdate: (nodeId: string, pmJson: string, outlineJson: string) => void;
   isActive?: boolean;
   showDivider?: boolean;
-  onElementClick?: (elementId: string) => void;
+  onEntityClick?: (ref: EntityLinkRef) => void;
 }
 
 export function ChapterSection({
@@ -18,7 +19,7 @@ export function ChapterSection({
   onContentUpdate,
   isActive = false,
   showDivider = true,
-  onElementClick,
+  onEntityClick,
 }: ChapterSectionProps) {
   return (
     <div
@@ -50,7 +51,7 @@ export function ChapterSection({
         title={node.title}
         summary={node.summary || ''}
         onContentUpdate={onContentUpdate}
-        onElementClick={onElementClick}
+        onEntityClick={onEntityClick}
         showTitle={true}
         showSummary={node.summary ? true : false}
         editableTitle={false}
