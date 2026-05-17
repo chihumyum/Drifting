@@ -6,6 +6,10 @@ import { useBookContent } from '../usecase/useBookContent';
 import { BookNode } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
+import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
+import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
+import type { OutlineItem } from '../lib/outline';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import loglevel from 'loglevel';
@@ -67,6 +71,12 @@ export function NodeEditorView() {
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
   const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const activeOutlineId = useOutlineScrollspy(
+    scrollEl,
+    outline.map((h) => h.id),
+  );
   const [editingStorylines, setEditingStorylines] = useState(false);
   const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
   const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);
@@ -493,39 +503,67 @@ export function NodeEditorView() {
             </EditorCrumb>
           </EditorTopBar>
 
-          {/* Manuscript page */}
-          <div className="page">
-            <aside className="page__folio" aria-hidden="true">
-              <span className="page__folio-line">Chapter</span>
-              <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
-              <span className="page__folio-line">· {curNode.wordCount.toLocaleString()} 字</span>
-            </aside>
+          {/* Spread layout: TOC | manuscript page | (margin annotations — deferred) */}
+          <div className="editor-scroll" ref={setScrollEl}>
+            <div className="editor__spread">
+              <EditorOutlinePanel
+                title="本章 · OUTLINE"
+                items={outline.map<OutlineEntry>((h) => ({
+                  id: h.id,
+                  level: h.level,
+                  text: h.text,
+                }))}
+                activeId={activeOutlineId}
+                onItemClick={scrollToOutlineAnchor}
+                footRight={`${curNode.wordCount.toLocaleString()} 字`}
+                emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
+              />
 
-            {mainStoryline && (
-              <div className="page__chapter-mark">— {mainStoryline.name} —</div>
-            )}
+              <article className="page">
+                <div className="page__folio" aria-hidden="true">
+                  <span className="page__folio-line">Chapter</span>
+                  <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
+                  {mainStoryline && (
+                    <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
+                      {mainStoryline.name}
+                    </span>
+                  )}
+                  <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                </div>
 
-            <ChapterEditor
-              key={nodeId}
-              ref={editorRef}
-              nodeId={nodeId}
-              projectId={activeProjectId}
-              content={bookContent?.contentJson ?? null}
-              title={curNode.title}
-              summary={curNode.summary || ''}
-              onContentUpdate={handleContentUpdate}
-              onTitleUpdate={handleTitleUpdate}
-              onSummaryUpdate={handleSummaryUpdate}
-              onEntityClick={handleEntityClick}
-              showTitle={true}
-              showSummary={true}
-              editableTitle={true}
-              editableSummary={true}
-              autoFocus={true}
-              minHeight="400px"
-            />
+                {mainStoryline && (
+                  <div className="page__chapter-mark">— {mainStoryline.name} —</div>
+                )}
 
-            <div className="page__ornament" aria-hidden="true">⁂</div>
+                <ChapterEditor
+                  key={nodeId}
+                  ref={editorRef}
+                  nodeId={nodeId}
+                  projectId={activeProjectId}
+                  content={bookContent?.contentJson ?? null}
+                  title={curNode.title}
+                  summary={curNode.summary || ''}
+                  onContentUpdate={handleContentUpdate}
+                  onTitleUpdate={handleTitleUpdate}
+                  onSummaryUpdate={handleSummaryUpdate}
+                  onEntityClick={handleEntityClick}
+                  onOutlineChange={setOutline}
+                  showTitle={true}
+                  showSummary={true}
+                  editableTitle={true}
+                  editableSummary={true}
+                  autoFocus={true}
+                  minHeight="400px"
+                />
+
+                <div className="page__ornament" aria-hidden="true">⁂</div>
+              </article>
+
+              {/* DEFERRED: right-side margin annotations (Word-style notes anchored
+                  to paragraphs / blocks). Needs a generic annotation system first;
+                  AI features (Copilot / Shadow notes) will layer on top of it. */}
+              <div className="editor__margin" aria-hidden="true" />
+            </div>
           </div>
         </>
       )}

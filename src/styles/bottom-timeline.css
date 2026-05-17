@@ -1,0 +1,439 @@
+/* ============================================================
+   Bottom Timeline — three-state dock
+   strip:   ~24px colored bars (peripheral awareness)
+   normal:  tracks with chapter clips
+   max:     tracks + minimap overview strip on top
+   ============================================================ */
+
+.btl {
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--paper-deep));
+  border-top: 1px solid hsl(var(--rule));
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.btl__resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: ns-resize;
+  z-index: 30;
+}
+
+/* ---------------- Head bar ---------------- */
+.btl__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding: 0 14px;
+  border-bottom: 1px solid hsl(var(--rule));
+  flex-shrink: 0;
+  background: hsl(var(--paper-deep));
+  gap: 12px;
+}
+.btl__head-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.btl__head-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-3));
+  white-space: nowrap;
+  font-weight: 500;
+}
+.btl__head-meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-4));
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.btl__head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btl__head-btn {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  color: hsl(var(--ink-3));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl__head-btn:hover {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+
+.btl__state-toggle {
+  display: inline-flex;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  overflow: hidden;
+  background: hsl(var(--surface));
+}
+.btl__state-toggle button {
+  min-width: 26px;
+  height: 20px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl__state-toggle button:hover {
+  color: hsl(var(--ink-2));
+  background: hsl(var(--rule) / 0.5);
+}
+.btl__state-toggle button.is-active {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+}
+
+/* ---------------- Scroll container ---------------- */
+.btl__scroll {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+.btl__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------------- Storyline row ---------------- */
+.btl-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  gap: 0;
+  min-height: 0;
+}
+.btl-row + .btl-row {
+  border-top: 1px solid hsl(var(--rule) / 0.5);
+}
+
+/* ---------------- Rail (sticky left) ---------------- */
+.btl-rail {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 5;
+  transition: background 0.12s;
+}
+.btl-rail.is-active {
+  background: hsl(var(--paper));
+}
+.btl-rail__stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  opacity: 0.7;
+}
+.btl-rail.is-active .btl-rail__stripe {
+  opacity: 1;
+}
+.btl-rail__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.btl-rail__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.btl-rail__name {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--ink-2));
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btl-rail.is-active .btl-rail__name {
+  color: hsl(var(--ink-1));
+}
+.btl-rail__count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-4));
+  line-height: 1.2;
+}
+
+/* ---------------- Track lane ---------------- */
+.btl-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ---------------- Clip (chapter card) ---------------- */
+.btl-clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: var(--clip-color, hsl(var(--ink-3)));
+  color: hsl(var(--paper));
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    filter 0.12s,
+    box-shadow 0.12s,
+    transform 0.12s;
+}
+.btl-clip:hover {
+  filter: brightness(1.06);
+}
+.btl-clip.is-selected {
+  outline: 2px solid hsl(var(--ink-1));
+  outline-offset: 1px;
+  z-index: 10;
+  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.2);
+}
+.btl-clip.is-draft {
+  background: hsl(var(--paper));
+  color: var(--clip-color, hsl(var(--ink-3)));
+  border: 1px dashed var(--clip-color, hsl(var(--ink-3)));
+}
+
+.btl-clip__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 6px;
+  height: 100%;
+  box-sizing: border-box;
+  min-height: 0;
+  pointer-events: none;
+}
+.btl-clip__num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  opacity: 0.78;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.btl-clip__title {
+  font-family: var(--font-serif);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btl-clip__summary {
+  font-size: 9.5px;
+  line-height: 1.3;
+  opacity: 0.78;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  flex: 1;
+  min-height: 0;
+}
+
+/* outline ruler ticks at bottom */
+.btl-clip__ruler {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 10%;
+  pointer-events: none;
+  z-index: 0;
+}
+.btl-clip__tick {
+  position: absolute;
+  transform: translateX(-50%);
+  bottom: 0;
+  border-radius: 0.5px;
+}
+
+/* ---------------- Strip state ---------------- */
+.btl[data-state='strip'] .btl__scroll {
+  flex-direction: column;
+  justify-content: center;
+}
+.btl[data-state='strip'] .btl-row {
+  flex: 0 0 auto;
+  height: 5px;
+  margin: 0;
+}
+.btl[data-state='strip'] .btl-row + .btl-row {
+  border-top: 0;
+}
+.btl[data-state='strip'] .btl-rail {
+  width: 8px;
+  background: transparent;
+  border-right: 0;
+  padding: 0;
+}
+.btl[data-state='strip'] .btl-rail__dot,
+.btl[data-state='strip'] .btl-rail__main {
+  display: none;
+}
+.btl[data-state='strip'] .btl-rail__stripe {
+  width: 4px;
+}
+.btl[data-state='strip'] .btl-track {
+  border-radius: 0;
+  background: transparent !important;
+}
+.btl[data-state='strip'] .btl-clip {
+  top: 1px;
+  bottom: 1px;
+  border-radius: 1px;
+  border: 0;
+}
+.btl[data-state='strip'] .btl-clip__content {
+  display: none;
+}
+.btl[data-state='strip'] .btl-clip.is-selected {
+  outline-width: 1px;
+  outline-offset: 0;
+  box-shadow: 0 0 8px hsl(var(--ink-1) / 0.3);
+}
+.btl[data-state='strip'] .btl-clip.is-draft {
+  opacity: 0.45;
+}
+
+/* ---------------- Empty + loading ---------------- */
+.btl-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: hsl(var(--ink-4));
+  white-space: nowrap;
+  pointer-events: none;
+}
+.btl-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ---------------- Drop indicator ---------------- */
+.btl-drop-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* ---------------- Cross-storyline links overlay ---------------- */
+.btl-crosslinks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ---------------- Minimap (max-state overview) ---------------- */
+.btl-minimap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px 10px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  flex-shrink: 0;
+}
+.btl-minimap__lane {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: hsl(var(--rule) / 0.5);
+}
+.btl-minimap__seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--clip-color, hsl(var(--ink-4)));
+}
+.btl-minimap__playhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: hsl(var(--accent));
+  pointer-events: none;
+}

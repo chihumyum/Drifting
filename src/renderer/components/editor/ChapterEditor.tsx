@@ -1,7 +1,7 @@
-import { useCallback, useImperativeHandle, useState, type Ref } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import { extractOutline, serializeOutline } from '../../lib/outline';
+import { extractOutline, serializeOutline, type OutlineItem } from '../../lib/outline';
 import { type EntityLinkRef } from '../../lib/extensions/entity-link';
 import { isBlockType } from '../../lib/extensions/block-id';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
@@ -33,6 +33,9 @@ interface ChapterEditorProps {
   onTitleUpdate?: (nodeId: string, title: string) => void;
   onSummaryUpdate?: (nodeId: string, summary: string) => void;
   onEntityClick?: (ref: EntityLinkRef) => void;
+  // Live outline of the chapter's headings (h1/h2/h3). Fires on load and
+  // after every edit. Used by NodeEditorView to render the left TOC rail.
+  onOutlineChange?: (outline: OutlineItem[]) => void;
 
   // 显示选项
   showTitle?: boolean;
@@ -64,6 +67,7 @@ export function ChapterEditor({
   onTitleUpdate,
   onSummaryUpdate,
   onEntityClick,
+  onOutlineChange,
   showTitle = false,
   showSummary = false,
   editableTitle = false,
@@ -129,7 +133,7 @@ export function ChapterEditor({
     [nodeId, onContentUpdate],
   );
 
-  const { editor } = useEntityEditor({
+  const { editor, outline } = useEntityEditor({
     sourceKind: 'node',
     sourceId: nodeId,
     projectId,
@@ -146,6 +150,11 @@ export function ChapterEditor({
       },
     ],
   });
+
+  // Forward the live outline up to NodeEditorView so it can render the TOC.
+  useEffect(() => {
+    onOutlineChange?.(outline);
+  }, [outline, onOutlineChange]);
 
   // Expose editor + focus helper to the parent (NodeEditorView's ref).
   useImperativeHandle(

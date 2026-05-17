@@ -76,6 +76,7 @@ export type AppEvents = {
   'search:open': void;
   'left-sidebar:toggle': void;
   'right-sidebar:toggle': void;
+  'left-sidebar:collapse-all': void;
 
   'nodes:changed': void;
 };

@@ -12,5 +12,4 @@ export interface OutlineItem {
   text: string; // Heading text content
   position: number; // Position in the document (for ordering)
   paragraphsAfter: number; // Number of paragraphs after this heading (before next heading or end)
-  summary: string; // Optional summary for this heading section
 }

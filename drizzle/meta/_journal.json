@@ -64,6 +64,13 @@
       "when": 1779100000000,
       "tag": "0008_drift_nodes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779200000000,
+      "tag": "0009_element_template",
+      "breakpoints": true
     }
   ]
 }

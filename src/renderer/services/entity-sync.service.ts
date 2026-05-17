@@ -697,6 +697,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       projectId: stringValue(row, 'projectId'),
       name: stringValue(row, 'name'),
       descriptionJson: stringValue(row, 'descriptionJson', '{}'),
+      elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
       color: stringValue(row, 'color'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
@@ -10,6 +10,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extensions';
 import loglevel from 'loglevel';
 
+import { extractOutline, type OutlineItem } from '../lib/outline';
 import { BlockId } from '../lib/extensions/block-id';
 import {
   EntityLink,
@@ -101,6 +102,10 @@ export interface UseEntityEditorConfig {
 
 export interface UseEntityEditorResult {
   editor: Editor | null;
+  // Live outline derived from the editor's current doc (h1/h2/h3 nodes).
+  // Updates on every edit and once on load. Empty array before the editor
+  // mounts or when the doc has no headings.
+  outline: OutlineItem[];
 }
 
 // Single shared hook backing all entity rich-text editors:
@@ -285,14 +290,29 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     sourceId: null,
   });
 
-  // Persistence wrapper: runs projection + caller's onPersist callback. Both
-  // gated by the (editor, sourceId) token to avoid initial-load round-trips.
+  // Live outline derived from the editor doc. Recomputed on every update and
+  // once on load. Cheap because we already have the JSON in hand; if this
+  // turns up in a profile, switch to walking the PMNode directly.
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const recomputeOutline = useCallback((editor: Editor) => {
+    if (editor.isDestroyed) return;
+    try {
+      const pmJson = JSON.stringify(editor.getJSON());
+      setOutline(extractOutline(pmJson));
+    } catch (error) {
+      log.warn('Failed to recompute outline:', error);
+    }
+  }, []);
+
+  // Persistence wrapper: runs projection + outline refresh + caller's onPersist.
+  // All gated by the (editor, sourceId) token to avoid initial-load round-trips.
   const persistEditorContent = useCallback(
     (editor: Editor) => {
       projectReferences(editor);
+      recomputeOutline(editor);
       onPersistRef.current(editor);
     },
-    [onPersistRef, projectReferences],
+    [onPersistRef, projectReferences, recomputeOutline],
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {
@@ -431,12 +451,15 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       // load; without this kick, references would only populate after the
       // user's next edit.
       projectReferences(editor);
+      // Seed the live outline so the left TOC reflects existing headings
+      // before the user makes any edits.
+      recomputeOutline(editor);
     } catch (error) {
       log.warn('Failed to load entity editor content:', error);
     }
     // content is intentionally NOT in deps — see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, projectId, sourceKind, sourceId, projectReferences]);
+  }, [editor, projectId, sourceKind, sourceId, projectReferences, recomputeOutline]);
 
   // Register with the global active-editor registry: Cmd+F finds this
   // instance, Cmd+S runs the same persistence path as onUpdate.
@@ -455,5 +478,5 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     persistEditorContent(editor);
   });
 
-  return { editor };
+  return { editor, outline };
 }

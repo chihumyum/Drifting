@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
@@ -6,140 +6,164 @@ import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
+import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
+import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
-import { X, Eye } from 'lucide-react';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 
 const log = loglevel.getLogger('CategoryEditorView');
 log.setLevel(loglevel.levels.ERROR);
 
+const CATEGORY_COLORS = [
+  'hsl(var(--story-1))',
+  'hsl(var(--story-2))',
+  'hsl(var(--story-3))',
+  'hsl(var(--story-4))',
+  'hsl(var(--story-5))',
+  'hsl(var(--story-6))',
+];
+
+type ElementFilter = 'all' | 'used' | 'unused';
+
 export function CategoryEditorView() {
   const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
-  if (!projectId) {
-    log.error('Project ID is missing in params');
-    throw new Error('Project ID is required');
-  }
-  if (!userId) {
-    log.error('User ID is missing in auth store');
-    throw new Error('User must be authenticated');
-  }
+  if (!projectId) throw new Error('Project ID is required');
+  if (!userId) throw new Error('User must be authenticated');
+
   const { bookElementCategories, bookElements } = useDataStore();
-  // TODO: allow delete element from this view
-  const { updateElement } = useBookElement({
-    projectId: projectId,
-    userId: userId,
-  });
-  const categoryUsecases = useElementCategory({
-    projectId: projectId,
-    userId: userId,
-  });
+  const { updateElement } = useBookElement({ projectId, userId });
+  const categoryUsecases = useElementCategory({ projectId, userId });
   const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
 
-  const [showElementsModal, setShowElementsModal] = useState(false);
-  const [editingNameCategoryId, setEditingNameCategoryId] = useState<string | null>(null);
-  const [categoryNameDraft, setCategoryNameDraft] = useState('');
-
-  // Redirect if category is missing from params.
+  // Redirect if category param is missing.
   useEffect(() => {
-    if (!projectId) {
-      log.error('Project ID is missing');
-      return;
-    }
-    if (!categoryId) {
-      navigateToHome();
-    }
-  }, [categoryId, navigateToHome, projectId]);
+    if (!categoryId) navigateToHome();
+  }, [categoryId, navigateToHome]);
 
   const curCategory = useMemo(() => {
     if (!categoryId) return null;
     return bookElementCategories.find((cat) => cat.id === categoryId) || null;
   }, [bookElementCategories, categoryId]);
 
-  // Get elements belonging to this category
-  const categoryElements = useMemo(() => {
+  const isReservedCategory = curCategory?.name === 'others';
+
+  // Elements belonging to this category.
+  const cEls = useMemo(() => {
     if (!categoryId) return [];
     return bookElements.filter((el) => el.categoryId === categoryId);
   }, [bookElements, categoryId]);
-  const isEditingCategoryName = curCategory ? editingNameCategoryId === curCategory.id : false;
-  const isReservedCategory = curCategory?.name === 'others';
 
-  // Persist category description on every editor update (reference projection
-  // is handled inside the hook).
+  const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
+  const filteredEls = cEls.filter((e) => {
+    if (elementFilter === 'all') return true;
+    // No per-element mention count in schema yet — treat any saved summary
+    // or contentJson change as "used". Replace with real mention count when
+    // a reference-projection aggregate lands.
+    const hasContent =
+      (e.summary && e.summary.length > 0) ||
+      (e.contentJson && e.contentJson !== '{}' && e.contentJson !== '');
+    return elementFilter === 'used' ? hasContent : !hasContent;
+  });
+  const usedCount = cEls.filter((e) =>
+    (e.summary && e.summary.length > 0) ||
+    (e.contentJson && e.contentJson !== '{}' && e.contentJson !== ''),
+  ).length;
+
+  // Name editing
+  const [nameDraft, setNameDraft] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isComposingName, setIsComposingName] = useState(false);
+  const currentName = curCategory?.name ?? '';
+  const displayedName = isEditingName ? nameDraft : currentName;
+
+  const commitName = async () => {
+    if (!curCategory || isReservedCategory) return;
+    const next = nameDraft.trim();
+    if (!next || next === curCategory.name) return;
+    promoteCurrentTab();
+    try {
+      await categoryUsecases.updateCategory(curCategory.id, { name: next });
+    } catch (error) {
+      log.error('Failed to update category name:', error);
+    }
+  };
+
+  const commitColor = async (color: string) => {
+    if (!curCategory || color === curCategory.color) return;
+    promoteCurrentTab();
+    await categoryUsecases.updateCategory(curCategory.id, { color });
+  };
+
+  const commitTemplate = useCallback(
+    (templateJson: string) => {
+      if (!curCategory || templateJson === curCategory.elementTemplateJson) return;
+      promoteCurrentTab();
+      void categoryUsecases.updateCategory(curCategory.id, { elementTemplateJson: templateJson });
+    },
+    [curCategory, categoryUsecases, promoteCurrentTab],
+  );
+
+  // Scratch body (descriptionJson) — TipTap editor for category notes.
   const handlePersist = useCallback(
     (ed: Editor) => {
       if (!curCategory) return;
       const contentJson = JSON.stringify(ed.getJSON());
       if (contentJson === curCategory.descriptionJson) return;
       promoteCurrentTab();
-      void categoryUsecases.updateCategory(curCategory.id, {
-        descriptionJson: contentJson,
-      });
+      void categoryUsecases.updateCategory(curCategory.id, { descriptionJson: contentJson });
     },
     [curCategory, categoryUsecases, promoteCurrentTab],
   );
-
-  const { editor } = useEntityEditor({
+  const { editor, outline } = useEntityEditor({
     sourceKind: 'category',
     sourceId: curCategory?.id ?? '',
     projectId,
     content: curCategory?.descriptionJson ?? null,
     onPersist: handlePersist,
-    autoFocus: true,
-    editorClass: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
+    placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
   });
 
-  const handleStartNameEdit = () => {
-    if (!curCategory || isReservedCategory) return;
-    setEditingNameCategoryId(curCategory.id);
-    setCategoryNameDraft(curCategory.name);
-  };
-
-  const handleCancelNameEdit = () => {
-    setEditingNameCategoryId(null);
-    setCategoryNameDraft('');
-  };
-
-  const handleSaveName = async () => {
-    if (!curCategory || editingNameCategoryId !== curCategory.id || isReservedCategory) return;
-
-    const nextName = categoryNameDraft.trim();
-    if (!nextName || nextName === curCategory.name) {
-      handleCancelNameEdit();
-      return;
-    }
-
-    try {
-      promoteCurrentTab();
-      await categoryUsecases.updateCategory(curCategory.id, {
-        name: nextName,
-      });
-    } catch (error) {
-      log.error('Failed to update category name:', error);
-    } finally {
-      handleCancelNameEdit();
-    }
-  };
+  // Two-level TOC: outer = static section framework (h2), inner = body
+  // headings (h3). 元素模版 sits between 概述 and 元素清单 — see the schema
+  // section below for the template-editor section it points to.
+  const sections: OutlineEntry[] = [
+    { id: 'cat-overview', level: 2, num: '一', text: '概述' },
+    { id: 'cat-template', level: 2, num: '二', text: '元素模版' },
+  ];
+  if (cEls.length > 0) {
+    sections.push({ id: 'cat-elements', level: 2, num: '三', text: '元素清单' });
+  }
+  sections.push({
+    id: 'cat-scratch',
+    level: 2,
+    num: cEls.length > 0 ? '四' : '三',
+    text: '札记',
+  });
+  const outlineItems: OutlineEntry[] = [
+    ...sections,
+    ...outline.map<OutlineEntry>((h) => ({ id: h.id, level: 3, text: h.text })),
+  ];
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineItems.map((i) => i.id));
 
   const handleContextAction = async (action: string) => {
     if (!curCategory) return;
-
     if (action === 'deleteCategory') {
       const confirmed = window.confirm(
         `Delete category "${curCategory.name}"?\n\nAll elements in this category will be moved to "others".`,
       );
       if (!confirmed) return;
-
       try {
-        // Move all elements in this category to "others"
-        for (const element of categoryElements) {
+        for (const element of cEls) {
           await updateElement(element.id, { categoryId: 'others' });
         }
-        // Delete the category
         await categoryUsecases.deleteCategory(curCategory.id);
         navigateToHome();
       } catch (error) {
@@ -151,32 +175,25 @@ export function CategoryEditorView() {
 
   if (!curCategory) {
     return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#999',
-        }}
-      >
-        Loading category...
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'hsl(var(--ink-4))' }}>
+        Loading category…
       </div>
     );
   }
 
+  const categoryColor = curCategory.color || 'hsl(var(--accent))';
+  const categoryShortId = curCategory.id.slice(0, 6);
+
   return (
-    <div
-      className="editor-shell"
-      style={{
-        height: '100%',
-        background: 'rgba(251, 249, 243, 1)',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
       <EditorTopBar
         editorType="category"
         onMenuAction={handleContextAction}
+        right={
+          <>
+            <span>{cEls.length} 元素</span>
+          </>
+        }
       >
         <EditorCrumb
           dotColor={curCategory.color || '#8A2A1E'}
@@ -190,14 +207,9 @@ export function CategoryEditorView() {
                   <div
                     key={cat.id}
                     className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                    onClick={() => {
-                      if (!isActive) navigateToCategory(cat.id);
-                    }}
+                    onClick={() => { if (!isActive) navigateToCategory(cat.id); }}
                   >
-                    <span
-                      className="crumb-dropdown__dot"
-                      style={{ background: cat.color || '#8A2A1E' }}
-                    />
+                    <span className="crumb-dropdown__dot" style={{ background: cat.color || '#8A2A1E' }} />
                     <span>{cat.name}</span>
                   </div>
                 );
@@ -209,312 +221,191 @@ export function CategoryEditorView() {
         </EditorCrumb>
       </EditorTopBar>
 
-      {/* Header */}
-      <div
-        style={{
-          flexShrink: 0,
-          padding: '20px 32px',
-          borderBottom: '1px solid rgba(200, 190, 220, 0.25)',
-          background: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-          {/* TODO: make this editable */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
-            {curCategory.color && (
-              <div
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  background: curCategory.color,
-                  boxShadow: `0 2px 8px ${curCategory.color}40`,
-                }}
-              />
-            )}
-            {isEditingCategoryName ? (
-              <input
-                type="text"
-                value={categoryNameDraft}
-                onChange={(event) => setCategoryNameDraft(event.target.value)}
-                onBlur={() => {
-                  void handleSaveName();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }
-                  if (event.key === 'Escape') {
-                    handleCancelNameEdit();
-                  }
-                }}
-                onFocus={(event) => event.target.select()}
-                autoFocus
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: 'rgba(0, 0, 0, 0.85)',
-                  margin: 0,
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                }}
-              />
-            ) : (
-              <h1
-                onDoubleClick={handleStartNameEdit}
-                title={isReservedCategory ? 'Reserved category' : 'Double-click to rename'}
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  color: 'rgba(0, 0, 0, 0.85)',
-                  margin: 0,
-                  cursor: isReservedCategory ? 'default' : 'text',
-                }}
-              >
+      <div className="editor-scroll" ref={setScrollEl}>
+        <div className="editor__spread">
+          <EditorOutlinePanel
+            title={`${curCategory.name} · OUTLINE`}
+            items={outlineItems}
+            activeId={activeOutlineId}
+            onItemClick={scrollToOutlineAnchor}
+            footLeft={`c.${categoryShortId}`}
+            footRight={`${cEls.length} 元素`}
+            emptyHint=""
+          />
+
+          <article className="page" style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}>
+            <div className="page__folio" aria-hidden="true">
+              <span className="page__folio-line">Category</span>
+              <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
                 {curCategory.name}
-              </h1>
-            )}
-          </div>
-
-          {/* Element count */}
-          <div
-            style={{
-              padding: '4px 12px',
-              borderRadius: 12,
-              background: 'rgba(102, 126, 234, 0.1)',
-              color: 'rgba(102, 126, 234, 0.9)',
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            {categoryElements.length} {categoryElements.length === 1 ? 'element' : 'elements'}
-          </div>
-        </div>
-
-        {/* View elements button */}
-        <button
-          onClick={() => setShowElementsModal(true)}
-          className="bg-paper-hover hover:bg-accent hover:text-paper transition-colors"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 16px',
-            borderRadius: 8,
-            border: '1px solid var(--accent-border, #e8dcc8)',
-            color: '#5a4a3a',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <Eye size={16} />
-          View All Elements
-        </button>
-      </div>
-
-      {/* Editor Content */}
-      <div
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '32px',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 800,
-            margin: '0 auto',
-            background: 'white',
-            borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-            border: '1px solid rgba(200, 190, 220, 0.25)',
-            minHeight: 400,
-          }}
-        >
-          {/* Tiptap Editor */}
-          <EditorContent editor={editor} />
-        </div>
-      </div>
-
-      {/* Elements Modal */}
-      {showElementsModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 40,
-          }}
-          onClick={() => setShowElementsModal(false)}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: 16,
-              maxWidth: 900,
-              width: '100%',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '24px 32px',
-                borderBottom: '1px solid rgba(200, 190, 220, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: 'rgba(0, 0, 0, 0.85)',
-                    margin: '0 0 4px 0',
-                  }}
-                >
-                  Elements in "{curCategory.name}"
-                </h2>
-                <p
-                  style={{
-                    fontSize: 14,
-                    color: 'rgba(0, 0, 0, 0.5)',
-                    margin: 0,
-                  }}
-                >
-                  {categoryElements.length} {categoryElements.length === 1 ? 'element' : 'elements'}{' '}
-                  found
-                </p>
-              </div>
-              <button
-                onClick={() => setShowElementsModal(false)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 6,
-                  border: 'none',
-                  background: 'rgba(0, 0, 0, 0.05)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
-                }}
-              >
-                <X size={18} />
-              </button>
+              </span>
+              <span className="page__folio-line">c.{categoryShortId}</span>
+              <span className="page__folio-line">{cEls.length} 元素</span>
             </div>
 
-            {/* Modal Content */}
-            <div
-              style={{
-                flex: 1,
-                overflow: 'auto',
-                padding: '24px 32px',
-              }}
-            >
-              {categoryElements.length === 0 ? (
+            {/* 一 · 概述 */}
+            <section id="cat-overview">
+              <div className="elem-hero">
                 <div
-                  style={{
-                    padding: '40px 20px',
-                    textAlign: 'center',
-                    color: 'rgba(0, 0, 0, 0.4)',
-                    fontSize: 14,
-                  }}
+                  className="elem-portrait elem-portrait--category"
+                  style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}
                 >
-                  No elements in this category yet.
+                  <span className="elem-portrait__hint">◆ {curCategory.name}</span>
                 </div>
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                    gap: 16,
-                  }}
-                >
-                  {categoryElements.map((el) => (
-                    <div
-                      key={el.id}
-                      onClick={() => {
-                        setShowElementsModal(false);
-                        navigateToElement(el.id);
-                      }}
-                      className="bg-paper shadow-paper"
-                      style={{
-                        padding: '16px',
-                        borderRadius: 12,
-                        border: '1px solid var(--accent-border, #e8dcc8)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 111, 71, 0.12)';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 111, 71, 0.06)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: '#3a2a1a',
-                          marginBottom: 8,
-                        }}
-                      >
-                        {el.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: 'rgba(0, 0, 0, 0.5)',
-                        }}
-                      >
-                        {new Date(el.updatedAt).toLocaleDateString()}
+                <div className="elem-hero__main">
+                  <div className="elem-hero__kicker">
+                    <span className="elem-hero__kicker-dot" style={{ background: categoryColor }} />
+                    <span>◆ CATEGORY</span>
+                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
+                    <span>c.{categoryShortId}</span>
+                  </div>
+
+                  <input
+                    type="text"
+                    className="elem-hero__name"
+                    value={displayedName}
+                    disabled={isReservedCategory}
+                    onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onCompositionStart={() => setIsComposingName(true)}
+                    onCompositionEnd={(e) => { setIsComposingName(false); setNameDraft(e.currentTarget.value); }}
+                    onBlur={() => { setIsEditingName(false); if (!isComposingName) void commitName(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.nativeEvent.isComposing && !isComposingName) {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                      if (e.key === 'Escape') {
+                        setNameDraft(currentName);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    placeholder="Untitled category"
+                    title={isReservedCategory ? 'Reserved category — cannot rename' : undefined}
+                  />
+
+                  <div className="elem-hero__facts">
+                    <div className="elem-hero__fact-k">元素数</div>
+                    <div className="elem-hero__fact-v">{cEls.length} 个</div>
+                    <div className="elem-hero__fact-k">色标</div>
+                    <div className="elem-hero__fact-v">
+                      <div className="col-pick">
+                        {CATEGORY_COLORS.map((c) => (
+                          <div
+                            key={c}
+                            className={`col-pick__sw${c === curCategory.color ? ' col-pick__sw--active' : ''}`}
+                            style={{ ['--c' as string]: c } as React.CSSProperties}
+                            onClick={() => void commitColor(c)}
+                            title={c}
+                          />
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* DEFERRED: aliases, description, scope (sentence). Need
+                      schema additions before these can render. */}
                 </div>
-              )}
+              </div>
+            </section>
+
+            {/* 二 · 元素模版 — TipTap doc seeded into newly-created elements
+                under this category. Editing here only affects future elements;
+                existing element bodies are untouched. */}
+            <h2 id="cat-template" className="page__scene">
+              <span className="page__scene-num">二</span>
+              <span className="page__scene-title">元素模版 · template</span>
+              <span className="page__scene-meta">新元素的默认骨架</span>
+            </h2>
+            <div className="elem-body">
+              <ElementTemplateEditor
+                key={curCategory.id}
+                templateJson={curCategory.elementTemplateJson}
+                onPersist={commitTemplate}
+                placeholder="用 H1 / H2 / H3 写一份默认的元素骨架，新建元素时自动填充…"
+              />
             </div>
-          </div>
+
+            {/* 三 · 元素清单 */}
+            {cEls.length > 0 && (
+              <>
+                <h2 id="cat-elements" className="page__scene">
+                  <span className="page__scene-num">三</span>
+                  <span className="page__scene-title">元素清单</span>
+                  <span className="page__scene-meta">{cEls.length} 个</span>
+                </h2>
+
+                <div className="mgr-toolbar">
+                  <div className="mgr-toolbar__chips">
+                    {([
+                      ['all',    '全部',     cEls.length],
+                      ['used',   '已填写',   usedCount],
+                      ['unused', '未填写',   cEls.length - usedCount],
+                    ] as const).map(([k, label, n]) => (
+                      <div
+                        key={k}
+                        className={`mgr-toolbar__chip${elementFilter === k ? ' mgr-toolbar__chip--active' : ''}`}
+                        onClick={() => setElementFilter(k)}
+                      >
+                        <span>{label}</span>
+                        <em>· {n}</em>
+                      </div>
+                    ))}
+                  </div>
+                  {/* DEFERRED: search / sort / batch / + new element */}
+                </div>
+
+                <div className="mgr-list">
+                  {filteredEls.map((e) => {
+                    const role = e.summary || '';
+                    return (
+                      <div
+                        key={e.id}
+                        className="mgr-row"
+                        style={{ ['--s-color' as string]: categoryColor } as React.CSSProperties}
+                        onClick={() => navigateToElement(e.id)}
+                      >
+                        <div className="mgr-row__status" style={{ background: categoryColor }} />
+                        <div className="mgr-row__num">e.{e.id.slice(0, 4)}</div>
+                        <div className="mgr-row__body">
+                          <div className="mgr-row__title">
+                            <span className="mgr-row__title-mark">◆</span>
+                            <span>{e.name || 'Untitled'}</span>
+                          </div>
+                          <div className={`mgr-row__summary${role ? '' : ' mgr-row__summary--empty'}`}>
+                            {role || '— 尚未填写一句话角色 —'}
+                          </div>
+                        </div>
+                        <div className="mgr-row__wc">
+                          <span className="mgr-row__wc-v">{role ? '·' : '—'}</span>
+                          <span className="mgr-row__wc-k">role</span>
+                        </div>
+                        <div className="mgr-row__open" title="打开元素">→</div>
+                      </div>
+                    );
+                  })}
+                  {filteredEls.length === 0 && (
+                    <div className="mgr-empty">— 此筛选下暂无元素 —</div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* 四 · 札记 — drops to 三 when there are no elements yet, since
+                the 元素清单 section above is conditional. */}
+            <h2 id="cat-scratch" className="page__scene">
+              <span className="page__scene-num">{cEls.length > 0 ? '四' : '三'}</span>
+              <span className="page__scene-title">札记 · scratch</span>
+            </h2>
+            <div className="elem-body">
+              <EditorContent editor={editor} />
+            </div>
+          </article>
+
+          {/* DEFERRED: right-side margin annotations. */}
+          <div className="editor__margin" aria-hidden="true" />
         </div>
-      )}
+      </div>
     </div>
   );
 }

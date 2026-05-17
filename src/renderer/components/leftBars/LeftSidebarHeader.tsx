@@ -91,17 +91,20 @@ export function LeftSidebarHeader() {
         }}
       >
         <PanelTab
-          label="Nodes"
+          label="章节"
+          glyph="§"
           isActive={activeLeftPanel === 'nodes'}
           onClick={() => setActiveLeftPanel('nodes')}
         />
         <PanelTab
-          label="Elements"
+          label="元素"
+          glyph="◆"
           isActive={activeLeftPanel === 'elements'}
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
-          label="Drift"
+          label="灵感"
+          glyph="✦"
           isActive={activeLeftPanel === 'drift'}
           onClick={() => setActiveLeftPanel('drift')}
         />
@@ -150,10 +153,12 @@ export function LeftSidebarHeader() {
 
 function PanelTab({
   label,
+  glyph,
   isActive,
   onClick,
 }: {
   label: string;
+  glyph?: string;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -161,13 +166,16 @@ function PanelTab({
     <button
       onClick={onClick}
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
         background: isActive ? 'hsl(var(--surface))' : 'transparent',
         color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-        padding: '4px 12px',
+        padding: '4px 10px',
         fontSize: 11.5,
         cursor: 'pointer',
         fontFamily: 'var(--font-mono)',
-        textTransform: 'uppercase',
         letterSpacing: '0.08em',
         fontWeight: 500,
         border: 'none',
@@ -184,7 +192,21 @@ function PanelTab({
         if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-3))';
       }}
     >
-      {label}
+      {glyph && (
+        <span
+          aria-hidden
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: 12.5,
+            color: isActive ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
+            lineHeight: 1,
+          }}
+        >
+          {glyph}
+        </span>
+      )}
+      <span>{label}</span>
     </button>
   );
 }

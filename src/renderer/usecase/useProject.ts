@@ -409,6 +409,7 @@ export function useProject({ userId }: UseProjectContext) {
         projectId: project.id,
         name: 'others',
         descriptionJson: '{}',
+        elementTemplateJson: '{}',
         color: randomColor(),
         createdAt: now,
         updatedAt: now,

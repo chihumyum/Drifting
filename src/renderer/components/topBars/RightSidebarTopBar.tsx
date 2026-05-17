@@ -1,17 +1,24 @@
+import { useRef, useState } from 'react';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useUiStore } from '../../store/ui-store';
-import { RightSidebarHeader } from '../rightBars/RightSidebarHeader';
+import { useAuthStore } from '../../store/auth';
+import { UserAvatar, UserMenu } from './UserMenu';
 
 export function RightSidebarTopBar() {
   const isMac = navigator.userAgent.includes('Mac');
   const isRightSidebarOpen = useUiStore((state) => state.sidebars.right.isOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+  const user = useAuthStore((s) => s.user);
+  const avatarRef = useRef<HTMLButtonElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!isMac) {
     return null;
   }
 
   const iconSize = 16;
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'L';
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <div
@@ -20,10 +27,9 @@ export function RightSidebarTopBar() {
           height: 42,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isRightSidebarOpen ? 'flex-start' : 'flex-end',
-          paddingLeft: isRightSidebarOpen ? 8 : 8,
+          paddingLeft: 6,
           paddingRight: 8,
-          gap: isRightSidebarOpen ? 8 : 0,
+          gap: 6,
           borderBottom: '1px solid hsl(var(--rule))',
           width: '100%',
           WebkitAppRegion: 'drag',
@@ -66,19 +72,19 @@ export function RightSidebarTopBar() {
           <PanelRightOpen size={iconSize} strokeWidth={1.6} />
         )}
       </button>
-      {isRightSidebarOpen && (
-        <div
-          style={
-            {
-              flex: 1,
-              minWidth: 0,
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties
-          }
-        >
-          <RightSidebarHeader inline />
-        </div>
-      )}
+      {/* Spacer pushes the avatar to the right edge. The tab strip / title bar
+          now lives inside the right panel itself so collapsed state still has
+          room for both the toggle button and the user avatar. */}
+      <div style={{ flex: 1 }} />
+      <UserAvatar
+        forwardRef={avatarRef}
+        initial={initial}
+        size={26}
+        fontSize={13}
+        title={displayName}
+        onClick={() => setMenuOpen((v) => !v)}
+      />
+      <UserMenu triggerRef={avatarRef} open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   );
 }

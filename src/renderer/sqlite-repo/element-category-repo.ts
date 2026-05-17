@@ -42,6 +42,7 @@ export function createElementCategoryRepository(
       ...category,
       name: normalizeCategoryName(category.name),
       descriptionJson: category.descriptionJson ?? '{}',
+      elementTemplateJson: category.elementTemplateJson ?? '{}',
       color: category.color ?? DEFAULT_CATEGORY_COLOR,
     };
     log.debug('Creating category:', newCategory);
@@ -96,6 +97,8 @@ export function createElementCategoryRepository(
     if (updates.color !== undefined) updateValues.color = updates.color;
     if (updates.descriptionJson !== undefined)
       updateValues.descriptionJson = updates.descriptionJson;
+    if (updates.elementTemplateJson !== undefined)
+      updateValues.elementTemplateJson = updates.elementTemplateJson;
 
     await dbProvider()
       .update(ElementCategoryTable)

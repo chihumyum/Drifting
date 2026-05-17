@@ -15,11 +15,13 @@ log.setLevel(loglevel.levels.WARN);
 export type CreateElementCategoryInput = {
   name?: string;
   descriptionJson?: string;
+  elementTemplateJson?: string;
 };
 
 export interface UpdateElementCategoryInput {
   name?: string;
   descriptionJson?: string;
+  elementTemplateJson?: string;
   color?: string;
 }
 
@@ -66,6 +68,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         projectId: activeProjectId,
         name: resolved.name?.trim() || 'New Category',
         descriptionJson: resolved.descriptionJson ?? '{}',
+        elementTemplateJson: resolved.elementTemplateJson ?? '{}',
         color: randomColor(),
         createdAt: now,
         updatedAt: now,
@@ -85,6 +88,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             id: created.id,
             name: created.name,
             descriptionJson: created.descriptionJson,
+            elementTemplateJson: created.elementTemplateJson,
             color: created.color,
           }),
       });
@@ -127,6 +131,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         ...existing,
         name: updates.name ?? existing.name,
         descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
+        elementTemplateJson: updates.elementTemplateJson ?? existing.elementTemplateJson,
         color: updates.color ?? existing.color,
         updatedAt: now,
       };
@@ -138,6 +143,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           const persisted = await repo.update(categoryId, {
             name: updated.name,
             descriptionJson: updated.descriptionJson,
+            elementTemplateJson: updated.elementTemplateJson,
             color: updated.color,
             updatedAt: updated.updatedAt,
           });
@@ -153,6 +159,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           syncCategoryUpdate(categoryId, activeProjectId, {
             name: persisted.name,
             descriptionJson: persisted.descriptionJson,
+            elementTemplateJson: persisted.elementTemplateJson,
             color: persisted.color,
           }),
       });

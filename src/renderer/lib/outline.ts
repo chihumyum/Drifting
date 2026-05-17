@@ -11,7 +11,6 @@ export interface OutlineItem {
   text: string;
   position: number;
   paragraphsAfter: number;
-  summary: string;
 }
 
 /**
@@ -34,13 +33,17 @@ export function extractOutline(pmJson: string): OutlineItem[] {
       ) {
         const text = extractTextFromNode(node);
         if (text.trim()) {
+          // Prefer the heading node's block id (set by the BlockId extension)
+          // so the rendered DOM's `data-block-id` matches OutlineItem.id —
+          // that lets the TOC scroll to the heading via a simple selector.
+          // Fall back to a generated id when the doc has no block ids yet.
+          const blockId = typeof node.attrs.id === 'string' ? node.attrs.id : null;
           outline.push({
-            id: `outline_${uuidv7()}_${position}`,
+            id: blockId ?? `outline_${uuidv7()}_${position}`,
             level: node.attrs.level as 1 | 2 | 3,
             text: text.trim(),
             position: position++,
             paragraphsAfter: 0,
-            summary: '',
           });
           currentHeadingIndex = outline.length - 1;
         }
@@ -98,7 +101,6 @@ export function parseOutline(outlineJson: string): OutlineItem[] {
       text: item.text ?? '',
       position: item.position ?? index,
       paragraphsAfter: item.paragraphsAfter ?? 0,
-      summary: item.summary ?? '',
     }));
   } catch (error) {
     log.error('Failed to parse outline:', error);

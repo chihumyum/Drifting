@@ -25,12 +25,18 @@ export const ProjectTable = sqliteTable('project', {
 // project(1) <-> elementCategory(N)
 // elementCategory(1) <-> element(N)
 // Domain: BookElementCategory
+//
+// elementTemplateJson holds the default TipTap doc seeded into a newly-created
+// element whose categoryId points at this row. Empty doc ({}) means "no
+// template" and the element starts blank. Editing here only affects future
+// elements — existing elements are untouched (see useBookElement.createElement).
 export const ElementCategoryTable = sqliteTable(
   'element_category',
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     descriptionJson: text('description_json').default('{}'),
+    elementTemplateJson: text('element_template_json').default('{}'),
     color: text('color').notNull(),
     projectId: text('project_id')
       .notNull()

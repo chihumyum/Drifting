@@ -21,7 +21,9 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
   // 90 + 28 + 16 ~= 134px. Let's say 140px safe.
   // Or just let it be auto? No, we want animation.
   const LEFT_COLLAPSED_WIDTH = 200;
-  const RIGHT_COLLAPSED_WIDTH = 44;
+  // Collapsed right section must fit the sidebar-toggle button (26px) and the
+  // always-visible user avatar (26px), plus paddings + gap (~22px).
+  const RIGHT_COLLAPSED_WIDTH = 80;
 
   const leftWidth = leftState.isOpen ? leftState.width : LEFT_COLLAPSED_WIDTH;
   const rightWidth = rightState.isOpen ? rightState.width : RIGHT_COLLAPSED_WIDTH;

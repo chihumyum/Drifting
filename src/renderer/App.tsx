@@ -19,6 +19,7 @@ import { initDatabase } from './lib/db';
 import { events } from './lib/events';
 import { ElementPanel } from './components/leftBars/ElementPanel';
 import { LeftSidebarHeader } from './components/leftBars/LeftSidebarHeader';
+import { LeftSidebarSubHeader } from './components/leftBars/LeftSidebarSubHeader';
 import { NodesPanel } from './components/leftBars/NodesPanel';
 import { DriftPanel } from './components/leftBars/DriftPanel';
 import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
@@ -43,6 +44,7 @@ import { useBookElement } from './usecase/useBookElement';
 import { useElementCategory } from './usecase/useElementCategory';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
+import { ShadowOrb } from './components/ShadowOrb';
 import { isAuthRequired } from './lib/config';
 import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from './services/reference-index.service';
@@ -152,6 +154,31 @@ function Layout() {
   useEffect(() => {
     setDbReady(false);
   }, [projectId, userId]);
+
+  // Apply theme (light/dark) on every change. The store persists the choice,
+  // so initial render of the user menu sees the same value used here.
+  const theme = useUiStore((state) => state.theme);
+  const shadowMode = useUiStore((state) => state.shadowMode);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [theme]);
+
+  // Shadow mode shifts the full palette via token overrides in index.css.
+  // Setting the attribute on <html> means the entire app — editor included
+  // — picks up the cool slate tones without per-component conditionals.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (shadowMode) {
+      root.setAttribute('data-shadow-mode', 'on');
+    } else {
+      root.removeAttribute('data-shadow-mode');
+    }
+  }, [shadowMode]);
 
   useEffect(() => {
     // Initialize theme
@@ -373,11 +400,13 @@ function Layout() {
           <div style={{ flexShrink: 0 }}>
             <LeftSidebarHeader />
           </div>
+          <div style={{ flexShrink: 0 }}>
+            <LeftSidebarSubHeader />
+          </div>
           <div
             style={{
               flex: 1,
               minHeight: 0, // 关键：防止 flex 子元素溢出
-              borderTop: '1px solid hsl(var(--rule))',
               position: 'relative',
             }}
           >
@@ -451,6 +480,9 @@ function Layout() {
         />
       )}
       <SyncStatusHUD />
+
+      {/* Floating Shadow orb — toggles shadow-mode (right panel grows a Shadow tab). */}
+      <ShadowOrb />
     </div>
   );
 }

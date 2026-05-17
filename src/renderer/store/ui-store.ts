@@ -98,8 +98,20 @@ interface UiState {
 
   activeLeftPanel: 'nodes' | 'elements' | 'drift';
   setActiveLeftPanel: (panel: 'nodes' | 'elements' | 'drift') => void;
-  activeRightPanel: 'references' | 'inspirations' | 'ai';
-  setActiveRightPanel: (panel: 'references' | 'inspirations' | 'ai') => void;
+  /**
+   * NodesPanel layout — 'global' lists every storyline-anchored node sorted by
+   * timeline start; 'storyline' groups nodes under their parent storylines.
+   * Lifted to the store so the sub-meta toolbar (LeftSidebarSubHeader) can
+   * drive it from outside the panel.
+   */
+  nodesPanelViewMode: 'global' | 'storyline';
+  setNodesPanelViewMode: (mode: 'global' | 'storyline') => void;
+  activeRightPanel: 'fragments' | 'stats' | 'shadow';
+  setActiveRightPanel: (panel: 'fragments' | 'stats' | 'shadow') => void;
+
+  shadowMode: boolean;
+  setShadowMode: (active: boolean) => void;
+  toggleShadowMode: () => void;
 
   activeSuperView: 'none' | 'element' | 'graph' | 'reference';
   setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
@@ -272,8 +284,33 @@ export const useUiStore = create<UiState>()(
 
       activeLeftPanel: 'elements',
       setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
-      activeRightPanel: 'references',
+      nodesPanelViewMode: 'storyline',
+      setNodesPanelViewMode: (mode) => set({ nodesPanelViewMode: mode }),
+      activeRightPanel: 'fragments',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
+
+      shadowMode: false,
+      setShadowMode: (active) =>
+        set((state) => {
+          // Auto-focus the Shadow tab when entering shadow mode; restore the
+          // default tab if the user leaves shadow mode while on Shadow.
+          if (active) {
+            return { shadowMode: true, activeRightPanel: 'shadow' };
+          }
+          return {
+            shadowMode: false,
+            activeRightPanel: state.activeRightPanel === 'shadow' ? 'fragments' : state.activeRightPanel,
+          };
+        }),
+      toggleShadowMode: () =>
+        set((state) => {
+          const next = !state.shadowMode;
+          if (next) return { shadowMode: true, activeRightPanel: 'shadow' };
+          return {
+            shadowMode: false,
+            activeRightPanel: state.activeRightPanel === 'shadow' ? 'fragments' : state.activeRightPanel,
+          };
+        }),
 
       activeSuperView: 'none',
       setActiveSuperView: (view) => {
@@ -426,11 +463,24 @@ export const useUiStore = create<UiState>()(
         theme: state.theme,
         sidebars: state.sidebars,
         activeLeftPanel: state.activeLeftPanel,
+        nodesPanelViewMode: state.nodesPanelViewMode,
         activeRightPanel: state.activeRightPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
+        shadowMode: state.shadowMode,
         tabsByProject: state.tabsByProject,
       }),
+      // Older persisted state used 'references' | 'inspirations' | 'ai' for
+      // activeRightPanel. Coerce any unknown value back to the default so the
+      // first render after upgrade doesn't crash the right panel.
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<UiState>) };
+        const allowed = new Set(['fragments', 'stats', 'shadow']);
+        if (!allowed.has(merged.activeRightPanel as string)) {
+          merged.activeRightPanel = 'fragments';
+        }
+        return merged;
+      },
     },
   ),
 );

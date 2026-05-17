@@ -1,16 +1,9 @@
-import { useMemo, useCallback } from 'react';
-import { Plus } from 'lucide-react';
-import loglevel from 'loglevel';
+import { useMemo } from 'react';
 
 import type { BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
-import { useAuthStore } from '../../store/auth';
-import { useBookNode } from '../../usecase/useBookNode';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-
-const log = loglevel.getLogger('DriftPanel');
-log.setLevel(loglevel.levels.ERROR);
 
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
@@ -25,25 +18,17 @@ const formatShortDate = (input: string | number | Date) => {
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
   const { nodeUi, timelineHeight } = useUiStore();
-  const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
 
-  const activeProjectId = useMemo(() => {
-    if (!projectId) throw new Error('DriftPanel requires a non-empty projectId');
-    return projectId;
-  }, [projectId]);
+  // Same shell-height math as NodesPanel/ElementPanel.
+  const panelHeight = useMemo(
+    () => `calc(100vh - 114px - ${timelineHeight}px)`,
+    [timelineHeight],
+  );
 
-  const { createNode } = useBookNode({
-    projectId: activeProjectId,
-    userId: userId ?? '',
-  });
-
-  const panelHeight = useMemo(() => `calc(100vh - 120px - ${timelineHeight}px)`, [timelineHeight]);
-
-  // Drift nodes are book nodes with no main storyline membership.
-  // We sort by recency since drift is for inspiration/notes, not chapter order.
+  // Drift nodes — off-timeline notes, sorted by recency.
   const driftNodes = useMemo(
     () =>
       bookNodes
@@ -52,25 +37,6 @@ export function DriftPanel() {
         .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1)),
     [bookNodes],
   );
-
-  const handleCreateDrift = useCallback(async () => {
-    try {
-      // Drift nodes are off-timeline. We still write a `start` because the
-      // column is NOT NULL; using a value beyond the regular range keeps the
-      // domain invariant satisfied without colliding with on-timeline nodes.
-      const maxEnd = bookNodes.reduce((max, n) => Math.max(max, n.end ?? n.start), 0);
-      const newStart = maxEnd + 1;
-      const created = await createNode({
-        title: 'New Drift',
-        start: newStart,
-        end: newStart,
-        mainStorylineId: null,
-      });
-      openEntity({ entityType: 'node', id: created.id }, { preview: false });
-    } catch (error) {
-      log.error('Failed to create drift node', error);
-    }
-  }, [bookNodes, createNode, openEntity]);
 
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
@@ -81,15 +47,18 @@ export function DriftPanel() {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '7px 10px 7px 14px',
+          padding: '5px 14px 5px 22px',
           cursor: 'pointer',
           position: 'relative',
-          background: selected ? 'hsl(var(--accent) / 0.08)' : 'transparent',
-          transition: 'background 0.12s ease',
+          background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
+          color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+          fontSize: 12.5,
+          lineHeight: 1.35,
+          transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
           if (!selected) {
-            event.currentTarget.style.background = 'hsl(var(--paper-deep))';
+            event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
         }}
         onMouseLeave={(event) => {
@@ -110,15 +79,14 @@ export function DriftPanel() {
             style={{
               position: 'absolute',
               left: 0,
-              top: 5,
-              bottom: 5,
+              top: 4,
+              bottom: 4,
               width: 2,
               background: 'hsl(var(--accent))',
             }}
           />
         )}
 
-        {/* Drift marker — open dot, distinct from storyline-colored bar in NodesPanel */}
         <span
           aria-hidden
           style={{
@@ -135,8 +103,7 @@ export function DriftPanel() {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 13,
-            color: 'hsl(var(--ink-1))',
+            color: 'inherit',
             fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
@@ -162,105 +129,29 @@ export function DriftPanel() {
     );
   };
 
-  const renderCreateButton = () => (
-    <button
-      onClick={() => void handleCreateDrift()}
+  return (
+    <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '5px 10px',
-        borderRadius: 3,
-        border: '1px solid hsl(var(--rule))',
-        background: 'transparent',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        fontWeight: 500,
-        color: 'hsl(var(--ink-2))',
-        cursor: 'pointer',
-        transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--ink-1))';
-        e.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
-        e.currentTarget.style.color = 'hsl(var(--paper))';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.borderColor = 'hsl(var(--rule))';
-        e.currentTarget.style.color = 'hsl(var(--ink-2))';
+        height: panelHeight,
+        overflowY: 'auto',
+        padding: '6px 0 24px',
       }}
     >
-      <Plus size={11} strokeWidth={2} />
-      New Drift
-    </button>
-  );
-
-  return (
-    <div style={{ height: '100%', position: 'relative' }}>
-      <div
-        style={{
-          height: panelHeight,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: 0,
-        }}
-      >
+      {driftNodes.map((node) => renderNodeCard(node))}
+      {driftNodes.length === 0 && (
         <div
           style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            padding: '8px 10px 8px 12px',
-            borderBottom: '1px solid hsl(var(--rule))',
+            fontSize: 12,
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            color: 'hsl(var(--ink-3))',
+            padding: '40px 20px',
+            textAlign: 'center',
           }}
         >
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              color: 'hsl(var(--ink-3))',
-              fontWeight: 500,
-            }}
-          >
-            Drift · {driftNodes.length}
-          </span>
-          {renderCreateButton()}
+          no drift notes yet.
         </div>
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            paddingRight: 6,
-          }}
-        >
-          {driftNodes.map((node) => renderNodeCard(node))}
-          {driftNodes.length === 0 && (
-            <div
-              style={{
-                fontSize: 12,
-                fontFamily: 'var(--font-serif)',
-                fontStyle: 'italic',
-                color: 'hsl(var(--ink-3))',
-                padding: '40px 20px',
-                textAlign: 'center',
-              }}
-            >
-              no drift notes yet.
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

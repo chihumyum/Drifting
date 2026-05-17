@@ -19,22 +19,133 @@ import { BottomTimelineContextMenu } from './BottomTimelineContextMenu';
 import type { BottomTimelineContextMenuAction, TimelineNode } from './types';
 import { useUiStore } from '../../store/ui-store';
 import loglevel from 'loglevel';
+import '../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
 log.setLevel(loglevel.levels.WARN);
 
-// Timeline 配置
+type TimelineState = 'strip' | 'normal' | 'max';
+const TIMELINE_STATE_STORAGE_KEY = 'timeline-mode';
+const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
+const TIMELINE_MAX_HEIGHT_STORAGE_KEY = 'timeline-max-height';
+
 const TIMELINE_CONFIG = {
-  GRID_UNIT: 20, // 每个网格单位占用的像素宽度
-  NODE_MIN_WIDTH: 40, // 节点最小宽度（2个网格单位）
-  NODE_DEFAULT_WIDTH: 4, // 节点默认宽度（以网格单位计）
-  NODE_MIN_HEIGHT: 18, // 节点最小高度 - 隐藏时只显示标题
-  NODE_COMPACT_HEIGHT: 6, // 收起时节点高度
-  STORYLINE_PADDING: 2, // 每个 storyline 行的上下内边距（展开时）
-  STORYLINE_PADDING_COMPACT: 0, // 每个 storyline 行的上下内边距（收起时，无内边距）
-  STORYLINE_GAP: 2, // storyline 之间的间隔（展开时）
-  STORYLINE_GAP_COMPACT: 0, // storyline 之间的间隔（收起时，无间隔）
-  RESIZE_HANDLE_WIDTH: 8, // 调整大小手柄的宽度
+  GRID_UNIT: 20,
+  NODE_MIN_WIDTH: 40,
+  NODE_DEFAULT_WIDTH: 4,
+  NODE_MIN_HEIGHT: 18,
+  NODE_COMPACT_HEIGHT: 6,
+  STORYLINE_GAP: 2,
+  STORYLINE_GAP_COMPACT: 0,
+  RESIZE_HANDLE_WIDTH: 8,
+  RAIL_WIDTH: 148,
+  RAIL_WIDTH_STRIP: 8,
+  HEAD_HEIGHT: 30,
+  MINIMAP_HEIGHT: 60,
+  DEFAULT_NORMAL_HEIGHT: 240,
+  DEFAULT_MAX_HEIGHT: 420,
 };
+
+function readPersistedMode(): TimelineState {
+  if (typeof localStorage === 'undefined') return 'normal';
+  const v = localStorage.getItem(TIMELINE_STATE_STORAGE_KEY);
+  if (v === 'strip' || v === 'normal' || v === 'max') return v;
+  return 'normal';
+}
+
+function nextMode(current: TimelineState): TimelineState {
+  return current === 'strip' ? 'normal' : current === 'normal' ? 'max' : 'strip';
+}
+
+interface RulerTick {
+  left: string;
+  level: number;
+  isParagraph?: boolean;
+}
+
+// Compute outline ruler tick positions for a chapter clip background.
+// Same hierarchy logic as the previous inline version; extracted so the
+// render path stays readable.
+function computeOutlineRulerPositions(outline: OutlineItem[]): RulerTick[] {
+  const h1Items = outline.filter((i) => i.level === 1);
+  const h2Items = outline.filter((i) => i.level === 2);
+  const h3Items = outline.filter((i) => i.level === 3);
+  const positions: RulerTick[] = [];
+
+  h1Items.forEach((h1, index) => {
+    const h1Start = (index / h1Items.length) * 100;
+    const h1End = ((index + 1) / h1Items.length) * 100;
+    positions.push({ left: `${((index + 0.5) / h1Items.length) * 100}%`, level: 1 });
+
+    const h1Pos = outline.indexOf(h1);
+    const nextH1Pos =
+      index < h1Items.length - 1 ? outline.indexOf(h1Items[index + 1]) : outline.length;
+
+    const h2InThisH1 = h2Items.filter((h2) => {
+      const p = outline.indexOf(h2);
+      return p > h1Pos && p < nextH1Pos;
+    });
+
+    if (h2InThisH1.length > 0) {
+      h2InThisH1.forEach((h2, h2Index) => {
+        const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
+        const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
+        positions.push({
+          left: `${h1Start + ((h2Index + 0.5) / h2InThisH1.length) * (h1End - h1Start)}%`,
+          level: 2,
+        });
+
+        const h2Pos = outline.indexOf(h2);
+        const nextH2Pos =
+          h2Index < h2InThisH1.length - 1
+            ? outline.indexOf(h2InThisH1[h2Index + 1])
+            : nextH1Pos;
+
+        const h3InThisH2 = h3Items.filter((h3) => {
+          const p = outline.indexOf(h3);
+          return p > h2Pos && p < nextH2Pos;
+        });
+
+        if (h3InThisH2.length > 0) {
+          h3InThisH2.forEach((h3, h3Index) => {
+            const h3Start = h2Start + (h3Index / h3InThisH2.length) * (h2End - h2Start);
+            const h3End = h2Start + ((h3Index + 1) / h3InThisH2.length) * (h2End - h2Start);
+            positions.push({
+              left: `${h2Start + ((h3Index + 0.5) / h3InThisH2.length) * (h2End - h2Start)}%`,
+              level: 3,
+            });
+            const pCount = h3.paragraphsAfter || 0;
+            for (let p = 0; p < pCount; p++) {
+              positions.push({
+                left: `${h3Start + ((p + 1) / (pCount + 1)) * (h3End - h3Start)}%`,
+                level: 3,
+                isParagraph: true,
+              });
+            }
+          });
+        } else {
+          const pCount = h2.paragraphsAfter || 0;
+          for (let p = 0; p < pCount; p++) {
+            positions.push({
+              left: `${h2Start + ((p + 1) / (pCount + 1)) * (h2End - h2Start)}%`,
+              level: 2,
+              isParagraph: true,
+            });
+          }
+        }
+      });
+    } else {
+      const pCount = h1.paragraphsAfter || 0;
+      for (let p = 0; p < pCount; p++) {
+        positions.push({
+          left: `${h1Start + ((p + 1) / (pCount + 1)) * (h1End - h1Start)}%`,
+          level: 1,
+          isParagraph: true,
+        });
+      }
+    }
+  });
+  return positions;
+}
 
 export function BottomTimeline() {
   const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
@@ -76,9 +187,24 @@ export function BottomTimeline() {
 
   const [nodeOutlines, setNodeOutlines] = useState<Map<string, OutlineItem[]>>(new Map());
 
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [timelineMode, setTimelineMode] = useState<TimelineState>(readPersistedMode);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
-  const [customTotalHeight, setCustomTotalHeight] = useState<number | null>(null); // 用户自定义的bottomTimeline总高度
+  const [customNormalHeight, setCustomNormalHeight] = useState<number | null>(() => {
+    if (typeof localStorage === 'undefined') return null;
+    const v = localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY);
+    return v ? parseInt(v, 10) : null;
+  });
+  const [customMaxHeight, setCustomMaxHeight] = useState<number | null>(() => {
+    if (typeof localStorage === 'undefined') return null;
+    const v = localStorage.getItem(TIMELINE_MAX_HEIGHT_STORAGE_KEY);
+    return v ? parseInt(v, 10) : null;
+  });
+
+  const isExpanded = timelineMode !== 'strip';
+
+  useEffect(() => {
+    localStorage.setItem(TIMELINE_STATE_STORAGE_KEY, timelineMode);
+  }, [timelineMode]);
 
   // Load outlines for all nodes
   useEffect(() => {
@@ -156,56 +282,51 @@ export function BottomTimeline() {
     }
   }, [storylines.length]); // Restore after storylines are loaded
 
-  // 添加全局快捷键 Cmd+J 来切换展开/收起
+  // Cmd+J cycles strip → normal → max → strip
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
         e.preventDefault();
-        setIsExpanded((prev) => !prev);
+        setTimelineMode((prev) => nextMode(prev));
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 从 localStorage 恢复自定义总高度
-  useEffect(() => {
-    const savedTotalHeight = localStorage.getItem('timeline-total-height');
-    if (savedTotalHeight) {
-      setCustomTotalHeight(parseInt(savedTotalHeight, 10));
-    }
-  }, []);
-
-  // 处理高度调整的拖拽
+  // Drag-resize top edge to change total dock height (mode-specific)
   useEffect(() => {
     if (!isResizingHeight) return;
+    const setter = timelineMode === 'max' ? setCustomMaxHeight : setCustomNormalHeight;
+    const storageKey =
+      timelineMode === 'max' ? TIMELINE_MAX_HEIGHT_STORAGE_KEY : TIMELINE_HEIGHT_STORAGE_KEY;
+    let lastValue: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
       const windowHeight = window.innerHeight;
-      const newTimelineHeight = Math.max(
-        (storylines.length + 1) * (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP),
-        windowHeight - e.clientY,
-      );
-      setCustomTotalHeight(newTimelineHeight);
+      const minHeight =
+        TIMELINE_CONFIG.HEAD_HEIGHT +
+        (timelineMode === 'max' ? TIMELINE_CONFIG.MINIMAP_HEIGHT : 0) +
+        Math.max(storylines.length, 1) * (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP);
+      const next = Math.max(minHeight, windowHeight - e.clientY);
+      lastValue = next;
+      setter(next);
     };
 
     const handleMouseUp = () => {
       setIsResizingHeight(false);
-      // 保存总高度到 localStorage
-      if (customTotalHeight !== null) {
-        localStorage.setItem('timeline-total-height', customTotalHeight.toString());
+      if (lastValue !== null) {
+        localStorage.setItem(storageKey, lastValue.toString());
       }
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingHeight, customTotalHeight, storylines.length]);
+  }, [isResizingHeight, timelineMode, storylines.length]);
 
   // Save scroll position on scroll
   useEffect(() => {
@@ -247,21 +368,21 @@ export function BottomTimeline() {
     nodeDefaultWidth: TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
   });
 
-  // 计算 timeline 的总高度
+  // Total dock height per mode
   const getTimelineHeight = () => {
-    if (storylines.length === 0) {
-      // console.error('No storylines found, should not happen');
-      return 30;
-    }
+    if (storylines.length === 0) return TIMELINE_CONFIG.HEAD_HEIGHT + 40;
 
-    if (isExpanded) {
-      return customTotalHeight ?? 280;
-    } else {
+    if (timelineMode === 'strip') {
+      // header + tiny color bars (one per storyline)
       return (
-        storylines.length *
-        (TIMELINE_CONFIG.NODE_COMPACT_HEIGHT + TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT * 2)
+        TIMELINE_CONFIG.HEAD_HEIGHT +
+        Math.max(20, storylines.length * (TIMELINE_CONFIG.NODE_COMPACT_HEIGHT + 1))
       );
     }
+    if (timelineMode === 'max') {
+      return customMaxHeight ?? TIMELINE_CONFIG.DEFAULT_MAX_HEIGHT;
+    }
+    return customNormalHeight ?? TIMELINE_CONFIG.DEFAULT_NORMAL_HEIGHT;
   };
 
   // 计算 Context Menu 的位置，防止溢出视口
@@ -603,7 +724,7 @@ export function BottomTimeline() {
   };
 
   // 判断一个 node 是否应该在当前 storyline 上作为"主显示"
-  // 规则：在 node.mainStorylineId 上完整显示，其他 storylines 上显示连接点
+  // 规则：在 node.mainStorylineId 上完整显示，其他 storylines 上只画 trail
   const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
     const fallbackPrimaryId = node.storylines[0]?.id;
     const primaryId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
@@ -612,70 +733,101 @@ export function BottomTimeline() {
     return primaryId === storylineId;
   };
 
+  // Storyline index lookup (row order on screen)
+  const storylineRowIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    storylines.forEach((s, idx) => map.set(s.id, idx));
+    return map;
+  }, [storylines]);
+
+  // Pre-sorted node list per storyline (ascending by start), used to find
+  // the "next node by start order" on each non-main storyline.
+  const sortedNodesByStoryline = useMemo(() => {
+    const m = new Map<string, TimelineNode[]>();
+    storylines.forEach((s) => m.set(s.id, []));
+    nodesWithStorylines.forEach((node) => {
+      node.storylines.forEach((sl) => {
+        const arr = m.get(sl.id);
+        if (arr) arr.push(node);
+      });
+    });
+    m.forEach((arr) => arr.sort((a, b) => a.start - b.start));
+    return m;
+  }, [nodesWithStorylines, storylines]);
+
+  // Cross-storyline link paths: for each node belonging to multiple
+  // storylines, draw a curve from the node's center on its main storyline
+  // row to the next node (by start order) on each secondary storyline.
+  const crossStorylineLinks = useMemo(() => {
+    if (timelineMode === 'strip') return [];
+
+    const links: {
+      key: string;
+      fromX: number;
+      fromY: number;
+      toX: number;
+      toY: number;
+      color: string;
+    }[] = [];
+
+    for (const node of nodesWithStorylines) {
+      if (node.storylines.length <= 1) continue;
+      const fallbackMainId = node.storylines[0]?.id;
+      const mainId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
+        ? node.mainStorylineId
+        : fallbackMainId;
+      if (!mainId) continue;
+      const fromRowIdx = storylineRowIndex.get(mainId);
+      if (fromRowIdx === undefined) continue;
+
+      const fromX = startToPosition(node.start) + getNodeWidth(node.id) / 2;
+
+      for (const sl of node.storylines) {
+        if (sl.id === mainId) continue;
+        const toRowIdx = storylineRowIndex.get(sl.id);
+        if (toRowIdx === undefined) continue;
+
+        const lane = sortedNodesByStoryline.get(sl.id) ?? [];
+        const next = lane.find((n) => n.id !== node.id && n.start >= node.start);
+        if (!next) continue;
+
+        const toX = startToPosition(next.start) + getNodeWidth(next.id) / 2;
+
+        links.push({
+          key: `${node.id}->${sl.id}`,
+          fromX,
+          fromY: fromRowIdx,
+          toX,
+          toY: toRowIdx,
+          color: sl.color || 'hsl(var(--ink-4))',
+        });
+      }
+    }
+    return links;
+  }, [
+    nodesWithStorylines,
+    storylineRowIndex,
+    sortedNodesByStoryline,
+    startToPosition,
+    getNodeWidth,
+    timelineMode,
+  ]);
+
   // Render a single node card
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylineById.get(storylineId);
     const isSelected = activeSelectedNodeId === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
     const defaultColor = '#2D4A6B'; // matches --story-2; hex form needed for `${color}xx` alpha concatenation
+    const clipColor = storyline?.color || defaultColor;
 
     // startToPosition 已经处理了 minStart 偏移和缩放
     const leftPosition = startToPosition(node.start);
     const nodeWidth = getNodeWidth(node.id);
 
-    // 如果不是主 storyline，显示标记点而不是完整 node
-    if (!isPrimary && node.storylines.length > 1) {
-      const markerSize = isExpanded ? 12 : 6;
-      const isHovered = hoveredNodeId === node.id;
-      const primaryStorylineName =
-        (node.mainStorylineId ? storylineById.get(node.mainStorylineId)?.name : undefined) ??
-        node.storylines[0]?.name ??
-        'another storyline';
-      return (
-        <div
-          key={`${node.id}-${storylineId}-marker`}
-          data-node-card
-          onClick={(e) => handleNodeClick(node.id, e)}
-          onMouseEnter={(e) => handleNodeMouseEnter(node, e)}
-          onMouseLeave={handleNodeMouseLeave}
-          style={{
-            position: 'absolute',
-            left: leftPosition + nodeWidth / 2 - markerSize / 2,
-            top: '50%',
-            transform: isExpanded
-              ? 'translateY(-50%)'
-              : `translateY(-50%) scale(${isHovered ? 1.3 : 1})`,
-            width: markerSize,
-            height: markerSize,
-            borderRadius: '50%',
-            background:
-              isSelected && !isExpanded
-                ? `radial-gradient(circle, ${storyline?.color || defaultColor}, ${storyline?.color || defaultColor}dd)`
-                : storyline?.color || defaultColor,
-            border: isExpanded ? `2px solid ${storyline?.color || defaultColor}` : 'none',
-            boxShadow: isSelected
-              ? isExpanded
-                ? `0 0 0 2px hsl(var(--paper) / 0.95), 0 0 0 4px ${storyline?.color || defaultColor}`
-                : `0 0 8px 2px ${storyline?.color || defaultColor}80, 0 0 16px 4px ${storyline?.color || defaultColor}40`
-              : isExpanded
-                ? `0 2px 4px ${storyline?.color}60`
-                : 'none',
-            cursor: 'pointer',
-            opacity: isExpanded ? (isSelected ? 1 : 0.9) : isSelected ? 1 : isHovered ? 0.95 : 0.7,
-            filter: !isExpanded && isSelected ? 'brightness(1.3) saturate(1.2)' : 'none',
-            transition: isExpanded
-              ? 'none'
-              : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease',
-            zIndex: isSelected ? 10 : 5,
-          }}
-          title={isExpanded ? `${node.title} (from ${primaryStorylineName})` : undefined}
-        />
-      );
-    }
-
-    // 主 storyline 上显示完整 node
-    // 检测当前节点是否有边缘 hover
+    // Primary storyline → render the full clip
     const edgeHover = hoveredEdge?.nodeId === node.id ? hoveredEdge.edge : null;
+    const isDraft = node.wordCount === 0;
 
     const handleMouseMove = (e: React.MouseEvent) => {
       if (draggedNode) {
@@ -683,35 +835,42 @@ export function BottomTimeline() {
         setHoveredEdge(null);
         return;
       }
-
-      // 收起时不检测边缘
       if (isExpanded) {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const edgeWidth = TIMELINE_CONFIG.RESIZE_HANDLE_WIDTH;
-
-        if (x <= edgeWidth) {
-          setHoveredEdge({ nodeId: node.id, edge: 'left' });
-        } else if (x >= nodeWidth - edgeWidth) {
-          setHoveredEdge({ nodeId: node.id, edge: 'right' });
-        } else {
-          setHoveredEdge(null);
-        }
+        if (x <= edgeWidth) setHoveredEdge({ nodeId: node.id, edge: 'left' });
+        else if (x >= nodeWidth - edgeWidth) setHoveredEdge({ nodeId: node.id, edge: 'right' });
+        else setHoveredEdge(null);
       }
-
-      // 触发悬停预览
       if (!edgeHover && hoveredNodeId !== node.id) {
         handleNodeMouseEnter(node, e);
       }
     };
 
-    const isHovered = hoveredNodeId === node.id;
+    const outline = nodeOutlines.get(node.id);
+    const rulerPositions =
+      timelineMode !== 'strip' && outline && outline.length > 0
+        ? computeOutlineRulerPositions(outline)
+        : null;
+    const tickColor = isDraft ? clipColor : 'hsl(var(--paper))';
+    const paragraphTickColor = isDraft
+      ? 'hsl(var(--ink-4) / 0.55)'
+      : 'hsl(var(--paper) / 0.5)';
 
-    // Actual node card here
+    const className = [
+      'btl-clip',
+      isSelected ? 'is-selected' : '',
+      isDraft ? 'is-draft' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     return (
       <div
         key={`${node.id}-${storylineId}`}
         data-node-card
+        className={className}
         draggable={!edgeHover && isPrimary && isExpanded}
         onDragStart={(e) => isExpanded && handleNodeDragStart(e, node, storylineId)}
         onDragEnd={handleDragEnd}
@@ -726,228 +885,42 @@ export function BottomTimeline() {
           }
         }}
         onClick={(e) => {
-          if (!edgeHover) {
-            handleNodeClick(node.id, e);
-          }
+          if (!edgeHover) handleNodeClick(node.id, e);
         }}
-        style={{
-          position: 'absolute',
-          left: leftPosition,
-          top: 0,
-          width: nodeWidth,
-          height: '100%',
-          background: isExpanded
-            ? 'hsl(var(--surface))'
-            : isSelected
-              ? `linear-gradient(135deg, ${storyline?.color || defaultColor} 0%, ${storyline?.color || defaultColor}dd 50%, ${storyline?.color || defaultColor} 100%)`
-              : storyline?.color || defaultColor,
-          borderRadius: isExpanded ? 6 : 3,
-          cursor: edgeHover ? 'ew-resize' : isPrimary && isExpanded ? 'grab' : 'pointer',
-          borderTop: isExpanded ? `1px solid ${storyline?.color || defaultColor}` : 'none',
-          borderBottom: isExpanded ? `1px solid ${storyline?.color || defaultColor}` : 'none',
-          borderLeft: isExpanded ? `1px solid ${storyline?.color || defaultColor}` : 'none',
-          borderRight: isExpanded ? `1px solid ${storyline?.color || defaultColor}` : 'none',
-          boxShadow: isExpanded
-            ? isSelected
-              ? `0 2px 8px ${storyline?.color || defaultColor}40`
-              : '0 1px 3px hsl(var(--ink-1) / 0.06)'
-            : isSelected
-              ? `0 0 12px 3px ${storyline?.color || defaultColor}60, inset 0 0 20px ${storyline?.color || defaultColor}20`
-              : 'none',
-          opacity: isExpanded ? 1 : isHovered ? 0.95 : 0.85,
-          filter:
-            !isExpanded && isSelected ? 'brightness(1.2) saturate(1.3) contrast(1.1)' : 'none',
-          transform: isExpanded ? 'none' : `scale(${isHovered ? 1.05 : 1})`,
-          transition: isExpanded
-            ? 'none'
-            : 'transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.3s ease',
-          overflow: 'visible',
-        }}
+        style={
+          {
+            left: leftPosition,
+            width: nodeWidth,
+            cursor: edgeHover ? 'ew-resize' : isPrimary && isExpanded ? 'grab' : 'pointer',
+            ['--clip-color' as string]: clipColor,
+          } as React.CSSProperties
+        }
       >
-        {/* Outline 刻度线背景层 - 仅展开时显示 */}
-        {isExpanded &&
-          (() => {
-            const outline = nodeOutlines.get(node.id);
-            if (!outline || outline.length === 0) return null;
-
-            // 计算刻度线的位置分布
-            const calculateRulerPositions = () => {
-              const h1Items = outline.filter((item) => item.level === 1);
-              const h2Items = outline.filter((item) => item.level === 2);
-              const h3Items = outline.filter((item) => item.level === 3);
-
-              // 展开状态：显示所有层级，均匀分布
-              const positions: { left: string; level: number; isParagraph?: boolean }[] = [];
-
-              // H1 均分整个宽度
-              h1Items.forEach((h1, index) => {
-                const h1Start = (index / h1Items.length) * 100;
-                const h1End = ((index + 1) / h1Items.length) * 100;
-                const position = ((index + 0.5) / h1Items.length) * 100;
-                positions.push({ left: `${position}%`, level: 1 });
-
-                // 计算当前 H1 的范围边界
-                const h1Pos = outline.indexOf(h1);
-                const nextH1Pos =
-                  index < h1Items.length - 1 ? outline.indexOf(h1Items[index + 1]) : outline.length;
-
-                // H2 在对应 H1 的区间内均分
-                const h2InThisH1 = h2Items.filter((h2) => {
-                  const h2Pos = outline.indexOf(h2);
-                  return h2Pos > h1Pos && h2Pos < nextH1Pos;
-                });
-
-                if (h2InThisH1.length > 0) {
-                  h2InThisH1.forEach((h2, h2Index) => {
-                    const h2Start = h1Start + (h2Index / h2InThisH1.length) * (h1End - h1Start);
-                    const h2End = h1Start + ((h2Index + 1) / h2InThisH1.length) * (h1End - h1Start);
-                    const h2Position =
-                      h1Start + ((h2Index + 0.5) / h2InThisH1.length) * (h1End - h1Start);
-                    positions.push({ left: `${h2Position}%`, level: 2 });
-
-                    // 计算当前 H2 的范围边界
-                    const h2Pos = outline.indexOf(h2);
-                    const nextH2Pos =
-                      h2Index < h2InThisH1.length - 1
-                        ? outline.indexOf(h2InThisH1[h2Index + 1])
-                        : nextH1Pos;
-
-                    // H3 在对应 H2 的区间内均分
-                    const h3InThisH2 = h3Items.filter((h3) => {
-                      const h3Pos = outline.indexOf(h3);
-                      return h3Pos > h2Pos && h3Pos < nextH2Pos;
-                    });
-
-                    if (h3InThisH2.length > 0) {
-                      h3InThisH2.forEach((h3, h3Index) => {
-                        const h3Start = h2Start + (h3Index / h3InThisH2.length) * (h2End - h2Start);
-                        const h3End =
-                          h2Start + ((h3Index + 1) / h3InThisH2.length) * (h2End - h2Start);
-                        const h3Position =
-                          h2Start + ((h3Index + 0.5) / h3InThisH2.length) * (h2End - h2Start);
-                        positions.push({ left: `${h3Position}%`, level: 3 });
-
-                        // 添加 H3 后的 paragraph 次级刻度
-                        const h3ParagraphCount = h3.paragraphsAfter || 0;
-                        if (h3ParagraphCount > 0) {
-                          for (let p = 0; p < h3ParagraphCount; p++) {
-                            const pPosition =
-                              h3Start + ((p + 1) / (h3ParagraphCount + 1)) * (h3End - h3Start);
-                            positions.push({ left: `${pPosition}%`, level: 3, isParagraph: true });
-                          }
-                        }
-                      });
-                    } else {
-                      // H2 后没有 H3，添加 H2 的 paragraph 次级刻度
-                      const h2ParagraphCount = h2.paragraphsAfter || 0;
-                      if (h2ParagraphCount > 0) {
-                        for (let p = 0; p < h2ParagraphCount; p++) {
-                          const pPosition =
-                            h2Start + ((p + 1) / (h2ParagraphCount + 1)) * (h2End - h2Start);
-                          positions.push({ left: `${pPosition}%`, level: 2, isParagraph: true });
-                        }
-                      }
-                    }
-                  });
-                } else {
-                  // H1 后没有 H2，添加 H1 的 paragraph 次级刻度
-                  const h1ParagraphCount = h1.paragraphsAfter || 0;
-                  if (h1ParagraphCount > 0) {
-                    for (let p = 0; p < h1ParagraphCount; p++) {
-                      const pPosition =
-                        h1Start + ((p + 1) / (h1ParagraphCount + 1)) * (h1End - h1Start);
-                      positions.push({ left: `${pPosition}%`, level: 1, isParagraph: true });
-                    }
-                  }
-                }
-              });
-              return positions;
-            };
-
-            const rulerPositions = calculateRulerPositions();
-
-            return (
+        {/* Outline ruler ticks at the bottom — readable on both filled and draft clips */}
+        {rulerPositions && (
+          <div className="btl-clip__ruler">
+            {rulerPositions.map((pos, idx) => (
               <div
+                key={idx}
+                className="btl-clip__tick"
                 style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: '10%', // 展开时只占底部 10px，收起时占满
-                  pointerEvents: 'none', // 不阻挡点击事件
-                  zIndex: 0, // 作为背景层
-                  backgroundColor: 'transparent',
+                  left: pos.left,
+                  width: pos.isParagraph ? 0.5 : 1,
+                  height: pos.isParagraph ? 4 : pos.level === 1 ? 8 : pos.level === 2 ? 6 : 4,
+                  background: pos.isParagraph ? paragraphTickColor : tickColor,
+                  opacity: pos.isParagraph ? 0.6 : 0.85,
                 }}
-              >
-                {rulerPositions.map((pos, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      position: 'absolute',
-                      left: pos.left,
-                      transform: 'translateX(-50%)', // 居中对齐
-                      bottom: 0,
-                      width: pos.isParagraph ? 0.5 : 1,
-                      height: pos.isParagraph ? 4 : pos.level === 1 ? 8 : pos.level === 2 ? 6 : 4,
-                      backgroundColor: pos.isParagraph
-                        ? 'hsl(var(--ink-4) / 0.55)'
-                        : storyline?.color || 'hsl(var(--story-4))',
-                      borderRadius: 0.5,
-                      opacity: pos.isParagraph ? 0.6 : 0.8,
-                    }}
-                  />
-                ))}
-              </div>
-            );
-          })()}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* 内容前景层 - 仅展开时显示 */}
-        {isExpanded && (
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 3,
-              padding: '0px 4px',
-              height: '100%',
-              boxSizing: 'border-box',
-              minHeight: 0,
-            }}
-          >
-            {/* 标题 - 使用 container query 或者固定逻辑 */}
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'hsl(var(--ink-1))',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {node.title}
-            </div>
-
-            {/* 摘要 - 使用 flex 自动处理溢出 */}
-            {node.summary && (
-              <div
-                style={{
-                  fontSize: 9,
-                  color: 'hsl(var(--ink-3))',
-                  overflow: 'hidden',
-                  flex: 1,
-                  minHeight: 0,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  lineHeight: '1.3',
-                }}
-              >
-                {node.summary}
-              </div>
+        {timelineMode !== 'strip' && (
+          <div className="btl-clip__content">
+            <div className="btl-clip__num">§ {String(node.start).padStart(2, '0')}</div>
+            <div className="btl-clip__title">{node.title || '未命名'}</div>
+            {timelineMode === 'max' && node.summary && (
+              <div className="btl-clip__summary">{node.summary}</div>
             )}
           </div>
         )}
@@ -958,60 +931,54 @@ export function BottomTimeline() {
   // Render a single storyline row using absolute positioning
   const renderStorylineRow = (storyline: Storyline) => {
     const nodesInStoryline = getNodesInStoryline(storyline.id);
+    const isRouteActive = storylineId === storyline.id;
+    const railColor = storyline.color || 'hsl(var(--story-4))';
 
     // 检查选中的节点是否属于当前 storyline
     const selectedNode = activeSelectedNodeId ? (nodeById.get(activeSelectedNodeId) ?? null) : null;
     const selectedNodeBelongsToStoryline =
       selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
+    const trackBg =
+      timelineMode === 'strip'
+        ? 'transparent'
+        : isRouteActive
+          ? storyline.color
+            ? `${storyline.color}15`
+            : 'hsl(var(--story-4) / 0.10)'
+          : 'hsl(var(--ink-1) / 0.025)';
+
     return (
       <div
         key={storyline.id}
+        className="btl-row"
         onDragOver={(e) => isExpanded && handleNodeDragOver(e, storyline.id)}
         onDrop={(e) => isExpanded && handleDrop(e, storyline.id)}
         onClick={(e) => {
           e.stopPropagation();
           clearContextMenu();
-          // 检查是否点击在节点上
           const target = e.target as HTMLElement;
-          const isNodeClick = target.closest('[data-node-card]');
-          const isRailClick = target.closest('[data-track-rail]');
-
-          if (!isNodeClick && !isRailClick) {
-            if (storylineId && storylineId === storyline.id) {
-              navigateToHome();
-            } else {
-              navigateToStoryline(storyline.id);
-            }
+          if (!target.closest('[data-node-card]') && !target.closest('[data-track-rail]')) {
+            if (isRouteActive) navigateToHome();
+            else navigateToStoryline(storyline.id);
           }
         }}
         onContextMenu={(e) => {
-          // 收起时禁用右键菜单
           if (!isExpanded) return;
-
           e.preventDefault();
           const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
           if (!container) return;
-
           const rect = container.getBoundingClientRect();
           const x = e.clientX - rect.left;
-
-          // 从像素位置转换为 start（timeline position）
           const position = Math.max(
             minStart,
             Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minStart,
           );
-
-          // 检查是否点击在某个 node 上
           const clickedNode = nodesInStoryline.find((node) => {
-            const nodeLeft = startToPosition(node.start);
-            const nodeRight = nodeLeft + getNodeWidth(node.id);
-            return x >= nodeLeft && x <= nodeRight;
+            const nl = startToPosition(node.start);
+            return x >= nl && x <= nl + getNodeWidth(node.id);
           });
-
           if (clickedNode) {
-            // 点击在 node 上 - 添加预览信息
-            // 从光标右上角展开（光标位置 + 小偏移）
             setContextMenu({
               x: e.clientX + 2,
               y: e.clientY - 2,
@@ -1023,7 +990,6 @@ export function BottomTimeline() {
               nodeStorylines: clickedNode.storylines,
             });
           } else {
-            // Storyline 空白处：总是可新增 chapter；若当前选中 node 且不在此 storyline，可附加 Add to Storyline
             setContextMenu({
               x: e.clientX + 2,
               y: e.clientY - 2,
@@ -1034,168 +1000,183 @@ export function BottomTimeline() {
             });
           }
         }}
-        style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          flex: 1,
-          minHeight: isExpanded
-            ? TIMELINE_CONFIG.NODE_MIN_HEIGHT
-            : TIMELINE_CONFIG.NODE_COMPACT_HEIGHT,
-          marginBottom: isExpanded
-            ? TIMELINE_CONFIG.STORYLINE_GAP
-            : TIMELINE_CONFIG.STORYLINE_GAP_COMPACT,
-          marginTop: isExpanded
-            ? TIMELINE_CONFIG.STORYLINE_GAP
-            : TIMELINE_CONFIG.STORYLINE_GAP_COMPACT,
-          gap: 0,
-          // padding: `${isExpanded ? TIMELINE_CONFIG.STORYLINE_PADDING : TIMELINE_CONFIG.STORYLINE_PADDING_COMPACT}px 0`,
-        }}
       >
-        {/* Track rail — sticky left, shows storyline identity */}
+        {/* Rail — sticky left, shows storyline identity */}
         <div
           data-track-rail
+          className={`btl-rail ${isRouteActive ? 'is-active' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
-            if (storylineId === storyline.id) {
-              navigateToHome();
-            } else {
-              navigateToStoryline(storyline.id);
-            }
+            if (isRouteActive) navigateToHome();
+            else navigateToStoryline(storyline.id);
           }}
           title={storyline.name || 'Untitled Storyline'}
           style={{
-            position: 'sticky',
-            left: 0,
-            flexShrink: 0,
-            alignSelf: 'stretch',
-            width: isExpanded ? 152 : 10,
-            background:
-              storylineId === storyline.id
-                ? 'hsl(var(--paper))'
-                : 'hsl(var(--paper-deep))',
-            borderRight: '1px solid hsl(var(--rule))',
-            display: 'flex',
-            alignItems: 'center',
-            gap: isExpanded ? 10 : 0,
-            paddingLeft: isExpanded ? 16 : 0,
-            paddingRight: isExpanded ? 10 : 0,
-            zIndex: 5,
-            cursor: 'pointer',
-            overflow: 'hidden',
-            transition: 'background 0.15s',
+            width:
+              timelineMode === 'strip'
+                ? TIMELINE_CONFIG.RAIL_WIDTH_STRIP
+                : TIMELINE_CONFIG.RAIL_WIDTH,
+            gap: timelineMode === 'strip' ? 0 : 9,
+            paddingLeft: timelineMode === 'strip' ? 0 : 16,
+            paddingRight: timelineMode === 'strip' ? 0 : 10,
           }}
         >
-          {/* Color stripe — full height */}
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 3,
-              background: storyline.color || 'hsl(var(--story-4))',
-              opacity: storylineId === storyline.id ? 1 : 0.7,
-            }}
-          />
-          {isExpanded && (
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, marginLeft: 4 }}>
-              <div
-                style={{
-                  fontFamily: 'var(--font-serif)',
-                  fontStyle: 'italic',
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  color:
-                    storylineId === storyline.id
-                      ? 'hsl(var(--ink-1))'
-                      : 'hsl(var(--ink-2))',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  lineHeight: 1.2,
-                  letterSpacing: '-0.005em',
-                }}
-              >
-                {storyline.name || 'Untitled'}
+          <span aria-hidden className="btl-rail__stripe" style={{ background: railColor }} />
+          {timelineMode !== 'strip' && (
+            <>
+              <span
+                aria-hidden
+                className="btl-rail__dot"
+                style={{ background: railColor, marginLeft: 4 }}
+              />
+              <div className="btl-rail__main">
+                <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
+                <div className="btl-rail__count">
+                  {nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}
+                </div>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 9,
-                  color: 'hsl(var(--ink-4))',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  lineHeight: 1.2,
-                }}
-              >
-                <span>{nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}</span>
-              </div>
-            </div>
+            </>
           )}
         </div>
-        {/* Node container with absolute positioning */}
+
+        {/* Track — absolute-positioned clips live here */}
         <div
           data-node-container
-          style={{
-            position: 'relative',
-            flex: 1,
-            height: '100%',
-            background:
-              storylineId === storyline.id
-                ? isExpanded
-                  ? storyline.color
-                    ? `${storyline.color}15`
-                    : 'hsl(var(--story-4) / 0.10)'
-                  : 'transparent'
-                : isExpanded
-                  ? 'hsl(var(--ink-1) / 0.025)'
-                  : 'transparent',
-            borderRadius: 4,
-            minWidth: timelineWidth,
-            cursor: 'pointer',
-          }}
+          className="btl-track"
+          style={{ background: trackBg, minWidth: timelineWidth }}
         >
-          {/* Render drop indicator */}
           {dragOverPosition && dragOverPosition.storylineId === storyline.id && (
             <div
-              style={{
-                position: 'absolute',
-                left: dragOverPosition.x,
-                top: 0,
-                width: 2,
-                height: '100%',
-                background: storyline.color || 'hsl(var(--accent))',
-                opacity: 0.7,
-                pointerEvents: 'none',
-              }}
+              className="btl-drop-indicator"
+              style={{ left: dragOverPosition.x, background: railColor }}
             />
           )}
-
-          {/* Render nodes */}
           {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
-
-          {/* Empty state */}
-          {nodesInStoryline.length === 0 && !draggedNode && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                fontSize: 11,
-                color: 'hsl(var(--ink-4))',
-                fontStyle: 'italic',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              No chapters in this storyline
-            </div>
+          {nodesInStoryline.length === 0 && !draggedNode && timelineMode !== 'strip' && (
+            <div className="btl-empty">No chapters in this storyline</div>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  // ---- Layout math for SVG overlay ----
+  const totalHeight = getTimelineHeight();
+  const minimapHeight =
+    timelineMode === 'max' && storylines.length > 0 ? TIMELINE_CONFIG.MINIMAP_HEIGHT : 0;
+  const rowsAreaHeight = Math.max(
+    0,
+    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - minimapHeight,
+  );
+  const rowHeight = storylines.length > 0 ? rowsAreaHeight / storylines.length : 0;
+
+  const rowCenterY = (idx: number) => idx * rowHeight + rowHeight / 2;
+  const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
+  const railOffset = timelineMode === 'strip'
+    ? TIMELINE_CONFIG.RAIL_WIDTH_STRIP
+    : TIMELINE_CONFIG.RAIL_WIDTH;
+
+  const renderMinimap = () => {
+    if (timelineMode !== 'max' || storylines.length === 0) return null;
+    const totalWidth = timelineWidth || 1;
+    const activeNode = activeSelectedNodeId ? nodeById.get(activeSelectedNodeId) ?? null : null;
+    const playheadPct =
+      activeNode != null
+        ? ((startToPosition(activeNode.start) + getNodeWidth(activeNode.id) / 2) / totalWidth) * 100
+        : null;
+
+    return (
+      <div className="btl-minimap" aria-hidden>
+        {storylines.map((s) => {
+          const lane = sortedNodesByStoryline.get(s.id) ?? [];
+          const color = s.color || 'hsl(var(--story-4))';
+          return (
+            <div key={s.id} className="btl-minimap__lane">
+              {lane.map((n) => {
+                const left = (startToPosition(n.start) / totalWidth) * 100;
+                const w = Math.max(0.4, (getNodeWidth(n.id) / totalWidth) * 100);
+                return (
+                  <div
+                    key={n.id}
+                    className="btl-minimap__seg"
+                    style={
+                      {
+                        left: `${left}%`,
+                        width: `${w}%`,
+                        ['--clip-color' as string]: color,
+                        opacity: n.wordCount === 0 ? 0.35 : 0.85,
+                      } as React.CSSProperties
+                    }
+                  />
+                );
+              })}
+              {playheadPct != null && (
+                <div className="btl-minimap__playhead" style={{ left: `${playheadPct}%` }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderHead = () => {
+    const totalNodes = nodesWithStorylines.length;
+    const total = `${storylines.length} ${storylines.length === 1 ? 'storyline' : 'storylines'} · ${totalNodes} ${totalNodes === 1 ? 'chapter' : 'chapters'}`;
+    return (
+      <div className="btl__head" onClick={(e) => e.stopPropagation()}>
+        <div className="btl__head-left">
+          <span className="btl__head-title">Storyline Timeline</span>
+          <span className="btl__head-meta">{total}</span>
+        </div>
+        <div className="btl__head-right">
+          <button
+            className="btl__head-btn"
+            title="定位到当前章节"
+            onClick={() => {
+              const activeNode = activeSelectedNodeId
+                ? nodeById.get(activeSelectedNodeId) ?? null
+                : null;
+              if (!activeNode || !scrollContainerRef.current) return;
+              const left =
+                TIMELINE_CONFIG.RAIL_WIDTH +
+                startToPosition(activeNode.start) -
+                scrollContainerRef.current.clientWidth / 2 +
+                getNodeWidth(activeNode.id) / 2;
+              scrollContainerRef.current.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="3" />
+              <line x1="8" y1="1" x2="8" y2="4" />
+              <line x1="8" y1="12" x2="8" y2="15" />
+              <line x1="1" y1="8" x2="4" y2="8" />
+              <line x1="12" y1="8" x2="15" y2="8" />
+            </svg>
+          </button>
+          <div className="btl__state-toggle" title="时间线状态 (⌘J)">
+            <button
+              className={timelineMode === 'strip' ? 'is-active' : ''}
+              onClick={() => setTimelineMode('strip')}
+              title="色带"
+            >
+              ▬
+            </button>
+            <button
+              className={timelineMode === 'normal' ? 'is-active' : ''}
+              onClick={() => setTimelineMode('normal')}
+              title="轨道"
+            >
+              ≡
+            </button>
+            <button
+              className={timelineMode === 'max' ? 'is-active' : ''}
+              onClick={() => setTimelineMode('max')}
+              title="最大化"
+            >
+              ▣
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1204,81 +1185,68 @@ export function BottomTimeline() {
   return (
     <div
       ref={timelineRef}
+      className="btl"
+      data-state={timelineMode}
       onClick={handleTimelineClick}
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: getTimelineHeight(),
-        background: 'hsl(var(--paper-deep))',
-        borderTop: '1px solid hsl(var(--rule))',
-        zIndex: 20,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: isExpanded ? '4px 0' : '0', // 收起时完全去掉 padding
-      }}
+      style={{ height: totalHeight }}
     >
-      {/* 可拖拽的顶部边框 - 仅在展开时显示 */}
-      {isExpanded && (
+      {/* Resize handle — only meaningful in normal/max (strip is auto-sized) */}
+      {timelineMode !== 'strip' && (
         <div
+          className="btl__resize"
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
             setIsResizingHeight(true);
           }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 4,
-            cursor: 'ns-resize',
-            zIndex: 30,
-          }}
         />
       )}
+
+      {renderHead()}
+      {renderMinimap()}
+
       <div
         ref={scrollContainerRef}
         data-timeline-container
+        className="btl__scroll"
         onTouchStart={touchHandlers.onTouchStart}
         onTouchMove={touchHandlers.onTouchMove}
         onTouchEnd={touchHandlers.onTouchEnd}
         onTouchCancel={touchHandlers.onTouchCancel}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          paddingLeft: 0, // rail 处理自身左侧内边距
-          paddingRight: isExpanded ? 16 : 0, // 右侧 padding
-          justifyContent: isExpanded ? 'flex-start' : 'center', // 收起时垂直居中
-          // 隐藏滚动条但保持滚动功能
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE and Edge
-          WebkitOverflowScrolling: 'touch', // iOS smooth scrolling
           touchAction: isExpanded ? 'pan-x pinch-zoom' : 'pan-x',
         }}
-        // 隐藏滚动条 - Webkit (Chrome, Safari)
-        className="timeline-scroll-container"
       >
         {storylines.length > 0 ? (
           storylines.map((storyline) => renderStorylineRow(storyline))
         ) : (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: 'hsl(var(--ink-3))',
-              fontSize: 14,
-            }}
+          <div className="btl-loading">Loading storylines…</div>
+        )}
+
+        {/* Cross-storyline connection lines — overlays the tracks area, sits
+            visually below the sticky rails (rails have higher z-index). */}
+        {crossStorylineLinks.length > 0 && storylines.length > 0 && rowHeight > 0 && (
+          <svg
+            className="btl-crosslinks"
+            width={scrollContentWidth}
+            height={rowsAreaHeight}
+            style={{ width: scrollContentWidth, height: rowsAreaHeight }}
           >
-            Loading storylines...
-          </div>
+            {crossStorylineLinks.map((link) => {
+              const x1 = railOffset + link.fromX;
+              const x2 = railOffset + link.toX;
+              const y1 = rowCenterY(link.fromY);
+              const y2 = rowCenterY(link.toY);
+              const midY = (y1 + y2) / 2;
+              const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+              return (
+                <g key={link.key}>
+                  <path d={d} stroke={link.color} strokeWidth="1.2" strokeDasharray="3 3" fill="none" opacity="0.7" />
+                  <circle cx={x2} cy={y2} r="2.5" fill={link.color} opacity="0.85" />
+                </g>
+              );
+            })}
+          </svg>
         )}
       </div>
 
@@ -1291,7 +1259,6 @@ export function BottomTimeline() {
         }}
       />
 
-      {/* Hover Preview */}
       <NodeHoverPreview
         node={hoveredNodeId ? (nodeById.get(hoveredNodeId) ?? null) : null}
         position={hoverPosition}

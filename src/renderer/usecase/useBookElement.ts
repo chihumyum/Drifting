@@ -62,13 +62,21 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       await ensureDb();
       const prev = getElements().slice();
       const now = new Date().toISOString();
+      // Seed the new element with its category's template doc. Empty template
+      // ('{}') leaves the element blank — the TipTap loader treats that as
+      // an empty doc. Only applies at creation; changing category later
+      // does not re-apply the template (per scope decision).
+      const category = useDataStore
+        .getState()
+        .bookElementCategories.find((c) => c.id === input.categoryId);
+      const seededContentJson = category?.elementTemplateJson?.trim() || '{}';
       const newElement: BookElement = {
         id: uuidv7(),
         projectId: activeProjectId,
         categoryId: input.categoryId,
         name: input.name?.trim() || 'New Element',
         summary: '',
-        contentJson: '{}', // TODO: fix this
+        contentJson: seededContentJson,
         createdAt: now,
         updatedAt: now,
       };

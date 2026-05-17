@@ -9,6 +9,7 @@ import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { events } from '../../lib/events';
 
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -69,7 +70,7 @@ export function ElementPanel() {
     userId: userId ?? '',
   });
 
-  const { createCategory, updateCategory, getCategoryColor } = useElementCategory({
+  const { updateCategory, getCategoryColor } = useElementCategory({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
@@ -90,6 +91,18 @@ export function ElementPanel() {
     });
   }, []);
 
+  // Sub-header collapse-all toggles between "expand all" and "collapse all".
+  useEffect(() => {
+    const handler = () => {
+      setCollapsedCategoryIds((prev) => {
+        if (prev.size === 0) return new Set(bookElementCategories.map((c) => c.id));
+        return new Set();
+      });
+    };
+    events.on('left-sidebar:collapse-all', handler);
+    return () => events.off('left-sidebar:collapse-all', handler);
+  }, [bookElementCategories]);
+
   const [zoomRingVisible, setZoomRingVisible] = useState(false);
   const [zoomRingHovered, setZoomRingHovered] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
@@ -109,7 +122,12 @@ export function ElementPanel() {
   const zoomRingHoveredRef = useRef(false);
   const suppressRingUntilRef = useRef(0);
 
-  const panelHeight = useMemo(() => `calc(100vh - 120px - ${timelineHeight}px)`, [timelineHeight]);
+  // Shell now owns the LeftSidebarHeader + LeftSidebarSubHeader chrome, so we
+  // no longer need the internal create-category toolbar's height.
+  const panelHeight = useMemo(
+    () => `calc(100vh - 114px - ${timelineHeight}px)`,
+    [timelineHeight],
+  );
 
   const categoryById = useMemo(
     () => new Map(bookElementCategories.map((category) => [category.id, category])),
@@ -222,27 +240,6 @@ export function ElementPanel() {
     },
     [createElement, openEntity],
   );
-
-  const handleCreateCategory = useCallback(async () => {
-    try {
-      const created = await createCategory();
-      window.requestAnimationFrame(() => {
-        const container = scrollContainerRef.current;
-        const section = categorySectionRefs.current[created.id];
-        if (!container || !section) {
-          return;
-        }
-        showZoomRing();
-        container.scrollTo({
-          top: Math.max(section.offsetTop - 12, 0),
-          behavior: 'smooth',
-        });
-        scheduleHideZoomRing();
-      });
-    } catch (error) {
-      log.error('Failed to create new category', error);
-    }
-  }, [createCategory, scheduleHideZoomRing, showZoomRing]);
 
   const handleSaveCategoryName = useCallback(
     async (categoryId: string) => {
@@ -607,52 +604,6 @@ export function ElementPanel() {
           padding: 0,
         }}
       >
-        <div
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            padding: '8px 10px 8px 12px',
-            borderBottom: '1px solid hsl(var(--rule))',
-          }}
-        >
-          <button
-            onClick={() => {
-              void handleCreateCategory();
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              borderRadius: 3,
-              border: '1px solid hsl(var(--rule))',
-              background: 'transparent',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              fontWeight: 500,
-              color: 'hsl(var(--ink-2))',
-              cursor: 'pointer',
-              transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'hsl(var(--ink-1))';
-              e.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
-              e.currentTarget.style.color = 'hsl(var(--paper))';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = 'hsl(var(--rule))';
-              e.currentTarget.style.color = 'hsl(var(--ink-2))';
-            }}
-          >
-            <Plus size={11} strokeWidth={2} />
-            New Category
-          </button>
-        </div>
-
         <div
           ref={scrollContainerRef}
           onScroll={handlePanelScroll}
