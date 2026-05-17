@@ -6,7 +6,7 @@ import { useBookContent } from '../usecase/useBookContent';
 import { BookNode } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
-import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
@@ -62,7 +62,6 @@ export function NodeEditorView() {
   const [editingStorylines, setEditingStorylines] = useState(false);
   const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
   const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);
-  const [openCrumb, setOpenCrumb] = useState<'storyline' | 'node' | null>(null);
   const wordCountBackfillRef = useRef<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({
@@ -389,121 +388,85 @@ export function NodeEditorView() {
         position: 'relative',
       }}
     >
-      <EditorContextMenu editorType="node" onAction={handleContextAction} />
-
       {isActiveNodeReady && nodeId && curNode && (
         <>
-          {/* Sticky breadcrumb bar */}
-          <div className="editor-bar">
-            <div className="editor-crumbs">
-              <span
-                className="editor-crumb editor-crumb-storyline"
-                style={{ ['--crumb-color' as string]: storylineColor }}
-                onMouseEnter={() => setOpenCrumb('storyline')}
-                onMouseLeave={() => setOpenCrumb(null)}
-              >
-                <span className="editor-crumb-dot" />
-                <span>{mainStoryline?.name ?? 'No storyline'}</span>
-                {openCrumb === 'storyline' && (
-                  <div className="crumb-dropdown">
-                    {storylines.length === 0 ? (
-                      <div className="crumb-dropdown__empty">No storylines yet</div>
-                    ) : (
-                      storylines.map((s) => {
-                        const isActive = s.id === mainStoryline?.id;
-                        return (
-                          <div
-                            key={s.id}
-                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                            onClick={() => {
-                              setOpenCrumb(null);
-                              navigateToStoryline(s.id);
-                            }}
-                          >
-                            <span
-                              className="crumb-dropdown__dot"
-                              style={{ background: s.color || '#8A2A1E' }}
-                            />
-                            <span>{s.name}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                    <div className="crumb-dropdown__divider" />
-                    <div
-                      className="crumb-dropdown__footer"
-                      onClick={() => {
-                        setOpenCrumb(null);
-                        openStorylineEditor();
-                      }}
-                    >
-                      Edit node storylines…
-                    </div>
-                  </div>
+          <EditorTopBar
+            editorType="node"
+            onMenuAction={handleContextAction}
+            right={
+              <>
+                <span>{curNode.wordCount.toLocaleString()} 字</span>
+                {currentStorylines.length > 1 && (
+                  <>
+                    <span className="editor-bar__sep">·</span>
+                    <span>{currentStorylines.length} threads</span>
+                  </>
                 )}
-              </span>
-
-              <span className="editor-bar__sep">›</span>
-
-              <span
-                className="editor-crumb"
-                onMouseEnter={() => setOpenCrumb('node')}
-                onMouseLeave={() => setOpenCrumb(null)}
-              >
-                <span className="editor-crumb-num">Chapter {chapterRoman}</span>
-                <span className="editor-crumb-sep">·</span>
-                <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
-                {openCrumb === 'node' && (
-                  <div className="crumb-dropdown">
-                    {sameStorylineNodes.length === 0 ? (
-                      <div className="crumb-dropdown__empty">No chapters in this storyline</div>
-                    ) : (
-                      sameStorylineNodes.map((n, idx) => {
-                        const isActive = n.id === nodeId;
-                        return (
-                          <div
-                            key={n.id}
-                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                            onClick={() => {
-                              setOpenCrumb(null);
-                              if (!isActive) navigateToNode(n.id);
-                            }}
-                          >
-                            <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
-                            <span>{n.title || 'Untitled'}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </span>
-            </div>
-
-            <div className="editor-bar__right">
-              <span>
-                {curNode.wordCount.toLocaleString()} 字
-              </span>
-              {currentStorylines.length > 1 && (
+              </>
+            }
+          >
+            <EditorCrumb
+              dotColor={storylineColor}
+              dropdown={
                 <>
-                  <span className="editor-bar__sep">·</span>
-                  <span>{currentStorylines.length} threads</span>
+                  {storylines.length === 0 ? (
+                    <div className="crumb-dropdown__empty">No storylines yet</div>
+                  ) : (
+                    storylines.map((s) => {
+                      const isActive = s.id === mainStoryline?.id;
+                      return (
+                        <div
+                          key={s.id}
+                          className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                          onClick={() => navigateToStoryline(s.id)}
+                        >
+                          <span
+                            className="crumb-dropdown__dot"
+                            style={{ background: s.color || '#8A2A1E' }}
+                          />
+                          <span>{s.name}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div className="crumb-dropdown__divider" />
+                  <div className="crumb-dropdown__footer" onClick={openStorylineEditor}>
+                    Edit node storylines…
+                  </div>
                 </>
-              )}
-              <button
-                type="button"
-                className="editor-bar__icon"
-                title="Edit storylines"
-                onClick={openStorylineEditor}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <circle cx="3" cy="8" r="1.3" />
-                  <circle cx="8" cy="8" r="1.3" />
-                  <circle cx="13" cy="8" r="1.3" />
-                </svg>
-              </button>
-            </div>
-          </div>
+              }
+            >
+              <span>{mainStoryline?.name ?? 'No storyline'}</span>
+            </EditorCrumb>
+
+            <EditorCrumb
+              dropdown={
+                sameStorylineNodes.length === 0 ? (
+                  <div className="crumb-dropdown__empty">No chapters in this storyline</div>
+                ) : (
+                  sameStorylineNodes.map((n, idx) => {
+                    const isActive = n.id === nodeId;
+                    return (
+                      <div
+                        key={n.id}
+                        className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                        onClick={() => {
+                          if (!isActive) navigateToNode(n.id);
+                        }}
+                      >
+                        <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
+                        <span>{n.title || 'Untitled'}</span>
+                      </div>
+                    );
+                  })
+                )
+              }
+            >
+              <span className="editor-crumb-num">Chapter {chapterRoman}</span>
+              <span className="editor-crumb-sep">·</span>
+              <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
+            </EditorCrumb>
+          </EditorTopBar>
 
           {/* Manuscript page */}
           <div className="page">

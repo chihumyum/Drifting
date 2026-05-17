@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -12,6 +12,8 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
 import { parseTiptapDocJson } from '../utils/tiptap-doc';
+import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import loglevel from 'loglevel';
 const log = loglevel.getLogger('StorylineEditorView');
 log.setLevel(loglevel.levels.DEBUG);
@@ -29,6 +31,7 @@ export function StorylineEditorView() {
     throw new Error('No user in auth store');
   }
   const { storylines } = useDataStore();
+  const { navigateToStoryline, navigateToHome } = useProjectNavigation();
   const storylineUsecases = useStoryline({
     projectId: projectId,
     userId: user.id,
@@ -140,6 +143,27 @@ export function StorylineEditorView() {
     }
   }, [projectId, storylineId, editorSL, currentStoryline]);
 
+  const handleContextAction = useCallback(
+    async (action: string) => {
+      if (!storylineId || !currentStoryline) return;
+      if (action === 'deleteStoryline') {
+        const confirmed = window.confirm(`Delete storyline "${currentStoryline.name}"?`);
+        if (!confirmed) return;
+        try {
+          await storylineUsecases.deleteStoryline(storylineId);
+          navigateToHome();
+        } catch (error) {
+          log.error('Failed to delete storyline:', error);
+          alert('Failed to delete storyline. Please try again.');
+        }
+      } else if (action === 'mergeStoryline') {
+        // TODO: surface merge UI; previously unimplemented
+        alert('Merge storylines is not implemented yet.');
+      }
+    },
+    [storylineId, currentStoryline, storylineUsecases, navigateToHome],
+  );
+
   const commitName = async () => {
     if (!storylineId) return;
     if (nameDraft === currentName) return;
@@ -159,21 +183,57 @@ export function StorylineEditorView() {
 
   return (
     <div
+      className="editor-shell"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         height: '100vh',
         position: 'relative',
         overflow: 'auto',
-        paddingLeft: 64,
-        paddingRight: 'auto',
-        paddingTop: 16,
-        paddingBottom: 16,
         scrollbarWidth: 'none',
       }}
     >
-      {/* let the whole area scrollable */}
-      <div>
+      <EditorTopBar
+        editorType="storyline"
+        onMenuAction={handleContextAction}
+      >
+        <EditorCrumb
+          dotColor={currentStoryline?.color || '#8A2A1E'}
+          dropdown={
+            storylines.length === 0 ? (
+              <div className="crumb-dropdown__empty">No storylines yet</div>
+            ) : (
+              storylines.map((s) => {
+                const isActive = s.id === storylineId;
+                return (
+                  <div
+                    key={s.id}
+                    className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                    onClick={() => navigateToStoryline(s.id)}
+                  >
+                    <span
+                      className="crumb-dropdown__dot"
+                      style={{ background: s.color || '#8A2A1E' }}
+                    />
+                    <span>{s.name}</span>
+                  </div>
+                );
+              })
+            )
+          }
+        >
+          <span>{currentStoryline?.name || 'Untitled storyline'}</span>
+        </EditorCrumb>
+      </EditorTopBar>
+
+      <div
+        style={{
+          paddingLeft: 64,
+          paddingRight: 'auto',
+          paddingTop: 16,
+          paddingBottom: 16,
+        }}
+      >
+        {/* let the whole area scrollable */}
+        <div>
         {/* Storyline Name */}
         <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
           <input
@@ -268,6 +328,7 @@ export function StorylineEditorView() {
         </div>
 
         {/* <StorylineAllChapterEditor nodes={currentNodes} onCurrentChapterChange={() => { }} /> */}
+        </div>
       </div>
     </div>
   );

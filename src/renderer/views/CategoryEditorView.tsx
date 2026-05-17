@@ -9,7 +9,7 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
-import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { createEmptyTiptapDoc, parseTiptapDocJson } from '../utils/tiptap-doc';
 import { X, Eye } from 'lucide-react';
@@ -40,7 +40,7 @@ export function CategoryEditorView() {
     projectId: projectId,
     userId: userId,
   });
-  const { navigateToHome, navigateToElement } = useProjectNavigation();
+  const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
 
   const [showElementsModal, setShowElementsModal] = useState(false);
   const [editingNameCategoryId, setEditingNameCategoryId] = useState<string | null>(null);
@@ -225,14 +225,48 @@ export function CategoryEditorView() {
 
   return (
     <div
+      className="editor-shell"
       style={{
         height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
         background: 'rgba(251, 249, 243, 1)',
         overflow: 'hidden',
       }}
     >
+      <EditorTopBar
+        editorType="category"
+        onMenuAction={handleContextAction}
+      >
+        <EditorCrumb
+          dotColor={curCategory.color || '#8A2A1E'}
+          dropdown={
+            bookElementCategories.length === 0 ? (
+              <div className="crumb-dropdown__empty">No categories yet</div>
+            ) : (
+              bookElementCategories.map((cat) => {
+                const isActive = cat.id === curCategory.id;
+                return (
+                  <div
+                    key={cat.id}
+                    className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                    onClick={() => {
+                      if (!isActive) navigateToCategory(cat.id);
+                    }}
+                  >
+                    <span
+                      className="crumb-dropdown__dot"
+                      style={{ background: cat.color || '#8A2A1E' }}
+                    />
+                    <span>{cat.name}</span>
+                  </div>
+                );
+              })
+            )
+          }
+        >
+          <span>{curCategory.name}</span>
+        </EditorCrumb>
+      </EditorTopBar>
+
       {/* Header */}
       <div
         style={{
@@ -373,9 +407,6 @@ export function CategoryEditorView() {
           <EditorContent editor={editor} />
         </div>
       </div>
-
-      {/* Editor Context Menu */}
-      <EditorContextMenu editorType="category" onAction={handleContextAction} />
 
       {/* Elements Modal */}
       {showElementsModal && (

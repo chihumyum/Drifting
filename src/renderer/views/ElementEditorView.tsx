@@ -11,7 +11,7 @@ import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import type { BookElement } from '../domain/book-element';
 import { TagEditor } from '../components/editor/TagEditor';
-import { EditorContextMenu } from '../components/editor/EditorContextMenu';
+import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { BacklinksPanel } from '../components/editor/BacklinksPanel';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
@@ -211,15 +211,56 @@ export function ElementEditorView() {
     );
   }
 
+  const currentCategory = bookElementCategories.find((cat) => cat.id === curElement.categoryId);
+
   return (
     <div
+      className="editor-shell"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         height: '100%',
         position: 'relative',
       }}
     >
+      <EditorTopBar
+        editorType="element"
+        onMenuAction={handleContextAction}
+      >
+        {currentCategory && (
+          <EditorCrumb
+            dotColor={currentCategory.color || '#8A2A1E'}
+            dropdown={
+              bookElementCategories.length === 0 ? (
+                <div className="crumb-dropdown__empty">No categories yet</div>
+              ) : (
+                bookElementCategories.map((cat) => {
+                  const isActive = cat.id === currentCategory.id;
+                  return (
+                    <div
+                      key={cat.id}
+                      className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                      onClick={() => {
+                        navigate(`/project/${projectId}/category/${cat.id}`);
+                      }}
+                    >
+                      <span
+                        className="crumb-dropdown__dot"
+                        style={{ background: cat.color || '#8A2A1E' }}
+                      />
+                      <span>{cat.name}</span>
+                    </div>
+                  );
+                })
+              )
+            }
+          >
+            <span>{currentCategory.name}</span>
+          </EditorCrumb>
+        )}
+        <EditorCrumb>
+          <span className="editor-crumb-title">{curElement.name || 'Untitled Element'}</span>
+        </EditorCrumb>
+      </EditorTopBar>
+
       {/* Header Section */}
       <div
         style={{
@@ -517,9 +558,6 @@ export function ElementEditorView() {
       >
         <EditorContent editor={editor} />
       </div>
-
-      {/* Editor Context Menu */}
-      <EditorContextMenu editorType="element" onAction={handleContextAction} />
 
       {/* Right Vertical Buttons */}
     </div>
