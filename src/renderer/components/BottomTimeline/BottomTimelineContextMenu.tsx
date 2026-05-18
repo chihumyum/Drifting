@@ -11,71 +11,50 @@ interface BottomTimelineContextMenuProps {
     menuHeight: number,
   ) => { x: number; y: number };
   onAction: (action: BottomTimelineContextMenuAction) => void;
+  // Narrative-mode flag. Only when true does the "回未放置" detach
+  // action appear, since it's a no-op in book view (bookOrder is always
+  // set and the lane has no concept of "unplaced").
+  isNarrative: boolean;
+  // Whether the active node (when contextMenu.type === 'node') actually
+  // has a narrativeOrder we can clear. When null, the detach action is
+  // already done — no point offering it.
+  selectedNodeHasNarrativeOrder?: boolean;
 }
 
-function menuButtonStyle(color = 'hsl(var(--ink-1))'): React.CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    width: '100%',
-    padding: '8px 16px',
-    background: 'transparent',
-    border: 'none',
-    color,
-    fontSize: 14,
-    cursor: 'pointer',
-    textAlign: 'left',
-    transition: 'background-color 0.2s',
-  };
+interface MenuItemProps {
+  glyph: string;
+  label: string;
+  action: BottomTimelineContextMenuAction;
+  onAction: (action: BottomTimelineContextMenuAction) => void;
+  variant?: 'default' | 'danger';
 }
 
-function renderMenuButton(
-  label: string,
-  action: BottomTimelineContextMenuAction,
-  onAction: (action: BottomTimelineContextMenuAction) => void,
-  hoverBg = 'hsl(var(--paper-deep))',
-  color = 'hsl(var(--ink-1))',
-) {
+function MenuItem({ glyph, label, action, onAction, variant = 'default' }: MenuItemProps) {
   return (
     <button
+      type="button"
+      className={`btl-cmenu__item${variant === 'danger' ? ' is-danger' : ''}`}
       onClick={() => onAction(action)}
-      style={menuButtonStyle(color)}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = hoverBg;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-      }}
     >
-      {label}
+      <span className="btl-cmenu__glyph" aria-hidden>
+        {glyph}
+      </span>
+      <span className="btl-cmenu__label">{label}</span>
     </button>
   );
 }
 
-function renderStorylineTags(storylines: Storyline[]) {
+function StorylineTags({ storylines }: { storylines: Storyline[] }) {
   if (storylines.length === 0) return null;
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 4,
-        marginTop: 8,
-        flexWrap: 'wrap',
-      }}
-    >
-      {storylines.map((t) => (
+    <div className="btl-cmenu__tags">
+      {storylines.map((sl) => (
         <span
-          key={t.id}
-          style={{
-            fontSize: 10,
-            padding: '2px 6px',
-            borderRadius: 4,
-            background: t.color || 'hsl(var(--accent))',
-            color: 'hsl(var(--paper))',
-            fontWeight: 500,
-          }}
+          key={sl.id}
+          className="btl-cmenu__tag"
+          style={{ background: sl.color || 'hsl(var(--accent))' }}
         >
-          {t.name}
+          {sl.name || 'Untitled'}
         </span>
       ))}
     </div>
@@ -87,18 +66,24 @@ export function BottomTimelineContextMenu({
   contextMenuRef,
   getContextMenuPosition,
   onAction,
+  isNarrative,
+  selectedNodeHasNarrativeOrder,
 }: BottomTimelineContextMenuProps) {
   if (!contextMenu) return null;
 
-  const menuWidth = 320;
+  // The exact menu height isn't critical — getContextMenuPosition uses it
+  // only to nudge the menu inside the viewport. Slightly overestimate so
+  // the menu never overflows at the bottom edge of the screen.
+  const menuWidth = 260;
   let menuHeight = 60;
   if (contextMenu.type === 'node') {
-    menuHeight = 200;
-    if (contextMenu.nodeSummary) menuHeight += 40;
-    if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0) menuHeight += 30;
-    if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1) menuHeight += 40;
+    menuHeight = 180;
+    if (contextMenu.nodeSummary) menuHeight += 36;
+    if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0) menuHeight += 28;
+    if (contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1) menuHeight += 32;
+    if (isNarrative && selectedNodeHasNarrativeOrder) menuHeight += 32;
   } else if (contextMenu.type === 'storyline' && contextMenu.canAddCurrentNode) {
-    menuHeight = 100;
+    menuHeight = 96;
   }
 
   const position = getContextMenuPosition(contextMenu.x, contextMenu.y, menuWidth, menuHeight);
@@ -106,78 +91,65 @@ export function BottomTimelineContextMenu({
   return (
     <div
       ref={contextMenuRef}
+      className="btl-cmenu"
       onClick={(e) => e.stopPropagation()}
-      style={{
-        position: 'fixed',
-        left: position.x,
-        top: position.y,
-        background: 'hsl(var(--surface))',
-        border: '1px solid hsl(var(--rule))',
-        borderRadius: 8,
-        boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.12), 0 1px 2px hsl(var(--ink-1) / 0.06)',
-        minWidth: 200,
-        maxWidth: 320,
-        zIndex: 1000,
-        overflow: 'hidden',
-      }}
+      style={{ left: position.x, top: position.y }}
     >
       {contextMenu.type === 'storyline' && (
-        <>
-          {renderMenuButton('➕ Add New Node', 'createChapter', onAction)}
-          {contextMenu.canAddCurrentNode &&
-            renderMenuButton('➕ Add to Storyline', 'addToStoryline', onAction)}
-        </>
+        <div className="btl-cmenu__group">
+          <MenuItem glyph="✶" label="新建章节" action="createChapter" onAction={onAction} />
+          {contextMenu.canAddCurrentNode && (
+            <MenuItem
+              glyph="↳"
+              label="把当前章节加入此 storyline"
+              action="addToStoryline"
+              onAction={onAction}
+            />
+          )}
+        </div>
       )}
 
       {contextMenu.type === 'node' && (
         <>
-          <div
-            style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid hsl(var(--rule))',
-              background: 'hsl(var(--paper-deep))',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'hsl(var(--ink-1))',
-                marginBottom: 6,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {contextMenu.nodeTitle}
-            </div>
-
+          <div className="btl-cmenu__head">
+            <div className="btl-cmenu__title">{contextMenu.nodeTitle || '未命名'}</div>
             {contextMenu.nodeSummary && (
-              <div
-                style={{
-                  fontSize: 11,
-                  color: 'hsl(var(--ink-3))',
-                  lineHeight: 1.4,
-                  maxHeight: 60,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {contextMenu.nodeSummary}
-              </div>
+              <div className="btl-cmenu__summary">{contextMenu.nodeSummary}</div>
             )}
-
-            {contextMenu.nodeStorylines && renderStorylineTags(contextMenu.nodeStorylines)}
+            {contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 0 && (
+              <StorylineTags storylines={contextMenu.nodeStorylines} />
+            )}
           </div>
 
-          {renderMenuButton('✏️ Edit Chapter', 'editChapter', onAction)}
-          {contextMenu.nodeStorylines &&
-            contextMenu.nodeStorylines.length > 1 &&
-            renderMenuButton('➖ Remove Node from Storyline', 'removeFromStoryline', onAction)}
-          {renderMenuButton('🗑️ Delete Entire Node', 'deleteNode', onAction, 'hsl(var(--destructive) / 0.08)', 'hsl(var(--destructive))')}
+          <div className="btl-cmenu__group">
+            <MenuItem glyph="✎" label="编辑章节" action="editChapter" onAction={onAction} />
+            {contextMenu.nodeStorylines && contextMenu.nodeStorylines.length > 1 && (
+              <MenuItem
+                glyph="⊖"
+                label="从此 storyline 移除"
+                action="removeFromStoryline"
+                onAction={onAction}
+              />
+            )}
+            {isNarrative && selectedNodeHasNarrativeOrder && (
+              <MenuItem
+                glyph="↺"
+                label="回到未放置"
+                action="detachFromNarrative"
+                onAction={onAction}
+              />
+            )}
+          </div>
+
+          <div className="btl-cmenu__group">
+            <MenuItem
+              glyph="×"
+              label="删除整个章节"
+              action="deleteNode"
+              onAction={onAction}
+              variant="danger"
+            />
+          </div>
         </>
       )}
     </div>

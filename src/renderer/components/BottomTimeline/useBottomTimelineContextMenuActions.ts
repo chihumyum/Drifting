@@ -160,6 +160,20 @@ export function useBottomTimelineContextMenuActions({
             onError('No selected node found for addToStoryline action');
           }
           break;
+
+        case 'detachFromNarrative':
+          // Narrative-view only: clearing narrativeOrder removes the tile
+          // from the storyline rows; the chapter resurfaces in the
+          // "未放置" popover so the author can re-place it.
+          if (contextMenu.type === 'node' && contextMenu.nodeId) {
+            await updateNode(contextMenu.nodeId, { narrativeOrder: null });
+            if (shouldRestoreScroll && scrollContainer) {
+              requestAnimationFrame(() => {
+                scrollContainer.scrollLeft = savedScrollLeft;
+              });
+            }
+          }
+          break;
       }
     } catch (error) {
       onError('Context menu action failed:', error);

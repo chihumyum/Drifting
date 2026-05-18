@@ -1163,6 +1163,12 @@ export function BottomTimeline() {
         onAction={(action: BottomTimelineContextMenuAction) => {
           void handleContextMenuAction(action);
         }}
+        isNarrative={isNarrative}
+        selectedNodeHasNarrativeOrder={(() => {
+          if (contextMenu?.type !== 'node' || !contextMenu.nodeId) return false;
+          const n = nodeById.get(contextMenu.nodeId);
+          return n != null && typeof n.narrativeOrder === 'number';
+        })()}
       />
 
       <NodeHoverPreview

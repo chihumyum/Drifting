@@ -548,19 +548,15 @@
   filter: brightness(1.06);
 }
 .btl-clip.is-selected {
-  /* Inset accent ring + outer halo. Previous version used `outline` + a
-     box-shadow whose color depended on `hsl(var(--clip-color))` — but
-     `--clip-color` is set inline to either a hex string (e.g. '#2D4A6B')
-     or an already-computed hsl(...), neither of which is valid as the
-     argument to a NEW `hsl()` call. The shadow silently rendered as
-     transparent, and the thin 1.5px outline alone was easy to miss
-     against the tile's storyline color. */
+  /* Matches v2 design-spec's `.tl-clip--active`: a sharp accent outline
+     held off the tile by 2px, plus a wide soft accent-tinted drop shadow
+     underneath. The shadow is the dominant cue — it picks up regardless
+     of tile color because it's BELOW the tile (where nothing else is
+     drawing) rather than overlapping the storyline color. */
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
   z-index: 2;
-  box-shadow:
-    inset 0 0 0 2px hsl(var(--accent)),
-    0 0 0 2px hsl(var(--paper)),
-    0 0 0 4px hsl(var(--accent) / 0.45),
-    0 6px 14px hsl(var(--ink-1) / 0.25);
+  box-shadow: 0 8px 24px -6px hsl(var(--accent) / 0.45);
 }
 .btl-clip.is-draft {
   background: hsl(var(--paper));
@@ -656,3 +652,132 @@
 
 
 /* Minimap removed: the FullBookLane now serves the "overview" role. */
+
+/* ---------------- Context menu (right-click on timeline) ----------------
+   Matches the v2 design-spec `.user-menu` aesthetic: small serif glyph
+   gutter, mono uppercase microcopy on hover targets, soft shadow, grouped
+   sections with hairline dividers. Replaces the old inline-styled menu
+   that was too generic-emoji-heavy. */
+.btl-cmenu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 280px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow:
+    0 12px 28px hsl(var(--ink-1) / 0.18),
+    0 1px 2px hsl(var(--ink-1) / 0.06);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  animation: btl-cmenu-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes btl-cmenu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.btl-cmenu__head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+}
+.btl-cmenu__title {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: hsl(var(--ink-1));
+  letter-spacing: 0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btl-cmenu__summary {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: hsl(var(--ink-3));
+  max-height: 56px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.btl-cmenu__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.btl-cmenu__tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: hsl(var(--paper));
+  /* background set inline per storyline color */
+}
+.btl-cmenu__group {
+  padding: 5px 4px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.btl-cmenu__group:last-child {
+  border-bottom: 0;
+}
+.btl-cmenu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  color: hsl(var(--ink-2));
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.btl-cmenu__item:hover {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+.btl-cmenu__item.is-danger {
+  color: hsl(var(--accent));
+}
+.btl-cmenu__item.is-danger:hover {
+  background: hsl(var(--accent) / 0.1);
+  color: hsl(var(--accent));
+}
+.btl-cmenu__glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1;
+  color: hsl(var(--ink-4));
+}
+.btl-cmenu__item:hover .btl-cmenu__glyph {
+  color: hsl(var(--ink-2));
+}
+.btl-cmenu__item.is-danger .btl-cmenu__glyph {
+  color: hsl(var(--accent) / 0.7);
+}
+.btl-cmenu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

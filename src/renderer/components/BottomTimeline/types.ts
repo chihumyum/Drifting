@@ -25,4 +25,8 @@ export type BottomTimelineContextMenuAction =
   | 'editChapter'
   | 'removeFromStoryline'
   | 'deleteNode'
-  | 'addToStoryline';
+  | 'addToStoryline'
+  // Narrative-view only: clears node.narrativeOrder, which moves the
+  // node out of the storyline rows and back into the "未放置" popover
+  // so the author can re-place it later.
+  | 'detachFromNarrative';
