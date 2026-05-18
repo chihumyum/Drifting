@@ -23,28 +23,24 @@ interface Props {
   secondaryItems?: OutlineEntry[];
 }
 
-// Width of the expanded TOC panel. The panel is always rendered as an
-// absolutely-positioned child of the rail; this constant also drives the
-// left/right side choice (we need at least this much clear space to the
-// left of the rail before placing the panel on the left).
+// Width of the expanded TOC panel.
 const OVERLAY_WIDTH = 200;
 
-// Sticky left-rail outline shared by all entity editors. Render inside an
-// `.editor__spread`. Items can be h1/h2/h3; an h2 with a `num` shows the
-// Chinese ordinal accent before the title (一/二/三).
+// Outline rail shared by all entity editors. The rail is rendered as an
+// absolutely-positioned child of `.editor-body` and pinned to its top-left
+// (just under the breadcrumb bar) — never in flex flow. Only the toggle
+// button at the top is visually styled (the rest of the rail box is
+// transparent and just exists as the panel's positioning anchor), so the
+// outline reads as a small "tab" peeking out of the left edge.
 //
 // Two render modes:
-//   • collapsed → 32px rail in flow only.
-//   • expanded  → 32px rail in flow + 200px overlay panel anchored to the
-//                 rail. The overlay defaults to the LEFT side (extending
-//                 into the body's empty left margin) so the manuscript
-//                 never shifts horizontally when the outline is toggled.
-//                 When the body's left margin can't fit the panel, the
-//                 overlay flips to the RIGHT side and floats above the
-//                 manuscript instead.
+//   • collapsed → tab only.
+//   • expanded  → tab + 200px panel anchored to the tab's right edge.
+//                 If the panel would overlap the manuscript, its
+//                 background switches to a slight gradient to signal the
+//                 overlay; otherwise it stays solid and reads as in-flow.
 //
-// Because the rail is always 32px in flow, expanding/collapsing never
-// reflows the manuscript.
+// The rail itself never moves — the only animation is the panel sliding in.
 export function EditorOutlinePanel({
   title,
   items,
@@ -69,19 +65,21 @@ export function EditorOutlinePanel({
     setBodyEl((prev) => (prev === ancestor ? prev : ancestor));
   }, []);
 
-  // Which side of the rail to host the expanded overlay. 'left' is the
-  // preferred placement (into empty body margin); 'right' is the fallback
-  // when there's no room on the left.
-  const [overlaySide, setOverlaySide] = useState<'left' | 'right'>('left');
+  // Whether the expanded panel would overlap the manuscript. We use this
+  // only to pick the background: solid when the panel sits cleanly in the
+  // body's left margin, gradient when it spills onto the manuscript. The
+  // panel's position itself never changes — it's always anchored to the
+  // tab's right edge.
+  const [coversManuscript, setCoversManuscript] = useState(false);
   useEffect(() => {
     if (!bodyEl) return;
     const compute = () => {
       const rail = railRef.current;
-      if (!rail) return;
-      const bodyRect = bodyEl.getBoundingClientRect();
+      const manuscript = bodyEl.querySelector('.editor-scroll') as HTMLElement | null;
+      if (!rail || !manuscript) return;
       const railRect = rail.getBoundingClientRect();
-      const leftRoom = railRect.left - bodyRect.left;
-      setOverlaySide(leftRoom >= OVERLAY_WIDTH ? 'left' : 'right');
+      const manuscriptRect = manuscript.getBoundingClientRect();
+      setCoversManuscript(railRect.right + OVERLAY_WIDTH > manuscriptRect.left);
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -165,9 +163,7 @@ export function EditorOutlinePanel({
     );
   }
 
-  // Expanded: rail in flow + overlay panel anchored to the rail. Side is
-  // chosen based on whether there's room to the left of the rail; default
-  // is LEFT so the manuscript never shifts horizontally.
+  // Expanded: tab stays put, panel slides out to its right.
   return (
     <nav className="editor__toc-rail" ref={attachRoot} aria-label="Outline rail">
       <button
@@ -182,7 +178,7 @@ export function EditorOutlinePanel({
         <span className="toc-toggle__label">OUTLINE</span>
       </button>
       <div
-        className={`editor__toc-overlay editor__toc-overlay--${overlaySide}`}
+        className={`editor__toc-overlay${coversManuscript ? ' editor__toc-overlay--over-manuscript' : ''}`}
         role="dialog"
         aria-label="Outline"
       >

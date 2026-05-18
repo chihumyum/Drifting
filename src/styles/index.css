@@ -789,41 +789,36 @@ html[data-entity-highlight='off'] .entity-link--ai {
   max-width: 720px;
 }
 
-/* Slim 32px rail — always in flow as a sibling of .editor-scroll, whether
-   the outline is collapsed or expanded. Hosts the toggle and (in expanded
-   mode) the overlay as a nested absolutely-positioned child. Because the
-   rail's footprint never changes width, expanding/collapsing the outline
-   never reflows the manuscript.
-
-   `position: relative` makes the rail the overlay's containing block so
-   the overlay tracks the rail wherever the centered group lands. `z-index`
-   lifts the rail's whole stacking context above the manuscript so the
-   overlay doesn't hide behind page content. */
+/* Outline rail — pinned absolutely to the top-left of .editor-body (right
+   under the breadcrumb), out of flex flow so toggling never reflows the
+   manuscript. The box itself is transparent and spans the full body
+   height; it exists as the panel's positioning anchor and as a 32px-wide
+   click-target column. Only the toggle button at the top is visually
+   styled, so the outline reads as a small "tab" sticking out of the
+   left edge. `pointer-events: none` on the container makes the empty
+   column transparent to clicks; the button and panel re-enable events. */
 .editor__toc-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
   width: 32px;
-  flex-shrink: 0;
-  padding: 0;
-  border-right: 1px dotted hsl(var(--rule));
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  background: hsl(var(--surface));
-  align-self: stretch;
-  position: relative;
+  background: transparent;
   z-index: 5;
+  pointer-events: none;
 }
 
-/* Expanded overlay panel. Always absolutely positioned against the rail —
-   never participates in flex layout — so the manuscript stays put when
-   the user toggles the outline. Two side variants chosen at runtime based
-   on how much empty space sits to the left of the rail.
-     • --left  → default. Anchored to the rail's left edge, extending into
-                 the body's empty left margin. No manuscript impact.
-     • --right → fallback when the left margin can't fit the panel.
-                 Anchored to the rail's right edge, floating above the
-                 manuscript with a near-opaque background. */
+/* Expanded panel. Anchored to the tab's right edge; spans the full body
+   height (because the rail box does too, even though only its tab is
+   visible). When the panel would spill onto the manuscript, the
+   `--over-manuscript` modifier swaps the solid background for a gradient
+   that fades the trailing edge slightly, signalling the overlay state. */
 .editor__toc-overlay {
   position: absolute;
+  left: 100%;
   top: 0;
   bottom: 0;
   width: 200px;
@@ -833,14 +828,10 @@ html[data-entity-highlight='off'] .entity-link--ai {
   gap: 1px;
   overflow-y: auto;
   background: hsl(var(--surface));
-}
-.editor__toc-overlay--left {
-  right: 100%;
   border-right: 1px dotted hsl(var(--rule));
+  pointer-events: auto;
 }
-.editor__toc-overlay--right {
-  left: 100%;
-  border-right: 1px dotted hsl(var(--rule));
+.editor__toc-overlay--over-manuscript {
   background: linear-gradient(
     to right,
     hsl(var(--surface)) 0%,
@@ -887,9 +878,11 @@ html[data-entity-highlight='off'] .entity-link--ai {
   background: hsl(var(--rule) / 0.6);
 }
 
-/* Rail toggle — the single button on the 32px rail. Vertical "OUTLINE"
-   label + chevron that flips '›' (collapsed) ↔ '‹' (expanded). The rail
-   itself isn't inside the scroll container, so no sticky needed. */
+/* Rail toggle — the small "tab" button at the top of the (otherwise
+   transparent) rail. Vertical "OUTLINE" label + chevron that flips '›'
+   (collapsed) ↔ '‹' (expanded). Since the rail itself is now invisible,
+   this button carries the visible surface + dotted edges that mark the
+   outline's home position. */
 .toc-toggle--rail {
   width: 100%;
   min-height: 120px;
@@ -899,10 +892,13 @@ html[data-entity-highlight='off'] .entity-link--ai {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  background: transparent;
-  border: 0;
+  background: hsl(var(--surface));
+  border: 1px dotted hsl(var(--rule));
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
   cursor: pointer;
   color: hsl(var(--ink-4));
+  pointer-events: auto;
   transition: background 0.12s, color 0.12s;
 }
 .toc-toggle--rail:hover {
