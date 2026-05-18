@@ -1,0 +1,146 @@
+/* ============================================================
+   FullBookLane — single-row global reading-order summary
+   Shared between BottomTimeline and GraphView. Chips reflow with a
+   CSS transition so drag-reordering in the storyline rows below
+   ripples here smoothly. The playhead lives on this lane.
+   ============================================================ */
+
+.fbl {
+  /* Independent horizontal scroll: lane content has no positional relation
+     to the storyline tracks below (chips are packed in book order, not
+     positioned by an order field), so scrolling the lane shouldn't move
+     the rows underneath and vice versa. */
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: hsl(var(--paper));
+  border-bottom: 1px solid hsl(var(--rule));
+  scrollbar-width: thin;
+}
+.fbl::-webkit-scrollbar {
+  height: 4px;
+}
+.fbl::-webkit-scrollbar-thumb {
+  background: hsl(var(--rule-strong));
+  border-radius: 2px;
+}
+.fbl__rail {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  z-index: 21;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+}
+.fbl__track {
+  position: relative;
+  flex-shrink: 0;
+}
+.fbl__line {
+  /* The horizontal reading line itself — sits behind chips, dimmed enough
+     that the chips dominate. */
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1.5px;
+  background: hsl(var(--rule-strong));
+  opacity: 0.55;
+  transform: translateY(-50%);
+}
+.fbl__chip {
+  position: absolute;
+  top: 50%;
+  /* `left` is set per chip; the chip occupies [left, left + width].
+     transform y-centers vertically. CSS transition on `left` smooths
+     reorder when bookOrder changes (chips swap indices). */
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 3px;
+  height: 16px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1;
+  transition:
+    left 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.12s,
+    box-shadow 0.12s;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+}
+.fbl__chip:hover {
+  border-color: var(--chip-color, hsl(var(--ink-3)));
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.08);
+  color: hsl(var(--ink-1));
+  z-index: 2;
+}
+.fbl__chip.is-active {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.06);
+  color: hsl(var(--ink-1));
+  z-index: 3;
+}
+.fbl__chip.is-draft .fbl__chip-num {
+  opacity: 0.55;
+}
+.fbl__chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--chip-color, hsl(var(--ink-4)));
+  flex-shrink: 0;
+}
+.fbl__chip-title {
+  /* Full title rendered without ellipsis — the chip's width is sized
+     from a title-length estimate (see estimateChipWidth) so each title
+     fits its own chip without clipping. */
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: hsl(var(--ink-2));
+  white-space: nowrap;
+}
+.fbl__chip.is-active .fbl__chip-title {
+  color: hsl(var(--ink-1));
+}
+
+.fbl__playhead {
+  /* Lives on the lane only (no spill into storyline rows below). The user
+     asked for the playhead to be tracked here because bookOrder is always
+     non-null, so it's always renderable — unlike the row-level playhead
+     that disappeared in narrative view when narrativeOrder was missing. */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: hsl(var(--accent));
+  pointer-events: none;
+  z-index: 4;
+  transition: left 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fbl__playhead-diamond {
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  background: hsl(var(--accent));
+  transform: rotate(45deg);
+}

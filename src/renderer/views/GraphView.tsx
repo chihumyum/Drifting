@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
+import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
@@ -34,6 +35,10 @@ const GRAPH_CONFIG = {
   TRACK_HEIGHT: 88,
   RAIL_WIDTH: 158,
   AXIS_HEIGHT: 32,
+  // Same as AXIS_HEIGHT so the top "header" section of the canvas is the
+  // same height regardless of mode — keeps the rail's spacer math simple
+  // and gives visual continuity when the user toggles between views.
+  FULL_BOOK_LANE_HEIGHT: 32,
   CANVAS_PADDING_X: 24,
 };
 
@@ -256,9 +261,13 @@ export function GraphView() {
         const next = idx < lane.length - 1 ? lane[idx + 1] : null;
         const color = sl.color || 'hsl(var(--ink-4))';
 
+        // See BottomTimeline for why the key includes the anchor: two
+        // adjacent nodes sharing a secondary independently emit "prev→anchor"
+        // and "anchor→next" curves for the same ordered pair, anchored on
+        // different rows. Without the anchor in the key React dedupes them.
         if (prev) {
           links.push({
-            key: `${sl.id}:${prev.id}->${node.id}`,
+            key: `${sl.id}|prev:${prev.id}->anchor:${node.id}`,
             fromX: prev.x + halfTile,
             fromY: sY,
             toX: nodeMidX,
@@ -268,7 +277,7 @@ export function GraphView() {
         }
         if (next) {
           links.push({
-            key: `${sl.id}:${node.id}->${next.id}`,
+            key: `${sl.id}|anchor:${node.id}->next:${next.id}`,
             fromX: nodeMidX,
             fromY: nodeY,
             toX: next.x + halfTile,
@@ -538,22 +547,55 @@ export function GraphView() {
           })}
         </div>
 
-        <div
-          ref={canvasRef}
-          className="graph-canvas"
-          onDragOver={isNarrative ? handleTracksDragOver : undefined}
-          onDrop={isNarrative ? handleTracksDrop : undefined}
-        >
-          <div className="graph-tracks" style={{ width: Math.max(canvasContentWidth, 100), minWidth: '100%' }}>
-            {/* Time axis */}
-            <div className="graph-axis" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
-              {axisLabels.map((m, i) => (
-                <div key={i} className="graph-axis__col" style={{ left: m.x }}>
-                  <div className="graph-axis__tick" />
-                  <div className={`graph-axis__label${m.major ? ' is-major' : ''}`}>{m.label}</div>
+        <div className="graph-content">
+          {/* Book mode: FullBookLane spans the content width and scrolls
+              independently from .graph-canvas below. Narrative mode skips
+              it (the lane is book-order-only per user direction). */}
+          {!isNarrative && (
+            <FullBookLane
+              nodes={placedNodes}
+              storylines={storylines}
+              primaryStorylineId={(n) => primaryStorylineId(n)}
+              activeNodeId={activeId}
+              trackOffsetX={0}
+              onNodeClick={(id) => {
+                setNodeSelection(id, 'ui');
+                const target = positionedNodes.find((n) => n.id === id);
+                const canvas = canvasRef.current;
+                if (!target || !canvas) return;
+                const tileW = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
+                const left = target.x + tileW / 2 - canvas.clientWidth / 2;
+                canvas.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+              }}
+              height={GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT}
+              railLabel=""
+            />
+          )}
+
+          <div
+            ref={canvasRef}
+            className="graph-canvas"
+            onDragOver={isNarrative ? handleTracksDragOver : undefined}
+            onDrop={isNarrative ? handleTracksDrop : undefined}
+          >
+            <div
+              className="graph-tracks"
+              style={{ width: Math.max(canvasContentWidth, 100), minWidth: '100%' }}
+            >
+              {/* Time axis — narrative mode only. Book mode uses the
+                  FullBookLane above for the same "what's the axis" role. */}
+              {isNarrative && (
+                <div className="graph-axis" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
+                  {axisLabels.map((m, i) => (
+                    <div key={i} className="graph-axis__col" style={{ left: m.x }}>
+                      <div className="graph-axis__tick" />
+                      <div className={`graph-axis__label${m.major ? ' is-major' : ''}`}>
+                        {m.label}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
 
             {/* One row per storyline with the dotted reading-line behind tiles */}
             {storylines.map((s) => (
@@ -707,6 +749,7 @@ export function GraphView() {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       </div>

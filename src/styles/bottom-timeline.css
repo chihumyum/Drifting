@@ -1,7 +1,7 @@
 /* ============================================================
-   Bottom Timeline — two-state dock
-   collapsed: ~24px colored bars (peripheral awareness)
-   expanded:  tracks + minimap overview strip on top
+   Bottom Timeline
+   Always-expanded dock. Visibility (open/hidden) is toggled by the
+   global BottomStatusBar; the old "collapsed strip" mode is gone.
    ============================================================ */
 
 .btl {
@@ -10,7 +10,11 @@
   background: hsl(var(--paper-deep));
   border-top: 1px solid hsl(var(--rule));
   position: relative;
-  overflow: hidden;
+  /* Visible overflow lets the narrative-view "未放置" popover open
+     UPWARD past the head bar into the editor area, as requested.
+     Inner scroll containers (.btl__scroll, .fbl) own their own clipping
+     so we don't leak horizontal content outside the dock. */
+  overflow: visible;
   font-family: var(--font-sans);
 }
 
@@ -154,112 +158,117 @@
   color: hsl(var(--paper));
 }
 
-/* ---------------- Holding drawer (narrative view only) ---------------- */
-/* A pull-down strip above the scroll area listing nodes with no
-   narrativeOrder. Drag a chip into the axis to assign one. */
-.btl-drawer {
-  flex-shrink: 0;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
+/* ---------------- Unplaced popover (narrative view, head-right) ----------
+   Replaces the old vertical-stack drawer that took half the timeline's
+   height with a compact "未放置 N ▾" button that opens a popover panel
+   anchored to the head bar. Chips inside the popover are draggable just
+   like before — the drag handlers don't care where the chip came from. */
+.btl__unplaced {
+  position: relative;
+  display: inline-flex;
 }
-.btl-drawer__tab {
+.btl__unplaced-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 12px;
-  background: transparent;
-  border: 0;
-  border-right: 1px solid hsl(var(--rule));
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid hsl(var(--rule));
+  background: hsl(var(--surface));
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
   color: hsl(var(--ink-3));
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transition:
-    background 0.12s,
-    color 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
-.btl-drawer__tab:hover {
+.btl__unplaced-btn:hover,
+.btl__unplaced-btn.is-open {
   background: hsl(var(--rule) / 0.4);
   color: hsl(var(--ink-1));
 }
-.btl-drawer__tab-arrow {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  width: 8px;
-  display: inline-block;
-  text-align: center;
-}
-.btl-drawer__tab-count {
+.btl__unplaced-count {
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
-  padding: 1px 5px;
+  padding: 0 5px;
   border-radius: 8px;
   font-size: 9px;
-  letter-spacing: 0;
+  min-width: 14px;
+  text-align: center;
 }
-.btl-drawer.is-open .btl-drawer__tab {
-  background: hsl(var(--rule) / 0.4);
-  color: hsl(var(--ink-1));
+.btl__unplaced-arrow {
+  font-size: 8px;
+  margin-left: 1px;
+  color: hsl(var(--ink-4));
 }
-.btl-drawer__list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 12px 8px;
-  border-top: 1px solid hsl(var(--rule));
-  max-height: 96px;
+.btl__unplaced-popover {
+  position: absolute;
+  /* Expand UPWARD: the timeline lives at the bottom of the screen, so
+     popping down means immediately falling out of the head bar into the
+     scroll area (or off-screen if the dock is short). Anchoring to the
+     bottom of the button lets the popover use the editor area above. */
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 320px;
   overflow-y: auto;
+  padding: 6px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 5px;
+  box-shadow: 0 6px 18px hsl(var(--ink-1) / 0.15);
 }
-.btl-drawer__empty {
+.btl__unplaced-empty {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 11px;
+  font-size: 11.5px;
   color: hsl(var(--ink-4));
-  padding: 4px 0;
+  padding: 8px 6px;
 }
-.btl-drawer__chip {
+.btl__unplaced-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.btl__unplaced-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
-  border-radius: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
   cursor: grab;
-  max-width: 220px;
   user-select: none;
-  transition:
-    transform 0.08s,
-    box-shadow 0.08s,
-    border-color 0.12s;
+  transition: border-color 0.12s, background 0.12s;
 }
-.btl-drawer__chip:active {
+.btl__unplaced-chip:active {
   cursor: grabbing;
 }
-.btl-drawer__chip:hover {
+.btl__unplaced-chip:hover {
   border-color: var(--clip-color, hsl(var(--ink-3)));
-  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.06);
+  background: hsl(var(--paper-deep));
 }
-.btl-drawer__chip-dot {
-  width: 6px;
-  height: 6px;
+.btl__unplaced-chip-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--clip-color, hsl(var(--ink-4)));
   flex-shrink: 0;
 }
-.btl-drawer__chip-num {
+.btl__unplaced-chip-num {
   font-family: var(--font-mono);
   font-size: 9.5px;
   color: hsl(var(--ink-3));
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
-.btl-drawer__chip-title {
+.btl__unplaced-chip-title {
   font-family: var(--font-serif);
-  font-size: 11px;
+  font-size: 11.5px;
   color: hsl(var(--ink-1));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -515,41 +524,10 @@
   background: hsl(var(--accent) / 0.55);
 }
 
-/* ---------------- Playhead (current-editing tile indicator) ---------------- */
-/* Vertical accent line that tracks the currently-edited node's tile center.
-   Sits above tracks (z-index 4) but below sticky rails (z-index 20). */
-.btl-playhead {
-  position: absolute;
-  top: 0;
-  width: 1px;
-  background: hsl(var(--accent));
-  /* Above tracks/tiles/crosslinks (which sit at z 0–4) but below sticky
-     rails (z 20) and pin labels (z 7). */
-  z-index: 6;
-  pointer-events: none;
-}
-.btl-playhead::before {
-  /* Small diamond marker at the top so the playhead is locatable even when
-     it sits flush against a tile edge. */
-  content: '';
-  position: absolute;
-  top: -3px;
-  left: -4px;
-  width: 9px;
-  height: 9px;
-  background: hsl(var(--accent));
-  transform: rotate(45deg);
-}
-.btl-playhead::after {
-  /* Faint horizontal halo so the eye picks up the line without it dominating. */
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -2px;
-  width: 5px;
-  height: 100%;
-  background: linear-gradient(to right, hsl(var(--accent) / 0.12), transparent);
-}
+/* Playhead removed: the FullBookLane now hosts it (see full-book-lane.css).
+   bookOrder is non-null for every node, so the lane-hosted playhead is
+   always renderable — unlike the old row-level playhead that disappeared
+   in narrative view when narrativeOrder was missing. */
 
 /* ---------------- Clip (chapter card) ---------------- */
 .btl-clip {
@@ -615,52 +593,14 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-/* ---------------- Collapsed state ---------------- */
-.btl[data-state='collapsed'] .btl__scroll {
-  flex-direction: column;
-  justify-content: center;
-}
-.btl[data-state='collapsed'] .btl-row {
-  flex: 0 0 auto;
-  height: 5px;
-  margin: 0;
-}
-.btl[data-state='collapsed'] .btl-row + .btl-row {
-  border-top: 0;
-}
-.btl[data-state='collapsed'] .btl-rail {
-  width: 8px;
-  background: transparent;
-  border-right: 0;
-  padding: 0;
-}
-.btl[data-state='collapsed'] .btl-rail__dot,
-.btl[data-state='collapsed'] .btl-rail__main {
-  display: none;
-}
-.btl[data-state='collapsed'] .btl-rail__stripe {
-  width: 4px;
-}
-.btl[data-state='collapsed'] .btl-track {
-  border-radius: 0;
-  background: transparent !important;
-}
-.btl[data-state='collapsed'] .btl-clip {
-  top: 1px;
-  bottom: 1px;
-  border-radius: 1px;
-  border: 0;
-}
-.btl[data-state='collapsed'] .btl-clip__content {
-  display: none;
-}
-.btl[data-state='collapsed'] .btl-clip.is-selected {
-  outline-width: 1px;
-  outline-offset: 0;
-  box-shadow: 0 0 8px hsl(var(--ink-1) / 0.3);
-}
-.btl[data-state='collapsed'] .btl-clip.is-draft {
-  opacity: 0.45;
+/* Storyline rows where drag-from-drawer can NOT drop (only the node's
+   main storyline accepts an unplaced drop). Dimmed so the user sees the
+   constraint instead of guessing. */
+.btl-row.is-drop-disabled .btl-rail,
+.btl-row.is-drop-disabled .btl-track {
+  opacity: 0.32;
+  filter: saturate(0.6);
+  transition: opacity 0.12s, filter 0.12s;
 }
 
 /* ---------------- Empty + loading ---------------- */
@@ -708,34 +648,4 @@
 }
 
 
-/* ---------------- Minimap (expanded-state overview) ---------------- */
-.btl-minimap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px 10px;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper));
-  flex-shrink: 0;
-}
-.btl-minimap__lane {
-  position: relative;
-  height: 4px;
-  border-radius: 2px;
-  background: hsl(var(--rule) / 0.5);
-}
-.btl-minimap__seg {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  border-radius: 2px;
-  background: var(--clip-color, hsl(var(--ink-4)));
-}
-.btl-minimap__playhead {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 1px;
-  background: hsl(var(--accent));
-  pointer-events: none;
-}
+/* Minimap removed: the FullBookLane now serves the "overview" role. */

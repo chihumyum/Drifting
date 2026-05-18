@@ -12,6 +12,7 @@ import { useBottomTimelineContextMenuActions } from './useBottomTimelineContextM
 import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
 import { BottomTimelineContextMenu } from './BottomTimelineContextMenu';
+import { FullBookLane } from './FullBookLane';
 import type { BottomTimelineContextMenuAction, TimelineNode } from './types';
 import { useUiStore } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
@@ -20,42 +21,40 @@ import '../../../styles/bottom-timeline.css';
 const log = loglevel.getLogger('BottomTimeline');
 log.setLevel(loglevel.levels.WARN);
 
-// Phase 2: BottomTimeline now hosts two independent timeline views:
-//   - book      — sorted by node.bookOrder (always set; mirrors reading order)
-//   - narrative — sorted by node.narrativeOrder (nullable; author-authored
-//                 chronological order; flashbacks / non-linear layouts live here)
-// TimelinePin markers are exclusive to the narrative view (they label
-// in-world time points like "1937" or "卷二"). Nodes without a narrativeOrder
-// surface in the holding drawer so the author can drag them onto the axis.
-type TimelineState = 'collapsed' | 'expanded';
+// BottomTimeline hosts two views over the storyline rows:
+//   - book      — tiles sorted by node.bookOrder
+//   - narrative — tiles sorted by node.narrativeOrder; nodes without one
+//                 sit in the holding popover (top-right of the head).
+// In book view, a FullBookLane runs across the top — the "global reading
+// order" reference and the home of the playhead. Chips pack from the left
+// (bookOrder-sorted, not bookOrder-positioned); reordering animates via
+// CSS transition. Narrative view skips the lane (its time axis takes the
+// same vertical slot instead).
+//
+// The old collapsed (strip) state is gone — the timeline is either visible
+// or hidden, controlled by the global BottomStatusBar. Visibility lives in
+// uiStore so the status bar's toggle button can reach it.
 type TimelineView = 'book' | 'narrative';
-const TIMELINE_STATE_STORAGE_KEY = 'timeline-mode';
 const TIMELINE_VIEW_STORAGE_KEY = 'timeline-view';
 const TIMELINE_HEIGHT_STORAGE_KEY = 'timeline-total-height';
 
 const TIMELINE_CONFIG = {
   GRID_UNIT: 20,
   // Fixed tile width in grid units. Tiles no longer carry an `end`, so all
-  // tiles in book-order view occupy the same horizontal span.
+  // tiles occupy the same horizontal span.
   NODE_DEFAULT_WIDTH: 4,
   NODE_MIN_HEIGHT: 18,
-  NODE_COMPACT_HEIGHT: 6,
   STORYLINE_GAP: 2,
   RAIL_WIDTH: 148,
-  RAIL_WIDTH_STRIP: 8,
   HEAD_HEIGHT: 30,
   AXIS_HEIGHT: 22,
-  MINIMAP_HEIGHT: 60,
-  // Default expanded height includes head + minimap + a comfortable rows area.
-  DEFAULT_EXPANDED_HEIGHT: 340,
+  // Match the narrative-axis height (22px) so the lane and axis sit at
+  // the same vertical extent regardless of which view is active — visual
+  // continuity across mode toggle.
+  FULL_BOOK_LANE_HEIGHT: 22,
+  DEFAULT_HEIGHT: 340,
+  MIN_HEIGHT: 180,
 };
-
-function readPersistedMode(): TimelineState {
-  if (typeof localStorage === 'undefined') return 'expanded';
-  const v = localStorage.getItem(TIMELINE_STATE_STORAGE_KEY);
-  if (v === 'collapsed' || v === 'strip') return 'collapsed';
-  return 'expanded';
-}
 
 function readPersistedView(): TimelineView {
   if (typeof localStorage === 'undefined') return 'book';
@@ -67,28 +66,16 @@ interface TimelinePinProps {
   marker: import('../../domain/timeline-marker').TimelineMarker;
   snapValues: number[];
   orderToPosition: (order: number) => number;
-  // x-offset added before each pin's order-derived x (rail width) so pins
-  // line up with the chapter tracks, not the rail.
   xOffset: number;
-  // Live display order — equals marker.narrativeOrder at rest, the
-  // tentative snap target during drag. Lifted to parent so the per-track
-  // vertical line can track the drag in lockstep.
   displayOrder: number;
   isDragging: boolean;
   pinHeight: number;
   editOnMount?: boolean;
   onChange: (patch: { narrativeOrder?: number; label?: string }) => void;
   onDelete: () => void;
-  // Report drag start/move (number) and drag end (null) so the parent
-  // can update its lifted drag map.
   onDragMove: (nextOrder: number | null) => void;
 }
 
-// One draggable pin head (label + triangle). The pin's vertical grid line
-// is rendered separately inside each storyline track so it paints behind
-// the chapter clips. Drag the head/label horizontally to snap to the
-// nearest valid order; double-click the label to rename; clearing the
-// label saves as delete.
 function TimelinePin({
   marker,
   snapValues,
@@ -196,8 +183,6 @@ function TimelinePin({
 }
 
 export function BottomTimeline() {
-  // BottomTimeline is rendered inside Layout, which is a SIBLING of the
-  // route Outlet — so useParams() here only sees the parent route's params.
   const editorMatch = useMatch('/project/:projectId/editor/:nodeId');
   const storylineMatch = useMatch('/project/:projectId/editor/storyline/:storylineId');
   const nodeId = editorMatch?.params.nodeId;
@@ -205,10 +190,6 @@ export function BottomTimeline() {
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
-  // Active chapter for the playhead. The route param drives the editor, but
-  // EditorShell mirrors that into `nodeUi.selectedId` and tile clicks also
-  // write here — so this store value is the authoritative "current chapter"
-  // across both navigation and in-timeline selection.
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
@@ -220,10 +201,6 @@ export function BottomTimeline() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  // Prefer the UI-store selection (kept in sync with the route by EditorShell
-  // AND set directly when a tile is clicked here). Fall back to the route
-  // param so the playhead survives a render where the store hasn't caught up.
-  const activeSelectedNodeId = selectedNodeUiId ?? nodeId;
 
   const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
     const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));
@@ -235,23 +212,17 @@ export function BottomTimeline() {
     }));
   }, [bookNodes, nodeStorylineMapping, storylines]);
 
-  const [timelineMode, setTimelineMode] = useState<TimelineState>(readPersistedMode);
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [customExpandedHeight, setCustomExpandedHeight] = useState<number | null>(() => {
+  const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
+  const [customHeight, setCustomHeight] = useState<number | null>(() => {
     if (typeof localStorage === 'undefined') return null;
     const v = localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY);
     return v ? parseInt(v, 10) : null;
   });
 
-  const isExpanded = timelineMode === 'expanded';
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
-
-  useEffect(() => {
-    localStorage.setItem(TIMELINE_STATE_STORAGE_KEY, timelineMode);
-  }, [timelineMode]);
 
   useEffect(() => {
     localStorage.setItem(TIMELINE_VIEW_STORAGE_KEY, viewMode);
@@ -276,7 +247,7 @@ export function BottomTimeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const { expandedScale, touchHandlers } = useTimelineExpandedScale({
-    isExpanded,
+    isExpanded: true,
     scrollContainerRef,
   });
 
@@ -294,18 +265,7 @@ export function BottomTimeline() {
     }
   }, [storylines.length]);
 
-  // Cmd+J toggles collapsed ↔ expanded
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
-        e.preventDefault();
-        setTimelineMode((prev) => (prev === 'collapsed' ? 'expanded' : 'collapsed'));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
+  // Drag-resize top edge (visible only — no collapsed mode anymore).
   useEffect(() => {
     if (!isResizingHeight) return;
     let lastValue: number | null = null;
@@ -314,12 +274,15 @@ export function BottomTimeline() {
       const windowHeight = window.innerHeight;
       const minHeight =
         TIMELINE_CONFIG.HEAD_HEIGHT +
-        TIMELINE_CONFIG.MINIMAP_HEIGHT +
+        TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT +
         Math.max(storylines.length, 1) *
           (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP);
-      const next = Math.max(minHeight, windowHeight - e.clientY);
+      const next = Math.max(
+        Math.max(minHeight, TIMELINE_CONFIG.MIN_HEIGHT),
+        windowHeight - e.clientY,
+      );
       lastValue = next;
-      setCustomExpandedHeight(next);
+      setCustomHeight(next);
     };
 
     const handleMouseUp = () => {
@@ -344,11 +307,8 @@ export function BottomTimeline() {
     let timeoutId: number;
     const handleScroll = () => {
       clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        saveScrollPosition();
-      }, 300);
+      timeoutId = window.setTimeout(() => saveScrollPosition(), 300);
     };
-
     container.addEventListener('scroll', handleScroll);
     return () => {
       container.removeEventListener('scroll', handleScroll);
@@ -372,30 +332,50 @@ export function BottomTimeline() {
   } = useBottomTimelineSelectors({
     nodesWithStorylines,
     storylines,
-    isExpanded,
+    isExpanded: true,
     expandedScale,
     gridUnit: TIMELINE_CONFIG.GRID_UNIT,
     nodeDefaultWidth: TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
     orderField,
   });
 
-  const getTimelineHeight = () => {
-    if (storylines.length === 0) return TIMELINE_CONFIG.HEAD_HEIGHT + 40;
+  // Helper: which storyline owns this node as its "main" row.
+  const primaryStorylineId = useCallback(
+    (node: { mainStorylineId: string | null; storylines: Storyline[] }) => {
+      const fallback = node.storylines[0]?.id ?? null;
+      return node.storylines.some((sl) => sl.id === node.mainStorylineId)
+        ? node.mainStorylineId
+        : fallback;
+    },
+    [],
+  );
 
-    if (timelineMode === 'collapsed') {
-      return (
-        TIMELINE_CONFIG.HEAD_HEIGHT +
-        Math.max(20, storylines.length * (TIMELINE_CONFIG.NODE_COMPACT_HEIGHT + 1))
-      );
-    }
-    return customExpandedHeight ?? TIMELINE_CONFIG.DEFAULT_EXPANDED_HEIGHT;
-  };
+  // Drift nodes (no storyline) don't appear on the global reading lane —
+  // they're floating notes, not part of the book sequence.
+  const bookLaneNodes = useMemo(
+    () =>
+      nodesWithStorylines.filter((n) => primaryStorylineId(n) != null),
+    [nodesWithStorylines, primaryStorylineId],
+  );
+
+  // Resolver for FullBookLane chip color — looks up the node's primary
+  // storyline so the chip dot matches its track on the rows below.
+  const laneprimaryStorylineId = useCallback(
+    (n: { id: string }) => {
+      const tn = nodesWithStorylines.find((nw) => nw.id === n.id);
+      if (!tn) return null;
+      return primaryStorylineId(tn);
+    },
+    [nodesWithStorylines, primaryStorylineId],
+  );
+
+  const getTimelineHeight = () =>
+    Math.max(TIMELINE_CONFIG.MIN_HEIGHT, customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT);
 
   const getContextMenuPosition = (x: number, y: number, menuWidth: number, menuHeight: number) => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const padding = 8;
-
     let adjustedX = x;
     let adjustedY = y;
     if (x + menuWidth + padding > viewportWidth) adjustedX = Math.max(padding, x - menuWidth);
@@ -426,18 +406,15 @@ export function BottomTimeline() {
 
   useEffect(() => {
     if (!contextMenu) return;
-
     const handlePointerDownCapture = (e: PointerEvent) => {
       if (e.button !== 0) return;
       const target = e.target as Node | null;
       if (target && contextMenuRef.current?.contains(target)) return;
       clearContextMenu();
     };
-
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') clearContextMenu();
     };
-
     document.addEventListener('pointerdown', handlePointerDownCapture, true);
     document.addEventListener('keydown', handleEscape);
     return () => {
@@ -446,29 +423,54 @@ export function BottomTimeline() {
     };
   }, [contextMenu, clearContextMenu]);
 
+  // Close the unplaced popover on outside click.
+  const unplacedPopoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!unplacedPopoverOpen) return;
+    const handle = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (t && unplacedPopoverRef.current?.contains(t)) return;
+      setUnplacedPopoverOpen(false);
+    };
+    document.addEventListener('pointerdown', handle, true);
+    return () => document.removeEventListener('pointerdown', handle, true);
+  }, [unplacedPopoverOpen]);
+
   const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
     clearHoverPreview();
     setDraggedNode({ node, storylineId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Drag from the holding drawer: source storyline is the node's mainStoryline
-  // since the drawer item isn't anchored to any specific row.
   const handleDrawerDragStart = (e: React.DragEvent, node: TimelineNode) => {
     clearHoverPreview();
-    const fallbackPrimaryId = node.storylines[0]?.id ?? '';
-    const primaryId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
-      ? (node.mainStorylineId as string)
-      : fallbackPrimaryId;
-    setDraggedNode({ node, storylineId: primaryId });
+    const sourceId = primaryStorylineId(node) ?? '';
+    setDraggedNode({ node, storylineId: sourceId });
     e.dataTransfer.effectAllowed = 'move';
+    setUnplacedPopoverOpen(false);
   };
 
-  const handleNodeDragOver = (e: React.DragEvent, storylineId: string) => {
+  // Drags from the holding popover can ONLY drop on the node's main
+  // storyline — anywhere else, no drop indicator + no drop accepted.
+  const draggedNodePrimaryStorylineId = useMemo(
+    () => (draggedNode ? primaryStorylineId(draggedNode.node) : null),
+    [draggedNode, primaryStorylineId],
+  );
+  const isDraggedFromDrawer = useMemo(
+    () => (draggedNode ? orderOf(draggedNode.node) === null : false),
+    [draggedNode, orderOf],
+  );
+  const canDropOnStoryline = (rowStorylineId: string) => {
+    if (!draggedNode) return false;
+    if (!isDraggedFromDrawer) return true; // axis-to-axis drag: any row
+    return rowStorylineId === draggedNodePrimaryStorylineId;
+  };
+
+  const handleNodeDragOver = (e: React.DragEvent, storylineRowId: string) => {
+    if (!draggedNode) return;
+    if (!canDropOnStoryline(storylineRowId)) return; // implicit reject (no preventDefault)
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-
-    if (!draggedNode) return;
 
     const container = (e.currentTarget as HTMLElement).querySelector(
       '[data-node-container]',
@@ -483,41 +485,35 @@ export function BottomTimeline() {
       Math.round(nodeLeftX / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
     );
 
-    setDragOverPosition({ storylineId, order, x: mouseX });
+    setDragOverPosition({ storylineId: storylineRowId, order, x: mouseX });
   };
 
   const handleDrop = async (e: React.DragEvent, targetStorylineId: string) => {
+    if (!draggedNode || !dragOverPosition) return;
+    if (!canDropOnStoryline(targetStorylineId)) return;
     e.preventDefault();
     clearHoverPreview();
-    if (!draggedNode || !dragOverPosition) return;
 
     const { node, storylineId: sourceStorylineId } = draggedNode;
     const targetOrder = dragOverPosition.order;
     const currentOrder = orderOf(node);
 
     try {
-      const fallbackPrimaryId = node.storylines[0]?.id;
-      const primaryStorylineId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
-        ? node.mainStorylineId
-        : fallbackPrimaryId;
-      const isPrimaryStoryline = primaryStorylineId === sourceStorylineId;
-      const isTargetInNodeStorylines = node.storylines.some((t) => t.id === targetStorylineId);
-
-      // Allow dragging from drawer (currentOrder === null, so source row is
-      // synthetic); also allow primary-storyline dragging on the axis.
-      const isFromDrawer = currentOrder === null;
-      if (!isFromDrawer && !isPrimaryStoryline) {
-        log.warn('Can only drag from primary storyline');
-        return;
-      }
-
-      // Moving across storyline rows reroutes the node's main storyline.
-      // We only do this when the row genuinely changes (skip drawer drops
-      // that happen to land on the node's current main row).
-      if (!isFromDrawer && sourceStorylineId !== targetStorylineId) {
-        await updateNode(node.id, { mainStorylineId: targetStorylineId });
-        if (!isTargetInNodeStorylines) {
-          await removeNodeFromStoryline(node.id, sourceStorylineId);
+      const fromDrawer = currentOrder === null;
+      if (!fromDrawer) {
+        // Axis-to-axis drag may also re-route the node's primary storyline.
+        const isPrimaryStoryline =
+          primaryStorylineId(node) === sourceStorylineId;
+        if (!isPrimaryStoryline) {
+          log.warn('Can only drag from primary storyline');
+          return;
+        }
+        const isTargetInNodeStorylines = node.storylines.some((t) => t.id === targetStorylineId);
+        if (sourceStorylineId !== targetStorylineId) {
+          await updateNode(node.id, { mainStorylineId: targetStorylineId });
+          if (!isTargetInNodeStorylines) {
+            await removeNodeFromStoryline(node.id, sourceStorylineId);
+          }
         }
       }
 
@@ -561,11 +557,7 @@ export function BottomTimeline() {
   };
 
   const isPrimaryStorylineForNode = (node: TimelineNode, storylineId: string): boolean => {
-    const fallbackPrimaryId = node.storylines[0]?.id;
-    const primaryId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
-      ? node.mainStorylineId
-      : fallbackPrimaryId;
-    return primaryId === storylineId;
+    return primaryStorylineId(node) === storylineId;
   };
 
   const storylineRowIndex = useMemo(() => {
@@ -574,9 +566,6 @@ export function BottomTimeline() {
     return map;
   }, [storylines]);
 
-  // Per-storyline lanes sorted by the active order field. Only placed
-  // nodes participate; unplaced (null narrativeOrder) nodes live in the
-  // holding drawer.
   const sortedNodesByStoryline = useMemo(() => {
     const m = new Map<string, TimelineNode[]>();
     storylines.forEach((s) => m.set(s.id, []));
@@ -586,18 +575,11 @@ export function BottomTimeline() {
         if (arr) arr.push(node);
       });
     });
-    m.forEach((arr) =>
-      arr.sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0)),
-    );
+    m.forEach((arr) => arr.sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0)));
     return m;
   }, [placedNodes, storylines, orderOf]);
 
-  // Cross-storyline link paths: same logic as before, but adjacency now
-  // comes from the active-view sort order. Endpoints with null order
-  // (only possible in narrative view) are skipped — they're in the drawer.
   const crossStorylineLinks = useMemo(() => {
-    if (!isExpanded) return [];
-
     type Link = {
       key: string;
       fromX: number;
@@ -612,10 +594,7 @@ export function BottomTimeline() {
 
     for (const node of placedNodes) {
       if (node.storylines.length <= 1) continue;
-      const fallbackMainId = node.storylines[0]?.id;
-      const mainId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
-        ? node.mainStorylineId
-        : fallbackMainId;
+      const mainId = primaryStorylineId(node);
       if (!mainId) continue;
       const mainRowIdx = storylineRowIndex.get(mainId);
       if (mainRowIdx === undefined) continue;
@@ -636,12 +615,14 @@ export function BottomTimeline() {
         const next = idxInLane < lane.length - 1 ? lane[idxInLane + 1] : null;
         const color = sl.color || 'hsl(var(--ink-4))';
 
+        // Key encodes WHICH node anchors on its main row so adjacent pairs
+        // that both surface as transits don't collide on the same key.
         if (prev) {
           const prevOrder = orderOf(prev);
           if (prevOrder !== null) {
             const prevMidX = orderToPosition(prevOrder) + nodeWidth / 2;
             links.push({
-              key: `${sl.id}:${prev.id}->${node.id}`,
+              key: `${sl.id}|prev:${prev.id}->anchor:${node.id}`,
               fromX: prevMidX,
               fromY: sRowIdx,
               toX: nodeMidX,
@@ -657,7 +638,7 @@ export function BottomTimeline() {
           if (nextOrder !== null) {
             const nextMidX = orderToPosition(nextOrder) + nodeWidth / 2;
             links.push({
-              key: `${sl.id}:${node.id}->${next.id}`,
+              key: `${sl.id}|anchor:${node.id}->next:${next.id}`,
               fromX: nodeMidX,
               fromY: mainRowIdx,
               toX: nextMidX,
@@ -677,19 +658,19 @@ export function BottomTimeline() {
     sortedNodesByStoryline,
     orderToPosition,
     nodeWidth,
-    isExpanded,
+    primaryStorylineId,
     orderOf,
   ]);
 
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylineById.get(storylineId);
-    const isSelected = activeSelectedNodeId === node.id;
+    const isSelected = (selectedNodeUiId ?? nodeId) === node.id;
     const isPrimary = isPrimaryStorylineForNode(node, storylineId);
 
     if (!isPrimary) return null;
 
     const order = orderOf(node);
-    if (order === null) return null; // surfaced in the drawer instead
+    if (order === null) return null;
 
     const defaultColor = '#2D4A6B';
     const clipColor = storyline?.color || defaultColor;
@@ -715,8 +696,8 @@ export function BottomTimeline() {
         key={`${node.id}-${storylineId}`}
         data-node-card
         className={className}
-        draggable={isPrimary && isExpanded}
-        onDragStart={(e) => isExpanded && handleNodeDragStart(e, node, storylineId)}
+        draggable={isPrimary}
+        onDragStart={(e) => handleNodeDragStart(e, node, storylineId)}
         onDragEnd={handleDragEnd}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleNodeMouseLeave}
@@ -725,17 +706,15 @@ export function BottomTimeline() {
           {
             left: leftPosition,
             width: nodeWidth,
-            cursor: isPrimary && isExpanded ? 'grab' : 'pointer',
+            cursor: isPrimary ? 'grab' : 'pointer',
             ['--clip-color' as string]: clipColor,
           } as React.CSSProperties
         }
       >
-        {isExpanded && (
-          <div className="btl-clip__content">
-            <div className="btl-clip__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
-            <div className="btl-clip__title">{node.title || '未命名'}</div>
-          </div>
-        )}
+        <div className="btl-clip__content">
+          <div className="btl-clip__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
+          <div className="btl-clip__title">{node.title || '未命名'}</div>
+        </div>
       </div>
     );
   };
@@ -745,24 +724,24 @@ export function BottomTimeline() {
     const isRouteActive = storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
 
-    const selectedNode = activeSelectedNodeId ? (nodeById.get(activeSelectedNodeId) ?? null) : null;
+    const activeId = selectedNodeUiId ?? nodeId;
+    const selectedNode = activeId ? (nodeById.get(activeId) ?? null) : null;
     const selectedNodeBelongsToStoryline =
       selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
-    const trackBg = isExpanded ? 'hsl(var(--page))' : 'transparent';
+    const isDropDisabled = !!draggedNode && !canDropOnStoryline(storyline.id);
 
     return (
       <div
         key={storyline.id}
-        className="btl-row"
-        onDragOver={(e) => isExpanded && handleNodeDragOver(e, storyline.id)}
-        onDrop={(e) => isExpanded && handleDrop(e, storyline.id)}
+        className={`btl-row${isDropDisabled ? ' is-drop-disabled' : ''}`}
+        onDragOver={(e) => handleNodeDragOver(e, storyline.id)}
+        onDrop={(e) => handleDrop(e, storyline.id)}
         onClick={(e) => {
           e.stopPropagation();
           clearContextMenu();
         }}
         onContextMenu={(e) => {
-          if (!isExpanded) return;
           e.preventDefault();
           const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
           if (!container) return;
@@ -796,7 +775,7 @@ export function BottomTimeline() {
               type: 'storyline',
               storylineId: storyline.id,
               position,
-              canAddCurrentNode: Boolean(activeSelectedNodeId && !selectedNodeBelongsToStoryline),
+              canAddCurrentNode: Boolean(activeId && !selectedNodeBelongsToStoryline),
             });
           }
         }}
@@ -806,40 +785,28 @@ export function BottomTimeline() {
           className={`btl-rail ${isRouteActive ? 'is-active' : ''}`}
           onClick={(e) => e.stopPropagation()}
           title={storyline.name || 'Untitled Storyline'}
-          style={{
-            width: isExpanded ? TIMELINE_CONFIG.RAIL_WIDTH : TIMELINE_CONFIG.RAIL_WIDTH_STRIP,
-            gap: isExpanded ? 9 : 0,
-            paddingLeft: isExpanded ? 16 : 0,
-            paddingRight: isExpanded ? 10 : 0,
-          }}
+          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
         >
           <span aria-hidden className="btl-rail__stripe" style={{ background: railColor }} />
-          {isExpanded && (
-            <>
-              <span
-                aria-hidden
-                className="btl-rail__dot"
-                style={{ background: railColor, marginLeft: 4 }}
-              />
-              <div className="btl-rail__main">
-                <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
-                <div className="btl-rail__count">
-                  {nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}
-                </div>
-              </div>
-            </>
-          )}
+          <span
+            aria-hidden
+            className="btl-rail__dot"
+            style={{ background: railColor, marginLeft: 4 }}
+          />
+          <div className="btl-rail__main">
+            <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
+            <div className="btl-rail__count">
+              {nodesInStoryline.length} {nodesInStoryline.length === 1 ? 'ch' : 'chs'}
+            </div>
+          </div>
         </div>
 
         <div
           data-node-container
           className="btl-track"
-          style={{ background: trackBg, minWidth: timelineWidth }}
+          style={{ background: 'hsl(var(--page))', minWidth: timelineWidth }}
         >
-          {/* Pin grid lines (narrative view only) — drawn BEFORE tiles so
-              tiles paint on top. Position tracks the lifted drag state. */}
           {isNarrative &&
-            isExpanded &&
             markers.map((m) => {
               const isDragging = pinDragStarts.has(m.id);
               const displayOrder = getPinDisplayOrder(m.id, m.narrativeOrder);
@@ -859,7 +826,7 @@ export function BottomTimeline() {
             />
           )}
           {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
-          {nodesInStoryline.length === 0 && !draggedNode && isExpanded && (
+          {nodesInStoryline.length === 0 && !draggedNode && (
             <div className="btl-empty">No chapters in this storyline</div>
           )}
         </div>
@@ -869,79 +836,22 @@ export function BottomTimeline() {
 
   // ---- Layout math ----
   const totalHeight = getTimelineHeight();
-  const minimapHeight =
-    isExpanded && storylines.length > 0 ? TIMELINE_CONFIG.MINIMAP_HEIGHT : 0;
-  const axisHeight =
-    isExpanded && isNarrative && storylines.length > 0 ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
+  // FullBookLane is a book-mode-only summary track. Narrative mode skips it
+  // — narrativeOrder doesn't define reading order, so a "reading-order"
+  // summary above the narrative axis would just be a misleading repetition
+  // of bookOrder layout that doesn't match the axis below.
+  const fullBookLaneHeight = isNarrative ? 0 : TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT;
+  const axisHeight = isNarrative && storylines.length > 0 ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
   const rowsAreaHeight = Math.max(
     0,
-    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - minimapHeight - axisHeight,
+    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - fullBookLaneHeight - axisHeight,
   );
   const rowHeight = storylines.length > 0 ? rowsAreaHeight / storylines.length : 0;
-  // SVG overlay sits inside the scroll container which may have the axis
-  // row as a sibling; offset Y so overlays align with the rows area.
   const overlayTopOffset = axisHeight;
   const rowCenterY = (idx: number) => overlayTopOffset + idx * rowHeight + rowHeight / 2;
   const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
-  const railOffset = isExpanded ? TIMELINE_CONFIG.RAIL_WIDTH : TIMELINE_CONFIG.RAIL_WIDTH_STRIP;
+  const railOffset = TIMELINE_CONFIG.RAIL_WIDTH;
 
-  const activeNode = activeSelectedNodeId ? (nodeById.get(activeSelectedNodeId) ?? null) : null;
-  const activeOrder = activeNode ? orderOf(activeNode) : null;
-  // Playhead — hidden when the active node has no position in the current
-  // view (e.g. in narrative view with no narrativeOrder yet).
-  const playheadX =
-    activeOrder != null && isExpanded
-      ? railOffset + orderToPosition(activeOrder) + nodeWidth / 2
-      : null;
-
-  const renderMinimap = () => {
-    if (!isExpanded || storylines.length === 0) return null;
-    const totalWidth = timelineWidth || 1;
-    const playheadPct =
-      activeOrder != null
-        ? ((orderToPosition(activeOrder) + nodeWidth / 2) / totalWidth) * 100
-        : null;
-
-    return (
-      <div className="btl-minimap" aria-hidden>
-        {storylines.map((s) => {
-          const lane = sortedNodesByStoryline.get(s.id) ?? [];
-          const color = s.color || 'hsl(var(--story-4))';
-          return (
-            <div key={s.id} className="btl-minimap__lane">
-              {lane.map((n) => {
-                const ord = orderOf(n);
-                if (ord === null) return null;
-                const left = (orderToPosition(ord) / totalWidth) * 100;
-                const w = Math.max(0.4, (nodeWidth / totalWidth) * 100);
-                return (
-                  <div
-                    key={n.id}
-                    className="btl-minimap__seg"
-                    style={
-                      {
-                        left: `${left}%`,
-                        width: `${w}%`,
-                        ['--clip-color' as string]: color,
-                        opacity: n.wordCount === 0 ? 0.35 : 0.85,
-                      } as React.CSSProperties
-                    }
-                  />
-                );
-              })}
-              {playheadPct != null && (
-                <div className="btl-minimap__playhead" style={{ left: `${playheadPct}%` }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ---- TimelinePin support (narrative view only) ----
-  // Snap positions: every integer in the placed range plus the immediate
-  // tail. Gives smooth drag without sub-pixel placement.
   const snapValues = useMemo(() => {
     if (placedNodes.length === 0) return [] as number[];
     const lo = Math.floor(minOrder);
@@ -985,7 +895,7 @@ export function BottomTimeline() {
   }, [snapValues, addMarker, orderToPosition]);
 
   const renderTimeAxis = () => {
-    if (!isExpanded || !isNarrative || storylines.length === 0) return null;
+    if (!isNarrative || storylines.length === 0) return null;
     return (
       <div className="btl-axis">
         <div
@@ -1008,60 +918,6 @@ export function BottomTimeline() {
           </button>
         </div>
         <div className="btl-axis__track" style={{ minWidth: timelineWidth }} />
-      </div>
-    );
-  };
-
-  // ---- Holding drawer (narrative view only) ----
-  const renderHoldingDrawer = () => {
-    if (!isNarrative || !isExpanded) return null;
-    const count = unplacedNodes.length;
-    return (
-      <div className={`btl-drawer${drawerOpen ? ' is-open' : ''}`}>
-        <button
-          type="button"
-          className="btl-drawer__tab"
-          title="未放置的章节（拖入下方时间轴来安排叙事时间）"
-          onClick={() => setDrawerOpen((v) => !v)}
-        >
-          <span className="btl-drawer__tab-arrow">{drawerOpen ? '▾' : '▸'}</span>
-          <span className="btl-drawer__tab-label">未放置</span>
-          <span className="btl-drawer__tab-count">{count}</span>
-        </button>
-        {drawerOpen && (
-          <div className="btl-drawer__list">
-            {count === 0 ? (
-              <div className="btl-drawer__empty">所有章节都在叙事时间轴上</div>
-            ) : (
-              unplacedNodes.map((node) => {
-                const fallbackPrimaryId = node.storylines[0]?.id;
-                const primaryId = node.storylines.some((sl) => sl.id === node.mainStorylineId)
-                  ? node.mainStorylineId
-                  : fallbackPrimaryId;
-                const sl = primaryId ? storylineById.get(primaryId) : null;
-                const color = sl?.color || 'hsl(var(--ink-4))';
-                return (
-                  <div
-                    key={node.id}
-                    className="btl-drawer__chip"
-                    draggable
-                    onDragStart={(e) => handleDrawerDragStart(e, node)}
-                    onDragEnd={handleDragEnd}
-                    onClick={() => setNodeSelection(node.id, 'ui')}
-                    style={{ ['--clip-color' as string]: color } as React.CSSProperties}
-                    title={node.title || '未命名'}
-                  >
-                    <span className="btl-drawer__chip-dot" />
-                    <span className="btl-drawer__chip-num">
-                      § {String(node.bookOrder).padStart(2, '0')}
-                    </span>
-                    <span className="btl-drawer__chip-title">{node.title || '未命名'}</span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
       </div>
     );
   };
@@ -1090,12 +946,64 @@ export function BottomTimeline() {
               叙事时
             </button>
           </div>
+          {isNarrative && (
+            <div className="btl__unplaced" ref={unplacedPopoverRef}>
+              <button
+                type="button"
+                className={`btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`}
+                onClick={() => setUnplacedPopoverOpen((v) => !v)}
+                title="未放置到叙事时间轴上的章节"
+              >
+                <span>未放置</span>
+                <span className="btl__unplaced-count">{unplacedNodes.length}</span>
+                <span className="btl__unplaced-arrow">▾</span>
+              </button>
+              {unplacedPopoverOpen && (
+                <div className="btl__unplaced-popover">
+                  {unplacedNodes.length === 0 ? (
+                    <div className="btl__unplaced-empty">所有章节都在叙事时间轴上</div>
+                  ) : (
+                    <div className="btl__unplaced-list">
+                      {unplacedNodes.map((node) => {
+                        const slId = primaryStorylineId(node);
+                        const sl = slId ? storylineById.get(slId) : null;
+                        const color = sl?.color || 'hsl(var(--ink-4))';
+                        return (
+                          <div
+                            key={node.id}
+                            className="btl__unplaced-chip"
+                            draggable
+                            onDragStart={(e) => handleDrawerDragStart(e, node)}
+                            onDragEnd={handleDragEnd}
+                            onClick={() => setNodeSelection(node.id, 'ui')}
+                            style={{ ['--clip-color' as string]: color } as React.CSSProperties}
+                            title={node.title || '未命名'}
+                          >
+                            <span className="btl__unplaced-chip-dot" />
+                            <span className="btl__unplaced-chip-num">
+                              § {String(node.bookOrder).padStart(2, '0')}
+                            </span>
+                            <span className="btl__unplaced-chip-title">
+                              {node.title || '未命名'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="btl__head-right">
           <button
             className="btl__head-btn"
             title="定位到当前章节"
             onClick={() => {
+              const activeId = selectedNodeUiId ?? nodeId;
+              const activeNode = activeId ? nodeById.get(activeId) ?? null : null;
+              const activeOrder = activeNode ? orderOf(activeNode) : null;
               if (activeOrder == null || !scrollContainerRef.current) return;
               const left =
                 TIMELINE_CONFIG.RAIL_WIDTH +
@@ -1120,50 +1028,63 @@ export function BottomTimeline() {
               <line x1="12" y1="8" x2="15" y2="8" />
             </svg>
           </button>
-          <div className="btl__state-toggle" title="时间线状态 (⌘J)">
-            <button
-              className={timelineMode === 'collapsed' ? 'is-active' : ''}
-              onClick={() => setTimelineMode('collapsed')}
-              title="收起"
-            >
-              ▬
-            </button>
-            <button
-              className={timelineMode === 'expanded' ? 'is-active' : ''}
-              onClick={() => setTimelineMode('expanded')}
-              title="展开"
-            >
-              ▣
-            </button>
-          </div>
         </div>
       </div>
     );
   };
 
+  const activeNodeId = selectedNodeUiId ?? nodeId ?? null;
+
   return (
     <div
       ref={timelineRef}
       className="btl"
-      data-state={timelineMode}
       data-view={viewMode}
       onClick={handleTimelineClick}
       style={{ height: totalHeight }}
     >
-      {isExpanded && (
-        <div
-          className="btl__resize"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsResizingHeight(true);
-          }}
-        />
-      )}
+      <div
+        className="btl__resize"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsResizingHeight(true);
+        }}
+      />
 
       {renderHead()}
-      {renderMinimap()}
-      {renderHoldingDrawer()}
+
+      {/* The lane scrolls independently from the storyline-tracks below —
+          it's "the global reading order, packed", so its horizontal
+          position has no relation to where the active view's tiles sit.
+          Sibling of (not inside) the scroll container. */}
+      {!isNarrative && (
+        <FullBookLane
+          nodes={bookLaneNodes}
+          storylines={storylines}
+          primaryStorylineId={laneprimaryStorylineId}
+          activeNodeId={activeNodeId}
+          trackOffsetX={TIMELINE_CONFIG.RAIL_WIDTH}
+          onNodeClick={(id) => {
+            setNodeSelection(id, 'ui');
+            // Scroll the storyline rows below so the clicked chapter's
+            // tile lands roughly centered in the viewport. Smooth scroll
+            // gives the "fast, dynamic" feel the user asked for.
+            const target = nodeById.get(id);
+            const container = scrollContainerRef.current;
+            if (!target || !container) return;
+            const ord = orderOf(target);
+            if (ord == null) return;
+            const left =
+              TIMELINE_CONFIG.RAIL_WIDTH +
+              orderToPosition(ord) +
+              nodeWidth / 2 -
+              container.clientWidth / 2;
+            container.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+          }}
+          height={fullBookLaneHeight || TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT}
+        />
+      )}
 
       <div
         ref={scrollContainerRef}
@@ -1173,9 +1094,7 @@ export function BottomTimeline() {
         onTouchMove={touchHandlers.onTouchMove}
         onTouchEnd={touchHandlers.onTouchEnd}
         onTouchCancel={touchHandlers.onTouchCancel}
-        style={{
-          touchAction: isExpanded ? 'pan-x pinch-zoom' : 'pan-x',
-        }}
+        style={{ touchAction: 'pan-x pinch-zoom' }}
       >
         {renderTimeAxis()}
 
@@ -1185,10 +1104,7 @@ export function BottomTimeline() {
           <div className="btl-loading">Loading storylines…</div>
         )}
 
-        {/* TimelinePin labels/heads (narrative view only). Grid lines are
-            rendered inside each track so they paint behind clips. */}
         {isNarrative &&
-          isExpanded &&
           storylines.length > 0 &&
           markers.map((m) => (
             <TimelinePin
@@ -1213,54 +1129,48 @@ export function BottomTimeline() {
             />
           ))}
 
-        {/* Playhead — vertical accent line at the currently-editing tile. */}
-        {playheadX != null && (
-          <div
-            className="btl-playhead"
-            style={{ left: playheadX, top: overlayTopOffset, height: rowsAreaHeight }}
-          />
+        {crossStorylineLinks.length > 0 && storylines.length > 0 && rowHeight > 0 && (
+          <svg
+            className="btl-crosslinks"
+            width={scrollContentWidth}
+            height={overlayTopOffset + rowsAreaHeight}
+            style={{
+              width: scrollContentWidth,
+              height: overlayTopOffset + rowsAreaHeight,
+            }}
+          >
+            {crossStorylineLinks.map((link) => {
+              const x1 = railOffset + link.fromX;
+              const x2 = railOffset + link.toX;
+              // SVG sits inside .btl__scroll which contains axis + rows.
+              // The FullBookLane is a SIBLING of the scroll container so
+              // its height doesn't enter this Y offset.
+              const y1 = rowCenterY(link.fromY);
+              const y2 = rowCenterY(link.toY);
+              const midY = (y1 + y2) / 2;
+              const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+              return (
+                <g key={link.key}>
+                  <path
+                    d={d}
+                    stroke={link.color}
+                    strokeWidth="1"
+                    strokeDasharray="2 3"
+                    strokeLinecap="round"
+                    fill="none"
+                    opacity="0.6"
+                  />
+                  {link.markFrom && (
+                    <circle cx={x1} cy={y1} r="2" fill={link.color} opacity="0.85" />
+                  )}
+                  {link.markTo && (
+                    <circle cx={x2} cy={y2} r="2" fill={link.color} opacity="0.85" />
+                  )}
+                </g>
+              );
+            })}
+          </svg>
         )}
-
-        {/* Cross-storyline links overlay */}
-        {crossStorylineLinks.length > 0 &&
-          storylines.length > 0 &&
-          rowHeight > 0 &&
-          isExpanded && (
-            <svg
-              className="btl-crosslinks"
-              width={scrollContentWidth}
-              height={overlayTopOffset + rowsAreaHeight}
-              style={{ width: scrollContentWidth, height: overlayTopOffset + rowsAreaHeight }}
-            >
-              {crossStorylineLinks.map((link) => {
-                const x1 = railOffset + link.fromX;
-                const x2 = railOffset + link.toX;
-                const y1 = rowCenterY(link.fromY);
-                const y2 = rowCenterY(link.toY);
-                const midY = (y1 + y2) / 2;
-                const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
-                return (
-                  <g key={link.key}>
-                    <path
-                      d={d}
-                      stroke={link.color}
-                      strokeWidth="1"
-                      strokeDasharray="2 3"
-                      strokeLinecap="round"
-                      fill="none"
-                      opacity="0.6"
-                    />
-                    {link.markFrom && (
-                      <circle cx={x1} cy={y1} r="2" fill={link.color} opacity="0.85" />
-                    )}
-                    {link.markTo && (
-                      <circle cx={x2} cy={y2} r="2" fill={link.color} opacity="0.85" />
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-          )}
       </div>
 
       <BottomTimelineContextMenu

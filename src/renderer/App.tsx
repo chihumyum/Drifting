@@ -26,6 +26,7 @@ import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
 import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
+import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { ExportDialog } from './components/modals/ExportDialog';
 import { ImportDialog } from './components/modals/ImportDialog';
@@ -335,6 +336,7 @@ function Layout() {
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
   const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
+  const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -478,6 +480,11 @@ function Layout() {
         width: '100vw',
         display: 'flex',
         flexDirection: 'column',
+        // Hide any overflow at the outermost container. The new bottom
+        // status bar adds a fixed 24px row, so without this clamp the
+        // 100vh + 24px combined height would push the page into having
+        // a window-level scrollbar.
+        overflow: 'hidden',
       }}
     >
       {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
@@ -534,10 +541,13 @@ function Layout() {
           >
             <Outlet />
           </div>
-          {/* 底部时间轴：嵌入中间栏底部，左右栏延伸至最底 */}
-          <div style={{ flexShrink: 0, zIndex: 10 }}>
-            <BottomTimeline />
-          </div>
+          {/* 底部时间轴：嵌入中间栏底部，左右栏延伸至最底。
+              状态栏 toggle 隐藏整条时间轴；不再保留旧的「色带」薄态。 */}
+          {!bottomTimelineHidden && (
+            <div style={{ flexShrink: 0, zIndex: 10 }}>
+              <BottomTimeline />
+            </div>
+          )}
         </main>
         <Sidebar sidebarType="right">
           <div
@@ -551,6 +561,12 @@ function Layout() {
           </div>
         </Sidebar>
       </div>
+
+      {/* Always-visible bottom status bar — full width, sits below the
+          editor + sidebars. Hosts the BottomTimeline toggle, so even when
+          the timeline is hidden there's a one-click affordance to bring it
+          back. */}
+      <BottomStatusBar />
 
       {/* Overlays / Modals (绝对定位层) */}
       {activeSuperView === 'graph' && <GraphView />}

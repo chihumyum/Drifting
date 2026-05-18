@@ -100,6 +100,14 @@ interface UiState {
   setOutlineCollapsed: (collapsed: boolean) => void;
   toggleOutlineCollapsed: () => void;
 
+  // BottomTimeline visibility. The bottom status bar always shows; the
+  // timeline is hidden by default off-button-click, restored by the same
+  // button. There is no "collapsed" timeline state anymore — it's either
+  // present in full or absent entirely.
+  bottomTimelineHidden: boolean;
+  setBottomTimelineHidden: (hidden: boolean) => void;
+  toggleBottomTimelineHidden: () => void;
+
   resizingSidebar: SidebarType | null;
   setResizingSidebar: (type: SidebarType | null) => void;
 
@@ -290,6 +298,11 @@ export const useUiStore = create<UiState>()(
       setOutlineCollapsed: (collapsed) => set({ outlineCollapsed: collapsed }),
       toggleOutlineCollapsed: () =>
         set((state) => ({ outlineCollapsed: !state.outlineCollapsed })),
+
+      bottomTimelineHidden: false,
+      setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
+      toggleBottomTimelineHidden: () =>
+        set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
 
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
@@ -482,6 +495,7 @@ export const useUiStore = create<UiState>()(
         shadowMode: state.shadowMode,
         tabsByProject: state.tabsByProject,
         outlineCollapsed: state.outlineCollapsed,
+        bottomTimelineHidden: state.bottomTimelineHidden,
       }),
       // Older persisted state used 'references' | 'inspirations' | 'ai' for
       // activeRightPanel. Coerce any unknown value back to the default so the
