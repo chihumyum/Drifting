@@ -386,6 +386,12 @@ function Layout() {
         return;
       }
 
+      if (matchesAccelerator(e, bindings.toggleBottomTimeline)) {
+        e.preventDefault();
+        useUiStore.getState().toggleBottomTimelineHidden();
+        return;
+      }
+
       if (matchesAccelerator(e, bindings.goBack)) {
         e.preventDefault();
         navigate(-1);

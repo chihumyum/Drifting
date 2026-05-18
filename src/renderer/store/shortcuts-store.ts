@@ -9,7 +9,8 @@ export type ShortcutActionId =
   | 'goBack'
   | 'goForward'
   | 'prevTab'
-  | 'nextTab';
+  | 'nextTab'
+  | 'toggleBottomTimeline';
 
 export interface ShortcutActionDef {
   id: ShortcutActionId;
@@ -66,6 +67,12 @@ export const SHORTCUT_ACTIONS: ShortcutActionDef[] = [
     label: '切换到下一个标签页',
     description: '在顶部已打开的 tab 间向右切换',
     defaultAccelerator: 'Mod+Alt+ArrowRight',
+  },
+  {
+    id: 'toggleBottomTimeline',
+    label: '展开 / 收起底部时间轴',
+    description: '切换底部时间轴的显示与隐藏',
+    defaultAccelerator: 'Mod+J',
   },
 ];
 
