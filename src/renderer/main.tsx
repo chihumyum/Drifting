@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Buffer } from 'buffer';
 import '../styles/index.css';
+import '../styles/settings.css';
 import App from './App';
 
 if (!(globalThis as { Buffer?: typeof Buffer }).Buffer) {

@@ -32,6 +32,7 @@ import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { initAccentColor } from './lib/theme';
 import { useUiStore, tabKey } from './store/ui-store';
+import { useSettingsStore } from './store/settings-store';
 import { useShortcutsStore } from './store/shortcuts-store';
 import { matchesAccelerator } from './lib/shortcuts';
 import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
@@ -155,30 +156,51 @@ function Layout() {
     setDbReady(false);
   }, [projectId, userId]);
 
-  // Apply theme (light/dark) on every change. The store persists the choice,
-  // so initial render of the user menu sees the same value used here.
-  const theme = useUiStore((state) => state.theme);
+  // Theme: resolve 'light' | 'dark' | 'system' to the actual mode, then
+  // mirror to ui-store.theme so existing read sites stay correct.
+  const themeMode = useSettingsStore((state) => state.themeMode);
+  const setUiTheme = useUiStore((state) => state.setTheme);
   const shadowMode = useUiStore((state) => state.shadowMode);
+  const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
+  const animationsEnabled = useSettingsStore((state) => state.animationsEnabled);
+
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    const apply = (mode: 'light' | 'dark') => {
+      if (mode === 'dark') root.classList.add('dark');
+      else root.classList.remove('dark');
+      setUiTheme(mode);
+    };
+    if (themeMode === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      apply(mq.matches ? 'dark' : 'light');
+      const handler = (e: MediaQueryListEvent) => apply(e.matches ? 'dark' : 'light');
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
     }
-  }, [theme]);
+    apply(themeMode);
+    return undefined;
+  }, [themeMode, setUiTheme]);
 
   // Shadow mode shifts the full palette via token overrides in index.css.
-  // Setting the attribute on <html> means the entire app — editor included
-  // — picks up the cool slate tones without per-component conditionals.
+  // When the user disables `shadowAffectsTheme`, we leave the html attribute
+  // off so palette stays put — only the right panel still picks up shadow.
   useEffect(() => {
     const root = document.documentElement;
-    if (shadowMode) {
+    if (shadowMode && shadowAffectsTheme) {
       root.setAttribute('data-shadow-mode', 'on');
     } else {
       root.removeAttribute('data-shadow-mode');
     }
-  }, [shadowMode]);
+  }, [shadowMode, shadowAffectsTheme]);
+
+  // Animations master switch: setting an attribute lets CSS short-circuit
+  // transitions/keyframes without touching every site.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (animationsEnabled) root.removeAttribute('data-no-anim');
+    else root.setAttribute('data-no-anim', 'on');
+  }, [animationsEnabled]);
 
   useEffect(() => {
     // Initialize theme

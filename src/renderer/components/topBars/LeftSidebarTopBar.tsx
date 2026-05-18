@@ -1,4 +1,4 @@
-import { Settings, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { events } from '../../lib/events.ts';
 import { useUiStore } from '../../store/ui-store';
 
@@ -11,7 +11,6 @@ export function LeftSidebarTopBar() {
     return null;
   }
 
-  const handleOpenSettings = () => events.emit('settings:open');
   const handleOpenSearch = () => events.emit('search:open');
   const handleToggleLeftSidebar = () => toggleSidebar('left');
 
@@ -34,7 +33,6 @@ export function LeftSidebarTopBar() {
         } as React.CSSProperties
       }
     >
-      <GhostIconBtn onClick={handleOpenSettings} title="Settings" icon={<Settings size={iconSize} strokeWidth={1.6} />} />
       <GhostIconBtn onClick={handleOpenSearch} title="Search" icon={<Search size={iconSize} strokeWidth={1.6} />} />
       <GhostIconBtn
         onClick={handleToggleLeftSidebar}

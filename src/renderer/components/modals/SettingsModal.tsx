@@ -1,686 +1,1825 @@
-import { useState, useEffect } from 'react';
-import { X, Bug, LogOut } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { applyAccentColor } from '../../lib/theme';
-import { DebugModal } from './DebugModal';
-import { APP_CONFIG } from '../../lib/config';
-import { EditorSettings } from '../settings/EditorSettings';
-import { AccountSettings } from '../settings/AccountSettings';
-import { ShortcutsSettings } from '../settings/ShortcutsSettings';
+import {
+  COPILOT_TASKS,
+  useSettingsStore,
+  type CopilotMode,
+  type CopilotTaskId,
+  type DateFormat,
+  type EditPermission,
+  type FinishNotify,
+  type FocusLineMode,
+  type LineHeight,
+  type LocaleCode,
+  type ModelTier,
+  type OrbCorner,
+  type ParagraphIndent,
+  type ShadowVoice,
+  type SurfaceMode,
+  type ThemeMode,
+} from '../../store/settings-store';
+import { useAuthStore } from '../../store/auth';
+import {
+  SHORTCUT_ACTIONS,
+  useShortcutsStore,
+  type ShortcutActionId,
+} from '../../store/shortcuts-store';
+import { acceleratorFromEvent, formatAccelerator } from '../../lib/shortcuts';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface AccentColorOption {
-  name: string;
-  displayName: string;
-  hue: number; // HSL hue value (0-360)
-  preview: string; // Preview color for the swatch
+type RailId =
+  | 'account'
+  | 'subscription'
+  | 'usage'
+  | 'appearance'
+  | 'editor'
+  | 'language'
+  | 'models'
+  | 'shadow'
+  | 'copilot'
+  | 'keys'
+  | 'sync'
+  | 'privacy'
+  | 'about';
+
+interface RailDef {
+  id: RailId;
+  group: string;
+  glyph: string;
+  label: string;
+  badge?: { text: string; tone?: 'accent' | 'warn' };
 }
 
-const ACCENT_COLORS: AccentColorOption[] = [
-  { name: 'brown', displayName: '棕色 (默认)', hue: 30, preview: '#b89968' },
-  { name: 'blue', displayName: '蓝色', hue: 210, preview: '#6b9ab8' },
-  { name: 'green', displayName: '绿色', hue: 140, preview: '#68b894' },
-  { name: 'purple', displayName: '紫色', hue: 270, preview: '#9a68b8' },
-  { name: 'red', displayName: '红色', hue: 10, preview: '#b8686b' },
-  { name: 'orange', displayName: '橙色', hue: 25, preview: '#b8926b' },
-  { name: 'teal', displayName: '青色', hue: 180, preview: '#68b8b5' },
-  { name: 'pink', displayName: '粉色', hue: 330, preview: '#b868a1' },
+const RAIL: RailDef[] = [
+  { id: 'account', group: '我的账户', glyph: '◌', label: '账号' },
+  { id: 'subscription', group: '我的账户', glyph: '¶', label: '订阅', badge: { text: 'PRO' } },
+  { id: 'usage', group: '我的账户', glyph: '◐', label: 'Shadow 用量', badge: { text: '68%', tone: 'warn' } },
+  { id: 'appearance', group: '偏好', glyph: '☀', label: '外观' },
+  { id: 'editor', group: '偏好', glyph: '§', label: '编辑器' },
+  { id: 'language', group: '偏好', glyph: '文', label: '语言' },
+  { id: 'models', group: '智能', glyph: '✦', label: '模型与 API' },
+  { id: 'shadow', group: '智能', glyph: '◐', label: 'Shadow Agent' },
+  { id: 'copilot', group: '智能', glyph: '⌁', label: 'Copilot · 任务' },
+  { id: 'keys', group: '控制', glyph: '⌨', label: '快捷键' },
+  { id: 'sync', group: '控制', glyph: '⇅', label: '同步与数据' },
+  { id: 'privacy', group: '关于', glyph: '⚷', label: '隐私' },
+  { id: 'about', group: '关于', glyph: '渡', label: '关于 Drifting' },
 ];
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const navigate = useNavigate();
-  const [selectedColor, setSelectedColor] = useState<string>('brown');
-  const [activeTab, setActiveTab] = useState<
-    'appearance' | 'editor' | 'shortcuts' | 'advanced' | 'account'
-  >('appearance');
-  const [showDebugModal, setShowDebugModal] = useState(false);
-
-  useEffect(() => {
-    // Load saved accent color from localStorage
-    const saved = localStorage.getItem('accentColor');
-    if (saved) {
-      setSelectedColor(saved);
-    }
-  }, []);
+  const [active, setActive] = useState<RailId>('account');
+  const [query, setQuery] = useState('');
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  const panelRefs = useRef<Partial<Record<RailId, HTMLElement>>>({});
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
     };
-
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
-  const handleColorChange = (colorName: string) => {
-    setSelectedColor(colorName);
-    const colorOption = ACCENT_COLORS.find((c) => c.name === colorName);
-    if (colorOption) {
-      // Save to localStorage
-      localStorage.setItem('accentColor', colorName);
-      localStorage.setItem('accentHue', colorOption.hue.toString());
-
-      // Apply CSS custom properties for dynamic theming
-      applyAccentColor(colorOption.hue);
-
-      // Trigger a custom event for other components to react
-      window.dispatchEvent(
-        new CustomEvent('accentColorChange', { detail: { hue: colorOption.hue } }),
-      );
-    }
-  };
-
+  // Scroll-spy: highlight whichever panel's top edge is closest under the
+  // header. Mirrors the v2 mockup behavior.
   useEffect(() => {
-    // Initialize accent color on mount
-    const savedHue = localStorage.getItem('accentHue');
-    if (savedHue) {
-      applyAccentColor(parseInt(savedHue));
-    } else {
-      // Default brown
-      applyAccentColor(30);
-    }
+    if (!isOpen) return;
+    const main = mainRef.current;
+    if (!main) return;
+    const onScroll = () => {
+      const top = main.scrollTop;
+      let current: RailId = RAIL[0].id;
+      for (const r of RAIL) {
+        const el = panelRefs.current[r.id];
+        if (!el) continue;
+        if (el.offsetTop - 100 <= top) current = r.id;
+      }
+      setActive(current);
+    };
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, [isOpen]);
+
+  const onRail = useCallback((id: RailId) => {
+    setActive(id);
+    const el = panelRefs.current[id];
+    const main = mainRef.current;
+    if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'smooth' });
   }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return RAIL;
+    return RAIL.filter((r) => r.label.toLowerCase().includes(q) || r.id.includes(q));
+  }, [query]);
 
   if (!isOpen) return null;
 
   return (
+    <div className="set-overlay" role="dialog" aria-modal="true">
+      <SetHead query={query} setQuery={setQuery} onClose={onClose} />
+      {/* Make the whole header draggable on macOS so traffic lights stay
+          usable; controls inside set their own no-drag. */}
+      <style>{`
+        .set-head { -webkit-app-region: drag; }
+        .set-head__search, .set-head__close, .set-head__back { -webkit-app-region: no-drag; }
+      `}</style>
+      <div className="set-body">
+        <SetRail items={filtered} active={active} onSelect={onRail} />
+        <main className="set-main" ref={mainRef}>
+          <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
+          <SubscriptionPanel
+            registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
+          />
+          <UsagePanel registerRef={(el) => (panelRefs.current.usage = el ?? undefined)} />
+          <AppearancePanel
+            registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)}
+          />
+          <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
+          <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
+          <ModelsPanel registerRef={(el) => (panelRefs.current.models = el ?? undefined)} />
+          <ShadowPanel registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)} />
+          <CopilotPanel registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)} />
+          <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
+          <SyncPanel registerRef={(el) => (panelRefs.current.sync = el ?? undefined)} />
+          <PrivacyPanel registerRef={(el) => (panelRefs.current.privacy = el ?? undefined)} />
+          <AboutPanel registerRef={(el) => (panelRefs.current.about = el ?? undefined)} />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ─── Head ────────────────────────────────────────────────────────────
+
+function SetHead({
+  query,
+  setQuery,
+  onClose,
+}: {
+  query: string;
+  setQuery: (s: string) => void;
+  onClose: () => void;
+}) {
+  const isMac = navigator.userAgent.includes('Mac');
+  return (
     <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(90, 74, 58, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        backdropFilter: 'blur(4px)',
-      }}
-      onClick={onClose}
+      className="set-head"
+      style={{ paddingLeft: isMac ? 86 : 18 }}
     >
+      <div className="set-head__left">
+        <div className="set-head__title">
+          设定 <em>Settings · Esc 关闭</em>
+        </div>
+      </div>
+
+      <div className="set-head__search">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5 L14 14" />
+        </svg>
+        <input
+          placeholder="搜索设定…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <kbd>⌘F</kbd>
+      </div>
+
+      <button className="set-head__close" onClick={onClose} title="关闭 (Esc)">
+        ×
+      </button>
+    </div>
+  );
+}
+
+// ─── Rail ────────────────────────────────────────────────────────────
+
+function SetRail({
+  items,
+  active,
+  onSelect,
+}: {
+  items: RailDef[];
+  active: RailId;
+  onSelect: (id: RailId) => void;
+}) {
+  const user = useAuthStore((s) => s.user);
+  const tier = useSettingsStore((s) => s.modelTier);
+  const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
+  const groups: { name: string; items: RailDef[] }[] = [];
+  for (const r of items) {
+    const g = groups[groups.length - 1];
+    if (g && g.name === r.group) g.items.push(r);
+    else groups.push({ name: r.group, items: [r] });
+  }
+
+  return (
+    <nav className="set-rail">
+      <div className="set-rail__who">
+        <div className="set-rail__who-avatar">{initial}</div>
+        <div className="set-rail__who-body">
+          <div className="set-rail__who-name">{user?.name ?? user?.email ?? '本地用户'}</div>
+          <div className="set-rail__who-meta">{tier.toUpperCase()} · 模型档位</div>
+        </div>
+      </div>
+
+      {groups.map((g) => (
+        <div className="set-rail__group" key={g.name}>
+          <div className="set-rail__group-title">{g.name}</div>
+          {g.items.map((r) => (
+            <button
+              key={r.id}
+              className={
+                'set-rail__item' + (active === r.id ? ' set-rail__item--active' : '')
+              }
+              onClick={() => onSelect(r.id)}
+            >
+              <span className="set-rail__glyph">{r.glyph}</span>
+              <span className="set-rail__label">{r.label}</span>
+              {r.badge && (
+                <span
+                  className={
+                    'set-rail__badge' +
+                    (r.badge.tone === 'warn' ? ' set-rail__badge--warn' : '')
+                  }
+                >
+                  {r.badge.text}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+// ─── Shared primitives ───────────────────────────────────────────────
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      className={'tog' + (on ? ' tog--on' : '')}
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+    />
+  );
+}
+
+function Seg<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div className="seg">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          className={'seg__btn' + (o.value === value ? ' seg__btn--active' : '')}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PanelHead({
+  kicker,
+  title,
+  sub,
+}: {
+  kicker: string;
+  title: string;
+  sub?: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="set-panel__kicker">{kicker}</div>
+      <h1 className="set-panel__title">{title}</h1>
+      {sub && <p className="set-panel__sub">{sub}</p>}
+    </>
+  );
+}
+
+function SecHead({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="set-sec__head">
+      <div className="set-sec__title">{title}</div>
+      {hint && <div className="set-sec__hint">{hint}</div>}
+    </div>
+  );
+}
+
+function Row({
+  label,
+  desc,
+  control,
+  top,
+  stack,
+}: {
+  label: React.ReactNode;
+  desc?: React.ReactNode;
+  control?: React.ReactNode;
+  top?: boolean;
+  stack?: boolean;
+}) {
+  return (
+    <div className={'set-row' + (top ? ' set-row--top' : '') + (stack ? ' set-row--stack' : '')}>
+      <div className="set-row__main">
+        <div className="set-row__label">{label}</div>
+        {desc && <div className="set-row__desc">{desc}</div>}
+      </div>
+      {control && <div className="set-row__control">{control}</div>}
+    </div>
+  );
+}
+
+// ─── Panels ──────────────────────────────────────────────────────────
+
+type RegisterRef = (el: HTMLElement | null) => void;
+
+function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  return (
+    <section className="set-panel" ref={registerRef} id="account">
+      <PanelHead
+        kicker="账号 · ACCOUNT"
+        title="你的写作身份。"
+        sub="这些信息会出现在协作面板、稿件元数据和 Shadow Agent 的署名里——是你给自己作品留下的指印。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="个人资料" hint="公开 · PUBLIC" />
+        <Row
+          label="显示名"
+          desc="协作者与 Shadow 报告里看见的名字。"
+          control={
+            <div className="set-field">
+              <span className="set-field__value">{user?.name ?? '未设置'}</span>
+              <button className="set-field__edit">编辑</button>
+            </div>
+          }
+        />
+        <Row
+          label={
+            <>
+              笔名 <em>PEN NAME</em>
+            </>
+          }
+          desc="导出稿件 PDF / EPUB 时使用。可留空。"
+          control={<input className="set-input" defaultValue="" placeholder="留空即用显示名" />}
+        />
+        <Row
+          label="邮箱"
+          desc="用于登录与账户找回。"
+          control={
+            <div className="set-field">
+              <span className="set-field__value set-mono">{user?.email ?? 'local@drifting.local'}</span>
+              <button className="set-field__edit">更改</button>
+            </div>
+          }
+        />
+        <Row
+          label="两步验证"
+          desc="使用 Authenticator App 接收一次性验证码。"
+          control={
+            <>
+              <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>未启用</span>
+              <button className="set-btn">设置</button>
+            </>
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="登入设备" hint="LAST 90 DAYS" />
+        <div className="set-device">
+          <div className="set-device__glyph">▤</div>
+          <div>
+            <div className="set-device__name">
+              <b>本机</b>
+            </div>
+            <div className="set-device__meta">DRIFTING · 此刻在线</div>
+          </div>
+          <div className="set-device__chip">本机</div>
+          <button className="set-btn set-btn--ghost" onClick={handleLogout}>
+            登出
+          </button>
+        </div>
+      </div>
+
+      <div className="set-danger">
+        <div className="set-danger__title">危险区</div>
+        <Row
+          label="导出全部数据"
+          desc="下载所有手稿、元素、Shadow 记录与版本历史。"
+          control={<button className="set-btn">请求导出</button>}
+        />
+        <Row
+          label="删除账户"
+          desc="将保留稿件 30 天后永久删除，期间可以恢复。"
+          control={<button className="set-btn set-btn--danger">删除…</button>}
+        />
+      </div>
+    </section>
+  );
+}
+
+// 订阅 — 仅展示当前计划与「升级 / 降级」「浏览发票」二级页面入口
+type SubView = 'overview' | 'plans' | 'invoices';
+
+function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const [view, setView] = useState<SubView>('overview');
+
+  if (view === 'plans') {
+    return (
+      <section className="set-panel" ref={registerRef} id="subscription">
+        <button className="set-head__back" style={{ marginBottom: 12 }} onClick={() => setView('overview')}>
+          <span>←</span>
+          <span>返回订阅</span>
+        </button>
+        <PanelHead kicker="升级 / 降级" title="挑一个更合脚的方案。" />
+        <div className="set-plans">
+          <PlanCard
+            kicker="免费"
+            name="渡口"
+            price="¥0"
+            features={['1 个项目 · 50,000 字', '基础任务自动化 · 50 次/月', '无 Shadow Agent', '无 BYOK']}
+            ctaLabel="降级"
+          />
+          <PlanCard
+            kicker="当前 · CURRENT"
+            name="Shadow Pro"
+            price="¥58"
+            features={[
+              '无限项目与字数',
+              'Shadow Agent · 50 任务/月',
+              'Copilot 自动化无限',
+              '自带模型 BYOK',
+              '版本历史 90 天',
+            ]}
+            ctaLabel="管理付款"
+            current
+          />
+          <PlanCard
+            kicker="专业作家"
+            name="Studio"
+            price="¥168"
+            features={['Shadow Agent · 不限', '协作者 · 5 席位', '版本历史 1 年', '优先稳定通道']}
+            ctaLabel="升级"
+            primary
+          />
+        </div>
+      </section>
+    );
+  }
+
+  if (view === 'invoices') {
+    return (
+      <section className="set-panel" ref={registerRef} id="subscription">
+        <button className="set-head__back" style={{ marginBottom: 12 }} onClick={() => setView('overview')}>
+          <span>←</span>
+          <span>返回订阅</span>
+        </button>
+        <PanelHead kicker="发票 · INVOICES" title="过往扣款明细。" />
+        <div className="set-sec">
+          <SecHead title="最近 6 张" />
+          {[
+            ['2026·05·14', 'INV-1058220'],
+            ['2026·04·14', 'INV-1042118'],
+            ['2026·03·14', 'INV-1026005'],
+            ['2026·02·14', 'INV-1010001'],
+            ['2026·01·14', 'INV-0994002'],
+            ['2025·12·14', 'INV-0978110'],
+          ].map(([d, no]) => (
+            <Row
+              key={no}
+              label={<span className="set-italic">{d} · Shadow Pro</span>}
+              desc={<span className="set-mono">RMB ¥58.00 · 已支付 · #{no}</span>}
+              control={<button className="set-btn">下载 PDF</button>}
+            />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="set-panel" ref={registerRef} id="subscription">
+      <PanelHead
+        kicker="订阅 · SUBSCRIPTION"
+        title="你的方案与发票。"
+        sub={
+          <>
+            当前方案 <em className="set-italic">SHADOW · PRO</em>，下次续费 2026 年 6 月 14 日。
+          </>
+        }
+      />
+
+      <div className="set-plan-current">
+        <div className="set-plan-current__body">
+          <div className="set-plan-current__kicker">当前 · CURRENT</div>
+          <div className="set-plan-current__name">Shadow Pro</div>
+          <div className="set-plan-current__meta">¥58 / 月 · 微信支付 · 下次扣款 2026·06·14</div>
+        </div>
+        <div className="set-plan-current__cta">
+          <button className="set-btn" onClick={() => setView('plans')}>
+            升级 / 降级
+          </button>
+          <button className="set-btn" onClick={() => setView('invoices')}>
+            浏览发票
+          </button>
+        </div>
+      </div>
+
+      <div className="set-sec" style={{ marginTop: 28 }}>
+        <SecHead title="付款方式" hint="下次扣款 2026·06·14" />
+        <Row
+          label={<span className="set-italic">微信支付 · 6231</span>}
+          desc="默认。在到期前 3 日扣款。"
+          control={
+            <>
+              <button className="set-btn">更换</button>
+              <button className="set-btn">添加方式</button>
+            </>
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function PlanCard({
+  kicker,
+  name,
+  price,
+  features,
+  ctaLabel,
+  current,
+  primary,
+}: {
+  kicker: string;
+  name: string;
+  price: string;
+  features: string[];
+  ctaLabel: string;
+  current?: boolean;
+  primary?: boolean;
+}) {
+  return (
+    <div className={'set-plan' + (current ? ' set-plan--current' : '')}>
+      <div className="set-plan__kicker">{kicker}</div>
+      <div className="set-plan__name">{name}</div>
+      <div className="set-plan__price">
+        {price}
+        <sub>/月</sub>
+      </div>
+      <div className="set-plan__rule" />
+      {features.map((f) => (
+        <div className="set-plan__feat" key={f}>
+          {f}
+        </div>
+      ))}
+      <div className="set-plan__cta">
+        <button className={'set-btn' + (primary ? ' set-btn--primary' : '')}>{ctaLabel}</button>
+      </div>
+    </div>
+  );
+}
+
+function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
+  return (
+    <section className="set-panel" ref={registerRef} id="usage">
+      <PanelHead
+        kicker="Shadow 用量 · USAGE"
+        title="这个月，Shadow 为你做了多少事。"
+        sub={
+          <>
+            周期 2026·05·14 → 06·14。配额刷新前你还有 <span className="set-italic">16 次任务</span>。
+          </>
+        }
+      />
+
       <div
         style={{
-          width: '800px',
-          height: '600px',
-          backgroundColor: '#fefdfb',
-          borderRadius: '16px',
-          boxShadow: '0 20px 60px rgba(139, 111, 71, 0.25)',
-          display: 'flex',
-          overflow: 'hidden',
-          border: '1px solid #e8dcc8',
+          border: '1px solid hsl(var(--rule))',
+          borderRadius: 5,
+          background: 'hsl(var(--surface))',
+          padding: '18px 20px',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Sidebar */}
         <div
           style={{
-            width: '240px',
-            backgroundColor: '#f9f6f1',
-            borderRight: '1px solid #e8dcc8',
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '24px 0',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            color: 'hsl(var(--ink-4))',
           }}
         >
-          {/* Header */}
-          <div style={{ padding: '0 24px', marginBottom: '24px' }}>
-            <h2
-              style={{
-                fontSize: '18px',
-                fontWeight: 600,
-                color: '#2a1a0a',
-                fontFamily: 'Georgia, "Times New Roman", "Songti SC", SimSun, serif',
-              }}
-            >
-              Settings
-            </h2>
-          </div>
+          Shadow Agent 任务
+        </div>
+        <div
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: 36,
+            color: 'hsl(var(--ink-1))',
+            marginTop: 6,
+          }}
+        >
+          34
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 13,
+              color: 'hsl(var(--ink-4))',
+              marginLeft: 6,
+            }}
+          >
+            / 50
+          </span>
+        </div>
+        <div
+          style={{
+            marginTop: 14,
+            height: 5,
+            background: 'hsl(var(--rule))',
+            borderRadius: 3,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <div style={{ width: '68%', height: '100%', background: 'hsl(var(--accent))' }} />
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            gap: 18,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'hsl(var(--ink-4))',
+          }}
+        >
+          <span>
+            <b style={{ color: 'hsl(var(--ink-2))' }}>68%</b> 已用
+          </span>
+          <span>
+            剩余 <b style={{ color: 'hsl(var(--ink-2))' }}>16</b> 次
+          </span>
+          <span>
+            日均 <b style={{ color: 'hsl(var(--ink-2))' }}>1.6</b>
+          </span>
+        </div>
+      </div>
 
-          {/* Space Settings Section */}
-          <div style={{ marginBottom: '24px' }}>
-            <div
-              style={{
-                padding: '0 24px',
-                marginBottom: '8px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#8b7355',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              Space Settings
-            </div>
-            <button
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#5a4a3a',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <span>📝</span>
-              <span>Published Content</span>
-            </button>
-          </div>
+      <div className="set-sec" style={{ marginTop: 24 }}>
+        <SecHead title="超额行为" hint="GUARDRAILS" />
+        <Row
+          label="超额时自动暂停"
+          desc="达到 100% 时停止接受新任务，不自动按次计费。"
+          control={<Toggle on onChange={() => undefined} />}
+        />
+        <Row
+          label="用量预警"
+          desc="到达阈值时邮件提醒。"
+          control={
+            <Seg
+              value="80%"
+              options={[
+                { value: '50%', label: '50%' },
+                { value: '70%', label: '70%' },
+                { value: '80%', label: '80%' },
+                { value: '90%', label: '90%' },
+                { value: '关', label: '关' },
+              ]}
+              onChange={() => undefined}
+            />
+          }
+        />
+      </div>
+    </section>
+  );
+}
 
-          {/* General Settings Section */}
-          <div>
-            <div
-              style={{
-                padding: '0 24px',
-                marginBottom: '8px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#8b7355',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              General Settings
-            </div>
-            <button
-              onClick={() => setActiveTab('appearance')}
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: activeTab === 'appearance' ? '#fefdfb' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: activeTab === 'appearance' ? '#2a1a0a' : '#5a4a3a',
-                fontWeight: activeTab === 'appearance' ? 600 : 400,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                borderLeft:
-                  activeTab === 'appearance'
-                    ? '3px solid var(--accent, #b89968)'
-                    : '3px solid transparent',
-              }}
-            >
-              <span>🎨</span>
-              <span>Appearance</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('editor')}
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: activeTab === 'editor' ? '#fefdfb' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: activeTab === 'editor' ? '#2a1a0a' : '#5a4a3a',
-                fontWeight: activeTab === 'editor' ? 600 : 400,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                borderLeft:
-                  activeTab === 'editor'
-                    ? '3px solid var(--accent, #b89968)'
-                    : '3px solid transparent',
-              }}
-            >
-              <span>✏️</span>
-              <span>Editor</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('shortcuts')}
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: activeTab === 'shortcuts' ? '#fefdfb' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: activeTab === 'shortcuts' ? '#2a1a0a' : '#5a4a3a',
-                fontWeight: activeTab === 'shortcuts' ? 600 : 400,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                borderLeft:
-                  activeTab === 'shortcuts'
-                    ? '3px solid var(--accent, #b89968)'
-                    : '3px solid transparent',
-              }}
-            >
-              <span>⌨️</span>
-              <span>Shortcuts</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('advanced')}
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: activeTab === 'advanced' ? '#fefdfb' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: activeTab === 'advanced' ? '#2a1a0a' : '#5a4a3a',
-                fontWeight: activeTab === 'advanced' ? 600 : 400,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                borderLeft:
-                  activeTab === 'advanced'
-                    ? '3px solid var(--accent, #b89968)'
-                    : '3px solid transparent',
-              }}
-            >
-              <span>⚙️</span>
-              <span>Advanced</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('account')}
-              style={{
-                width: '100%',
-                padding: '10px 24px',
-                textAlign: 'left',
-                border: 'none',
-                background: activeTab === 'account' ? '#fefdfb' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: activeTab === 'account' ? '#2a1a0a' : '#5a4a3a',
-                fontWeight: activeTab === 'account' ? 600 : 400,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                borderLeft:
-                  activeTab === 'account'
-                    ? '3px solid var(--accent, #b89968)'
-                    : '3px solid transparent',
-              }}
-            >
-              <span>👤</span>
-              <span>Account</span>
-            </button>
-          </div>
+function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
+  const themeMode = useSettingsStore((s) => s.themeMode);
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const shadowAffectsTheme = useSettingsStore((s) => s.shadowAffectsTheme);
+  const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
+  const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
+  const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
 
-          {/* Footer - Back to Project Home */}
-          <div style={{ flex: 1 }} />
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #e8dcc8' }}>
+  const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
+    { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
+    { value: 'dark', name: '深色', kind: 'DARK', tp: 'tp--dark' },
+    { value: 'system', name: '跟随系统', kind: 'SYSTEM', tp: 'tp--system' },
+  ];
+
+  return (
+    <section className="set-panel" ref={registerRef} id="appearance">
+      <PanelHead
+        kicker="外观 · APPEARANCE"
+        title="书桌的光线，由你决定。"
+        sub="挑一个最合眼的明度，Shadow 模式是否进一步偏冷的色调由你决定。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="主题" hint="THEME" />
+        <div className="set-theme-grid">
+          {themes.map((t) => (
             <button
-              onClick={() => {
-                onClose();
-                navigate('/');
-              }}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: '1px solid #e8dcc8',
-                borderRadius: '6px',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontSize: '13px',
-                color: '#5a4a3a',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#f5f0e8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-              title="Back to Project Home"
+              key={t.value}
+              className={
+                'set-theme-card' + (themeMode === t.value ? ' set-theme-card--active' : '')
+              }
+              onClick={() => setThemeMode(t.value)}
             >
-              <LogOut size={14} />
-              <span>Back to Project Home</span>
+              <div className={'set-theme-card__preview ' + t.tp}>
+                <div className="set-theme-card__preview-bar">
+                  <span className="set-theme-card__preview-light" />
+                  <span className="set-theme-card__preview-light" />
+                  <span className="set-theme-card__preview-light" />
+                </div>
+                <div className="set-theme-card__preview-body">
+                  <div className="set-theme-card__preview-rail" />
+                  <div className="set-theme-card__preview-lines">
+                    <div className="set-theme-card__preview-line" />
+                    <div className="set-theme-card__preview-line" />
+                    <div className="set-theme-card__preview-line" />
+                  </div>
+                  <div className="set-theme-card__preview-aux" />
+                </div>
+              </div>
+              <div className="set-theme-card__meta">
+                <span className="set-theme-card__name">{t.name}</span>
+                <span className="set-theme-card__kind">{t.kind}</span>
+              </div>
+              <div className="set-theme-card__check">✓</div>
             </button>
-          </div>
+          ))}
         </div>
 
-        {/* Main Content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          {/* Header with Close Button */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '24px 32px',
-              borderBottom: '1px solid #e8dcc8',
-            }}
-          >
-            <h3
-              style={{
-                fontSize: '20px',
-                fontWeight: 600,
-                color: '#2a1a0a',
-                fontFamily: 'Georgia, "Times New Roman", "Songti SC", SimSun, serif',
+        <Row
+          label="Shadow 模式改变主题色调"
+          desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
+          control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="界面密度" hint="DENSITY" />
+        <Row
+          label="动效与过渡"
+          desc="墨珠呼吸、标签切换、影模式涌入波。"
+          control={<Toggle on={animationsEnabled} onChange={setAnimationsEnabled} />}
+        />
+      </div>
+    </section>
+  );
+}
+
+function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    bodyFontSize,
+    setBodyFontSize,
+    lineHeight,
+    setLineHeight,
+    paragraphIndent,
+    setParagraphIndent,
+    maxLineWidth,
+    setMaxLineWidth,
+    focusLine,
+    setFocusLine,
+    entityHighlight,
+    setEntityHighlight,
+    marginNotes,
+    setMarginNotes,
+    autosave,
+    setAutosave,
+    autoElementLinkEnabled,
+    setAutoElementLinkEnabled,
+  } = useSettingsStore();
+
+  return (
+    <section className="set-panel" ref={registerRef} id="editor">
+      <PanelHead
+        kicker="编辑器 · EDITOR"
+        title="字落在纸上的样子。"
+        sub="写作区的字体、行距、聚焦行为，与稿件本身的导出无关。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="排版" hint="TYPESETTING" />
+        <Row
+          label="字号"
+          desc="编辑视图字号；导出稿件不受影响。"
+          control={
+            <div className="set-slider">
+              <input
+                type="range"
+                min={12}
+                max={28}
+                value={bodyFontSize}
+                onChange={(e) => setBodyFontSize(Number(e.target.value))}
+                style={{ width: 140 }}
+              />
+              <span className="set-slider__val">{bodyFontSize} px</span>
+            </div>
+          }
+        />
+        <Row
+          label="行距"
+          control={
+            <Seg<string>
+              value={String(lineHeight)}
+              options={['1.5', '1.65', '1.72', '1.8', '2.0'].map((v) => ({ value: v, label: v }))}
+              onChange={(v) => setLineHeight(Number(v) as LineHeight)}
+            />
+          }
+        />
+        <Row
+          label="段首缩进"
+          desc="仅编辑视图。导出时按稿件格式独立设定。"
+          control={
+            <Seg<ParagraphIndent>
+              value={paragraphIndent}
+              options={[
+                { value: 'none', label: '无' },
+                { value: 'one', label: '一字符' },
+                { value: 'two', label: '两字符' },
+              ]}
+              onChange={setParagraphIndent}
+            />
+          }
+        />
+        <Row
+          label="最大行宽"
+          desc="单页中央栏的最大宽度。"
+          control={
+            <input
+              className="set-input set-input--mono"
+              style={{ minWidth: 120 }}
+              value={`${maxLineWidth} px`}
+              onChange={(e) => {
+                const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                if (Number.isFinite(n)) setMaxLineWidth(n);
               }}
-            >
-              {activeTab === 'appearance' && 'Appearance'}
-              {activeTab === 'editor' && 'Editor Settings'}
-              {activeTab === 'shortcuts' && 'Keyboard Shortcuts'}
-              {activeTab === 'account' && 'Account Settings'}
-              {activeTab === 'advanced' && 'Advanced'}
-            </h3>
+            />
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="书写体验" hint="FLOW" />
+        <Row
+          label="聚焦行"
+          desc="把当前段落以外的内容轻度淡出。"
+          control={
+            <Seg<FocusLineMode>
+              value={focusLine}
+              options={[
+                { value: 'off', label: '关' },
+                { value: 'paragraph', label: '段落' },
+                { value: 'line', label: '行' },
+                { value: 'sentence', label: '句' },
+              ]}
+              onChange={setFocusLine}
+            />
+          }
+        />
+        <Row
+          label="实体高亮"
+          desc="在正文中给已识别的人物 / 地点 / 物件添加下划虚线。"
+          control={<Toggle on={entityHighlight} onChange={setEntityHighlight} />}
+        />
+        <Row
+          label="自动元素链接"
+          desc="输入时自动识别已存在的元素名称（如人物、地点），并链接到对应页面。"
+          control={<Toggle on={autoElementLinkEnabled} onChange={setAutoElementLinkEnabled} />}
+        />
+        <Row
+          label="边注栏"
+          desc="在手稿右侧显示批注卡片。"
+          control={<Toggle on={marginNotes} onChange={setMarginNotes} />}
+        />
+        <Row
+          label="自动保存"
+          desc={
+            <>
+              每次空闲超过 <code>3 秒</code>。
+            </>
+          }
+          control={<Toggle on={autosave} onChange={setAutosave} />}
+        />
+      </div>
+    </section>
+  );
+}
+
+function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    uiLocale,
+    setUiLocale,
+    manuscriptLocale,
+    setManuscriptLocale,
+    spellcheck,
+    setSpellcheck,
+    dateFormat,
+    setDateFormat,
+  } = useSettingsStore();
+
+  const locales: { code: LocaleCode; name: string; native: string }[] = [
+    { code: 'zh-CN', name: '中文（简体）', native: '默认' },
+    { code: 'zh-TW', name: '中文（繁體）', native: '繁體' },
+    { code: 'en', name: 'English', native: 'English' },
+    { code: 'ja', name: '日本語', native: '日本語' },
+    { code: 'ko', name: '한국어', native: '한국어' },
+    { code: 'fr', name: 'Français', native: 'beta' },
+  ];
+
+  return (
+    <section className="set-panel" ref={registerRef} id="language">
+      <PanelHead
+        kicker="语言 · LANGUAGE"
+        title="界面用什么语言对你说话。"
+        sub="这只关乎界面文本——稿件与 Shadow 的回复语言独立设置在下方。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="界面语言" hint="UI LOCALE" />
+        <div className="set-locales">
+          {locales.map((l) => (
             <button
-              onClick={onClose}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '6px',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#5a4a3a',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#f5f0e8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
+              key={l.code}
+              className={'set-locale' + (uiLocale === l.code ? ' set-locale--active' : '')}
+              onClick={() => setUiLocale(l.code)}
             >
-              <X size={20} />
+              <span className="set-locale__code">{l.code}</span>
+              <span className="set-locale__name">{l.name}</span>
+              <span className="set-locale__native">{l.native}</span>
             </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="写作语言" hint="MANUSCRIPT" />
+        <Row
+          label="手稿默认语言"
+          desc="影响拼写检查、断行、Shadow Agent 的回复语言。"
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 220 }}
+              value={manuscriptLocale}
+              onChange={(e) => setManuscriptLocale(e.target.value as LocaleCode)}
+            >
+              {locales.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name} · {l.code}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <Row
+          label="拼写检查"
+          desc="中文按词典检查别字。英文使用系统拼写。"
+          control={<Toggle on={spellcheck} onChange={setSpellcheck} />}
+        />
+        <Row
+          label="日期与数字"
+          desc="影响时间线轴标签。"
+          control={
+            <Seg<DateFormat>
+              value={dateFormat}
+              options={[
+                { value: 'cjk', label: '中文' },
+                { value: 'iso', label: 'ISO' },
+                { value: 'us', label: 'US' },
+              ]}
+              onChange={setDateFormat}
+            />
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    modelTier,
+    setModelTier,
+    byokAnthropicKey,
+    setByokAnthropicKey,
+    byokOpenAIKey,
+    setByokOpenAIKey,
+    byokGoogleKey,
+    setByokGoogleKey,
+    ollamaEndpoint,
+    setOllamaEndpoint,
+    uploadFullManuscript,
+    setUploadFullManuscript,
+    allowWebSearch,
+    setAllowWebSearch,
+    requestTimeoutSec,
+    setRequestTimeoutSec,
+  } = useSettingsStore();
+
+  const tiers: { value: ModelTier; kicker: string; name: string; desc: string }[] = [
+    { value: 'lite', kicker: 'LITE', name: '轻量', desc: '速度优先。短建议、实体抽取等高吞吐任务。' },
+    { value: 'standard', kicker: 'STANDARD', name: '标准', desc: '日常默认。结构、连贯、润色都够用。' },
+    { value: 'pro', kicker: 'PRO', name: '深思', desc: '长上下文、长任务推理。慢一点，更稳。' },
+  ];
+
+  return (
+    <section className="set-panel" ref={registerRef} id="models">
+      <PanelHead
+        kicker="模型与 API · MODELS"
+        title="让谁来读你的草稿。"
+        sub={
+          <>
+            Drifting 把任务分成几个能力档位。默认走我们维护的通道，也可以接入你自己的 API。
+            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+          </>
+        }
+      />
+
+      <div className="set-sec">
+        <SecHead title="能力档位" hint="DEFAULT TIER" />
+        <div className="set-tiers">
+          {tiers.map((t) => (
+            <button
+              key={t.value}
+              className={'set-tier' + (modelTier === t.value ? ' set-tier--active' : '')}
+              onClick={() => setModelTier(t.value)}
+            >
+              <div className="set-tier__kicker">{t.kicker}</div>
+              <div className="set-tier__name">{t.name}</div>
+              <div className="set-tier__desc">{t.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="自带密钥 · BYOK" hint="3 PROVIDERS" />
+
+        <ProviderRow
+          logoClass="set-provider__logo--anthropic"
+          logoText="A"
+          name="Anthropic"
+          desc="Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。"
+          k={byokAnthropicKey}
+          setK={setByokAnthropicKey}
+        />
+
+        <ProviderRow
+          logoClass="set-provider__logo--openai"
+          logoText="O"
+          name="OpenAI"
+          desc="GPT 系列模型。"
+          k={byokOpenAIKey}
+          setK={setByokOpenAIKey}
+        />
+
+        <ProviderRow
+          logoClass="set-provider__logo--google"
+          logoText="G"
+          name="Google"
+          desc="Gemini 2.5 Pro / Flash · 长上下文场景。"
+          k={byokGoogleKey}
+          setK={setByokGoogleKey}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="本地模型" hint="LOCAL" />
+        <div className="set-provider">
+          <div className="set-provider__head">
+            <div className="set-provider__logo set-provider__logo--ollama">◖</div>
+            <div className="set-provider__main">
+              <div className="set-provider__name">
+                <b>Ollama</b> <em>本地</em>
+              </div>
+              <div className="set-provider__desc">
+                本机模型，零数据外发。配置端点后，Copilot 与 Shadow Agent 都可以走本地。
+              </div>
+            </div>
           </div>
-
-          {/* Content Area */}
-          <div
-            style={{
-              flex: 1,
-              padding: '32px',
-              overflowY: 'auto',
-            }}
-          >
-            {activeTab === 'appearance' && (
-              <div>
-                {/* Accent Color Section */}
-                <div style={{ marginBottom: '32px' }}>
-                  <h4
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: '#3a2a1a',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    Accent Color
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: '13px',
-                      color: '#8b7355',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    Choose an accent color for buttons, highlights, and interactive elements.
-                  </p>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(4, 1fr)',
-                      gap: '12px',
-                    }}
-                  >
-                    {ACCENT_COLORS.map((color) => (
-                      <button
-                        key={color.name}
-                        onClick={() => handleColorChange(color.name)}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '12px',
-                          border:
-                            selectedColor === color.name
-                              ? '2px solid var(--accent, #b89968)'
-                              : '1px solid #e8dcc8',
-                          borderRadius: '8px',
-                          background: selectedColor === color.name ? '#f9f6f1' : '#fefdfb',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (selectedColor !== color.name) {
-                            e.currentTarget.style.background = '#f9f6f1';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedColor !== color.name) {
-                            e.currentTarget.style.background = '#fefdfb';
-                          }
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            backgroundColor: color.preview,
-                            border: '2px solid #fefdfb',
-                            boxShadow: '0 2px 8px rgba(139, 111, 71, 0.15)',
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: '13px',
-                            color: '#5a4a3a',
-                            fontWeight: selectedColor === color.name ? 600 : 400,
-                          }}
-                        >
-                          {color.displayName}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Theme Section (Placeholder) */}
-                <div style={{ marginBottom: '32px' }}>
-                  <h4
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: '#3a2a1a',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    Theme
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: '13px',
-                      color: '#8b7355',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    Choose between light and dark mode. (Coming soon)
-                  </p>
-                </div>
-
-                {/* Font Size Section (Placeholder) */}
-                <div>
-                  <h4
-                    style={{
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: '#3a2a1a',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    Font Size
-                  </h4>
-                  <p
-                    style={{
-                      fontSize: '13px',
-                      color: '#8b7355',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    Adjust the default font size for the editor. (Coming soon)
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'editor' && (
-              <div>
-                <EditorSettings />
-              </div>
-            )}
-
-            {activeTab === 'shortcuts' && (
-              <div>
-                <ShortcutsSettings />
-              </div>
-            )}
-
-            {activeTab === 'account' && (
-              <div>
-                <AccountSettings />
-              </div>
-            )}
-
-            {activeTab === 'advanced' && (
-              <div>
-                {/* Local-First Mode Info */}
-                <div
-                  style={{
-                    padding: '16px',
-                    background: '#f0f7ff',
-                    borderRadius: '8px',
-                    border: '1px solid #b8d4f1',
-                    marginBottom: '24px',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      color: '#1e40af',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    📖 本地优先模式（Local-First Mode）
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#3b5998', lineHeight: 1.6 }}>
-                    应用当前运行在本地优先模式下，类似 Obsidian 的体验：
-                    <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                      <li>所有数据存储在本地 SQLite 数据库</li>
-                      <li>无需登录和网络连接即可使用</li>
-                      <li>自动同步功能已禁用</li>
-                      <li>专注于本地创作体验</li>
-                    </ul>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      marginTop: '8px',
-                      fontStyle: 'italic',
-                    }}
-                  >
-                    提示：在 {APP_CONFIG.LOCAL_ONLY_MODE ? 'src/renderer/lib/config.ts' : 'config'}{' '}
-                    中可以切换模式
-                  </div>
-                </div>
-
-                <h3
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: '#2a1a0a',
-                    marginBottom: '16px',
-                  }}
-                >
-                  开发者工具
-                </h3>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                  }}
-                >
-                  {/* Debug 按钮 */}
-                  <button
-                    onClick={() => setShowDebugModal(true)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px 16px',
-                      backgroundColor: '#f5f1ed',
-                      border: '1px solid #d4c4b0',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '14px',
-                      color: '#2a1a0a',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ebe5dd';
-                      e.currentTarget.style.borderColor = '#b89968';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#f5f1ed';
-                      e.currentTarget.style.borderColor = '#d4c4b0';
-                    }}
-                  >
-                    <Bug size={18} style={{ color: '#b89968' }} />
-                    <div style={{ textAlign: 'left', flex: 1 }}>
-                      <div style={{ fontWeight: 600 }}>数据调试工具</div>
-                      <div style={{ fontSize: '12px', color: '#8b7355', marginTop: '4px' }}>
-                        查看服务器和本地 SQLite 数据对比
-                      </div>
-                    </div>
-                  </button>
-
-                  <p
-                    style={{
-                      fontSize: '12px',
-                      color: '#8b7355',
-                      marginTop: '8px',
-                    }}
-                  >
-                    更多高级功能开发中...
-                  </p>
-                </div>
-              </div>
-            )}
+          <div className="set-provider__body">
+            <div className="set-provider__body-inner">
+              <span className="set-provider__k">Endpoint</span>
+              <span className="set-provider__v">
+                <input
+                  className="set-input set-input--mono"
+                  style={{ minWidth: 280 }}
+                  value={ollamaEndpoint}
+                  onChange={(e) => setOllamaEndpoint(e.target.value)}
+                />
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Debug Modal */}
-      <DebugModal isOpen={showDebugModal} onClose={() => setShowDebugModal(false)} />
+      <div className="set-sec">
+        <SecHead title="高级" hint="ADVANCED" />
+        <Row
+          label="允许稿件全文上传"
+          desc="关闭时，只发送相关段落与摘要——更慢但更稳妥。"
+          control={<Toggle on={uploadFullManuscript} onChange={setUploadFullManuscript} />}
+        />
+        <Row
+          label="允许模型联网"
+          desc="仅对支持 web 工具的模型生效。"
+          control={<Toggle on={allowWebSearch} onChange={setAllowWebSearch} />}
+        />
+        <Row
+          label="请求超时"
+          desc="单次 LLM 调用最长等待时间。"
+          control={
+            <input
+              className="set-input set-input--mono"
+              style={{ minWidth: 90 }}
+              value={`${requestTimeoutSec} s`}
+              onChange={(e) => {
+                const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                if (Number.isFinite(n)) setRequestTimeoutSec(n);
+              }}
+            />
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function ProviderRow({
+  logoClass,
+  logoText,
+  name,
+  desc,
+  k,
+  setK,
+}: {
+  logoClass: string;
+  logoText: string;
+  name: string;
+  desc: string;
+  k: string | null;
+  setK: (s: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const connected = !!k;
+
+  const masked = useMemo(() => {
+    if (!k) return '';
+    const tail = k.length > 4 ? k.slice(-4) : k;
+    return `${'•'.repeat(Math.max(6, Math.min(20, k.length - 4)))}${tail}`;
+  }, [k]);
+
+  return (
+    <div className={'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')}>
+      <div className="set-provider__head">
+        <div className={`set-provider__logo ${logoClass}`}>{logoText}</div>
+        <div className="set-provider__main">
+          <div className="set-provider__name">
+            <b>{name}</b>
+            <em className={connected ? 'is-byok' : ''}>{connected ? '自带密钥' : '未连接'}</em>
+          </div>
+          <div className="set-provider__desc">{desc}</div>
+        </div>
+        <div className={'set-provider__status ' + (connected ? 'set-provider__status--live' : 'set-provider__status--off')}>
+          <span className="set-provider__status-dot" />
+          {connected ? 'CONNECTED' : 'OFFLINE'}
+        </div>
+      </div>
+
+      {(connected || editing) && (
+        <div className="set-provider__body">
+          <div className="set-provider__body-inner">
+            <span className="set-provider__k">API Key</span>
+            <span className="set-provider__v">
+              {editing ? (
+                <input
+                  className="set-input set-input--mono"
+                  style={{ minWidth: 320 }}
+                  placeholder="粘贴密钥..."
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  autoFocus
+                />
+              ) : (
+                <code>{masked}</code>
+              )}
+              {!editing && (
+                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>
+                  · KEYCHAIN
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="set-provider__actions">
+        {editing ? (
+          <>
+            <button
+              className="set-btn set-btn--primary"
+              onClick={() => {
+                setK(draft.trim() || null);
+                setDraft('');
+                setEditing(false);
+              }}
+            >
+              保存
+            </button>
+            <button
+              className="set-btn"
+              onClick={() => {
+                setDraft('');
+                setEditing(false);
+              }}
+            >
+              取消
+            </button>
+          </>
+        ) : connected ? (
+          <>
+            <button className="set-btn">测试连接</button>
+            <button
+              className="set-btn"
+              onClick={() => {
+                setDraft('');
+                setEditing(true);
+              }}
+            >
+              编辑密钥
+            </button>
+            <span style={{ flex: 1 }} />
+            <button className="set-btn set-btn--danger" onClick={() => setK(null)}>
+              断开
+            </button>
+          </>
+        ) : (
+          <button
+            className="set-btn set-btn--primary"
+            onClick={() => {
+              setDraft('');
+              setEditing(true);
+            }}
+          >
+            连接
+          </button>
+        )}
+      </div>
     </div>
+  );
+}
+
+function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    orbCorner,
+    setOrbCorner,
+    surfaceMode,
+    setSurfaceMode,
+    finishNotify,
+    setFinishNotify,
+    editPermission,
+    setEditPermission,
+    agentCreateElements,
+    setAgentCreateElements,
+    agentEditTimeline,
+    setAgentEditTimeline,
+    agentWebSearch,
+    setAgentWebSearch,
+    shadowVoice,
+    setShadowVoice,
+    shadowSystemPrompt,
+    setShadowSystemPrompt,
+  } = useSettingsStore();
+
+  return (
+    <section className="set-panel" ref={registerRef} id="shadow">
+      <PanelHead
+        kicker="SHADOW AGENT · 影"
+        title="影怎么进出你的稿子。"
+        sub="Shadow 在背景里读你的稿子，它何时浮现、能动什么——都在这里决定。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="触发与浮现" hint="INVOCATION" />
+        <Row
+          label="墨珠位置"
+          desc="墨珠停靠的屏幕角落。"
+          control={
+            <Seg<OrbCorner>
+              value={orbCorner}
+              options={[
+                { value: 'bl', label: '左下' },
+                { value: 'tl', label: '左上' },
+                { value: 'tr', label: '右上' },
+                { value: 'br', label: '右下' },
+              ]}
+              onChange={setOrbCorner}
+            />
+          }
+        />
+        <Row
+          label="主动浮现"
+          desc="Shadow 发现重要建议时短暂闪现。"
+          control={
+            <Seg<SurfaceMode>
+              value={surfaceMode}
+              options={[
+                { value: 'never', label: '从不' },
+                { value: 'keyMoments', label: '关键时刻' },
+                { value: 'all', label: '所有更新' },
+              ]}
+              onChange={setSurfaceMode}
+            />
+          }
+        />
+        <Row
+          label="完成时通知"
+          desc="长任务完成时的提示形式。"
+          control={
+            <Seg<FinishNotify>
+              value={finishNotify}
+              options={[
+                { value: 'silent', label: '无声' },
+                { value: 'stack', label: '堆叠' },
+                { value: 'system', label: '系统通知' },
+              ]}
+              onChange={setFinishNotify}
+            />
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="能动什么" hint="PERMISSIONS" />
+        <Row
+          label="直接编辑稿件"
+          desc="关闭时，Shadow 只能写建议、不能改字。"
+          control={
+            <Seg<EditPermission>
+              value={editPermission}
+              options={[
+                { value: 'suggest', label: '仅建议' },
+                { value: 'small', label: '小改' },
+                { value: 'all', label: '允许全改' },
+              ]}
+              onChange={setEditPermission}
+            />
+          }
+        />
+        <Row
+          label="创建新元素"
+          desc="提到新名字时自动建档。"
+          control={<Toggle on={agentCreateElements} onChange={setAgentCreateElements} />}
+        />
+        <Row
+          label="修改时间线"
+          desc="Shadow 可在时间线上调整章节锚点位置。"
+          control={<Toggle on={agentEditTimeline} onChange={setAgentEditTimeline} />}
+        />
+        <Row
+          label="联网检索"
+          desc="用于历史 / 地理 / 风物考据。"
+          control={<Toggle on={agentWebSearch} onChange={setAgentWebSearch} />}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="语气" hint="VOICE" />
+        <Row
+          label="编辑语气"
+          desc="Shadow 给批注的语气强度。"
+          control={
+            <Seg<ShadowVoice>
+              value={shadowVoice}
+              options={[
+                { value: 'restrained', label: '克制' },
+                { value: 'direct', label: '直率' },
+                { value: 'sharp', label: '尖锐' },
+              ]}
+              onChange={setShadowVoice}
+            />
+          }
+        />
+        <Row
+          stack
+          label={
+            <>
+              系统提示 <em>SYSTEM PROMPT</em>
+            </>
+          }
+          desc="追加在每次任务前的指令，定义 Shadow 看你稿子的角度。"
+          control={
+            <textarea
+              className="set-input set-input--mono"
+              rows={4}
+              value={shadowSystemPrompt}
+              onChange={(e) => setShadowSystemPrompt(e.target.value)}
+              style={{ minWidth: '100%', lineHeight: 1.55, fontFamily: 'var(--font-mono)' }}
+            />
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    copilotEnabled,
+    setCopilotEnabled,
+    copilotMode,
+    setCopilotMode,
+    copilotTasks,
+    toggleCopilotTask,
+  } = useSettingsStore();
+
+  return (
+    <section className="set-panel" ref={registerRef} id="copilot">
+      <PanelHead
+        kicker="COPILOT · 任务"
+        title="把琐事交给一个安静的副手。"
+        sub="Copilot 只跑你勾选的轻量任务——检查、抽取、对齐。它不会替你写正文。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="开关" hint="ENABLE" />
+        <Row
+          label="启用 Copilot"
+          desc="关闭后所有自动化任务都不会启动。"
+          control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="模型来源" hint="ROUTING" />
+        <Row
+          label="运行位置"
+          desc={
+            copilotMode === 'local'
+              ? '走本地 Ollama 端点。零数据外发，速度取决于硬件。'
+              : '走云端模型 —— 官方通道或你的 BYOK 密钥（取决于「模型与 API」配置）。'
+          }
+          control={
+            <Seg<CopilotMode>
+              value={copilotMode}
+              options={[
+                { value: 'local', label: '本地' },
+                { value: 'cloud', label: '云端' },
+              ]}
+              onChange={setCopilotMode}
+            />
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="任务列表" hint="TASKS" />
+        <p className="set-row__desc" style={{ margin: '-4px 0 12px' }}>
+          勾选你愿意让 Copilot 自动跑的轻量任务。任何时候都可以一键关掉。
+        </p>
+        <div className="set-tasks">
+          {COPILOT_TASKS.map((t) => {
+            const on = copilotTasks.includes(t.id);
+            return (
+              <button
+                key={t.id}
+                className={'set-task' + (on ? ' set-task--on' : '')}
+                onClick={() => toggleCopilotTask(t.id as CopilotTaskId)}
+                title={t.desc}
+              >
+                <span className="set-task__check">{on ? '✓' : ''}</span>
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const bindings = useShortcutsStore((s) => s.bindings);
+  const setBinding = useShortcutsStore((s) => s.setBinding);
+  const resetBinding = useShortcutsStore((s) => s.resetBinding);
+  const resetAll = useShortcutsStore((s) => s.resetAll);
+  const [recording, setRecording] = useState<ShortcutActionId | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        setRecording(null);
+        setError(null);
+        return;
+      }
+      const accelerator = acceleratorFromEvent(event);
+      if (!accelerator) return;
+      const conflict = (Object.entries(bindings) as [ShortcutActionId, string][]).find(
+        ([id, accel]) => id !== recording && accel === accelerator,
+      );
+      if (conflict) {
+        const def = SHORTCUT_ACTIONS.find((a) => a.id === conflict[0]);
+        setError(`${formatAccelerator(accelerator)} 已被「${def?.label ?? conflict[0]}」占用`);
+        return;
+      }
+      setBinding(recording, accelerator);
+      setRecording(null);
+      setError(null);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [recording, bindings, setBinding]);
+
+  return (
+    <section className="set-panel" ref={registerRef} id="keys">
+      <PanelHead
+        kicker="键盘 · KEYBOARD"
+        title="手不离键盘的写作。"
+        sub="点击任意快捷键即可重新绑定。按 Esc 取消录制。"
+      />
+
+      {error && (
+        <div className="set-note" style={{ marginBottom: 14, color: 'hsl(var(--accent))' }}>
+          {error}
+        </div>
+      )}
+
+      <div className="set-keys">
+        <div className="set-keys__group-head">所有动作 · {SHORTCUT_ACTIONS.length} ACTIONS</div>
+        {SHORTCUT_ACTIONS.map((action) => {
+          const accel = bindings[action.id];
+          const isRecording = recording === action.id;
+          return (
+            <div className="set-keys__row" key={action.id}>
+              <div>
+                <div className="set-keys__label">{action.label}</div>
+                <div className="set-row__desc" style={{ marginTop: 2 }}>
+                  {action.description}
+                </div>
+              </div>
+              <span className="set-keys__cat">{isRecording ? '录制中' : ''}</span>
+              <button
+                className="set-keys__combo"
+                onClick={() => {
+                  setError(null);
+                  setRecording(isRecording ? null : action.id);
+                }}
+                onDoubleClick={() => resetBinding(action.id)}
+                style={{ background: 'transparent', border: 0, padding: 0 }}
+                title="双击恢复默认"
+              >
+                {(isRecording ? '按下新组合键…' : formatAccelerator(accel)).split('+').map((part, i, arr) => (
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                    <span className="kbd">{part}</span>
+                    {i < arr.length - 1 && <span className="kbd kbd--plus">+</span>}
+                  </span>
+                ))}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <Row
+        label="恢复全部默认"
+        desc="重置所有快捷键。"
+        control={<button className="set-btn" onClick={resetAll}>恢复</button>}
+      />
+    </section>
+  );
+}
+
+function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { wifiOnlySync, setWifiOnlySync, autoSnapshot, setAutoSnapshot } = useSettingsStore();
+  return (
+    <section className="set-panel" ref={registerRef} id="sync">
+      <PanelHead
+        kicker="同步 · SYNC"
+        title="稿子放哪儿，又备份在哪儿。"
+        sub="Drifting 默认端到端加密同步。本地仓库与云端互为副本。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="云同步" hint="E2E ENCRYPTED" />
+        <Row
+          label="Drifting 云"
+          desc={<>主同步通道。<span className="set-italic">上次成功：刚刚</span></>}
+          control={
+            <>
+              <span className="set-mono" style={{ color: 'hsl(var(--accent))' }}>在线</span>
+              <button className="set-btn">立即同步</button>
+            </>
+          }
+        />
+        <Row
+          label="仅 Wi-Fi 同步"
+          desc="在 iPad / iPhone 上避免移动流量。"
+          control={<Toggle on={wifiOnlySync} onChange={setWifiOnlySync} />}
+        />
+        <Row
+          label="本地仓库"
+          desc={<span className="set-mono">~/Library/Drifting/vault</span>}
+          control={<button className="set-btn">在 Finder 中显示</button>}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="版本历史" hint="SNAPSHOTS" />
+        <Row
+          label="自动快照"
+          desc={<>每章节每 <code>5 分钟</code> 一份；保留 90 天。</>}
+          control={<Toggle on={autoSnapshot} onChange={setAutoSnapshot} />}
+        />
+        <Row
+          label="手动里程碑"
+          desc="标记重大稿——永久保留，不计入 90 天。"
+          control={<button className="set-btn">查看</button>}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="导出 / 导入" hint="EXPORT" />
+        <Row
+          label="导出整本"
+          desc="支持 DOCX · EPUB · PDF · Markdown · 纯文本。"
+          control={<button className="set-btn">配置导出…</button>}
+        />
+        <Row
+          label="导入"
+          desc="从 Scrivener / Word / Markdown / 纯文本 导入。"
+          control={<button className="set-btn">选择文件…</button>}
+        />
+      </div>
+    </section>
+  );
+}
+
+function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const {
+    improveModelsWithManuscripts,
+    setImproveModelsWithManuscripts,
+    sendUsageStats,
+    setSendUsageStats,
+    sendCrashLogs,
+    setSendCrashLogs,
+  } = useSettingsStore();
+
+  return (
+    <section className="set-panel" ref={registerRef} id="privacy">
+      <PanelHead
+        kicker="隐私 · PRIVACY"
+        title="你的稿子，停在哪儿。"
+        sub="这页直说：Drifting 用了什么、不用什么、何时离开你的机器。"
+      />
+
+      <div className="set-note">
+        稿件以端到端加密同步，密钥仅在你机器上生成。Drifting 服务器看不到稿件原文。
+        <br />
+        <span className="set-mono" style={{ display: 'inline-block', marginTop: 6 }}>
+          默认情况下你的稿件 <b>不会</b> 被用于训练任何模型。
+        </span>
+      </div>
+
+      <div className="set-sec" style={{ marginTop: 18 }}>
+        <SecHead title="数据使用" hint="YOUR CONTROL" />
+        <Row
+          label="允许使用稿件改进官方模型"
+          desc="仅你明确开启时。被采样的段落会先去标识化处理。"
+          control={
+            <Toggle on={improveModelsWithManuscripts} onChange={setImproveModelsWithManuscripts} />
+          }
+        />
+        <Row
+          label="发送匿名使用统计"
+          desc="界面点击、错误、性能指标。不含稿件内容。"
+          control={<Toggle on={sendUsageStats} onChange={setSendUsageStats} />}
+        />
+        <Row
+          label="崩溃日志"
+          desc="应用崩溃时上传堆栈与运行环境。"
+          control={<Toggle on={sendCrashLogs} onChange={setSendCrashLogs} />}
+        />
+      </div>
+
+      <Row
+        label="查看完整隐私政策"
+        desc={<span className="set-mono">最近更新 2026·04·02</span>}
+        control={<button className="set-btn">在浏览器打开</button>}
+      />
+    </section>
+  );
+}
+
+function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
+  return (
+    <section className="set-panel" ref={registerRef} id="about">
+      <PanelHead kicker="关于 · ABOUT" title="Drifting · 渡舟" sub="一只为长篇小说准备的写作船。" />
+
+      <div className="set-about">
+        <div className="set-about__glyph">渡</div>
+        <div className="set-about__main">
+          <div className="set-about__name">
+            Drifting <em>渡舟</em>
+          </div>
+          <div className="set-about__meta">
+            <span>
+              版本 <b>0.1.0</b>
+            </span>
+            <span>
+              通道 <b>开发</b>
+            </span>
+            <span>
+              引擎 <b>Tiptap + SQLite</b>
+            </span>
+          </div>
+        </div>
+        <button className="set-btn">检查更新</button>
+      </div>
+
+      <div className="set-sec" style={{ marginTop: 24 }}>
+        <SecHead title="致谢与许可" hint="CREDITS" />
+        <Row
+          label={<span className="set-italic">字体</span>}
+          desc="Newsreader · Inter Tight · JetBrains Mono · 思源宋体 SC"
+        />
+        <Row
+          label={<span className="set-italic">开源依赖</span>}
+          desc="Tiptap · Yjs · Drizzle · React · Electron Forge"
+          control={<button className="set-btn">查看清单</button>}
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="联系" hint="HELLO" />
+        <Row
+          label="写信给团队"
+          desc={<span className="set-mono">hi@drifting.app</span>}
+          control={<button className="set-btn">写邮件</button>}
+        />
+        <Row
+          label="提交反馈"
+          desc="附带当前稿件上下文的报告（可选）。"
+          control={<button className="set-btn">反馈…</button>}
+        />
+      </div>
+
+      <p
+        style={{
+          margin: '48px 0 0',
+          fontFamily: 'var(--font-serif)',
+          fontStyle: 'italic',
+          fontSize: 14,
+          color: 'hsl(var(--ink-4))',
+          textAlign: 'center',
+          lineHeight: 1.6,
+        }}
+      >
+        为夜里不睡的写作人造。
+        <br />
+        —— 渡舟 团队
+      </p>
+    </section>
   );
 }
