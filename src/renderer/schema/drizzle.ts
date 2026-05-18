@@ -169,6 +169,11 @@ export const NodeEdgeTable = sqliteTable(
       .notNull()
       .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
     label: text('label').notNull().default(''),
+    // Free-form user-defined category. GraphView groups edges by `kind`
+    // for its filter chips; null = uncategorized. There is no fixed
+    // vocabulary — authors mint kinds as they need them (e.g. "引用",
+    // "回响", "同人物"); a hash of the string drives the default color.
+    kind: text('kind'),
     weight: integer('weight').notNull().default(1),
     isDirected: integer('is_directed', { mode: 'boolean' }).notNull().default(true),
     styleJson: text('style_json'), // Stores stroke, width, etc.

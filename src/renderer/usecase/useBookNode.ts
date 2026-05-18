@@ -424,6 +424,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             sourceNodeId: created.sourceNodeId,
             targetNodeId: created.targetNodeId,
             label: created.label,
+            kind: created.kind,
             weight: created.weight,
             isDirected: created.isDirected,
           }),

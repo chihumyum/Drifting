@@ -1,24 +1,25 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book-node';
+import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
+import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
 const log = loglevel.getLogger('GraphView');
 log.setLevel(loglevel.levels.WARN);
 
-// Phase 3 rewrite: GraphView is no longer a force-directed network. It now
-// mirrors the BottomTimeline layout (storyline tracks + chapter tiles) at
-// fullscreen scale, with both book-order and narrative-time views. Edge
-// relations (同人物 / 引用 / 时序 / 物件 / 回响) come in Phase 4 once the
-// node_relation table is in place — for now the filter chips and legend
-// are visible scaffolding that don't draw any edges.
+// Phase 4: GraphView now reads node-to-node relation edges from the
+// `book_node_edge` table and renders them on top of the storyline-track
+// canvas. Edges carry a free-form user-defined `kind` (no fixed vocabulary);
+// the filter chips list whatever distinct kinds exist in the project.
+// Edge creation is shift-click-to-pair: shift-click a tile to set it as
+// source, click another tile to open the new-edge dialog.
 
 type GraphView = 'book' | 'narrative';
 
@@ -50,14 +51,37 @@ interface PositionedNode extends BookNode {
   y: number; // track center, in canvas pixels
 }
 
+// Sentinel used in the filter map for edges with `kind === null`.
+const UNCATEGORIZED_KIND = '__uncategorized__';
+
+// Stable color from a kind string so two edges of the same kind always
+// share a color across renders. djb2-ish hash → palette index.
+const KIND_PALETTE = [
+  'hsl(var(--story-1))',
+  'hsl(var(--story-2))',
+  'hsl(var(--story-3))',
+  'hsl(var(--story-4))',
+  'hsl(var(--story-5))',
+  'hsl(var(--story-6))',
+  'hsl(var(--ink-3))',
+];
+function colorForKind(kind: string | null): string {
+  if (!kind) return 'hsl(var(--ink-4))';
+  let h = 5381;
+  for (let i = 0; i < kind.length; i++) {
+    h = ((h << 5) + h) ^ kind.charCodeAt(i);
+  }
+  return KIND_PALETTE[Math.abs(h) % KIND_PALETTE.length];
+}
+
 export function GraphView() {
-  const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const setNodeSelection = useUiStore((s) => s.setNodeSelection);
   const selectedNodeUiId = useUiStore((s) => s.nodeUi.selectedId);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode } = useBookNode({
+  const { updateNode, createEdge, deleteEdge } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -65,14 +89,13 @@ export function GraphView() {
 
   const [viewMode, setViewMode] = useState<GraphView>(readPersistedView);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Placeholder filter state — Phase 4 wires these to real edges.
-  const [activeFilters, setActiveFilters] = useState({
-    character: true,
-    reference: true,
-    temporal: true,
-    object: true,
-    echo: true,
-  });
+  // Pending source for shift-click edge creation. The first shift-click sets
+  // this; the next plain click on a different tile opens the new-edge dialog.
+  const [linkSource, setLinkSource] = useState<string | null>(null);
+  const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
+  const [newEdgeKind, setNewEdgeKind] = useState('');
+  // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
+  const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -258,6 +281,57 @@ export function GraphView() {
     return links;
   }, [positionedNodes, primaryStorylineId, storylineRowIndex, sortedNodesByStoryline]);
 
+  // ---- Relation edges (user-defined kinds) ----
+  // Index positioned nodes for fast endpoint lookup. Edges whose endpoint
+  // isn't placed in the current view (e.g. narrative view with null
+  // narrativeOrder on one end) are skipped.
+  const positionedById = useMemo(() => {
+    const map = new Map<string, PositionedNode>();
+    positionedNodes.forEach((n) => map.set(n.id, n));
+    return map;
+  }, [positionedNodes]);
+
+  const distinctKinds = useMemo(() => {
+    const set = new Set<string>();
+    let hasNull = false;
+    for (const e of nodeEdges) {
+      if (e.kind) set.add(e.kind);
+      else hasNull = true;
+    }
+    const out = [...set].sort();
+    if (hasNull) out.push(UNCATEGORIZED_KIND);
+    return out;
+  }, [nodeEdges]);
+
+  const visibleEdges = useMemo(() => {
+    const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
+    type LaidEdge = {
+      edge: BookNodeEdge;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      color: string;
+    };
+    const out: LaidEdge[] = [];
+    for (const edge of nodeEdges) {
+      const filterKey = edge.kind ?? UNCATEGORIZED_KIND;
+      if (hiddenKinds.has(filterKey)) continue;
+      const source = positionedById.get(edge.sourceNodeId);
+      const target = positionedById.get(edge.targetNodeId);
+      if (!source || !target) continue;
+      out.push({
+        edge,
+        x1: source.x + halfTile,
+        y1: source.y,
+        x2: target.x + halfTile,
+        y2: target.y,
+        color: colorForKind(edge.kind),
+      });
+    }
+    return out;
+  }, [nodeEdges, positionedById, hiddenKinds]);
+
   // ---- Narrative time axis labels ----
   // In narrative view we surface user-defined TimelineMarkers as time
   // labels along the axis. Book view's axis just shows §-style book-order
@@ -363,28 +437,37 @@ export function GraphView() {
           </div>
         </div>
 
-        <div className="graph-head__filters">
-          {/* Phase 4: these will toggle edges of the corresponding relation
-              type. For now they're visible-but-inert placeholders so the
-              user sees the planned shape. */}
-          {[
-            { id: 'character' as const, label: '同人物', color: 'hsl(var(--ink-4))' },
-            { id: 'reference' as const, label: '引用', color: 'hsl(var(--story-4))' },
-            { id: 'temporal' as const, label: '时序', color: 'hsl(var(--story-2))' },
-            { id: 'object' as const, label: '物件', color: 'hsl(var(--story-4))' },
-            { id: 'echo' as const, label: '回响', color: 'hsl(var(--story-5))' },
-          ].map((f) => (
-            <button
-              key={f.id}
-              className={`graph-head__filter${activeFilters[f.id] ? ' is-active' : ''}`}
-              onClick={() => setActiveFilters((p) => ({ ...p, [f.id]: !p[f.id] }))}
-              title={`${f.label}（Phase 4 启用）`}
-            >
-              <span className="graph-head__filter-dot" style={{ background: f.color }} />
-              <span>{f.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Dynamic filter chips — one per distinct kind in the project,
+            plus "未分类" for edges with kind=null. Chips collapse when the
+            project has no edges yet so the header doesn't show empty UI. */}
+        {distinctKinds.length > 0 && (
+          <div className="graph-head__filters">
+            {distinctKinds.map((kind) => {
+              const isUncategorized = kind === UNCATEGORIZED_KIND;
+              const label = isUncategorized ? '未分类' : kind;
+              const color = colorForKind(isUncategorized ? null : kind);
+              const active = !hiddenKinds.has(kind);
+              return (
+                <button
+                  key={kind}
+                  className={`graph-head__filter${active ? ' is-active' : ''}`}
+                  onClick={() =>
+                    setHiddenKinds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(kind)) next.delete(kind);
+                      else next.add(kind);
+                      return next;
+                    })
+                  }
+                  title={active ? `隐藏「${label}」` : `显示「${label}」`}
+                >
+                  <span className="graph-head__filter-dot" style={{ background: color }} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {isNarrative && (
@@ -487,13 +570,16 @@ export function GraphView() {
             ))}
 
             {/* Cross-storyline trails (SVG, behind tiles) */}
-            {crossLinks.length > 0 && (
+            {(crossLinks.length > 0 || visibleEdges.length > 0) && (
               <svg
                 className="graph-edges"
                 width={canvasContentWidth}
                 height={GRAPH_CONFIG.AXIS_HEIGHT + storylines.length * GRAPH_CONFIG.TRACK_HEIGHT}
                 style={{ top: 0, left: 0 }}
               >
+                {/* Cross-storyline transit trails (dashed, behind relation
+                    edges). They visualise multi-storyline membership rather
+                    than authored relations. */}
                 {crossLinks.map((link) => {
                   const y1 = GRAPH_CONFIG.AXIS_HEIGHT + link.fromY;
                   const y2 = GRAPH_CONFIG.AXIS_HEIGHT + link.toY;
@@ -507,8 +593,43 @@ export function GraphView() {
                       strokeWidth="1.4"
                       strokeDasharray="2 3"
                       fill="none"
-                      opacity="0.55"
+                      opacity="0.45"
                     />
+                  );
+                })}
+                {/* User-authored relation edges (solid, click to delete). */}
+                {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
+                  const yy1 = GRAPH_CONFIG.AXIS_HEIGHT + y1;
+                  const yy2 = GRAPH_CONFIG.AXIS_HEIGHT + y2;
+                  const midY = (yy1 + yy2) / 2;
+                  const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
+                  return (
+                    <g key={edge.id} className="graph-edge-grp">
+                      {/* Invisible wider hit-target so the path is easy to click. */}
+                      <path
+                        d={d}
+                        stroke="transparent"
+                        strokeWidth="10"
+                        fill="none"
+                        style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`删除关联「${edge.kind ?? '未分类'}」?`)) {
+                            void deleteEdge(edge.id);
+                          }
+                        }}
+                      >
+                        <title>{edge.kind ? `${edge.kind} · 点击删除` : '未分类 · 点击删除'}</title>
+                      </path>
+                      <path
+                        d={d}
+                        stroke={color}
+                        strokeWidth="1.8"
+                        fill="none"
+                        opacity="0.85"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    </g>
                   );
                 })}
               </svg>
@@ -532,6 +653,7 @@ export function GraphView() {
               const isTransfer = node.storylines.length > 1;
               const isDraft = node.wordCount === 0;
               const color = node.storyline?.color || 'hsl(var(--story-4))';
+              const isLinkSource = linkSource === node.id;
               return (
                 <div
                   key={node.id}
@@ -540,13 +662,29 @@ export function GraphView() {
                     isActive ? 'is-active' : '',
                     isTransfer ? 'is-transfer' : '',
                     isDraft ? 'is-draft' : '',
+                    isLinkSource ? 'is-link-source' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
                   draggable={isNarrative}
                   onDragStart={(e) => handleTileDragStart(e, node)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => setNodeSelection(node.id, 'ui')}
+                  onClick={(e) => {
+                    // Shift-click sets/clears the relation source. A subsequent
+                    // plain click on a different tile opens the new-edge
+                    // dialog; click on the same tile clears.
+                    if (e.shiftKey) {
+                      setLinkSource((prev) => (prev === node.id ? null : node.id));
+                      return;
+                    }
+                    if (linkSource && linkSource !== node.id) {
+                      setNewEdgePair({ source: linkSource, target: node.id });
+                      setNewEdgeKind('');
+                      setLinkSource(null);
+                      return;
+                    }
+                    setNodeSelection(node.id, 'ui');
+                  }}
                   onDoubleClick={() => {
                     openEntity({ entityType: 'node', id: node.id }, { preview: false });
                     close();
@@ -573,35 +711,132 @@ export function GraphView() {
         </div>
       </div>
 
-      {/* Legend — Phase 4 will document real edge styles; for now the
-          rows match the placeholder filter chips and serve as a visual
-          contract for what Phase 4 will produce. */}
-      <div className="graph-legend">
-        <div className="graph-legend__title">关联类型</div>
-        {[
-          { label: '同人物 / 共同场景', color: 'hsl(var(--ink-4))', dash: undefined },
-          { label: '引用 · 提及', color: 'hsl(var(--story-4))', dash: '5 4' },
-          { label: '时序 · 叙事时', color: 'hsl(var(--story-2))', dash: '1 3' },
-          { label: '物件传承', color: 'hsl(var(--story-4))', dash: '8 3 1 3' },
-          { label: '回响 · 主题呼应', color: 'hsl(var(--story-5))', dash: undefined },
-        ].map((l, i) => (
-          <div key={i} className="graph-legend__row">
-            <span className="graph-legend__swatch">
-              <svg viewBox="0 0 22 4">
-                <path
-                  d="M0 2 L22 2"
-                  stroke={l.color}
-                  strokeWidth="1.6"
-                  fill="none"
-                  strokeDasharray={l.dash}
-                />
-              </svg>
-            </span>
-            <span>{l.label}</span>
+      {/* Legend — dynamic; lists whatever kinds exist in the project plus
+          a constant footnote about transit/active styling. Hidden when
+          there are no edges so the chrome stays out of the way. */}
+      {distinctKinds.length > 0 ? (
+        <div className="graph-legend">
+          <div className="graph-legend__title">关联类型</div>
+          {distinctKinds.map((kind) => {
+            const isUncategorized = kind === UNCATEGORIZED_KIND;
+            const label = isUncategorized ? '未分类' : kind;
+            const color = colorForKind(isUncategorized ? null : kind);
+            return (
+              <div key={kind} className="graph-legend__row">
+                <span className="graph-legend__swatch">
+                  <svg viewBox="0 0 22 4">
+                    <path d="M0 2 L22 2" stroke={color} strokeWidth="1.8" fill="none" />
+                  </svg>
+                </span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
+          <div className="graph-legend__hint">
+            多线 = 实心边框 · 当前 = 朱红环 · Shift+点击章节起关联
           </div>
-        ))}
-        <div className="graph-legend__hint">多线 = 实心边框 · 当前 = 朱红环</div>
-      </div>
+        </div>
+      ) : (
+        <div className="graph-legend">
+          <div className="graph-legend__title">尚无关联</div>
+          <div className="graph-legend__hint">Shift+点击两个章节即可创建</div>
+        </div>
+      )}
+
+      {/* Status banner when a relation-source tile has been picked. */}
+      {linkSource && !newEdgePair && (
+        <div className="graph-linkbar">
+          <span>已选中起点：</span>
+          <strong>{positionedById.get(linkSource)?.title || '未命名'}</strong>
+          <span>· 点击另一章节创建关联</span>
+          <button onClick={() => setLinkSource(null)} title="取消">×</button>
+        </div>
+      )}
+
+      {/* New-edge dialog: prompts for the user-defined `kind`. Empty input
+          means "uncategorized" (null kind). */}
+      {newEdgePair && (
+        <div
+          className="graph-newedge-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setNewEdgePair(null);
+          }}
+        >
+          <div
+            className="graph-newedge"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNewEdgePair(null);
+            }}
+          >
+            <div className="graph-newedge__head">新建关联</div>
+            <div className="graph-newedge__pair">
+              <span>{positionedById.get(newEdgePair.source)?.title || '未命名'}</span>
+              <span aria-hidden>→</span>
+              <span>{positionedById.get(newEdgePair.target)?.title || '未命名'}</span>
+            </div>
+            <label className="graph-newedge__label">分类（留空 = 未分类）</label>
+            <input
+              autoFocus
+              className="graph-newedge__input"
+              type="text"
+              value={newEdgeKind}
+              placeholder="如：同人物 / 引用 / 时序 …"
+              list="graph-newedge-kinds"
+              onChange={(e) => setNewEdgeKind(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const trimmed = newEdgeKind.trim();
+                  void createEdge({
+                    id: uuidv7(),
+                    projectId: projectId ?? '',
+                    sourceNodeId: newEdgePair.source,
+                    targetNodeId: newEdgePair.target,
+                    label: '',
+                    kind: trimmed || null,
+                    weight: 1,
+                    isDirected: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  });
+                  setNewEdgePair(null);
+                }
+              }}
+            />
+            <datalist id="graph-newedge-kinds">
+              {distinctKinds
+                .filter((k) => k !== UNCATEGORIZED_KIND)
+                .map((k) => (
+                  <option key={k} value={k} />
+                ))}
+            </datalist>
+            <div className="graph-newedge__actions">
+              <button onClick={() => setNewEdgePair(null)}>取消</button>
+              <button
+                className="is-primary"
+                onClick={() => {
+                  const trimmed = newEdgeKind.trim();
+                  void createEdge({
+                    id: uuidv7(),
+                    projectId: projectId ?? '',
+                    sourceNodeId: newEdgePair.source,
+                    targetNodeId: newEdgePair.target,
+                    label: '',
+                    kind: trimmed || null,
+                    weight: 1,
+                    isDirected: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  });
+                  setNewEdgePair(null);
+                }}
+              >
+                创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

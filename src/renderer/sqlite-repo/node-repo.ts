@@ -70,6 +70,7 @@ function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge
     sourceNodeId: record.sourceNodeId,
     targetNodeId: record.targetNodeId,
     label: record.label,
+    kind: record.kind ?? null,
     weight: record.weight,
     isDirected: record.isDirected ?? true,
     style,
@@ -255,6 +256,7 @@ export function createBookNodeEdgeSqliteRepository(
         sourceNodeId: input.sourceNodeId,
         targetNodeId: input.targetNodeId,
         label: input.label,
+        kind: input.kind,
         weight: input.weight ?? 1,
         isDirected: input.isDirected,
         styleJson: input.style ? JSON.stringify(input.style) : undefined,
@@ -274,6 +276,7 @@ export function createBookNodeEdgeSqliteRepository(
     async update(id: string, updates: BookNodeEdgeUpdateData) {
       const updateValues: any = {};
       if (updates.label !== undefined) updateValues.label = updates.label;
+      if (updates.kind !== undefined) updateValues.kind = updates.kind;
       if (updates.weight !== undefined) updateValues.weight = updates.weight;
       if (updates.style) updateValues.styleJson = JSON.stringify(updates.style);
 

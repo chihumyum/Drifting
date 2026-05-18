@@ -36,6 +36,10 @@ export interface BookNodeEdge {
   sourceNodeId: string;
   targetNodeId: string;
   label: string;
+  // User-defined category — drives GraphView filter chips. null when the
+  // author hasn't tagged it; the chips list just whatever distinct values
+  // currently exist in the data.
+  kind: string | null;
   weight: number;
   isDirected: boolean; // Default true if undefined
   createdAt: string;

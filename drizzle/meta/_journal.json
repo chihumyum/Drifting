@@ -78,6 +78,13 @@
       "when": 1779300000000,
       "tag": "0010_book_order_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1779500000000,
+      "tag": "0011_node_edge_kind",
+      "breakpoints": true
     }
   ]
 }
