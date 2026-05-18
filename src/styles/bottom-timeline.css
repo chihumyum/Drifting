@@ -548,27 +548,18 @@
   filter: brightness(1.06);
 }
 .btl-clip.is-selected {
-  /* After three rounds where the selected state still wasn't visible, this
-     is layered-redundancy: even if `outline` somehow gets clipped by
-     parent `.btl__scroll`'s overflow-y, or if box-shadow falls victim to
-     a stacking context I haven't spotted, at least one of these cues will
-     land.
-       1. inset 3px accent ring  — painted INSIDE the tile, can't be
-          clipped by ancestor overflow.
-       2. outline + 2px offset    — designed-spec preferred look.
-       3. paper-then-accent halo via outer box-shadow rings.
-       4. accent-tinted drop shadow — lifts the tile visually.
-       5. transform scale 1.03    — geometric "pop" even if every color
-          effect somehow fails. */
-  outline: 2px solid hsl(var(--accent));
-  outline-offset: 2px;
+  /* "White ring then accent ring" pattern: a paper-colored gap right
+     against the tile (so the tile keeps its storyline color cleanly)
+     then a 2px accent ring outside that, plus a soft accent halo
+     beneath. Done entirely with non-inset box-shadow layers — no
+     `outline`, no scale, no inset. Stacking order is first-listed-on-top,
+     so the paper shadow paints over the accent shadow up to its own
+     extent (3px); the accent peeks out at 3–5px. */
   z-index: 5;
-  transform: scale(1.03);
   box-shadow:
-    inset 0 0 0 3px hsl(var(--accent)),
     0 0 0 3px hsl(var(--paper)),
-    0 0 0 5px hsl(var(--accent) / 0.85),
-    0 12px 28px -4px hsl(var(--accent) / 0.5);
+    0 0 0 5px hsl(var(--accent)),
+    0 10px 24px -4px hsl(var(--accent) / 0.45);
 }
 .btl-clip.is-draft {
   background: hsl(var(--paper));
