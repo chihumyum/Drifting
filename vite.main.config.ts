@@ -17,8 +17,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       external: [
-        // Native modules must be external
+        // Native modules must be external — rollup can't bundle .node binaries.
         'better-sqlite3',
+        '@napi-rs/keyring',
+        // Match every platform-suffixed prebuild (-darwin-arm64 / -linux-x64 / ...).
+        /^@napi-rs\/keyring-/,
         // Also exclude electron and node built-ins
         'electron',
         'fs',

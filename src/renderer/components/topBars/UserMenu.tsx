@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Sun, Moon, Settings, Keyboard, Download, BookOpenText, CircleDot, HelpCircle, LogOut } from 'lucide-react';
+import {
+  Sun,
+  Moon,
+  Monitor,
+  Settings,
+  Keyboard,
+  Upload,
+  BookOpenText,
+  CircleDot,
+  HelpCircle,
+  LogOut,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
-import { useUiStore } from '../../store/ui-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
 
 interface UserMenuProps {
@@ -15,8 +26,11 @@ interface UserMenuProps {
 export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const theme = useUiStore((s) => s.theme);
-  const setTheme = useUiStore((s) => s.setTheme);
+  // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
+  // theme. The menu has to drive themeMode so that "跟随系统" actually
+  // sticks; the resolver in App.tsx then writes back to ui-store.theme.
+  const themeMode = useSettingsStore((s) => s.themeMode);
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
@@ -118,7 +132,15 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
 
         <MenuGroup>
           <MenuItem
-            icon={theme === 'light' ? <Sun size={13} /> : <Moon size={13} />}
+            icon={
+              themeMode === 'light' ? (
+                <Sun size={13} />
+              ) : themeMode === 'dark' ? (
+                <Moon size={13} />
+              ) : (
+                <Monitor size={13} />
+              )
+            }
             label="主题"
             tail={
               <div
@@ -131,11 +153,26 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
                   padding: 1,
                 }}
               >
-                <ThemeSwitchBtn active={theme === 'light'} onClick={() => setTheme('light')}>
+                <ThemeSwitchBtn
+                  active={themeMode === 'light'}
+                  onClick={() => setThemeMode('light')}
+                  title="浅色"
+                >
                   明
                 </ThemeSwitchBtn>
-                <ThemeSwitchBtn active={theme === 'dark'} onClick={() => setTheme('dark')}>
+                <ThemeSwitchBtn
+                  active={themeMode === 'dark'}
+                  onClick={() => setThemeMode('dark')}
+                  title="深色"
+                >
                   暗
+                </ThemeSwitchBtn>
+                <ThemeSwitchBtn
+                  active={themeMode === 'system'}
+                  onClick={() => setThemeMode('system')}
+                  title="跟随系统"
+                >
+                  系统
                 </ThemeSwitchBtn>
               </div>
             }
@@ -145,7 +182,7 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
             label="设定"
             meta="⌘,"
             onClick={() => {
-              events.emit('settings:open');
+              events.emit('settings:open', {});
               onClose();
             }}
           />
@@ -154,14 +191,22 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
             label="键盘快捷键"
             meta="⌘K ⌘/"
             onClick={() => {
-              events.emit('settings:open');
+              events.emit('settings:open', { railId: 'keys' });
               onClose();
             }}
           />
         </MenuGroup>
 
         <MenuGroup>
-          <MenuItem icon={<Download size={13} />} label="导出 · 备份" />
+          <MenuItem
+            icon={<Upload size={13} />}
+            label="导入"
+            meta="MD · DOCX · TXT"
+            onClick={() => {
+              events.emit('import:open');
+              onClose();
+            }}
+          />
           <MenuItem
             icon={<BookOpenText size={13} />}
             label="书架 · 切换项目"
@@ -325,19 +370,22 @@ function ThemeSwitchBtn({
   active,
   onClick,
   children,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <div
       onClick={onClick}
+      title={title}
       style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
         letterSpacing: '0.06em',
-        padding: '3px 8px',
+        padding: '3px 7px',
         borderRadius: 2,
         color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
         background: active ? 'hsl(var(--surface))' : 'transparent',

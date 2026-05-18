@@ -77,15 +77,11 @@ interface SettingsState {
   dateFormat: DateFormat;
   setDateFormat: (f: DateFormat) => void;
 
-  // 模型与 API
+  // 模型与 API — note: API keys are NOT here. They live in the OS keychain
+  // via `byok-keychain.ts`. Storing them in this persisted store would put
+  // them in plaintext localStorage. Only non-secret config belongs here.
   modelTier: ModelTier;
   setModelTier: (t: ModelTier) => void;
-  byokAnthropicKey: string | null;
-  setByokAnthropicKey: (k: string | null) => void;
-  byokOpenAIKey: string | null;
-  setByokOpenAIKey: (k: string | null) => void;
-  byokGoogleKey: string | null;
-  setByokGoogleKey: (k: string | null) => void;
   ollamaEndpoint: string;
   setOllamaEndpoint: (s: string) => void;
   uploadFullManuscript: boolean;
@@ -189,12 +185,6 @@ export const useSettingsStore = create<SettingsState>()(
 
       modelTier: 'standard',
       setModelTier: (t) => set({ modelTier: t }),
-      byokAnthropicKey: null,
-      setByokAnthropicKey: (k) => set({ byokAnthropicKey: k }),
-      byokOpenAIKey: null,
-      setByokOpenAIKey: (k) => set({ byokOpenAIKey: k }),
-      byokGoogleKey: null,
-      setByokGoogleKey: (k) => set({ byokGoogleKey: k }),
       ollamaEndpoint: 'http://localhost:11434',
       setOllamaEndpoint: (s) => set({ ollamaEndpoint: s }),
       uploadFullManuscript: true,

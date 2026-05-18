@@ -72,8 +72,13 @@ export type AppEvents = {
   'ui:command-palette-toggled': { open: boolean };
 
   // topbar related
-  'settings:open': void;
+  // settings:open optionally carries a rail id so callers can deep-link
+  // (e.g. user menu "键盘快捷键" → opens settings scrolled to the keys
+  // panel). Empty payload = open at last position.
+  'settings:open': { railId?: string };
   'search:open': void;
+  'export:open': void;
+  'import:open': void;
   'left-sidebar:toggle': void;
   'right-sidebar:toggle': void;
   'left-sidebar:collapse-all': void;

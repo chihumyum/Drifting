@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
+import { events } from '../../lib/events';
+import { SyncActivityPanel } from '../sync/SyncActivityPanel';
+import { useSyncObserver } from '../../services/sync-observer.service';
+import { accountService, type DeletionStatus } from '../../services/account.service';
+import {
+  subscriptionService,
+  type Invoice,
+  type SubscriptionStatus,
+} from '../../services/subscription.service';
 import {
   COPILOT_TASKS,
   useSettingsStore,
@@ -29,6 +39,8 @@ import { acceleratorFromEvent, formatAccelerator } from '../../lib/shortcuts';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Deep-link target. When set, scrolls to this rail on open. */
+  initialRailId?: string | null;
 }
 
 type RailId =
@@ -70,7 +82,23 @@ const RAIL: RailDef[] = [
   { id: 'about', group: '关于', glyph: '渡', label: '关于 Drifting' },
 ];
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+const RAIL_IDS = new Set<RailId>([
+  'account',
+  'subscription',
+  'usage',
+  'appearance',
+  'editor',
+  'language',
+  'models',
+  'shadow',
+  'copilot',
+  'keys',
+  'sync',
+  'privacy',
+  'about',
+]);
+
+export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalProps) {
   const [active, setActive] = useState<RailId>('account');
   const [query, setQuery] = useState('');
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +132,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     main.addEventListener('scroll', onScroll, { passive: true });
     return () => main.removeEventListener('scroll', onScroll);
   }, [isOpen]);
+
+  // Deep-link: when an external trigger opens the modal with a target rail
+  // id, jump there. Refs are populated after panels mount, so wait one
+  // microtask before scrolling. We use `instant` here — the deep-link
+  // shouldn't pretend to be a user scroll.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!initialRailId || !RAIL_IDS.has(initialRailId as RailId)) return;
+    const railId = initialRailId as RailId;
+    setActive(railId);
+    const apply = () => {
+      const el = panelRefs.current[railId];
+      const main = mainRef.current;
+      if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
+    };
+    // requestAnimationFrame to wait for the first layout pass after open.
+    const raf = requestAnimationFrame(apply);
+    return () => cancelAnimationFrame(raf);
+  }, [isOpen, initialRailId]);
 
   const onRail = useCallback((id: RailId) => {
     setActive(id);
@@ -358,9 +405,149 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
 
+  // Inline editing state for name + email. Password gets its own modal-y
+  // sub-form since it needs current + new + confirm.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  // Password change form — only mounted when user clicks "更改"
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+
+  // 2FA
+  const [tfaOpen, setTfaOpen] = useState(false);
+  const [tfaSecret, setTfaSecret] = useState<{ totpURI: string; backupCodes: string[] } | null>(null);
+  const [tfaCode, setTfaCode] = useState('');
+  const [tfaPassword, setTfaPassword] = useState('');
+  const [tfaBusy, setTfaBusy] = useState(false);
+  const [tfaError, setTfaError] = useState<string | null>(null);
+  // Optimistic: assume off until we hear otherwise. The user object from
+  // better-auth carries `twoFactorEnabled` once the plugin is wired up.
+  const tfaEnabled = (user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled ?? false;
+
+  // Deletion grace period
+  const [deletion, setDeletion] = useState<DeletionStatus | null>(null);
+  const [deletionBusy, setDeletionBusy] = useState(false);
+
+  // Sessions / devices
+  const [sessions, setSessions] = useState<
+    Awaited<ReturnType<typeof accountService.listSessions>> | null
+  >(null);
+
+  useEffect(() => {
+    void accountService.getDeletionStatus().then(setDeletion).catch(() => undefined);
+    void accountService.listSessions().then(setSessions).catch(() => undefined);
+  }, []);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const handleSaveName = async () => {
+    if (nameDraft === null) return;
+    setSavingName(true);
+    try {
+      await accountService.changeName(nameDraft.trim());
+      setNameDraft(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    if (emailDraft === null) return;
+    setSavingEmail(true);
+    try {
+      await accountService.changeEmail(emailDraft.trim());
+      setEmailDraft(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwBusy(true);
+    setPwError(null);
+    try {
+      await accountService.changePassword(pwCurrent, pwNew);
+      setPwOpen(false);
+      setPwCurrent('');
+      setPwNew('');
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const handleEnableTfa = async () => {
+    setTfaBusy(true);
+    setTfaError(null);
+    try {
+      const data = await accountService.enableTwoFactor(tfaPassword);
+      setTfaSecret(data);
+    } catch (err) {
+      setTfaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTfaBusy(false);
+    }
+  };
+
+  const handleVerifyTfa = async () => {
+    setTfaBusy(true);
+    setTfaError(null);
+    try {
+      await accountService.verifyTwoFactor(tfaCode.trim());
+      setTfaOpen(false);
+      setTfaSecret(null);
+      setTfaCode('');
+      setTfaPassword('');
+    } catch (err) {
+      setTfaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTfaBusy(false);
+    }
+  };
+
+  const handleDisableTfa = async () => {
+    const pw = window.prompt('请输入登录密码以关闭两步验证');
+    if (!pw) return;
+    try {
+      await accountService.disableTwoFactor(pw);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    if (!window.confirm('确认请求注销账户？账号将进入 30 天宽限期。')) return;
+    setDeletionBusy(true);
+    try {
+      const status = await accountService.requestDeletion();
+      setDeletion(status);
+    } finally {
+      setDeletionBusy(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    setDeletionBusy(true);
+    try {
+      await accountService.cancelDeletion();
+      setDeletion({ pending: false });
+    } finally {
+      setDeletionBusy(false);
+    }
   };
 
   return (
@@ -377,58 +564,249 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="显示名"
           desc="协作者与 Shadow 报告里看见的名字。"
           control={
-            <div className="set-field">
-              <span className="set-field__value">{user?.name ?? '未设置'}</span>
-              <button className="set-field__edit">编辑</button>
-            </div>
+            nameDraft !== null ? (
+              <>
+                <input
+                  className="set-input"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  className="set-btn set-btn--primary"
+                  onClick={handleSaveName}
+                  disabled={savingName}
+                >
+                  保存
+                </button>
+                <button className="set-btn" onClick={() => setNameDraft(null)}>
+                  取消
+                </button>
+              </>
+            ) : (
+              <div className="set-field">
+                <span className="set-field__value">{user?.name ?? '未设置'}</span>
+                <button className="set-field__edit" onClick={() => setNameDraft(user?.name ?? '')}>
+                  编辑
+                </button>
+              </div>
+            )
           }
-        />
-        <Row
-          label={
-            <>
-              笔名 <em>PEN NAME</em>
-            </>
-          }
-          desc="导出稿件 PDF / EPUB 时使用。可留空。"
-          control={<input className="set-input" defaultValue="" placeholder="留空即用显示名" />}
         />
         <Row
           label="邮箱"
           desc="用于登录与账户找回。"
           control={
-            <div className="set-field">
-              <span className="set-field__value set-mono">{user?.email ?? 'local@drifting.local'}</span>
-              <button className="set-field__edit">更改</button>
-            </div>
+            emailDraft !== null ? (
+              <>
+                <input
+                  className="set-input set-input--mono"
+                  type="email"
+                  value={emailDraft}
+                  onChange={(e) => setEmailDraft(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  className="set-btn set-btn--primary"
+                  onClick={handleSaveEmail}
+                  disabled={savingEmail}
+                >
+                  保存
+                </button>
+                <button className="set-btn" onClick={() => setEmailDraft(null)}>
+                  取消
+                </button>
+              </>
+            ) : (
+              <div className="set-field">
+                <span className="set-field__value set-mono">{user?.email ?? '—'}</span>
+                <button className="set-field__edit" onClick={() => setEmailDraft(user?.email ?? '')}>
+                  更改
+                </button>
+              </div>
+            )
           }
         />
+        <Row
+          label="密码"
+          desc="更改后其他设备会被强制下线。"
+          control={<button className="set-btn" onClick={() => setPwOpen((v) => !v)}>更改</button>}
+        />
+        {pwOpen && (
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: '12px 16px',
+              background: 'hsl(var(--paper-deep))',
+              borderRadius: 5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <input
+              className="set-input"
+              type="password"
+              placeholder="当前密码"
+              value={pwCurrent}
+              onChange={(e) => setPwCurrent(e.target.value)}
+            />
+            <input
+              className="set-input"
+              type="password"
+              placeholder="新密码（至少 8 位）"
+              value={pwNew}
+              onChange={(e) => setPwNew(e.target.value)}
+            />
+            {pwError && (
+              <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{pwError}</div>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className="set-btn set-btn--primary"
+                onClick={handleChangePassword}
+                disabled={pwBusy || pwCurrent.length === 0 || pwNew.length < 8}
+              >
+                保存密码
+              </button>
+              <button className="set-btn" onClick={() => setPwOpen(false)}>取消</button>
+            </div>
+          </div>
+        )}
+
         <Row
           label="两步验证"
           desc="使用 Authenticator App 接收一次性验证码。"
           control={
-            <>
-              <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>未启用</span>
-              <button className="set-btn">设置</button>
-            </>
+            tfaEnabled ? (
+              <>
+                <span className="set-mono" style={{ color: 'hsl(var(--accent))' }}>已启用 · TOTP</span>
+                <button className="set-btn set-btn--danger" onClick={handleDisableTfa}>关闭</button>
+              </>
+            ) : (
+              <>
+                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>未启用</span>
+                <button className="set-btn" onClick={() => setTfaOpen((v) => !v)}>设置</button>
+              </>
+            )
           }
         />
+        {tfaOpen && !tfaEnabled && (
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: '12px 16px',
+              background: 'hsl(var(--paper-deep))',
+              borderRadius: 5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            {!tfaSecret ? (
+              <>
+                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
+                  输入当前密码以生成 TOTP 密钥。
+                </div>
+                <input
+                  className="set-input"
+                  type="password"
+                  placeholder="登录密码"
+                  value={tfaPassword}
+                  onChange={(e) => setTfaPassword(e.target.value)}
+                />
+                {tfaError && (
+                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{tfaError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="set-btn set-btn--primary"
+                    onClick={handleEnableTfa}
+                    disabled={tfaBusy || tfaPassword.length === 0}
+                  >
+                    生成
+                  </button>
+                  <button className="set-btn" onClick={() => setTfaOpen(false)}>取消</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
+                  在 Authenticator App 中扫码或粘贴密钥，然后输入 6 位验证码。
+                </div>
+                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{tfaSecret.totpURI}</code>
+                <details>
+                  <summary style={{ cursor: 'pointer', fontSize: 12 }}>查看备份码（妥善保存）</summary>
+                  <ul style={{ fontFamily: 'var(--font-mono)', fontSize: 11, columns: 2 }}>
+                    {tfaSecret.backupCodes.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                </details>
+                <input
+                  className="set-input set-input--mono"
+                  placeholder="6 位验证码"
+                  value={tfaCode}
+                  onChange={(e) => setTfaCode(e.target.value)}
+                  maxLength={6}
+                />
+                {tfaError && (
+                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{tfaError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="set-btn set-btn--primary"
+                    onClick={handleVerifyTfa}
+                    disabled={tfaBusy || tfaCode.length !== 6}
+                  >
+                    验证并启用
+                  </button>
+                  <button className="set-btn" onClick={() => setTfaOpen(false)}>取消</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="set-sec">
-        <SecHead title="登入设备" hint="LAST 90 DAYS" />
-        <div className="set-device">
-          <div className="set-device__glyph">▤</div>
-          <div>
-            <div className="set-device__name">
-              <b>本机</b>
+        <SecHead title="登入设备" hint="ACTIVE SESSIONS" />
+        {sessions === null ? (
+          <div className="set-row__desc">读取中…</div>
+        ) : sessions.length === 0 ? (
+          <div className="set-row__desc">仅本机会话。</div>
+        ) : (
+          sessions.map((s) => (
+            <div className="set-device" key={s.id}>
+              <div className="set-device__glyph">{s.isCurrent ? '▤' : '▢'}</div>
+              <div>
+                <div className="set-device__name">
+                  <b>{s.userAgent ?? '未知设备'}</b>
+                </div>
+                <div className="set-device__meta">
+                  {s.ipAddress ?? '—'} · {new Date(s.createdAt).toLocaleString()}
+                </div>
+              </div>
+              <div className={'set-device__chip' + (s.isCurrent ? '' : ' set-device__chip--idle')}>
+                {s.isCurrent ? '本机' : '其他'}
+              </div>
+              <button
+                className="set-btn set-btn--ghost"
+                onClick={() =>
+                  s.isCurrent
+                    ? handleLogout()
+                    : accountService
+                        .revokeSession(s.id)
+                        .then(() => accountService.listSessions().then(setSessions))
+                }
+              >
+                {s.isCurrent ? '登出本机' : '撤销'}
+              </button>
             </div>
-            <div className="set-device__meta">DRIFTING · 此刻在线</div>
-          </div>
-          <div className="set-device__chip">本机</div>
-          <button className="set-btn set-btn--ghost" onClick={handleLogout}>
-            登出
-          </button>
-        </div>
+          ))
+        )}
       </div>
 
       <div className="set-danger">
@@ -438,11 +816,35 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
           desc="下载所有手稿、元素、Shadow 记录与版本历史。"
           control={<button className="set-btn">请求导出</button>}
         />
-        <Row
-          label="删除账户"
-          desc="将保留稿件 30 天后永久删除，期间可以恢复。"
-          control={<button className="set-btn set-btn--danger">删除…</button>}
-        />
+        {deletion?.pending ? (
+          <Row
+            label="账户已计划删除"
+            desc={`${deletion.daysLeft ?? 30} 天后永久删除（${deletion.scheduledAt ? new Date(deletion.scheduledAt).toLocaleDateString() : ''}）`}
+            control={
+              <button
+                className="set-btn"
+                onClick={handleCancelDeletion}
+                disabled={deletionBusy}
+              >
+                取消注销
+              </button>
+            }
+          />
+        ) : (
+          <Row
+            label="删除账户"
+            desc="将保留稿件 30 天后永久删除，期间可以恢复。"
+            control={
+              <button
+                className="set-btn set-btn--danger"
+                onClick={handleRequestDeletion}
+                disabled={deletionBusy}
+              >
+                删除…
+              </button>
+            }
+          />
+        )}
       </div>
     </section>
   );
@@ -451,27 +853,96 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
 // 订阅 — 仅展示当前计划与「升级 / 降级」「浏览发票」二级页面入口
 type SubView = 'overview' | 'plans' | 'invoices';
 
+const PLAN_LABEL: Record<string, string> = {
+  free: '渡口（免费）',
+  pro: 'Shadow Pro',
+  studio: 'Studio',
+};
+
+const PLAN_PRICE: Record<string, string> = {
+  free: '¥0',
+  pro: '¥58',
+  studio: '¥168',
+};
+
 function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [view, setView] = useState<SubView>('overview');
+  const [status, setStatus] = useState<SubscriptionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const s = await subscriptionService.getStatus();
+      setStatus(s);
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  // Refresh on window focus — covers the "redirected back from Stripe
+  // Checkout in the system browser" case.
+  useEffect(() => {
+    const onFocus = () => void reload();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [reload]);
+
+  useEffect(() => {
+    if (view !== 'invoices') return;
+    void subscriptionService.listInvoices().then((d) => setInvoices(d.invoices));
+  }, [view]);
+
+  const configured = !!status?.stripeConfigured;
+  const plan = status?.plan ?? 'free';
+  const planName = PLAN_LABEL[plan] ?? plan;
+  const renewLine = status?.currentPeriodEnd
+    ? `下次扣款 ${new Date(status.currentPeriodEnd).toLocaleDateString()}${
+        status.cancelAtPeriodEnd ? ' · 已取消（不会续费）' : ''
+      }`
+    : '尚未订阅付费方案';
 
   if (view === 'plans') {
     return (
       <section className="set-panel" ref={registerRef} id="subscription">
-        <button className="set-head__back" style={{ marginBottom: 12 }} onClick={() => setView('overview')}>
+        <button
+          className="set-head__back"
+          style={{ marginBottom: 12 }}
+          onClick={() => setView('overview')}
+        >
           <span>←</span>
           <span>返回订阅</span>
         </button>
         <PanelHead kicker="升级 / 降级" title="挑一个更合脚的方案。" />
+        {!configured && (
+          <div className="set-note" style={{ marginBottom: 16 }}>
+            支付通道暂未配置 <b>STRIPE_NOT_CONFIGURED</b>。后台填入 <code>STRIPE_SECRET_KEY</code>{' '}
+            后立即可用。
+          </div>
+        )}
         <div className="set-plans">
           <PlanCard
             kicker="免费"
             name="渡口"
             price="¥0"
-            features={['1 个项目 · 50,000 字', '基础任务自动化 · 50 次/月', '无 Shadow Agent', '无 BYOK']}
-            ctaLabel="降级"
+            features={[
+              '1 个项目 · 50,000 字',
+              '基础任务自动化 · 50 次/月',
+              '无 Shadow Agent',
+              '无 BYOK',
+            ]}
+            ctaLabel={plan === 'free' ? '当前方案' : '降级'}
+            current={plan === 'free'}
           />
           <PlanCard
-            kicker="当前 · CURRENT"
+            kicker={plan === 'pro' ? '当前 · CURRENT' : '主流推荐'}
             name="Shadow Pro"
             price="¥58"
             features={[
@@ -481,16 +952,28 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
               '自带模型 BYOK',
               '版本历史 90 天',
             ]}
-            ctaLabel="管理付款"
-            current
+            ctaLabel={plan === 'pro' ? '管理付款' : '升级'}
+            current={plan === 'pro'}
+            primary={plan !== 'pro' && configured}
+            onClick={async () => {
+              if (!configured) return;
+              if (plan === 'pro') await subscriptionService.openCustomerPortal();
+              else await subscriptionService.openCheckout('pro');
+            }}
           />
           <PlanCard
-            kicker="专业作家"
+            kicker={plan === 'studio' ? '当前 · CURRENT' : '专业作家'}
             name="Studio"
             price="¥168"
             features={['Shadow Agent · 不限', '协作者 · 5 席位', '版本历史 1 年', '优先稳定通道']}
-            ctaLabel="升级"
-            primary
+            ctaLabel={plan === 'studio' ? '管理付款' : '升级'}
+            current={plan === 'studio'}
+            primary={plan !== 'studio' && configured}
+            onClick={async () => {
+              if (!configured) return;
+              if (plan === 'studio') await subscriptionService.openCustomerPortal();
+              else await subscriptionService.openCheckout('studio');
+            }}
           />
         </div>
       </section>
@@ -500,28 +983,52 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   if (view === 'invoices') {
     return (
       <section className="set-panel" ref={registerRef} id="subscription">
-        <button className="set-head__back" style={{ marginBottom: 12 }} onClick={() => setView('overview')}>
+        <button
+          className="set-head__back"
+          style={{ marginBottom: 12 }}
+          onClick={() => setView('overview')}
+        >
           <span>←</span>
           <span>返回订阅</span>
         </button>
         <PanelHead kicker="发票 · INVOICES" title="过往扣款明细。" />
         <div className="set-sec">
-          <SecHead title="最近 6 张" />
-          {[
-            ['2026·05·14', 'INV-1058220'],
-            ['2026·04·14', 'INV-1042118'],
-            ['2026·03·14', 'INV-1026005'],
-            ['2026·02·14', 'INV-1010001'],
-            ['2026·01·14', 'INV-0994002'],
-            ['2025·12·14', 'INV-0978110'],
-          ].map(([d, no]) => (
-            <Row
-              key={no}
-              label={<span className="set-italic">{d} · Shadow Pro</span>}
-              desc={<span className="set-mono">RMB ¥58.00 · 已支付 · #{no}</span>}
-              control={<button className="set-btn">下载 PDF</button>}
-            />
-          ))}
+          <SecHead title="近期" />
+          {!configured && (
+            <div className="set-row__desc">支付通道未配置，无法获取发票。</div>
+          )}
+          {configured && invoices === null && <div className="set-row__desc">读取中…</div>}
+          {configured && invoices && invoices.length === 0 && (
+            <div className="set-row__desc">暂无发票记录。</div>
+          )}
+          {configured &&
+            invoices?.map((inv) => (
+              <Row
+                key={inv.id}
+                label={
+                  <span className="set-italic">
+                    {new Date(inv.createdAt).toLocaleDateString()} · {planName}
+                  </span>
+                }
+                desc={
+                  <span className="set-mono">
+                    {(inv.currency ?? '').toUpperCase()} {(inv.amount / 100).toFixed(2)} ·{' '}
+                    {inv.status}
+                    {inv.number ? ` · #${inv.number}` : ''}
+                  </span>
+                }
+                control={
+                  inv.pdfUrl ? (
+                    <button
+                      className="set-btn"
+                      onClick={() => window.open(inv.pdfUrl ?? '', '_blank')}
+                    >
+                      下载 PDF
+                    </button>
+                  ) : null
+                }
+              />
+            ))}
         </div>
       </section>
     );
@@ -533,17 +1040,30 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
         kicker="订阅 · SUBSCRIPTION"
         title="你的方案与发票。"
         sub={
-          <>
-            当前方案 <em className="set-italic">SHADOW · PRO</em>，下次续费 2026 年 6 月 14 日。
-          </>
+          loading ? (
+            '加载中…'
+          ) : configured ? (
+            <>
+              当前方案 <em className="set-italic">{planName.toUpperCase()}</em> · {renewLine}
+            </>
+          ) : (
+            <>
+              支付通道暂未配置。填入 <code>STRIPE_SECRET_KEY</code> 后立即可用。中国区可同步评估
+              微信 / 支付宝 商户号方案。
+            </>
+          )
         }
       />
 
       <div className="set-plan-current">
         <div className="set-plan-current__body">
-          <div className="set-plan-current__kicker">当前 · CURRENT</div>
-          <div className="set-plan-current__name">Shadow Pro</div>
-          <div className="set-plan-current__meta">¥58 / 月 · 微信支付 · 下次扣款 2026·06·14</div>
+          <div className="set-plan-current__kicker">
+            {plan === 'free' ? '免费' : '当前 · CURRENT'}
+          </div>
+          <div className="set-plan-current__name">{planName}</div>
+          <div className="set-plan-current__meta">
+            {PLAN_PRICE[plan] ?? '—'} / 月 · {renewLine}
+          </div>
         </div>
         <div className="set-plan-current__cta">
           <button className="set-btn" onClick={() => setView('plans')}>
@@ -555,19 +1075,20 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
         </div>
       </div>
 
-      <div className="set-sec" style={{ marginTop: 28 }}>
-        <SecHead title="付款方式" hint="下次扣款 2026·06·14" />
-        <Row
-          label={<span className="set-italic">微信支付 · 6231</span>}
-          desc="默认。在到期前 3 日扣款。"
-          control={
-            <>
-              <button className="set-btn">更换</button>
-              <button className="set-btn">添加方式</button>
-            </>
-          }
-        />
-      </div>
+      {configured && plan !== 'free' && (
+        <div className="set-sec" style={{ marginTop: 28 }}>
+          <SecHead title="付款方式 / 取消" hint="VIA STRIPE PORTAL" />
+          <Row
+            label="管理付款方式与发票"
+            desc="跳转到 Stripe 安全门户。"
+            control={
+              <button className="set-btn" onClick={() => subscriptionService.openCustomerPortal()}>
+                打开门户
+              </button>
+            }
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -580,6 +1101,7 @@ function PlanCard({
   ctaLabel,
   current,
   primary,
+  onClick,
 }: {
   kicker: string;
   name: string;
@@ -588,6 +1110,7 @@ function PlanCard({
   ctaLabel: string;
   current?: boolean;
   primary?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div className={'set-plan' + (current ? ' set-plan--current' : '')}>
@@ -604,7 +1127,13 @@ function PlanCard({
         </div>
       ))}
       <div className="set-plan__cta">
-        <button className={'set-btn' + (primary ? ' set-btn--primary' : '')}>{ctaLabel}</button>
+        <button
+          className={'set-btn' + (primary ? ' set-btn--primary' : '')}
+          onClick={onClick}
+          disabled={!onClick}
+        >
+          {ctaLabel}
+        </button>
       </div>
     </div>
   );
@@ -1037,12 +1566,6 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
   const {
     modelTier,
     setModelTier,
-    byokAnthropicKey,
-    setByokAnthropicKey,
-    byokOpenAIKey,
-    setByokOpenAIKey,
-    byokGoogleKey,
-    setByokGoogleKey,
     ollamaEndpoint,
     setOllamaEndpoint,
     uploadFullManuscript,
@@ -1093,30 +1616,27 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
         <SecHead title="自带密钥 · BYOK" hint="3 PROVIDERS" />
 
         <ProviderRow
+          provider="anthropic"
           logoClass="set-provider__logo--anthropic"
           logoText="A"
           name="Anthropic"
           desc="Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。"
-          k={byokAnthropicKey}
-          setK={setByokAnthropicKey}
         />
 
         <ProviderRow
+          provider="openai"
           logoClass="set-provider__logo--openai"
           logoText="O"
           name="OpenAI"
           desc="GPT 系列模型。"
-          k={byokOpenAIKey}
-          setK={setByokOpenAIKey}
         />
 
         <ProviderRow
+          provider="google"
           logoClass="set-provider__logo--google"
           logoText="G"
           name="Google"
           desc="Gemini 2.5 Pro / Flash · 长上下文场景。"
-          k={byokGoogleKey}
-          setK={setByokGoogleKey}
         />
       </div>
 
@@ -1183,29 +1703,57 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
 }
 
 function ProviderRow({
+  provider,
   logoClass,
   logoText,
   name,
   desc,
-  k,
-  setK,
 }: {
+  provider: BYOKProvider;
   logoClass: string;
   logoText: string;
   name: string;
   desc: string;
-  k: string | null;
-  setK: (s: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-  const connected = !!k;
+  const [stored, setStored] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const masked = useMemo(() => {
-    if (!k) return '';
-    const tail = k.length > 4 ? k.slice(-4) : k;
-    return `${'•'.repeat(Math.max(6, Math.min(20, k.length - 4)))}${tail}`;
-  }, [k]);
+  // Hydrate from the OS keychain on mount. The renderer never holds the
+  // secret in any persisted store — only this local state for masking.
+  useEffect(() => {
+    let cancelled = false;
+    byokKeychain.get(provider).then((value) => {
+      if (cancelled) return;
+      setStored(value);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [provider]);
+
+  const connected = !!stored;
+  const masked = useMemo(() => maskBYOK(stored), [stored]);
+
+  const save = async () => {
+    const value = draft.trim();
+    if (!value) {
+      await byokKeychain.clear(provider);
+      setStored(null);
+    } else {
+      await byokKeychain.set(provider, value);
+      setStored(value);
+    }
+    setDraft('');
+    setEditing(false);
+  };
+
+  const disconnect = async () => {
+    await byokKeychain.clear(provider);
+    setStored(null);
+  };
 
   return (
     <div className={'set-provider' + (connected ? ' set-provider--connected' : ' set-provider--disconnected')}>
@@ -1252,16 +1800,9 @@ function ProviderRow({
       )}
 
       <div className="set-provider__actions">
-        {editing ? (
+        {loading ? null : editing ? (
           <>
-            <button
-              className="set-btn set-btn--primary"
-              onClick={() => {
-                setK(draft.trim() || null);
-                setDraft('');
-                setEditing(false);
-              }}
-            >
+            <button className="set-btn set-btn--primary" onClick={save}>
               保存
             </button>
             <button
@@ -1287,7 +1828,7 @@ function ProviderRow({
               编辑密钥
             </button>
             <span style={{ flex: 1 }} />
-            <button className="set-btn set-btn--danger" onClick={() => setK(null)}>
+            <button className="set-btn set-btn--danger" onClick={disconnect}>
               断开
             </button>
           </>
@@ -1631,8 +2172,64 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 }
 
+function SyncSummaryRow() {
+  // Live metrics from the sync observer. We don't import the full
+  // SyncActivityPanel here — that keeps the overview row light.
+  const metrics = useSyncObserver((s) => s.metrics);
+  const last = metrics.lastSuccessAt
+    ? new Date(metrics.lastSuccessAt).toLocaleTimeString()
+    : '—';
+  const successPct = Math.round(metrics.successRate * 100);
+  return (
+    <Row
+      label="Drifting 云"
+      desc={
+        <>
+          上次成功 <span className="set-italic">{last}</span> · 成功率{' '}
+          <b>{successPct}%</b>
+          {metrics.inflight > 0 ? ` · 进行中 ${metrics.inflight}` : ''}
+        </>
+      }
+      control={
+        <>
+          <span
+            className="set-mono"
+            style={{ color: metrics.failed > 0 ? 'hsl(var(--accent))' : 'hsl(var(--accent))' }}
+          >
+            {metrics.inflight > 0 ? '同步中' : '在线'}
+          </span>
+          <button className="set-btn">立即同步</button>
+        </>
+      }
+    />
+  );
+}
+
 function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
   const { wifiOnlySync, setWifiOnlySync, autoSnapshot, setAutoSnapshot } = useSettingsStore();
+  const [activityOpen, setActivityOpen] = useState(false);
+
+  if (activityOpen) {
+    return (
+      <section className="set-panel" ref={registerRef} id="sync">
+        <button
+          className="set-head__back"
+          style={{ marginBottom: 12 }}
+          onClick={() => setActivityOpen(false)}
+        >
+          <span>←</span>
+          <span>返回同步</span>
+        </button>
+        <PanelHead
+          kicker="同步活动 · ACTIVITY"
+          title="刚才同步了什么。"
+          sub="最近 200 条同步事件。失败原因会展开在每行尾部。"
+        />
+        <SyncActivityPanel />
+      </section>
+    );
+  }
+
   return (
     <section className="set-panel" ref={registerRef} id="sync">
       <PanelHead
@@ -1643,14 +2240,14 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
 
       <div className="set-sec">
         <SecHead title="云同步" hint="E2E ENCRYPTED" />
+        <SyncSummaryRow />
         <Row
-          label="Drifting 云"
-          desc={<>主同步通道。<span className="set-italic">上次成功：刚刚</span></>}
+          label="同步活动"
+          desc="最近 200 条 push / pull 事件，含失败原因。"
           control={
-            <>
-              <span className="set-mono" style={{ color: 'hsl(var(--accent))' }}>在线</span>
-              <button className="set-btn">立即同步</button>
-            </>
+            <button className="set-btn" onClick={() => setActivityOpen(true)}>
+              查看完整记录
+            </button>
           }
         />
         <Row
@@ -1684,12 +2281,30 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label="导出整本"
           desc="支持 DOCX · EPUB · PDF · Markdown · 纯文本。"
-          control={<button className="set-btn">配置导出…</button>}
+          control={
+            <button
+              className="set-btn"
+              onClick={() => {
+                events.emit('export:open');
+              }}
+            >
+              配置导出…
+            </button>
+          }
         />
         <Row
           label="导入"
-          desc="从 Scrivener / Word / Markdown / 纯文本 导入。"
-          control={<button className="set-btn">选择文件…</button>}
+          desc="从 Markdown / Word / 纯文本 导入为章节、元素或灵感。"
+          control={
+            <button
+              className="set-btn"
+              onClick={() => {
+                events.emit('import:open');
+              }}
+            >
+              选择文件…
+            </button>
+          }
         />
       </div>
     </section>

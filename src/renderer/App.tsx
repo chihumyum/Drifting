@@ -27,6 +27,8 @@ import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperVi
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { ExportDialog } from './components/modals/ExportDialog';
+import { ImportDialog } from './components/modals/ImportDialog';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
@@ -34,6 +36,10 @@ import { initAccentColor } from './lib/theme';
 import { useUiStore, tabKey } from './store/ui-store';
 import { useSettingsStore } from './store/settings-store';
 import { useShortcutsStore } from './store/shortcuts-store';
+import { setI18nLocale } from './lib/i18n';
+import { applyEditorPreferences } from './lib/editor-preferences';
+import { startPreferencesSync } from './services/preferences-sync.service';
+import { startSyncObserver } from './services/sync-observer.service';
 import { matchesAccelerator } from './lib/shortcuts';
 import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
 import type { Editor } from '@tiptap/core';
@@ -141,6 +147,9 @@ function Layout() {
     projectId && location.pathname === `/project/${projectId}/home`,
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTargetRail, setSettingsTargetRail] = useState<string | null>(null);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
@@ -202,6 +211,50 @@ function Layout() {
     else root.setAttribute('data-no-anim', 'on');
   }, [animationsEnabled]);
 
+  // UI locale → i18next
+  const uiLocale = useSettingsStore((state) => state.uiLocale);
+  useEffect(() => {
+    setI18nLocale(uiLocale);
+  }, [uiLocale]);
+
+  // Editor typography → CSS variables on <html>. Select fields one at a
+  // time so each subscriber is a stable primitive identity — wrapping
+  // them in an object literal here would mint a new snapshot every render
+  // and trigger React's "getSnapshot should be cached" infinite loop.
+  const bodyFontSize = useSettingsStore((s) => s.bodyFontSize);
+  const editorLineHeight = useSettingsStore((s) => s.lineHeight);
+  const maxLineWidth = useSettingsStore((s) => s.maxLineWidth);
+  const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
+  const focusLine = useSettingsStore((s) => s.focusLine);
+  const entityHighlight = useSettingsStore((s) => s.entityHighlight);
+  const marginNotes = useSettingsStore((s) => s.marginNotes);
+  useEffect(() => {
+    applyEditorPreferences({
+      bodyFontSize,
+      lineHeight: editorLineHeight,
+      maxLineWidth,
+      paragraphIndent,
+      focusLine,
+      entityHighlight,
+      marginNotes,
+    });
+  }, [
+    bodyFontSize,
+    editorLineHeight,
+    maxLineWidth,
+    paragraphIndent,
+    focusLine,
+    entityHighlight,
+    marginNotes,
+  ]);
+
+  useEffect(() => {
+    // Start the sync history recorder. Safe to call multiple times; it
+    // only attaches the bus listener once. The HUD still listens directly
+    // for toasts — both consumers share the same `sync:operation` stream.
+    startSyncObserver();
+  }, []);
+
   useEffect(() => {
     // Initialize theme
     initAccentColor();
@@ -240,6 +293,12 @@ function Layout() {
         void pullAndHydrateProjectGraph(projectId).catch((error) => {
           log.warn('[App] Project graph hydrate failed:', error);
         });
+        // Settings cross-device sync. Independent of project state, but we
+        // wait until auth+db are ready so we know cookies are set and the
+        // store has had a chance to hydrate from localStorage.
+        void startPreferencesSync().catch((error) => {
+          log.warn('[App] Preferences sync init failed:', error);
+        });
       })
       .catch((error) => {
         log.error('[App] Failed to initialize database:', error);
@@ -249,15 +308,24 @@ function Layout() {
 
   // listen for left topbar events
   useEffect(() => {
-    const handleOpenSettings = () => setIsSettingsOpen(true);
+    const handleOpenSettings = (payload?: { railId?: string }) => {
+      setSettingsTargetRail(payload?.railId ?? null);
+      setIsSettingsOpen(true);
+    };
+    const handleOpenExport = () => setIsExportOpen(true);
+    const handleOpenImport = () => setIsImportOpen(true);
     const handleToggleLeftSidebar = () => useUiStore.getState().toggleSidebar('left');
     const handleToggleRightSidebar = () => useUiStore.getState().toggleSidebar('right');
     events.on('settings:open', handleOpenSettings);
+    events.on('export:open', handleOpenExport);
+    events.on('import:open', handleOpenImport);
     events.on('left-sidebar:toggle', handleToggleLeftSidebar);
     events.on('right-sidebar:toggle', handleToggleRightSidebar);
 
     return () => {
       events.off('settings:open', handleOpenSettings);
+      events.off('export:open', handleOpenExport);
+      events.off('import:open', handleOpenImport);
       events.off('left-sidebar:toggle', handleToggleLeftSidebar);
       events.off('right-sidebar:toggle', handleToggleRightSidebar);
     };
@@ -488,7 +556,16 @@ function Layout() {
       {activeSuperView === 'graph' && <GraphView />}
       {activeSuperView === 'element' && <SuperElementView />}
       {activeSuperView === 'reference' && <SuperReferenceView />}
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        initialRailId={settingsTargetRail}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          setSettingsTargetRail(null);
+        }}
+      />
+      <ExportDialog open={isExportOpen} onClose={() => setIsExportOpen(false)} />
+      <ImportDialog open={isImportOpen} onClose={() => setIsImportOpen(false)} />
       <GlobalSearchModal
         isOpen={isGlobalSearchOpen}
         onClose={() => setIsGlobalSearchOpen(false)}

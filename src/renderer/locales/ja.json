@@ -1,0 +1,20 @@
+{
+  "settings": {
+    "title": "設定",
+    "rail": {
+      "account": "アカウント",
+      "subscription": "サブスクリプション",
+      "usage": "Shadow 利用量",
+      "appearance": "外観",
+      "editor": "エディター",
+      "language": "言語",
+      "models": "モデルと API",
+      "shadow": "Shadow Agent",
+      "copilot": "Copilot · タスク",
+      "keys": "キーボード",
+      "sync": "同期とデータ",
+      "privacy": "プライバシー",
+      "about_app": "Drifting について"
+    }
+  }
+}

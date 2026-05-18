@@ -183,6 +183,19 @@ export const useAuthStore = create<AuthState>()(
 
       // 登出
       logout: async () => {
+        // Tear down cross-device prefs sync first so the next user starts
+        // clean and we don't push the outgoing user's state under the new
+        // session cookie.
+        try {
+          const { flushPreferencesSync, stopPreferencesSync } = await import(
+            '../services/preferences-sync.service'
+          );
+          await flushPreferencesSync();
+          stopPreferencesSync();
+        } catch (error) {
+          log.warn('[Auth] Preferences sync teardown failed:', error);
+        }
+
         if (!isAuthRequired()) {
           const localAuthState = getLocalAuthState();
           set(localAuthState);

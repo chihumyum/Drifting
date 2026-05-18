@@ -683,13 +683,47 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 
 .page__body .ProseMirror {
   font-family: var(--font-serif);
-  font-size: 17.5px;
-  line-height: 1.75;
+  font-size: var(--editor-font-size, 17.5px);
+  line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
   text-wrap: pretty;
   font-feature-settings: 'liga', 'kern', 'onum';
+  max-width: var(--editor-max-width, none);
+  margin-left: auto;
+  margin-right: auto;
 }
-.page__body .ProseMirror p { margin: 0 0 1.1em; }
+.page__body .ProseMirror p {
+  margin: 0 0 1.1em;
+  text-indent: var(--editor-indent, 0);
+}
+
+/* Focus modes — fade everything except the active scope. Class is set by
+   the editor when focus mode is active. CSS reads --editor-focus-line via
+   data-focus-line so themes/dark mode can override the opacity if needed. */
+html[data-focus-line='paragraph'] .page__body .ProseMirror p:not(.has-focus),
+html[data-focus-line='paragraph'] .page__body .ProseMirror h1:not(.has-focus),
+html[data-focus-line='paragraph'] .page__body .ProseMirror h2:not(.has-focus),
+html[data-focus-line='paragraph'] .page__body .ProseMirror h3:not(.has-focus),
+html[data-focus-line='line'] .page__body .ProseMirror p:not(.has-focus),
+html[data-focus-line='sentence'] .page__body .ProseMirror p:not(.has-focus) {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+html[data-focus-line='off'] .page__body .ProseMirror p,
+html[data-focus-line='off'] .page__body .ProseMirror h1,
+html[data-focus-line='off'] .page__body .ProseMirror h2,
+html[data-focus-line='off'] .page__body .ProseMirror h3 {
+  opacity: 1;
+}
+
+/* Entity-highlight master toggle. When off, drop the dotted/dashed cues on
+   auto/ai marks but keep manual links visible — manual marks are user intent
+   and shouldn't get hidden. */
+html[data-entity-highlight='off'] .entity-link--auto,
+html[data-entity-highlight='off'] .entity-link--ai {
+  background-image: none !important;
+  border-bottom-color: transparent !important;
+}
 .page__body .ProseMirror em { font-style: italic; color: hsl(var(--ink-2)); }
 .page__body .ProseMirror h1 {
   font-family: var(--font-serif);

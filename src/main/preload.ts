@@ -24,6 +24,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     close: () => ipcRenderer.invoke('db:close'),
   },
 
+  // BYOK secrets — never touch the renderer directly, always via main.
+  keychain: {
+    get: (key: string) => ipcRenderer.invoke('keychain:get', key),
+    set: (key: string, value: string) => ipcRenderer.invoke('keychain:set', key, value),
+    delete: (key: string) => ipcRenderer.invoke('keychain:delete', key),
+  },
+
   // OAuth: open system browser for social login
   auth: {
     openOAuthBrowser: (provider: string) => ipcRenderer.invoke('auth:oauth-open-browser', provider),
@@ -60,6 +67,11 @@ export interface ElectronAPI {
     onOAuthCallback: (
       callback: (data: { token: string | null; error: string | null }) => void,
     ) => () => void;
+  };
+  keychain: {
+    get: (key: string) => Promise<string | null>;
+    set: (key: string, value: string) => Promise<boolean>;
+    delete: (key: string) => Promise<boolean>;
   };
 }
 

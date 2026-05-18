@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
+import { registerKeyringIpc } from './keyring-ipc';
 
 function parseEnvValue(raw: string): string {
   const value = raw.trim();
@@ -145,6 +146,8 @@ const createWindow = () => {
 app.whenReady().then(async () => {
   // Setup database IPC handlers
   setupDatabase();
+  // BYOK keychain IPC
+  registerKeyringIpc();
 
   createWindow();
 

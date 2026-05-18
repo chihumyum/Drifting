@@ -1,0 +1,20 @@
+{
+  "settings": {
+    "title": "設定",
+    "rail": {
+      "account": "帳號",
+      "subscription": "訂閱",
+      "usage": "Shadow 用量",
+      "appearance": "外觀",
+      "editor": "編輯器",
+      "language": "語言",
+      "models": "模型與 API",
+      "shadow": "Shadow Agent",
+      "copilot": "Copilot · 任務",
+      "keys": "快捷鍵",
+      "sync": "同步與資料",
+      "privacy": "隱私",
+      "about_app": "關於 Drifting"
+    }
+  }
+}
