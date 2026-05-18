@@ -685,6 +685,7 @@ export function BottomTimeline() {
       <div
         key={`${node.id}-${storylineId}`}
         data-node-card
+        data-selected={isSelected ? 'true' : 'false'}
         className={className}
         draggable={isPrimary}
         onDragStart={(e) => handleNodeDragStart(e, node, storylineId)}

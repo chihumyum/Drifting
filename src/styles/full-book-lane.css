@@ -129,26 +129,6 @@
   color: hsl(var(--ink-1));
 }
 
-.fbl__playhead {
-  /* Lives on the lane only (no spill into storyline rows below). The user
-     asked for the playhead to be tracked here because bookOrder is always
-     non-null, so it's always renderable — unlike the row-level playhead
-     that disappeared in narrative view when narrativeOrder was missing. */
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: hsl(var(--accent));
-  pointer-events: none;
-  z-index: 4;
-  transition: left 220ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.fbl__playhead-diamond {
-  position: absolute;
-  top: -2px;
-  left: -4px;
-  width: 9px;
-  height: 9px;
-  background: hsl(var(--accent));
-  transform: rotate(45deg);
-}
+/* Playhead removed — was a 1px vertical accent line + diamond at the
+   active chip; ended up invisible in practice (chip's own .is-active
+   styling already conveys the "current chapter" signal). */

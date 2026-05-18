@@ -91,15 +91,9 @@ export function FullBookLane({
     return { lefts, widths, trackWidth: Math.max(0, acc - chipGap) };
   }, [sorted, chipGap]);
 
-  const activeIndex = useMemo(
-    () => (activeNodeId ? sorted.findIndex((n) => n.id === activeNodeId) : -1),
-    [sorted, activeNodeId],
-  );
-  // Playhead x = chip center for the active chip.
-  const playheadX =
-    activeIndex >= 0
-      ? chipLayout.lefts[activeIndex] + chipLayout.widths[activeIndex] / 2
-      : null;
+  // Playhead removed — the active chip's own `.is-active` styling carries
+  // the "current chapter" signal here; the extra vertical accent line
+  // ended up invisible in practice and was just chrome.
 
   return (
     <div className="fbl" style={{ height, minWidth: trackOffsetX }}>
@@ -138,11 +132,6 @@ export function FullBookLane({
             </button>
           );
         })}
-        {playheadX != null && (
-          <div className="fbl__playhead" style={{ left: playheadX }} aria-hidden>
-            <div className="fbl__playhead-diamond" />
-          </div>
-        )}
       </div>
     </div>
   );
