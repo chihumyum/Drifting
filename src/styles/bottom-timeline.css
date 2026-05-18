@@ -564,45 +564,6 @@
   z-index: 4;
 }
 
-/* ---------------- Playhead (currently-reading position) ---------------- */
-.btl-playhead {
-  position: absolute;
-  top: 0;
-  width: 1.5px;
-  background: hsl(var(--accent));
-  pointer-events: none;
-  z-index: 6;
-  transform: translateX(-0.75px);
-}
-.btl-playhead__head {
-  position: absolute;
-  top: -1px;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 9px solid hsl(var(--accent));
-  transform: translateX(-50%);
-  filter: drop-shadow(0 1px 2px hsl(var(--accent) / 0.35));
-}
-.btl-playhead__glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 8px;
-  height: 100%;
-  background: linear-gradient(
-    to right,
-    hsl(var(--accent) / 0.22),
-    transparent
-  );
-  transform: translateX(-3px);
-}
-.btl[data-state='strip'] .btl-playhead__head,
-.btl[data-state='strip'] .btl-playhead__glow {
-  display: none;
-}
 
 /* ---------------- Minimap (max-state overview) ---------------- */
 .btl-minimap {

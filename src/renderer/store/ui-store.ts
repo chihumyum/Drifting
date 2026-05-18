@@ -93,12 +93,6 @@ interface UiState {
   timelineHeight: number;
   setTimelineHeight: (height: number) => void;
 
-  // The currently-reading node + scroll progress (0..1) inside its body.
-  // Drives the BottomTimeline playhead; set by NodeEditorView on scroll,
-  // cleared when the node view unmounts.
-  readingProgress: { nodeId: string; percent: number } | null;
-  setReadingProgress: (progress: { nodeId: string; percent: number } | null) => void;
-
   // Left outline rail (per-editor TOC) collapse state. Shared across all
   // entity editors so the toggle persists when switching between chapter /
   // element / storyline / category tabs.
@@ -291,9 +285,6 @@ export const useUiStore = create<UiState>()(
         })),
       timelineHeight: 200,
       setTimelineHeight: (height) => set({ timelineHeight: height }),
-
-      readingProgress: null,
-      setReadingProgress: (progress) => set({ readingProgress: progress }),
 
       outlineCollapsed: false,
       setOutlineCollapsed: (collapsed) => set({ outlineCollapsed: collapsed }),

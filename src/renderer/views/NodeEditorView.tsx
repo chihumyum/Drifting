@@ -17,7 +17,7 @@ import { useDataStore } from '../store/data-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
+import { usePromoteCurrentTab } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -78,37 +78,6 @@ export function NodeEditorView() {
     outline.map((h) => h.id),
   );
 
-  // Reading-progress emitter: push (nodeId, scroll percent 0..1) to the UI
-  // store on every scroll so the BottomTimeline playhead stays in sync.
-  // Cleared when nodeId changes (so the playhead doesn't stick on the prior
-  // chapter) and on unmount.
-  const setReadingProgress = useUiStore((s) => s.setReadingProgress);
-  useEffect(() => {
-    if (!scrollEl || !nodeId) return;
-    let rafId: number | null = null;
-    const emit = () => {
-      rafId = null;
-      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
-      const percent = max > 0 ? Math.min(1, Math.max(0, scrollEl.scrollTop / max)) : 0;
-      setReadingProgress({ nodeId, percent });
-    };
-    // Initial reading position once the element mounts / nodeId changes.
-    emit();
-    const onScroll = () => {
-      if (rafId != null) return;
-      rafId = window.requestAnimationFrame(emit);
-    };
-    scrollEl.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      scrollEl.removeEventListener('scroll', onScroll);
-      if (rafId != null) window.cancelAnimationFrame(rafId);
-    };
-  }, [scrollEl, nodeId, setReadingProgress]);
-
-  // Clear when leaving the node view entirely so the playhead disappears.
-  useEffect(() => {
-    return () => setReadingProgress(null);
-  }, [setReadingProgress]);
   const [editingStorylines, setEditingStorylines] = useState(false);
   const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
   const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);

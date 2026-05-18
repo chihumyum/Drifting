@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useMatch } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
@@ -295,11 +295,17 @@ function TimelinePin({
 }
 
 export function BottomTimeline() {
-  const { storylineId, nodeId } = useParams<{ storylineId?: string; nodeId?: string }>();
+  // BottomTimeline is rendered inside Layout, which is a SIBLING of the
+  // route Outlet — so useParams() here only sees the parent route's
+  // params (projectId), not the child route's (nodeId / storylineId).
+  // Use useMatch against the known child-route patterns to recover them.
+  const editorMatch = useMatch('/project/:projectId/editor/:nodeId');
+  const storylineMatch = useMatch('/project/:projectId/editor/storyline/:storylineId');
+  const nodeId = editorMatch?.params.nodeId;
+  const storylineId = storylineMatch?.params.storylineId;
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
-  const readingProgress = useUiStore((state) => state.readingProgress);
   const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
   const { createNode, updateNode, deleteNode } = useBookNode({
@@ -1529,36 +1535,6 @@ export function BottomTimeline() {
               onDragMove={(nextStart) => handlePinDragMove(m.id, nextStart)}
             />
           ))}
-
-        {/* Playhead — anchored to whichever node the user is currently
-            viewing/editing. Prefers live reading-progress (set by
-            NodeEditorView on scroll); falls back to the route node at
-            percent=0 so the playhead is still visible the moment a
-            chapter is opened. */}
-        {(() => {
-          if (storylines.length === 0) return null;
-          const targetId = readingProgress?.nodeId ?? activeSelectedNodeId ?? null;
-          if (!targetId) return null;
-          const node = nodesWithStorylines.find((n) => n.id === targetId);
-          if (!node) return null;
-          const percent = readingProgress?.nodeId === node.id ? readingProgress.percent : 0;
-          const x =
-            railOffset + startToPosition(node.start) + getNodeWidth(node.id) * percent;
-          // Spans axis + rows so the triangle pin sits at the top of the
-          // dock (above the axis labels) and the line drops through the
-          // chapter tracks below, matching the design.
-          const fullHeight = overlayTopOffset + rowsAreaHeight;
-          return (
-            <div
-              className="btl-playhead"
-              style={{ left: x, top: 0, height: fullHeight }}
-              aria-hidden
-            >
-              <div className="btl-playhead__head" />
-              <div className="btl-playhead__glow" />
-            </div>
-          );
-        })()}
 
         {/* Cross-storyline links overlay — sits above the tracks area, below
             sticky rails (rails z-index 5, SVG z-index 4). Grid lines are
