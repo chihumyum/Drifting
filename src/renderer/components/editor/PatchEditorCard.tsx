@@ -47,7 +47,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     projectId,
     content: patch.contentJson,
     onPersist: handlePersist,
-    editorClass: 'prose prose-sm max-w-none focus:outline-none min-h-[120px]',
+    editorClass: 'focus:outline-none',
   });
 
   const handleSaveTitle = useCallback(async () => {
@@ -76,15 +76,15 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     : (patch.sourceNodeTitle ?? '无章节归属');
 
   return (
-    <div className="patch-card border border-gray-700 rounded p-3 bg-gray-850">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="patch-card">
+      <div className="patch-card__head">
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="text-gray-400 hover:text-gray-200 text-xs"
+          className="patch-card__toggle"
           aria-label={collapsed ? '展开' : '折叠'}
         >
-          {collapsed ? '▶' : '▼'}
+          {collapsed ? '▸' : '▾'}
         </button>
         <input
           type="text"
@@ -92,36 +92,36 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           onChange={(e) => setTitleValue(e.target.value)}
           onBlur={handleSaveTitle}
           placeholder="补丁标题（可选）"
-          className="flex-1 bg-transparent text-sm text-gray-100 focus:outline-none placeholder-gray-600"
+          className="patch-card__title"
         />
-        <span className="text-[10px] text-gray-500 max-w-[160px] truncate">
+        <span className="patch-card__scope">
           {patch.sourceBlockId ? '块级' : patch.sourceNodeId ? '章级' : '游离'}
         </span>
         <button
           type="button"
           onClick={handleDelete}
-          className="text-gray-500 hover:text-red-400 text-xs"
+          className="patch-card__delete"
           aria-label="删除补丁"
         >
           ×
         </button>
       </div>
-      <div className="flex items-center gap-2 text-[11px] text-gray-500 mb-2">
-        <span>来自:</span>
+      <div className="patch-card__anchor">
+        <span className="patch-card__anchor-label">来自</span>
         {patch.sourceNodeId ? (
           <button
             type="button"
             onClick={() => patch.sourceNodeId && navigateToNode(patch.sourceNodeId)}
-            className="underline hover:text-gray-300"
+            className="patch-card__anchor-link"
           >
             {anchorLabel}
           </button>
         ) : (
-          <span className="italic">{anchorLabel}</span>
+          <span className="patch-card__anchor-empty">{anchorLabel}</span>
         )}
       </div>
       {!collapsed && (
-        <div className="patch-content border-t border-gray-800 pt-2">
+        <div className="patch-card__body">
           <EditorContent editor={editor} />
         </div>
       )}

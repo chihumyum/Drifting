@@ -1192,6 +1192,415 @@ html[data-entity-highlight='off'] .entity-link--ai {
 .elem-body .ProseMirror em { font-style: italic; color: hsl(var(--ink-2)); }
 
 /* ============================================================
+   Entity references — manual relations + inline mention backlinks
+   on entity editors. Visual: index-card + paper chip, no dark fills.
+   ============================================================ */
+.refs-section { margin-top: 0; }
+
+.refs-section__header {
+  display: flex; align-items: baseline; gap: 12px;
+  margin: 36px 0 16px;
+  padding: 0 0 6px;
+  border-bottom: 1px dotted hsl(var(--rule));
+}
+.refs-section__num {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: hsl(var(--accent));
+}
+.refs-section__title {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 16px;
+  color: hsl(var(--ink-2));
+  letter-spacing: 0.005em;
+}
+.refs-section__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.refs-section__action {
+  margin-left: auto;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.refs-section__action:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.35);
+}
+
+.refs-empty {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-4));
+  padding: 2px 0 4px;
+}
+
+/* Manual relation chips — chip-style horizontal row. */
+.refs-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.refs-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 9px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  position: relative;
+}
+.refs-chip:hover {
+  border-color: hsl(var(--ink-4));
+  background: hsl(var(--surface));
+}
+.refs-chip__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ref-color, hsl(var(--ink-4)));
+  flex-shrink: 0;
+}
+.refs-chip__name {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refs-chip__dir {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-5));
+}
+.refs-chip__remove {
+  background: transparent;
+  border: 0;
+  padding: 0 0 0 2px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.refs-chip:hover .refs-chip__remove { opacity: 1; }
+.refs-chip__remove:hover { color: hsl(var(--accent)); }
+.refs-chip--add {
+  border-style: dashed;
+  cursor: pointer;
+}
+.refs-chip--add .refs-chip__name {
+  color: hsl(var(--ink-4));
+  font-size: 12px;
+}
+.refs-chip--add:hover {
+  border-style: solid;
+  border-color: hsl(var(--accent) / 0.5);
+}
+.refs-chip--add:hover .refs-chip__name { color: hsl(var(--accent)); }
+
+/* Mention cards — inline backlinks / outgoing reference rows. */
+.refs-cards { display: flex; flex-direction: column; }
+.refs-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 6px 9px 4px;
+  border-bottom: 1px dotted hsl(var(--rule));
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.refs-card:hover { background: hsl(var(--rule) / 0.35); }
+.refs-card:last-child { border-bottom: 0; }
+.refs-card__kind {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 60px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-card__kind-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--ref-color, hsl(var(--ink-4)));
+  flex-shrink: 0;
+}
+.refs-card__title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 14.5px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refs-card__meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-4));
+}
+.refs-card__arrow {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-5));
+  opacity: 0;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.refs-card:hover .refs-card__arrow {
+  opacity: 1;
+  color: hsl(var(--accent));
+  transform: translateX(2px);
+}
+
+/* Link picker — paper-deep envelope with mono filter chips. */
+.refs-picker {
+  margin: 4px 0 10px;
+  padding: 10px 12px 12px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 4px;
+}
+.refs-picker__filters {
+  display: flex; gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.refs-picker__filter {
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.refs-picker__filter:hover {
+  color: hsl(var(--ink-2));
+  border-color: hsl(var(--ink-4));
+}
+.refs-picker__filter--active {
+  color: hsl(var(--ink-1));
+  background: hsl(var(--page));
+  border-color: hsl(var(--ink-3));
+}
+.refs-picker__input {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-1));
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 3px;
+  outline: 0;
+  transition: border-color 0.12s;
+}
+.refs-picker__input::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.refs-picker__input:focus { border-color: hsl(var(--ink-3)); }
+.refs-picker__list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.refs-picker__item {
+  width: 100%;
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.refs-picker__item:hover { background: hsl(var(--paper-deep) / 0.6); }
+.refs-picker__item-kind {
+  display: inline-flex; align-items: center; gap: 6px;
+  width: 60px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-picker__item-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13.5px;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.refs-picker__empty {
+  padding: 6px 4px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+
+/* Kind palette — driven by data-kind="..." attribute */
+.refs-kind-element  { --ref-color: hsl(var(--el-person)); }
+.refs-kind-node     { --ref-color: hsl(var(--story-2)); }
+.refs-kind-category { --ref-color: hsl(var(--story-3)); }
+.refs-kind-storyline{ --ref-color: hsl(var(--story-6)); }
+.refs-kind-patch    { --ref-color: hsl(var(--el-period)); }
+
+.refs-loading {
+  padding: 18px 4px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-4));
+}
+
+/* ============================================================
+   Element patches — sidecar annotations to an element. Shares the
+   refs-section header and adopts a folded index-card visual.
+   ============================================================ */
+.patch-card {
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 3px;
+  background: hsl(var(--surface));
+  margin-bottom: 8px;
+  transition: border-color 0.12s;
+}
+.patch-card:hover { border-color: hsl(var(--ink-4)); }
+.patch-card__head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px 7px 6px;
+}
+.patch-card__toggle {
+  background: transparent; border: 0; padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  width: 16px; text-align: center;
+}
+.patch-card__toggle:hover { color: hsl(var(--accent)); }
+.patch-card__title {
+  flex: 1;
+  background: transparent; border: 0; outline: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: hsl(var(--ink-1));
+  padding: 0;
+}
+.patch-card__title::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.patch-card__scope {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  padding: 2px 6px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 2px;
+}
+.patch-card__delete {
+  background: transparent; border: 0; padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.patch-card:hover .patch-card__delete { opacity: 1; }
+.patch-card__delete:hover { color: hsl(var(--accent)); }
+.patch-card__anchor {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px 7px 22px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-4));
+}
+.patch-card__anchor-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+}
+.patch-card__anchor-link {
+  background: transparent; border: 0; padding: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dotted hsl(var(--ink-4));
+}
+.patch-card__anchor-link:hover {
+  color: hsl(var(--accent));
+  border-bottom-color: hsl(var(--accent));
+}
+.patch-card__anchor-empty {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-4));
+}
+.patch-card__body {
+  border-top: 1px dotted hsl(var(--rule));
+  padding: 10px 14px 12px;
+}
+.patch-card__body .ProseMirror {
+  outline: none;
+  min-height: 80px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.65;
+  color: hsl(var(--ink-1));
+}
+.patch-card__body .ProseMirror p { margin: 0 0 0.6em; }
+
+/* ============================================================
    Color picker — swatch row used in storyline / category hero
    ============================================================ */
 .col-pick { display: flex; gap: 8px; align-items: center; padding: 6px 0 2px; }

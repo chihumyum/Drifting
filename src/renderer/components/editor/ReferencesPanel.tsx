@@ -359,40 +359,38 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
   };
 
   if (loading) {
-    return (
-      <div className="references-panel p-4">
-        <div className="text-sm text-gray-400">加载中...</div>
-      </div>
-    );
+    return <div className="refs-loading">加载中…</div>;
   }
 
+  const kindClass = (kind: EntityKind) => `refs-kind-${kind}`;
+
   return (
-    <div className="references-panel p-4 space-y-5">
-      {/* Manual whole-entity links */}
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-300">手动关联 ({manualRelations.length})</h3>
+    <div className="references-panel">
+      {/* 三 · 关联 — manual whole-entity links */}
+      <section className="refs-section">
+        <div className="refs-section__header">
+          <span className="refs-section__num">三</span>
+          <span className="refs-section__title">关联</span>
+          <span className="refs-section__count">{manualRelations.length}</span>
           <button
             type="button"
             onClick={() => setShowLinkPicker((v) => !v)}
-            className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
+            className="refs-section__action"
           >
-            {showLinkPicker ? '取消' : '+ 关联'}
+            {showLinkPicker ? '取消' : '＋ 新增'}
           </button>
         </div>
 
         {showLinkPicker && (
-          <div className="mb-3 p-2 bg-gray-800 rounded space-y-2">
-            <div className="flex gap-1 text-xs">
+          <div className="refs-picker">
+            <div className="refs-picker__filters">
               {(['all', 'element', 'node', 'category', 'storyline'] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setPickerFilter(f)}
-                  className={`px-2 py-1 rounded ${
-                    pickerFilter === f
-                      ? 'bg-gray-600 text-gray-100'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  className={`refs-picker__filter${
+                    pickerFilter === f ? ' refs-picker__filter--active' : ''
                   }`}
                 >
                   {f === 'all' ? '全部' : labelForKind(f)}
@@ -404,27 +402,26 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
               autoFocus
               value={pickerQuery}
               onChange={(e) => setPickerQuery(e.target.value)}
-              placeholder="搜索..."
-              className="w-full px-2 py-1 text-sm bg-gray-900 text-gray-100 rounded border border-gray-700 focus:border-gray-500 focus:outline-none"
+              placeholder="搜索可关联的实体…"
+              className="refs-picker__input"
             />
-            <div className="max-h-60 overflow-y-auto">
+            <div className="refs-picker__list">
               {pickerCandidates.length === 0 ? (
-                <div className="text-xs text-gray-500 italic py-2">没有可选项</div>
+                <div className="refs-picker__empty">— 没有可选项 —</div>
               ) : (
                 pickerCandidates.map((c) => (
                   <button
                     key={`${c.kind}:${c.id}`}
                     type="button"
-                    // The click handler runs after render; it may trigger a
-                    // reload guarded by a generation ref.
                     // eslint-disable-next-line react-hooks/refs
                     onClick={() => handleAddManual(c.kind, c.id)}
-                    className="w-full text-left px-2 py-1 text-sm text-gray-200 hover:bg-gray-700 rounded flex items-center gap-2"
+                    className="refs-picker__item"
                   >
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
+                    <span className={`refs-picker__item-kind ${kindClass(c.kind)}`}>
+                      <span className="refs-card__kind-dot" />
                       {labelForKind(c.kind)}
                     </span>
-                    <span className="truncate">{c.name}</span>
+                    <span className="refs-picker__item-name">{c.name}</span>
                   </button>
                 ))
               )}
@@ -432,94 +429,111 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
           </div>
         )}
 
-        {manualRelations.length === 0 ? (
-          <div className="text-xs text-gray-500 italic">尚未手动关联任何实体</div>
-        ) : (
-          <div className="space-y-1">
-            {manualRelations.map((rel) => (
-              <div
-                key={rel.id}
-                className="flex items-center gap-2 p-2 bg-gray-800 hover:bg-gray-750 rounded text-sm group"
-              >
-                <span
-                  onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
-                  className="flex-1 cursor-pointer truncate text-gray-200 group-hover:text-white"
-                >
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 mr-2">
-                    {labelForKind(rel.otherKind)}
-                  </span>
-                  {rel.otherTitle}
-                  <span className="text-[10px] text-gray-500 ml-2">
-                    {rel.direction === 'outgoing' ? '指向' : '来自'}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveManual(rel)}
-                  className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-200 text-xs transition-opacity"
-                  aria-label="移除关联"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+        {manualRelations.length === 0 && !showLinkPicker ? (
+          <div className="refs-chips">
+            <button
+              type="button"
+              onClick={() => setShowLinkPicker(true)}
+              className="refs-chip refs-chip--add"
+            >
+              <span className="refs-chip__name">＋ 关联一个实体…</span>
+            </button>
           </div>
+        ) : (
+          manualRelations.length > 0 && (
+            <div className="refs-chips">
+              {manualRelations.map((rel) => (
+                <div
+                  key={rel.id}
+                  className={`refs-chip ${kindClass(rel.otherKind)}`}
+                  onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span className="refs-chip__dot" />
+                  <span className="refs-chip__name">{rel.otherTitle}</span>
+                  <span className="refs-chip__dir">
+                    {rel.direction === 'outgoing' ? '→' : '←'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleRemoveManual(rel);
+                    }}
+                    className="refs-chip__remove"
+                    aria-label="移除关联"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </section>
 
-      {/* Incoming inline mentions */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-300 mb-2">
-          被引用 ({incomingGroups.length})
-        </h3>
+      {/* 四 · 被引用 — incoming inline mentions */}
+      <section className="refs-section">
+        <div className="refs-section__header">
+          <span className="refs-section__num">四</span>
+          <span className="refs-section__title">被引用</span>
+          <span className="refs-section__count">{incomingGroups.length}</span>
+        </div>
         {incomingGroups.length === 0 ? (
-          <div className="text-xs text-gray-500 italic">尚未被任何内容引用</div>
+          <div className="refs-empty">— 尚未被任何内容引用 —</div>
         ) : (
-          <div className="space-y-1">
+          <div className="refs-cards">
             {incomingGroups.map((g) => (
               <div
                 key={g.key}
                 onClick={() => handleNavigate(g.fromKind, g.fromId)}
-                className="p-2 bg-gray-800 hover:bg-gray-750 rounded cursor-pointer group"
+                className="refs-card"
+                role="button"
+                tabIndex={0}
               >
-                <div className="flex items-center gap-2 text-sm text-gray-200 group-hover:text-white">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                    {labelForKind(g.fromKind)}
-                  </span>
-                  <span className="truncate flex-1">{g.fromTitle}</span>
-                </div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  {g.blockCount} 处 / {g.spanCount} 次
-                </div>
+                <span className={`refs-card__kind ${kindClass(g.fromKind)}`}>
+                  <span className="refs-card__kind-dot" />
+                  {labelForKind(g.fromKind)}
+                </span>
+                <span className="refs-card__title">{g.fromTitle}</span>
+                <span className="refs-card__meta">
+                  {g.blockCount} 处 · {g.spanCount} 次
+                </span>
+                <span className="refs-card__arrow">↗</span>
               </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* Outgoing inline mentions */}
+      {/* 五 · 引用其他 — outgoing inline mentions (element only) */}
       {entityKind === 'element' && (
-        <section>
-          <h3 className="text-sm font-semibold text-gray-300 mb-2">
-            引用其他 ({outgoingGroups.length})
-          </h3>
+        <section className="refs-section">
+          <div className="refs-section__header">
+            <span className="refs-section__num">五</span>
+            <span className="refs-section__title">引用其他</span>
+            <span className="refs-section__count">{outgoingGroups.length}</span>
+          </div>
           {outgoingGroups.length === 0 ? (
-            <div className="text-xs text-gray-500 italic">本元素正文中尚未引用其他实体</div>
+            <div className="refs-empty">— 正文中尚未引用其他实体 —</div>
           ) : (
-            <div className="space-y-1">
+            <div className="refs-cards">
               {outgoingGroups.map((g) => (
                 <div
                   key={g.key}
                   onClick={() => handleNavigate(g.toKind, g.toId)}
-                  className="p-2 bg-gray-800 hover:bg-gray-750 rounded cursor-pointer group"
+                  className="refs-card"
+                  role="button"
+                  tabIndex={0}
                 >
-                  <div className="flex items-center gap-2 text-sm text-gray-200 group-hover:text-white">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">
-                      {labelForKind(g.toKind)}
-                    </span>
-                    <span className="truncate flex-1">{g.toTitle}</span>
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">{g.spanCount} 次</div>
+                  <span className={`refs-card__kind ${kindClass(g.toKind)}`}>
+                    <span className="refs-card__kind-dot" />
+                    {labelForKind(g.toKind)}
+                  </span>
+                  <span className="refs-card__title">{g.toTitle}</span>
+                  <span className="refs-card__meta">{g.spanCount} 次</span>
+                  <span className="refs-card__arrow">↗</span>
                 </div>
               ))}
             </div>

@@ -49,31 +49,25 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   }, [elementId, projectId, reload]);
 
   if (loading) {
-    return (
-      <div className="patches-section p-4">
-        <div className="text-sm text-gray-400">加载中...</div>
-      </div>
-    );
+    return <div className="refs-loading">加载中…</div>;
   }
 
   return (
-    <div className="patches-section p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-300">补丁 ({patches.length})</h3>
-        <button
-          type="button"
-          onClick={handleAddFloating}
-          className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200"
-        >
-          + 新建补丁
+    <section className="refs-section patches-section">
+      <div className="refs-section__header">
+        <span className="refs-section__num">六</span>
+        <span className="refs-section__title">补丁</span>
+        <span className="refs-section__count">{patches.length}</span>
+        <button type="button" onClick={handleAddFloating} className="refs-section__action">
+          ＋ 新建
         </button>
       </div>
       {patches.length === 0 ? (
-        <div className="text-xs text-gray-500 italic">
-          尚无补丁。可在章节里用 /patch 创建关联到该章节或某段文字的补丁。
+        <div className="refs-empty">
+          — 尚无补丁。在章节里用 /patch 可创建关联到此元素的批注 —
         </div>
       ) : (
-        <div className="space-y-2">
+        <div>
           {patches.map((patch) => (
             <PatchEditorCard
               key={patch.id}
@@ -85,6 +79,6 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

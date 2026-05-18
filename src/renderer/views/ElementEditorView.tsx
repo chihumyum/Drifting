@@ -291,14 +291,10 @@ export function ElementEditorView() {
             {/* References + patches kept below the main body. These will move
                 into the right margin column once the annotation system lands. */}
             {elementId && projectId && (
-              <div style={{ marginTop: 32 }}>
-                <ReferencesPanel entityKind="element" entityId={elementId} projectId={projectId} />
-              </div>
+              <ReferencesPanel entityKind="element" entityId={elementId} projectId={projectId} />
             )}
             {elementId && projectId && (
-              <div style={{ marginTop: 16 }}>
-                <PatchesSection elementId={elementId} projectId={projectId} />
-              </div>
+              <PatchesSection elementId={elementId} projectId={projectId} />
             )}
           </article>
           </div>
