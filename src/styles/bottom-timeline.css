@@ -548,16 +548,19 @@
   filter: brightness(1.06);
 }
 .btl-clip.is-selected {
-  /* Accent-colored ring tinted by storyline color: visually present
-     without the heavy black-square look the old `ink-1` outline gave.
-     A subtle inner highlight + halo carries the "currently editing"
-     signal further than the outline alone. */
-  outline: 1.5px solid hsl(var(--accent));
-  outline-offset: 1px;
+  /* Inset accent ring + outer halo. Previous version used `outline` + a
+     box-shadow whose color depended on `hsl(var(--clip-color))` — but
+     `--clip-color` is set inline to either a hex string (e.g. '#2D4A6B')
+     or an already-computed hsl(...), neither of which is valid as the
+     argument to a NEW `hsl()` call. The shadow silently rendered as
+     transparent, and the thin 1.5px outline alone was easy to miss
+     against the tile's storyline color. */
   z-index: 2;
   box-shadow:
-    0 0 0 3px hsl(var(--accent) / 0.18),
-    0 2px 10px hsl(var(--clip-color, var(--ink-1)) / 0.25);
+    inset 0 0 0 2px hsl(var(--accent)),
+    0 0 0 2px hsl(var(--paper)),
+    0 0 0 4px hsl(var(--accent) / 0.45),
+    0 6px 14px hsl(var(--ink-1) / 0.25);
 }
 .btl-clip.is-draft {
   background: hsl(var(--paper));
