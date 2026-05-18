@@ -93,10 +93,15 @@
   z-index: 2;
 }
 .fbl__chip.is-active {
+  /* Opaque tint so the .fbl__line beneath doesn't bleed through the
+     chip — the previous 6% accent alpha was nearly transparent and the
+     base line was visible across the active chip. We layer a solid
+     paper-tinted-with-accent background instead of using transparency. */
   border-color: hsl(var(--accent));
-  background: hsl(var(--accent) / 0.06);
+  background: color-mix(in oklab, hsl(var(--paper)) 88%, hsl(var(--accent)) 12%);
   color: hsl(var(--ink-1));
   z-index: 3;
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25);
 }
 .fbl__chip.is-draft .fbl__chip-num {
   opacity: 0.55;

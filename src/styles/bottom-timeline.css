@@ -548,12 +548,16 @@
   filter: brightness(1.06);
 }
 .btl-clip.is-selected {
-  outline: 2px solid hsl(var(--ink-1));
+  /* Accent-colored ring tinted by storyline color: visually present
+     without the heavy black-square look the old `ink-1` outline gave.
+     A subtle inner highlight + halo carries the "currently editing"
+     signal further than the outline alone. */
+  outline: 1.5px solid hsl(var(--accent));
   outline-offset: 1px;
-  /* Just above sibling clips so the outline isn't clipped by an adjacent
-     clip's left edge; kept well below the sticky rail (z-index 20). */
   z-index: 2;
-  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.2);
+  box-shadow:
+    0 0 0 3px hsl(var(--accent) / 0.18),
+    0 2px 10px hsl(var(--clip-color, var(--ink-1)) / 0.25);
 }
 .btl-clip.is-draft {
   background: hsl(var(--paper));

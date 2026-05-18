@@ -447,7 +447,9 @@ export function BottomTimeline() {
     const sourceId = primaryStorylineId(node) ?? '';
     setDraggedNode({ node, storylineId: sourceId });
     e.dataTransfer.effectAllowed = 'move';
-    setUnplacedPopoverOpen(false);
+    // Do NOT close the popover here: re-rendering during dragstart unmounts
+    // the chip we just started dragging, and the browser cancels the drag.
+    // The popover closes on dragend (handleDragEnd) instead.
   };
 
   // Drags from the holding popover can ONLY drop on the node's main
@@ -531,6 +533,11 @@ export function BottomTimeline() {
   const handleDragEnd = () => {
     clearHoverPreview();
     clearDragState();
+    // Close the unplaced popover once the drag finishes (whether the drop
+    // succeeded or not). Closing earlier — e.g. on dragstart — would
+    // unmount the dragged chip mid-flight and the browser would cancel
+    // the drag entirely.
+    setUnplacedPopoverOpen(false);
   };
 
   const handleNodeClick = (clickedNodeId: string, e: React.MouseEvent) => {
@@ -587,73 +594,56 @@ export function BottomTimeline() {
       toX: number;
       toY: number;
       color: string;
-      markFrom: boolean;
-      markTo: boolean;
     };
     const links: Link[] = [];
 
-    for (const node of placedNodes) {
-      if (node.storylines.length <= 1) continue;
-      const mainId = primaryStorylineId(node);
-      if (!mainId) continue;
-      const mainRowIdx = storylineRowIndex.get(mainId);
-      if (mainRowIdx === undefined) continue;
+    // Iterate by lane edges, not by node. The old per-node iteration
+    // emitted four curves per A→B pair (two anchor perspectives × two
+    // half-paths), each ending at a PHANTOM point on the secondary row
+    // where neither node has a tile — hence the "凭空产生" complaint.
+    // Now: for each adjacent (A, B) pair in storyline S's lane, draw ONE
+    // curve from A's actual tile (on A's main row) to B's actual tile
+    // (on B's main row), colored S, dashed. The curve naturally sweeps
+    // through S's row when A and B sit on different main storylines, so
+    // the "transit through S" reading still reads visually — but every
+    // endpoint lands on a real tile.
+    for (const sl of storylines) {
+      const lane = sortedNodesByStoryline.get(sl.id) ?? [];
+      if (lane.length < 2) continue;
+      const color = sl.color || 'hsl(var(--ink-4))';
 
-      const nodeOrder = orderOf(node);
-      if (nodeOrder === null) continue;
-      const nodeMidX = orderToPosition(nodeOrder) + nodeWidth / 2;
+      for (let i = 0; i < lane.length - 1; i++) {
+        const a = lane[i];
+        const b = lane[i + 1];
+        const aMain = primaryStorylineId(a);
+        const bMain = primaryStorylineId(b);
+        // Skip when both A and B have S as their main storyline — the
+        // adjacency is already visible from the row's tile-to-tile
+        // sequence, so the curve would just be redundant clutter.
+        if (aMain === sl.id && bMain === sl.id) continue;
+        if (!aMain || !bMain) continue;
 
-      for (const sl of node.storylines) {
-        if (sl.id === mainId) continue;
-        const sRowIdx = storylineRowIndex.get(sl.id);
-        if (sRowIdx === undefined) continue;
+        const aRowIdx = storylineRowIndex.get(aMain);
+        const bRowIdx = storylineRowIndex.get(bMain);
+        if (aRowIdx === undefined || bRowIdx === undefined) continue;
 
-        const lane = sortedNodesByStoryline.get(sl.id) ?? [];
-        const idxInLane = lane.findIndex((n) => n.id === node.id);
-        if (idxInLane < 0) continue;
-        const prev = idxInLane > 0 ? lane[idxInLane - 1] : null;
-        const next = idxInLane < lane.length - 1 ? lane[idxInLane + 1] : null;
-        const color = sl.color || 'hsl(var(--ink-4))';
+        const aOrder = orderOf(a);
+        const bOrder = orderOf(b);
+        if (aOrder === null || bOrder === null) continue;
 
-        // Key encodes WHICH node anchors on its main row so adjacent pairs
-        // that both surface as transits don't collide on the same key.
-        if (prev) {
-          const prevOrder = orderOf(prev);
-          if (prevOrder !== null) {
-            const prevMidX = orderToPosition(prevOrder) + nodeWidth / 2;
-            links.push({
-              key: `${sl.id}|prev:${prev.id}->anchor:${node.id}`,
-              fromX: prevMidX,
-              fromY: sRowIdx,
-              toX: nodeMidX,
-              toY: mainRowIdx,
-              color,
-              markFrom: true,
-              markTo: false,
-            });
-          }
-        }
-        if (next) {
-          const nextOrder = orderOf(next);
-          if (nextOrder !== null) {
-            const nextMidX = orderToPosition(nextOrder) + nodeWidth / 2;
-            links.push({
-              key: `${sl.id}|anchor:${node.id}->next:${next.id}`,
-              fromX: nodeMidX,
-              fromY: mainRowIdx,
-              toX: nextMidX,
-              toY: sRowIdx,
-              color,
-              markFrom: false,
-              markTo: true,
-            });
-          }
-        }
+        links.push({
+          key: `xlink:${sl.id}:${a.id}->${b.id}`,
+          fromX: orderToPosition(aOrder) + nodeWidth / 2,
+          fromY: aRowIdx,
+          toX: orderToPosition(bOrder) + nodeWidth / 2,
+          toY: bRowIdx,
+          color,
+        });
       }
     }
     return links;
   }, [
-    placedNodes,
+    storylines,
     storylineRowIndex,
     sortedNodesByStoryline,
     orderToPosition,
@@ -1150,23 +1140,16 @@ export function BottomTimeline() {
               const midY = (y1 + y2) / 2;
               const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
               return (
-                <g key={link.key}>
-                  <path
-                    d={d}
-                    stroke={link.color}
-                    strokeWidth="1"
-                    strokeDasharray="2 3"
-                    strokeLinecap="round"
-                    fill="none"
-                    opacity="0.6"
-                  />
-                  {link.markFrom && (
-                    <circle cx={x1} cy={y1} r="2" fill={link.color} opacity="0.85" />
-                  )}
-                  {link.markTo && (
-                    <circle cx={x2} cy={y2} r="2" fill={link.color} opacity="0.85" />
-                  )}
-                </g>
+                <path
+                  key={link.key}
+                  d={d}
+                  stroke={link.color}
+                  strokeWidth="1"
+                  strokeDasharray="2 3"
+                  strokeLinecap="round"
+                  fill="none"
+                  opacity="0.6"
+                />
               );
             })}
           </svg>

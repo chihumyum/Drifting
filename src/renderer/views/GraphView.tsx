@@ -30,14 +30,22 @@ const GRAPH_CONFIG = {
   // Wider grid units than BottomTimeline — fullscreen has room to breathe.
   GRID_UNIT: 32,
   // Tile width in grid units; same convention as BottomTimeline.
-  TILE_WIDTH_UNITS: 4,
-  TILE_HEIGHT: 64,
-  TRACK_HEIGHT: 88,
+  TILE_WIDTH_UNITS: 5,
+  // Bigger tiles than Phase 3: GraphView is intended to grow into the
+  // primary editing surface for inter-node relationship graphs, so each
+  // tile needs room to host more attribute UI later.
+  TILE_HEIGHT: 96,
+  // Default storyline row height. Generous so the gaps between rows can
+  // host relationship edges + inline UI without the layout feeling
+  // cramped. Per-storyline overrides via TRACK_OVERRIDES below grow the
+  // row dynamically (e.g. when the user expands a storyline to author
+  // its relationship graph).
+  TRACK_HEIGHT: 160,
+  // Per-storyline track-height overrides keyed by storyline id. Reserved
+  // for the future "expand this row to author relationships" affordance;
+  // an empty record now means every row uses TRACK_HEIGHT.
   RAIL_WIDTH: 158,
   AXIS_HEIGHT: 32,
-  // Same as AXIS_HEIGHT so the top "header" section of the canvas is the
-  // same height regardless of mode — keeps the rail's spacer math simple
-  // and gives visual continuity when the user toggles between views.
   FULL_BOOK_LANE_HEIGHT: 32,
   CANVAS_PADDING_X: 24,
 };
@@ -241,54 +249,35 @@ export function GraphView() {
     const links: Link[] = [];
     const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
 
-    for (const node of positionedNodes) {
-      if (node.storylines.length <= 1) continue;
-      const mainId = primaryStorylineId(node);
-      if (!mainId) continue;
-      const nodeMidX = node.x + halfTile;
-      const nodeY = node.y;
-
-      for (const sl of node.storylines) {
-        if (sl.id === mainId) continue;
-        const rowIdx = storylineRowIndex.get(sl.id);
-        if (rowIdx === undefined) continue;
-        const sY = rowIdx * GRAPH_CONFIG.TRACK_HEIGHT + GRAPH_CONFIG.TRACK_HEIGHT / 2;
-
-        const lane = sortedNodesByStoryline.get(sl.id) ?? [];
-        const idx = lane.findIndex((n) => n.id === node.id);
-        if (idx < 0) continue;
-        const prev = idx > 0 ? lane[idx - 1] : null;
-        const next = idx < lane.length - 1 ? lane[idx + 1] : null;
-        const color = sl.color || 'hsl(var(--ink-4))';
-
-        // See BottomTimeline for why the key includes the anchor: two
-        // adjacent nodes sharing a secondary independently emit "prev→anchor"
-        // and "anchor→next" curves for the same ordered pair, anchored on
-        // different rows. Without the anchor in the key React dedupes them.
-        if (prev) {
-          links.push({
-            key: `${sl.id}|prev:${prev.id}->anchor:${node.id}`,
-            fromX: prev.x + halfTile,
-            fromY: sY,
-            toX: nodeMidX,
-            toY: nodeY,
-            color,
-          });
-        }
-        if (next) {
-          links.push({
-            key: `${sl.id}|anchor:${node.id}->next:${next.id}`,
-            fromX: nodeMidX,
-            fromY: nodeY,
-            toX: next.x + halfTile,
-            toY: sY,
-            color,
-          });
-        }
+    // Iterate lane edges (not per-node) and connect actual tiles. See the
+    // BottomTimeline equivalent: the old per-node approach emitted phantom
+    // endpoints on secondary rows where neither node had a tile, which the
+    // user noticed as dashed lines coming from nowhere.
+    for (const sl of storylines) {
+      const lane = sortedNodesByStoryline.get(sl.id) ?? [];
+      if (lane.length < 2) continue;
+      const color = sl.color || 'hsl(var(--ink-4))';
+      for (let i = 0; i < lane.length - 1; i++) {
+        const a = lane[i];
+        const b = lane[i + 1];
+        const aMain = primaryStorylineId(a);
+        const bMain = primaryStorylineId(b);
+        // Skip the redundant case where both A and B have S as their main:
+        // their adjacency is already visible from the row's tile sequence.
+        if (aMain === sl.id && bMain === sl.id) continue;
+        if (!aMain || !bMain) continue;
+        links.push({
+          key: `xlink:${sl.id}:${a.id}->${b.id}`,
+          fromX: a.x + halfTile,
+          fromY: a.y,
+          toX: b.x + halfTile,
+          toY: b.y,
+          color,
+        });
       }
     }
     return links;
-  }, [positionedNodes, primaryStorylineId, storylineRowIndex, sortedNodesByStoryline]);
+  }, [storylines, sortedNodesByStoryline, primaryStorylineId]);
 
   // ---- Relation edges (user-defined kinds) ----
   // Index positioned nodes for fast endpoint lookup. Edges whose endpoint
