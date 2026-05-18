@@ -789,32 +789,16 @@ html[data-entity-highlight='off'] .entity-link--ai {
   max-width: 720px;
 }
 
-/* Outline column — lives in .editor-body, sibling of .editor-scroll, sits
-   immediately to the manuscript's left because .editor-body centers the
-   [TOC + scroll] group. No sticky needed: it isn't inside the scrolling
-   viewport at all, so it stays put on its own. */
-.editor__toc {
-  width: 168px;
-  flex-shrink: 0;
-  padding: 28px 14px 12px 12px;
-  border-right: 1px dotted hsl(var(--rule));
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow-y: auto;
-  background: hsl(var(--surface));
-  align-self: stretch;
-}
-.editor__toc::-webkit-scrollbar { width: 4px; }
-.editor__toc::-webkit-scrollbar-thumb { background: hsl(var(--rule-strong)); border-radius: 2px; }
+/* Slim 32px rail — always in flow as a sibling of .editor-scroll, whether
+   the outline is collapsed or expanded. Hosts the toggle and (in expanded
+   mode) the overlay as a nested absolutely-positioned child. Because the
+   rail's footprint never changes width, expanding/collapsing the outline
+   never reflows the manuscript.
 
-/* Slim 32px rail — sibling of .editor-scroll when collapsed (any width)
-   or narrow-expanded. Hosts the toggle and (in narrow-expanded mode) the
-   overlay as a nested positioned child. `position: relative` makes the
-   rail the overlay's containing block so the overlay tracks the rail
-   wherever the centered group lands. `z-index: 5` lifts the rail's whole
-   stacking context above the manuscript so the overlay doesn't hide
-   behind page content. */
+   `position: relative` makes the rail the overlay's containing block so
+   the overlay tracks the rail wherever the centered group lands. `z-index`
+   lifts the rail's whole stacking context above the manuscript so the
+   overlay doesn't hide behind page content. */
 .editor__toc-rail {
   width: 32px;
   flex-shrink: 0;
@@ -829,29 +813,40 @@ html[data-entity-highlight='off'] .entity-link--ai {
   z-index: 5;
 }
 
-/* Overlay used only in narrow + expanded mode. Nested inside .editor__toc-rail,
-   so it's anchored to the rail's box — moves with the rail as the centered
-   group repositions, stays put as the user scrolls the page. Same visual
-   language as .editor__toc, with an opaque-to-near-opaque horizontal
-   gradient so manuscript text doesn't bleed through. */
+/* Expanded overlay panel. Always absolutely positioned against the rail —
+   never participates in flex layout — so the manuscript stays put when
+   the user toggles the outline. Two side variants chosen at runtime based
+   on how much empty space sits to the left of the rail.
+     • --left  → default. Anchored to the rail's left edge, extending into
+                 the body's empty left margin. No manuscript impact.
+     • --right → fallback when the left margin can't fit the panel.
+                 Anchored to the rail's right edge, floating above the
+                 manuscript with a near-opaque background. */
 .editor__toc-overlay {
   position: absolute;
-  left: 100%;
   top: 0;
   bottom: 0;
   width: 200px;
   padding: 28px 14px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  background: hsl(var(--surface));
+}
+.editor__toc-overlay--left {
+  right: 100%;
+  border-right: 1px dotted hsl(var(--rule));
+}
+.editor__toc-overlay--right {
+  left: 100%;
+  border-right: 1px dotted hsl(var(--rule));
   background: linear-gradient(
     to right,
     hsl(var(--surface)) 0%,
     hsl(var(--surface)) 72%,
     hsl(var(--surface) / 0.92) 100%
   );
-  border-right: 1px dotted hsl(var(--rule));
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow-y: auto;
 }
 .editor__toc-overlay::-webkit-scrollbar { width: 4px; }
 .editor__toc-overlay::-webkit-scrollbar-thumb { background: hsl(var(--rule-strong)); border-radius: 2px; }

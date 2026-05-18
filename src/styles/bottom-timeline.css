@@ -118,6 +118,154 @@
   color: hsl(var(--paper));
 }
 
+/* View toggle (书序 ↔ 叙事时) sits in the head-left cluster next to the
+   title so the active view is always visible while scanning the dock. */
+.btl__view-toggle {
+  display: inline-flex;
+  margin-left: 4px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  overflow: hidden;
+  background: hsl(var(--surface));
+}
+.btl__view-toggle button {
+  height: 20px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl__view-toggle button:hover {
+  color: hsl(var(--ink-2));
+  background: hsl(var(--rule) / 0.5);
+}
+.btl__view-toggle button.is-active {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+}
+
+/* ---------------- Holding drawer (narrative view only) ---------------- */
+/* A pull-down strip above the scroll area listing nodes with no
+   narrativeOrder. Drag a chip into the axis to assign one. */
+.btl-drawer {
+  flex-shrink: 0;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+}
+.btl-drawer__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 12px;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl-drawer__tab:hover {
+  background: hsl(var(--rule) / 0.4);
+  color: hsl(var(--ink-1));
+}
+.btl-drawer__tab-arrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  width: 8px;
+  display: inline-block;
+  text-align: center;
+}
+.btl-drawer__tab-count {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-2));
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 9px;
+  letter-spacing: 0;
+}
+.btl-drawer.is-open .btl-drawer__tab {
+  background: hsl(var(--rule) / 0.4);
+  color: hsl(var(--ink-1));
+}
+.btl-drawer__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 12px 8px;
+  border-top: 1px solid hsl(var(--rule));
+  max-height: 96px;
+  overflow-y: auto;
+}
+.btl-drawer__empty {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: hsl(var(--ink-4));
+  padding: 4px 0;
+}
+.btl-drawer__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  cursor: grab;
+  max-width: 220px;
+  user-select: none;
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s,
+    border-color 0.12s;
+}
+.btl-drawer__chip:active {
+  cursor: grabbing;
+}
+.btl-drawer__chip:hover {
+  border-color: var(--clip-color, hsl(var(--ink-3)));
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.06);
+}
+.btl-drawer__chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--clip-color, hsl(var(--ink-4)));
+  flex-shrink: 0;
+}
+.btl-drawer__chip-num {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: hsl(var(--ink-3));
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.btl-drawer__chip-title {
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: hsl(var(--ink-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------------- Scroll container ---------------- */
 .btl__scroll {
   flex: 1;
@@ -222,6 +370,149 @@
   height: 100%;
   border-radius: 4px;
   cursor: default;
+}
+
+/* ---------------- Time axis row (narrative view only) ---------------- */
+.btl-axis {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 22px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  position: relative;
+}
+.btl-axis__rail {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  padding: 0 10px 0 16px;
+  z-index: 20;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.btl-axis__rail-add {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  margin-left: 6px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.btl-axis__rail-add:hover {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+.btl-axis__rail-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btl-axis__track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  cursor: default;
+}
+
+/* ---------------- Time pin (narrative view, draggable marker) ----------------
+   A pin spans the axis + rows. Top-to-bottom:
+     1. editable label (sits in the axis row)
+     2. small down-pointing triangle (precise position pointer)
+     3. vertical line down through chapter rows (rendered inside each track)
+   Drag the label or the triangle horizontally to reposition — pins snap
+   to integer narrativeOrder slots. Double-click the label to rename;
+   clearing the label deletes the pin. */
+.btl-pin {
+  position: absolute;
+  top: 0;
+  width: 0;
+  z-index: 7;
+}
+.btl-pin__label {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 13px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-2));
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: grab;
+  outline: none;
+  min-width: 22px;
+  text-align: center;
+  user-select: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btl-pin.is-editing .btl-pin__label {
+  cursor: text;
+  user-select: text;
+  border-color: hsl(var(--accent));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  overflow: visible;
+}
+.btl-pin.is-dragging .btl-pin__label {
+  cursor: grabbing;
+  border-color: hsl(var(--accent));
+  color: hsl(var(--accent));
+}
+.btl-pin__head {
+  position: absolute;
+  top: 15px;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid hsl(var(--ink-4));
+  transform: translateX(-4px);
+  cursor: grab;
+}
+.btl-pin.is-dragging .btl-pin__head {
+  cursor: grabbing;
+  border-top-color: hsl(var(--accent));
+}
+/* Pin grid line — rendered inside each storyline track so it paints
+   below the chapter clips. */
+.btl-pin-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: hsl(var(--rule));
+  pointer-events: none;
+  z-index: 0;
+}
+.btl-pin-line.is-dragging {
+  background: hsl(var(--accent) / 0.55);
 }
 
 /* ---------------- Playhead (current-editing tile indicator) ---------------- */
