@@ -444,10 +444,6 @@
 .graph-tile.is-draft .graph-tile__title {
   color: hsl(var(--ink-3));
 }
-.graph-tile.is-active {
-  outline: 2px solid hsl(var(--accent));
-  outline-offset: 2px;
-}
 
 /* ---------------- Cross-storyline edges (transit trails) ---------------- */
 .graph-edges {

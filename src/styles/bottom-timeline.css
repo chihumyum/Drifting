@@ -547,24 +547,21 @@
 .btl-clip:hover {
   filter: brightness(1.06);
 }
-.btl-clip.is-selected {
-  /* "White ring then accent ring" pattern: a paper-colored gap right
-     against the tile (so the tile keeps its storyline color cleanly)
-     then a 2px accent ring outside that, plus a soft accent halo
-     beneath. Done entirely with non-inset box-shadow layers — no
-     `outline`, no scale, no inset. Stacking order is first-listed-on-top,
-     so the paper shadow paints over the accent shadow up to its own
-     extent (3px); the accent peeks out at 3–5px. */
-  z-index: 5;
-  box-shadow:
-    0 0 0 3px hsl(var(--paper)),
-    0 0 0 5px hsl(var(--accent)),
-    0 10px 24px -4px hsl(var(--accent) / 0.45);
-}
 .btl-clip.is-draft {
   background: hsl(var(--paper));
   color: var(--clip-color, hsl(var(--ink-3)));
   border: 1px dashed var(--clip-color, hsl(var(--ink-3)));
+}
+.btl-clip.is-selected,
+.btl-clip.is-selected.is-draft {
+  /* Same shape as the very first selection style (2px outline + soft
+     depth shadow), but the outline borrows the tile's storyline color
+     from the inline `--clip-color` var so it reads as "this storyline's
+     pick" instead of the old generic ink-black square. */
+  outline: 2px solid var(--clip-color, hsl(var(--ink-1)));
+  outline-offset: 1px;
+  z-index: 10;
+  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.2);
 }
 
 .btl-clip__content {

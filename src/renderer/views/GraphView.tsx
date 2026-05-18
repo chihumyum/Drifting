@@ -684,7 +684,6 @@ export function GraphView() {
 
             {/* Tiles */}
             {positionedNodes.map((node) => {
-              const isActive = node.id === activeId;
               const isTransfer = node.storylines.length > 1;
               const isDraft = node.wordCount === 0;
               const color = node.storyline?.color || 'hsl(var(--story-4))';
@@ -694,7 +693,6 @@ export function GraphView() {
                   key={node.id}
                   className={[
                     'graph-tile',
-                    isActive ? 'is-active' : '',
                     isTransfer ? 'is-transfer' : '',
                     isDraft ? 'is-draft' : '',
                     isLinkSource ? 'is-link-source' : '',
