@@ -205,6 +205,11 @@ export function BottomTimeline() {
   const user = useAuthStore((state) => state.user);
   const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
+  // Active chapter for the playhead. The route param drives the editor, but
+  // EditorShell mirrors that into `nodeUi.selectedId` and tile clicks also
+  // write here — so this store value is the authoritative "current chapter"
+  // across both navigation and in-timeline selection.
+  const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
   const { createNode, updateNode, deleteNode } = useBookNode({
@@ -215,7 +220,10 @@ export function BottomTimeline() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const activeSelectedNodeId = nodeId;
+  // Prefer the UI-store selection (kept in sync with the route by EditorShell
+  // AND set directly when a tile is clicked here). Fall back to the route
+  // param so the playhead survives a render where the store hasn't caught up.
+  const activeSelectedNodeId = selectedNodeUiId ?? nodeId;
 
   const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
     const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));

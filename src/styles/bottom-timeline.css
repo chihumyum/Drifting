@@ -523,7 +523,9 @@
   top: 0;
   width: 1px;
   background: hsl(var(--accent));
-  z-index: 4;
+  /* Above tracks/tiles/crosslinks (which sit at z 0–4) but below sticky
+     rails (z 20) and pin labels (z 7). */
+  z-index: 6;
   pointer-events: none;
 }
 .btl-playhead::before {
