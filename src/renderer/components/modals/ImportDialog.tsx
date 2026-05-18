@@ -159,10 +159,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
     let failed = 0;
 
     // For chapter / inspiration imports we append after the current max
-    // start. We snapshot once so a 50-file import stays monotonically
+    // bookOrder. We snapshot once so a 50-file import stays monotonically
     // ordered even as creations come back interleaved with React state.
-    let nextStart =
-      bookNodes.length > 0 ? Math.max(...bookNodes.map((n) => n.end ?? n.start)) + 1 : 0;
+    let nextOrder =
+      bookNodes.length > 0 ? Math.max(...bookNodes.map((n) => n.bookOrder)) + 1 : 0;
 
     const readyItems = items.filter((it) => it.status === 'ready' && it.parsed);
     for (const item of readyItems) {
@@ -178,20 +178,18 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           const created = await nodeUsecases.createNode({
             title,
             mainStorylineId: storylineId,
-            start: nextStart,
-            end: nextStart,
+            bookOrder: nextOrder,
           });
           await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
-          nextStart += 1;
+          nextOrder += 1;
         } else if (target === 'inspiration') {
           const created = await nodeUsecases.createNode({
             title,
             mainStorylineId: null,
-            start: nextStart,
-            end: nextStart,
+            bookOrder: nextOrder,
           });
           await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
-          nextStart += 1;
+          nextOrder += 1;
         } else if (target === 'element') {
           if (!categoryId) throw new Error('Category required');
           const created = await elementUsecases.createElement({ name: title, categoryId });

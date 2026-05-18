@@ -97,8 +97,15 @@ export const BookNodeTable = sqliteTable(
     id: text('id').primaryKey(),
     title: text('title').notNull(),
     summary: text('summary').notNull().default(''),
-    start: integer('start').notNull(),
-    end: integer('end').notNull().default(0), // Nullable in domain
+    // Pure sortable integer for book/reading order. Was `start` back when
+    // node tiles had a `start`/`end` "video clip" metaphor; the metaphor was
+    // dropped — tiles are fixed-width now and order is the only thing this
+    // value encodes.
+    bookOrder: integer('book_order').notNull(),
+    // Author-defined position on the narrative timeline (separate axis from
+    // book order — allows flashbacks / non-linear chronology). Nullable: a
+    // node may not yet be placed on the narrative axis.
+    narrativeOrder: integer('narrative_order'),
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
@@ -123,8 +130,8 @@ export const BookNodeTable = sqliteTable(
   (t) => [
     index('idx_book_node_project').on(t.projectId),
     index('idx_book_node_stage').on(t.storyStageId),
-    index('idx_book_node_project_start').on(t.projectId, t.start),
-    index('idx_book_node_project_end').on(t.projectId, t.end),
+    index('idx_book_node_project_book_order').on(t.projectId, t.bookOrder),
+    index('idx_book_node_project_narrative_order').on(t.projectId, t.narrativeOrder),
   ],
 );
 

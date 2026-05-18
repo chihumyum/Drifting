@@ -12,10 +12,8 @@ interface UseBottomTimelineContextMenuActionsParams {
   currentRouteNodeId?: string;
   nodesWithStorylines: TimelineNode[];
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  nodeDefaultWidth: number;
   createNode: (input: {
-    start: number;
-    end: number;
+    bookOrder: number;
     mainStorylineId: string;
     position: { x: number; y: number };
   }) => Promise<BookNode>;
@@ -36,7 +34,6 @@ export function useBottomTimelineContextMenuActions({
   currentRouteNodeId,
   nodesWithStorylines,
   scrollContainerRef,
-  nodeDefaultWidth,
   createNode,
   addNodeToStoryline,
   getStorylinesByNode,
@@ -69,8 +66,7 @@ export function useBottomTimelineContextMenuActions({
             contextMenu.position !== undefined
           ) {
             const newNode = await createNode({
-              start: contextMenu.position,
-              end: contextMenu.position + nodeDefaultWidth,
+              bookOrder: contextMenu.position,
               mainStorylineId: contextMenu.storylineId,
               position: { x: 0, y: 0 },
             });

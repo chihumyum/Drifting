@@ -5,22 +5,20 @@ import type { TimelineNode } from './types';
 interface UseBottomTimelineSelectorsParams {
   nodesWithStorylines: TimelineNode[];
   storylines: Storyline[];
-  nodeEnds: Map<string, number | null>;
   isExpanded: boolean;
   expandedScale: number;
   gridUnit: number;
-  nodeMinWidth: number;
+  // Fixed tile width in grid units. Tiles no longer have an `end`, so the
+  // visual span is constant rather than derived from start/end.
   nodeDefaultWidth: number;
 }
 
 export function useBottomTimelineSelectors({
   nodesWithStorylines,
   storylines,
-  nodeEnds,
   isExpanded,
   expandedScale,
   gridUnit,
-  nodeMinWidth,
   nodeDefaultWidth,
 }: UseBottomTimelineSelectorsParams) {
   const nodeById = useMemo(() => {
@@ -56,23 +54,24 @@ export function useBottomTimelineSelectors({
     return map;
   }, [nodesWithStorylines, storylines]);
 
-  const minNodeStart = useMemo(() => {
+  const minNodeOrder = useMemo(() => {
     if (nodesWithStorylines.length === 0) return 1;
-    return Math.min(...nodesWithStorylines.map((node) => node.start));
+    return Math.min(...nodesWithStorylines.map((node) => node.bookOrder));
   }, [nodesWithStorylines]);
 
-  // Keep timeline baseline stable so moving the earliest node right does not "zoom" the whole axis.
-  const minStart = Math.min(minNodeStart, 1);
+  // Keep the timeline baseline stable so moving the earliest node right does
+  // not "zoom" the whole axis.
+  const minOrder = Math.min(minNodeOrder, 1);
 
-  const maxNodeEnd = useMemo(() => {
-    if (nodesWithStorylines.length === 0) return minStart + nodeDefaultWidth;
-    return Math.max(
-      ...nodesWithStorylines.map((node) => node.end ?? node.start + nodeDefaultWidth),
-    );
-  }, [nodesWithStorylines, minStart, nodeDefaultWidth]);
+  const maxNodeOrder = useMemo(() => {
+    if (nodesWithStorylines.length === 0) return minOrder + nodeDefaultWidth;
+    return Math.max(...nodesWithStorylines.map((node) => node.bookOrder));
+  }, [nodesWithStorylines, minOrder, nodeDefaultWidth]);
 
-  const maxEnd = Math.max(maxNodeEnd, minStart + nodeDefaultWidth);
-  const timelineRange = Math.max(maxEnd - minStart, nodeDefaultWidth);
+  // Each tile occupies `nodeDefaultWidth` grid units, so the rightmost edge
+  // is one tile-width past the last node's bookOrder.
+  const maxOrder = Math.max(maxNodeOrder + nodeDefaultWidth, minOrder + nodeDefaultWidth);
+  const timelineRange = Math.max(maxOrder - minOrder, nodeDefaultWidth);
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const availableWidth = viewportWidth - 40;
 
@@ -82,27 +81,15 @@ export function useBottomTimelineSelectors({
   const extraSpace = isExpanded ? viewportWidth * 0.25 : 40;
   const timelineWidth = timelineRange * gridUnit * scaleFactor + extraSpace;
 
-  const getNodeWidth = useCallback(
-    (nodeId: string): number => {
-      const node = nodeById.get(nodeId);
-      if (!node) return nodeDefaultWidth * gridUnit * scaleFactor;
+  // Fixed tile width — book-order tiles have no `end`, so the visual span
+  // is `nodeDefaultWidth` grid units regardless of node.
+  const nodeWidth = nodeDefaultWidth * gridUnit * scaleFactor;
 
-      const end = nodeEnds.get(nodeId) ?? node.end;
-      if (end === null || end === undefined) {
-        return nodeDefaultWidth * gridUnit * scaleFactor;
-      }
-
-      const width = (end - node.start) * gridUnit * scaleFactor;
-      return Math.max(width, nodeMinWidth);
+  const orderToPosition = useCallback(
+    (order: number) => {
+      return (order - minOrder) * gridUnit * scaleFactor;
     },
-    [nodeById, nodeEnds, nodeDefaultWidth, gridUnit, scaleFactor, nodeMinWidth],
-  );
-
-  const startToPosition = useCallback(
-    (start: number) => {
-      return (start - minStart) * gridUnit * scaleFactor;
-    },
-    [minStart, gridUnit, scaleFactor],
+    [minOrder, gridUnit, scaleFactor],
   );
 
   const getNodesInStoryline = useCallback(
@@ -117,12 +104,12 @@ export function useBottomTimelineSelectors({
     storylineById,
     nodesByStoryline,
     getNodesInStoryline,
-    minStart,
-    maxEnd,
+    minOrder,
+    maxOrder,
     timelineRange,
     scaleFactor,
     timelineWidth,
-    getNodeWidth,
-    startToPosition,
+    nodeWidth,
+    orderToPosition,
   };
 }

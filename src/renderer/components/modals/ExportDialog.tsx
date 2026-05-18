@@ -95,11 +95,11 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
       // Drift nodes (mainStorylineId === null) are inspiration fragments,
       // not chapters in the manuscript — exclude them from book export.
-      // The remaining are ordered by their timeline `start` so the book
-      // reads in story-time order, matching the timeline rail.
+      // The remaining are ordered by their `bookOrder` so the export
+      // reads in reading order, matching the book-order timeline.
       const bookNodes = nodes
         .filter((n) => n.projectId === projectId && n.mainStorylineId !== null)
-        .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+        .sort((a, b) => a.bookOrder - b.bookOrder);
 
       const repo = createBookContentRepository();
       const chapters = await Promise.all(

@@ -39,7 +39,7 @@ export interface ElementPatchRepository {
   update(id: string, updates: UpdatePatchInput): Promise<ElementPatch | null>;
   delete(id: string): Promise<void>;
   findById(id: string): Promise<ElementPatch | null>;
-  // Lists patches for one element, ordered by chapter time (source node.start)
+  // Lists patches for one element, ordered by source node's bookOrder
   // then orderKey. Floating patches (no sourceNodeId) sort to the end.
   listByElement(elementId: string): Promise<PatchWithSourceTitle[]>;
   // Lists patches that originate from a specific chapter — used by the chapter
@@ -131,13 +131,13 @@ export function createElementPatchRepository(): ElementPatchRepository {
         createdAt: ElementPatchTable.createdAt,
         updatedAt: ElementPatchTable.updatedAt,
         sourceNodeTitle: BookNodeTable.title,
-        sourceNodeStart: BookNodeTable.start,
+        sourceNodeOrder: BookNodeTable.bookOrder,
       })
       .from(ElementPatchTable)
       .leftJoin(BookNodeTable, eq(ElementPatchTable.sourceNodeId, BookNodeTable.id))
       .where(eq(ElementPatchTable.elementId, elementId))
       .orderBy(
-        asc(BookNodeTable.start),
+        asc(BookNodeTable.bookOrder),
         asc(ElementPatchTable.orderKey),
         asc(ElementPatchTable.createdAt),
       );

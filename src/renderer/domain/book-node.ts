@@ -3,8 +3,12 @@ export interface BookNode {
   projectId: string;
   title: string;
   summary: string;
-  start: number; // Position on timeline (chapter order / story time start)
-  end: number; // Timeline end position
+  // Pure sortable integer for reading order. Drives book-order views.
+  bookOrder: number;
+  // Author-defined position on the narrative timeline (independent of
+  // bookOrder so flashbacks / non-linear chronology can be expressed).
+  // null = not yet placed on the narrative axis.
+  narrativeOrder: number | null;
   storyStageId: string | null;
   // null for "drift" nodes — free-floating notes/inspiration that don't
   // belong to any storyline and don't appear in timelines or graph view.

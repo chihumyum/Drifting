@@ -46,17 +46,10 @@ export function LeftQuickButtons() {
 
   const handleCreateChapter = async () => {
     try {
-      // Find the maximum end position among all nodes
-      // If no nodes exist, start from position 1
-      const maxEnd =
-        bookNodes.length > 0
-          ? bookNodes.reduce((max, node) => {
-              const nodeEnd = node.end ?? node.start;
-              return Math.max(max, nodeEnd);
-            }, 0)
-          : 0; // Start from 0 so first node begins at 1
-      const newStart = maxEnd + 1;
-      const newEnd = newStart + 10; // Default chapter length
+      // Append at the end of the book-order sequence; new chapters start at 1.
+      const maxOrder =
+        bookNodes.length > 0 ? bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0) : 0;
+      const nextOrder = maxOrder + 1;
 
       // 确定要添加到哪个 storyline
       let defaultStorylineId: string | null = null;
@@ -88,8 +81,7 @@ export function LeftQuickButtons() {
 
       const newNode = await createNode({
         title: 'New Chapter',
-        start: newStart,
-        end: newEnd,
+        bookOrder: nextOrder,
         mainStorylineId: defaultStorylineId,
       });
 
@@ -103,7 +95,7 @@ export function LeftQuickButtons() {
         ) as HTMLElement;
         if (timelineContainer) {
           const GRID_UNIT = 20; // Same as TIMELINE_CONFIG.GRID_UNIT
-          const scrollPosition = newStart * GRID_UNIT;
+          const scrollPosition = nextOrder * GRID_UNIT;
           timelineContainer.scrollTo({
             left: scrollPosition,
             behavior: 'smooth',

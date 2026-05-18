@@ -150,7 +150,7 @@ export function NodeEditorView() {
     return ids
       .map((id) => bookNodeById.get(id))
       .filter((n): n is BookNode => Boolean(n))
-      .sort((a, b) => a.start - b.start);
+      .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodeById, mainStoryline, storylineNodeMapping]);
 
   const chapterIndex = useMemo(() => {

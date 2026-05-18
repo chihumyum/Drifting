@@ -77,18 +77,13 @@ export function NewEntityButton() {
       const storylineNodes = bookNodes.filter(
         (node) => node.mainStorylineId === defaultStorylineId,
       );
-      const maxStorylineEnd = storylineNodes.reduce((maxEnd, node) => {
-        const nodeEnd = Math.max(node.end ?? node.start, node.start);
-        return Math.max(maxEnd, nodeEnd);
-      }, 0);
-      const newStart = maxStorylineEnd > 0 ? maxStorylineEnd + 1 : 1;
-      const newEnd = newStart + 10;
+      const maxOrder = storylineNodes.reduce((m, n) => Math.max(m, n.bookOrder), 0);
+      const nextOrder = maxOrder > 0 ? maxOrder + 1 : 1;
 
       const newNode = await createNode({
         title: 'New Chapter',
         mainStorylineId: defaultStorylineId,
-        start: newStart,
-        end: newEnd,
+        bookOrder: nextOrder,
       });
 
       openEntity({ entityType: 'node', id: newNode.id }, { preview: false });
@@ -100,7 +95,7 @@ export function NewEntityButton() {
         if (timelineContainer) {
           const GRID_UNIT = 20;
           timelineContainer.scrollTo({
-            left: newStart * GRID_UNIT,
+            left: nextOrder * GRID_UNIT,
             behavior: 'smooth',
           });
         }

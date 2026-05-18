@@ -463,10 +463,8 @@ function ChapterStats({
               </MetaV>
             </>
           )}
-          <MetaK>时间区间</MetaK>
-          <MetaV>
-            第 {node.start} ~ {node.end} 段
-          </MetaV>
+          <MetaK>书序</MetaK>
+          <MetaV>第 {node.bookOrder} 章</MetaV>
           <MetaK>最近修改</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(node.updatedAt)}</SerifSpan>

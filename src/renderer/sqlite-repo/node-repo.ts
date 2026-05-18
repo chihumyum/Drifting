@@ -21,8 +21,8 @@ export interface BookNodeRepository {
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
   swapOrder(
-    first: Pick<BookNode, 'id' | 'start'>,
-    second: Pick<BookNode, 'id' | 'start'>,
+    first: Pick<BookNode, 'id' | 'bookOrder'>,
+    second: Pick<BookNode, 'id' | 'bookOrder'>,
   ): Promise<void>;
 }
 
@@ -43,8 +43,8 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     id: record.id,
     projectId: record.projectId,
     title: record.title,
-    start: record.start,
-    end: record.end ?? 0, // Domain requires number, default to 0 if null
+    bookOrder: record.bookOrder,
+    narrativeOrder: record.narrativeOrder ?? null,
     summary: record.summary,
     storyStageId: record.storyStageId ?? null,
     mainStorylineId: record.mainStorylineId ?? null,
@@ -101,7 +101,7 @@ export function createBookNodeSqliteRepository(
         .select()
         .from(BookNodeTable)
         .where(eq(BookNodeTable.projectId, pid))
-        .orderBy(asc(BookNodeTable.start));
+        .orderBy(asc(BookNodeTable.bookOrder));
       return rows.map(toBookNode);
     },
 
@@ -125,8 +125,8 @@ export function createBookNodeSqliteRepository(
         id: data.id,
         projectId: data.projectId,
         title: data.title,
-        start: data.start,
-        end: data.end,
+        bookOrder: data.bookOrder,
+        narrativeOrder: data.narrativeOrder,
         summary: data.summary,
         storyStageId: data.storyStageId ?? null,
         mainStorylineId: data.mainStorylineId ?? null,
@@ -163,8 +163,8 @@ export function createBookNodeSqliteRepository(
       };
 
       if (updates.title !== undefined) updateValues.title = updates.title;
-      if (updates.start !== undefined) updateValues.start = updates.start;
-      if (updates.end !== undefined) updateValues.end = updates.end;
+      if (updates.bookOrder !== undefined) updateValues.bookOrder = updates.bookOrder;
+      if (updates.narrativeOrder !== undefined) updateValues.narrativeOrder = updates.narrativeOrder;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
       if (updates.storyStageId !== undefined)
         updateValues.storyStageId = updates.storyStageId ?? null;
@@ -202,11 +202,11 @@ export function createBookNodeSqliteRepository(
       if (dbOverride) {
         await db
           .update(BookNodeTable)
-          .set({ start: second.start, updatedAt: now })
+          .set({ bookOrder: second.bookOrder, updatedAt: now })
           .where(eq(BookNodeTable.id, first.id));
         await db
           .update(BookNodeTable)
-          .set({ start: first.start, updatedAt: now })
+          .set({ bookOrder: first.bookOrder, updatedAt: now })
           .where(eq(BookNodeTable.id, second.id));
         return;
       }
@@ -214,12 +214,12 @@ export function createBookNodeSqliteRepository(
       await db.transaction(async (tx) => {
         await tx
           .update(BookNodeTable)
-          .set({ start: second.start, updatedAt: now })
+          .set({ bookOrder: second.bookOrder, updatedAt: now })
           .where(eq(BookNodeTable.id, first.id));
 
         await tx
           .update(BookNodeTable)
-          .set({ start: first.start, updatedAt: now })
+          .set({ bookOrder: first.bookOrder, updatedAt: now })
           .where(eq(BookNodeTable.id, second.id));
       });
     },

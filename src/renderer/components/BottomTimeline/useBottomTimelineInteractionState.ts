@@ -3,27 +3,17 @@ import type { BottomTimelineContextMenuState, TimelineNode } from './types';
 
 export interface BottomTimelineDragOverPosition {
   storylineId: string;
-  start: number;
+  // Target bookOrder slot the dragged tile would snap into.
+  order: number;
   x: number;
-}
-
-export interface BottomTimelineResizingNode {
-  nodeId: string;
-  storylineId: string;
-  edge: 'left' | 'right';
-  startX: number;
-  startStart: number;
-  startEnd: number | null;
 }
 
 interface BottomTimelineInteractionState {
   draggedNode: { node: TimelineNode; storylineId: string } | null;
   dragOverPosition: BottomTimelineDragOverPosition | null;
   contextMenu: BottomTimelineContextMenuState | null;
-  hoveredEdge: { nodeId: string; edge: 'left' | 'right' } | null;
   hoveredNodeId: string | null;
   hoverPosition: { x: number; y: number } | null;
-  resizingNode: BottomTimelineResizingNode | null;
 }
 
 type BottomTimelineInteractionAction =
@@ -32,20 +22,15 @@ type BottomTimelineInteractionAction =
   | { type: 'clearDragState' }
   | { type: 'setContextMenu'; payload: BottomTimelineContextMenuState | null }
   | { type: 'clearContextMenu' }
-  | { type: 'setHoveredEdge'; payload: { nodeId: string; edge: 'left' | 'right' } | null }
   | { type: 'setHoverPreview'; payload: { nodeId: string; position: { x: number; y: number } } }
-  | { type: 'clearHoverPreview' }
-  | { type: 'setResizingNode'; payload: BottomTimelineResizingNode | null }
-  | { type: 'clearResizingNode' };
+  | { type: 'clearHoverPreview' };
 
 const initialInteractionState: BottomTimelineInteractionState = {
   draggedNode: null,
   dragOverPosition: null,
   contextMenu: null,
-  hoveredEdge: null,
   hoveredNodeId: null,
   hoverPosition: null,
-  resizingNode: null,
 };
 
 function interactionReducer(
@@ -63,8 +48,6 @@ function interactionReducer(
       return { ...state, contextMenu: action.payload };
     case 'clearContextMenu':
       return { ...state, contextMenu: null };
-    case 'setHoveredEdge':
-      return { ...state, hoveredEdge: action.payload };
     case 'setHoverPreview':
       return {
         ...state,
@@ -77,10 +60,6 @@ function interactionReducer(
         hoveredNodeId: null,
         hoverPosition: null,
       };
-    case 'setResizingNode':
-      return { ...state, resizingNode: action.payload };
-    case 'clearResizingNode':
-      return { ...state, resizingNode: null };
     default:
       return state;
   }
@@ -112,13 +91,6 @@ export function useBottomTimelineInteractionState() {
     dispatch({ type: 'clearContextMenu' });
   }, []);
 
-  const setHoveredEdge = useCallback(
-    (payload: { nodeId: string; edge: 'left' | 'right' } | null) => {
-      dispatch({ type: 'setHoveredEdge', payload });
-    },
-    [],
-  );
-
   const setHoverPreview = useCallback(
     (payload: { nodeId: string; position: { x: number; y: number } }) => {
       dispatch({ type: 'setHoverPreview', payload });
@@ -130,14 +102,6 @@ export function useBottomTimelineInteractionState() {
     dispatch({ type: 'clearHoverPreview' });
   }, []);
 
-  const setResizingNode = useCallback((payload: BottomTimelineResizingNode | null) => {
-    dispatch({ type: 'setResizingNode', payload });
-  }, []);
-
-  const clearResizingNode = useCallback(() => {
-    dispatch({ type: 'clearResizingNode' });
-  }, []);
-
   return {
     ...state,
     setDraggedNode,
@@ -145,10 +109,7 @@ export function useBottomTimelineInteractionState() {
     clearDragState,
     setContextMenu,
     clearContextMenu,
-    setHoveredEdge,
     setHoverPreview,
     clearHoverPreview,
-    setResizingNode,
-    clearResizingNode,
   };
 }

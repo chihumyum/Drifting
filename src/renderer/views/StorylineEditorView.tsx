@@ -52,7 +52,7 @@ export function StorylineEditorView() {
     return ids
       .map((id) => byId.get(id))
       .filter((n): n is NonNullable<typeof n> => Boolean(n))
-      .sort((a, b) => a.start - b.start);
+      .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodes, storylineId, storylineNodeMapping]);
 
   const totalWc = sNodes.reduce((sum, n) => sum + (n.wordCount || 0), 0);

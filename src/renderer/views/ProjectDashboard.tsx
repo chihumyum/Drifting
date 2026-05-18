@@ -338,7 +338,7 @@ export function ProjectDashboard() {
               </div>
               <div className="dash-continue__path">
                 {continueStoryline ? `${continueStoryline.name} · ` : ''}
-                §{String(continueNode.start || 1).padStart(2, '0')}
+                §{String(continueNode.bookOrder || 1).padStart(2, '0')}
               </div>
               <h2 className="dash-continue__title">{continueNode.title || 'Untitled'}</h2>
               {continueNode.summary && (
@@ -482,7 +482,7 @@ export function ProjectDashboard() {
                           className={`dash-track__ch dash-track__ch--${status} ${
                             isActive ? 'dash-track__ch--active' : ''
                           }`}
-                          title={`§${n.start} · ${n.title} · ${status}`}
+                          title={`§${n.bookOrder} · ${n.title} · ${status}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openEntity({ entityType: 'node', id: n.id });

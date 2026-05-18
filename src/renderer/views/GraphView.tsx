@@ -139,8 +139,8 @@ export function GraphView() {
         .map((id) => bookNodes.find((n) => n.id === id))
         .filter((n): n is BookNode => !!n);
 
-      // Sort by chronological start order
-      nodesInStoryline.sort((a, b) => a.start - b.start);
+      // Sort by book order so adjacency mirrors reading sequence.
+      nodesInStoryline.sort((a, b) => a.bookOrder - b.bookOrder);
 
       for (let i = 0; i < nodesInStoryline.length - 1; i++) {
         const source = nodesInStoryline[i];

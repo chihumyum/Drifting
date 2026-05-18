@@ -99,7 +99,7 @@ export function NodesPanel() {
       bookNodes
         .filter((n) => n.mainStorylineId != null)
         .slice()
-        .sort((a, b) => a.start - b.start),
+        .sort((a, b) => a.bookOrder - b.bookOrder),
     [bookNodes],
   );
 
@@ -110,7 +110,7 @@ export function NodesPanel() {
       grouped[s.id] = ids
         .map((id) => nodeById.get(id))
         .filter((n): n is BookNode => Boolean(n))
-        .sort((a, b) => a.start - b.start);
+        .sort((a, b) => a.bookOrder - b.bookOrder);
     });
     return grouped;
   }, [storylines, storylineNodeMapping, nodeById]);
@@ -127,14 +127,12 @@ export function NodesPanel() {
           mainStorylineId = createdStoryline.id;
         }
 
-        const maxEnd = bookNodes.reduce((max, n) => Math.max(max, n.end ?? n.start), 0);
-        const newStart = maxEnd + 1;
-        const newEnd = newStart + 10;
+        const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
+        const nextOrder = maxOrder + 1;
 
         const created = await createNode({
           title: 'New Chapter',
-          start: newStart,
-          end: newEnd,
+          bookOrder: nextOrder,
           mainStorylineId,
         });
         openEntity({ entityType: 'node', id: created.id }, { preview: false });

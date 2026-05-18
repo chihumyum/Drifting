@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import type { TimelineMarker } from '../domain/timeline-marker';
 
 // localStorage key is per-project so switching projects keeps markers
-// independent. Bumping `STORAGE_VERSION` invalidates older payloads if
-// we change the schema later.
+// independent. Bump `STORAGE_VERSION` to invalidate older payloads — we
+// just did when renaming the position field from `start` to `narrativeOrder`.
 const STORAGE_PREFIX = 'drifting:timeline-markers';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 
 interface StoredPayload {
   v: number;
@@ -53,17 +53,19 @@ function parseNumeric(label: string): number | null {
 
 export interface TimelineMarkersApi {
   markers: TimelineMarker[];
-  addMarker: (start: number, label: string) => TimelineMarker | null;
-  updateMarker: (id: string, patch: Partial<Pick<TimelineMarker, 'start' | 'label'>>) => void;
+  addMarker: (narrativeOrder: number, label: string) => TimelineMarker | null;
+  updateMarker: (
+    id: string,
+    patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label'>>,
+  ) => void;
   deleteMarker: (id: string) => void;
-  // Converts a `start` position to a numeric "time" value if at least two
-  // markers carry numeric labels; otherwise null. Uses linear interpolation
-  // between the two nearest numeric markers and linear extrapolation
-  // outside their range.
-  startToTime: (start: number) => number | null;
-  // Inverse of startToTime — given a numeric time, returns the start
-  // position. Null when conversion isn't available.
-  timeToStart: (time: number) => number | null;
+  // Converts a narrativeOrder position to a numeric "time" value if at least
+  // two markers carry numeric labels; otherwise null. Linear interpolation
+  // between the two extreme numeric markers; linear extrapolation outside.
+  orderToTime: (order: number) => number | null;
+  // Inverse — given a numeric time, returns the narrativeOrder position.
+  // Null when conversion isn't available.
+  timeToOrder: (time: number) => number | null;
 }
 
 export function useTimelineMarkers(projectId: string | null | undefined): TimelineMarkersApi {
@@ -87,17 +89,17 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
   );
 
   const addMarker = useCallback<TimelineMarkersApi['addMarker']>(
-    (start, label) => {
+    (narrativeOrder, label) => {
       if (!projectId) return null;
       const trimmed = label.trim();
       if (!trimmed) return null;
       const marker: TimelineMarker = {
         id: makeId(),
-        start,
+        narrativeOrder,
         label: trimmed,
         createdAt: new Date().toISOString(),
       };
-      const next = [...markers, marker].sort((a, b) => a.start - b.start);
+      const next = [...markers, marker].sort((a, b) => a.narrativeOrder - b.narrativeOrder);
       persist(next);
       return marker;
     },
@@ -113,7 +115,7 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
           changed = true;
           return { ...m, ...patch };
         })
-        .sort((a, b) => a.start - b.start);
+        .sort((a, b) => a.narrativeOrder - b.narrativeOrder);
       if (changed) persist(next);
     },
     [markers, persist],
@@ -127,41 +129,40 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
     [markers, persist],
   );
 
-  // Pre-compute the two reference points used for linear conversion.
-  // Pick the two numeric markers with the largest start-gap so the
-  // slope is most stable when the user has a long span. Null when
-  // we can't form a pair.
+  // Pre-compute the two reference points used for linear conversion. Pick
+  // the two numeric markers with the largest order-gap so the slope is most
+  // stable when the user has a long span. Null when we can't form a pair.
   const conversion = useMemo(() => {
     const numeric = markers
-      .map((m) => ({ start: m.start, time: parseNumeric(m.label) }))
-      .filter((m): m is { start: number; time: number } => m.time !== null)
-      .sort((a, b) => a.start - b.start);
+      .map((m) => ({ order: m.narrativeOrder, time: parseNumeric(m.label) }))
+      .filter((m): m is { order: number; time: number } => m.time !== null)
+      .sort((a, b) => a.order - b.order);
     if (numeric.length < 2) return null;
     const a = numeric[0];
     const b = numeric[numeric.length - 1];
-    if (a.start === b.start) return null;
+    if (a.order === b.order) return null;
     return { a, b };
   }, [markers]);
 
-  const startToTime = useCallback<TimelineMarkersApi['startToTime']>(
-    (start) => {
+  const orderToTime = useCallback<TimelineMarkersApi['orderToTime']>(
+    (order) => {
       if (!conversion) return null;
       const { a, b } = conversion;
-      const slope = (b.time - a.time) / (b.start - a.start);
-      return a.time + (start - a.start) * slope;
+      const slope = (b.time - a.time) / (b.order - a.order);
+      return a.time + (order - a.order) * slope;
     },
     [conversion],
   );
 
-  const timeToStart = useCallback<TimelineMarkersApi['timeToStart']>(
+  const timeToOrder = useCallback<TimelineMarkersApi['timeToOrder']>(
     (time) => {
       if (!conversion) return null;
       const { a, b } = conversion;
-      const slope = (b.start - a.start) / (b.time - a.time);
-      return a.start + (time - a.time) * slope;
+      const slope = (b.order - a.order) / (b.time - a.time);
+      return a.order + (time - a.time) * slope;
     },
     [conversion],
   );
 
-  return { markers, addMarker, updateMarker, deleteMarker, startToTime, timeToStart };
+  return { markers, addMarker, updateMarker, deleteMarker, orderToTime, timeToOrder };
 }

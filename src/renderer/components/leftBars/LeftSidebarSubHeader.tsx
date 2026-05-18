@@ -61,12 +61,11 @@ export function LeftSidebarSubHeader() {
         const created = await createStoryline({ projectId });
         mainStorylineId = created.id;
       }
-      const maxEnd = bookNodes.reduce((max, n) => Math.max(max, n.end ?? n.start), 0);
-      const newStart = maxEnd + 1;
+      const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
+      const nextOrder = maxOrder + 1;
       const created = await createNode({
         title: 'New Chapter',
-        start: newStart,
-        end: newStart + 10,
+        bookOrder: nextOrder,
         mainStorylineId,
       });
       openEntity({ entityType: 'node', id: created.id }, { preview: false });
@@ -88,12 +87,11 @@ export function LeftSidebarSubHeader() {
   const handleCreateDrift = useCallback(async () => {
     if (!projectId) return;
     try {
-      const maxEnd = bookNodes.reduce((max, n) => Math.max(max, n.end ?? n.start), 0);
-      const newStart = maxEnd + 1;
+      const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
+      const nextOrder = maxOrder + 1;
       const created = await createNode({
         title: 'New Drift',
-        start: newStart,
-        end: newStart,
+        bookOrder: nextOrder,
         mainStorylineId: null,
       });
       openEntity({ entityType: 'node', id: created.id }, { preview: false });

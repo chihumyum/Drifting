@@ -28,8 +28,8 @@ export interface CreateNodeUsecaseInput {
   storyStageId?: string;
   // null = drift node (no storyline membership)
   mainStorylineId: string | null;
-  start: number;
-  end?: number;
+  bookOrder: number;
+  narrativeOrder?: number | null;
   title?: string;
   position?: BookNode['position'];
 }
@@ -95,7 +95,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       'ids:',
       nodes.map((n) => n.id),
     );
-    const sorted = nodes.slice().sort((a, b) => a.start - b.start);
+    const sorted = nodes.slice().sort((a, b) => a.bookOrder - b.bookOrder);
     setNodesState(sorted);
     return sorted;
   }, [nodeRepo, ensureDb, setNodesState]);
@@ -121,8 +121,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         id: uuidv7(),
         title: input.title ?? 'New Node',
         projectId: activeProjectId,
-        start: input.start,
-        end: input.end ?? input.start,
+        bookOrder: input.bookOrder,
+        narrativeOrder: input.narrativeOrder ?? null,
         summary: '',
         storyStageId: input.storyStageId ?? null,
         mainStorylineId: input.mainStorylineId,
@@ -142,7 +142,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         content: [],
       });
 
-      const nextNodes = [...prevNodes, newNode].sort((a, b) => a.start - b.start);
+      const nextNodes = [...prevNodes, newNode].sort((a, b) => a.bookOrder - b.bookOrder);
 
       return withOptimisticUpdate({
         apply: () => setNodesState(nextNodes),
@@ -167,7 +167,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           const current = getNodesState();
           const merged = current
             .map((node) => (node.id === created.id ? created : node))
-            .sort((a, b) => a.start - b.start);
+            .sort((a, b) => a.bookOrder - b.bookOrder);
           setNodesState(merged);
           if (created.mainStorylineId) {
             addNodeToStorylineMappingState(created.mainStorylineId, created.id);
@@ -178,8 +178,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             id: created.id,
             title: created.title,
             summary: created.summary,
-            start: created.start,
-            end: created.end,
+            bookOrder: created.bookOrder,
+            narrativeOrder: created.narrativeOrder,
             storyStageId: created.storyStageId,
             mainStorylineId: created.mainStorylineId,
             positionX: created.position.x,
@@ -224,7 +224,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       await ensureDb();
       const nodes = getNodesState()
         .slice()
-        .sort((a, b) => a.start - b.start);
+        .sort((a, b) => a.bookOrder - b.bookOrder);
       const index = nodes.findIndex((node) => node.id === id);
       if (index === -1) return;
 
@@ -233,21 +233,21 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
       const current = nodes[index];
       const target = nodes[swapIndex];
-      const currentStart = current.start;
-      const targetStart = target.start;
+      const currentOrder = current.bookOrder;
+      const targetOrder = target.bookOrder;
       const now = new Date().toISOString();
 
       const nextNodes = nodes
         .map((node) => {
           if (node.id === current.id) {
-            return { ...node, start: targetStart, updatedAt: now };
+            return { ...node, bookOrder: targetOrder, updatedAt: now };
           }
           if (node.id === target.id) {
-            return { ...node, start: currentStart, updatedAt: now };
+            return { ...node, bookOrder: currentOrder, updatedAt: now };
           }
           return node;
         })
-        .sort((a, b) => a.start - b.start);
+        .sort((a, b) => a.bookOrder - b.bookOrder);
 
       const prev = getNodesState().slice();
 
@@ -256,12 +256,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         rollback: () => setNodesState(prev),
         effect: () =>
           nodeRepo.swapOrder(
-            { id: current.id, start: currentStart },
-            { id: target.id, start: targetStart },
+            { id: current.id, bookOrder: currentOrder },
+            { id: target.id, bookOrder: targetOrder },
           ),
         sync: () => {
-          syncNodeUpdate(current.id, activeProjectId, { start: targetStart });
-          syncNodeUpdate(target.id, activeProjectId, { start: currentStart });
+          syncNodeUpdate(current.id, activeProjectId, { bookOrder: targetOrder });
+          syncNodeUpdate(target.id, activeProjectId, { bookOrder: currentOrder });
         },
       });
     },
