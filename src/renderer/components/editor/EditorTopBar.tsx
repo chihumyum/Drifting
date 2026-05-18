@@ -116,48 +116,15 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            right: 0,
-            minWidth: 200,
-            background: '#fefdfb',
-            border: '1px solid var(--accent-border, #e8dcc8)',
-            borderRadius: 8,
-            boxShadow: '0 4px 12px rgba(42, 26, 10, 0.15)',
-            overflow: 'hidden',
-            zIndex: 60,
-            textTransform: 'none',
-            letterSpacing: 'normal',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
+        <div className="editor-bar__menu">
           {items.map((item) => (
             <button
               key={item.action}
+              type="button"
+              className={`editor-bar__menu-item${item.danger ? ' editor-bar__menu-item--danger' : ''}`}
               onClick={() => {
                 onAction(item.action);
                 setIsOpen(false);
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                padding: '12px 16px',
-                border: 'none',
-                background: 'transparent',
-                color: item.color,
-                fontSize: 14,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = item.color === '#c04040' ? '#fff0f0' : '#f5f0e8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
               }}
             >
               {item.label}
@@ -169,24 +136,30 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
   );
 }
 
-function getMenuItems(editorType: EditorType) {
+interface MenuItem {
+  action: string;
+  label: string;
+  danger?: boolean;
+}
+
+function getMenuItems(editorType: EditorType): MenuItem[] {
   switch (editorType) {
     case 'node':
       return [
-        { action: 'editNodeStorylines', label: 'Edit Storylines', color: '#2a1a0a' },
-        { action: 'deleteNode', label: 'Delete Node', color: '#c04040' },
+        { action: 'editNodeStorylines', label: 'Edit Storylines' },
+        { action: 'deleteNode', label: 'Delete Node', danger: true },
       ];
     case 'element':
       return [
-        { action: 'categoryPicker', label: 'Change Category', color: '#2a1a0a' },
-        { action: 'deleteElement', label: 'Delete Element', color: '#c04040' },
+        { action: 'categoryPicker', label: 'Change Category' },
+        { action: 'deleteElement', label: 'Delete Element', danger: true },
       ];
     case 'category':
-      return [{ action: 'deleteCategory', label: 'Delete Category', color: '#c04040' }];
+      return [{ action: 'deleteCategory', label: 'Delete Category', danger: true }];
     case 'storyline':
       return [
-        { action: 'mergeStoryline', label: 'Merge Into...', color: '#2a1a0a' },
-        { action: 'deleteStoryline', label: 'Delete Storyline', color: '#c04040' },
+        { action: 'mergeStoryline', label: 'Merge Into...' },
+        { action: 'deleteStoryline', label: 'Delete Storyline', danger: true },
       ];
     default:
       return [];
