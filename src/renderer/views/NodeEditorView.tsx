@@ -465,10 +465,6 @@ export function NodeEditorView() {
                       );
                     })
                   )}
-                  <div className="crumb-dropdown__divider" />
-                  <div className="crumb-dropdown__footer" onClick={openStorylineEditor}>
-                    Edit node storylines…
-                  </div>
                 </>
               }
             >

@@ -63,20 +63,38 @@ interface EditorCrumbProps {
 
 export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCrumbProps) {
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
   const className = dotColor ? 'editor-crumb editor-crumb-storyline' : 'editor-crumb';
   const style = dotColor ? ({ ['--crumb-color' as string]: dotColor } as React.CSSProperties) : undefined;
 
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  const handleClick = () => {
+    if (dropdown) {
+      setOpen((prev) => !prev);
+    } else {
+      onClick?.();
+    }
+  };
+
   return (
-    <span
-      className={className}
-      style={style}
-      onMouseEnter={() => dropdown && setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onClick={onClick}
-    >
+    <span ref={rootRef} className={className} style={style} onClick={handleClick}>
       {dotColor && <span className="editor-crumb-dot" />}
       {children}
-      {open && dropdown && <div className="crumb-dropdown">{dropdown}</div>}
+      {open && dropdown && (
+        <div className="crumb-dropdown" onClick={() => setOpen(false)}>
+          {dropdown}
+        </div>
+      )}
     </span>
   );
 }
