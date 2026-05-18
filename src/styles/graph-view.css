@@ -678,3 +678,180 @@
   background: hsl(var(--accent));
   border-color: hsl(var(--accent));
 }
+
+/* ---------------- Node card popover ----------------
+   Anchored to a clicked tile in default state; recenters into a
+   modal-shaped surface in upgrade state. */
+.node-card-backdrop {
+  position: fixed;
+  inset: 0;
+  background: hsl(var(--ink-1) / 0.18);
+  z-index: 320;
+  animation: node-card-backdrop-in 140ms ease-out;
+}
+@keyframes node-card-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.node-card {
+  z-index: 330;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 8px;
+  box-shadow:
+    0 10px 30px -8px hsl(var(--ink-1) / 0.25),
+    0 2px 8px -2px hsl(var(--ink-1) / 0.15);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans);
+  animation: node-card-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.node-card.is-upgrade {
+  border-radius: 12px;
+  box-shadow:
+    0 24px 60px -12px hsl(var(--ink-1) / 0.35),
+    0 6px 18px -4px hsl(var(--ink-1) / 0.18);
+}
+@keyframes node-card-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.node-card.is-upgrade {
+  animation-name: node-card-upgrade-in;
+}
+@keyframes node-card-upgrade-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.98); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.node-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid hsl(var(--rule));
+  flex-shrink: 0;
+  min-height: 36px;
+}
+.node-card__num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-3));
+  flex-shrink: 0;
+}
+.node-card__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: hsl(var(--ink-1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.node-card__close {
+  background: transparent;
+  border: none;
+  color: hsl(var(--ink-3));
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.node-card__close:hover {
+  background: hsl(var(--rule) / 0.5);
+  color: hsl(var(--ink-1));
+}
+
+.node-card__summary {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px 14px;
+  background: transparent;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--ink-1));
+  min-height: 120px;
+  flex: 1;
+}
+.node-card__summary::placeholder {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+
+.node-card__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  flex-shrink: 0;
+}
+
+.node-card__btn {
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  color: hsl(var(--ink-2));
+  padding: 5px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.node-card__btn:hover {
+  background: hsl(var(--rule) / 0.4);
+  color: hsl(var(--ink-1));
+}
+.node-card__btn.is-primary {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+}
+.node-card__btn.is-primary:hover {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+.node-card__btn.is-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.node-card__btn.is-ghost:hover {
+  background: hsl(var(--rule) / 0.4);
+}
+
+.node-card__editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+.node-card__loading {
+  padding: 24px;
+  text-align: center;
+  color: hsl(var(--ink-3));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.node-card__editor-foot {
+  padding: 6px 14px;
+  border-top: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  flex-shrink: 0;
+}
+.node-card__meta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-3));
+}

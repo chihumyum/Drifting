@@ -8,6 +8,7 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
+import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
@@ -109,6 +110,9 @@ export function GraphView() {
   const [newEdgeKind, setNewEdgeKind] = useState('');
   // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
+  // Popover targeting a single tile. `anchor` is the tile's viewport rect at
+  // the moment of click — the popover positions itself relative to it.
+  const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -715,6 +719,18 @@ export function GraphView() {
                       return;
                     }
                     setNodeSelection(node.id, 'ui');
+                    // Snapshot the tile's viewport rect so the popover can
+                    // position itself relative to where the user clicked.
+                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                    setPopover({
+                      nodeId: node.id,
+                      anchor: {
+                        left: rect.left,
+                        top: rect.top,
+                        width: rect.width,
+                        height: rect.height,
+                      },
+                    });
                   }}
                   onDoubleClick={() => {
                     openEntity({ entityType: 'node', id: node.id }, { preview: false });
@@ -869,6 +885,27 @@ export function GraphView() {
           </div>
         </div>
       )}
+
+      {/* Node card popover — opened by tile click. Renders fixed-position
+          over the graph; the inner upgrade state expands to a modal. */}
+      {popover && projectId && user?.id && (() => {
+        const node = bookNodes.find((n) => n.id === popover.nodeId);
+        if (!node) return null;
+        return (
+          <NodeCardPopover
+            node={node}
+            projectId={projectId}
+            userId={user.id}
+            anchorRect={popover.anchor}
+            onClose={() => setPopover(null)}
+            onOpenInEditor={(id) => {
+              setPopover(null);
+              openEntity({ entityType: 'node', id }, { preview: false });
+              close();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
