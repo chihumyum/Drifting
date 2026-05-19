@@ -481,6 +481,19 @@ export function GraphView() {
 
   return (
     <div className="graph-overlay" data-view={viewMode}>
+      {/* macOS `titleBarStyle: hiddenInset` reserves the top of the window
+          as an OS-managed window-drag zone. The graph-head straddles that
+          zone, so unless we explicitly mark its interactive controls as
+          no-drag, clicks there get swallowed as drag gestures. Mirrors the
+          SettingsModal `set-head` pattern. */}
+      <style>{`
+        .graph-head { -webkit-app-region: drag; }
+        .graph-head__back,
+        .graph-head__view-toggle,
+        .graph-head__view-toggle button,
+        .graph-head__filters,
+        .graph-head__filter { -webkit-app-region: no-drag; }
+      `}</style>
       <div
         className="graph-head"
         style={IS_MAC ? { paddingLeft: 86 } : undefined}
