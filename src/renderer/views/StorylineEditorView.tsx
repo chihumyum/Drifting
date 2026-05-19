@@ -28,8 +28,12 @@ const STORY_COLORS = [
 
 type ChapterFilter = 'all' | 'written' | 'unwritten';
 
-export function StorylineEditorView() {
-  const { projectId, storylineId } = useParams<{ projectId: string; storylineId: string }>();
+export function StorylineEditorView({
+  storylineIdOverride,
+}: { storylineIdOverride?: string } = {}) {
+  const params = useParams<{ projectId: string; storylineId: string }>();
+  const projectId = params.projectId;
+  const storylineId = storylineIdOverride ?? params.storylineId;
   const user = useAuthStore((state) => state.user);
   if (!projectId) throw new Error('No projectId in params');
   if (!user) throw new Error('No user in auth store');

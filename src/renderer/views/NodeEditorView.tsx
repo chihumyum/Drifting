@@ -45,8 +45,10 @@ const log = loglevel.getLogger('NodeEditorView');
 log.setLevel(loglevel.levels.ERROR);
 // log.setLevel(loglevel.levels.DEBUG);
 
-export function NodeEditorView() {
-  // stuff for geting a node
+// In split-pane mode this view is mounted directly (not via Outlet), so the
+// URL won't always reflect the side this instance is rendering. Pass the leaf
+// id explicitly via `nodeIdOverride` and we'll use that instead of useParams.
+export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } = {}) {
   const navigate = useNavigate();
   const {
     navigateToElement,
@@ -55,7 +57,9 @@ export function NodeEditorView() {
     navigateToStoryline,
     navigateToCategory,
   } = useProjectNavigation();
-  const { nodeId, projectId } = useParams<{ nodeId: string; projectId: string }>();
+  const params = useParams<{ nodeId: string; projectId: string }>();
+  const nodeId = nodeIdOverride ?? params.nodeId;
+  const projectId = params.projectId;
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) {
     throw new Error('NodeEditorView requires a projectId');

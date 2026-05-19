@@ -30,8 +30,12 @@ const CATEGORY_COLORS = [
 
 type ElementFilter = 'all' | 'used' | 'unused';
 
-export function CategoryEditorView() {
-  const { projectId, categoryId } = useParams<{ projectId: string; categoryId: string }>();
+export function CategoryEditorView({
+  categoryIdOverride,
+}: { categoryIdOverride?: string } = {}) {
+  const params = useParams<{ projectId: string; categoryId: string }>();
+  const projectId = params.projectId;
+  const categoryId = categoryIdOverride ?? params.categoryId;
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) throw new Error('Project ID is required');
