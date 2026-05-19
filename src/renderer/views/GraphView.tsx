@@ -461,7 +461,27 @@ export function GraphView() {
     if (!canDropOnStoryline(dragOver.storylineId)) return;
     e.preventDefault();
     try {
-      await updateNode(draggedNode.id, { [orderField]: dragOver.order });
+      const currentMain = draggedMainStorylineId;
+      const targetRow = dragOver.storylineId;
+      // Mirror BottomTimeline: when an axis-to-axis tile drag lands on a
+      // different storyline row (and the node already belongs to that
+      // storyline), re-route the node's main storyline alongside the
+      // order update. Drawer drags are constrained to the primary row, so
+      // this branch only fires for tile drags.
+      if (
+        !draggedFromDrawer &&
+        targetRow &&
+        targetRow !== currentMain &&
+        draggedNode.id &&
+        nodeStorylines(draggedNode.id).some((sl) => sl.id === targetRow)
+      ) {
+        await updateNode(draggedNode.id, {
+          [orderField]: dragOver.order,
+          mainStorylineId: targetRow,
+        });
+      } else {
+        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
+      }
     } catch (err) {
       log.error('Failed to update order on drop', err);
     } finally {
@@ -764,28 +784,24 @@ export function GraphView() {
               </svg>
             )}
 
-            {/* Drop indicator while dragging. Spans the targeted row only
-                when the drag comes from the drawer (single eligible row);
-                axis-to-axis tile drags accept any row, so the indicator
-                covers all rows. */}
-            {dragOver && draggedNode && (
-              <div
-                className="graph-drop-indicator"
-                style={{
-                  left: orderToX(dragOver.order),
-                  top:
-                    GRAPH_CONFIG.AXIS_HEIGHT +
-                    (draggedFromDrawer && dragOver.storylineId
-                      ? (storylineRowIndex.get(dragOver.storylineId) ?? 0) *
-                        GRAPH_CONFIG.TRACK_HEIGHT
-                      : 0),
-                  height:
-                    draggedFromDrawer && dragOver.storylineId
-                      ? GRAPH_CONFIG.TRACK_HEIGHT
-                      : storylines.length * GRAPH_CONFIG.TRACK_HEIGHT,
-                }}
-              />
-            )}
+            {/* Drop indicator while dragging — a 2px vertical bar on the
+                row the cursor is over, tinted with that storyline's color.
+                Matches the BottomTimeline drop-indicator recipe. */}
+            {dragOver && draggedNode && dragOver.storylineId && (() => {
+              const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
+              const rowStoryline = storylineById.get(dragOver.storylineId);
+              return (
+                <div
+                  className="graph-drop-indicator"
+                  style={{
+                    left: orderToX(dragOver.order),
+                    top: GRAPH_CONFIG.AXIS_HEIGHT + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
+                    height: GRAPH_CONFIG.TRACK_HEIGHT,
+                    background: rowStoryline?.color || 'hsl(var(--accent))',
+                  }}
+                />
+              );
+            })()}
 
             {/* Tiles */}
             {positionedNodes.map((node) => {

@@ -458,15 +458,17 @@
   transition: opacity 0.2s;
 }
 
-/* ---------------- Drop indicator ---------------- */
+/* ---------------- Drop indicator ----------------
+   Same recipe as BottomTimeline (`.btl-drop-indicator`): a 2px vertical
+   bar on the targeted row, tinted with the storyline's rail color via
+   inline `background`. Spans the row top-to-bottom and rides above the
+   tiles. */
 .graph-drop-indicator {
   position: absolute;
-  width: 3px;
-  background: hsl(var(--accent));
-  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25);
+  width: 2px;
+  opacity: 0.7;
   pointer-events: none;
   z-index: 4;
-  border-radius: 1px;
 }
 
 /* When a drag is in flight from the "未放置" drawer, only the node's main
