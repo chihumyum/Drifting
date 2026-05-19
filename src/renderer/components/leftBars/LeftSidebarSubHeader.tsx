@@ -133,7 +133,7 @@ export function LeftSidebarSubHeader() {
       ? `${storylines.length} STORYLINES · ${storylineNodeCount} 章`
       : activeLeftPanel === 'elements'
         ? `${bookElementCategories.length} 类 · ${bookElements.length} 元素`
-        : `${driftCount} 灵感`;
+        : `${driftCount} 浮缀`;
 
   const collapseAll = useCallback(() => {
     events.emit('left-sidebar:collapse-all');
@@ -174,7 +174,7 @@ export function LeftSidebarSubHeader() {
       title = '新元素';
     } else {
       onClick = () => void handleCreateDrift();
-      title = '新灵感';
+      title = '新浮缀';
     }
     return (
       <SubIconBtn title={title} onClick={onClick} accent>

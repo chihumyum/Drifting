@@ -515,7 +515,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 text: h.text,
               }))}
               activeId={activeOutlineId}
-              onItemClick={scrollToOutlineAnchor}
+              onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
               footRight={`${curNode.wordCount.toLocaleString()} 字`}
               emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
             />

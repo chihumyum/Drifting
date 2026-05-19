@@ -10,10 +10,12 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useProjectStore } from '../store/project-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import type { BookNode } from '../domain/book-node';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
+import type { OutlineItem } from '../lib/outline';
 import { countWordsInPmJson } from '../lib/word-count';
 
 const log = loglevel.getLogger('AllChaptersEditorView');
@@ -117,15 +119,19 @@ export function AllChaptersEditorView() {
     [storylines],
   );
 
-  // Outline panel — every chapter as a level-2 entry. Click scrolls.
-  const outlineItems = useMemo<OutlineEntry[]>(() => {
-    return orderedNodes.map((n, idx) => ({
-      id: anchorId(n.id),
-      level: 2,
-      num: toRoman(idx + 1),
-      text: n.title || `Untitled · §${String(n.bookOrder).padStart(2, '0')}`,
-    }));
-  }, [orderedNodes]);
+  // Outline = TOC of the focused chapter. We track per-chapter outline by
+  // node id (only the rows that are currently mounted publish one), then
+  // pick the one matching the scroll-spy's active chapter. Mirrors the
+  // single-chapter NodeEditorView outline, but scoped to whichever section
+  // the user is currently reading.
+  const [outlineByNodeId, setOutlineByNodeId] = useState<Record<string, OutlineItem[]>>({});
+  const handleOutlineChange = useCallback((nodeId: string, items: OutlineItem[]) => {
+    setOutlineByNodeId((prev) => {
+      const existing = prev[nodeId];
+      if (sameOutline(existing, items)) return prev;
+      return { ...prev, [nodeId]: items };
+    });
+  }, []);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -137,19 +143,13 @@ export function AllChaptersEditorView() {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // Watch nodeUi.selectedId. When something outside this view (sidebar /
-  // timeline / outline) marks a chapter as the UI-selected one, scroll to it.
-  // We track selectedAt as a freshness token so re-selecting the same chapter
-  // still re-scrolls (handy if the user scrolled away and clicks the same row
-  // in the sidebar to come back).
-  const selectedId = useUiStore((s) => s.nodeUi.selectedId);
-  const selectedFrom = useUiStore((s) => s.nodeUi.selectedFrom);
-  const selectedAt = useUiStore((s) => s.nodeUi.selectedAt);
-  useEffect(() => {
-    if (selectedFrom !== 'ui') return;
-    if (!selectedId) return;
-    scrollToNodeId(selectedId);
-  }, [selectedId, selectedFrom, selectedAt, scrollToNodeId]);
+  // Note: we deliberately do NOT subscribe to nodeUi.selectedId here to
+  // scroll on sidebar clicks. The all-chapters view used to be a magnet
+  // for outside selections (sidebar / timeline clicks while reading) but
+  // that overloaded "click a chapter" with two different meanings
+  // depending on context, which the user found confusing. Sidebar /
+  // timeline node clicks now always navigate. In-view navigation between
+  // chapters lives in the hierarchical TOC below.
 
   // Scroll-spy: highlight the chapter whose top edge is just above the
   // viewport's top (i.e. "current reading position"). Updates the outline
@@ -284,12 +284,68 @@ export function AllChaptersEditorView() {
     return () => clearInterval(id);
   }, [updateNode]);
 
+  // Hierarchical outline: each chapter is a top-level entry; its TipTap
+  // body's H1/H2/H3 outline nests under it. Chapters are collapsed by
+  // default. The scroll-spy-focused chapter is auto-expanded, but the
+  // user can override that per-chapter via the chevron.
+  //
+  // We store the manual override only — if the user toggled an entry, the
+  // map remembers that boolean; otherwise the entry falls back to the
+  // default ("expanded iff this is the currently scrolled-to chapter").
+  // Derived state instead of an effect-driven set so the active chapter
+  // change cascades to the outline naturally without an extra render.
+  const [manualExpand, setManualExpand] = useState<Map<string, boolean>>(new Map());
+  const isChapterExpanded = useCallback(
+    (nodeId: string): boolean => {
+      if (manualExpand.has(nodeId)) return manualExpand.get(nodeId)!;
+      return nodeId === activeNodeId;
+    },
+    [manualExpand, activeNodeId],
+  );
+  const toggleExpand = useCallback(
+    (id: string) => {
+      setManualExpand((prev) => {
+        const current = prev.has(id) ? prev.get(id)! : id === activeNodeId;
+        const next = new Map(prev);
+        next.set(id, !current);
+        return next;
+      });
+    },
+    [activeNodeId],
+  );
+
+  // Map orderedNodes → outline entries. Chapter-row id is the bare nodeId
+  // (so toggleExpand can use it directly); nested heading ids are TipTap
+  // block-ids straight from `outlineByNodeId`.
+  const outlineItems = useMemo<OutlineEntry[]>(
+    () =>
+      orderedNodes.map((n, idx) => {
+        const headings = outlineByNodeId[n.id] ?? [];
+        return {
+          id: n.id,
+          level: 2,
+          num: toRoman(idx + 1),
+          text: n.title || 'Untitled',
+          isExpanded: isChapterExpanded(n.id),
+          children: headings.map((h) => ({ id: h.id, level: h.level, text: h.text })),
+        };
+      }),
+    [orderedNodes, outlineByNodeId, isChapterExpanded],
+  );
+
+  // TOC click dispatcher: top-level entries scroll to the chapter section;
+  // nested entries are TipTap heading anchors — scope to this view's scroll
+  // container so a parallel split pane isn't accidentally scrolled.
+  const orderedNodeIds = useMemo(() => new Set(orderedNodes.map((n) => n.id)), [orderedNodes]);
   const handleOutlineClick = useCallback(
     (id: string) => {
-      const nodeId = id.startsWith('all-chap-') ? id.slice('all-chap-'.length) : id;
-      scrollToNodeId(nodeId);
+      if (orderedNodeIds.has(id)) {
+        scrollToNodeId(id);
+      } else {
+        scrollToOutlineAnchor(id, scrollRef.current);
+      }
     },
-    [scrollToNodeId],
+    [orderedNodeIds, scrollToNodeId],
   );
 
   if (orderedNodes.length === 0) {
@@ -356,10 +412,11 @@ export function AllChaptersEditorView() {
 
       <div className="editor-body">
         <EditorOutlinePanel
-          title="全书 · CHAPTERS"
+          title="通览全书 · OUTLINE"
           items={outlineItems}
-          activeId={activeNodeId ? anchorId(activeNodeId) : null}
+          activeId={activeNodeId}
           onItemClick={handleOutlineClick}
+          onToggleExpand={toggleExpand}
           footLeft={`${orderedNodes.length} 章`}
           footRight={`${(totalWordCount / 1000).toFixed(1)}k 字`}
           emptyHint="— 尚无章节 —"
@@ -390,6 +447,7 @@ export function AllChaptersEditorView() {
                   onSummaryUpdate={handleSummaryUpdate}
                   onEntityClick={handleEntityClick}
                   onHeightMeasured={handleHeightMeasured}
+                  onOutlineChange={handleOutlineChange}
                   isActive={isActive}
                   cachedHeight={heightCache[node.id]}
                   storylineColor={storyline?.color || undefined}
@@ -403,4 +461,15 @@ export function AllChaptersEditorView() {
       </div>
     </div>
   );
+}
+
+// Stable-ish comparison so onOutlineChange doesn't churn state on each
+// TipTap mount/unmount cycle when nothing structural changed.
+function sameOutline(a: OutlineItem[] | undefined, b: OutlineItem[]): boolean {
+  if (!a) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].level !== b[i].level || a[i].text !== b[i].text) return false;
+  }
+  return true;
 }

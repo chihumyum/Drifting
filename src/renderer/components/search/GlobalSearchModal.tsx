@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import type { TabEntityType } from '../../store/ui-store';
+
+// Search results only ever surface real user-content entities — the
+// dashboard / all-chapters singletons live in TabEntityType but aren't
+// indexable, so narrow to the searchable subset here.
+type SearchableEntityType = 'node' | 'storyline' | 'element' | 'category';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -10,21 +14,21 @@ interface GlobalSearchModalProps {
 }
 
 interface SearchResult {
-  entityType: TabEntityType;
+  entityType: SearchableEntityType;
   id: string;
   title: string;
   subtitle?: string;
   match: string; // the field the match was found in
 }
 
-const ENTITY_LABEL: Record<TabEntityType, string> = {
+const ENTITY_LABEL: Record<SearchableEntityType, string> = {
   node: '章节',
   storyline: '故事线',
   element: '元素',
   category: '分类',
 };
 
-const ENTITY_ICON: Record<TabEntityType, string> = {
+const ENTITY_ICON: Record<SearchableEntityType, string> = {
   node: '§',
   storyline: '¶',
   element: '◆',

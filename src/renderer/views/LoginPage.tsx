@@ -149,7 +149,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             这里给你一艘<em>足够稳的船</em>。
           </h1>
           <p className="si-quote__body">
-            Drifting 把章节、故事线、人物、地点、物件、灵感 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。
+            Drifting 把章节、故事线、人物、地点、物件、浮缀 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。
           </p>
 
           <div className="si-feats">
@@ -237,7 +237,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             </h2>
             <p className="si-form__sub">
               {mode === 'signin'
-                ? '回到你已经构建的世界 — 章节、故事线、元素、灵感都还在。'
+                ? '回到你已经构建的世界 — 章节、故事线、元素、浮缀都还在。'
                 : '注册一个账号，开始你的第一本书。我们不会把你的稿子用于任何模型训练。'}
             </p>
 

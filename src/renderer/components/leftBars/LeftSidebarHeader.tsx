@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useUiStore } from '../../store/ui-store';
+import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { Network, BookOpen, Layers, Home, BookText } from 'lucide-react';
 import useMeasure from 'react-use-measure';
 import { useState, useRef } from 'react';
@@ -7,7 +7,14 @@ import { createPortal } from 'react-dom';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 export function LeftSidebarHeader() {
-  const { navigateToHome, navigateToAllChapters } = useProjectNavigation();
+  const { projectId, navigateToHome, navigateToAllChapters } = useProjectNavigation();
+  // Mirror NodesPanel's "double-click promotes the just-opened preview to
+  // a dedicated tab" gesture. Without it, the Home / 通览全书 buttons
+  // could only open as preview (then the next sidebar click would replace
+  // them); the only escape was right-clicking the tab. Reading the active
+  // tab via usePromoteCurrentTab keeps this in sync with whatever the
+  // first click just activated.
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
@@ -51,6 +58,7 @@ export function LeftSidebarHeader() {
       {/* Home Button — left edge */}
       <button
         onClick={() => navigateToHome()}
+        onDoubleClick={() => promoteCurrentTab()}
         title="Project Home"
         style={{
           flexShrink: 0,
@@ -82,6 +90,7 @@ export function LeftSidebarHeader() {
       {/* All-Chapters Button — opens the whole-book long-scroll editor */}
       <button
         onClick={() => navigateToAllChapters()}
+        onDoubleClick={() => promoteCurrentTab()}
         title="通览全书"
         style={{
           flexShrink: 0,
@@ -134,8 +143,8 @@ export function LeftSidebarHeader() {
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
-          label="灵感"
-          glyph="✦"
+          label="浮缀"
+          glyph="❦"
           isActive={activeLeftPanel === 'drift'}
           onClick={() => setActiveLeftPanel('drift')}
         />

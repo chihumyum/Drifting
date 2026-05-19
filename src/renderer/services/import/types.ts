@@ -49,11 +49,11 @@ export function inferFormat(filename: string): ImportFormat | null {
 export const TARGET_LABEL: Record<ImportTarget, string> = {
   chapter: '章节',
   element: '元素',
-  inspiration: '灵感',
+  inspiration: '浮缀',
 };
 
 export const TARGET_DESC: Record<ImportTarget, string> = {
   chapter: '主线节点 — 进时间线、参与字数统计。',
   element: '人物 / 地点 / 物件等参考资料。需选择类别。',
-  inspiration: '灵感卡 — 不归属任何故事线，独立悬浮。',
+  inspiration: '浮缀卡 — 不归属任何故事线，独立悬浮。',
 };

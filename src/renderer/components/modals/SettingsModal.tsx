@@ -2294,7 +2294,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
         />
         <Row
           label="导入"
-          desc="从 Markdown / Word / 纯文本 导入为章节、元素或灵感。"
+          desc="从 Markdown / Word / 纯文本 导入为章节、元素或浮缀。"
           control={
             <button
               className="set-btn"

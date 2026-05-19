@@ -68,7 +68,7 @@ const log = loglevel.getLogger('App');
 // here is cheaper than pulling navigation logic into a shared util.
 function urlForLeaf(
   projectId: string,
-  leaf: { entityType: 'node' | 'storyline' | 'element' | 'category'; id: string },
+  leaf: { entityType: 'node' | 'storyline' | 'element' | 'category' | 'dashboard' | 'all-chapters'; id: string },
 ): string | null {
   switch (leaf.entityType) {
     case 'node':
@@ -79,6 +79,10 @@ function urlForLeaf(
       return `/project/${projectId}/element/${leaf.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(leaf.id)}`;
+    case 'dashboard':
+      return `/project/${projectId}/home`;
+    case 'all-chapters':
+      return `/project/${projectId}/editor/all`;
     default:
       return null;
   }
@@ -178,7 +182,7 @@ function Layout() {
   const [dbReady, setDbReady] = useState(false);
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
-  const { openEntity, navigateToHome } = useProjectNavigation();
+  const { openEntity } = useProjectNavigation();
   const navigate = useNavigate();
   // When the active tab is a split, keep the URL synced with the focused
   // side. Mounted at the Layout level so it runs in both single- and
@@ -451,18 +455,22 @@ function Layout() {
         const nextIdx =
           (baseIdx + direction + project.openTabs.length) % project.openTabs.length;
         const nextTab = project.openTabs[nextIdx];
-        // Switching to a split tab can't go through openEntity, because that
-        // path replaces the focused side of whatever split is currently
-        // active — it'd hijack the previous tab instead of activating the
-        // new one. Set active explicitly and navigate to the next tab's
-        // focused leaf URL.
+        // Tab activation is a different operation than "open entity":
+        //   - splits can't go through openEntity (would replace focused
+        //     side of the *current* split instead of switching),
+        //   - leaf node tabs can't either (when current focus is the
+        //     all-chapters singleton, openEntity short-circuits to a scroll
+        //     instead of navigating away).
+        // Bypass openEntity entirely — setActiveTab + navigate(url).
         if (nextTab.kind === 'split') {
           state.setActiveTab(projectId, { splitId: nextTab.id });
           const leaf = focusedLeafOf(nextTab);
           const url = urlForLeaf(projectId, leaf);
           if (url) navigate(url);
         } else {
-          openEntity({ entityType: nextTab.entityType, id: nextTab.id });
+          state.setActiveTab(projectId, { entityType: nextTab.entityType, id: nextTab.id });
+          const url = urlForLeaf(projectId, nextTab);
+          if (url) navigate(url);
         }
       }
 
@@ -482,14 +490,18 @@ function Layout() {
         if (nextActive) {
           openEntity({ entityType: nextActive.entityType, id: nextActive.id });
         } else {
-          navigateToHome();
+          // Active tab closed with no successor — last tab gone. Navigate
+          // to the bare project URL so neither EditorShell nor the Layout
+          // URL→tab sync re-creates the just-closed entity. The empty
+          // editor state will show.
+          navigate(`/project/${projectId}`, { replace: true });
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [projectId, openEntity, navigateToHome]);
+  }, [projectId, openEntity, navigate]);
 
   // Drop the find panel if the active editor goes away (e.g. user navigated
   // to a new view and the previous editor unmounted).
@@ -692,7 +704,10 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="home" replace />} />
+        {/* Bare project URL renders the editor surface with no auto-route.
+            When no tabs are open the empty state shows; when tabs exist,
+            useSyncSplitFocusedUrl drives focus from the active tab. */}
+        <Route index element={null} />
         <Route
           path="home"
           element={
@@ -701,7 +716,7 @@ export default function App() {
             </EditorShell>
           }
         />
-        <Route path="editor" element={<Navigate to="../home" replace />} />
+        <Route path="editor" element={<Navigate to=".." replace />} />
         <Route
           path="editor/all"
           element={

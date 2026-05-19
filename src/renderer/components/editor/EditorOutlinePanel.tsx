@@ -6,6 +6,12 @@ export interface OutlineEntry {
   level: 1 | 2 | 3;
   text: string;
   num?: string;
+  // Optional nested entries. When non-empty the row gets a chevron handle
+  // that toggles visibility via `onToggleExpand` (item-level open state is
+  // controlled — driven by `isExpanded`). Used by the all-chapters editor
+  // to nest each chapter's heading TOC under its chapter row.
+  children?: OutlineEntry[];
+  isExpanded?: boolean;
 }
 
 interface Props {
@@ -13,6 +19,9 @@ interface Props {
   items: OutlineEntry[];
   activeId?: string | null;
   onItemClick?: (id: string) => void;
+  // Fires when the user clicks the chevron on an entry with children. The
+  // caller owns expansion state and updates `isExpanded` on the next pass.
+  onToggleExpand?: (id: string) => void;
   footLeft?: string;
   footRight?: string;
   emptyHint?: string;
@@ -46,6 +55,7 @@ export function EditorOutlinePanel({
   items,
   activeId,
   onItemClick,
+  onToggleExpand,
   footLeft,
   footRight,
   emptyHint = '— 暂无标题 —',
@@ -92,13 +102,69 @@ export function EditorOutlinePanel({
     [onItemClick],
   );
 
-  const renderItem = (item: OutlineEntry) => {
+  const renderItem = (item: OutlineEntry, depth = 0): React.ReactNode => {
+    const hasChildren = !!item.children?.length;
     const cls = `toc-item toc-item--h${item.level}${activeId === item.id ? ' toc-item--active' : ''}`;
+    // Nested entries get a fresh paddingLeft on top of the per-level CSS
+    // base (h1/h2 = 10px, h3 = 22px). We need a meaningful jump so users
+    // can read the hierarchy at a glance — 28px at depth 1, +16px per
+    // level after that. Anything subtler than ~18px over the base reads
+    // as a typo, not as nesting.
+    const inlinePaddingLeft = depth > 0 ? 28 + (depth - 1) * 16 : undefined;
     return (
-      <a key={item.id} className={cls} onClick={handleClick(item.id)}>
-        {item.num && <span className="toc-item__num">{item.num}</span>}
-        <span>{item.text}</span>
-      </a>
+      <div key={item.id}>
+        <a
+          className={cls}
+          onClick={handleClick(item.id)}
+          style={inlinePaddingLeft !== undefined ? { paddingLeft: inlinePaddingLeft } : undefined}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleExpand?.(item.id);
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+              aria-label={item.isExpanded ? 'Collapse' : 'Expand'}
+              aria-expanded={!!item.isExpanded}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                width: 14,
+                height: 14,
+                marginRight: 2,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'hsl(var(--ink-4))',
+                fontSize: 9,
+                flexShrink: 0,
+                transition: 'color 0.12s',
+              }}
+            >
+              {item.isExpanded ? '▾' : '▸'}
+            </button>
+          ) : (
+            // Reserve the chevron slot at depth 0 only — keeps top-level
+            // entries (chapter rows) aligned regardless of whether they
+            // expose children. Deeper rows don't need the spacer because
+            // they're already indented further via paddingLeft.
+            depth === 0 && (
+              <span
+                aria-hidden
+                style={{ display: 'inline-block', width: 14, marginRight: 2, flexShrink: 0 }}
+              />
+            )
+          )}
+          {item.num && <span className="toc-item__num">{item.num}</span>}
+          <span>{item.text}</span>
+        </a>
+        {item.isExpanded && hasChildren && item.children!.map((c) => renderItem(c, depth + 1))}
+      </div>
     );
   };
 
@@ -125,13 +191,13 @@ export function EditorOutlinePanel({
       {items.length === 0 ? (
         <div className="toc-empty">{emptyHint}</div>
       ) : (
-        items.map(renderItem)
+        items.map((item) => renderItem(item))
       )}
 
       {hasSecondary && (
         <>
           <hr className="toc-divider" />
-          {secondaryItems!.map(renderItem)}
+          {secondaryItems!.map((item) => renderItem(item))}
         </>
       )}
 

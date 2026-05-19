@@ -237,7 +237,7 @@ export function CategoryEditorView({
           items={frameworkItems}
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={scrollToOutlineAnchor}
+          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
           footLeft={`c.${categoryShortId}`}
           footRight={`${cEls.length} 元素`}
         />

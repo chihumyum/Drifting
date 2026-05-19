@@ -30,9 +30,15 @@ export function RightSidebarPanels() {
     // leaf or a split. The non-focused half of a split doesn't reflect here.
     const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey);
     if (!activeTab) {
-      return { kind: 'none', id: null, title: '项目主页', kicker: '本项目 · 概览' };
+      return { kind: 'none', id: null, title: '—', kicker: '未打开标签页' };
     }
     const leaf = focusedLeafOf(activeTab);
+    if (leaf.entityType === 'dashboard') {
+      return { kind: 'none', id: null, title: '项目主页', kicker: '本项目 · 概览' };
+    }
+    if (leaf.entityType === 'all-chapters') {
+      return { kind: 'none', id: null, title: '通览全书', kicker: '全书 · 长卷阅读' };
+    }
     if (leaf.entityType === 'node') {
       const node = bookNodes.find((n) => n.id === leaf.id);
       if (!node) return { kind: 'none', id: leaf.id, title: '—', kicker: '—' };
@@ -44,7 +50,7 @@ export function RightSidebarPanels() {
         kind: isDrift ? 'drift' : 'chapter',
         id: node.id,
         title: node.title || (isDrift ? 'Untitled Drift' : 'Untitled Chapter'),
-        kicker: isDrift ? '本灵感 · 片段与参考' : '本章 · 片段与参考',
+        kicker: isDrift ? '本浮缀 · 片段与参考' : '本章 · 片段与参考',
         color: storyline?.color,
       };
     }
@@ -240,7 +246,7 @@ function makeMockFragments(target: ResolvedTarget): Fragment[] {
     {
       id: 'f1',
       kind: 'idea',
-      tag: '灵感',
+      tag: '浮缀',
       title: '写到沈砚出场时，可以让雨势骤然变小 — 衬"决断"的安静。',
       meta: '今早 · 未分配',
     },
@@ -275,7 +281,7 @@ function makeMockFragments(target: ResolvedTarget): Fragment[] {
 function FragmentsView({ fragments }: { fragments: Fragment[] }) {
   if (fragments.length === 0) {
     return (
-      <EmptyState message="当前条目还没有片段。从灵感、TODO 或资料库添加。" />
+      <EmptyState message="当前条目还没有片段。从浮缀、TODO 或资料库添加。" />
     );
   }
   return (
@@ -449,7 +455,7 @@ function ChapterStats({
   const wcPct = Math.min(100, (node.wordCount / targetWc) * 100);
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title={target.kind === 'drift' ? '灵感坐标' : '章节坐标'}>
+      <StatsSection title={target.kind === 'drift' ? '浮缀坐标' : '章节坐标'}>
         <MetaGrid>
           {storyline ? (
             <>
@@ -463,7 +469,7 @@ function ChapterStats({
             <>
               <MetaK>类型</MetaK>
               <MetaV>
-                <SerifSpan>{target.kind === 'drift' ? '灵感 · 自由片段' : '章节'}</SerifSpan>
+                <SerifSpan>{target.kind === 'drift' ? '浮缀 · 自由片段' : '章节'}</SerifSpan>
               </MetaV>
             </>
           )}

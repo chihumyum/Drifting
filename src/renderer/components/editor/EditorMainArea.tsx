@@ -13,6 +13,8 @@ import { NodeEditorView } from '../../views/NodeEditorView';
 import { StorylineEditorView } from '../../views/StorylineEditorView';
 import { ElementEditorView } from '../../views/ElementEditorView';
 import { CategoryEditorView } from '../../views/CategoryEditorView';
+import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
+import { ProjectDashboard } from '../../views/ProjectDashboard';
 
 // EditorMainArea sits where <Outlet /> used to be. Its job is to decide
 // whether the editor surface should render a single matched route element
@@ -48,6 +50,7 @@ export function EditorMainArea() {
   const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey) ?? null;
   const isSplit = activeTab?.kind === 'split';
   const split = isSplit ? (activeTab as SplitTab) : null;
+  const hasNoTabs = openTabs.length === 0;
 
   // Drag-to-split overlay state. `dropSide` is null when no tab drag is in
   // progress over the surface, otherwise indicates which half is hot.
@@ -122,6 +125,13 @@ export function EditorMainArea() {
             setSplitRatio(projectId, split.id, ratio);
           }}
         />
+      ) : hasNoTabs ? (
+        // No tabs open at all → blank editor surface with a one-line hint.
+        // Routes still match (Outlet would render the route's view), but
+        // displaying nothing here is the intended UX per the new "no tabs
+        // means empty" rule — dashboard / all-chapters are their own tabs
+        // now and won't auto-mount when the user has closed everything.
+        <EmptyEditorState />
       ) : (
         // Legacy single-pane path — Outlet renders the matched route element.
         <div style={{ height: '100%', width: '100%' }}>
@@ -255,10 +265,12 @@ function PaneDivider({ onMouseDown }: { onMouseDown: (e: React.MouseEvent<HTMLDi
 }
 
 function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string }) {
-  // Dispatch on entityType — each view accepts an idOverride prop for the
-  // case when it's rendered outside the matched-route Outlet path.
+  // Dispatch on entityType — each entity view accepts an idOverride prop
+  // for the case when it's rendered outside the matched-route Outlet path.
   // projectId is read from useParams inside the views (the parent route
   // /project/:projectId always matches), so we don't need to thread it.
+  // Singleton views (dashboard / all-chapters) have no per-entity id, so
+  // they take no override.
   void projectId;
   switch (leaf.entityType) {
     case 'node':
@@ -269,7 +281,37 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
       return <ElementEditorView key={leaf.id} elementIdOverride={leaf.id} />;
     case 'category':
       return <CategoryEditorView key={leaf.id} categoryIdOverride={leaf.id} />;
+    case 'dashboard':
+      return <ProjectDashboard />;
+    case 'all-chapters':
+      return <AllChaptersEditorView />;
   }
+}
+
+function EmptyEditorState() {
+  return (
+    <div
+      style={{
+        height: '100%',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: 8,
+        color: 'hsl(var(--ink-5))',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+      }}
+    >
+      <div>— No Tabs Open —</div>
+      <div style={{ textTransform: 'none', letterSpacing: 0, fontSize: 12 }}>
+        点击左上角 Home / 通览全书，或在左栏中选择一项以打开标签页
+      </div>
+    </div>
+  );
 }
 
 function DropOverlay({ side }: { side: 'left' | 'right' }) {

@@ -4,7 +4,24 @@ import { persist } from 'zustand/middleware';
 
 export type SidebarType = 'left' | 'right';
 
-export type TabEntityType = 'node' | 'storyline' | 'element' | 'category';
+export type TabEntityType =
+  | 'node'
+  | 'storyline'
+  | 'element'
+  | 'category'
+  // Singleton tabs that don't correspond to a user-entity. Each project has
+  // at most one of each; their id is the constant SINGLETON_TAB_ID. Routed
+  // to /home and /editor/all respectively.
+  | 'dashboard'
+  | 'all-chapters';
+
+// Stable id used for singleton (per-project, one-of-a-kind) tabs. Pairing
+// with the entityType discriminator yields a unique tabKey within the project.
+export const SINGLETON_TAB_ID = 'self';
+
+export function isSingletonTabType(t: TabEntityType): boolean {
+  return t === 'dashboard' || t === 'all-chapters';
+}
 
 export interface TabRef {
   entityType: TabEntityType;
@@ -184,10 +201,20 @@ interface UiState {
   tabsByProject: Record<string, ProjectTabsState>;
   openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
   promoteTab: (projectId: string, ref?: TabRef) => void;
-  // Close a top-level tab (either a leaf or a whole split). Returns the
-  // leaf that should become active next so the URL / focused view can be
-  // updated; null when no tabs remain.
-  closeTab: (projectId: string, ref: TabRef | { splitId: string }) => { nextActive: LeafTab | null };
+  // Close a top-level tab (either a leaf or a whole split). Returns:
+  //   • nextActive — the leaf that should become active next so the URL /
+  //     focused view can be updated. Non-null only when the closed tab WAS
+  //     the active one AND a successor exists; null otherwise.
+  //   • wasActive — whether the tab being closed was the currently active
+  //     one. Callers need this to tell "closed active, no tabs left → go
+  //     to blank" apart from "closed a non-active tab → leave URL alone".
+  //     Without it both cases collapse to nextActive === null and any
+  //     fallback navigation would clobber the URL of whatever IS still
+  //     active (or re-create a singleton tab when navigating home).
+  closeTab: (
+    projectId: string,
+    ref: TabRef | { splitId: string },
+  ) => { nextActive: LeafTab | null; wasActive: boolean };
   reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
   setActiveTab: (projectId: string, ref: TabRef | { splitId: string } | null) => void;
   clearProjectTabs: (projectId: string) => void;
@@ -480,31 +507,80 @@ export const useUiStore = create<UiState>()(
           const preview = options?.preview ?? true;
           const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
           const newLeaf = makeLeafTab(ref, preview);
+          const key = tabKey(newLeaf);
 
-          // Active is a split → swap its focused side, keep the split active.
-          const activeTab = project.openTabs.find((t) => tabKey(t) === project.activeTabKey);
-          if (activeTab && activeTab.kind === 'split') {
-            const split = activeTab;
-            const focusedKey = tabKey(focusedLeafOf(split));
-            // If the requested entity is already in the focused side, no-op.
-            if (focusedKey === tabKey(newLeaf)) return {};
-            const updated: SplitTab = {
-              ...split,
-              [split.focused]: { ...newLeaf, isPreview: false },
-            } as SplitTab;
-            const nextOpenTabs = project.openTabs.map((t) =>
-              tabKey(t) === project.activeTabKey ? updated : t,
+          // Singletons (dashboard / all-chapters) never silently replace
+          // the focused side of a split — clicking the Home / 通览全书
+          // button should ALWAYS surface a top-level singleton tab, never
+          // hide it inside the current split. The only way for a singleton
+          // to live inside a split is an explicit drag-to-split or context-
+          // menu "在右侧打开"; both of those go through splitActiveWith,
+          // not here.
+          //
+          // Behavior:
+          //   • Singleton already exists at top-level → activate it.
+          //   • Singleton already exists inside a split → activate that
+          //     split and focus the side holding it.
+          //   • Singleton not open → standard preview-replace-or-append
+          //     (same as a regular entity entering an empty / leaf-active
+          //     context).
+          if (isSingletonTabType(ref.entityType)) {
+            const topLevelIdx = project.openTabs.findIndex(
+              (t) => t.kind === 'leaf' && tabKey(t) === key,
             );
-            return {
-              tabsByProject: {
-                ...state.tabsByProject,
-                [projectId]: { ...project, openTabs: nextOpenTabs },
-              },
-            };
+            if (topLevelIdx >= 0) {
+              return {
+                tabsByProject: {
+                  ...state.tabsByProject,
+                  [projectId]: { ...project, activeTabKey: key },
+                },
+              };
+            }
+            for (let i = 0; i < project.openTabs.length; i++) {
+              const t = project.openTabs[i];
+              if (t.kind !== 'split') continue;
+              const side: 'left' | 'right' | null =
+                tabKey(t.left) === key ? 'left' : tabKey(t.right) === key ? 'right' : null;
+              if (!side) continue;
+              const updated: SplitTab = { ...t, focused: side };
+              const nextOpenTabs = project.openTabs.slice();
+              nextOpenTabs[i] = updated;
+              return {
+                tabsByProject: {
+                  ...state.tabsByProject,
+                  [projectId]: { openTabs: nextOpenTabs, activeTabKey: tabKey(updated) },
+                },
+              };
+            }
+            // Fall through to the append-or-replace-preview branch below
+            // (skipping the split-replace-focused-side path entirely).
+          } else {
+            // Non-singleton: when the active tab is a split, opening a
+            // new entity replaces the focused side. Chrome-style behavior
+            // expected from sidebar clicks while a split is active.
+            const activeTab = project.openTabs.find((t) => tabKey(t) === project.activeTabKey);
+            if (activeTab && activeTab.kind === 'split') {
+              const split = activeTab;
+              const focusedKey = tabKey(focusedLeafOf(split));
+              if (focusedKey === key) return {};
+              const updated: SplitTab = {
+                ...split,
+                [split.focused]: { ...newLeaf, isPreview: false },
+              } as SplitTab;
+              const nextOpenTabs = project.openTabs.map((t) =>
+                tabKey(t) === project.activeTabKey ? updated : t,
+              );
+              return {
+                tabsByProject: {
+                  ...state.tabsByProject,
+                  [projectId]: { ...project, openTabs: nextOpenTabs },
+                },
+              };
+            }
           }
 
-          // Active is a leaf (or nothing) → original semantics.
-          const key = tabKey(newLeaf);
+          // Active is a leaf (or nothing) → original semantics. Singletons
+          // not found anywhere also land here for the append path.
           const existingIdx = project.openTabs.findIndex((t) => tabKey(t) === key);
 
           let nextOpenTabs: AnyTab[];
@@ -557,6 +633,7 @@ export const useUiStore = create<UiState>()(
 
       closeTab: (projectId, ref) => {
         let nextActive: LeafTab | null = null;
+        let wasActive = false;
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
@@ -569,6 +646,7 @@ export const useUiStore = create<UiState>()(
 
           let nextActiveTabKey: string | null = project.activeTabKey;
           if (project.activeTabKey === key) {
+            wasActive = true;
             if (nextOpenTabs.length === 0) {
               nextActiveTabKey = null;
             } else {
@@ -585,7 +663,7 @@ export const useUiStore = create<UiState>()(
             },
           };
         });
-        return { nextActive };
+        return { nextActive, wasActive };
       },
 
       reorderTabs: (projectId, fromIndex, toIndex) =>

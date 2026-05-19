@@ -16,9 +16,10 @@ import {
 import { getSubtleTabTone } from './tab-tone';
 import { TabContextMenu, type TabMenuItem } from './TabContextMenu';
 
-// Build the editor URL for a leaf — needed when activating a split tab,
-// since openEntity can't be used (it would mutate the CURRENT active
-// split's focused side instead of switching to the clicked one).
+// Build the editor URL for a leaf — needed when activating a tab, since
+// openEntity is unsuitable for tab activation: it can short-circuit on
+// the all-chapters singleton fast-path, and in split mode it would mutate
+// the *current* active split's focused side instead of switching.
 function urlForLeaf(
   projectId: string,
   leaf: { entityType: TabEntityType; id: string },
@@ -32,6 +33,10 @@ function urlForLeaf(
       return `/project/${projectId}/element/${leaf.id}`;
     case 'category':
       return `/project/${projectId}/category/${encodeURIComponent(leaf.id)}`;
+    case 'dashboard':
+      return `/project/${projectId}/home`;
+    case 'all-chapters':
+      return `/project/${projectId}/editor/all`;
   }
 }
 
@@ -40,16 +45,25 @@ const TAB_MAX_WIDTH = 200;
 const TAB_GAP = 2;
 const CONTAINER_PADDING_X = 20;
 
-function getTabIcon(entityType: TabEntityType): string {
+// Tab bar glyph. For node entities, the caller passes isDrift so chapters
+// (§) can be distinguished from drift nodes (❦ — matches the
+// "浮缀" button in LeftSidebarHeader). Dashboard and all-chapters use ⌂ and
+// ☰ respectively so the bar reads "home / whole-book / chapter / ..." at a
+// glance.
+function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): string {
   switch (entityType) {
     case 'node':
-      return '§';
+      return opts?.isDrift ? '❦' : '§';
     case 'storyline':
       return '¶';
     case 'element':
       return '◆';
     case 'category':
       return '⌘';
+    case 'dashboard':
+      return '⌂';
+    case 'all-chapters':
+      return '☰';
   }
 }
 
@@ -71,7 +85,7 @@ const SPLIT_CHROME_WIDTH = TAB_CHROME_WIDTH + 12;
 
 export function TopTimeline() {
   const navigate = useNavigate();
-  const { projectId, openEntity, navigateToHome } = useProjectNavigation();
+  const { projectId, openEntity } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setActiveTab = useUiStore((s) => s.setActiveTab);
   const closeTab = useUiStore((s) => s.closeTab);
@@ -113,14 +127,22 @@ export function TopTimeline() {
   const lookups = useMemo(() => {
     const labelOfLeaf = (leaf: LeafTab): string => {
       switch (leaf.entityType) {
-        case 'node':
-          return bookNodes.find((n) => n.id === leaf.id)?.title || 'Untitled Chapter';
+        case 'node': {
+          const n = bookNodes.find((b) => b.id === leaf.id);
+          if (!n) return 'Untitled Chapter';
+          if (n.title) return n.title;
+          return n.mainStorylineId ? 'Untitled Chapter' : 'Untitled Drift';
+        }
         case 'storyline':
           return storylines.find((s) => s.id === leaf.id)?.name || 'Untitled Storyline';
         case 'element':
           return bookElements.find((e) => e.id === leaf.id)?.name || 'Untitled Element';
         case 'category':
           return bookElementCategories.find((c) => c.id === leaf.id)?.name || 'Untitled Category';
+        case 'dashboard':
+          return '项目主页';
+        case 'all-chapters':
+          return '通览全书';
       }
     };
     const colorOfLeaf = (leaf: LeafTab): string | undefined => {
@@ -141,9 +163,20 @@ export function TopTimeline() {
         }
         case 'category':
           return bookElementCategories.find((c) => c.id === leaf.id)?.color;
+        case 'dashboard':
+        case 'all-chapters':
+          // Singletons share the neutral ink color — no entity behind them
+          // that carries a palette, and a fixed accent would compete with
+          // the surrounding tabs.
+          return undefined;
       }
     };
-    return { labelOfLeaf, colorOfLeaf };
+    const isDriftLeaf = (leaf: LeafTab): boolean => {
+      if (leaf.entityType !== 'node') return false;
+      const n = bookNodes.find((b) => b.id === leaf.id);
+      return Boolean(n) && !n!.mainStorylineId;
+    };
+    return { labelOfLeaf, colorOfLeaf, isDriftLeaf };
   }, [bookNodes, storylines, bookElements, bookElementCategories]);
 
   // Approximate label width for a top-level tab — used for the Safari-style
@@ -178,31 +211,27 @@ export function TopTimeline() {
     return idealWidths.map(() => TAB_MIN_WIDTH);
   }, [openTabs, idealWidths, containerWidth]);
 
-  const handleSelectLeaf = useCallback(
-    (leaf: LeafTab) => {
-      openEntity({ entityType: leaf.entityType, id: leaf.id });
-    },
-    [openEntity],
-  );
-
-  // Click a top-level tab. For a leaf, openEntity handles activation +
-  // navigation as before. For a split we have to bypass openEntity, since
-  // its "active is a split → replace focused side" branch would corrupt the
-  // currently-active split instead of switching to the clicked one. So we
-  // set the active tab explicitly and navigate to the focused leaf's URL.
+  // Click a top-level tab. Tab activation always bypasses openEntity:
+  //   - splits would otherwise have their focused side replaced (openEntity
+  //     treats them as "active is split → swap focused side"),
+  //   - node leaves would short-circuit when the current active is the
+  //     all-chapters singleton (openEntity scrolls instead of switching).
+  // setActiveTab + navigate(url) keeps both flows clean and uniform.
   const handleSelectTab = useCallback(
     (tab: AnyTab) => {
-      if (tab.kind === 'leaf') {
-        handleSelectLeaf(tab);
+      if (!projectId) return;
+      if (tab.kind === 'split') {
+        setActiveTab(projectId, { splitId: tab.id });
+        const focused = focusedLeafOf(tab);
+        const url = urlForLeaf(projectId, focused);
+        if (url) navigate(url);
         return;
       }
-      if (!projectId) return;
-      setActiveTab(projectId, { splitId: tab.id });
-      const focused = focusedLeafOf(tab);
-      const url = urlForLeaf(projectId, focused);
+      setActiveTab(projectId, { entityType: tab.entityType, id: tab.id });
+      const url = urlForLeaf(projectId, tab);
       if (url) navigate(url);
     },
-    [handleSelectLeaf, projectId, setActiveTab, navigate],
+    [projectId, setActiveTab, navigate],
   );
 
   const handleCloseTab = useCallback(
@@ -212,14 +241,24 @@ export function TopTimeline() {
         tab.kind === 'split'
           ? { splitId: tab.id }
           : { entityType: tab.entityType, id: tab.id };
-      const { nextActive } = closeTab(projectId, closeRef);
+      const { nextActive, wasActive } = closeTab(projectId, closeRef);
+      // Three cases:
+      //   1. nextActive → closed the active tab AND a sibling took over.
+      //      Sync URL to the new active leaf.
+      //   2. wasActive && !nextActive → closed the LAST tab. Send the URL
+      //      to a blank project route so the URL → tab sync doesn't
+      //      reopen the just-closed entity, and the empty editor shows.
+      //   3. !wasActive → closed a non-active tab. URL and active tab are
+      //      unchanged; do nothing. This used to call navigateToHome()
+      //      here, which silently re-spawned the dashboard singleton tab
+      //      every time the user closed any background tab.
       if (nextActive) {
         openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-      } else {
-        navigateToHome();
+      } else if (wasActive) {
+        navigate(`/project/${projectId}`, { replace: true });
       }
     },
-    [projectId, closeTab, openEntity, navigateToHome],
+    [projectId, closeTab, openEntity, navigate],
   );
 
   const handlePromote = useCallback(
@@ -325,7 +364,7 @@ export function TopTimeline() {
           onClick: () => {
             const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
             if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
-            else navigateToHome();
+            else navigate(`/project/${projectId}`, { replace: true });
           },
           disabled: openTabs.length <= 1,
         },
@@ -341,7 +380,11 @@ export function TopTimeline() {
           label: '全部关闭',
           onClick: () => {
             closeAllTabs(projectId);
-            navigateToHome();
+            // Land on the bare project URL so the Layout URL → tab sync
+            // doesn't reopen whatever the URL had been pointing at, and
+            // the empty editor state renders. navigateToHome() would
+            // re-spawn a dashboard tab.
+            navigate(`/project/${projectId}`, { replace: true });
           },
           disabled: openTabs.length === 0,
         },
@@ -355,7 +398,7 @@ export function TopTimeline() {
       activeTabKey,
       handleCloseTab,
       openEntity,
-      navigateToHome,
+      navigate,
       closeOtherTabs,
       closeTabsToRight,
       closeAllTabs,
@@ -407,6 +450,7 @@ export function TopTimeline() {
               width={width}
               label={lookups.labelOfLeaf(tab)}
               color={lookups.colorOfLeaf(tab)}
+              isDrift={lookups.isDriftLeaf(tab)}
               setDragFromIndex={setDragFromIndex}
               dragFromIndex={dragFromIndex}
               reorder={(from, to) => projectId && reorderTabs(projectId, from, to)}
@@ -432,6 +476,8 @@ export function TopTimeline() {
             rightLabel={lookups.labelOfLeaf(tab.right)}
             leftColor={lookups.colorOfLeaf(tab.left)}
             rightColor={lookups.colorOfLeaf(tab.right)}
+            leftIsDrift={lookups.isDriftLeaf(tab.left)}
+            rightIsDrift={lookups.isDriftLeaf(tab.right)}
             setDragFromIndex={setDragFromIndex}
             dragFromIndex={dragFromIndex}
             reorder={(from, to) => projectId && reorderTabs(projectId, from, to)}
@@ -482,6 +528,7 @@ interface LeafSlotProps {
   width: number;
   label: string;
   color: string | undefined;
+  isDrift: boolean;
   setDragFromIndex: (idx: number | null) => void;
   dragFromIndex: number | null;
   reorder: (from: number, to: number) => void;
@@ -499,6 +546,7 @@ function LeafTabSlot({
   width,
   label,
   color,
+  isDrift,
   setDragFromIndex,
   dragFromIndex,
   reorder,
@@ -593,7 +641,7 @@ function LeafTabSlot({
           lineHeight: 1,
         }}
       >
-        {getTabIcon(tab.entityType)}
+        {getTabIcon(tab.entityType, { isDrift })}
       </span>
       <span
         style={{
@@ -656,6 +704,8 @@ interface SplitSlotProps {
   rightLabel: string;
   leftColor: string | undefined;
   rightColor: string | undefined;
+  leftIsDrift: boolean;
+  rightIsDrift: boolean;
   setDragFromIndex: (idx: number | null) => void;
   dragFromIndex: number | null;
   reorder: (from: number, to: number) => void;
@@ -674,6 +724,8 @@ function SplitTabSlot({
   rightLabel,
   leftColor,
   rightColor,
+  leftIsDrift,
+  rightIsDrift,
   setDragFromIndex,
   dragFromIndex,
   reorder,
@@ -734,6 +786,7 @@ function SplitTabSlot({
         entityType={tab.left.entityType}
         label={leftLabel}
         color={leftColor}
+        isDrift={leftIsDrift}
         isFocused={isActive && tab.focused === 'left'}
         isPreview={tab.left.isPreview}
         onClick={() => onSelectSide('left')}
@@ -753,6 +806,7 @@ function SplitTabSlot({
         entityType={tab.right.entityType}
         label={rightLabel}
         color={rightColor}
+        isDrift={rightIsDrift}
         isFocused={isActive && tab.focused === 'right'}
         isPreview={tab.right.isPreview}
         onClick={() => onSelectSide('right')}
@@ -767,6 +821,7 @@ function SplitSubLabel({
   entityType,
   label,
   color,
+  isDrift,
   isFocused,
   isPreview,
   onClick,
@@ -776,6 +831,7 @@ function SplitSubLabel({
   entityType: TabEntityType;
   label: string;
   color: string | undefined;
+  isDrift: boolean;
   isFocused: boolean;
   isPreview: boolean;
   onClick: () => void;
@@ -829,7 +885,7 @@ function SplitSubLabel({
           lineHeight: 1,
         }}
       >
-        {getTabIcon(entityType)}
+        {getTabIcon(entityType, { isDrift })}
       </span>
       <span
         style={{

@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 import type { BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
 import type { EntityLinkRef } from '../../lib/extensions/entity-link';
+import type { OutlineItem } from '../../lib/outline';
 import { ChapterEditor } from './ChapterEditor';
 
 const log = loglevel.getLogger('VirtualChapterRow');
@@ -34,6 +35,10 @@ interface VirtualChapterRowProps {
   onSummaryUpdate?: (nodeId: string, summary: string) => void;
   onEntityClick?: (ref: EntityLinkRef) => void;
   onHeightMeasured?: (nodeId: string, height: number) => void;
+  // Published whenever the mounted ChapterEditor's heading outline changes,
+  // so the all-chapters view can show the focused chapter's TOC in the
+  // outline panel. Unmounted (placeholder) rows don't emit anything.
+  onOutlineChange?: (nodeId: string, outline: OutlineItem[]) => void;
 
   // Whether the row should be considered "current" (e.g. via scrollspy or
   // explicit selection). Draws a left rail similar to NodeEditorView's
@@ -76,6 +81,7 @@ function VirtualChapterRowImpl({
   onSummaryUpdate,
   onEntityClick,
   onHeightMeasured,
+  onOutlineChange,
   isActive,
   cachedHeight,
   storylineColor,
@@ -157,6 +163,13 @@ function VirtualChapterRowImpl({
     [onContentUpdate],
   );
 
+  const handleOutlineChange = useCallback(
+    (outline: OutlineItem[]) => {
+      onOutlineChange?.(node.id, outline);
+    },
+    [onOutlineChange, node.id],
+  );
+
   return (
     <div
       ref={wrapperRef}
@@ -230,6 +243,7 @@ function VirtualChapterRowImpl({
                 onTitleUpdate={onTitleUpdate}
                 onSummaryUpdate={onSummaryUpdate}
                 onEntityClick={onEntityClick}
+                onOutlineChange={handleOutlineChange}
                 showTitle={true}
                 showSummary={true}
                 editableTitle={true}

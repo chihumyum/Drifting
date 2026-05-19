@@ -116,7 +116,7 @@ export function StorylineEditorView({
     projectId,
     content: currentStoryline?.descriptionJson ?? null,
     onPersist: handlePersist,
-    placeholder: '札记 · scratch——本线的速记、灵感、风格备忘…',
+    placeholder: '札记 · scratch——本线的速记、浮缀、风格备忘…',
   });
 
   // Two-block TOC: outer (frameworkItems) = static section anchors —
@@ -220,7 +220,7 @@ export function StorylineEditorView({
           items={frameworkItems}
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={scrollToOutlineAnchor}
+          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
           footLeft={`s.${storylineShortId}`}
           footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
         />

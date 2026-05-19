@@ -212,7 +212,7 @@ export function ElementEditorView({
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
           items={outlineItems}
           activeId={activeOutlineId}
-          onItemClick={scrollToOutlineAnchor}
+          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
           footLeft={`e.${elementShortId}`}
           emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
         />

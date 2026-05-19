@@ -294,7 +294,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             <div className="set-sec__title" style={{ marginBottom: 6 }}>归属故事线</div>
             {storylines.length === 0 ? (
               <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
-                项目里还没有故事线。请先创建一条，或选择「灵感」导入。
+                项目里还没有故事线。请先创建一条，或选择「浮缀」导入。
               </div>
             ) : (
               <select
