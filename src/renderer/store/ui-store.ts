@@ -11,21 +11,68 @@ export interface TabRef {
   id: string;
 }
 
-export interface Tab extends TabRef {
+// Leaf — a single entity occupying a tab slot. The on-screen rendering of
+// a leaf is whatever view component matches its entityType.
+export interface LeafTab extends TabRef {
+  kind: 'leaf';
   isPreview: boolean;
 }
 
+// Split — a top-level "fused" tab containing exactly two leaves rendered
+// side-by-side. Only the focused side reflects in URL / sidebar / timeline
+// selection state; the other side is dormant for those consumers but still
+// renders its editor pane.
+//
+// Splits never nest — `left` and `right` are always LeafTab. This keeps the
+// data model and the UX tractable (Chrome-style fused tab, not VS Code's
+// recursive editor groups).
+export interface SplitTab {
+  kind: 'split';
+  id: string; // stable id used for the synthetic tab key
+  left: LeafTab;
+  right: LeafTab;
+  focused: 'left' | 'right';
+  splitRatio: number; // 0..1, fraction of width given to the left pane
+}
+
+export type AnyTab = LeafTab | SplitTab;
+
+// Backwards-compat alias for the pre-split-pane code that imported `Tab`.
+// New code should reference `LeafTab` or `AnyTab` directly.
+export type Tab = LeafTab;
+
 export interface ProjectTabsState {
-  openTabs: Tab[];
+  openTabs: AnyTab[];
   activeTabKey: string | null;
 }
 
-export function tabKey(ref: TabRef): string {
-  return `${ref.entityType}:${ref.id}`;
+// Synthetic key used by the tab bar to identify a top-level tab. Leaves
+// keep the historical `entityType:id` form so existing keyboard / right-bar
+// code that pattern-matches keeps working; splits get a `split:<id>` prefix
+// that callers must opt-in to handle.
+export function tabKey(tab: AnyTab | TabRef): string {
+  if ('kind' in tab && tab.kind === 'split') return `split:${tab.id}`;
+  return `${tab.entityType}:${tab.id}`;
+}
+
+// The leaf whose entity the focused pane is currently showing. For a leaf
+// tab that's itself; for a split tab it's the side under `focused`.
+export function focusedLeafOf(tab: AnyTab): LeafTab {
+  if (tab.kind === 'leaf') return tab;
+  return tab.focused === 'left' ? tab.left : tab.right;
+}
+
+function makeLeafTab(ref: TabRef, isPreview: boolean): LeafTab {
+  return { kind: 'leaf', entityType: ref.entityType, id: ref.id, isPreview };
+}
+
+// Generate a synthetic split id without pulling in a uuid dep.
+function generateSplitId(): string {
+  return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const EMPTY_PROJECT_TABS: ProjectTabsState = Object.freeze({
-  openTabs: [] as Tab[],
+  openTabs: [] as AnyTab[],
   activeTabKey: null,
 }) as ProjectTabsState;
 
@@ -137,10 +184,75 @@ interface UiState {
   tabsByProject: Record<string, ProjectTabsState>;
   openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
   promoteTab: (projectId: string, ref?: TabRef) => void;
-  closeTab: (projectId: string, ref: TabRef) => { nextActive: Tab | null };
+  // Close a top-level tab (either a leaf or a whole split). Returns the
+  // leaf that should become active next so the URL / focused view can be
+  // updated; null when no tabs remain.
+  closeTab: (projectId: string, ref: TabRef | { splitId: string }) => { nextActive: LeafTab | null };
   reorderTabs: (projectId: string, fromIndex: number, toIndex: number) => void;
-  setActiveTab: (projectId: string, ref: TabRef | null) => void;
+  setActiveTab: (projectId: string, ref: TabRef | { splitId: string } | null) => void;
   clearProjectTabs: (projectId: string) => void;
+
+  // Split-pane actions. All operate on the project's top-level tab list.
+  // "Active" below means the tab keyed by activeTabKey.
+
+  // Take `sourceKey` (a leaf already in the bar, OR a fresh TabRef to open)
+  // and place it as the `side` half of a split alongside the active tab.
+  // Cases:
+  //   • Active is a leaf: replace it with a SplitTab where active = the
+  //     opposite side, source = `side`. Focus lands on `side`.
+  //   • Active is a split: replace `side` of the split with source. Focus
+  //     moves to `side`.
+  //   • No active tab: degrade to a plain openEntityTab.
+  // If source is already present in openTabs as a top-level leaf, that
+  // duplicate is removed first.
+  splitActiveWith: (
+    projectId: string,
+    source: TabRef | { fromKey: string },
+    side: 'left' | 'right',
+  ) => void;
+
+  // Inside a split, change which side is focused (drives URL / sidebar
+  // highlight). No-op if the split or side doesn't exist.
+  setSplitFocus: (projectId: string, splitId: string, side: 'left' | 'right') => void;
+
+  // Width fraction for the left pane (right is 1 - ratio). Clamped to
+  // [0.15, 0.85] to keep both panes usable.
+  setSplitRatio: (projectId: string, splitId: string, ratio: number) => void;
+
+  // Swap left ↔ right. Preserves which logical side has focus (i.e. the
+  // entity that was focused remains focused; the focused flag flips sides).
+  swapSplitPanes: (projectId: string, splitId: string) => void;
+
+  // Pull one side out of a split. The split degrades to a single leaf
+  // (the surviving side) in place. The extracted leaf is inserted as a
+  // sibling top-level leaf immediately after the split's slot. Returns the
+  // leaf that ends up active so the caller can navigate the URL to match.
+  extractFromSplit: (
+    projectId: string,
+    splitId: string,
+    side: 'left' | 'right',
+  ) => { nextActive: LeafTab | null };
+
+  // Close one side of a split. The split degrades to a single leaf — the
+  // other side — sitting in the same position. Returns the surviving leaf
+  // for URL sync.
+  closeSplitSide: (
+    projectId: string,
+    splitId: string,
+    side: 'left' | 'right',
+  ) => { nextActive: LeafTab | null };
+
+  // Dissolve a split: replace it with its two leaves in left, right order
+  // at the same position in openTabs. The previously focused side becomes
+  // the new active tab. Returns it for URL sync.
+  unsplitTab: (projectId: string, splitId: string) => { nextActive: LeafTab | null };
+
+  // Bulk-close ops. Active-tab follows the same "prefer the right neighbor"
+  // rule as closeTab. closeOthers / closeToRight are bar-level (top-level
+  // tabs), not split-internal.
+  closeOtherTabs: (projectId: string, keepKey: string) => { nextActive: LeafTab | null };
+  closeTabsToRight: (projectId: string, anchorKey: string) => { nextActive: LeafTab | null };
+  closeAllTabs: (projectId: string) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -353,30 +465,66 @@ export const useUiStore = create<UiState>()(
 
       tabsByProject: {},
 
+      // Open an entity as a tab. Semantics differ based on the active tab:
+      //
+      //   • Active is a SplitTab → replace the focused side's leaf with the
+      //     new ref. The split tab itself stays active; only its focused
+      //     side's entity changes. The preview-slot promotion logic doesn't
+      //     apply here (splits don't have a preview slot).
+      //
+      //   • Active is a LeafTab (or no active tab) → preserve the existing
+      //     preview-slot behaviour: an open dedicated tab is activated in
+      //     place, a preview tab is replaced, otherwise append.
       openEntityTab: (projectId, ref, options) =>
         set((state) => {
           const preview = options?.preview ?? true;
           const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
-          const key = tabKey(ref);
+          const newLeaf = makeLeafTab(ref, preview);
+
+          // Active is a split → swap its focused side, keep the split active.
+          const activeTab = project.openTabs.find((t) => tabKey(t) === project.activeTabKey);
+          if (activeTab && activeTab.kind === 'split') {
+            const split = activeTab;
+            const focusedKey = tabKey(focusedLeafOf(split));
+            // If the requested entity is already in the focused side, no-op.
+            if (focusedKey === tabKey(newLeaf)) return {};
+            const updated: SplitTab = {
+              ...split,
+              [split.focused]: { ...newLeaf, isPreview: false },
+            } as SplitTab;
+            const nextOpenTabs = project.openTabs.map((t) =>
+              tabKey(t) === project.activeTabKey ? updated : t,
+            );
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: { ...project, openTabs: nextOpenTabs },
+              },
+            };
+          }
+
+          // Active is a leaf (or nothing) → original semantics.
+          const key = tabKey(newLeaf);
           const existingIdx = project.openTabs.findIndex((t) => tabKey(t) === key);
 
-          let nextOpenTabs: Tab[];
+          let nextOpenTabs: AnyTab[];
           if (existingIdx >= 0) {
-            // Already open — just activate. Preserve isPreview (don't demote dedicated → preview).
+            // Already open — just activate. Preserve dedicated/preview state.
             nextOpenTabs = project.openTabs;
           } else if (preview) {
-            // Replace existing preview tab in place, or append new preview tab.
-            const previewIdx = project.openTabs.findIndex((t) => t.isPreview);
-            const newTab: Tab = { ...ref, isPreview: true };
+            // Replace existing preview LEAF in place, or append new preview.
+            // Splits never have isPreview, so they're naturally skipped.
+            const previewIdx = project.openTabs.findIndex(
+              (t) => t.kind === 'leaf' && t.isPreview,
+            );
             if (previewIdx >= 0) {
               nextOpenTabs = project.openTabs.slice();
-              nextOpenTabs[previewIdx] = newTab;
+              nextOpenTabs[previewIdx] = newLeaf;
             } else {
-              nextOpenTabs = [...project.openTabs, newTab];
+              nextOpenTabs = [...project.openTabs, newLeaf];
             }
           } else {
-            // Dedicated tab — append.
-            nextOpenTabs = [...project.openTabs, { ...ref, isPreview: false }];
+            nextOpenTabs = [...project.openTabs, { ...newLeaf, isPreview: false }];
           }
 
           return {
@@ -394,9 +542,11 @@ export const useUiStore = create<UiState>()(
           const targetKey = ref ? tabKey(ref) : project.activeTabKey;
           if (!targetKey) return {};
           const idx = project.openTabs.findIndex((t) => tabKey(t) === targetKey);
-          if (idx < 0 || !project.openTabs[idx].isPreview) return {};
+          if (idx < 0) return {};
+          const target = project.openTabs[idx];
+          if (target.kind !== 'leaf' || !target.isPreview) return {};
           const nextOpenTabs = project.openTabs.slice();
-          nextOpenTabs[idx] = { ...nextOpenTabs[idx], isPreview: false };
+          nextOpenTabs[idx] = { ...target, isPreview: false };
           return {
             tabsByProject: {
               ...state.tabsByProject,
@@ -406,11 +556,12 @@ export const useUiStore = create<UiState>()(
         }),
 
       closeTab: (projectId, ref) => {
-        let nextActive: Tab | null = null;
+        let nextActive: LeafTab | null = null;
         set((state) => {
           const project = state.tabsByProject[projectId];
           if (!project) return {};
-          const key = tabKey(ref);
+          const key =
+            'splitId' in ref ? `split:${ref.splitId}` : `${ref.entityType}:${ref.id}`;
           const idx = project.openTabs.findIndex((t) => tabKey(t) === key);
           if (idx < 0) return {};
           const nextOpenTabs = project.openTabs.slice();
@@ -421,11 +572,10 @@ export const useUiStore = create<UiState>()(
             if (nextOpenTabs.length === 0) {
               nextActiveTabKey = null;
             } else {
-              // Prefer right neighbor (now at `idx`), else fall back to new last.
               const successor =
                 idx < nextOpenTabs.length ? nextOpenTabs[idx] : nextOpenTabs[nextOpenTabs.length - 1];
               nextActiveTabKey = tabKey(successor);
-              nextActive = successor;
+              nextActive = focusedLeafOf(successor);
             }
           }
           return {
@@ -465,7 +615,10 @@ export const useUiStore = create<UiState>()(
       setActiveTab: (projectId, ref) =>
         set((state) => {
           const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
-          const nextKey = ref ? tabKey(ref) : null;
+          let nextKey: string | null;
+          if (!ref) nextKey = null;
+          else if ('splitId' in ref) nextKey = `split:${ref.splitId}`;
+          else nextKey = `${ref.entityType}:${ref.id}`;
           if (project.activeTabKey === nextKey) return {};
           return {
             tabsByProject: {
@@ -482,9 +635,295 @@ export const useUiStore = create<UiState>()(
           delete rest[projectId];
           return { tabsByProject: rest };
         }),
+
+      splitActiveWith: (projectId, source, side) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId] ?? EMPTY_PROJECT_TABS;
+          if (project.openTabs.length === 0 || project.activeTabKey === null) {
+            // Nothing to split against — fall through to a regular open if
+            // the source is a fresh TabRef.
+            if ('fromKey' in source) return {};
+            const newLeaf = makeLeafTab(source, false);
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: {
+                  openTabs: [newLeaf],
+                  activeTabKey: tabKey(newLeaf),
+                },
+              },
+            };
+          }
+
+          // Resolve the source leaf and remove it from openTabs if it was
+          // already a top-level leaf (we're about to fold it into a split).
+          let sourceLeaf: LeafTab | null = null;
+          const workingTabs = project.openTabs.slice();
+          if ('fromKey' in source) {
+            const srcIdx = workingTabs.findIndex((t) => tabKey(t) === source.fromKey);
+            if (srcIdx >= 0) {
+              const src = workingTabs[srcIdx];
+              if (src.kind === 'leaf') {
+                sourceLeaf = { ...src, isPreview: false };
+                workingTabs.splice(srcIdx, 1);
+              }
+            }
+            if (!sourceLeaf) return {};
+          } else {
+            sourceLeaf = makeLeafTab(source, false);
+            // Strip any existing top-level leaf for the same entity to avoid
+            // duplication once it lives inside the split.
+            const dupIdx = workingTabs.findIndex(
+              (t) => t.kind === 'leaf' && tabKey(t) === tabKey(sourceLeaf!),
+            );
+            if (dupIdx >= 0) workingTabs.splice(dupIdx, 1);
+          }
+
+          const activeIdx = workingTabs.findIndex(
+            (t) => tabKey(t) === project.activeTabKey,
+          );
+          if (activeIdx < 0) {
+            // Active tab got removed by the dup-strip above (source was the
+            // active leaf). Just open the source as a new leaf.
+            const restored = [...workingTabs, sourceLeaf];
+            return {
+              tabsByProject: {
+                ...state.tabsByProject,
+                [projectId]: { openTabs: restored, activeTabKey: tabKey(sourceLeaf) },
+              },
+            };
+          }
+
+          const active = workingTabs[activeIdx];
+          let newSplit: SplitTab;
+          if (active.kind === 'leaf') {
+            const activeLeaf: LeafTab = { ...active, isPreview: false };
+            const left = side === 'left' ? sourceLeaf : activeLeaf;
+            const right = side === 'left' ? activeLeaf : sourceLeaf;
+            newSplit = {
+              kind: 'split',
+              id: generateSplitId(),
+              left,
+              right,
+              focused: side,
+              splitRatio: 0.5,
+            };
+          } else {
+            // Active is already a split — replace the requested side with
+            // the source leaf and shift focus there.
+            newSplit = {
+              ...active,
+              [side]: { ...sourceLeaf, isPreview: false },
+              focused: side,
+            } as SplitTab;
+          }
+          workingTabs[activeIdx] = newSplit;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: workingTabs, activeTabKey: tabKey(newSplit) },
+            },
+          };
+        }),
+
+      setSplitFocus: (projectId, splitId, side) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const nextOpenTabs = project.openTabs.map((t) => {
+            if (t.kind !== 'split' || t.id !== splitId) return t;
+            if (t.focused === side) return t;
+            return { ...t, focused: side };
+          });
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs: nextOpenTabs },
+            },
+          };
+        }),
+
+      setSplitRatio: (projectId, splitId, ratio) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const clamped = Math.max(0.15, Math.min(0.85, ratio));
+          const nextOpenTabs = project.openTabs.map((t) => {
+            if (t.kind !== 'split' || t.id !== splitId) return t;
+            if (Math.abs(t.splitRatio - clamped) < 0.001) return t;
+            return { ...t, splitRatio: clamped };
+          });
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs: nextOpenTabs },
+            },
+          };
+        }),
+
+      swapSplitPanes: (projectId, splitId) =>
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const nextOpenTabs = project.openTabs.map((t) => {
+            if (t.kind !== 'split' || t.id !== splitId) return t;
+            return {
+              ...t,
+              left: t.right,
+              right: t.left,
+              focused: t.focused === 'left' ? 'right' : 'left',
+            } as SplitTab;
+          });
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { ...project, openTabs: nextOpenTabs },
+            },
+          };
+        }),
+
+      extractFromSplit: (projectId, splitId, side) => {
+        let nextActive: LeafTab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const idx = project.openTabs.findIndex(
+            (t) => t.kind === 'split' && t.id === splitId,
+          );
+          if (idx < 0) return {};
+          const split = project.openTabs[idx] as SplitTab;
+          const extracted: LeafTab = { ...split[side], isPreview: false };
+          const survivor: LeafTab = { ...split[side === 'left' ? 'right' : 'left'], isPreview: false };
+          const nextOpenTabs = project.openTabs.slice();
+          nextOpenTabs.splice(idx, 1, survivor, extracted);
+          const wasActive = project.activeTabKey === tabKey(split);
+          const nextActiveTabKey = wasActive ? tabKey(survivor) : project.activeTabKey;
+          if (wasActive) nextActive = survivor;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      closeSplitSide: (projectId, splitId, side) => {
+        let nextActive: LeafTab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const idx = project.openTabs.findIndex(
+            (t) => t.kind === 'split' && t.id === splitId,
+          );
+          if (idx < 0) return {};
+          const split = project.openTabs[idx] as SplitTab;
+          const survivor: LeafTab = {
+            ...split[side === 'left' ? 'right' : 'left'],
+            isPreview: false,
+          };
+          const nextOpenTabs = project.openTabs.slice();
+          nextOpenTabs[idx] = survivor;
+          const wasActive = project.activeTabKey === tabKey(split);
+          const nextActiveTabKey = wasActive ? tabKey(survivor) : project.activeTabKey;
+          if (wasActive) nextActive = survivor;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      unsplitTab: (projectId, splitId) => {
+        let nextActive: LeafTab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const idx = project.openTabs.findIndex(
+            (t) => t.kind === 'split' && t.id === splitId,
+          );
+          if (idx < 0) return {};
+          const split = project.openTabs[idx] as SplitTab;
+          const left: LeafTab = { ...split.left, isPreview: false };
+          const right: LeafTab = { ...split.right, isPreview: false };
+          const nextOpenTabs = project.openTabs.slice();
+          nextOpenTabs.splice(idx, 1, left, right);
+          const successor = split.focused === 'left' ? left : right;
+          const wasActive = project.activeTabKey === tabKey(split);
+          const nextActiveTabKey = wasActive ? tabKey(successor) : project.activeTabKey;
+          if (wasActive) nextActive = successor;
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      closeOtherTabs: (projectId, keepKey) => {
+        let nextActive: LeafTab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const keep = project.openTabs.find((t) => tabKey(t) === keepKey);
+          if (!keep) return {};
+          nextActive = focusedLeafOf(keep);
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: [keep], activeTabKey: keepKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      closeTabsToRight: (projectId, anchorKey) => {
+        let nextActive: LeafTab | null = null;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const idx = project.openTabs.findIndex((t) => tabKey(t) === anchorKey);
+          if (idx < 0) return {};
+          const nextOpenTabs = project.openTabs.slice(0, idx + 1);
+          let nextActiveTabKey = project.activeTabKey;
+          if (
+            project.activeTabKey &&
+            !nextOpenTabs.some((t) => tabKey(t) === project.activeTabKey)
+          ) {
+            nextActiveTabKey = anchorKey;
+            nextActive = focusedLeafOf(nextOpenTabs[idx]);
+          }
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive };
+      },
+
+      closeAllTabs: (projectId) =>
+        set((state) => {
+          if (!state.tabsByProject[projectId]) return {};
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: [], activeTabKey: null },
+            },
+          };
+        }),
     }),
     {
       name: 'ui-storage', // unique name
+      version: 2,
       partialize: (state) => ({
         theme: state.theme,
         sidebars: state.sidebars,
@@ -498,6 +937,46 @@ export const useUiStore = create<UiState>()(
         outlineCollapsed: state.outlineCollapsed,
         bottomTimelineHidden: state.bottomTimelineHidden,
       }),
+      // v1 → v2 migration adds the `kind` discriminator to every tab so the
+      // store can tell leaf tabs from split tabs. v1 only had flat Tab[]
+      // entries shaped like { entityType, id, isPreview } — coerce them to
+      // LeafTab. Unrecognised shapes are dropped rather than crashing the
+      // tab bar.
+      migrate: (persisted, version) => {
+        if (!persisted || typeof persisted !== 'object') return persisted;
+        if (version >= 2) return persisted;
+        const state = persisted as { tabsByProject?: Record<string, unknown> };
+        if (!state.tabsByProject) return persisted;
+        const migrated: Record<string, ProjectTabsState> = {};
+        for (const [projectId, raw] of Object.entries(state.tabsByProject)) {
+          if (!raw || typeof raw !== 'object') continue;
+          const proj = raw as { openTabs?: unknown[]; activeTabKey?: string | null };
+          const openTabs: AnyTab[] = [];
+          for (const tab of proj.openTabs ?? []) {
+            if (!tab || typeof tab !== 'object') continue;
+            const t = tab as Partial<LeafTab> & { kind?: string };
+            // Future-proof: if a persisted entry already has `kind`, trust it
+            // (e.g. a downgrade-then-upgrade cycle).
+            if (t.kind === 'leaf' || t.kind === 'split') {
+              openTabs.push(t as AnyTab);
+              continue;
+            }
+            if (typeof t.entityType === 'string' && typeof t.id === 'string') {
+              openTabs.push({
+                kind: 'leaf',
+                entityType: t.entityType as TabEntityType,
+                id: t.id,
+                isPreview: Boolean(t.isPreview),
+              });
+            }
+          }
+          migrated[projectId] = {
+            openTabs,
+            activeTabKey: proj.activeTabKey ?? null,
+          };
+        }
+        return { ...state, tabsByProject: migrated };
+      },
       // Older persisted state used 'references' | 'inspirations' | 'ai' for
       // activeRightPanel. Coerce any unknown value back to the default so the
       // first render after upgrade doesn't crash the right panel.

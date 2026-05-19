@@ -20,10 +20,14 @@ import { usePromoteCurrentTab } from '../store/ui-store';
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
 
-export function ElementEditorView() {
+export function ElementEditorView({
+  elementIdOverride,
+}: { elementIdOverride?: string } = {}) {
   const navigate = useNavigate();
   const { navigateToHome } = useProjectNavigation();
-  const { elementId, projectId } = useParams<{ elementId: string; projectId: string }>();
+  const params = useParams<{ elementId: string; projectId: string }>();
+  const projectId = params.projectId;
+  const elementId = elementIdOverride ?? params.elementId;
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
   const { bookElements, bookElementCategories } = useDataStore();

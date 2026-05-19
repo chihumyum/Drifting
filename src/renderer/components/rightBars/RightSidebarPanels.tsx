@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
-import { useUiStore, useProjectTabs } from '../../store/ui-store';
+import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
 
@@ -25,13 +25,17 @@ export function RightSidebarPanels() {
   // Decode the active tab into a resolved target so the right panel can show
   // entity-specific context. Falls back to "no target" on the project home.
   const target = useMemo<ResolvedTarget>(() => {
-    const activeTab = openTabs.find((t) => `${t.entityType}:${t.id}` === activeTabKey);
+    // Per the focused-only selection model, the right sidebar tracks the
+    // focused side of the active tab regardless of whether it's a single
+    // leaf or a split. The non-focused half of a split doesn't reflect here.
+    const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey);
     if (!activeTab) {
       return { kind: 'none', id: null, title: '项目主页', kicker: '本项目 · 概览' };
     }
-    if (activeTab.entityType === 'node') {
-      const node = bookNodes.find((n) => n.id === activeTab.id);
-      if (!node) return { kind: 'none', id: activeTab.id, title: '—', kicker: '—' };
+    const leaf = focusedLeafOf(activeTab);
+    if (leaf.entityType === 'node') {
+      const node = bookNodes.find((n) => n.id === leaf.id);
+      if (!node) return { kind: 'none', id: leaf.id, title: '—', kicker: '—' };
       const isDrift = node.mainStorylineId == null;
       const storyline = node.mainStorylineId
         ? storylines.find((s) => s.id === node.mainStorylineId)
@@ -44,33 +48,33 @@ export function RightSidebarPanels() {
         color: storyline?.color,
       };
     }
-    if (activeTab.entityType === 'storyline') {
-      const s = storylines.find((sl) => sl.id === activeTab.id);
+    if (leaf.entityType === 'storyline') {
+      const s = storylines.find((sl) => sl.id === leaf.id);
       return {
         kind: 'storyline',
-        id: activeTab.id,
+        id: leaf.id,
         title: s?.name || 'Untitled Storyline',
         kicker: '本故事线 · 片段与参考',
         color: s?.color,
       };
     }
-    if (activeTab.entityType === 'element') {
-      const e = bookElements.find((el) => el.id === activeTab.id);
+    if (leaf.entityType === 'element') {
+      const e = bookElements.find((el) => el.id === leaf.id);
       const cat = e ? bookElementCategories.find((c) => c.id === e.categoryId) : undefined;
       return {
         kind: 'element',
-        id: activeTab.id,
+        id: leaf.id,
         title: e?.name || 'Untitled Element',
         kicker: '本元素 · 片段与参考',
         color: cat?.color,
       };
     }
-    if (activeTab.entityType === 'category') {
-      const c = bookElementCategories.find((cat) => cat.id === activeTab.id);
+    if (leaf.entityType === 'category') {
+      const c = bookElementCategories.find((cat) => cat.id === leaf.id);
       return {
         kind: 'category',
-        id: activeTab.id,
-        title: c?.name || activeTab.id,
+        id: leaf.id,
+        title: c?.name || leaf.id,
         kicker: '本类目 · 片段与参考',
         color: c?.color,
       };

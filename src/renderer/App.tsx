@@ -3,7 +3,6 @@ import {
   Navigate,
   Route,
   Routes,
-  Outlet,
   useLocation,
   useNavigate,
   useParams,
@@ -27,6 +26,8 @@ import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
 import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
+import { EditorMainArea } from './components/editor/EditorMainArea';
+import { useSyncSplitFocusedUrl } from './components/editor/useSyncSplitFocusedUrl';
 import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { ExportDialog } from './components/modals/ExportDialog';
@@ -35,7 +36,7 @@ import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { initAccentColor } from './lib/theme';
-import { useUiStore, tabKey } from './store/ui-store';
+import { useUiStore, tabKey, focusedLeafOf } from './store/ui-store';
 import { useSettingsStore } from './store/settings-store';
 import { useShortcutsStore } from './store/shortcuts-store';
 import { setI18nLocale } from './lib/i18n';
@@ -60,6 +61,28 @@ import { rebuildProjectInlineReferenceIndex } from './services/reference-index.s
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('App');
+
+// URL builder for a leaf tab — used by the keyboard tab-cycle shortcut when
+// stepping into a split tab. Lives next to App because it's the only call
+// site outside useProjectNavigation, and duplicating the four short cases
+// here is cheaper than pulling navigation logic into a shared util.
+function urlForLeaf(
+  projectId: string,
+  leaf: { entityType: 'node' | 'storyline' | 'element' | 'category'; id: string },
+): string | null {
+  switch (leaf.entityType) {
+    case 'node':
+      return `/project/${projectId}/editor/${leaf.id}`;
+    case 'storyline':
+      return `/project/${projectId}/editor/storyline/${leaf.id}`;
+    case 'element':
+      return `/project/${projectId}/element/${leaf.id}`;
+    case 'category':
+      return `/project/${projectId}/category/${encodeURIComponent(leaf.id)}`;
+    default:
+      return null;
+  }
+}
 // log.setLevel(loglevel.levels.ERROR);
 log.setLevel(loglevel.levels.TRACE);
 
@@ -157,6 +180,10 @@ function Layout() {
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const { openEntity, navigateToHome } = useProjectNavigation();
   const navigate = useNavigate();
+  // When the active tab is a split, keep the URL synced with the focused
+  // side. Mounted at the Layout level so it runs in both single- and
+  // split-pane modes (EditorShell wouldn't run when Outlet isn't rendered).
+  useSyncSplitFocusedUrl();
   const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
@@ -424,7 +451,19 @@ function Layout() {
         const nextIdx =
           (baseIdx + direction + project.openTabs.length) % project.openTabs.length;
         const nextTab = project.openTabs[nextIdx];
-        openEntity({ entityType: nextTab.entityType, id: nextTab.id });
+        // Switching to a split tab can't go through openEntity, because that
+        // path replaces the focused side of whatever split is currently
+        // active — it'd hijack the previous tab instead of activating the
+        // new one. Set active explicitly and navigate to the next tab's
+        // focused leaf URL.
+        if (nextTab.kind === 'split') {
+          state.setActiveTab(projectId, { splitId: nextTab.id });
+          const leaf = focusedLeafOf(nextTab);
+          const url = urlForLeaf(projectId, leaf);
+          if (url) navigate(url);
+        } else {
+          openEntity({ entityType: nextTab.entityType, id: nextTab.id });
+        }
       }
 
       if (matchesAccelerator(e, bindings.closeActiveTab)) {
@@ -432,15 +471,14 @@ function Layout() {
         const project = state.tabsByProject[projectId];
         const activeKey = project?.activeTabKey;
         if (!activeKey) return;
-        const activeTab = project.openTabs.find(
-          (t) => `${t.entityType}:${t.id}` === activeKey,
-        );
+        const activeTab = project.openTabs.find((t) => tabKey(t) === activeKey);
         if (!activeTab) return;
         e.preventDefault();
-        const { nextActive } = state.closeTab(projectId, {
-          entityType: activeTab.entityType,
-          id: activeTab.id,
-        });
+        const closeRef =
+          activeTab.kind === 'split'
+            ? { splitId: activeTab.id }
+            : { entityType: activeTab.entityType, id: activeTab.id };
+        const { nextActive } = state.closeTab(projectId, closeRef);
         if (nextActive) {
           openEntity({ entityType: nextActive.entityType, id: nextActive.id });
         } else {
@@ -537,7 +575,11 @@ function Layout() {
           }}
         >
           {/* Scrollable Content */}
-          {/* flex: 1 这里的 overflow: auto 才是真正的滚动区域 */}
+          {/* In single-pane mode EditorMainArea renders <Outlet /> internally,
+              so the matched route's view component still scrolls inside this
+              container. In split mode it renders two panes directly and
+              suppresses the Outlet — each pane's view scrolls independently
+              within its half of the editor surface. */}
           <div
             style={{
               flex: 1,
@@ -546,7 +588,7 @@ function Layout() {
               position: 'relative',
             }}
           >
-            <Outlet />
+            <EditorMainArea />
           </div>
           {/* 底部时间轴：嵌入中间栏底部，左右栏延伸至最底。
               状态栏 toggle 隐藏整条时间轴；不再保留旧的「色带」薄态。 */}
