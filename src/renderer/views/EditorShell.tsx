@@ -20,6 +20,7 @@ function buildRuntime(view: EditorShellView) {
   switch (view) {
     case 'node-editor':
     case 'storyline-editor':
+    case 'all-chapters-editor':
       return {
         view,
         activeEntityType: 'node' as const,
@@ -98,8 +99,12 @@ export function EditorShell({ view, children }: EditorShellProps) {
     if (nodeSelectedFrom !== 'ui') return;
     if (!nodeSelectedId) return;
     if (nodeSelectedId === nodeId) return;
+    // In all-chapters mode, a UI selection means "scroll to this chapter" —
+    // never a route change. The view itself watches nodeUi.selectedId and
+    // scrolls; leaving the URL alone keeps the long-scroll view mounted.
+    if (view === 'all-chapters-editor') return;
     navigateToNode(nodeSelectedId);
-  }, [nodeSelectedFrom, nodeSelectedId, nodeId, navigateToNode]);
+  }, [nodeSelectedFrom, nodeSelectedId, nodeId, navigateToNode, view]);
 
   useEffect(() => {
     if (elementSelectedFrom !== 'ui') return;

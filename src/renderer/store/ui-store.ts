@@ -42,6 +42,7 @@ export type EditorShellView =
   | 'storyline-editor'
   | 'element-editor'
   | 'category-editor'
+  | 'all-chapters-editor'
   | 'unknown';
 
 interface EntitySelectionState {
