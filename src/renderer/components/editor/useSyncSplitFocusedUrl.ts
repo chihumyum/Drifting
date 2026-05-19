@@ -96,13 +96,17 @@ export function useSyncSplitFocusedUrl(): void {
   // that stale URL and re-create the tab we just closed, which is the
   // "click X twice to close" bug.
   const prevOpenTabsLenRef = useRef(openTabs.length);
+  const prevFocusedRef = useRef<TabRef | null>(null);
 
   useEffect(() => {
     const prevLen = prevOpenTabsLenRef.current;
     prevOpenTabsLenRef.current = openTabs.length;
     const justEmptied = prevLen > 0 && openTabs.length === 0;
 
-    if (!projectId) return;
+    if (!projectId) {
+      prevFocusedRef.current = null;
+      return;
+    }
     const active = openTabs.find((t) => tabKey(t) === activeTabKey);
     const urlEntity = parseEntityFromPath(location.pathname, projectId);
 
@@ -113,16 +117,39 @@ export function useSyncSplitFocusedUrl(): void {
     if (!active && urlEntity && !justEmptied) {
       openEntityTab(projectId, urlEntity, { preview: true });
       mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
+      prevFocusedRef.current = urlEntity;
       return;
     }
-    if (!active) return;
+    if (!active) {
+      prevFocusedRef.current = null;
+      return;
+    }
 
     const focused = focusedLeafOf(active);
+    const prevFocused = prevFocusedRef.current;
+    const focusedChanged =
+      prevFocused !== null && !sameEntity(prevFocused, focused);
 
     if (
       urlEntity &&
-      (urlEntity.entityType !== focused.entityType || urlEntity.id !== focused.id)
+      !sameEntity(urlEntity, focused)
     ) {
+      // closeTab()/setActiveTab() update the tab store synchronously, while
+      // navigate() lands through React Router. On the render in between,
+      // the active leaf is already the next tab but location.pathname can
+      // still point at the previous one. Treat that URL as stale; otherwise
+      // openEntityTab(...preview: true) re-creates the just-closed dedicated
+      // tab as a preview, which makes closing appear to require two actions.
+      if (focusedChanged && sameEntity(urlEntity, prevFocused)) {
+        const expected = expectedPathnameFor(projectId, focused);
+        if (expected && location.pathname !== expected) {
+          navigate(expected, { replace: true });
+        }
+        mirrorSelection(focused, setNodeSelection, setElementSelection);
+        prevFocusedRef.current = focused;
+        return;
+      }
+
       // For a split, the URL might be pointing at the *non-focused* side —
       // this happens any time something changed the focused side without
       // immediately pushing a URL, the most common case being
@@ -140,22 +167,25 @@ export function useSyncSplitFocusedUrl(): void {
       // the focused side with that.
       if (active.kind === 'split') {
         const other = active.focused === 'left' ? active.right : active.left;
-        if (urlEntity.entityType === other.entityType && urlEntity.id === other.id) {
+        if (sameEntity(urlEntity, other)) {
           const expected = expectedPathnameFor(projectId, focused);
           if (expected && location.pathname !== expected) {
             navigate(expected, { replace: true });
           }
           mirrorSelection(focused, setNodeSelection, setElementSelection);
+          prevFocusedRef.current = focused;
           return;
         }
       }
       openEntityTab(projectId, urlEntity, { preview: true });
       mirrorSelection(urlEntity, setNodeSelection, setElementSelection);
+      prevFocusedRef.current = urlEntity;
       return;
     }
 
     // URL matches focused leaf — just mirror its id into selection state.
     mirrorSelection(focused, setNodeSelection, setElementSelection);
+    prevFocusedRef.current = focused;
   }, [
     activeTabKey,
     openTabs,
@@ -166,6 +196,10 @@ export function useSyncSplitFocusedUrl(): void {
     setNodeSelection,
     setElementSelection,
   ]);
+}
+
+function sameEntity(a: TabRef, b: TabRef): boolean {
+  return a.entityType === b.entityType && a.id === b.id;
 }
 
 function mirrorSelection(
