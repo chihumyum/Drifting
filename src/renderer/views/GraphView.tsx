@@ -394,9 +394,14 @@ export function GraphView() {
   // BottomTimeline's UX) so the canvas doesn't accept ambiguous placements.
   const [draggedNode, setDraggedNode] = useState<BookNode | null>(null);
   const [draggedFromDrawer, setDraggedFromDrawer] = useState(false);
-  const [dragOver, setDragOver] = useState<{ order: number; storylineId: string | null } | null>(
-    null,
-  );
+  const [dragOver, setDragOver] = useState<{
+    order: number;
+    storylineId: string | null;
+    // Cursor X in graph-tracks coordinates (already includes
+    // CANVAS_PADDING_X). Drives the drop indicator so it tracks the
+    // cursor / drag ghost rather than the snapped tile-left position.
+    indicatorX: number;
+  } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const draggedMainStorylineId = useMemo(
@@ -417,12 +422,25 @@ export function GraphView() {
     setDraggedNode(node);
     setDraggedFromDrawer(false);
     e.dataTransfer.effectAllowed = 'move';
+    // Pin the drag image's grab point to the tile's center so the ghost
+    // tracks the cursor at the SAME spot the drop logic snaps to. Without
+    // this the ghost follows whatever (x, y) the user clicked on (e.g.
+    // bottom-right corner) while the drop centers the tile on the
+    // cursor — the two visuals drift apart.
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
   };
 
   const handleChipDragStart = (e: React.DragEvent, node: BookNode) => {
     setDraggedNode(node);
     setDraggedFromDrawer(true);
     e.dataTransfer.effectAllowed = 'move';
+    // Same recipe as tile drags: anchor the chip ghost at its center so
+    // the drag preview aligns with the drop indicator over the tracks.
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
   };
 
   // Map a mouse Y (in canvas-content coordinates) to the storyline whose row
@@ -441,8 +459,18 @@ export function GraphView() {
   const handleTracksDragOver = (e: React.DragEvent) => {
     if (!draggedNode || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left + canvasRef.current.scrollLeft - GRAPH_CONFIG.CANVAS_PADDING_X;
-    const order = Math.max(orderSpan.min, Math.round(x / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min);
+    // Snap on the *center* of the dropped tile rather than its left edge:
+    // the drag ghost is centered on the cursor (see handleTileDragStart),
+    // so centering the drop keeps the ghost, indicator, and final tile
+    // visually aligned.
+    const cursorContentX =
+      e.clientX - rect.left + canvasRef.current.scrollLeft - GRAPH_CONFIG.CANVAS_PADDING_X;
+    const tileWidth = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
+    const tileLeftContentX = cursorContentX - tileWidth / 2;
+    const order = Math.max(
+      orderSpan.min,
+      Math.round(tileLeftContentX / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min,
+    );
     const yInTracks = e.clientY - rect.top + canvasRef.current.scrollTop;
     const storylineId = storylineAtY(yInTracks);
     if (!canDropOnStoryline(storylineId)) {
@@ -453,7 +481,9 @@ export function GraphView() {
     }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOver({ order, storylineId });
+    // `indicatorX` is the cursor position in graph-tracks coordinates;
+    // also matches where the tile's center will land after drop.
+    setDragOver({ order, storylineId, indicatorX: cursorContentX + GRAPH_CONFIG.CANVAS_PADDING_X });
   };
 
   const handleTracksDrop = async (e: React.DragEvent) => {
@@ -786,7 +816,9 @@ export function GraphView() {
 
             {/* Drop indicator while dragging — a 2px vertical bar on the
                 row the cursor is over, tinted with that storyline's color.
-                Matches the BottomTimeline drop-indicator recipe. */}
+                `indicatorX` tracks the cursor (matching the centered drag
+                ghost); the drop math snaps the tile center to the same X,
+                so ghost + indicator + dropped tile all line up. */}
             {dragOver && draggedNode && dragOver.storylineId && (() => {
               const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
               const rowStoryline = storylineById.get(dragOver.storylineId);
@@ -794,7 +826,7 @@ export function GraphView() {
                 <div
                   className="graph-drop-indicator"
                   style={{
-                    left: orderToX(dragOver.order),
+                    left: dragOver.indicatorX,
                     top: GRAPH_CONFIG.AXIS_HEIGHT + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
                     height: GRAPH_CONFIG.TRACK_HEIGHT,
                     background: rowStoryline?.color || 'hsl(var(--accent))',
