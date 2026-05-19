@@ -6,9 +6,11 @@ import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
+import { useStoryline } from '../usecase/useStoryline';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
+import { GraphContextMenu, type GraphContextMenuState } from '../components/graph/GraphContextMenu';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
@@ -88,14 +90,18 @@ function colorForKind(kind: string | null): string {
   return KIND_PALETTE[Math.abs(h) % KIND_PALETTE.length];
 }
 
+const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
+
 export function GraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
-  const setNodeSelection = useUiStore((s) => s.setNodeSelection);
-  const selectedNodeUiId = useUiStore((s) => s.nodeUi.selectedId);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode, createEdge, deleteEdge } = useBookNode({
+  const { updateNode, deleteNode, createEdge, deleteEdge } = useBookNode({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { removeNodeFromStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -113,6 +119,8 @@ export function GraphView() {
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
   // the moment of click — the popover positions itself relative to it.
   const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
+  const [contextMenu, setContextMenu] = useState<GraphContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -129,6 +137,29 @@ export function GraphView() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [setActiveSuperView]);
+
+  // Close the context menu on outside click or ESC.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button !== 0 && e.button !== 2) return;
+      const target = e.target as Node | null;
+      if (target && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+  }, [contextMenu]);
 
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
@@ -355,61 +386,105 @@ export function GraphView() {
     return out;
   }, [isNarrative, markers, orderSpan.min, orderSpan.max, orderToX]);
 
-  // ---- Drag / drop (narrative view only — set narrativeOrder by dropping) ----
+  // ---- Drag / drop ----
+  // Both book and narrative views support tile drag-to-reorder; the
+  // `orderField` (bookOrder | narrativeOrder) decides which value the drop
+  // mutates. Drags originating from the narrative-view "未放置" drawer are
+  // additionally constrained to the node's primary storyline row (mirrors
+  // BottomTimeline's UX) so the canvas doesn't accept ambiguous placements.
   const [draggedNode, setDraggedNode] = useState<BookNode | null>(null);
-  const [dragOverOrder, setDragOverOrder] = useState<number | null>(null);
+  const [draggedFromDrawer, setDraggedFromDrawer] = useState(false);
+  const [dragOver, setDragOver] = useState<{ order: number; storylineId: string | null } | null>(
+    null,
+  );
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const draggedMainStorylineId = useMemo(
+    () => (draggedNode ? primaryStorylineId(draggedNode) : null),
+    [draggedNode, primaryStorylineId],
+  );
+
+  const canDropOnStoryline = useCallback(
+    (storylineId: string | null) => {
+      if (!draggedNode) return false;
+      if (!draggedFromDrawer) return true;
+      return storylineId === draggedMainStorylineId;
+    },
+    [draggedNode, draggedFromDrawer, draggedMainStorylineId],
+  );
+
   const handleTileDragStart = (e: React.DragEvent, node: BookNode) => {
-    if (!isNarrative) {
-      e.preventDefault();
-      return;
-    }
     setDraggedNode(node);
+    setDraggedFromDrawer(false);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleChipDragStart = (e: React.DragEvent, node: BookNode) => {
     setDraggedNode(node);
+    setDraggedFromDrawer(true);
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  // Map a mouse Y (in canvas-content coordinates) to the storyline whose row
+  // contains it. Returns null when above the axis or below the last row.
+  const storylineAtY = useCallback(
+    (yInTracks: number): string | null => {
+      const relative = yInTracks - GRAPH_CONFIG.AXIS_HEIGHT;
+      if (relative < 0) return null;
+      const idx = Math.floor(relative / GRAPH_CONFIG.TRACK_HEIGHT);
+      if (idx < 0 || idx >= storylines.length) return null;
+      return storylines[idx]?.id ?? null;
+    },
+    [storylines],
+  );
+
   const handleTracksDragOver = (e: React.DragEvent) => {
     if (!draggedNode || !canvasRef.current) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left + canvasRef.current.scrollLeft - GRAPH_CONFIG.CANVAS_PADDING_X;
     const order = Math.max(orderSpan.min, Math.round(x / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min);
-    setDragOverOrder(order);
+    const yInTracks = e.clientY - rect.top + canvasRef.current.scrollTop;
+    const storylineId = storylineAtY(yInTracks);
+    if (!canDropOnStoryline(storylineId)) {
+      // Drawer drag landed on a non-primary row — implicit reject (don't
+      // preventDefault, don't surface a drop indicator).
+      setDragOver(null);
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOver({ order, storylineId });
   };
 
   const handleTracksDrop = async (e: React.DragEvent) => {
-    if (!draggedNode || dragOverOrder === null) return;
+    if (!draggedNode || !dragOver) return;
+    if (!canDropOnStoryline(dragOver.storylineId)) return;
     e.preventDefault();
     try {
-      await updateNode(draggedNode.id, { narrativeOrder: dragOverOrder });
+      await updateNode(draggedNode.id, { [orderField]: dragOver.order });
     } catch (err) {
-      log.error('Failed to set narrativeOrder', err);
+      log.error('Failed to update order on drop', err);
     } finally {
       setDraggedNode(null);
-      setDragOverOrder(null);
+      setDraggedFromDrawer(false);
+      setDragOver(null);
     }
   };
 
   const handleDragEnd = () => {
     setDraggedNode(null);
-    setDragOverOrder(null);
+    setDraggedFromDrawer(false);
+    setDragOver(null);
   };
-
-  // ---- Active node (for active-tile outline) ----
-  const activeId = selectedNodeUiId ?? null;
 
   const totalsLabel = `${storylines.length} ${storylines.length === 1 ? '故事线' : '故事线'} · ${placedNodes.length}/${bookNodes.length} 章`;
 
   return (
     <div className="graph-overlay" data-view={viewMode}>
-      <div className="graph-head">
+      <div
+        className="graph-head"
+        style={IS_MAC ? { paddingLeft: 86 } : undefined}
+      >
         <div className="graph-head__left">
           <button className="graph-head__back" onClick={close} title="Esc 返回">
             <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, lineHeight: 1 }}>
@@ -500,7 +575,6 @@ export function GraphView() {
                       draggable
                       onDragStart={(e) => handleChipDragStart(e, node)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => setNodeSelection(node.id, 'ui')}
                       style={{ ['--chip-color' as string]: color } as React.CSSProperties}
                       title={node.title || '未命名'}
                     >
@@ -525,8 +599,13 @@ export function GraphView() {
           <div style={{ height: GRAPH_CONFIG.AXIS_HEIGHT, borderBottom: '1px solid hsl(var(--rule))' }} />
           {storylines.map((s) => {
             const lane = sortedNodesByStoryline.get(s.id) ?? [];
+            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(s.id);
             return (
-              <div key={s.id} className="graph-rail__row" style={{ height: GRAPH_CONFIG.TRACK_HEIGHT }}>
+              <div
+                key={s.id}
+                className={`graph-rail__row${dimmed ? ' is-drop-disabled' : ''}`}
+                style={{ height: GRAPH_CONFIG.TRACK_HEIGHT }}
+              >
                 <div className="graph-rail__name">
                   <span
                     className="graph-rail__name-dot"
@@ -549,10 +628,9 @@ export function GraphView() {
               nodes={placedNodes}
               storylines={storylines}
               primaryStorylineId={(n) => primaryStorylineId(n)}
-              activeNodeId={activeId}
+              activeNodeId={null}
               trackOffsetX={0}
               onNodeClick={(id) => {
-                setNodeSelection(id, 'ui');
                 const target = positionedNodes.find((n) => n.id === id);
                 const canvas = canvasRef.current;
                 if (!target || !canvas) return;
@@ -568,8 +646,8 @@ export function GraphView() {
           <div
             ref={canvasRef}
             className="graph-canvas"
-            onDragOver={isNarrative ? handleTracksDragOver : undefined}
-            onDrop={isNarrative ? handleTracksDrop : undefined}
+            onDragOver={handleTracksDragOver}
+            onDrop={handleTracksDrop}
           >
             <div
               className="graph-tracks"
@@ -591,18 +669,21 @@ export function GraphView() {
               )}
 
             {/* One row per storyline with the dotted reading-line behind tiles */}
-            {storylines.map((s) => (
-              <div
-                key={s.id}
-                className="graph-track"
-                style={
-                  {
-                    height: GRAPH_CONFIG.TRACK_HEIGHT,
-                    ['--track-color' as string]: s.color || 'hsl(var(--story-4))',
-                  } as React.CSSProperties
-                }
-              />
-            ))}
+            {storylines.map((s) => {
+              const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(s.id);
+              return (
+                <div
+                  key={s.id}
+                  className={`graph-track${dimmed ? ' is-drop-disabled' : ''}`}
+                  style={
+                    {
+                      height: GRAPH_CONFIG.TRACK_HEIGHT,
+                      ['--track-color' as string]: s.color || 'hsl(var(--story-4))',
+                    } as React.CSSProperties
+                  }
+                />
+              );
+            })}
 
             {/* Cross-storyline trails (SVG, behind tiles) */}
             {(crossLinks.length > 0 || visibleEdges.length > 0) && (
@@ -670,14 +751,25 @@ export function GraphView() {
               </svg>
             )}
 
-            {/* Drop indicator while dragging in narrative view */}
-            {isNarrative && dragOverOrder !== null && draggedNode && (
+            {/* Drop indicator while dragging. Spans the targeted row only
+                when the drag comes from the drawer (single eligible row);
+                axis-to-axis tile drags accept any row, so the indicator
+                covers all rows. */}
+            {dragOver && draggedNode && (
               <div
                 className="graph-drop-indicator"
                 style={{
-                  left: orderToX(dragOverOrder),
-                  top: GRAPH_CONFIG.AXIS_HEIGHT,
-                  height: storylines.length * GRAPH_CONFIG.TRACK_HEIGHT,
+                  left: orderToX(dragOver.order),
+                  top:
+                    GRAPH_CONFIG.AXIS_HEIGHT +
+                    (draggedFromDrawer && dragOver.storylineId
+                      ? (storylineRowIndex.get(dragOver.storylineId) ?? 0) *
+                        GRAPH_CONFIG.TRACK_HEIGHT
+                      : 0),
+                  height:
+                    draggedFromDrawer && dragOver.storylineId
+                      ? GRAPH_CONFIG.TRACK_HEIGHT
+                      : storylines.length * GRAPH_CONFIG.TRACK_HEIGHT,
                 }}
               />
             )}
@@ -699,9 +791,23 @@ export function GraphView() {
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  draggable={isNarrative}
+                  draggable
                   onDragStart={(e) => handleTileDragStart(e, node)}
                   onDragEnd={handleDragEnd}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({
+                      x: e.clientX + 2,
+                      y: e.clientY - 2,
+                      nodeId: node.id,
+                      nodeTitle: node.title,
+                      nodeSummary: node.summary,
+                      nodeStorylines: node.storylines,
+                      hasNarrativeOrder: typeof node.narrativeOrder === 'number',
+                      mainStorylineId: node.storyline?.id ?? null,
+                    });
+                  }}
                   onClick={(e) => {
                     // Shift-click sets/clears the relation source. A subsequent
                     // plain click on a different tile opens the new-edge
@@ -716,7 +822,6 @@ export function GraphView() {
                       setLinkSource(null);
                       return;
                     }
-                    setNodeSelection(node.id, 'ui');
                     // Snapshot the tile's viewport rect so the popover can
                     // position itself relative to where the user clicked.
                     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -882,6 +987,69 @@ export function GraphView() {
             </div>
           </div>
         </div>
+      )}
+
+      {contextMenu && (
+        <GraphContextMenu
+          state={contextMenu}
+          menuRef={contextMenuRef}
+          edgeCountForNode={
+            nodeEdges.filter(
+              (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
+            ).length
+          }
+          isNarrative={isNarrative}
+          onClose={() => setContextMenu(null)}
+          onAction={async (action) => {
+            const nid = contextMenu.nodeId;
+            setContextMenu(null);
+            try {
+              switch (action) {
+                case 'editChapter':
+                  openEntity({ entityType: 'node', id: nid }, { preview: false });
+                  close();
+                  break;
+                case 'startEdgeFrom':
+                  setLinkSource(nid);
+                  break;
+                case 'deleteAllEdges': {
+                  const related = nodeEdges.filter(
+                    (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
+                  );
+                  for (const e of related) {
+                    await deleteEdge(e.id);
+                  }
+                  break;
+                }
+                case 'detachFromNarrative':
+                  await updateNode(nid, { narrativeOrder: null });
+                  break;
+                case 'removeFromMainStoryline': {
+                  // Promote a different storyline to main, then unlink the
+                  // old main. Mirrors BottomTimeline's primary-storyline
+                  // removal — keeps the guard in removeNodeFromStoryline
+                  // happy (you can't unlink the current primary directly).
+                  const main = contextMenu.mainStorylineId;
+                  if (!main) break;
+                  const remaining = (contextMenu.nodeStorylines ?? [])
+                    .filter((s) => s.id !== main)
+                    .map((s) => s.id);
+                  if (remaining.length === 0) break;
+                  await updateNode(nid, { mainStorylineId: remaining[0] });
+                  await removeNodeFromStoryline(nid, main);
+                  break;
+                }
+                case 'deleteNode':
+                  if (window.confirm('删除此章节？此操作不可撤销。')) {
+                    await deleteNode(nid);
+                  }
+                  break;
+              }
+            } catch (err) {
+              log.error('Graph context menu action failed', err);
+            }
+          }}
+        />
       )}
 
       {/* Node card popover — opened by tile click. Renders fixed-position

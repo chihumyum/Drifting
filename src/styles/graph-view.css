@@ -458,13 +458,26 @@
   transition: opacity 0.2s;
 }
 
-/* ---------------- Drop indicator (narrative drag) ---------------- */
+/* ---------------- Drop indicator ---------------- */
 .graph-drop-indicator {
   position: absolute;
-  width: 2px;
-  background: hsl(var(--accent) / 0.6);
+  width: 3px;
+  background: hsl(var(--accent));
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25);
   pointer-events: none;
   z-index: 4;
+  border-radius: 1px;
+}
+
+/* When a drag is in flight from the "未放置" drawer, only the node's main
+   storyline accepts a drop — other rows (both their rail labels on the
+   left and their tracks in the canvas) dim so the constraint is visible
+   instead of guessable. Mirrors BottomTimeline's `.btl-row.is-drop-disabled`. */
+.graph-rail__row.is-drop-disabled,
+.graph-track.is-drop-disabled {
+  opacity: 0.32;
+  filter: saturate(0.6);
+  transition: opacity 0.12s, filter 0.12s;
 }
 
 /* ---------------- Legend ---------------- */
