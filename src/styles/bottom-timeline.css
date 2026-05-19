@@ -312,6 +312,9 @@
   align-self: stretch;
   display: flex;
   align-items: center;
+  /* Leaves clearance for the absolute-positioned stripe (3px) on the
+     left edge — keeps rail text from sitting on top of the stripe. */
+  padding-left: 10px;
   border-right: 1px solid hsl(var(--rule));
   background: hsl(var(--paper-deep));
   cursor: default;
@@ -334,12 +337,6 @@
 }
 .btl-rail.is-active .btl-rail__stripe {
   opacity: 1;
-}
-.btl-rail__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-  flex-shrink: 0;
 }
 .btl-rail__main {
   flex: 1;
@@ -521,7 +518,12 @@
   z-index: 0;
 }
 .btl-pin-line.is-dragging {
-  background: hsl(var(--accent) / 0.55);
+  /* During drag the line is the drop indicator — bump width, drop the
+     alpha, and raise z-index above selected clips (which sit at 10) so
+     the indicator is never occluded by the active chapter card. */
+  width: 2px;
+  background: hsl(var(--accent));
+  z-index: 11;
 }
 
 /* Playhead removed: the FullBookLane now hosts it (see full-book-lane.css).

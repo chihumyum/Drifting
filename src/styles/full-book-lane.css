@@ -9,7 +9,9 @@
   /* Independent horizontal scroll: lane content has no positional relation
      to the storyline tracks below (chips are packed in book order, not
      positioned by an order field), so scrolling the lane shouldn't move
-     the rows underneath and vice versa. */
+     the rows underneath and vice versa. Scrollbar is hidden — the lane
+     remains horizontally scrollable via touch/wheel, matching the
+     scrollbar-less treatment of .btl__scroll. */
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
@@ -17,14 +19,11 @@
   overflow-y: hidden;
   background: hsl(var(--paper));
   border-bottom: 1px solid hsl(var(--rule));
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .fbl::-webkit-scrollbar {
-  height: 4px;
-}
-.fbl::-webkit-scrollbar-thumb {
-  background: hsl(var(--rule-strong));
-  border-radius: 2px;
+  display: none;
 }
 .fbl__rail {
   position: sticky;

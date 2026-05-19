@@ -67,13 +67,12 @@ interface TimelinePinProps {
   snapValues: number[];
   orderToPosition: (order: number) => number;
   xOffset: number;
-  displayOrder: number;
   isDragging: boolean;
   pinHeight: number;
   editOnMount?: boolean;
   onChange: (patch: { narrativeOrder?: number; label?: string }) => void;
   onDelete: () => void;
-  onDragMove: (nextOrder: number | null) => void;
+  onDragMove: (nextPixelX: number | null) => void;
 }
 
 function TimelinePin({
@@ -81,7 +80,6 @@ function TimelinePin({
   snapValues,
   orderToPosition,
   xOffset,
-  displayOrder,
   isDragging,
   pinHeight,
   editOnMount = false,
@@ -91,7 +89,10 @@ function TimelinePin({
 }: TimelinePinProps) {
   const [editing, setEditing] = useState(editOnMount);
   const labelRef = useRef<HTMLDivElement>(null);
-  const x = xOffset + orderToPosition(displayOrder);
+  // Pin head/label stays anchored to the persisted narrativeOrder during a
+  // drag — only the vertical pin-line moves, acting as the drop indicator
+  // (mirrors the node-drag UX). On mouseup the pin "jumps" to the new slot.
+  const x = xOffset + orderToPosition(marker.narrativeOrder);
 
   const startDrag = useCallback(
     (e: React.MouseEvent) => {
@@ -104,6 +105,10 @@ function TimelinePin({
       let nearest = marker.narrativeOrder;
       const onMove = (ev: MouseEvent) => {
         const newPixel = startPixel + (ev.clientX - startMouseX);
+        // Smooth drop indicator: report the raw pixel position so the
+        // line follows the mouse continuously. Snap is computed locally
+        // and only applied on mouseup, matching how chapter-clip drops
+        // work (drop indicator at mouse x; snap on drop).
         let best = snapValues[0];
         let bestDist = Infinity;
         for (const s of snapValues) {
@@ -114,7 +119,7 @@ function TimelinePin({
           }
         }
         nearest = best;
-        onDragMove(best);
+        onDragMove(newPixel);
       };
       const onUp = () => {
         window.removeEventListener('mousemove', onMove);
@@ -778,11 +783,6 @@ export function BottomTimeline() {
           style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
         >
           <span aria-hidden className="btl-rail__stripe" style={{ background: railColor }} />
-          <span
-            aria-hidden
-            className="btl-rail__dot"
-            style={{ background: railColor, marginLeft: 4 }}
-          />
           <div className="btl-rail__main">
             <div className="btl-rail__name">{storyline.name || 'Untitled'}</div>
             <div className="btl-rail__count">
@@ -798,13 +798,14 @@ export function BottomTimeline() {
         >
           {isNarrative &&
             markers.map((m) => {
-              const isDragging = pinDragStarts.has(m.id);
-              const displayOrder = getPinDisplayOrder(m.id, m.narrativeOrder);
+              const dragX = pinDragXs.get(m.id);
+              const isDragging = dragX !== undefined;
+              const left = dragX ?? orderToPosition(m.narrativeOrder);
               return (
                 <div
                   key={`pinline-${m.id}`}
                   className={`btl-pin-line${isDragging ? ' is-dragging' : ''}`}
-                  style={{ left: orderToPosition(displayOrder) }}
+                  style={{ left }}
                 />
               );
             })}
@@ -852,17 +853,19 @@ export function BottomTimeline() {
   }, [placedNodes.length, minOrder, maxOrder]);
 
   const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
-  const [pinDragStarts, setPinDragStarts] = useState<Map<string, number>>(new Map());
-  const handlePinDragMove = useCallback((id: string, nextOrder: number | null) => {
-    setPinDragStarts((prev) => {
+  // Live pixel position of each in-flight pin drag (relative to the track).
+  // Used to render the vertical drop-indicator line under the cursor; the
+  // pin head/label itself stays anchored to the persisted narrativeOrder
+  // until mouseup — same UX as chapter clips, no per-step snapping.
+  const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
+  const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
+    setPinDragXs((prev) => {
       const next = new Map(prev);
-      if (nextOrder === null) next.delete(id);
-      else next.set(id, nextOrder);
+      if (nextX === null) next.delete(id);
+      else next.set(id, nextX);
       return next;
     });
   }, []);
-  const getPinDisplayOrder = (markerId: string, persistedOrder: number) =>
-    pinDragStarts.get(markerId) ?? persistedOrder;
 
   const handleAddPin = useCallback(() => {
     if (snapValues.length === 0) return;
@@ -1103,8 +1106,7 @@ export function BottomTimeline() {
               snapValues={snapValues}
               orderToPosition={orderToPosition}
               xOffset={railOffset}
-              displayOrder={getPinDisplayOrder(m.id, m.narrativeOrder)}
-              isDragging={pinDragStarts.has(m.id)}
+              isDragging={pinDragXs.has(m.id)}
               pinHeight={overlayTopOffset}
               editOnMount={m.id === newlyAddedMarkerId}
               onChange={(patch) => {
