@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useCallback } from 'react';
 import { useUiStore, type TabRef } from '../store/ui-store';
 
@@ -10,6 +10,7 @@ const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
  */
 export function useProjectNavigation() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const currentProjectId = projectId || DEFAULT_PROJECT.id;
 
@@ -45,6 +46,10 @@ export function useProjectNavigation() {
     navigate(`/project/${currentProjectId}/home`);
   }, [navigate, currentProjectId]);
 
+  const navigateToAllChapters = useCallback(() => {
+    navigate(`/project/${currentProjectId}/editor/all`);
+  }, [navigate, currentProjectId]);
+
   const navigateTo = useCallback(
     (path: string) => {
       // If path starts with /, use it as-is; otherwise prepend project context
@@ -60,9 +65,19 @@ export function useProjectNavigation() {
   // VSCode-style "open as tab" entry point. Records the tab in store (with the
   // requested preview flag) and navigates to its URL. The id is the raw entity
   // id (decoded for categories); URL encoding is applied internally.
+  //
+  // Exception: when we're already in the all-chapters editor and the caller is
+  // opening a chapter (node), don't navigate away — just mark the node as
+  // selected so the all-chapters view can scroll to it. This keeps the
+  // sidebar/timeline "click chapter" gesture inside the long-scroll view.
   const openEntity = useCallback(
     (ref: TabRef, options?: { preview?: boolean }) => {
       const preview = options?.preview ?? true;
+      const inAllChapters = location.pathname.endsWith('/editor/all');
+      if (inAllChapters && ref.entityType === 'node') {
+        useUiStore.getState().setNodeSelection(ref.id, 'ui');
+        return;
+      }
       useUiStore.getState().openEntityTab(currentProjectId, ref, { preview });
       switch (ref.entityType) {
         case 'node':
@@ -79,7 +94,7 @@ export function useProjectNavigation() {
           return;
       }
     },
-    [navigate, currentProjectId],
+    [navigate, currentProjectId, location.pathname],
   );
 
   return {
@@ -89,6 +104,7 @@ export function useProjectNavigation() {
     navigateToElement,
     navigateToCategory,
     navigateToHome,
+    navigateToAllChapters,
     navigateTo,
     openEntity,
     // Also expose raw navigate for edge cases

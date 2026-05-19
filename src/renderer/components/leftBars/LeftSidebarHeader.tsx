@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion';
 import { useUiStore } from '../../store/ui-store';
-import { Network, BookOpen, Layers, Home } from 'lucide-react';
+import { Network, BookOpen, Layers, Home, BookText } from 'lucide-react';
 import useMeasure from 'react-use-measure';
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
 export function LeftSidebarHeader() {
-  const { navigateToHome } = useProjectNavigation();
+  const { navigateToHome, navigateToAllChapters } = useProjectNavigation();
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
@@ -77,6 +77,37 @@ export function LeftSidebarHeader() {
         }}
       >
         <Home size={13} strokeWidth={1.6} />
+      </button>
+
+      {/* All-Chapters Button — opens the whole-book long-scroll editor */}
+      <button
+        onClick={() => navigateToAllChapters()}
+        title="通览全书"
+        style={{
+          flexShrink: 0,
+          width: 26,
+          height: 26,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          background: 'transparent',
+          color: 'hsl(var(--ink-3))',
+          border: 'none',
+          padding: 0,
+          transition: 'background 0.15s, color 0.15s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+          e.currentTarget.style.color = 'hsl(var(--ink-1))';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = 'hsl(var(--ink-3))';
+        }}
+      >
+        <BookText size={13} strokeWidth={1.6} />
       </button>
 
       {/* Panel Tabs — Nodes / Elements / Drift segmented switch */}

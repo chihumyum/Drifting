@@ -12,6 +12,7 @@ import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
+import { AllChaptersEditorView } from './views/AllChaptersEditorView';
 import { GraphView } from './views/GraphView';
 import { LoginPage } from './views/LoginPage';
 import { RegisterPage } from './views/RegisterPage';
@@ -659,6 +660,14 @@ export default function App() {
           }
         />
         <Route path="editor" element={<Navigate to="../home" replace />} />
+        <Route
+          path="editor/all"
+          element={
+            <EditorShell view="all-chapters-editor">
+              <AllChaptersEditorView />
+            </EditorShell>
+          }
+        />
         <Route
           path="editor/:nodeId"
           element={
