@@ -657,6 +657,17 @@ function LeafTabSlot({
       </span>
       <button
         type="button"
+        // draggable=false + onDragStart blocker: the parent <div> is
+        // draggable, so mousedown-with-any-movement inside it can start a
+        // drag (parent as source) instead of producing a click. Without
+        // these, clicking X with a slightly imperfect press registers as
+        // a drag and onClose never fires — manifesting as the "have to
+        // click X twice to close" intermittent bug.
+        draggable={false}
+        onDragStart={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onClose();
@@ -900,6 +911,15 @@ function SplitSubLabel({
       </span>
       <button
         type="button"
+        // Same "draggable parent eats clicks" guard as the LeafTabSlot X
+        // button — the surrounding SplitTabSlot is draggable, and without
+        // these blockers a click with any pixel of mouse drift becomes a
+        // drag (no click event, no close).
+        draggable={false}
+        onDragStart={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onClose();

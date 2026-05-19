@@ -319,12 +319,11 @@ export function AllChaptersEditorView() {
   // block-ids straight from `outlineByNodeId`.
   const outlineItems = useMemo<OutlineEntry[]>(
     () =>
-      orderedNodes.map((n, idx) => {
+      orderedNodes.map((n) => {
         const headings = outlineByNodeId[n.id] ?? [];
         return {
           id: n.id,
           level: 2,
-          num: toRoman(idx + 1),
           text: n.title || 'Untitled',
           isExpanded: isChapterExpanded(n.id),
           children: headings.map((h) => ({ id: h.id, level: h.level, text: h.text })),

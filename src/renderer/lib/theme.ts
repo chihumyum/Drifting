@@ -11,7 +11,9 @@ export function applyAccentColor(hue: number) {
 
   // Generate accent color variations based on hue
   // Base saturation and lightness values for scholarly aesthetic
-  const accentBase = `hsl(${hue}, 35%, 55%)`; // Main accent - mild saturation, medium light
+  // Design tokens store HSL triplets because the CSS uses hsl(var(--accent)).
+  // Storing a full hsl(...) color here would produce invalid hsl(hsl(...)).
+  const accentBase = `${hue} 35% 55%`; // Main accent - mild saturation, medium light
   const accentHover = `hsl(${hue}, 35%, 48%)`; // Hover - slightly darker
   const accentActive = `hsl(${hue}, 35%, 42%)`; // Active - darker still
   const accentBorder = `hsl(${hue}, 25%, 82%)`; // Border - very light, low saturation

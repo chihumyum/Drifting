@@ -4,6 +4,28 @@ import { useUiStore, SINGLETON_TAB_ID, type TabRef } from '../store/ui-store';
 
 const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
 
+// Pure URL builder. Exposed via the module scope so the dedupe check in
+// pushEntityUrl can compare against location.pathname without rebuilding
+// the URL via navigate's internals.
+function urlFor(projectId: string, ref: TabRef): string | null {
+  switch (ref.entityType) {
+    case 'node':
+      return `/project/${projectId}/editor/${ref.id}`;
+    case 'storyline':
+      return `/project/${projectId}/editor/storyline/${ref.id}`;
+    case 'element':
+      return `/project/${projectId}/element/${ref.id}`;
+    case 'category':
+      return `/project/${projectId}/category/${encodeURIComponent(ref.id)}`;
+    case 'dashboard':
+      return `/project/${projectId}/home`;
+    case 'all-chapters':
+      return `/project/${projectId}/editor/all`;
+    default:
+      return null;
+  }
+}
+
 /**
  * Project-aware navigation hook
  * Automatically includes projectId in navigation paths
@@ -14,34 +36,23 @@ export function useProjectNavigation() {
   const { projectId } = useParams<{ projectId: string }>();
   const currentProjectId = projectId || DEFAULT_PROJECT.id;
 
-  // Shared helper — the actual store mutation + URL push for opening an
-  // entity as a tab. We keep this as a single source of truth so both
-  // openEntity (legacy callers) and navigateToX (typed wrappers) route the
-  // same way. The URL switch lives here so callers don't all duplicate it.
+  // Shared helper — the actual URL push for opening an entity as a tab.
+  // Kept as a single source of truth so both openEntity (legacy callers)
+  // and navigateToX (typed wrappers) route the same way.
+  //
+  // We skip the navigate when the target URL already equals the current
+  // pathname. Otherwise a double-click (which fires onClick twice before
+  // onDoubleClick) would push the same URL into history twice, and the
+  // user has to press Cmd+[ twice per "back" step. Any caller that wants
+  // to *force* a history entry can use `navigate` directly.
   const pushEntityUrl = useCallback(
     (ref: TabRef) => {
-      switch (ref.entityType) {
-        case 'node':
-          navigate(`/project/${currentProjectId}/editor/${ref.id}`);
-          return;
-        case 'storyline':
-          navigate(`/project/${currentProjectId}/editor/storyline/${ref.id}`);
-          return;
-        case 'element':
-          navigate(`/project/${currentProjectId}/element/${ref.id}`);
-          return;
-        case 'category':
-          navigate(`/project/${currentProjectId}/category/${encodeURIComponent(ref.id)}`);
-          return;
-        case 'dashboard':
-          navigate(`/project/${currentProjectId}/home`);
-          return;
-        case 'all-chapters':
-          navigate(`/project/${currentProjectId}/editor/all`);
-          return;
-      }
+      const target = urlFor(currentProjectId, ref);
+      if (!target) return;
+      if (target === location.pathname) return;
+      navigate(target);
     },
-    [navigate, currentProjectId],
+    [navigate, currentProjectId, location.pathname],
   );
 
   // VSCode-style "open as tab" entry point. Records the tab in store (with the
@@ -121,10 +132,6 @@ export function useProjectNavigation() {
     },
     [currentProjectId, pushEntityUrl],
   );
-
-  // Reference `location` so the hook re-renders on path changes (legacy
-  // call sites depend on this). The actual fast-path now uses the store.
-  void location.pathname;
 
   return {
     projectId: currentProjectId,

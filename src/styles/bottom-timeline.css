@@ -475,6 +475,7 @@
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 0.1s ease;
 }
 .btl-pin.is-editing .btl-pin__label {
   cursor: text;
@@ -486,8 +487,8 @@
 }
 .btl-pin.is-dragging .btl-pin__label {
   cursor: grabbing;
-  border-color: hsl(var(--accent));
-  color: hsl(var(--accent));
+  opacity: 0;
+  pointer-events: none;
 }
 .btl-pin__head {
   position: absolute;
@@ -500,10 +501,12 @@
   border-top: 6px solid hsl(var(--ink-4));
   transform: translateX(-4px);
   cursor: grab;
+  transition: opacity 0.1s ease;
 }
 .btl-pin.is-dragging .btl-pin__head {
   cursor: grabbing;
-  border-top-color: hsl(var(--accent));
+  opacity: 0;
+  pointer-events: none;
 }
 /* Pin grid line — rendered inside each storyline track so it paints
    below the chapter clips. */
@@ -517,13 +520,11 @@
   pointer-events: none;
   z-index: 0;
 }
+
 .btl-pin-line.is-dragging {
-  /* During drag the line is the drop indicator — bump width, drop the
-     alpha, and raise z-index above selected clips (which sit at 10) so
-     the indicator is never occluded by the active chapter card. */
-  width: 2px;
-  background: hsl(var(--accent));
-  z-index: 11;
+  width: 1px;
+  background: hsl(var(--rule));
+  z-index: 12;
 }
 
 /* Playhead removed: the FullBookLane now hosts it (see full-book-lane.css).

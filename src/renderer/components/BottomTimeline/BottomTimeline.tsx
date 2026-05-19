@@ -90,8 +90,8 @@ function TimelinePin({
   const [editing, setEditing] = useState(editOnMount);
   const labelRef = useRef<HTMLDivElement>(null);
   // Pin head/label stays anchored to the persisted narrativeOrder during a
-  // drag — only the vertical pin-line moves, acting as the drop indicator
-  // (mirrors the node-drag UX). On mouseup the pin "jumps" to the new slot.
+  // drag. A separate timeline-level overlay follows the cursor as the drop
+  // indicator; on mouseup the pin "jumps" to the new slot.
   const x = xOffset + orderToPosition(marker.narrativeOrder);
 
   const startDrag = useCallback(
@@ -103,6 +103,7 @@ function TimelinePin({
       const startMouseX = e.clientX;
       const startPixel = orderToPosition(marker.narrativeOrder);
       let nearest = marker.narrativeOrder;
+      onDragMove(startPixel);
       const onMove = (ev: MouseEvent) => {
         const newPixel = startPixel + (ev.clientX - startMouseX);
         // Smooth drop indicator: report the raw pixel position so the
@@ -209,12 +210,14 @@ export function BottomTimeline() {
 
   const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
     const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));
-    return bookNodes.map((node) => ({
-      ...node,
-      storylines: (nodeStorylineMapping[node.id] || [])
-        .map((slId) => storylineById.get(slId))
-        .filter((sl): sl is Storyline => Boolean(sl)),
-    }));
+    return bookNodes
+      .filter((node) => node.mainStorylineId != null)
+      .map((node) => ({
+        ...node,
+        storylines: (nodeStorylineMapping[node.id] || [])
+          .map((slId) => storylineById.get(slId))
+          .filter((sl): sl is Storyline => Boolean(sl)),
+      }));
   }, [bookNodes, nodeStorylineMapping, storylines]);
 
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
@@ -858,6 +861,7 @@ export function BottomTimeline() {
   // pin head/label itself stays anchored to the persisted narrativeOrder
   // until mouseup — same UX as chapter clips, no per-step snapping.
   const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
+
   const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
     setPinDragXs((prev) => {
       const next = new Map(prev);
@@ -1117,7 +1121,7 @@ export function BottomTimeline() {
                 if (m.id === newlyAddedMarkerId) setNewlyAddedMarkerId(null);
                 deleteMarker(m.id);
               }}
-              onDragMove={(nextOrder) => handlePinDragMove(m.id, nextOrder)}
+              onDragMove={(nextPixelX) => handlePinDragMove(m.id, nextPixelX)}
             />
           ))}
 

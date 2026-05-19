@@ -498,8 +498,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 )
               }
             >
-              <span className="editor-crumb-num">Chapter {chapterRoman}</span>
-              <span className="editor-crumb-sep">·</span>
               <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
             </EditorCrumb>
           </EditorTopBar>
