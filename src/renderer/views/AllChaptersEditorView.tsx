@@ -3,7 +3,6 @@ import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
-import { useUiStore } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookContent } from '../usecase/useBookContent';
 import { useBookNode } from '../usecase/useBookNode';
@@ -206,8 +205,10 @@ export function AllChaptersEditorView() {
 
   // Scroll-spy: highlight the chapter whose top edge is just above the
   // viewport's top (i.e. "current reading position"). Updates the outline
-  // active row + the active rail on the chapter card. Throttled via rAF.
-  const setNodeSelection = useUiStore((s) => s.setNodeSelection);
+  // active row only — deliberately does NOT push selection to the global
+  // ui-store. Letting scroll position drive the left sidebar's node panel
+  // highlight was confusing: reading through 通览全书 silently moved the
+  // selected node in the sidebar, which made it look like a navigation.
   const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
   useEffect(() => {
     const root = scrollRef.current;
@@ -231,10 +232,6 @@ export function AllChaptersEditorView() {
       }
       if (candidateId !== activeNodeId) {
         setActiveNodeId(candidateId);
-        // Update the scroll-position selection silently (source: 'system')
-        // so other UI (left rail highlight) reflects it without retriggering
-        // the scroll effect above.
-        if (candidateId) setNodeSelection(candidateId, 'system');
       }
     };
     const onScroll = () => {
@@ -247,7 +244,7 @@ export function AllChaptersEditorView() {
       root.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [activeNodeId, setNodeSelection, orderedNodes.length]);
+  }, [activeNodeId, orderedNodes.length]);
 
   // Wire chapter content / title / summary updates back to the data layer.
   // These mirror NodeEditorView's handlers but operate on whichever chapter
