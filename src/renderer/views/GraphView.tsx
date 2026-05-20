@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import { useDataStore } from '../store/data-store';
@@ -8,9 +8,12 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
 import { useStoryline } from '../usecase/useStoryline';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
+import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
 import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { GraphContextMenu, type GraphContextMenuState } from '../components/graph/GraphContextMenu';
+import { EdgeKindManager } from '../components/graph/EdgeKindManager';
+import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
@@ -92,28 +95,58 @@ function colorForKind(kind: string | null): string {
 
 const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
+// Slot width used to compute the live shift when dragging drift cards.
+// Card flex-basis 168 + gap 10. Module-scoped because the cards are
+// fixed-size; if we ever make them responsive we should measure instead.
+const DRIFT_SLOT_WIDTH = 168 + 10;
+const DRIFT_PANEL_ANIMATION_MS = 320;
+
 export function GraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode, deleteNode, createEdge, deleteEdge } = useBookNode({
+  const { updateNode, deleteNode, createEdge, deleteEdge, updateEdge } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
+  const edgeKindMeta = useEdgeKindMeta(projectId);
   const { removeNodeFromStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const { markers } = useTimelineMarkers(projectId);
+  const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+
+  // Color resolver that prefers user overrides from `useEdgeKindMeta`
+  // before falling back to the deterministic palette hash. Both the
+  // storyline and drift edge renderers consult this, plus the legend
+  // chips and the edge-management menu — so a color change in one
+  // place is reflected everywhere immediately.
+  const resolveKindColor = useCallback(
+    (kind: string | null): string => {
+      const k = kind ?? UNCATEGORIZED_META_KEY;
+      const override = edgeKindMeta.meta[k]?.color;
+      if (override) return override;
+      return colorForKind(kind);
+    },
+    [edgeKindMeta.meta],
+  );
 
   const [viewMode, setViewMode] = useState<GraphView>(readPersistedView);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Drift panel: mounted separately from its visible/open state so close can
+  // slide the hand below the viewport before the bottom tab comes back.
+  const [driftPanelMounted, setDriftPanelMounted] = useState(false);
+  const [driftPanelOpen, setDriftPanelOpen] = useState(false);
+  const [driftPanelClosing, setDriftPanelClosing] = useState(false);
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
   const [newEdgeKind, setNewEdgeKind] = useState('');
+  // Suggestions popover for the new-edge dialog's kind input. Default
+  // closed; opens on focus and closes when focus leaves the wrapper.
+  const [newEdgeSuggestOpen, setNewEdgeSuggestOpen] = useState(false);
   // Set of kinds the user has TOGGLED OFF. Default = empty (all visible).
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(new Set());
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
@@ -121,6 +154,90 @@ export function GraphView() {
   const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
   const [contextMenu, setContextMenu] = useState<GraphContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [edgeMgrOpen, setEdgeMgrOpen] = useState(false);
+  const edgeMgrBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!edgeMgrOpen) edgeMgrBtnRef.current?.blur();
+  }, [edgeMgrOpen]);
+  // Click-to-select edge. While selected, the edge highlights, its two
+  // endpoint cards get a solid accent border, and a floating × badge
+  // appears at the edge midpoint — click that to delete immediately.
+  // Clicking anywhere else deselects.
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // "未放置" (unplaced chapters) popover anchored to the head button.
+  // Narrative-mode only — the concept doesn't apply in book view.
+  const unplacedPopoverRef = useRef<HTMLDivElement>(null);
+  const unplacedBtnRef = useRef<HTMLButtonElement>(null);
+  // Blur the trigger buttons after the popover/dropdown closes, so
+  // they don't keep a :focus-visible outline after an ESC dismiss
+  // (browsers flip into keyboard-nav mode once you press ESC and
+  // re-evaluate focus-visible against the click-focused button).
+  useEffect(() => {
+    if (!drawerOpen) unplacedBtnRef.current?.blur();
+  }, [drawerOpen]);
+
+  // Dismiss the edge selection on ESC or on any click that doesn't
+  // land on an edge / × badge. Edge onClick handlers stopPropagation;
+  // the badge's own onClick runs first because it's a descendant of
+  // document — by the time this fires, the delete has already kicked
+  // off (or the user clicked elsewhere intentionally).
+  useEffect(() => {
+    if (!selectedEdgeId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedEdgeId(null);
+    };
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (!t) return;
+      if (
+        t.closest('.graph-edge-grp') ||
+        t.closest('.graph-drift-edge') ||
+        t.closest('.graph-edge-delete')
+      ) {
+        return;
+      }
+      setSelectedEdgeId(null);
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onPointer, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onPointer, true);
+    };
+  }, [selectedEdgeId]);
+
+  // Endpoint IDs of the selected edge — used to apply a solid accent
+  // border to the two connected tiles / drift cards.
+  const selectedEdgeEndpoints = useMemo(() => {
+    if (!selectedEdgeId) return null as null | { source: string; target: string };
+    const e = nodeEdges.find((edge) => edge.id === selectedEdgeId);
+    if (!e) return null;
+    return { source: e.sourceNodeId, target: e.targetNodeId };
+  }, [selectedEdgeId, nodeEdges]);
+
+  const isEdgeSelected = (edgeId: string) => selectedEdgeId === edgeId;
+  const isNodeEdgeSelected = useCallback(
+    (nodeId: string) =>
+      !!selectedEdgeEndpoints &&
+      (selectedEdgeEndpoints.source === nodeId ||
+        selectedEdgeEndpoints.target === nodeId),
+    [selectedEdgeEndpoints],
+  );
+
+  // Outside-click dismissal for the unplaced popover. ESC handling is
+  // delegated to the central ESC router above so multiple overlays
+  // pop off the stack in LIFO order.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (unplacedPopoverRef.current?.contains(e.target as Node)) return;
+      setDrawerOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [drawerOpen]);
 
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
@@ -129,14 +246,73 @@ export function GraphView() {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
-  // ESC closes the super-view, returning to the regular editor layout.
+  // ESC routing. Overlays opt in to "close self" behavior — when any
+  // of them are open, ESC closes the most-recently-opened one. The
+  // state is read through a ref so the listener (registered once)
+  // always sees fresh values without re-registering on every overlay
+  // state change, and there's no stale-closure race against React 18's
+  // automatic batching.
+  // NodeCardPopover handles its own ESC at capture + stopPropagation,
+  // so it's NOT in the candidates here — the event simply never
+  // reaches this listener while the popover is open.
+  const overlayOpenTimes = useRef<Record<string, number>>({});
+  const closeDriftPanelRef = useRef<(() => void) | null>(null);
+  const escStateRef = useRef({
+    newEdgePair: null as typeof newEdgePair,
+    drawerOpen: false,
+    edgeMgrOpen: false,
+    driftPanelMounted: false,
+    driftPanelClosing: false,
+  });
+  // Mirror open-state into the ref so the centralized ESC listener
+  // (registered once, no closure deps) reads fresh values each ESC.
+  useLayoutEffect(() => {
+    escStateRef.current = {
+      newEdgePair,
+      drawerOpen,
+      edgeMgrOpen,
+      driftPanelMounted,
+      driftPanelClosing,
+    };
+  }, [newEdgePair, drawerOpen, edgeMgrOpen, driftPanelMounted, driftPanelClosing]);
+  useLayoutEffect(() => {
+    if (newEdgePair) overlayOpenTimes.current.newEdge = Date.now();
+  }, [newEdgePair]);
+  useLayoutEffect(() => {
+    if (drawerOpen) overlayOpenTimes.current.unplaced = Date.now();
+  }, [drawerOpen]);
+  useLayoutEffect(() => {
+    if (edgeMgrOpen) overlayOpenTimes.current.edgeMgr = Date.now();
+  }, [edgeMgrOpen]);
+  useLayoutEffect(() => {
+    if (driftPanelMounted && !driftPanelClosing) overlayOpenTimes.current.drift = Date.now();
+  }, [driftPanelClosing, driftPanelMounted]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setActiveSuperView('none');
+      if (e.key !== 'Escape') return;
+      const s = escStateRef.current;
+      const candidates: Array<[string, boolean, () => void]> = [
+        ['newEdge', !!s.newEdgePair, () => setNewEdgePair(null)],
+        ['unplaced', s.drawerOpen, () => setDrawerOpen(false)],
+        ['edgeMgr', s.edgeMgrOpen, () => setEdgeMgrOpen(false)],
+        [
+          'drift',
+          s.driftPanelMounted && !s.driftPanelClosing,
+          () => closeDriftPanelRef.current?.(),
+        ],
+      ];
+      const opened = candidates.filter(([, isOpen]) => isOpen);
+      if (opened.length === 0) return;
+      // Most-recent-first; the top of the stack closes.
+      opened.sort(
+        ([a], [b]) =>
+          (overlayOpenTimes.current[b] ?? 0) - (overlayOpenTimes.current[a] ?? 0),
+      );
+      opened[0][2]();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setActiveSuperView]);
+  }, []);
 
   // Close the context menu on outside click or ESC.
   useEffect(() => {
@@ -193,18 +369,36 @@ export function GraphView() {
     [orderField],
   );
 
-  const { placedNodes, unplacedNodes } = useMemo(() => {
+  const { placedNodes, unplacedNodes, driftNodes } = useMemo(() => {
     const placed: BookNode[] = [];
     const unplaced: BookNode[] = [];
+    const drift: BookNode[] = [];
     for (const n of bookNodes) {
-      // Drift nodes (no storyline) don't appear in the structural graph —
-      // they're meant for the inspiration panel.
-      if (!primaryStorylineId(n)) continue;
+      // Drift nodes (no storyline) surface in the bottom drift panel only.
+      if (!primaryStorylineId(n)) {
+        drift.push(n);
+        continue;
+      }
       if (orderOf(n) === null) unplaced.push(n);
       else placed.push(n);
     }
-    return { placedNodes: placed, unplacedNodes: unplaced };
+    // Sorted by bookOrder ascending so reorder via bookOrder permutation
+    // produces a stable, persisted order. New drifts are appended with
+    // max+1 bookOrder so they land at the right end.
+    drift.sort((a, b) => a.bookOrder - b.bookOrder);
+    return { placedNodes: placed, unplacedNodes: unplaced, driftNodes: drift };
   }, [bookNodes, primaryStorylineId, orderOf]);
+
+  const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
+
+  // Whole-project lookup. positionedById only covers storyline nodes that
+  // have an order in the current view, so dialogs and edge endpoints that
+  // could be drift nodes use this instead.
+  const nodeById = useMemo(() => {
+    const m = new Map<string, BookNode>();
+    for (const n of bookNodes) m.set(n.id, n);
+    return m;
+  }, [bookNodes]);
 
   const storylineRowIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -324,17 +518,44 @@ export function GraphView() {
     return map;
   }, [positionedNodes]);
 
-  const distinctKinds = useMemo(() => {
-    const set = new Set<string>();
-    let hasNull = false;
+  // Split kinds into two groups so the legend can visually separate them:
+  //   · regularKinds — has at least one storyline-only edge; always shown
+  //   · driftOnlyKinds — exclusive to drift-touching edges; only shown
+  //     while the drift panel is open (the edges themselves only render
+  //     in that state, so the toggle is meaningless otherwise)
+  // A kind that appears in BOTH drift and storyline edges lives in the
+  // regular group — its toggle still hides drift edges of that kind
+  // when the panel is open, since `hiddenKinds` is kind-keyed.
+  const { regularKinds, driftOnlyKinds } = useMemo(() => {
+    type KindInfo = { storyline: boolean; drift: boolean };
+    const info = new Map<string | null, KindInfo>();
     for (const e of nodeEdges) {
-      if (e.kind) set.add(e.kind);
-      else hasNull = true;
+      const isDriftEdge =
+        driftIds.has(e.sourceNodeId) || driftIds.has(e.targetNodeId);
+      const cur = info.get(e.kind) ?? { storyline: false, drift: false };
+      if (isDriftEdge) cur.drift = true;
+      else cur.storyline = true;
+      info.set(e.kind, cur);
     }
-    const out = [...set].sort();
-    if (hasNull) out.push(UNCATEGORIZED_KIND);
-    return out;
-  }, [nodeEdges]);
+    const reg = new Set<string>();
+    const drift = new Set<string>();
+    let hasNullReg = false;
+    let hasNullDrift = false;
+    for (const [kind, kinfo] of info) {
+      if (kinfo.storyline) {
+        if (kind === null) hasNullReg = true;
+        else reg.add(kind);
+      } else {
+        if (kind === null) hasNullDrift = true;
+        else drift.add(kind);
+      }
+    }
+    const r = [...reg].sort();
+    if (hasNullReg) r.push(UNCATEGORIZED_KIND);
+    const d = [...drift].sort();
+    if (hasNullDrift) d.push(UNCATEGORIZED_KIND);
+    return { regularKinds: r, driftOnlyKinds: d };
+  }, [nodeEdges, driftIds]);
 
   const visibleEdges = useMemo(() => {
     const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
@@ -359,32 +580,53 @@ export function GraphView() {
         y1: source.y,
         x2: target.x + halfTile,
         y2: target.y,
-        color: colorForKind(edge.kind),
+        color: resolveKindColor(edge.kind),
       });
     }
     return out;
-  }, [nodeEdges, positionedById, hiddenKinds]);
+  }, [nodeEdges, positionedById, hiddenKinds, resolveKindColor]);
 
-  // ---- Narrative time axis labels ----
-  // In narrative view we surface user-defined TimelineMarkers as time
-  // labels along the axis. Book view's axis just shows §-style book-order
-  // ticks every few units.
-  const axisLabels = useMemo(() => {
-    if (isNarrative) {
-      return markers
-        .filter((m) => m.narrativeOrder >= orderSpan.min && m.narrativeOrder <= orderSpan.max)
-        .map((m) => ({ x: orderToX(m.narrativeOrder), label: m.label, major: /\d/.test(m.label) }));
-    }
-    // Book view: show §-markers every 5 units across the span.
-    const out: { x: number; label: string; major: boolean }[] = [];
-    const step = 5;
-    const lo = Math.ceil(orderSpan.min / step) * step;
-    const hi = Math.floor(orderSpan.max / step) * step;
-    for (let i = lo; i <= hi; i += step) {
-      out.push({ x: orderToX(i), label: `§ ${String(i).padStart(2, '0')}`, major: i % 10 === 0 });
-    }
+  // ---- Narrative time pins ----
+  // Mirrors BottomTimeline's TimelinePin behavior: integer snap values
+  // come from the placed-node range; pins drag against those snaps;
+  // dragging shows a transient cursor-following line, and the pin only
+  // commits to its new slot on mouseup.
+  const snapValues = useMemo(() => {
+    if (!isNarrative || placedNodes.length === 0) return [] as number[];
+    const lo = Math.floor(orderSpan.min);
+    const hi = Math.ceil(orderSpan.max);
+    const out: number[] = [];
+    for (let i = lo; i <= hi; i++) out.push(i);
     return out;
-  }, [isNarrative, markers, orderSpan.min, orderSpan.max, orderToX]);
+  }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
+  const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
+  const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
+  const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
+    setPinDragXs((prev) => {
+      const next = new Map(prev);
+      if (nextX === null) next.delete(id);
+      else next.set(id, nextX);
+      return next;
+    });
+  }, []);
+  const handleAddPin = useCallback(() => {
+    if (!isNarrative || snapValues.length === 0) return;
+    const canvas = canvasRef.current;
+    let target = snapValues[0];
+    if (canvas) {
+      const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
+      let bestDist = Infinity;
+      for (const s of snapValues) {
+        const d = Math.abs(orderToX(s) - centerContentX);
+        if (d < bestDist) {
+          bestDist = d;
+          target = s;
+        }
+      }
+    }
+    const created = addMarker(target, '标记');
+    if (created) setNewlyAddedPinId(created.id);
+  }, [isNarrative, snapValues, addMarker, orderToX]);
 
   // ---- Drag / drop ----
   // Both book and narrative views support tile drag-to-reorder; the
@@ -403,6 +645,219 @@ export function GraphView() {
     indicatorX: number;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Refs into every rendered tile / drift card so the fixed-position drift
+  // edge SVG can read live viewport rects via getBoundingClientRect. Tiles
+  // live in scrolling canvas-content coordinates; drift cards live in fixed
+  // panel-viewport coordinates — both are normalized to viewport here.
+  const tileRefs = useRef(new Map<string, HTMLDivElement>());
+  const driftCardRefs = useRef(new Map<string, HTMLDivElement>());
+
+  // Drift card reorder. Reuses bookOrder values: we permute the bookOrders
+  // that already belong to the drift set so the resulting integers don't
+  // collide with placed-node orders. `dropTargetIndex` is the *insertion*
+  // index in the post-removal list (so it ranges 0..driftNodes.length).
+  const [draggedDrift, setDraggedDrift] = useState<{ id: string; index: number } | null>(null);
+  const [driftDropIndex, setDriftDropIndex] = useState<number | null>(null);
+
+  // macOS-Dock-style reorder. Live shifts (inline transform via render-
+  // time computation) make neighbour cards slide aside DURING the drag,
+  // anchored by `draggedDrift` + `driftDropIndex`. On drop, the dragged
+  // card's pre-commit rect is stashed so a brief FLIP can settle it into
+  // its new slot — the other cards land in place naturally because their
+  // pre-commit shifted positions equal their post-commit DOM slots.
+  const draggedIdAtDropRef = useRef<string | null>(null);
+  const draggedCardRectAtDropRef = useRef<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    const id = draggedIdAtDropRef.current;
+    const prevRect = draggedCardRectAtDropRef.current;
+    draggedIdAtDropRef.current = null;
+    draggedCardRectAtDropRef.current = null;
+    if (!id || !prevRect) return;
+    const el = driftCardRefs.current.get(id);
+    if (!el) return;
+    const newRect = el.getBoundingClientRect();
+    const dx = prevRect.left - newRect.left;
+    const dy = prevRect.top - newRect.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    el.style.opacity = '1';
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s';
+      el.style.transform = '';
+    });
+  }, [driftNodes]);
+
+  const computeDriftShift = useCallback(
+    (index: number): string => {
+      if (!draggedDrift || driftDropIndex == null) return '';
+      if (index === draggedDrift.index) return '';
+      const from = draggedDrift.index;
+      const to = driftDropIndex;
+      if (from < to && index > from && index < to)
+        return `translateX(-${DRIFT_SLOT_WIDTH}px)`;
+      if (from > to && index >= to && index < from)
+        return `translateX(${DRIFT_SLOT_WIDTH}px)`;
+      return '';
+    },
+    [draggedDrift, driftDropIndex],
+  );
+
+  const driftPanelOpenRafRef = useRef<number | null>(null);
+  const driftPanelCloseTimerRef = useRef<number | null>(null);
+
+  const openDriftPanel = useCallback(() => {
+    if (driftPanelCloseTimerRef.current !== null) {
+      window.clearTimeout(driftPanelCloseTimerRef.current);
+      driftPanelCloseTimerRef.current = null;
+    }
+    setDriftPanelClosing(false);
+    setDriftPanelMounted(true);
+  }, []);
+
+  const closeDriftPanel = useCallback(() => {
+    if (!driftPanelMounted || driftPanelClosing) return;
+    if (driftPanelOpenRafRef.current !== null) {
+      cancelAnimationFrame(driftPanelOpenRafRef.current);
+      driftPanelOpenRafRef.current = null;
+    }
+    setDriftPanelClosing(true);
+    setDriftPanelOpen(false);
+    setDraggedDrift(null);
+    setDriftDropIndex(null);
+    driftPanelCloseTimerRef.current = window.setTimeout(() => {
+      setDriftPanelMounted(false);
+      setDriftPanelClosing(false);
+      driftPanelCloseTimerRef.current = null;
+    }, DRIFT_PANEL_ANIMATION_MS);
+  }, [driftPanelClosing, driftPanelMounted]);
+
+  useLayoutEffect(() => {
+    closeDriftPanelRef.current = closeDriftPanel;
+  }, [closeDriftPanel]);
+
+  useEffect(() => {
+    if (!driftPanelMounted || driftPanelOpen || driftPanelClosing) return;
+    driftPanelOpenRafRef.current = requestAnimationFrame(() => {
+      setDriftPanelOpen(true);
+      driftPanelOpenRafRef.current = null;
+    });
+    return () => {
+      if (driftPanelOpenRafRef.current !== null) {
+        cancelAnimationFrame(driftPanelOpenRafRef.current);
+        driftPanelOpenRafRef.current = null;
+      }
+    };
+  }, [driftPanelClosing, driftPanelMounted, driftPanelOpen]);
+
+  useEffect(
+    () => () => {
+      if (driftPanelOpenRafRef.current !== null) {
+        cancelAnimationFrame(driftPanelOpenRafRef.current);
+      }
+      if (driftPanelCloseTimerRef.current !== null) {
+        window.clearTimeout(driftPanelCloseTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  // Drift edges that touch at least one drift endpoint. Other edges are
+  // already handled by `visibleEdges` (which skips them because drift nodes
+  // aren't in `positionedById`).
+  type DriftEdgeGeom = {
+    id: string;
+    kind: string | null;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    color: string;
+  };
+  const [driftEdgeGeom, setDriftEdgeGeom] = useState<DriftEdgeGeom[]>([]);
+
+  // Recompute viewport-space endpoints for every drift edge while the drift
+  // panel is mounted: an rAF loop captures the open/close slide animation and
+  // any tile movement; scroll + resize listeners cover everything afterward.
+  // Cheap — each tick reads a handful of bounding rects.
+  useLayoutEffect(() => {
+    if (!driftPanelMounted) return;
+    let raf = 0;
+    let stopRaf = false;
+    const recompute = () => {
+      const out: DriftEdgeGeom[] = [];
+      for (const edge of nodeEdges) {
+        const srcIsDrift = driftIds.has(edge.sourceNodeId);
+        const tgtIsDrift = driftIds.has(edge.targetNodeId);
+        if (!srcIsDrift && !tgtIsDrift) continue;
+        // Respect kind-toggle visibility: when the user hides a kind via
+        // a legend chip, drift edges of that kind drop out of the SVG
+        // too. Storyline edges are filtered in `visibleEdges` the same
+        // way; this keeps the two paths consistent.
+        const filterKey = edge.kind ?? UNCATEGORIZED_KIND;
+        if (hiddenKinds.has(filterKey)) continue;
+        const srcEl =
+          driftCardRefs.current.get(edge.sourceNodeId) ??
+          tileRefs.current.get(edge.sourceNodeId);
+        const tgtEl =
+          driftCardRefs.current.get(edge.targetNodeId) ??
+          tileRefs.current.get(edge.targetNodeId);
+        if (!srcEl || !tgtEl) continue;
+        const r1 = srcEl.getBoundingClientRect();
+        const r2 = tgtEl.getBoundingClientRect();
+        // Color precedence:
+        //   1. Per-kind override (from the edge-management menu) — when
+        //      the user assigns a kind color, drift edges of that kind
+        //      should match.
+        //   2. Storyline-side endpoint's color — the default look ties
+        //      drift edges visually to whichever track they land on.
+        //   3. --accent fallback for drift↔drift links.
+        const srcPos = positionedById.get(edge.sourceNodeId);
+        const tgtPos = positionedById.get(edge.targetNodeId);
+        const k = edge.kind ?? UNCATEGORIZED_META_KEY;
+        const override = edgeKindMeta.meta[k]?.color;
+        const storylineColor =
+          override ||
+          srcPos?.storyline?.color ||
+          tgtPos?.storyline?.color ||
+          'hsl(var(--accent))';
+        out.push({
+          id: edge.id,
+          kind: edge.kind,
+          x1: r1.left + r1.width / 2,
+          y1: r1.top + r1.height / 2,
+          x2: r2.left + r2.width / 2,
+          y2: r2.top + r2.height / 2,
+          color: storylineColor,
+        });
+      }
+      setDriftEdgeGeom(out);
+    };
+    const tick = () => {
+      if (stopRaf) return;
+      recompute();
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    // Stop the rAF loop after the slide animation settles; rely on
+    // scroll/resize listeners thereafter to keep the geometry fresh.
+    const stopTimer = window.setTimeout(() => {
+      stopRaf = true;
+      cancelAnimationFrame(raf);
+    }, 500);
+    const onScrollOrResize = () => recompute();
+    window.addEventListener('resize', onScrollOrResize);
+    const canvas = canvasRef.current;
+    canvas?.addEventListener('scroll', onScrollOrResize);
+    return () => {
+      stopRaf = true;
+      cancelAnimationFrame(raf);
+      window.clearTimeout(stopTimer);
+      window.removeEventListener('resize', onScrollOrResize);
+      canvas?.removeEventListener('scroll', onScrollOrResize);
+    };
+  }, [driftPanelMounted, nodeEdges, driftIds, positionedById, hiddenKinds, edgeKindMeta.meta]);
 
   const draggedMainStorylineId = useMemo(
     () => (draggedNode ? primaryStorylineId(draggedNode) : null),
@@ -527,7 +982,65 @@ export function GraphView() {
     setDragOver(null);
   };
 
+  // Commit a drift-card reorder by permuting just the bookOrder integers
+  // that already belong to the drift set. This keeps drift orderings
+  // distinct from placed-node orderings (no integer collisions) and only
+  // touches nodes whose position actually changed.
+  const commitDriftReorder = useCallback(async () => {
+    if (!draggedDrift || driftDropIndex == null) return;
+    const ordered = driftNodes.slice();
+    const [moved] = ordered.splice(draggedDrift.index, 1);
+    // After removal the insertion index shifts left if dropping past
+    // the original position.
+    const insertAt =
+      driftDropIndex > draggedDrift.index ? driftDropIndex - 1 : driftDropIndex;
+    ordered.splice(insertAt, 0, moved);
+    const sortedOrders = driftNodes
+      .map((n) => n.bookOrder)
+      .slice()
+      .sort((a, b) => a - b);
+    const updates: Array<{ id: string; bookOrder: number }> = [];
+    ordered.forEach((n, i) => {
+      const newOrder = sortedOrders[i];
+      if (n.bookOrder !== newOrder) updates.push({ id: n.id, bookOrder: newOrder });
+    });
+    setDraggedDrift(null);
+    setDriftDropIndex(null);
+    try {
+      for (const u of updates) {
+        await updateNode(u.id, { bookOrder: u.bookOrder });
+      }
+    } catch (err) {
+      log.error('Failed to reorder drift cards', err);
+    }
+  }, [draggedDrift, driftDropIndex, driftNodes, updateNode]);
+
   const totalsLabel = `${storylines.length} ${storylines.length === 1 ? '故事线' : '故事线'} · ${placedNodes.length}/${bookNodes.length} 章`;
+
+  const renderKindChip = (kind: string) => {
+    const isUncategorized = kind === UNCATEGORIZED_KIND;
+    const label = isUncategorized ? '未分类' : kind;
+    const color = resolveKindColor(isUncategorized ? null : kind);
+    const active = !hiddenKinds.has(kind);
+    return (
+      <button
+        key={kind}
+        className={`graph-head__filter${active ? ' is-active' : ''}`}
+        onClick={() =>
+          setHiddenKinds((prev) => {
+            const next = new Set(prev);
+            if (next.has(kind)) next.delete(kind);
+            else next.add(kind);
+            return next;
+          })
+        }
+        title={active ? `隐藏「${label}」` : `显示「${label}」`}
+      >
+        <span className="graph-head__filter-dot" style={{ background: color }} />
+        <span>{label}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="graph-overlay" data-view={viewMode}>
@@ -541,15 +1054,22 @@ export function GraphView() {
         .graph-head__back,
         .graph-head__view-toggle,
         .graph-head__view-toggle button,
+        .graph-head__legend,
         .graph-head__filters,
-        .graph-head__filter { -webkit-app-region: no-drag; }
+        .graph-head__filter,
+        .graph-head__edge-mgr-wrap,
+        .graph-head__edge-mgr-btn,
+        .graph-head__unplaced,
+        .graph-head__unplaced-btn,
+        .graph-head__unplaced-popover,
+        .edge-kind-mgr { -webkit-app-region: no-drag; }
       `}</style>
       <div
         className="graph-head"
         style={IS_MAC ? { paddingLeft: 86 } : undefined}
       >
         <div className="graph-head__left">
-          <button className="graph-head__back" onClick={close} title="Esc 返回">
+          <button className="graph-head__back" onClick={close} title="返回">
             <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, lineHeight: 1 }}>
               ‹
             </span>
@@ -575,91 +1095,160 @@ export function GraphView() {
               叙事时
             </button>
           </div>
-        </div>
 
-        {/* Dynamic filter chips — one per distinct kind in the project,
-            plus "未分类" for edges with kind=null. Chips collapse when the
-            project has no edges yet so the header doesn't show empty UI. */}
-        {distinctKinds.length > 0 && (
-          <div className="graph-head__filters">
-            {distinctKinds.map((kind) => {
-              const isUncategorized = kind === UNCATEGORIZED_KIND;
-              const label = isUncategorized ? '未分类' : kind;
-              const color = colorForKind(isUncategorized ? null : kind);
-              const active = !hiddenKinds.has(kind);
-              return (
-                <button
-                  key={kind}
-                  className={`graph-head__filter${active ? ' is-active' : ''}`}
-                  onClick={() =>
-                    setHiddenKinds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(kind)) next.delete(kind);
-                      else next.add(kind);
-                      return next;
-                    })
-                  }
-                  title={active ? `隐藏「${label}」` : `显示「${label}」`}
-                >
-                  <span className="graph-head__filter-dot" style={{ background: color }} />
-                  <span>{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {isNarrative && (
-        <div className={`graph-drawer${drawerOpen ? ' is-open' : ''}`}>
-          <button
-            type="button"
-            className="graph-drawer__tab"
-            onClick={() => setDrawerOpen((v) => !v)}
-            title="未放置的章节（拖入下方时间轴来安排叙事时间）"
-          >
-            <span className="graph-drawer__arrow">{drawerOpen ? '▾' : '▸'}</span>
-            <span>未放置</span>
-            <span className="graph-drawer__count">{unplacedNodes.length}</span>
-          </button>
-          {drawerOpen && (
-            <div className="graph-drawer__list">
-              {unplacedNodes.length === 0 ? (
-                <div className="graph-drawer__empty">所有章节都在叙事时间轴上</div>
-              ) : (
-                unplacedNodes.map((node) => {
-                  const primaryId = primaryStorylineId(node);
-                  const sl = primaryId ? storylineById.get(primaryId) : null;
-                  const color = sl?.color || 'hsl(var(--ink-4))';
-                  return (
-                    <div
-                      key={node.id}
-                      className="graph-drawer__chip"
-                      draggable
-                      onDragStart={(e) => handleChipDragStart(e, node)}
-                      onDragEnd={handleDragEnd}
-                      style={{ ['--chip-color' as string]: color } as React.CSSProperties}
-                      title={node.title || '未命名'}
-                    >
-                      <span className="graph-drawer__chip-dot" />
-                      <span className="graph-drawer__chip-num">
-                        § {String(node.bookOrder).padStart(2, '0')}
-                      </span>
-                      <span className="graph-drawer__chip-title">{node.title || '未命名'}</span>
+          {/* Unplaced chapters — narrative mode only. Same role as the
+              equivalent control in BottomTimeline: surface chapters
+              that have no narrativeOrder yet so they can be dragged
+              into a track. Renders as a popover anchored to the head
+              button rather than the old below-head drawer. */}
+          {isNarrative && (
+            <div className="graph-head__unplaced" ref={unplacedPopoverRef}>
+              <button
+                ref={unplacedBtnRef}
+                type="button"
+                className={`graph-head__unplaced-btn${drawerOpen ? ' is-open' : ''}`}
+                onClick={() => setDrawerOpen((v) => !v)}
+                title="未放置的章节（拖入下方时间轴）"
+                aria-haspopup="menu"
+                aria-expanded={drawerOpen}
+              >
+                <span>未放置</span>
+                <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
+              </button>
+              {drawerOpen && (
+                <div className="graph-head__unplaced-popover" role="menu">
+                  {unplacedNodes.length === 0 ? (
+                    <div className="graph-head__unplaced-empty">
+                      所有章节都在叙事时间轴上
                     </div>
-                  );
-                })
+                  ) : (
+                    unplacedNodes.map((node) => {
+                      const primaryId = primaryStorylineId(node);
+                      const sl = primaryId ? storylineById.get(primaryId) : null;
+                      const color = sl?.color || 'hsl(var(--ink-4))';
+                      return (
+                        <div
+                          key={node.id}
+                          className="graph-head__unplaced-chip"
+                          draggable
+                          onDragStart={(e) => handleChipDragStart(e, node)}
+                          onDragEnd={handleDragEnd}
+                          style={{ ['--chip-color' as string]: color } as React.CSSProperties}
+                          title={node.title || '未命名'}
+                        >
+                          <span className="graph-head__unplaced-chip-dot" />
+                          <span className="graph-head__unplaced-chip-num">
+                            § {String(node.bookOrder).padStart(2, '0')}
+                          </span>
+                          <span className="graph-head__unplaced-chip-title">
+                            {node.title || '未命名'}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               )}
             </div>
           )}
         </div>
-      )}
+
+        {/* Right-side legend group. Layout left → right:
+              · hint chip — only when there are no user edges
+              · drift-only kind chips — only when drift panel is open;
+                sit to the LEFT of regular chips, separated by a small
+                whitespace gap (the wrapping container's gap)
+              · regular kind chips — toggleable; visible whenever the
+                kind has at least one storyline-only edge
+              · edge-management button — rightmost; opens a dropdown
+                where users can rename / recolor / delete kinds, and
+                where the storyline-transit legend lives in locked
+                read-only form
+        */}
+        <div className="graph-head__legend">
+          {nodeEdges.length === 0 && (
+            <div className="graph-head__filters">
+              <div
+                className="graph-head__filter is-hint"
+                title="按住 Shift 点击两个节点即可建立关联"
+              >
+                Shift + 点击两节点 = 创建关联
+              </div>
+            </div>
+          )}
+          {driftPanelOpen && driftOnlyKinds.length > 0 && (
+            <div className="graph-head__filters">
+              {driftOnlyKinds.map((kind) => renderKindChip(kind))}
+            </div>
+          )}
+          {regularKinds.length > 0 && (
+            <div className="graph-head__filters">
+              {regularKinds.map((kind) => renderKindChip(kind))}
+            </div>
+          )}
+          <div className="graph-head__edge-mgr-wrap">
+            <button
+              ref={edgeMgrBtnRef}
+              type="button"
+              className={`graph-head__edge-mgr-btn${edgeMgrOpen ? ' is-open' : ''}`}
+              onClick={() => setEdgeMgrOpen((v) => !v)}
+              title="管理关联类型"
+              aria-haspopup="menu"
+              aria-expanded={edgeMgrOpen}
+            >
+              <span aria-hidden>≡</span>
+              <span>类型</span>
+            </button>
+            <EdgeKindManager
+              open={edgeMgrOpen}
+              onClose={() => setEdgeMgrOpen(false)}
+              anchorRef={edgeMgrBtnRef}
+              kinds={[...regularKinds, ...driftOnlyKinds]}
+              resolveKindColor={resolveKindColor}
+              setKindColor={edgeKindMeta.setColor}
+              clearKindColor={edgeKindMeta.clearColor}
+              reassignMeta={edgeKindMeta.reassign}
+              removeMeta={edgeKindMeta.remove}
+              nodeEdges={nodeEdges}
+              updateEdge={updateEdge}
+              deleteEdge={deleteEdge}
+            />
+          </div>
+        </div>
+      </div>
 
       <div className="graph-body">
         <div className="graph-rail">
-          {/* Spacer above the rail so storyline names align with their
-              respective track centers (axis row sits above the tracks). */}
-          <div style={{ height: GRAPH_CONFIG.AXIS_HEIGHT, borderBottom: '1px solid hsl(var(--rule))' }} />
+          {/* Axis row in the rail. In narrative mode this hosts the
+              add-pin button; in book mode it's just a spacer so the
+              storyline names below align with their respective track
+              centers. */}
+          {isNarrative ? (
+            <div
+              className="graph-rail__axis"
+              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}
+              title="叙事时间标记：点击 + 添加可拖动的时间 pin"
+            >
+              <span className="graph-rail__axis-name">时间</span>
+              <button
+                type="button"
+                className="graph-rail__axis-add"
+                disabled={snapValues.length === 0}
+                title={snapValues.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddPin();
+                }}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <div
+              className="graph-rail__axis-spacer"
+              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT, borderBottom: '1px solid hsl(var(--rule))' }}
+            />
+          )}
           {storylines.map((s) => {
             const lane = sortedNodesByStoryline.get(s.id) ?? [];
             const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(s.id);
@@ -717,19 +1306,61 @@ export function GraphView() {
               style={{ width: Math.max(canvasContentWidth, 100), minWidth: '100%' }}
             >
               {/* Time axis — narrative mode only. Book mode uses the
-                  FullBookLane above for the same "what's the axis" role. */}
+                  FullBookLane above for the same "what's the axis" role.
+                  In narrative mode the axis row hosts the interactive
+                  TimelinePin heads + labels (draggable, editable). The
+                  vertical lines that span the entire tracks area are
+                  rendered below as siblings, not inside the axis. */}
               {isNarrative && (
                 <div className="graph-axis" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
-                  {axisLabels.map((m, i) => (
-                    <div key={i} className="graph-axis__col" style={{ left: m.x }}>
-                      <div className="graph-axis__tick" />
-                      <div className={`graph-axis__label${m.major ? ' is-major' : ''}`}>
-                        {m.label}
-                      </div>
-                    </div>
-                  ))}
+                  {markers
+                    .filter(
+                      (m) =>
+                        m.narrativeOrder >= orderSpan.min &&
+                        m.narrativeOrder <= orderSpan.max,
+                    )
+                    .map((m) => (
+                      <GraphTimelinePin
+                        key={`pin-${m.id}`}
+                        marker={m}
+                        snapValues={snapValues}
+                        orderToX={orderToX}
+                        pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
+                        isDragging={pinDragXs.has(m.id)}
+                        editOnMount={m.id === newlyAddedPinId}
+                        onChange={(patch) => {
+                          if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
+                          updateMarker(m.id, patch);
+                        }}
+                        onDelete={() => {
+                          if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
+                          deleteMarker(m.id);
+                        }}
+                        onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
+                      />
+                    ))}
                 </div>
               )}
+
+              {/* Vertical lines spanning the full tracks area (axis +
+                  every storyline row). One per pin. When the pin is
+                  being dragged the line tracks the cursor's pixel X
+                  rather than the persisted narrativeOrder, so the user
+                  sees the prospective drop position before mouseup. */}
+              {isNarrative &&
+                markers.map((m) => {
+                  const dragX = pinDragXs.get(m.id);
+                  const isDragging = dragX !== undefined;
+                  const left = dragX ?? orderToX(m.narrativeOrder);
+                  return (
+                    <div
+                      key={`pinline-${m.id}`}
+                      className={`graph-pin-line${isDragging ? ' is-dragging' : ''}`}
+                      style={{ left }}
+                      aria-hidden
+                    />
+                  );
+                })}
 
             {/* One row per storyline with the dotted reading-line behind tiles */}
             {storylines.map((s) => {
@@ -776,15 +1407,20 @@ export function GraphView() {
                     />
                   );
                 })}
-                {/* User-authored relation edges (solid, click to delete). */}
+                {/* User-authored relation edges. Click selects (no
+                    confirm); the floating × badge rendered as a sibling
+                    DOM node handles the actual delete. */}
                 {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
                   const yy1 = GRAPH_CONFIG.AXIS_HEIGHT + y1;
                   const yy2 = GRAPH_CONFIG.AXIS_HEIGHT + y2;
                   const midY = (yy1 + yy2) / 2;
                   const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
+                  const selected = isEdgeSelected(edge.id);
                   return (
-                    <g key={edge.id} className="graph-edge-grp">
-                      {/* Invisible wider hit-target so the path is easy to click. */}
+                    <g
+                      key={edge.id}
+                      className={`graph-edge-grp${selected ? ' is-selected' : ''}`}
+                    >
                       <path
                         d={d}
                         stroke="transparent"
@@ -793,19 +1429,17 @@ export function GraphView() {
                         style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`删除关联「${edge.kind ?? '未分类'}」?`)) {
-                            void deleteEdge(edge.id);
-                          }
+                          setSelectedEdgeId(edge.id);
                         }}
                       >
-                        <title>{edge.kind ? `${edge.kind} · 点击删除` : '未分类 · 点击删除'}</title>
+                        <title>{edge.kind ?? '未分类'}</title>
                       </path>
                       <path
                         d={d}
                         stroke={color}
-                        strokeWidth="1.8"
+                        strokeWidth={selected ? 2.4 : 1.8}
                         fill="none"
-                        opacity="0.85"
+                        opacity={selected ? 1 : 0.85}
                         style={{ pointerEvents: 'none' }}
                       />
                     </g>
@@ -813,6 +1447,38 @@ export function GraphView() {
                 })}
               </svg>
             )}
+
+            {/* Floating × badge at the midpoint of the selected
+                storyline edge. Click → delete immediately (no
+                confirm). Lives inside .graph-tracks so it scrolls
+                with the canvas; for drift edges the equivalent badge
+                is rendered at the fixed-position SVG level. */}
+            {selectedEdgeId &&
+              (() => {
+                const sel = visibleEdges.find((v) => v.edge.id === selectedEdgeId);
+                if (!sel) return null;
+                const yy1 = GRAPH_CONFIG.AXIS_HEIGHT + sel.y1;
+                const yy2 = GRAPH_CONFIG.AXIS_HEIGHT + sel.y2;
+                const midX = (sel.x1 + sel.x2) / 2;
+                const midY = (yy1 + yy2) / 2;
+                return (
+                  <button
+                    type="button"
+                    className="graph-edge-delete"
+                    style={{ left: midX, top: midY }}
+                    title="删除关联"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const id = selectedEdgeId;
+                      setSelectedEdgeId(null);
+                      void deleteEdge(id);
+                    }}
+                    aria-label="删除关联"
+                  >
+                    ×
+                  </button>
+                );
+              })()}
 
             {/* Drop indicator while dragging — a 2px vertical bar on the
                 row the cursor is over, tinted with that storyline's color.
@@ -837,18 +1503,21 @@ export function GraphView() {
 
             {/* Tiles */}
             {positionedNodes.map((node) => {
-              const isTransfer = node.storylines.length > 1;
               const isDraft = node.wordCount === 0;
               const color = node.storyline?.color || 'hsl(var(--story-4))';
               const isLinkSource = linkSource === node.id;
               return (
                 <div
                   key={node.id}
+                  ref={(el) => {
+                    if (el) tileRefs.current.set(node.id, el);
+                    else tileRefs.current.delete(node.id);
+                  }}
                   className={[
                     'graph-tile',
-                    isTransfer ? 'is-transfer' : '',
                     isDraft ? 'is-draft' : '',
                     isLinkSource ? 'is-link-source' : '',
+                    isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -909,7 +1578,7 @@ export function GraphView() {
                       ['--tile-color' as string]: color,
                     } as React.CSSProperties
                   }
-                  title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字${isTransfer ? ' · 多线' : ''}`}
+                  title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字`}
                 >
                   <div className="graph-tile__stripe" />
                   <div className="graph-tile__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
@@ -923,44 +1592,278 @@ export function GraphView() {
         </div>
       </div>
 
-      {/* Legend — dynamic; lists whatever kinds exist in the project plus
-          a constant footnote about transit/active styling. Hidden when
-          there are no edges so the chrome stays out of the way. */}
-      {distinctKinds.length > 0 ? (
-        <div className="graph-legend">
-          <div className="graph-legend__title">关联类型</div>
-          {distinctKinds.map((kind) => {
-            const isUncategorized = kind === UNCATEGORIZED_KIND;
-            const label = isUncategorized ? '未分类' : kind;
-            const color = colorForKind(isUncategorized ? null : kind);
+      {/* ---------------- Drift drawer (floating, bottom-center) ----------------
+          Small tab pinned to bottom-center. Click expands a centered "hand"
+          of drift cards (free-floating notes). Cards live only here — not
+          draggable to the storyline canvas, but reorderable among
+          themselves via drag-and-drop. Edges touching drift endpoints
+          render with a glowing fixed SVG when the panel is open. */}
+      <div
+        className={[
+          'graph-drift',
+          driftPanelOpen ? 'is-open' : '',
+          driftPanelClosing ? 'is-closing' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {/* Centered close button at the top of the panel. It stays mounted
+            through the closing animation to keep the panel's vertical slot
+            stable, but CSS fades/pointer-disables it while closing. */}
+        {driftPanelMounted && (
+          <button
+            type="button"
+            className="graph-drift__close"
+            onClick={closeDriftPanel}
+            disabled={driftPanelClosing}
+            title="收起浮缀"
+            aria-label="收起浮缀"
+          >
+            <span aria-hidden>×</span>
+          </button>
+        )}
+        {driftPanelMounted && (
+          <div className="graph-drift__panel" aria-hidden={!driftPanelOpen || driftPanelClosing}>
+            <div
+              className="graph-drift__hand"
+              onDragOver={(e) => {
+                // Allow drop in the empty space at the ends. Per-card handlers
+                // cover the between-cards case.
+                if (!draggedDrift) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                if (!draggedDrift) return;
+                e.preventDefault();
+                // Snapshot dragged card rect for the FLIP settle (same as
+                // the per-card drop handler).
+                const draggedEl = driftCardRefs.current.get(draggedDrift.id);
+                if (draggedEl) {
+                  draggedIdAtDropRef.current = draggedDrift.id;
+                  draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
+                }
+                void commitDriftReorder();
+              }}
+            >
+              {driftNodes.length === 0 ? (
+                <div className="graph-drift__empty">
+                  还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记
+                </div>
+              ) : (
+                driftNodes.map((node, index) => {
+                  const isLinkSource = linkSource === node.id;
+                  const isDragged = draggedDrift?.id === node.id;
+                  const shift = computeDriftShift(index);
+                  return (
+                    <div
+                      key={node.id}
+                      ref={(el) => {
+                        if (el) driftCardRefs.current.set(node.id, el);
+                        else driftCardRefs.current.delete(node.id);
+                      }}
+                      className={[
+                        'graph-drift__card',
+                        isLinkSource ? 'is-link-source' : '',
+                        isDragged ? 'is-dragged' : '',
+                        isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      style={{
+                        transform: shift || undefined,
+                        // CSS transition lives on the class; we only set the
+                        // transform value at render-time so the live shift
+                        // smoothly transitions when the drop target moves.
+                      }}
+                      draggable
+                      onDragStart={(e) => {
+                        setDraggedDrift({ id: node.id, index });
+                        setDriftDropIndex(index);
+                        e.dataTransfer.effectAllowed = 'move';
+                        const el = e.currentTarget as HTMLElement;
+                        const rect = el.getBoundingClientRect();
+                        e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
+                      }}
+                      onDragEnd={() => {
+                        // Cancelled drag (released outside any drop target):
+                        // just clear state, no commit, no FLIP.
+                        setDraggedDrift(null);
+                        setDriftDropIndex(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (!draggedDrift) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                        const beforeHalf = e.clientX - rect.left < rect.width / 2;
+                        setDriftDropIndex(beforeHalf ? index : index + 1);
+                      }}
+                      onDrop={(e) => {
+                        if (!draggedDrift) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Snapshot the dragged card's pre-commit rect so the
+                        // FLIP effect can slide it from its old slot to its
+                        // new slot. Other cards stay in place visually
+                        // (their inline shift becomes the new DOM slot).
+                        const draggedEl = driftCardRefs.current.get(draggedDrift.id);
+                        if (draggedEl) {
+                          draggedIdAtDropRef.current = draggedDrift.id;
+                          draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
+                        }
+                        void commitDriftReorder();
+                      }}
+                      onClick={(e) => {
+                        // Same shift-click pairing semantics as storyline
+                        // tiles. A drift card can sit on either end of the
+                        // pair — the data model doesn't care whether the
+                        // endpoints are placed or drift.
+                        if (e.shiftKey) {
+                          setLinkSource((prev) => (prev === node.id ? null : node.id));
+                          return;
+                        }
+                        if (linkSource && linkSource !== node.id) {
+                          setNewEdgePair({ source: linkSource, target: node.id });
+                          setNewEdgeKind('');
+                          setLinkSource(null);
+                          return;
+                        }
+                        // Mirror the tile-click popover so the in-view
+                        // editing UX stays consistent.
+                        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                        setPopover({
+                          nodeId: node.id,
+                          anchor: {
+                            left: rect.left,
+                            top: rect.top,
+                            width: rect.width,
+                            height: rect.height,
+                          },
+                        });
+                      }}
+                      onDoubleClick={() => {
+                        openEntity({ entityType: 'node', id: node.id }, { preview: false });
+                        close();
+                      }}
+                      title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字 · shift+点击起关联`}
+                    >
+                      <div className="graph-drift__card-num">浮缀</div>
+                      <div className="graph-drift__card-title">{node.title || '未命名'}</div>
+                      {node.summary && (
+                        <div className="graph-drift__card-summary">{node.summary}</div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+        {/* Rectangular tab button. Only shown while the panel is
+            closed — opening hides the tab, and the panel's inline
+            close button takes over the "collapse" role. */}
+        {!driftPanelMounted && (
+          <button
+            type="button"
+            className="graph-drift__tab"
+            onClick={openDriftPanel}
+            title="浮缀 — 暂时未入故事线的灵感卡（点击展开）"
+          >
+            <span>浮缀</span>
+            <span className="graph-drift__count">{driftNodes.length}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Fixed-position SVG overlay for drift edges. Endpoints are in
+          viewport coordinates (computed in the rAF loop above), so this SVG
+          fills the viewport and ignores scroll. pointer-events: none on
+          the SVG; the path itself opts in so users can click to delete. */}
+      {driftPanelOpen && driftEdgeGeom.length > 0 && (
+        <svg className="graph-drift-edges" aria-hidden>
+          <defs>
+            <filter id="drift-edge-glow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="2.2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {driftEdgeGeom.map((g) => {
+            // Cubic curve with vertical handles so the curve eases out of
+            // each endpoint along the y-axis — feels right when one end is
+            // in the bottom panel and the other up in the canvas.
+            const midY = (g.y1 + g.y2) / 2;
+            const d = `M ${g.x1} ${g.y1} C ${g.x1} ${midY}, ${g.x2} ${midY}, ${g.x2} ${g.y2}`;
+            const selected = isEdgeSelected(g.id);
             return (
-              <div key={kind} className="graph-legend__row">
-                <span className="graph-legend__swatch">
-                  <svg viewBox="0 0 22 4">
-                    <path d="M0 2 L22 2" stroke={color} strokeWidth="1.8" fill="none" />
-                  </svg>
-                </span>
-                <span>{label}</span>
-              </div>
+              <g
+                key={g.id}
+                className={`graph-drift-edge${selected ? ' is-selected' : ''}`}
+              >
+                <path
+                  className="graph-drift-edge__hit"
+                  d={d}
+                  stroke="transparent"
+                  strokeWidth={12}
+                  fill="none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedEdgeId(g.id);
+                  }}
+                >
+                  <title>{g.kind ?? '未分类'}</title>
+                </path>
+                <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
+                <path
+                  className="graph-drift-edge__line"
+                  d={d}
+                  stroke={g.color}
+                />
+              </g>
             );
           })}
-          <div className="graph-legend__hint">
-            多线 = 实心边框 · 当前 = 朱红环 · Shift+点击章节起关联
-          </div>
-        </div>
-      ) : (
-        <div className="graph-legend">
-          <div className="graph-legend__title">尚无关联</div>
-          <div className="graph-legend__hint">Shift+点击两个章节即可创建</div>
-        </div>
+        </svg>
       )}
+
+      {/* Fixed-position × badge for the selected drift edge. Mirrors
+          the storyline-edge badge but rides at viewport coordinates
+          since the drift edge SVG itself does. */}
+      {driftPanelOpen &&
+        selectedEdgeId &&
+        (() => {
+          const sel = driftEdgeGeom.find((g) => g.id === selectedEdgeId);
+          if (!sel) return null;
+          const midX = (sel.x1 + sel.x2) / 2;
+          const midY = (sel.y1 + sel.y2) / 2;
+          return (
+            <button
+              type="button"
+              className="graph-edge-delete is-floating"
+              style={{ left: midX, top: midY }}
+              title="删除关联"
+              onClick={(e) => {
+                e.stopPropagation();
+                const id = selectedEdgeId;
+                setSelectedEdgeId(null);
+                void deleteEdge(id);
+              }}
+              aria-label="删除关联"
+            >
+              ×
+            </button>
+          );
+        })()}
+
 
       {/* Status banner when a relation-source tile has been picked. */}
       {linkSource && !newEdgePair && (
         <div className="graph-linkbar">
           <span>已选中起点：</span>
-          <strong>{positionedById.get(linkSource)?.title || '未命名'}</strong>
-          <span>· 点击另一章节创建关联</span>
+          <strong>{nodeById.get(linkSource)?.title || '未命名'}</strong>
+          <span>· 点击另一节点创建关联</span>
           <button onClick={() => setLinkSource(null)} title="取消">×</button>
         </div>
       )}
@@ -974,54 +1877,104 @@ export function GraphView() {
             if (e.target === e.currentTarget) setNewEdgePair(null);
           }}
         >
-          <div
-            className="graph-newedge"
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setNewEdgePair(null);
-            }}
-          >
+          <div className="graph-newedge">
             <div className="graph-newedge__head">新建关联</div>
             <div className="graph-newedge__pair">
-              <span>{positionedById.get(newEdgePair.source)?.title || '未命名'}</span>
+              <span>{nodeById.get(newEdgePair.source)?.title || '未命名'}</span>
               <span aria-hidden>→</span>
-              <span>{positionedById.get(newEdgePair.target)?.title || '未命名'}</span>
+              <span>{nodeById.get(newEdgePair.target)?.title || '未命名'}</span>
             </div>
             <label className="graph-newedge__label">分类（留空 = 未分类）</label>
-            <input
-              autoFocus
-              className="graph-newedge__input"
-              type="text"
-              value={newEdgeKind}
-              placeholder="如：同人物 / 引用 / 时序 …"
-              list="graph-newedge-kinds"
-              onChange={(e) => setNewEdgeKind(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const trimmed = newEdgeKind.trim();
-                  void createEdge({
-                    id: uuidv7(),
-                    projectId: projectId ?? '',
-                    sourceNodeId: newEdgePair.source,
-                    targetNodeId: newEdgePair.target,
-                    label: '',
-                    kind: trimmed || null,
-                    weight: 1,
-                    isDirected: true,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  });
-                  setNewEdgePair(null);
+            <div
+              className="graph-newedge__select"
+              onFocus={() => setNewEdgeSuggestOpen(true)}
+              onBlur={(e) => {
+                // Close only when focus actually leaves the wrapper —
+                // clicking a suggestion (which lives inside) shouldn't
+                // dismiss before the value is committed.
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setNewEdgeSuggestOpen(false);
                 }
               }}
-            />
-            <datalist id="graph-newedge-kinds">
-              {distinctKinds
-                .filter((k) => k !== UNCATEGORIZED_KIND)
-                .map((k) => (
-                  <option key={k} value={k} />
-                ))}
-            </datalist>
+            >
+              <input
+                autoFocus
+                className="graph-newedge__input"
+                type="text"
+                value={newEdgeKind}
+                placeholder="如：同人物 / 引用 / 时序 …"
+                onChange={(e) => setNewEdgeKind(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    // First ESC while the input is focused → just
+                    // blur the field. We stopPropagation so the
+                    // central ESC handler doesn't ALSO see the event
+                    // and close the modal in the same press; a
+                    // second ESC (with focus now on the body) goes
+                    // through the central handler and closes the
+                    // modal as expected.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    (e.currentTarget as HTMLInputElement).blur();
+                    return;
+                  }
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newEdgeKind.trim();
+                    void createEdge({
+                      id: uuidv7(),
+                      projectId: projectId ?? '',
+                      sourceNodeId: newEdgePair.source,
+                      targetNodeId: newEdgePair.target,
+                      label: '',
+                      kind: trimmed || null,
+                      weight: 1,
+                      isDirected: true,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    });
+                    setNewEdgePair(null);
+                  }
+                }}
+              />
+              {/* Custom suggestions list — mirrors `.edge-kind-mgr` rows
+                  so picking a kind here looks like the management menu.
+                  Only opens when the input has focus; filtered against
+                  the current input. */}
+              {newEdgeSuggestOpen && (() => {
+                const allKinds = [...regularKinds, ...driftOnlyKinds].filter(
+                  (k) => k !== UNCATEGORIZED_KIND,
+                );
+                const filter = newEdgeKind.trim().toLowerCase();
+                const matches = filter
+                  ? allKinds.filter((k) => k.toLowerCase().includes(filter))
+                  : allKinds;
+                if (matches.length === 0) return null;
+                return (
+                  <div className="graph-newedge__suggestions" role="listbox">
+                    {matches.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="graph-newedge__suggestion"
+                        onMouseDown={(e) => {
+                          // mousedown (not click) so the input doesn't
+                          // lose focus before we read the value.
+                          e.preventDefault();
+                          setNewEdgeKind(k);
+                        }}
+                      >
+                        <span
+                          className="graph-newedge__suggestion-dot"
+                          style={{ background: resolveKindColor(k) }}
+                        />
+                        <span>{k}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
             <div className="graph-newedge__actions">
               <button onClick={() => setNewEdgePair(null)}>取消</button>
               <button

@@ -22,6 +22,8 @@
 
 /* ---------------- Head bar ---------------- */
 .graph-head {
+  --graph-head-control-height: 24px;
+  --graph-head-control-inner-height: calc(var(--graph-head-control-height) - 2px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -85,7 +87,7 @@
   background: hsl(var(--surface));
 }
 .graph-head__view-toggle button {
-  height: 22px;
+  height: var(--graph-head-control-inner-height);
   padding: 0 10px;
   background: transparent;
   border: 0;
@@ -118,7 +120,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
+  /* The parent strip owns the 1px border, so the inner chip is 2px
+     shorter than the shared outer control height. */
+  height: var(--graph-head-control-inner-height);
+  padding: 0 10px;
+  box-sizing: border-box;
   background: transparent;
   border: 0;
   border-right: 1px solid hsl(var(--rule));
@@ -137,69 +143,327 @@
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
 }
+/* Non-interactive variants. The hint sits to the LEFT of any chips
+   and the transit chip is the rightmost legend — both share the chip
+   grid (heights/borders) but reject pointer interactions. */
+.graph-head__filter.is-hint,
+.graph-head__filter.is-transit {
+  cursor: default;
+  color: hsl(var(--ink-3));
+}
+.graph-head__filter.is-hint {
+  font-style: italic;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-size: 10.5px;
+}
+.graph-head__filter.is-transit {
+  background: transparent;
+}
 .graph-head__filter-dot {
   width: 8px;
   height: 2px;
   border-radius: 1px;
 }
-
-/* ---------------- Holding drawer (narrative view) ---------------- */
-.graph-drawer {
-  flex-shrink: 0;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
-}
-.graph-drawer__tab {
+/* Wrapping flex row that holds the right-side legend groups. Each
+   group is its own bordered .graph-head__filters strip; the gap here
+   is the whitespace separation between drift-only chips and regular
+   chips (and between each group and the management button). */
+.graph-head__legend {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 26px;
-  padding: 0 14px;
-  background: transparent;
-  border: 0;
-  border-right: 1px solid hsl(var(--rule));
-  color: hsl(var(--ink-3));
-  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Edge-management button + dropdown anchor. The button mirrors the
+   filter-chip strip's height/borders so it reads as part of the same
+   legend row. */
+.graph-head__edge-mgr-wrap {
+  position: relative;
+  top: -1px;
+}
+.graph-head__edge-mgr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--graph-head-control-height);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-4));
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
-  transition:
-    background 0.12s,
-    color 0.12s;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.graph-drawer__tab:hover,
-.graph-drawer.is-open .graph-drawer__tab {
+.graph-head__edge-mgr-btn:hover,
+.graph-head__edge-mgr-btn.is-open {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+}
+
+/* The dropdown itself. Positioned just below the button, right-aligned
+   so it doesn't push off the screen on narrow windows. */
+.edge-kind-mgr {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  padding: 6px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow: 0 10px 28px hsl(var(--ink-1) / 0.18);
+  font-family: var(--font-sans);
+  z-index: 270;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: edge-kind-mgr-in 140ms ease-out;
+}
+@keyframes edge-kind-mgr-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.edge-kind-mgr__head {
+  padding: 4px 8px 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  border-bottom: 1px solid hsl(var(--rule));
+  margin-bottom: 4px;
+}
+.edge-kind-mgr__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  position: relative;
+  transition: background 0.1s;
+}
+/* Only non-locked rows light up on hover. The transit row at the
+   bottom is a static legend, so it intentionally has no hover state
+   anywhere — neither the row nor the static name span. */
+.edge-kind-mgr__row:not(.is-locked):hover {
   background: hsl(var(--rule) / 0.4);
-  color: hsl(var(--ink-1));
 }
-.graph-drawer__arrow {
-  width: 8px;
+.edge-kind-mgr__row.is-locked {
+  /* No background — the locked row blends with the rest of the list;
+     only the absent hover state distinguishes it. */
+  margin-top: 4px;
+  cursor: default;
+}
+.edge-kind-mgr__swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 6px;
+  border-radius: 2px;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.edge-kind-mgr__swatch.is-dashed {
+  width: 18px;
+  height: 0;
+  border-top: 1.5px dashed hsl(var(--ink-3));
+  background: transparent;
+  border-radius: 0;
+  cursor: default;
+}
+.edge-kind-mgr__name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-1));
+  font-family: var(--font-serif);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Only the interactive (button) name darkens on hover. The static
+   transit-row span uses `.is-static` to opt out. */
+button.edge-kind-mgr__name:hover:not(:disabled) {
+  background: hsl(var(--ink-1) / 0.04);
+}
+.edge-kind-mgr__name.is-static {
+  cursor: default;
+  background: transparent !important;
+}
+.edge-kind-mgr__name-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid hsl(var(--accent));
+  border-radius: 3px;
+  background: hsl(var(--paper));
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: hsl(var(--ink-1));
+  outline: none;
+}
+.edge-kind-mgr__delete {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  border-radius: 3px;
+  color: hsl(var(--ink-4));
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.edge-kind-mgr__delete:hover {
+  background: hsl(var(--accent) / 0.12);
+  color: hsl(var(--accent));
+}
+.edge-kind-mgr__hint {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--ink-4));
+  margin-left: auto;
+}
+.edge-kind-mgr__empty {
+  padding: 12px 8px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-4));
   text-align: center;
 }
-.graph-drawer__count {
+
+/* Inline color palette popover, anchored below the swatch button. */
+.edge-kind-mgr__palette {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 4px;
+  box-shadow: 0 4px 12px hsl(var(--ink-1) / 0.18);
+}
+.edge-kind-mgr__palette-dot {
+  width: 14px;
+  height: 14px;
+  border: 1px solid hsl(var(--ink-1) / 0.12);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+.edge-kind-mgr__palette-dot:hover {
+  transform: scale(1.1);
+}
+.edge-kind-mgr__palette-reset {
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.edge-kind-mgr__palette-reset:hover {
+  color: hsl(var(--ink-1));
+}
+
+/* ---------------- Head-bar "未放置" popover (narrative mode) ----------
+   Replaces the below-head drawer. Lives next to the view toggle in
+   `.graph-head__left` and opens a popover anchored to its button. */
+.graph-head__unplaced {
+  position: relative;
+  display: inline-flex;
+}
+.graph-head__unplaced-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--graph-head-control-height);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.graph-head__unplaced-btn:hover,
+.graph-head__unplaced-btn.is-open {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+}
+.graph-head__unplaced-count {
   background: hsl(var(--rule));
   color: hsl(var(--ink-2));
   padding: 1px 6px;
   border-radius: 8px;
   font-size: 9px;
 }
-.graph-drawer__list {
+.graph-head__unplaced-btn.is-open .graph-head__unplaced-count {
+  background: hsl(var(--paper) / 0.18);
+  color: hsl(var(--paper));
+}
+.graph-head__unplaced-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 270;
+  min-width: 260px;
+  max-width: 360px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow: 0 10px 28px hsl(var(--ink-1) / 0.18);
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 8px 14px 10px;
-  border-top: 1px solid hsl(var(--rule));
-  max-height: 120px;
-  overflow-y: auto;
+  animation: graph-head-popover-in 140ms ease-out;
 }
-.graph-drawer__empty {
+@keyframes graph-head-popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.graph-head__unplaced-empty {
+  width: 100%;
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 12px;
   color: hsl(var(--ink-4));
+  padding: 12px 4px;
+  text-align: center;
 }
-.graph-drawer__chip {
+.graph-head__unplaced-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -210,29 +474,27 @@
   cursor: grab;
   max-width: 260px;
   user-select: none;
-  transition:
-    border-color 0.12s,
-    box-shadow 0.12s;
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
-.graph-drawer__chip:active {
+.graph-head__unplaced-chip:active {
   cursor: grabbing;
 }
-.graph-drawer__chip:hover {
+.graph-head__unplaced-chip:hover {
   border-color: var(--chip-color, hsl(var(--ink-3)));
   box-shadow: 0 1px 4px hsl(var(--ink-1) / 0.08);
 }
-.graph-drawer__chip-dot {
+.graph-head__unplaced-chip-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--chip-color, hsl(var(--ink-4)));
 }
-.graph-drawer__chip-num {
+.graph-head__unplaced-chip-num {
   font-family: var(--font-mono);
   font-size: 10px;
   color: hsl(var(--ink-3));
 }
-.graph-drawer__chip-title {
+.graph-head__unplaced-chip-title {
   font-family: var(--font-serif);
   font-size: 12px;
   color: hsl(var(--ink-1));
@@ -302,15 +564,17 @@
   overflow: auto;
   position: relative;
   background: hsl(var(--page));
-  scrollbar-width: thin;
+  /* Hide scrollbars in both axes (Firefox + IE/old-Edge). The proven
+     `.btl__scroll` pattern — height: 0 on the webkit pseudo wasn't enough
+     in Chromium to suppress the horizontal track. Scrolling still works
+     via trackpad / wheel; horizontal scroll via shift+wheel. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .graph-canvas::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-.graph-canvas::-webkit-scrollbar-thumb {
-  background: hsl(var(--rule-strong));
-  border-radius: 5px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .graph-tracks {
@@ -353,6 +617,135 @@
 .graph-axis__label.is-major {
   color: hsl(var(--ink-3));
   font-weight: 600;
+}
+
+/* ---------------- Rail axis row (narrative mode) ----------------
+   The rail's axis-aligned slot. In narrative mode it hosts a "+" to
+   add a new TimelinePin, mirroring BottomTimeline's `.btl-axis__rail`.
+   Book mode uses a simple spacer instead (no axis interactions there;
+   FullBookLane provides the equivalent reading-order header). */
+.graph-rail__axis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.graph-rail__axis-add {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.graph-rail__axis-add:hover:not(:disabled) {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+.graph-rail__axis-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------------- Time pins (narrative mode) ----------------
+   Mirror of `.btl-pin` adapted for graph view's taller axis row.
+   The head + label live inside `.graph-axis`; the vertical line
+   (`.graph-pin-line`) is rendered as a sibling inside `.graph-tracks`
+   so it can span the full canvas height. */
+.graph-pin {
+  position: absolute;
+  top: 0;
+  width: 0;
+  z-index: 7;
+}
+.graph-pin__label {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+  color: hsl(var(--ink-2));
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: grab;
+  outline: none;
+  min-width: 24px;
+  text-align: center;
+  user-select: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.1s ease;
+}
+.graph-pin.is-editing .graph-pin__label {
+  cursor: text;
+  user-select: text;
+  border-color: hsl(var(--accent));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+  overflow: visible;
+}
+.graph-pin.is-dragging .graph-pin__label {
+  cursor: grabbing;
+  opacity: 0;
+  pointer-events: none;
+}
+.graph-pin__head {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid hsl(var(--ink-4));
+  transform: translateX(-5px);
+  cursor: grab;
+  transition: opacity 0.1s ease;
+}
+.graph-pin.is-dragging .graph-pin__head {
+  cursor: grabbing;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Vertical line that pierces every storyline track for a given pin.
+   Sits BEHIND tiles (z-index 0) at rest and IN FRONT (z-index 5) while
+   the user is dragging the pin, so the prospective drop target is
+   easy to see. Drift panel (z-index 260, separate stacking context)
+   sits above this regardless. */
+.graph-pin-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: hsl(var(--rule));
+  pointer-events: none;
+  z-index: 0;
+}
+.graph-pin-line.is-dragging {
+  background: hsl(var(--accent));
+  z-index: 5;
 }
 
 /* ---------------- Tracks ---------------- */
@@ -431,18 +824,58 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.graph-tile.is-transfer {
-  /* Multi-storyline transit point: thicker colored border so the role
-     stands out at a glance. */
-  border: 1.5px solid var(--tile-color, hsl(var(--ink-3)));
-  box-shadow: 0 2px 5px hsl(var(--ink-1) / 0.1);
-}
 .graph-tile.is-draft {
   background: hsl(var(--paper-deep));
   border-style: dashed;
 }
 .graph-tile.is-draft .graph-tile__title {
   color: hsl(var(--ink-3));
+}
+
+/* ---------------- Selected edge: highlight + delete badge ----------------
+   Click an edge → select it. Selection highlights the edge (handled
+   inline via path attrs) and applies `.is-edge-selected` to the two
+   endpoint cards (border accent). The floating × button at the edge
+   midpoint deletes the edge directly — no confirm. */
+.graph-tile.is-edge-selected,
+.graph-drift__card.is-edge-selected {
+  border-color: hsl(var(--accent));
+  border-width: 2px;
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18), 0 4px 12px hsl(var(--ink-1) / 0.12);
+}
+/* Storyline-edge badge lives inside .graph-tracks (scrolls with the
+   canvas). Drift-edge badge uses .is-floating to switch to
+   fixed-position viewport coords. */
+.graph-edge-delete {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
+  border: 0;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+  color: hsl(var(--paper));
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  cursor: pointer;
+  padding: 0;
+  z-index: 8;
+  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.25), 0 0 0 2px hsl(var(--paper));
+  transition: transform 0.12s, background 0.12s;
+  animation: graph-edge-delete-in 140ms ease-out;
+}
+.graph-edge-delete.is-floating {
+  position: fixed;
+  z-index: 268;
+}
+.graph-edge-delete:hover {
+  transform: scale(1.1);
+}
+@keyframes graph-edge-delete-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ---------------- Cross-storyline edges (transit trails) ---------------- */
@@ -480,60 +913,6 @@
   opacity: 0.32;
   filter: saturate(0.6);
   transition: opacity 0.12s, filter 0.12s;
-}
-
-/* ---------------- Legend ---------------- */
-.graph-legend {
-  position: fixed;
-  bottom: 32px;
-  right: 24px;
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 5px;
-  padding: 10px 14px;
-  box-shadow: 0 6px 14px hsl(var(--ink-1) / 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  z-index: 260;
-  pointer-events: none;
-  /* Phase 4 will make this interactive; for now it documents the
-     planned edge styles without intercepting clicks. */
-}
-.graph-legend__title {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-  margin-bottom: 4px;
-}
-.graph-legend__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: hsl(var(--ink-2));
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-}
-.graph-legend__swatch {
-  width: 22px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-}
-.graph-legend__swatch svg {
-  width: 22px;
-  height: 4px;
-}
-.graph-legend__hint {
-  margin-top: 4px;
-  padding-top: 5px;
-  border-top: 1px solid hsl(var(--rule));
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: hsl(var(--ink-4));
 }
 
 /* ---------------- Link source / new-edge dialog ---------------- */
@@ -640,6 +1019,10 @@
   color: hsl(var(--ink-4));
   margin-bottom: 4px;
 }
+/* Wrapper so the suggestions popover positions relative to the input. */
+.graph-newedge__select {
+  position: relative;
+}
 .graph-newedge__input {
   width: 100%;
   height: 32px;
@@ -655,6 +1038,50 @@
 }
 .graph-newedge__input:focus {
   border-color: hsl(var(--accent));
+}
+
+/* Suggestions popover — matches `.edge-kind-mgr` rows so picking a
+   kind here visually mirrors the management menu. */
+.graph-newedge__suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 4px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow: 0 8px 22px hsl(var(--ink-1) / 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
+}
+.graph-newedge__suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  border-radius: 4px;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.graph-newedge__suggestion:hover {
+  background: hsl(var(--rule) / 0.4);
+}
+.graph-newedge__suggestion-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 6px;
+  border-radius: 2px;
 }
 .graph-newedge__actions {
   display: flex;
@@ -865,4 +1292,275 @@
   font-size: 10.5px;
   letter-spacing: 0.06em;
   color: hsl(var(--ink-3));
+}
+
+/* ============================================================
+   Drift drawer — a small floating tab pinned to the bottom-center
+   of the graph view. Clicking the tab opens a centered "hand" of
+   drift cards that rises just above it. The fixed wrapper sits
+   over the canvas; when the panel is open the canvas can still be
+   scrolled to reveal tiles that end up behind the panel.
+   ============================================================ */
+.graph-drift {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none; /* children opt in */
+  z-index: 260;
+}
+/* Rectangular tab — only visible when the panel is closed. No
+   arrow / chevron; the panel's own close button is the collapse
+   affordance once it's open. */
+.graph-drift__tab {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 6px 16px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 14px hsl(var(--ink-1) / 0.08);
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
+  animation: graph-drift-tab-in 140ms ease-out;
+}
+@keyframes graph-drift-tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.graph-drift__tab:hover {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+  transform: translateY(-1px);
+}
+.graph-drift__count {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-2));
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+}
+.graph-drift__tab:hover .graph-drift__count {
+  background: hsl(var(--paper) / 0.2);
+  color: hsl(var(--paper));
+}
+/* Circular × close button centered above the open panel — matches
+   the edge-delete badge's visual language (small filled circle, no
+   tab-like shape) so collapse affordances feel consistent. */
+.graph-drift__close {
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 6px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 50%;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  box-shadow: 0 2px 8px hsl(var(--ink-1) / 0.12);
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s,
+    opacity 0.16s,
+    transform 0.2s;
+}
+.graph-drift.is-open:not(.is-closing) .graph-drift__close {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.graph-drift.is-closing .graph-drift__close {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+}
+.graph-drift__close:hover {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+  transform: scale(1.05);
+}
+
+/* The panel is viewport-bottom anchored and slides as a single hand. It
+   starts below the app frame, so cards enter from the window edge instead
+   of growing out of the old tab position. */
+.graph-drift__panel {
+  pointer-events: none;
+  width: 100vw;
+  max-width: 100vw;
+  overflow: visible;
+  background: transparent;
+  transform: translateY(calc(100% + 18px));
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+.graph-drift.is-open .graph-drift__panel {
+  transform: translateY(0);
+}
+.graph-drift.is-open:not(.is-closing) .graph-drift__panel {
+  pointer-events: auto;
+}
+.graph-drift.is-closing .graph-drift__panel {
+  pointer-events: none;
+  transform: translateY(calc(100% + 18px));
+}
+.graph-drift__hand {
+  display: flex;
+  justify-content: center; /* center the hand when it fits */
+  gap: 10px;
+  padding: 14px 22px 14px;
+  box-sizing: border-box;
+  max-height: min(25vh, 260px);
+  max-width: 90vw;
+  margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.graph-drift__hand::-webkit-scrollbar {
+  display: none;
+}
+.graph-drift__empty {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12.5px;
+  color: hsl(var(--ink-4));
+  padding: 20px 14px;
+}
+
+/* Each drift card looks like a held playing card. The transform
+   transition drives the macOS-Dock-style live shift while a card is
+   being dragged through the hand — neighbour cards slide aside in
+   real time to open the slot where the dragged card will land. */
+.graph-drift__card {
+  position: relative;
+  flex: 0 0 168px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow: 0 2px 6px hsl(var(--ink-1) / 0.08), 0 6px 14px hsl(var(--ink-1) / 0.06);
+  cursor: grab;
+  user-select: none;
+  transition:
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.16s,
+    border-color 0.12s,
+    opacity 0.18s;
+  will-change: transform;
+}
+.graph-drift__card:active {
+  cursor: grabbing;
+}
+.graph-drift__card:hover {
+  box-shadow: 0 6px 16px hsl(var(--ink-1) / 0.15), 0 14px 32px hsl(var(--ink-1) / 0.08);
+  border-color: hsl(var(--accent));
+}
+.graph-drift__card.is-link-source {
+  outline: 2px dashed hsl(var(--accent));
+  outline-offset: 2px;
+}
+/* Source card during drag — faded so the cursor's drag ghost is the
+   primary visible representation. The faded original stays in its
+   original DOM slot; on drop, the FLIP effect slides it to its new
+   slot for a Dock-like settling. */
+.graph-drift__card.is-dragged {
+  opacity: 0.2;
+}
+
+.graph-drift__card-num {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--accent));
+}
+.graph-drift__card-title {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--ink-1));
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.graph-drift__card-summary {
+  flex: 1;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: hsl(var(--ink-3));
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+/* Fixed-position glowing edges between drift cards and storyline tiles.
+   Above the graph-overlay (z-index 250) and the drift panel chrome
+   (z-index 260), but below the new-edge dialog (z-index 280). */
+.graph-drift-edges {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 258; /* between graph-overlay 250 and drift drawer 260 */
+  pointer-events: none;
+  animation: graph-drift-edges-in 260ms ease-out;
+}
+@keyframes graph-drift-edges-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Wide transparent hit-target path — only thing in the SVG that opts
+   into pointer events, so the visible (thin, dashed) line stays
+   non-blocking and the user can click anywhere along the band. */
+.graph-drift-edge__hit {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.graph-drift-edge__halo {
+  fill: none;
+  stroke-width: 4;
+  opacity: 0.35;
+  filter: blur(2.5px);
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.graph-drift-edge__line {
+  fill: none;
+  stroke-width: 1.1;
+  opacity: 0.95;
+  stroke-linecap: round;
+  stroke-dasharray: 5 7;
+  pointer-events: none;
+  animation: graph-drift-edge-flow 1.8s linear infinite;
+}
+@keyframes graph-drift-edge-flow {
+  to { stroke-dashoffset: -24; }
 }

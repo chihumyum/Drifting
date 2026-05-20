@@ -1,5 +1,15 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TimelineMarker } from '../domain/timeline-marker';
+
+// Module-level pub-sub so every hook instance (BottomTimeline, GraphView,
+// any future consumer) re-renders when ANY instance persists a change.
+// Without this, GraphView's drag-to-reposition only bumps GraphView's
+// local state — BottomTimeline keeps showing the pre-drag positions
+// until the user refreshes or otherwise triggers a re-render.
+const markerSubscribers = new Set<() => void>();
+function notifyMarkerSubscribers() {
+  markerSubscribers.forEach((cb) => cb());
+}
 
 // localStorage key is per-project so switching projects keeps markers
 // independent. Bump `STORAGE_VERSION` to invalidate older payloads — we
@@ -79,11 +89,21 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
     return readMarkers(projectId);
   }, [projectId, bump]);
 
+  // Re-render this instance whenever ANY instance persists, so a drag in
+  // GraphView is immediately reflected in BottomTimeline (and vice versa).
+  useEffect(() => {
+    const cb = () => setBump((n) => n + 1);
+    markerSubscribers.add(cb);
+    return () => {
+      markerSubscribers.delete(cb);
+    };
+  }, []);
+
   const persist = useCallback(
     (next: TimelineMarker[]) => {
       if (!projectId) return;
       writeMarkers(projectId, next);
-      setBump((n) => n + 1);
+      notifyMarkerSubscribers();
     },
     [projectId],
   );

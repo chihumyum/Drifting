@@ -46,6 +46,23 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
     });
   }, [open, triggerRef]);
 
+  useEffect(() => {
+    if (!open) triggerRef.current?.blur();
+  }, [open, triggerRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      triggerRef.current?.blur();
+      onClose();
+    };
+    document.addEventListener('keydown', handleEscape, true);
+    return () => document.removeEventListener('keydown', handleEscape, true);
+  }, [open, onClose, triggerRef]);
+
   if (!open || !position) return null;
 
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'Local';

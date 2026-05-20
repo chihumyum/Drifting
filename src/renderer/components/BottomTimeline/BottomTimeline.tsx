@@ -431,17 +431,32 @@ export function BottomTimeline() {
     };
   }, [contextMenu, clearContextMenu]);
 
-  // Close the unplaced popover on outside click.
+  // Close the unplaced popover on outside click or ESC.
   const unplacedPopoverRef = useRef<HTMLDivElement>(null);
+  const unplacedBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!unplacedPopoverOpen) unplacedBtnRef.current?.blur();
+  }, [unplacedPopoverOpen]);
   useEffect(() => {
     if (!unplacedPopoverOpen) return;
-    const handle = (e: PointerEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       const t = e.target as Node | null;
       if (t && unplacedPopoverRef.current?.contains(t)) return;
       setUnplacedPopoverOpen(false);
     };
-    document.addEventListener('pointerdown', handle, true);
-    return () => document.removeEventListener('pointerdown', handle, true);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      unplacedBtnRef.current?.blur();
+      setUnplacedPopoverOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
   }, [unplacedPopoverOpen]);
 
   const handleNodeDragStart = (e: React.DragEvent, node: TimelineNode, storylineId: string) => {
@@ -946,6 +961,7 @@ export function BottomTimeline() {
           {isNarrative && (
             <div className="btl__unplaced" ref={unplacedPopoverRef}>
               <button
+                ref={unplacedBtnRef}
                 type="button"
                 className={`btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`}
                 onClick={() => setUnplacedPopoverOpen((v) => !v)}

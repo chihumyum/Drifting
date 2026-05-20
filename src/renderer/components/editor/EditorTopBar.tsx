@@ -74,8 +74,22 @@ export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCru
         setOpen(false);
       }
     };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && rootRef.current?.contains(active)) {
+        active.blur();
+      }
+      setOpen(false);
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
   }, [open]);
 
   const handleClick = () => {
@@ -107,6 +121,11 @@ interface EditorBarMenuProps {
 function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) buttonRef.current?.blur();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -115,8 +134,19 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
         setIsOpen(false);
       }
     };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      buttonRef.current?.blur();
+      setIsOpen(false);
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
   }, [isOpen]);
 
   const items = getMenuItems(editorType);
@@ -125,6 +155,7 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
       <button
+        ref={buttonRef}
         type="button"
         className="editor-bar__icon"
         title="More actions"
