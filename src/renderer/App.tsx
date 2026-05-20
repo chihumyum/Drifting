@@ -52,6 +52,9 @@ import { useBookNode } from './usecase/useBookNode';
 import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
 import { useElementCategory } from './usecase/useElementCategory';
+import { useBookMemo } from './usecase/useBookMemo';
+import { useBookMaterial } from './usecase/useBookMaterial';
+import { useEntityRelations } from './usecase/useEntityRelations';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { ShadowOrb } from './components/ShadowOrb';
@@ -192,6 +195,9 @@ function Layout() {
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
   const categoryUsecases = useElementCategory({ projectId: projectId, userId: userId });
+  const memoUsecases = useBookMemo({ projectId: projectId, userId: userId });
+  const materialUsecases = useBookMaterial({ projectId: projectId, userId: userId });
+  const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
 
   // Reset ready state when project or user changes
   useEffect(() => {
@@ -313,6 +319,9 @@ function Layout() {
           storylineUsecases.loadStorylines(),
           elementUsecases.loadInitial(),
           categoryUsecases.loadCategories(),
+          memoUsecases.loadInitial(),
+          materialUsecases.loadInitial(),
+          relationUsecases.loadInitial(),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
@@ -337,7 +346,17 @@ function Layout() {
         log.error('[App] Failed to initialize database:', error);
         events.emit('db:error', { error: error.message });
       });
-  }, [projectId, userId, nodeUsecases, storylineUsecases, elementUsecases, categoryUsecases]); // Re-init when projectId or user changes
+  }, [
+    projectId,
+    userId,
+    nodeUsecases,
+    storylineUsecases,
+    elementUsecases,
+    categoryUsecases,
+    memoUsecases,
+    materialUsecases,
+    relationUsecases,
+  ]); // Re-init when projectId or user changes
 
   // listen for left topbar events
   useEffect(() => {

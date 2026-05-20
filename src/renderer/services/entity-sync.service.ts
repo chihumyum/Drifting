@@ -27,6 +27,8 @@ import {
   ElementPatchTable,
   EntityReferenceTable,
   LocalSyncMutationTable,
+  MaterialTable,
+  MemoTable,
   NodeContentTable,
   NodeEdgeTable,
   NodeStorylineLinkTable,
@@ -53,7 +55,10 @@ export type EntityType =
   | 'nodeStorylineLink'
   | 'element'
   | 'elementCategory'
-  | 'storyStage';
+  | 'storyStage'
+  | 'memo'
+  | 'material'
+  | 'entityReference';
 
 export type MutationType = 'create' | 'update' | 'delete';
 
@@ -107,6 +112,8 @@ export interface ProjectGraphPayload {
   storyStages: Record<string, unknown>[];
   entityReferences: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
+  memos: Record<string, unknown>[];
+  materials: Record<string, unknown>[];
 }
 
 function shouldPersistOutbox(): boolean {
@@ -484,6 +491,49 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/stages/${entityId}` };
 
+    // ---- Memo ----
+    case 'memo':
+      if (mutationType === 'create') {
+        return { method: 'POST', endpoint: `/api/projects/${projectId}/memos`, data: payload };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/memos/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/memos/${entityId}` };
+
+    // ---- Material ----
+    case 'material':
+      if (mutationType === 'create') {
+        return { method: 'POST', endpoint: `/api/projects/${projectId}/materials`, data: payload };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/materials/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/materials/${entityId}` };
+
+    // ---- Entity Reference (polymorphic link) ----
+    case 'entityReference':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/references`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/references/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/references/${entityId}` };
+
     default:
       log.warn(`[sync] unknown entity type: ${entityType}`);
       return null;
@@ -554,6 +604,8 @@ export interface PullResult {
   stages?: unknown[];
   entityReferences?: unknown[];
   entityPatches?: unknown[];
+  memos?: unknown[];
+  materials?: unknown[];
 }
 
 /**
@@ -576,6 +628,8 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     stages: graph.storyStages,
     entityReferences: graph.entityReferences,
     entityPatches: graph.entityPatches,
+    memos: graph.memos,
+    materials: graph.materials,
   };
 }
 
@@ -715,6 +769,71 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })),
+  );
+  dataStore.setMemos(
+    graph.memos.map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      title: stringValue(row, 'title'),
+      bodyJson: stringValue(row, 'bodyJson', '{}'),
+      resolution: (stringValue(row, 'resolution', 'no_action') || 'no_action') as
+        | 'no_action'
+        | 'unresolved'
+        | 'resolved',
+      priority: (nullableStringValue(row, 'priority') as 'low' | 'med' | 'high' | null) ?? null,
+      dueAt: nullableStringValue(row, 'dueAt'),
+      orderKey: numberValue(row, 'orderKey'),
+      resolvedAt: nullableStringValue(row, 'resolvedAt'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  dataStore.setMaterials(
+    graph.materials.map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      title: stringValue(row, 'title'),
+      kind: (stringValue(row, 'kind') === 'markdown'
+        ? 'text'
+        : (stringValue(row, 'kind') as 'image' | 'pdf' | 'url' | 'text')),
+      source: (stringValue(row, 'source', 'local') || 'local') as 'local' | 'url',
+      uri: stringValue(row, 'uri'),
+      localPath: nullableStringValue(row, 'localPath'),
+      mime: nullableStringValue(row, 'mime'),
+      sizeBytes:
+        typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)
+          ? (row.sizeBytes as number)
+          : null,
+      bodyJson: nullableStringValue(row, 'bodyJson'),
+      notesJson: nullableStringValue(row, 'notesJson'),
+      thumbnailUri: nullableStringValue(row, 'thumbnailUri'),
+      orderKey: numberValue(row, 'orderKey'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  // Surface manual (whole-to-whole) entity-reference rows so the right sidebar
+  // relation picker can render attached chapters / elements / etc. without
+  // hitting SQLite. Inline (block-anchored) refs are still indexed separately
+  // by the reference-index service.
+  dataStore.setManualReferences(
+    graph.entityReferences
+      .map((row) => ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        fromKind: stringValue(row, 'fromKind') as any,
+        fromId: stringValue(row, 'fromId'),
+        fromBlockId: nullableStringValue(row, 'fromBlockId'),
+        fromSpansJson: nullableStringValue(row, 'fromSpansJson'),
+        toKind: stringValue(row, 'toKind') as any,
+        toId: stringValue(row, 'toId'),
+        toBlockId: nullableStringValue(row, 'toBlockId'),
+        origin: (stringValue(row, 'origin', 'manual') || 'manual') as 'manual' | 'auto' | 'ai',
+        confidence: typeof row.confidence === 'number' ? row.confidence : null,
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      }))
+      .filter((row) => row.fromBlockId == null),
   );
 
   const project = {
@@ -899,6 +1018,43 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         );
     }
 
+    // Memos and materials are project-scoped; wipe and reinsert from the payload.
+    // Their polymorphic entity_reference rows are dropped here too — server is
+    // the source of truth for memo/material relations.
+    await tx
+      .delete(EntityReferenceTable)
+      .where(
+        and(
+          eq(EntityReferenceTable.projectId, projectId),
+          eq(EntityReferenceTable.fromKind, 'memo'),
+        ),
+      );
+    await tx
+      .delete(EntityReferenceTable)
+      .where(
+        and(
+          eq(EntityReferenceTable.projectId, projectId),
+          eq(EntityReferenceTable.toKind, 'memo'),
+        ),
+      );
+    await tx
+      .delete(EntityReferenceTable)
+      .where(
+        and(
+          eq(EntityReferenceTable.projectId, projectId),
+          eq(EntityReferenceTable.fromKind, 'material'),
+        ),
+      );
+    await tx
+      .delete(EntityReferenceTable)
+      .where(
+        and(
+          eq(EntityReferenceTable.projectId, projectId),
+          eq(EntityReferenceTable.toKind, 'material'),
+        ),
+      );
+    await tx.delete(MemoTable).where(eq(MemoTable.projectId, projectId));
+    await tx.delete(MaterialTable).where(eq(MaterialTable.projectId, projectId));
     await tx.delete(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
@@ -1099,6 +1255,47 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     if (entityPatches.length > 0) {
       await tx.insert(ElementPatchTable).values(entityPatches as any[]);
     }
+
+    const memos = normalizeRows(graph.memos, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      title: stringValue(row, 'title'),
+      bodyJson: stringValue(row, 'bodyJson', '{}'),
+      resolution: stringValue(row, 'resolution', 'no_action') || 'no_action',
+      priority: nullableStringValue(row, 'priority'),
+      dueAt: nullableStringValue(row, 'dueAt'),
+      orderKey: numberValue(row, 'orderKey'),
+      resolvedAt: nullableStringValue(row, 'resolvedAt'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id);
+    if (memos.length > 0) {
+      await tx.insert(MemoTable).values(memos as any[]);
+    }
+
+    const materials = normalizeRows(graph.materials, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      title: stringValue(row, 'title'),
+      kind: stringValue(row, 'kind'),
+      source: stringValue(row, 'source', 'local') || 'local',
+      uri: stringValue(row, 'uri'),
+      localPath: nullableStringValue(row, 'localPath'),
+      mime: nullableStringValue(row, 'mime'),
+      sizeBytes:
+        typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)
+          ? (row.sizeBytes as number)
+          : null,
+      bodyJson: nullableStringValue(row, 'bodyJson'),
+      notesJson: nullableStringValue(row, 'notesJson'),
+      thumbnailUri: nullableStringValue(row, 'thumbnailUri'),
+      orderKey: numberValue(row, 'orderKey'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.kind);
+    if (materials.length > 0) {
+      await tx.insert(MaterialTable).values(materials as any[]);
+    }
   });
 
   applyGraphToStores(graph);
@@ -1156,7 +1353,9 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.elementCategories.length +
       response.data.storyStages.length +
       response.data.entityReferences.length +
-      response.data.entityPatches.length;
+      response.data.entityPatches.length +
+      response.data.memos.length +
+      response.data.materials.length;
 
     setStatus('idle');
     emitSyncOperation({

@@ -210,6 +210,191 @@ ipcMain.handle('auth:oauth-open-browser', async (_event, provider: string) => {
   await shell.openExternal(url);
 });
 
+// Material previews — opens a local file (image / pdf / …) in the user's
+// default application. Returns the OS error string if the call fails so the
+// renderer can surface a useful message. We don't try to invoke Quick Look
+// natively here; PDFs and images go through Preview.app / Photos / whichever
+// app is registered for the mime type.
+ipcMain.handle('material:openLocal', async (_event, filePath: string) => {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    return { ok: false, error: 'invalid path' };
+  }
+  const error = await shell.openPath(filePath);
+  return error ? { ok: false, error } : { ok: true };
+});
+
+// Material previews — opens a URL in the system default browser. Mirrors the
+// OAuth path so renderer code never has direct access to shell.openExternal.
+ipcMain.handle('material:openExternal', async (_event, url: string) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return { ok: false, error: 'invalid url' };
+  }
+  await shell.openExternal(url);
+  return { ok: true };
+});
+
+// Generate an inline thumbnail (base64 data URL) for a local file. macOS
+// routes PDFs through Quick Look's renderer here, so it works out-of-the-box
+// for PDFs and most image formats without bundling a PDF library.
+ipcMain.handle(
+  'material:thumbnail',
+  async (_event, filePath: string, size = 96) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+      return { ok: false, error: 'invalid path' } as const;
+    }
+    try {
+      const { nativeImage } = await import('electron');
+      const image = await nativeImage.createThumbnailFromPath(filePath, {
+        width: size,
+        height: size,
+      });
+      if (image.isEmpty()) return { ok: false, error: 'empty thumbnail' } as const;
+      const dataUrl = image.toDataURL();
+      return { ok: true, dataUrl } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+// Resolve a remote URL's <title>, <meta property="og:image">, and favicon
+// from the main process. Doing this in main keeps it CORS-free and out of the
+// renderer's network context. We cap the body read at 256 KiB — the <head>
+// is always near the top of the document, so we don't need the rest.
+ipcMain.handle('material:resolveUrlMeta', async (_event, url: string) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return { ok: false, error: 'invalid url' } as const;
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      // Mimic a normal browser so sites don't 403 the request.
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Drifting/1.0',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` } as const;
+
+    // Read up to 256 KiB. We only need <head>; HTML is well within this.
+    const reader = res.body?.getReader();
+    let received = 0;
+    const chunks: Uint8Array[] = [];
+    const MAX = 256 * 1024;
+    if (reader) {
+      while (received < MAX) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.byteLength;
+        }
+      }
+      try {
+        await reader.cancel();
+      } catch {
+        /* ignore */
+      }
+    }
+    const buf = new Uint8Array(received);
+    let offset = 0;
+    for (const c of chunks) {
+      buf.set(c.subarray(0, Math.min(c.length, MAX - offset)), offset);
+      offset += c.length;
+      if (offset >= MAX) break;
+    }
+    const html = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+
+    const matchAttr = (re: RegExp): string | null => {
+      const m = html.match(re);
+      return m && m[1] ? m[1].trim() : null;
+    };
+    const decodeEntities = (s: string) =>
+      s
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ');
+
+    const title =
+      matchAttr(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ??
+      matchAttr(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ??
+      matchAttr(/<title[^>]*>([^<]+)<\/title>/i);
+    const ogImage =
+      matchAttr(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+      matchAttr(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+    const favicon =
+      matchAttr(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]+href=["']([^"']+)["']/i) ??
+      matchAttr(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["'](?:shortcut )?icon["']/i);
+
+    const resolveAgainst = (val: string | null): string | null => {
+      if (!val) return null;
+      try {
+        return new URL(val, url).toString();
+      } catch {
+        return null;
+      }
+    };
+
+    return {
+      ok: true,
+      title: title ? decodeEntities(title) : null,
+      ogImage: resolveAgainst(ogImage),
+      favicon: resolveAgainst(favicon),
+    } as const;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    } as const;
+  }
+});
+
+// Native file picker used when the user attaches a local image / PDF to a
+// material. We intentionally do NOT copy the file anywhere — the absolute
+// path is stored as-is so previews open the user's actual file. If the user
+// later moves or deletes the file, the material's preview will fail; that's
+// surfaced as a Quick Look / OS error.
+ipcMain.handle(
+  'material:pickFile',
+  async (_event, kind: 'image' | 'pdf' | 'any' = 'any') => {
+    const { dialog } = await import('electron');
+    const filters: Electron.FileFilter[] = [];
+    if (kind === 'image') {
+      filters.push({ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'] });
+    } else if (kind === 'pdf') {
+      filters.push({ name: 'PDFs', extensions: ['pdf'] });
+    }
+    filters.push({ name: 'All Files', extensions: ['*'] });
+    const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
+      properties: ['openFile'],
+      filters,
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { ok: false, canceled: true } as const;
+    }
+    const filePath = result.filePaths[0];
+    let sizeBytes: number | null = null;
+    try {
+      const { statSync } = await import('node:fs');
+      sizeBytes = statSync(filePath).size;
+    } catch {
+      sizeBytes = null;
+    }
+    return { ok: true, filePath, sizeBytes } as const;
+  },
+);
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
 

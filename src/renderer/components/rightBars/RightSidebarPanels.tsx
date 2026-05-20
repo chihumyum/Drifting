@@ -3,6 +3,8 @@ import { useDataStore } from '../../store/data-store';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
+import { MemoMaterialPanel, type FocusedEntity } from './MemoMaterialPanel';
+import type { EntityKind } from '../../lib/extensions/entity-link';
 
 interface ResolvedTarget {
   kind: 'chapter' | 'storyline' | 'element' | 'category' | 'drift' | 'none';
@@ -19,8 +21,15 @@ export function RightSidebarPanels() {
   const setActiveRightPanel = useUiStore((s) => s.setActiveRightPanel);
   const shadowMode = useUiStore((s) => s.shadowMode);
 
-  const { bookNodes, bookElements, storylines, bookElementCategories, storylineNodeMapping } =
-    useDataStore();
+  const {
+    bookNodes,
+    bookElements,
+    storylines,
+    bookElementCategories,
+    storylineNodeMapping,
+    memos,
+    materials,
+  } = useDataStore();
 
   // Decode the active tab into a resolved target so the right panel can show
   // entity-specific context. Falls back to "no target" on the project home.
@@ -88,9 +97,27 @@ export function RightSidebarPanels() {
     return { kind: 'none', id: null, title: '—', kicker: '—' };
   }, [activeTabKey, openTabs, bookNodes, bookElements, storylines, bookElementCategories]);
 
-  // Fragments are per-entity. Backing data isn't wired yet, so we synthesize
-  // mock fragments keyed by target.id and let the user mark/uncheck locally.
-  const fragments = useMemo(() => makeMockFragments(target), [target]);
+  // Memo + material counts feed the badge on the fragments tab. These are now
+  // project-global, not per-entity — the panel itself owns the "全部 / 仅当前
+  //条目" toggle. Resolved memos don't contribute to the headline count.
+  const fragmentCount = useMemo(
+    () => memos.filter((m) => m.resolution !== 'resolved').length + materials.length,
+    [memos, materials],
+  );
+  const focusedForPanel: FocusedEntity = useMemo(() => {
+    if (!target.kind || target.kind === 'none' || !target.id) {
+      return { kind: null, id: null };
+    }
+    const kindMap: Record<string, EntityKind | null> = {
+      chapter: 'node',
+      drift: 'node',
+      storyline: 'storyline',
+      element: 'element',
+      category: 'category',
+    };
+    const kind = kindMap[target.kind] ?? null;
+    return { kind, id: target.id };
+  }, [target.kind, target.id]);
   const [fragmentCountFlash, setFragmentCountFlash] = useState(false);
   const [shadowJustAppeared, setShadowJustAppeared] = useState(false);
   const [stackOpen, setStackOpen] = useState(false);
@@ -150,8 +177,13 @@ export function RightSidebarPanels() {
     ? 'Shadow Agent · 跨章节任务'
     : activeRightPanel === 'stats'
       ? target.kicker.replace('片段与参考', '详细统计')
-      : target.kicker;
-  const headerTitle = activeRightPanel === 'shadow' ? '全书 · 跨章节' : target.title;
+      : '全项目 · 备忘与参考';
+  const headerTitle =
+    activeRightPanel === 'shadow'
+      ? '全书 · 跨章节'
+      : activeRightPanel === 'fragments'
+        ? '备忘 & 参考'
+        : target.title;
 
   return (
     <div
@@ -187,16 +219,17 @@ export function RightSidebarPanels() {
       )}
 
       <RightSidebarHeader
-        fragmentCount={fragments.length}
+        fragmentCount={fragmentCount}
         shadowReviewCount={shadowReviewCount}
         kicker={headerKicker}
         title={headerTitle}
         fragmentCountFlash={fragmentCountFlash}
         shadowJustAppeared={shadowJustAppeared}
+        hideTitleBlock={activeRightPanel === 'fragments'}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {activeRightPanel === 'fragments' && <FragmentsView fragments={fragments} />}
+        {activeRightPanel === 'fragments' && <MemoMaterialPanel focused={focusedForPanel} />}
         {activeRightPanel === 'stats' && (
           <StatsView
             target={target}
@@ -220,172 +253,6 @@ export function RightSidebarPanels() {
           onApply={handleApply}
         />
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Fragments
-
-type Fragment = {
-  id: string;
-  kind: 'idea' | 'todo' | 'ref';
-  tag: string;
-  title: string;
-  quote?: string;
-  meta: string;
-  done?: boolean;
-};
-
-function makeMockFragments(target: ResolvedTarget): Fragment[] {
-  // Tie a stable seed of fragments to the target id so switching entities
-  // doesn't shuffle them around. These are placeholders until the real
-  // fragments backend ships.
-  if (!target.id) return [];
-  const base: Fragment[] = [
-    {
-      id: 'f1',
-      kind: 'idea',
-      tag: '浮缀',
-      title: '写到沈砚出场时，可以让雨势骤然变小 — 衬"决断"的安静。',
-      meta: '今早 · 未分配',
-    },
-    {
-      id: 'f2',
-      kind: 'todo',
-      tag: 'TODO',
-      title: '补"号外"那个报童的几行外貌描写。',
-      meta: '昨天 · 章节内',
-      done: false,
-    },
-    {
-      id: 'f3',
-      kind: 'ref',
-      tag: '参考',
-      title: '《上海一日》1937 街市夜景',
-      quote: '"雨水打在霓虹店招上，像把朱红颜色泼散开来。"',
-      meta: '从资料库 → 当前章节',
-    },
-    {
-      id: 'f4',
-      kind: 'todo',
-      tag: 'TODO',
-      title: '把对话节奏从"急促"调整为"绵延"，少用句号。',
-      meta: '修订建议',
-      done: true,
-    },
-  ];
-  return base;
-}
-
-function FragmentsView({ fragments }: { fragments: Fragment[] }) {
-  if (fragments.length === 0) {
-    return (
-      <EmptyState message="当前条目还没有片段。从浮缀、TODO 或资料库添加。" />
-    );
-  }
-  return (
-    <div style={{ padding: 12 }}>
-      {fragments.map((f) => (
-        <FragmentCard key={f.id} fragment={f} />
-      ))}
-    </div>
-  );
-}
-
-function FragmentCard({ fragment }: { fragment: Fragment }) {
-  const accent =
-    fragment.kind === 'idea' ? 'hsl(var(--story-5))'
-    : fragment.kind === 'todo' ? 'hsl(var(--story-2))'
-    : 'hsl(var(--story-4))';
-  return (
-    <div
-      style={{
-        padding: '10px 12px',
-        margin: '0 0 8px',
-        borderRadius: 4,
-        border: '1px solid hsl(var(--rule))',
-        borderLeft: `2px solid ${accent}`,
-        background: 'hsl(var(--surface))',
-        cursor: 'pointer',
-        transition: 'border-color 0.15s, background 0.15s',
-        opacity: fragment.done ? 0.55 : 1,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--paper-deep) / 0.4)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'hsl(var(--surface))';
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-4))',
-          marginBottom: 4,
-        }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: accent,
-              display: 'inline-block',
-            }}
-          />
-          {fragment.tag}
-        </span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'hsl(var(--ink-4))' }}>
-          {fragment.kind === 'todo' ? (fragment.done ? '✓ DONE' : '○ TODO') : '⋯'}
-        </span>
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: 13.5,
-          color: 'hsl(var(--ink-1))',
-          lineHeight: 1.4,
-          letterSpacing: '0.005em',
-          textDecoration: fragment.done ? 'line-through' : 'none',
-        }}
-      >
-        {fragment.title}
-      </div>
-      {fragment.quote && (
-        <div
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 12.5,
-            color: 'hsl(var(--ink-3))',
-            lineHeight: 1.5,
-            paddingLeft: 8,
-            borderLeft: '2px solid hsl(var(--rule))',
-            marginTop: 6,
-          }}
-        >
-          {fragment.quote}
-        </div>
-      )}
-      <div
-        style={{
-          marginTop: 6,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          color: 'hsl(var(--ink-4))',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {fragment.meta}
-      </div>
     </div>
   );
 }

@@ -313,6 +313,73 @@ export const EntityReferenceTable = sqliteTable(
   ],
 );
 
+// Memo
+// Project-level note / TODO. Whether a memo is treated as a task is the
+// author's choice via `resolution`:
+//   'no_action'  — pure note, no checkbox shown on the card
+//   'unresolved' — promoted to TODO; card shows a checkbox affordance
+//   'resolved'   — completed; hidden from the main list, surfaced in
+//                  the collapsed "已解决" archive group
+// Linkage to other entities (chapter / drift / element / storyline / category)
+// goes through `entity_reference` with fromKind='memo'.
+export const MemoTable = sqliteTable(
+  'memo',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    bodyJson: text('body_json').notNull().default('{}'),
+    resolution: text('resolution').notNull().default('no_action'),
+    priority: text('priority'),
+    dueAt: text('due_at'),
+    orderKey: integer('order_key').notNull().default(0),
+    resolvedAt: text('resolved_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_memo_project').on(t.projectId),
+    index('idx_memo_project_resolution').on(t.projectId, t.resolution),
+  ],
+);
+
+// Material
+// Project-level reference asset. A material has one of four kinds — image, pdf,
+// url, or markdown — and a source describing where it lives:
+//   'local' — uri is a file:// path; localPath is the absolute on-disk path
+//   'url'   — uri is the http(s) URL itself
+// Markdown materials store their content inline in bodyJson (TipTap doc).
+// notesJson is the author's free-form annotations attached to the material.
+// Linkage goes through `entity_reference` with fromKind='material'.
+export const MaterialTable = sqliteTable(
+  'material',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'markdown'
+    source: text('source').notNull().default('local'), // 'local' | 'url'
+    uri: text('uri').notNull().default(''),
+    localPath: text('local_path'),
+    mime: text('mime'),
+    sizeBytes: integer('size_bytes'),
+    bodyJson: text('body_json'),
+    notesJson: text('notes_json'),
+    thumbnailUri: text('thumbnail_uri'),
+    orderKey: integer('order_key').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_material_project').on(t.projectId),
+    index('idx_material_project_kind').on(t.projectId, t.kind),
+  ],
+);
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {

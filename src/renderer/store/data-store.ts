@@ -2,6 +2,25 @@ import { create } from 'zustand';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
+import type { Memo } from '../domain/memo';
+import type { Material } from '../domain/material';
+import type { EntityKind } from '../lib/extensions/entity-link';
+
+export interface EntityReferenceLink {
+  id: string;
+  projectId: string;
+  fromKind: EntityKind;
+  fromId: string;
+  fromBlockId: string | null;
+  fromSpansJson: string | null;
+  toKind: EntityKind;
+  toId: string;
+  toBlockId: string | null;
+  origin: 'manual' | 'auto' | 'ai';
+  confidence: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface DataState {
   storylines: Storyline[];
@@ -38,6 +57,28 @@ interface DataState {
   addBookElement: (element: BookElement) => void;
   updateBookElement: (id: string, updates: Partial<BookElement>) => void;
   removeBookElement: (id: string) => void;
+
+  memos: Memo[];
+  setMemos: (memos: Memo[]) => void;
+  addMemo: (memo: Memo) => void;
+  updateMemo: (id: string, updates: Partial<Memo>) => void;
+  removeMemo: (id: string) => void;
+
+  materials: Material[];
+  setMaterials: (materials: Material[]) => void;
+  addMaterial: (material: Material) => void;
+  updateMaterial: (id: string, updates: Partial<Material>) => void;
+  removeMaterial: (id: string) => void;
+
+  /**
+   * Manual whole-to-whole entity references (memo → node, material → element …).
+   * Inline TipTap-mark references are NOT mirrored here; only the manual link
+   * rows used by the right sidebar relation picker.
+   */
+  manualReferences: EntityReferenceLink[];
+  setManualReferences: (refs: EntityReferenceLink[]) => void;
+  addManualReference: (ref: EntityReferenceLink) => void;
+  removeManualReference: (id: string) => void;
 }
 
 function deriveNodeStorylineMapping(
@@ -184,4 +225,32 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeBookElement: (id) =>
     set((state) => ({ bookElements: state.bookElements.filter((element) => element.id !== id) })),
+
+  memos: [],
+  setMemos: (memos) => set({ memos }),
+  addMemo: (memo) => set((state) => ({ memos: [memo, ...state.memos] })),
+  updateMemo: (id, updates) =>
+    set((state) => ({
+      memos: state.memos.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    })),
+  removeMemo: (id) => set((state) => ({ memos: state.memos.filter((m) => m.id !== id) })),
+
+  materials: [],
+  setMaterials: (materials) => set({ materials }),
+  addMaterial: (material) => set((state) => ({ materials: [material, ...state.materials] })),
+  updateMaterial: (id, updates) =>
+    set((state) => ({
+      materials: state.materials.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    })),
+  removeMaterial: (id) =>
+    set((state) => ({ materials: state.materials.filter((m) => m.id !== id) })),
+
+  manualReferences: [],
+  setManualReferences: (manualReferences) => set({ manualReferences }),
+  addManualReference: (ref) =>
+    set((state) => ({ manualReferences: [...state.manualReferences, ref] })),
+  removeManualReference: (id) =>
+    set((state) => ({
+      manualReferences: state.manualReferences.filter((r) => r.id !== id),
+    })),
 }));

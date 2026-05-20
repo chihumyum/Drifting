@@ -12,6 +12,10 @@ interface RightSidebarHeaderProps {
   fragmentCountFlash?: boolean;
   /** Pulsates the Shadow tab when shadow mode first activates. */
   shadowJustAppeared?: boolean;
+  /** Skip the kicker + title block under the tab strip — used by the
+   *  fragments tab where the tab label itself already describes the surface
+   *  and the project-wide list doesn't need a per-entity title. */
+  hideTitleBlock?: boolean;
 }
 
 export function RightSidebarHeader({
@@ -21,6 +25,7 @@ export function RightSidebarHeader({
   title,
   fragmentCountFlash,
   shadowJustAppeared,
+  hideTitleBlock,
 }: RightSidebarHeaderProps) {
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
@@ -56,7 +61,7 @@ export function RightSidebarHeader({
             active={activeRightPanel === 'fragments'}
             onClick={() => setActiveRightPanel('fragments')}
           >
-            <span>片段</span>
+            <span style={{ whiteSpace: 'nowrap' }}>备忘与参考</span>
             <span
               style={
                 {
@@ -135,40 +140,42 @@ export function RightSidebarHeader({
         </div>
       </div>
 
-      <div
-        style={{
-          padding: '10px 14px 8px',
-          borderBottom: '1px solid hsl(var(--rule))',
-          flexShrink: 0,
-        }}
-      >
+      {!hideTitleBlock && (
         <div
           style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            color: 'hsl(var(--ink-4))',
-            marginBottom: 3,
+            padding: '10px 14px 8px',
+            borderBottom: '1px solid hsl(var(--rule))',
+            flexShrink: 0,
           }}
         >
-          {kicker}
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              color: 'hsl(var(--ink-4))',
+              marginBottom: 3,
+            }}
+          >
+            {kicker}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 16,
+              fontWeight: 500,
+              color: 'hsl(var(--ink-1))',
+              lineHeight: 1.25,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {title || '—'}
+          </div>
         </div>
-        <div
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 16,
-            fontWeight: 500,
-            color: 'hsl(var(--ink-1))',
-            lineHeight: 1.25,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {title || '—'}
-        </div>
-      </div>
+      )}
     </>
   );
 }

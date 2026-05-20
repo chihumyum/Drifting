@@ -91,7 +91,8 @@ export function NodeCardPopover({
 
   const contentLoaded = loadedFor === node.id;
 
-  // Esc: in upgrade mode drops back to default; in default mode closes.
+  // Esc closes the popover in both modes. The explicit "折叠" button still
+  // lets users move from the compact editor back to the summary card.
   // We use the capture phase so we run before GraphView's own Esc-closes-the-
   // super-view handler, and call stopPropagation to suppress that.
   // If a form field or the tiptap editor inside the popover has focus, we
@@ -110,12 +111,11 @@ export function NodeCardPopover({
         return;
       }
       e.stopPropagation();
-      if (mode === 'upgrade') setMode('default');
-      else onClose();
+      onClose();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [mode, onClose]);
+  }, [onClose]);
 
   // Outside click closes (both modes: in upgrade mode, the modal is the
   // container, so clicking outside the modal box closes).

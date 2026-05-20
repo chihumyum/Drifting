@@ -2,7 +2,14 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
-export type EntityKind = 'node' | 'element' | 'patch' | 'category' | 'storyline';
+export type EntityKind =
+  | 'node'
+  | 'element'
+  | 'patch'
+  | 'category'
+  | 'storyline'
+  | 'memo'
+  | 'material';
 export type LinkOrigin = 'manual' | 'auto' | 'ai';
 
 export interface EntityLinkRef {

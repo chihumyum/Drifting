@@ -160,3 +160,47 @@ export function syncStageDelete(id: string, projectId: string) {
   enqueueSync('storyStage', 'delete', id, projectId);
 }
 
+export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {
+  enqueueSync('memo', 'create', id, projectId, payload);
+}
+
+export function syncMemoUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
+  enqueueSync('memo', 'update', id, projectId, payload);
+}
+
+export function syncMemoDelete(id: string, projectId: string) {
+  enqueueSync('memo', 'delete', id, projectId);
+}
+
+export function syncMaterialCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('material', 'create', id, projectId, payload);
+}
+
+export function syncMaterialUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('material', 'update', id, projectId, payload);
+}
+
+export function syncMaterialDelete(id: string, projectId: string) {
+  enqueueSync('material', 'delete', id, projectId);
+}
+
+export function syncEntityReferenceCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('entityReference', 'create', id, projectId, payload);
+}
+
+export function syncEntityReferenceDelete(id: string, projectId: string) {
+  enqueueSync('entityReference', 'delete', id, projectId);
+}
+
