@@ -40,11 +40,6 @@ interface VirtualChapterRowProps {
   // outline panel. Unmounted (placeholder) rows don't emit anything.
   onOutlineChange?: (nodeId: string, outline: OutlineItem[]) => void;
 
-  // Whether the row should be considered "current" (e.g. via scrollspy or
-  // explicit selection). Draws a left rail similar to NodeEditorView's
-  // active indicator.
-  isActive?: boolean;
-
   // Last-known measured height to use as the placeholder height when not
   // mounted. Falls back to a wordCount-derived estimate when unset.
   cachedHeight?: number;
@@ -82,7 +77,6 @@ function VirtualChapterRowImpl({
   onEntityClick,
   onHeightMeasured,
   onOutlineChange,
-  isActive,
   cachedHeight,
   storylineColor,
   storylineName,
@@ -180,22 +174,6 @@ function VirtualChapterRowImpl({
         minHeight: isNear ? undefined : placeholderHeight,
       }}
     >
-      {isActive && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 8,
-            bottom: 8,
-            width: 3,
-            background: 'hsl(var(--accent))',
-            borderRadius: 2,
-            zIndex: 5,
-          }}
-        />
-      )}
-
       {isNear ? (
         <div ref={innerRef} className="editor__spread">
           <article className="page">

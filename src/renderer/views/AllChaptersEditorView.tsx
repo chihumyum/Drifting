@@ -147,12 +147,17 @@ export function AllChaptersEditorView() {
   // no entry in outlineByNodeId and the chevron silently disappears.
   // Mounted rows still publish fresher outlines via handleOutlineChange;
   // we never overwrite an entry the row has already populated.
+  //
+  // No per-effect cancellation: bookNodes churns during initial sync, and
+  // an aborted populate would strand the IDs in prefetchedOutlineRef (the
+  // next effect run sees them already marked and skips). Letting the
+  // populate fire regardless of dep churn is fine — setState on an
+  // unmounted component is a no-op.
   const prefetchedOutlineRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const toFetch = orderedNodes.filter((n) => !prefetchedOutlineRef.current.has(n.id));
     if (toFetch.length === 0) return;
     toFetch.forEach((n) => prefetchedOutlineRef.current.add(n.id));
-    let cancelled = false;
     void (async () => {
       const buffered: Record<string, OutlineItem[]> = {};
       await Promise.all(
@@ -167,7 +172,7 @@ export function AllChaptersEditorView() {
           }
         }),
       );
-      if (cancelled || Object.keys(buffered).length === 0) return;
+      if (Object.keys(buffered).length === 0) return;
       setOutlineByNodeId((prev) => {
         const next = { ...prev };
         let changed = false;
@@ -179,9 +184,6 @@ export function AllChaptersEditorView() {
         return changed ? next : prev;
       });
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [orderedNodes, getOutlineByNodeId]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -474,7 +476,6 @@ export function AllChaptersEditorView() {
         <div className="editor-scroll" ref={scrollRef}>
           {orderedNodes.map((node, idx) => {
             const storyline = node.mainStorylineId ? storylineById.get(node.mainStorylineId) : undefined;
-            const isActive = node.id === activeNodeId;
             return (
               <section
                 key={node.id}
@@ -498,7 +499,6 @@ export function AllChaptersEditorView() {
                   onEntityClick={handleEntityClick}
                   onHeightMeasured={handleHeightMeasured}
                   onOutlineChange={handleOutlineChange}
-                  isActive={isActive}
                   cachedHeight={heightCache[node.id]}
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
