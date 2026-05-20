@@ -16,6 +16,7 @@ import type { BookNode } from '../domain/book-node';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
+import { parseOutline } from '../lib/outline';
 import { countWordsInPmJson } from '../lib/word-count';
 
 const log = loglevel.getLogger('AllChaptersEditorView');
@@ -66,10 +67,11 @@ export function AllChaptersEditorView() {
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Untitled';
 
-  const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
-    userId,
-    projectId,
-  });
+  const { getContentByNodeId, updateContentByNodeId, createContent, getOutlineByNodeId } =
+    useBookContent({
+      userId,
+      projectId,
+    });
   const { renameNode, updateNodeSummary, updateNode } = useBookNode({ projectId, userId });
 
   // Stable per-node content cache so repeat fetches (after unmount/remount)
@@ -138,6 +140,49 @@ export function AllChaptersEditorView() {
       return { ...prev, [nodeId]: items };
     });
   }, []);
+
+  // Prefetch every chapter's persisted outline so the TOC can show a
+  // collapse chevron for any chapter with headings — not just the one
+  // currently scrolled into view. Without this, unmounted chapters have
+  // no entry in outlineByNodeId and the chevron silently disappears.
+  // Mounted rows still publish fresher outlines via handleOutlineChange;
+  // we never overwrite an entry the row has already populated.
+  const prefetchedOutlineRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const toFetch = orderedNodes.filter((n) => !prefetchedOutlineRef.current.has(n.id));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((n) => prefetchedOutlineRef.current.add(n.id));
+    let cancelled = false;
+    void (async () => {
+      const buffered: Record<string, OutlineItem[]> = {};
+      await Promise.all(
+        toFetch.map(async (n) => {
+          try {
+            const json = await getOutlineByNodeId(n.id);
+            if (!json) return;
+            const items = parseOutline(json);
+            if (items.length > 0) buffered[n.id] = items;
+          } catch (err) {
+            log.warn('[AllChapters] prefetch outline failed', n.id, err);
+          }
+        }),
+      );
+      if (cancelled || Object.keys(buffered).length === 0) return;
+      setOutlineByNodeId((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [id, items] of Object.entries(buffered)) {
+          if (next[id]) continue; // VirtualChapterRow already published a fresher one
+          next[id] = items;
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderedNodes, getOutlineByNodeId]);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
