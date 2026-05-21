@@ -233,6 +233,32 @@ ipcMain.handle('material:openExternal', async (_event, url: string) => {
   return { ok: true };
 });
 
+// Read a local file's raw bytes into the renderer. Used by the in-app PDF
+// preview because pdf.js calls `fetch('file://…')` internally, which Chromium
+// blocks when the renderer's origin is `http(s)://` (dev server) — that's a
+// protocol-level restriction `webSecurity: false` doesn't lift. Cap at 64 MiB
+// so a malformed pick doesn't OOM the main process.
+ipcMain.handle('material:readBytes', async (_event, filePath: string) => {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    return { ok: false, error: 'invalid path' } as const;
+  }
+  try {
+    const stat = await fs.promises.stat(filePath);
+    if (stat.size > 64 * 1024 * 1024) {
+      return { ok: false, error: 'file too large (>64 MiB)' } as const;
+    }
+    const buf = await fs.promises.readFile(filePath);
+    // Slice so we return a tight ArrayBuffer (no shared pool memory).
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    return { ok: true, bytes: ab } as const;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    } as const;
+  }
+});
+
 // Generate an inline thumbnail (base64 data URL) for a local file. macOS
 // routes PDFs through Quick Look's renderer here, so it works out-of-the-box
 // for PDFs and most image formats without bundling a PDF library.

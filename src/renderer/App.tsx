@@ -366,11 +366,16 @@ function Layout() {
     };
     const handleOpenExport = () => setIsExportOpen(true);
     const handleOpenImport = () => setIsImportOpen(true);
+    const handleOpenSearch = () => {
+      setFindPanelEditor(null);
+      setIsGlobalSearchOpen(true);
+    };
     const handleToggleLeftSidebar = () => useUiStore.getState().toggleSidebar('left');
     const handleToggleRightSidebar = () => useUiStore.getState().toggleSidebar('right');
     events.on('settings:open', handleOpenSettings);
     events.on('export:open', handleOpenExport);
     events.on('import:open', handleOpenImport);
+    events.on('search:open', handleOpenSearch);
     events.on('left-sidebar:toggle', handleToggleLeftSidebar);
     events.on('right-sidebar:toggle', handleToggleRightSidebar);
 
@@ -378,6 +383,7 @@ function Layout() {
       events.off('settings:open', handleOpenSettings);
       events.off('export:open', handleOpenExport);
       events.off('import:open', handleOpenImport);
+      events.off('search:open', handleOpenSearch);
       events.off('left-sidebar:toggle', handleToggleLeftSidebar);
       events.off('right-sidebar:toggle', handleToggleRightSidebar);
     };
@@ -556,10 +562,9 @@ function Layout() {
         width: '100vw',
         display: 'flex',
         flexDirection: 'column',
-        // Hide any overflow at the outermost container. The new bottom
-        // status bar adds a fixed 24px row, so without this clamp the
-        // 100vh + 24px combined height would push the page into having
-        // a window-level scrollbar.
+        // Hide any overflow at the outermost container. The bottom status
+        // bar adds a fixed compact row, so without this clamp the combined
+        // height would push the page into having a window-level scrollbar.
         overflow: 'hidden',
       }}
     >

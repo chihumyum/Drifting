@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+// Use the "legacy" build: pdf.js v5's modern bundle calls
+// `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
+// Electron 40's V8. The legacy build ships the polyfill.
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAuthStore } from '../../store/auth';
@@ -9,6 +16,9 @@ import type { Memo, MemoResolution } from '../../domain/memo';
 import type { Material, MaterialKind } from '../../domain/material';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
+import '../../../styles/bottom-timeline.css';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -33,6 +43,26 @@ function materialSubtitle(m: Material): string {
     }
   }
   return basename(m.localPath ?? m.uri);
+}
+
+function localMaterialUrl(m: Material): string | null {
+  if (m.localPath) return `file://${m.localPath}`;
+  if (m.uri.startsWith('file://')) return m.uri;
+  return null;
+}
+
+function materialImageSrc(m: Material): string | null {
+  if (m.kind !== 'image') return null;
+  return localMaterialUrl(m);
+}
+
+function materialPdfSrc(m: Material): string | null {
+  if (m.kind !== 'pdf') return null;
+  return localMaterialUrl(m);
+}
+
+function clampMaterialPreviewScale(scale: number): number {
+  return Math.min(6, Math.max(1, scale));
 }
 
 /** Close a transient surface (dialog / dropdown / popover) on Escape, and
@@ -79,9 +109,9 @@ type ViewFilter = 'all' | 'related';
  *
  * Memos use a three-state resolution machine:
  *   no_action  → no checkbox; pure note. Promote to 'unresolved' via
- *                the hover "标为待办" action.
- *   unresolved → checkbox affordance; click to mark resolved (→ archive)
- *                or use the small ↺ button to demote back to no_action.
+ *                the hover "标为待办" action or the card context menu.
+ *   unresolved → completion affordance; click to mark resolved (→ archive)
+ *                or use the small ↺ / context menu to demote to no_action.
  *   resolved   → hidden from main list, surfaced in the bottom "已解决"
  *                collapsed group, can be re-opened.
  */
@@ -100,6 +130,7 @@ export function MemoMaterialPanel({ focused }: Props) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState<null | 'memo' | 'material'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
 
   // Index manualReferences by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
@@ -144,7 +175,12 @@ export function MemoMaterialPanel({ focused }: Props) {
     );
   }, [materials, filter, isRelatedToFocus]);
 
-  const openMaterial = async (m: Material) => {
+  const previewMaterial = useMemo(
+    () => materials.find((mat) => mat.id === previewMaterialId) ?? null,
+    [materials, previewMaterialId],
+  );
+
+  const openMaterialInSystem = async (m: Material) => {
     // text snippets are edited inline on the card — no popover / OS hand-off.
     if (m.kind === 'text') return;
     if (m.kind === 'url') {
@@ -158,6 +194,14 @@ export function MemoMaterialPanel({ focused }: Props) {
     if (!res.ok) {
       alert(`无法打开文件：${res.error}`);
     }
+  };
+
+  const openMaterialInApp = (m: Material) => {
+    if (m.kind === 'url') {
+      void openMaterialInSystem(m);
+      return;
+    }
+    setPreviewMaterialId(m.id);
   };
 
   return (
@@ -214,7 +258,8 @@ export function MemoMaterialPanel({ focused }: Props) {
             relations={refsByFrom.get(`material:${mat.id}`) ?? []}
             editing={editingId === mat.id}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
-            onOpen={() => openMaterial(mat)}
+            onOpenInSystem={() => openMaterialInSystem(mat)}
+            onOpenInApp={() => openMaterialInApp(mat)}
             onUpdate={(updates) => materialUsecases.updateMaterial(mat.id, updates)}
             onDelete={() => materialUsecases.removeMaterial(mat.id)}
             onAddRelation={(t) =>
@@ -276,6 +321,15 @@ export function MemoMaterialPanel({ focused }: Props) {
             );
             setComposeOpen(null);
           }}
+        />
+      )}
+
+      {previewMaterial && (
+        <MaterialFullscreenPreview
+          key={previewMaterial.id}
+          material={previewMaterial}
+          onClose={() => setPreviewMaterialId(null)}
+          onUpdate={(updates) => materialUsecases.updateMaterial(previewMaterial.id, updates)}
         />
       )}
 
@@ -479,6 +533,311 @@ function ComposeMenuItem({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Memo context menu
+
+type MemoContextMenuAction = 'markTodo' | 'markNoAction' | 'markResolved' | 'delete';
+
+function memoResolutionLabel(resolution: MemoResolution): string {
+  if (resolution === 'unresolved') return 'TODO';
+  if (resolution === 'resolved') return '已解决';
+  return '备忘';
+}
+
+function MemoContextMenuItem({
+  glyph,
+  label,
+  action,
+  onAction,
+  variant = 'default',
+}: {
+  glyph: string;
+  label: string;
+  action: MemoContextMenuAction;
+  onAction: (action: MemoContextMenuAction) => void;
+  variant?: 'default' | 'danger';
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={`btl-cmenu__item${variant === 'danger' ? ' is-danger' : ''}`}
+      onClick={() => onAction(action)}
+    >
+      <span className="btl-cmenu__glyph" aria-hidden>
+        {glyph}
+      </span>
+      <span className="btl-cmenu__label">{label}</span>
+    </button>
+  );
+}
+
+function MemoContextMenu({
+  memo,
+  x,
+  y,
+  onSetResolution,
+  onDelete,
+  onClose,
+}: {
+  memo: Memo;
+  x: number;
+  y: number;
+  onSetResolution: (r: MemoResolution) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const node = menuRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const padding = 8;
+    let left = x;
+    let top = y;
+    if (left + rect.width + padding > window.innerWidth) {
+      left = Math.max(padding, window.innerWidth - rect.width - padding);
+    }
+    if (top + rect.height + padding > window.innerHeight) {
+      top = Math.max(padding, window.innerHeight - rect.height - padding);
+    }
+    setPos({ left, top });
+  }, [x, y]);
+
+  useEffect(() => {
+    const onDocPointer = (event: MouseEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      onClose();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    const onScrollOrResize = () => onClose();
+    document.addEventListener('mousedown', onDocPointer, true);
+    document.addEventListener('contextmenu', onDocPointer, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      document.removeEventListener('mousedown', onDocPointer, true);
+      document.removeEventListener('contextmenu', onDocPointer, true);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [onClose]);
+
+  const handleAction = (action: MemoContextMenuAction) => {
+    if (action === 'markTodo') onSetResolution('unresolved');
+    if (action === 'markNoAction') onSetResolution('no_action');
+    if (action === 'markResolved') onSetResolution('resolved');
+    if (action === 'delete') onDelete();
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      className="btl-cmenu"
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ left: pos.left, top: pos.top, zIndex: 10000 }}
+    >
+      <div className="btl-cmenu__head">
+        <div className="btl-cmenu__title">{memo.title || '无标题'}</div>
+        <div className="btl-cmenu__summary">当前状态：{memoResolutionLabel(memo.resolution)}</div>
+      </div>
+
+      <div className="btl-cmenu__group">
+        {memo.resolution === 'no_action' && (
+          <MemoContextMenuItem
+            glyph="○"
+            label="标为待办"
+            action="markTodo"
+            onAction={handleAction}
+          />
+        )}
+        {memo.resolution === 'unresolved' && (
+          <>
+            <MemoContextMenuItem
+              glyph="✓"
+              label="标记为已解决"
+              action="markResolved"
+              onAction={handleAction}
+            />
+            <MemoContextMenuItem
+              glyph="↺"
+              label="退回为纯笔记"
+              action="markNoAction"
+              onAction={handleAction}
+            />
+          </>
+        )}
+        {memo.resolution === 'resolved' && (
+          <MemoContextMenuItem
+            glyph="↺"
+            label="重新打开为待办"
+            action="markTodo"
+            onAction={handleAction}
+          />
+        )}
+      </div>
+
+      <div className="btl-cmenu__group">
+        <MemoContextMenuItem
+          glyph="×"
+          label="删除备忘"
+          action="delete"
+          onAction={handleAction}
+          variant="danger"
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Material context menu
+
+type MaterialContextMenuAction = 'openInSystem' | 'delete';
+
+function MaterialContextMenuItem({
+  glyph,
+  label,
+  action,
+  onAction,
+  variant = 'default',
+}: {
+  glyph: string;
+  label: string;
+  action: MaterialContextMenuAction;
+  onAction: (action: MaterialContextMenuAction) => void;
+  variant?: 'default' | 'danger';
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={`btl-cmenu__item${variant === 'danger' ? ' is-danger' : ''}`}
+      onClick={() => onAction(action)}
+    >
+      <span className="btl-cmenu__glyph" aria-hidden>
+        {glyph}
+      </span>
+      <span className="btl-cmenu__label">{label}</span>
+    </button>
+  );
+}
+
+function MaterialContextMenu({
+  material,
+  x,
+  y,
+  onOpenInSystem,
+  onDelete,
+  onClose,
+}: {
+  material: Material;
+  x: number;
+  y: number;
+  onOpenInSystem: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+  const isTextSnippet = material.kind === 'text';
+  const kindLabel = MATERIAL_KIND_LABEL[material.kind] ?? material.kind;
+  const subtitle = materialSubtitle(material);
+
+  useLayoutEffect(() => {
+    const node = menuRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const padding = 8;
+    let left = x;
+    let top = y;
+    if (left + rect.width + padding > window.innerWidth) {
+      left = Math.max(padding, window.innerWidth - rect.width - padding);
+    }
+    if (top + rect.height + padding > window.innerHeight) {
+      top = Math.max(padding, window.innerHeight - rect.height - padding);
+    }
+    setPos({ left, top });
+  }, [x, y]);
+
+  useEffect(() => {
+    const onDocPointer = (event: MouseEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      onClose();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    const onScrollOrResize = () => onClose();
+    document.addEventListener('mousedown', onDocPointer, true);
+    document.addEventListener('contextmenu', onDocPointer, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      document.removeEventListener('mousedown', onDocPointer, true);
+      document.removeEventListener('contextmenu', onDocPointer, true);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [onClose]);
+
+  const handleAction = (action: MaterialContextMenuAction) => {
+    if (action === 'openInSystem') onOpenInSystem();
+    if (action === 'delete') onDelete();
+    onClose();
+  };
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      className="btl-cmenu"
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ left: pos.left, top: pos.top, zIndex: 10000 }}
+    >
+      <div className="btl-cmenu__head">
+        <div className="btl-cmenu__title">{material.title || subtitle || '无标题'}</div>
+        <div className="btl-cmenu__summary">类型：{kindLabel}</div>
+      </div>
+
+      {!isTextSnippet && (
+        <div className="btl-cmenu__group">
+          <MaterialContextMenuItem
+            glyph="↗"
+            label="在系统app中打开"
+            action="openInSystem"
+            onAction={handleAction}
+          />
+        </div>
+      )}
+
+      <div className="btl-cmenu__group">
+        <MaterialContextMenuItem
+          glyph="×"
+          label="删除参考"
+          action="delete"
+          onAction={handleAction}
+          variant="danger"
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Memo card
 
 function MemoCard({
@@ -504,6 +863,7 @@ function MemoCard({
 }) {
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(memo.title);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const isTodo = memo.resolution === 'unresolved';
   const accent = isTodo ? 'hsl(var(--story-2))' : 'hsl(var(--story-5))';
 
@@ -512,182 +872,191 @@ function MemoCard({
     [relations],
   );
 
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const openContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  }, []);
+
   return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '7px 10px',
-        borderRadius: 4,
-        border: '1px solid hsl(var(--rule))',
-        borderLeft: `2px solid ${accent}`,
-        background: 'hsl(var(--surface))',
-        position: 'relative',
-        maxHeight: 300,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <>
       <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onContextMenu={openContextMenu}
         style={{
+          padding: '7px 10px',
+          borderRadius: 4,
+          border: '1px solid hsl(var(--rule))',
+          borderLeft: `2px solid ${accent}`,
+          background: 'hsl(var(--surface))',
+          position: 'relative',
+          maxHeight: 300,
+          overflow: 'hidden',
           display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          marginBottom: 3,
-          flexShrink: 0,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-4))',
-          minHeight: 16,
+          flexDirection: 'column',
         }}
       >
-        {isTodo ? (
-          <button
-            onClick={() => onSetResolution('resolved')}
-            title="标记为已解决"
-            aria-label="标记为已解决"
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              border: '1.5px solid hsl(var(--story-2))',
-              background: 'transparent',
-              cursor: 'pointer',
-              padding: 0,
-              flexShrink: 0,
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 3,
+            flexShrink: 0,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: 'hsl(var(--ink-4))',
+            minHeight: 16,
+          }}
+        >
+          <span style={{ color: isTodo ? 'hsl(var(--story-2))' : undefined }}>
+            {isTodo ? 'TODO' : '备忘'}
+          </span>
+          {isTodo ? (
+            <button
+              onClick={() => onSetResolution('no_action')}
+              title="退回为纯笔记"
+              aria-hidden={!hover}
+              tabIndex={hover ? 0 : -1}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                padding: '0 4px',
+                border: 'none',
+                background: 'transparent',
+                color: 'hsl(var(--ink-4))',
+                cursor: 'pointer',
+                opacity: hover ? 1 : 0,
+                pointerEvents: hover ? 'auto' : 'none',
+                transition: 'opacity 120ms ease',
+              }}
+            >
+              ↺
+            </button>
+          ) : (
+            // Reuse the TODO demote slot: the pure-note promote affordance
+            // appears only when hovering this exact spot.
+            <button
+              onClick={() => onSetResolution('unresolved')}
+              title="标为待办"
+              aria-label="标为待办"
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: '1.5px solid transparent',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: 0,
+                flexShrink: 0,
+                opacity: 0,
+                transition: 'opacity 120ms ease, border-color 120ms ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.borderColor = 'hsl(var(--story-2))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '0';
+                e.currentTarget.style.borderColor = 'transparent';
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.borderColor = 'hsl(var(--story-2))';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.opacity = '0';
+                e.currentTarget.style.borderColor = 'transparent';
+              }}
+            />
+          )}
+          <span style={{ flex: 1 }} />
+          {isTodo && (
+            <button
+              onClick={() => onSetResolution('resolved')}
+              title="标记为已解决"
+              aria-label="标记为已解决"
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: '1.5px solid hsl(var(--story-2))',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: 0,
+                flexShrink: 0,
+              }}
+            />
+          )}
+        </div>
+
+        {editing ? (
+          <AutoGrowTextarea
+            value={draft}
+            autoFocus
+            onChange={setDraft}
+            onCommit={() => {
+              if (draft !== memo.title) onUpdate({ title: draft });
+              onSetEditing(false);
+            }}
+            onCancel={() => {
+              setDraft(memo.title);
+              onSetEditing(false);
             }}
           />
         ) : (
-          // Same-position toggle: empty circle promotes the memo to a TODO.
-          // Visually distinct from the TODO checkbox above by being neutral
-          // grey; click swaps the row into the isTodo branch with no width
-          // change — the row already reserves `minHeight: 16` so promoting
-          // doesn't shift surrounding content.
-          <button
-            onClick={() => onSetResolution('unresolved')}
-            title="标为待办"
-            aria-label="标为待办"
+          <div
+            onClick={() => {
+              setDraft(memo.title);
+              onSetEditing(true);
+            }}
             style={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              border: '1.5px solid hsl(var(--ink-4))',
-              background: 'transparent',
-              cursor: 'pointer',
-              padding: 0,
-              flexShrink: 0,
-              opacity: 0.55,
-              transition: 'opacity 120ms ease, border-color 120ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '1';
-              e.currentTarget.style.borderColor = 'hsl(var(--story-2))';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '0.55';
-              e.currentTarget.style.borderColor = 'hsl(var(--ink-4))';
-            }}
-          />
-        )}
-        <span style={{ color: isTodo ? 'hsl(var(--story-2))' : undefined }}>
-          {isTodo ? 'TODO' : '备忘'}
-        </span>
-        {/* Demote-to-no_action button: only meaningful when the memo is
-            currently a TODO. Always rendered but hidden via opacity so the
-            row's intrinsic width doesn't change on hover. */}
-        {isTodo && (
-          <button
-            onClick={() => onSetResolution('no_action')}
-            title="退回为纯笔记"
-            aria-hidden={!hover}
-            tabIndex={hover ? 0 : -1}
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              padding: '0 4px',
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-4))',
-              cursor: 'pointer',
-              opacity: hover ? 1 : 0,
-              pointerEvents: hover ? 'auto' : 'none',
-              transition: 'opacity 120ms ease',
+              fontFamily: 'var(--font-serif)',
+              fontSize: 13,
+              color: 'hsl(var(--ink-1))',
+              lineHeight: 1.35,
+              cursor: 'text',
+              minHeight: 16,
+              maxHeight: 160,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              display: '-webkit-box',
+              WebkitLineClamp: 8,
+              WebkitBoxOrient: 'vertical',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
             }}
           >
-            ↺
-          </button>
+            {memo.title || <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无标题</span>}
+          </div>
         )}
-        <span style={{ flex: 1 }} />
-        <button
-          onClick={onDelete}
-          title="删除"
-          aria-hidden={!hover}
-          tabIndex={hover ? 0 : -1}
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            padding: '0 4px',
-            border: 'none',
-            background: 'transparent',
-            color: 'hsl(var(--ink-4))',
-            cursor: 'pointer',
-            opacity: hover ? 1 : 0,
-            pointerEvents: hover ? 'auto' : 'none',
-            transition: 'opacity 120ms ease',
-          }}
-        >
-          ×
-        </button>
-      </div>
 
-      {editing ? (
-        <AutoGrowTextarea
-          value={draft}
-          autoFocus
-          onChange={setDraft}
-          onCommit={() => {
-            if (draft !== memo.title) onUpdate({ title: draft });
-            onSetEditing(false);
-          }}
-          onCancel={() => {
-            setDraft(memo.title);
-            onSetEditing(false);
-          }}
-        />
-      ) : (
-        <div
-          onClick={() => {
-            setDraft(memo.title);
-            onSetEditing(true);
-          }}
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 13,
-            color: 'hsl(var(--ink-1))',
-            lineHeight: 1.35,
-            cursor: 'text',
-            minHeight: 16,
-            maxHeight: 160,
-            overflowY: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-        >
-          {memo.title || <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无标题</span>}
+        <div style={{ marginTop: 4, flexShrink: 0 }}>
+          <EntityRelationPicker
+            selected={selectedSet}
+            onAdd={onAddRelation}
+            onRemove={onRemoveRelation}
+          />
         </div>
-      )}
-
-      <div style={{ marginTop: 4, flexShrink: 0 }}>
-        <EntityRelationPicker
-          selected={selectedSet}
-          onAdd={onAddRelation}
-          onRemove={onRemoveRelation}
-        />
       </div>
-    </div>
+      {contextMenu && (
+        <MemoContextMenu
+          memo={memo}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onSetResolution={onSetResolution}
+          onDelete={onDelete}
+          onClose={closeContextMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -699,7 +1068,8 @@ function MaterialCard({
   relations,
   editing,
   onSetEditing,
-  onOpen,
+  onOpenInSystem,
+  onOpenInApp,
   onUpdate,
   onDelete,
   onAddRelation,
@@ -709,7 +1079,8 @@ function MaterialCard({
   relations: { id: string; toKind: EntityKind; toId: string }[];
   editing: boolean;
   onSetEditing: (on: boolean) => void;
-  onOpen: () => void;
+  onOpenInSystem: () => void;
+  onOpenInApp: () => void;
   onUpdate: (updates: Partial<Material>) => void;
   onDelete: () => void;
   onAddRelation: (t: RelationTarget) => void;
@@ -717,6 +1088,9 @@ function MaterialCard({
 }) {
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [imageExpanded, setImageExpanded] = useState(false);
+  const [textExpanded, setTextExpanded] = useState(false);
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
@@ -724,6 +1098,10 @@ function MaterialCard({
   const accent = 'hsl(var(--story-4))';
   const kindLabel = MATERIAL_KIND_LABEL[material.kind] ?? material.kind;
   const subtitle = materialSubtitle(material);
+  const isTextSnippet = material.kind === 'text';
+  const imageSrc = materialImageSrc(material);
+  const isImageExpanded = material.kind === 'image' && imageExpanded && !!imageSrc;
+  const isTextExpanded = isTextSnippet && textExpanded;
   // Auto-generate PDF thumbnails the first time a card renders. macOS Quick
   // Look (via nativeImage.createThumbnailFromPath) renders the first page;
   // cache the resulting data URL on the material so we don't redo it.
@@ -741,188 +1119,314 @@ function MaterialCard({
     };
   }, [material.id, material.kind, material.localPath, material.thumbnailUri, onUpdate]);
 
-  const [editingBody, setEditingBody] = useState(false);
-  const [bodyDraft, setBodyDraft] = useState(material.bodyJson ?? '');
-  const isTextSnippet = material.kind === 'text';
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const openContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({ x: event.clientX, y: event.clientY });
+  }, []);
 
   return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '8px 10px',
-        borderRadius: 4,
-        border: '1px solid hsl(var(--rule))',
-        borderLeft: `2px solid ${accent}`,
-        background: 'hsl(var(--surface))',
-        maxHeight: 320,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <>
       <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onContextMenu={openContextMenu}
         style={{
+          padding: '8px 10px',
+          borderRadius: 4,
+          border: '1px solid hsl(var(--rule))',
+          borderLeft: `2px solid ${accent}`,
+          background: 'hsl(var(--surface))',
+          maxHeight: isTextExpanded ? 'none' : 320,
+          overflow: isTextExpanded ? 'visible' : 'hidden',
           display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          marginBottom: 3,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-4))',
-          flexShrink: 0,
-          minHeight: 18,
+          flexDirection: 'column',
         }}
       >
-        <span style={{ color: accent }}>{kindLabel}</span>
-        <span style={{ flex: 1 }} />
-        {!isTextSnippet && (
-          <button
-            onClick={onOpen}
-            title="打开"
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              padding: '1px 6px',
-              borderRadius: 2,
-              border: '1px solid hsl(var(--rule))',
-              background: 'hsl(var(--paper))',
-              color: 'hsl(var(--ink-2))',
-              cursor: 'pointer',
-            }}
-          >
-            {material.kind === 'url' ? '在浏览器中打开' : '打开'}
-          </button>
-        )}
-        <button
-          onClick={onDelete}
-          title="删除"
-          aria-hidden={!hover}
-          tabIndex={hover ? 0 : -1}
+        <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 3,
             fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            padding: '0 4px',
-            border: 'none',
-            background: 'transparent',
+            fontSize: 9,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
             color: 'hsl(var(--ink-4))',
-            cursor: 'pointer',
-            // Toggle via opacity so the row width doesn't change on hover.
-            opacity: hover ? 1 : 0,
-            pointerEvents: hover ? 'auto' : 'none',
-            transition: 'opacity 120ms ease',
+            flexShrink: 0,
+            minHeight: 18,
           }}
         >
-          ×
-        </button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 0 }}>
-        <MaterialThumbnail material={material} onClick={onOpen} />
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {editing ? (
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => {
-                if (draft !== material.title) onUpdate({ title: draft });
-                onSetEditing(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                if (e.key === 'Escape') {
-                  setDraft(material.title);
-                  onSetEditing(false);
-                  (e.currentTarget as HTMLInputElement).blur();
-                }
-              }}
-              style={{
-                width: '100%',
-                fontFamily: 'var(--font-serif)',
-                fontSize: 13.5,
-                color: 'hsl(var(--ink-1))',
-                lineHeight: 1.35,
-                padding: '2px 4px',
-                border: '1px solid hsl(var(--rule))',
-                borderRadius: 3,
-                background: 'hsl(var(--paper))',
-                outline: 'none',
-              }}
-            />
-          ) : (
-            <div
-              onClick={() => {
-                setDraft(material.title);
-                onSetEditing(true);
-              }}
-              title={material.title || subtitle}
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: 13.5,
-                fontWeight: 500,
-                color: 'hsl(var(--ink-1))',
-                lineHeight: 1.35,
-                cursor: 'text',
-                minHeight: 18,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {material.title || (
-                <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-                  {subtitle || '无标题'}
-                </span>
-              )}
-            </div>
-          )}
-          {subtitle && !isTextSnippet && (
-            <div
-              title={material.uri}
+          <span style={{ color: accent }}>{kindLabel}</span>
+          <span style={{ flex: 1 }} />
+          {material.kind === 'image' && imageSrc && (
+            <button
+              onClick={() => setImageExpanded((v) => !v)}
+              title={imageExpanded ? '收起图片' : '展开图片'}
+              aria-hidden={!hover}
+              tabIndex={hover ? 0 : -1}
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'hsl(var(--ink-4))',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                fontSize: 9.5,
+                padding: '1px 6px',
+                borderRadius: 2,
+                border: '1px solid hsl(var(--rule))',
+                background: 'hsl(var(--paper))',
+                color: 'hsl(var(--ink-2))',
+                cursor: 'pointer',
+                opacity: hover ? 1 : 0,
+                pointerEvents: hover ? 'auto' : 'none',
+                transition: 'opacity 120ms ease',
               }}
             >
-              {subtitle}
-            </div>
+              {imageExpanded ? '收起' : '展开'}
+            </button>
+          )}
+          {isTextSnippet && (
+            <button
+              onClick={() => setTextExpanded((v) => !v)}
+              title={textExpanded ? '收起片段' : '展开片段'}
+              aria-hidden={!hover}
+              tabIndex={hover ? 0 : -1}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                padding: '1px 6px',
+                borderRadius: 2,
+                border: '1px solid hsl(var(--rule))',
+                background: 'hsl(var(--paper))',
+                color: 'hsl(var(--ink-2))',
+                cursor: 'pointer',
+                opacity: hover ? 1 : 0,
+                pointerEvents: hover ? 'auto' : 'none',
+                transition: 'opacity 120ms ease',
+              }}
+            >
+              {textExpanded ? '收起' : '展开'}
+            </button>
+          )}
+          {!isTextSnippet && (
+            <button
+              onClick={onOpenInSystem}
+              title="在系统 app 中打开"
+              aria-hidden={!hover}
+              tabIndex={hover ? 0 : -1}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                padding: '1px 6px',
+                borderRadius: 2,
+                border: '1px solid hsl(var(--rule))',
+                background: 'hsl(var(--paper))',
+                color: 'hsl(var(--ink-2))',
+                cursor: 'pointer',
+                opacity: hover ? 1 : 0,
+                pointerEvents: hover ? 'auto' : 'none',
+                transition: 'opacity 120ms ease',
+              }}
+            >
+              在系统app中打开
+            </button>
           )}
         </div>
-      </div>
 
-      {isTextSnippet && (
-        editingBody ? (
-          <div style={{ marginTop: 6, flexShrink: 0 }}>
-            <AutoGrowTextarea
-              value={bodyDraft}
-              autoFocus
-              placeholder="片段正文…"
-              onChange={setBodyDraft}
-              onCommit={() => {
-                if (bodyDraft !== (material.bodyJson ?? '')) {
-                  onUpdate({ bodyJson: bodyDraft });
-                }
-                setEditingBody(false);
+        {!isImageExpanded && !isTextExpanded && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 0 }}>
+            <MaterialThumbnail material={material} onClick={onOpenInApp} />
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {editing ? (
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={() => {
+                    if (draft !== material.title) onUpdate({ title: draft });
+                    onSetEditing(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                    if (e.key === 'Escape') {
+                      setDraft(material.title);
+                      onSetEditing(false);
+                      (e.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 13.5,
+                    color: 'hsl(var(--ink-1))',
+                    lineHeight: 1.35,
+                    padding: '2px 4px',
+                    border: '1px solid hsl(var(--rule))',
+                    borderRadius: 3,
+                    background: 'hsl(var(--paper))',
+                    outline: 'none',
+                  }}
+                />
+              ) : (
+                <div
+                  onClick={() => {
+                    setDraft(material.title);
+                    onSetEditing(true);
+                  }}
+                  title={material.title || subtitle}
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    color: 'hsl(var(--ink-1))',
+                    lineHeight: 1.35,
+                    cursor: 'text',
+                    minHeight: 18,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {material.title || (
+                    <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
+                      {subtitle || '无标题'}
+                    </span>
+                  )}
+                </div>
+              )}
+              {subtitle && !isTextSnippet && (
+                <div
+                  title={material.uri}
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'hsl(var(--ink-4))',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {subtitle}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isTextExpanded && (
+          <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {editing ? (
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                  if (draft !== material.title) onUpdate({ title: draft });
+                  onSetEditing(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                  if (e.key === 'Escape') {
+                    setDraft(material.title);
+                    onSetEditing(false);
+                    (e.currentTarget as HTMLInputElement).blur();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: 13.5,
+                  color: 'hsl(var(--ink-1))',
+                  lineHeight: 1.35,
+                  padding: '2px 4px',
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 3,
+                  background: 'hsl(var(--paper))',
+                  outline: 'none',
+                }}
+              />
+            ) : (
+              <div
+                onClick={() => {
+                  setDraft(material.title);
+                  onSetEditing(true);
+                }}
+                title={material.title || subtitle}
+                style={{
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: 13.5,
+                  fontWeight: 500,
+                  color: 'hsl(var(--ink-1))',
+                  lineHeight: 1.35,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  cursor: 'text',
+                  minHeight: 18,
+                }}
+              >
+                {material.title || (
+                  <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
+                    {subtitle || '无标题'}
+                  </span>
+                )}
+              </div>
+            )}
+            <div
+              onClick={onOpenInApp}
+              style={{
+                fontFamily: 'var(--font-serif)',
+                fontSize: 12.5,
+                color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
+                fontStyle: material.bodyJson ? 'normal' : 'italic',
+                lineHeight: 1.5,
+                cursor: 'text',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
               }}
-              onCancel={() => {
-                setBodyDraft(material.bodyJson ?? '');
-                setEditingBody(false);
+            >
+              {material.bodyJson || '添加片段正文…'}
+            </div>
+          </div>
+        )}
+
+        {isImageExpanded && (
+          <button
+            type="button"
+            onClick={onOpenInApp}
+            title="全屏查看图片"
+            style={{
+              marginTop: 8,
+              padding: 0,
+              border: '1px solid hsl(var(--rule))',
+              borderRadius: 4,
+              background: 'hsl(var(--paper-deep) / 0.35)',
+              cursor: 'zoom-in',
+              overflow: 'hidden',
+              width: '100%',
+              maxHeight: 220,
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <img
+              src={imageSrc}
+              alt=""
+              style={{
+                display: 'block',
+                width: '100%',
+                height: 'auto',
+                maxHeight: 220,
+                objectFit: 'contain',
               }}
             />
-          </div>
-        ) : (
+          </button>
+        )}
+
+        {isTextSnippet && (
           <div
-            onClick={() => {
-              setBodyDraft(material.bodyJson ?? '');
-              setEditingBody(true);
-            }}
+            onClick={onOpenInApp}
             style={{
               marginTop: 6,
               fontFamily: 'var(--font-serif)',
@@ -933,33 +1437,37 @@ function MaterialCard({
               cursor: 'text',
               maxHeight: 140,
               overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              display: '-webkit-box',
+              WebkitLineClamp: 7,
+              WebkitBoxOrient: 'vertical',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              // Soft fade at the bottom hints there might be more body when
-              // the snippet overflows the max-height clip.
-              maskImage:
-                material.bodyJson && (material.bodyJson?.length ?? 0) > 240
-                  ? 'linear-gradient(to bottom, black 80%, transparent 100%)'
-                  : undefined,
-              WebkitMaskImage:
-                material.bodyJson && (material.bodyJson?.length ?? 0) > 240
-                  ? 'linear-gradient(to bottom, black 80%, transparent 100%)'
-                  : undefined,
             }}
           >
             {material.bodyJson || '添加片段正文…'}
           </div>
-        )
-      )}
+        )}
 
-      <div style={{ marginTop: 6, flexShrink: 0 }}>
-        <EntityRelationPicker
-          selected={selectedSet}
-          onAdd={onAddRelation}
-          onRemove={onRemoveRelation}
-        />
+        <div style={{ marginTop: 6, flexShrink: 0 }}>
+          <EntityRelationPicker
+            selected={selectedSet}
+            onAdd={onAddRelation}
+            onRemove={onRemoveRelation}
+          />
+        </div>
       </div>
-    </div>
+      {contextMenu && (
+        <MaterialContextMenu
+          material={material}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onOpenInSystem={onOpenInSystem}
+          onDelete={onDelete}
+          onClose={closeContextMenu}
+        />
+      )}
+    </>
   );
 }
 
@@ -971,11 +1479,11 @@ function MaterialThumbnail({ material, onClick }: { material: Material; onClick:
   const [errored, setErrored] = useState(false);
   let src: string | null = null;
   if (!errored) {
-    if (material.kind === 'image' && material.localPath) {
+    if (material.kind === 'image') {
       // webSecurity is disabled in dev, so file:// loads inline. In production
       // the same window config currently applies; if we ever re-enable
       // webSecurity we'll need to register a custom protocol.
-      src = `file://${material.localPath}`;
+      src = materialImageSrc(material);
     } else if (material.kind === 'pdf' && material.thumbnailUri) {
       src = material.thumbnailUri;
     } else if (material.kind === 'url' && material.thumbnailUri) {
@@ -1026,6 +1534,508 @@ function MaterialThumbnail({ material, onClick }: { material: Material; onClick:
         cursor: 'pointer',
       }}
     />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full-screen material preview
+
+type MaterialPreviewViewport = {
+  scale: number;
+  panX: number;
+  panY: number;
+};
+
+function isPdfRenderCancel(error: unknown): boolean {
+  return error instanceof Error && error.name === 'RenderingCancelledException';
+}
+
+function MaterialFullscreenPreview({
+  material,
+  onClose,
+  onUpdate,
+}: {
+  material: Material;
+  onClose: () => void;
+  onUpdate: (updates: Partial<Material>) => void;
+}) {
+  const [textDraft, setTextDraft] = useState(() => material.bodyJson ?? '');
+  const [viewport, setViewport] = useState({ scale: 1, panX: 0, panY: 0 });
+  const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef(viewport);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressSurfaceClickRef = useRef(false);
+  const imageSrc = materialImageSrc(material);
+  const pdfSrc = materialPdfSrc(material);
+  const isImagePreview = material.kind === 'image';
+  const isPdfPreview = material.kind === 'pdf';
+  const isZoomablePreview = isImagePreview || isPdfPreview;
+
+  const close = useCallback(() => {
+    if (material.kind === 'text' && textDraft !== (material.bodyJson ?? '')) {
+      onUpdate({ bodyJson: textDraft });
+    }
+    onClose();
+  }, [material.kind, material.bodyJson, onClose, onUpdate, textDraft]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [close]);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
+
+  useEffect(() => {
+    const node = previewSurfaceRef.current;
+    if (!node || !isZoomablePreview) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        const zoomFactor = Math.exp(-event.deltaY * 0.002);
+        setViewport((prev) => {
+          const scale = clampMaterialPreviewScale(prev.scale * zoomFactor);
+          return {
+            scale,
+            panX: scale === 1 ? 0 : prev.panX,
+            panY: scale === 1 ? 0 : prev.panY,
+          };
+        });
+        return;
+      }
+
+      if (viewportRef.current.scale <= 1) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setViewport((prev) => ({
+        ...prev,
+        panX: prev.panX - event.deltaX,
+        panY: prev.panY - event.deltaY,
+      }));
+    };
+
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => node.removeEventListener('wheel', handleWheel);
+  }, [isZoomablePreview]);
+
+  if (material.kind === 'url') return null;
+
+  const handlePreviewPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isZoomablePreview) return;
+    pointerStartRef.current = { x: event.clientX, y: event.clientY };
+    suppressSurfaceClickRef.current = false;
+    if (viewport.scale <= 1) return;
+    event.preventDefault();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: viewport.panX,
+      panY: viewport.panY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePreviewPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = pointerStartRef.current;
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 3) {
+      suppressSurfaceClickRef.current = true;
+    }
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setViewport((prev) => ({
+      ...prev,
+      panX: drag.panX + event.clientX - drag.startX,
+      panY: drag.panY + event.clientY - drag.startY,
+    }));
+  };
+
+  const handlePreviewPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    pointerStartRef.current = null;
+    const drag = dragRef.current;
+    if (drag?.pointerId === event.pointerId) {
+      dragRef.current = null;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleSurfaceClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    if (!isZoomablePreview) return;
+    if (suppressSurfaceClickRef.current) {
+      suppressSurfaceClickRef.current = false;
+      return;
+    }
+    close();
+  };
+
+  const content = (() => {
+    if (material.kind === 'image') {
+      if (!imageSrc) return <FullscreenEmpty message="无法预览图片" />;
+      return (
+        <img
+          src={imageSrc}
+          alt=""
+          draggable={false}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+            display: 'block',
+            transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.scale})`,
+            transformOrigin: 'center center',
+            transition: 'transform 80ms ease-out',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+          }}
+        />
+      );
+    }
+
+    if (material.kind === 'pdf') {
+      const pdfPath = material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null);
+      if (!pdfPath) return <FullscreenEmpty message="无法预览 PDF" />;
+      return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
+    }
+
+    return (
+      <textarea
+        autoFocus
+        value={textDraft}
+        onChange={(event) => setTextDraft(event.target.value)}
+        placeholder="片段正文…"
+        style={{
+          width: '100%',
+          height: '100%',
+          resize: 'none',
+          border: 'none',
+          outline: 'none',
+          background: 'hsl(var(--paper))',
+          color: 'hsl(var(--ink-1))',
+          fontFamily: 'var(--font-serif)',
+          fontSize: 17,
+          lineHeight: 1.65,
+          padding: 24,
+          whiteSpace: 'pre-wrap',
+        }}
+      />
+    );
+  })();
+
+  return createPortal(
+    <div
+      onClick={close}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 10000,
+        padding: isZoomablePreview ? 0 : '28px 32px',
+        background: 'hsl(var(--ink-1) / 0.58)',
+        backdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        ref={previewSurfaceRef}
+        onClick={handleSurfaceClick}
+        onPointerDown={handlePreviewPointerDown}
+        onPointerMove={handlePreviewPointerMove}
+        onPointerUp={handlePreviewPointerEnd}
+        onPointerCancel={handlePreviewPointerEnd}
+        style={{
+          width: isZoomablePreview ? '100%' : 'min(1180px, 100%)',
+          height: '100%',
+          borderRadius: isImagePreview || isPdfPreview ? 0 : 8,
+          overflow: 'hidden',
+          background: isZoomablePreview ? 'transparent' : 'hsl(var(--paper))',
+          border: isImagePreview || isPdfPreview ? 'none' : '1px solid hsl(var(--rule-strong))',
+          boxShadow:
+            isImagePreview || isPdfPreview
+              ? 'none'
+              : '0 24px 54px hsl(var(--ink-1) / 0.34)',
+          display: 'grid',
+          placeItems: 'center',
+          cursor: isZoomablePreview && viewport.scale > 1 ? 'grab' : undefined,
+          touchAction: isZoomablePreview ? 'none' : 'auto',
+          overscrollBehavior: isZoomablePreview ? 'none' : undefined,
+        }}
+      >
+        {content}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function PdfCanvasPreview({
+  filePath,
+  viewport,
+}: {
+  filePath: string;
+  viewport: MaterialPreviewViewport;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [surfaceSize, setSurfaceSize] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+
+  useEffect(() => {
+    const onResize = () => {
+      setSurfaceSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // Load via IPC rather than handing pdf.js a `file://` URL — Chromium blocks
+  // `fetch('file://…')` from non-file origins (the Vite dev server) regardless
+  // of `webSecurity`, so pdf.js's internal fetch silently fails.
+  useEffect(() => {
+    let cancelled = false;
+    let loadedDocument: PDFDocumentProxy | null = null;
+    let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
+
+    void window.electronAPI.material
+      .readBytes(filePath)
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          console.error('[pdf preview] readBytes failed:', res.error);
+          setError('无法打开 PDF');
+          return;
+        }
+        // pdf.js takes ownership of the buffer, so hand it a fresh view.
+        loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(res.bytes) });
+        return loadingTask.promise.then((nextDocument) => {
+          if (cancelled) {
+            void nextDocument.destroy();
+            return;
+          }
+          loadedDocument = nextDocument;
+          setPdfDocument(nextDocument);
+          setPageCount(nextDocument.numPages);
+          setPageNumber(1);
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[pdf preview] getDocument failed:', err);
+        setError('无法打开 PDF');
+      });
+
+    return () => {
+      cancelled = true;
+      if (loadedDocument) {
+        void loadedDocument.destroy();
+      } else if (loadingTask) {
+        void loadingTask.destroy();
+      }
+    };
+  }, [filePath]);
+
+  useEffect(() => {
+    if (!pdfDocument || !canvasRef.current) return;
+
+    let cancelled = false;
+    let renderTask: RenderTask | null = null;
+    const canvas = canvasRef.current;
+
+    pdfDocument
+      .getPage(pageNumber)
+      .then((page) => {
+        if (cancelled) return undefined;
+
+        const baseViewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(240, surfaceSize.width - 48);
+        const availableHeight = Math.max(240, surfaceSize.height - (pageCount > 1 ? 96 : 48));
+        const cssScale = Math.max(
+          0.18,
+          Math.min(availableWidth / baseViewport.width, availableHeight / baseViewport.height, 1.8),
+        );
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        const cssViewport = page.getViewport({ scale: cssScale });
+        const renderViewport = page.getViewport({ scale: cssScale * pixelRatio });
+
+        canvas.width = Math.floor(renderViewport.width);
+        canvas.height = Math.floor(renderViewport.height);
+        canvas.style.width = `${Math.floor(cssViewport.width)}px`;
+        canvas.style.height = `${Math.floor(cssViewport.height)}px`;
+
+        renderTask = page.render({
+          canvas,
+          viewport: renderViewport,
+        });
+        return renderTask.promise;
+      })
+      .catch((nextError: unknown) => {
+        if (cancelled || isPdfRenderCancel(nextError)) return;
+        console.error('[pdf preview] render failed:', nextError);
+        setError('无法渲染 PDF');
+      });
+
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+    };
+  }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width]);
+
+  const goToPreviousPage = () => setPageNumber((page) => Math.max(1, page - 1));
+  const goToNextPage = () => setPageNumber((page) => Math.min(pageCount, page + 1));
+
+  // ←/→ flip pages while the preview is mounted. Skip when the user is
+  // typing somewhere (defensive — no inputs live inside this overlay today,
+  // but the listener is window-level so any future textarea wins).
+  useEffect(() => {
+    if (!pdfDocument || pageCount <= 1) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'ArrowLeft') goToPreviousPage();
+      else goToNextPage();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [pdfDocument, pageCount]);
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        display: 'grid',
+        placeItems: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      {error ? (
+        <FullscreenEmpty message={error} />
+      ) : !pdfDocument ? (
+        <FullscreenEmpty message="加载 PDF…" />
+      ) : (
+        <canvas
+          ref={canvasRef}
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            display: 'block',
+            background: 'hsl(var(--paper))',
+            transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.scale})`,
+            transformOrigin: 'center center',
+            transition: 'transform 80ms ease-out',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+          }}
+        />
+      )}
+
+      {pageCount > 1 && (
+        <div
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 18,
+            transform: 'translateX(-50%)',
+            zIndex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '5px 8px',
+            borderRadius: 999,
+            border: '1px solid hsl(var(--rule))',
+            background: 'hsl(var(--paper) / 0.88)',
+            boxShadow: '0 8px 20px hsl(var(--ink-1) / 0.16)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'hsl(var(--ink-2))',
+          }}
+        >
+          <PdfPageButton onClick={goToPreviousPage} disabled={pageNumber <= 1}>
+            上一页
+          </PdfPageButton>
+          <span>
+            {pageNumber} / {pageCount}
+          </span>
+          <PdfPageButton onClick={goToNextPage} disabled={pageNumber >= pageCount}>
+            下一页
+          </PdfPageButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PdfPageButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        border: 'none',
+        borderRadius: 999,
+        background: disabled ? 'transparent' : 'hsl(var(--paper-deep))',
+        color: disabled ? 'hsl(var(--ink-5))' : 'hsl(var(--ink-1))',
+        cursor: disabled ? 'default' : 'pointer',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        padding: '3px 7px',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FullscreenEmpty({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        fontFamily: 'var(--font-serif)',
+        fontSize: 15,
+        color: 'hsl(var(--ink-3))',
+      }}
+    >
+      {message}
+    </div>
   );
 }
 

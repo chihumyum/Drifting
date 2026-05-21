@@ -1,77 +1,24 @@
 /* ============================================================
-   Bottom Status Bar — persistent 24px footer
+   Bottom Status Bar — persistent compact footer
    Always visible across the editor. Replaces the old collapsed
    strip mode of BottomTimeline: instead of compressing the dock
-   to a sliver, we surface a real status bar with entity context
-   + a button to bring the full timeline back.
+   to a sliver, it keeps a small toggle to bring the full timeline
+   back.
    ============================================================ */
 
 .bsb {
   display: flex;
   align-items: center;
-  height: 24px;
+  height: 20px;
   flex-shrink: 0;
   padding: 0;
   background: hsl(var(--paper-deep));
   border-top: 1px solid hsl(var(--rule));
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: hsl(var(--ink-3));
   gap: 0;
-}
-
-.bsb__kind {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  background: hsl(var(--ink-1));
-  color: hsl(var(--paper));
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 9px;
-  flex-shrink: 0;
-}
-
-.bsb__breadcrumb {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 12px;
-  gap: 0;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
-}
-.bsb__breadcrumb-empty {
-  color: hsl(var(--ink-4));
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-.bsb__crumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.bsb__crumb-text {
-  font-family: var(--font-serif);
-  font-size: 12px;
-  color: hsl(var(--ink-2));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 260px;
-}
-.bsb__crumb:last-child .bsb__crumb-text {
-  color: hsl(var(--ink-1));
-}
-.bsb__sep {
-  margin: 0 8px;
-  color: hsl(var(--ink-5));
-  font-family: var(--font-mono);
-  font-size: 11px;
 }
 
 .bsb__spacer {
@@ -81,17 +28,16 @@
 .bsb__seg {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  height: 24px;
+  gap: 5px;
+  padding: 0 8px;
+  height: 20px;
   background: transparent;
   border: 0;
-  border-left: 1px solid hsl(var(--rule));
   color: hsl(var(--ink-3));
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   transition:
     background 0.1s,
     color 0.1s;
@@ -99,6 +45,11 @@
 .bsb__seg:hover {
   background: hsl(var(--rule) / 0.5);
   color: hsl(var(--ink-1));
+}
+.bsb__super.is-active {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.10);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.30);
 }
 .bsb__timeline-toggle.is-open {
   color: hsl(var(--ink-1));

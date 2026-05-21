@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('material:thumbnail', filePath, size ?? 96) as Promise<
         { ok: true; dataUrl: string } | { ok: false; error: string }
       >,
+    readBytes: (filePath: string) =>
+      ipcRenderer.invoke('material:readBytes', filePath) as Promise<
+        { ok: true; bytes: ArrayBuffer } | { ok: false; error: string }
+      >,
     resolveUrlMeta: (url: string) =>
       ipcRenderer.invoke('material:resolveUrlMeta', url) as Promise<
         | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
@@ -118,6 +122,9 @@ export interface ElectronAPI {
       filePath: string,
       size?: number,
     ) => Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>;
+    readBytes: (
+      filePath: string,
+    ) => Promise<{ ok: true; bytes: ArrayBuffer } | { ok: false; error: string }>;
     resolveUrlMeta: (
       url: string,
     ) => Promise<

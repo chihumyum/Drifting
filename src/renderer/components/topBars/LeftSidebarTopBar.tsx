@@ -33,12 +33,16 @@ export function LeftSidebarTopBar() {
         } as React.CSSProperties
       }
     >
-      <GhostIconBtn onClick={handleOpenSearch} title="Search" icon={<Search size={iconSize} strokeWidth={1.6} />} />
+      {/* 红绿灯和按钮之间的空白区域 — 预留给未来的全局状态展示（灵动岛式自适应信息） */}
+      <GhostIconBtn
+        onClick={handleOpenSearch}
+        title="Search"
+        marginLeft="auto"
+        icon={<Search size={iconSize} strokeWidth={1.6} />}
+      />
       <GhostIconBtn
         onClick={handleToggleLeftSidebar}
         title={isLeftSidebarOpen ? 'Close Left Sidebar' : 'Open Left Sidebar'}
-        marginLeftAuto={isLeftSidebarOpen}
-        marginLeft={isLeftSidebarOpen ? 'auto' : 6}
         icon={
           isLeftSidebarOpen ? (
             <PanelLeftClose size={iconSize} strokeWidth={1.6} />
@@ -55,7 +59,6 @@ interface GhostIconBtnProps {
   onClick: () => void;
   title: string;
   icon: React.ReactNode;
-  marginLeftAuto?: boolean;
   marginLeft?: number | 'auto';
 }
 
