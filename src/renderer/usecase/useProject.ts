@@ -411,6 +411,9 @@ export function useProject({ userId }: UseProjectContext) {
         descriptionJson: '{}',
         elementTemplateJson: '{}',
         color: randomColor(),
+        layoutMode: 'auto',
+        gridX: null,
+        gridY: null,
         createdAt: now,
         updatedAt: now,
       });

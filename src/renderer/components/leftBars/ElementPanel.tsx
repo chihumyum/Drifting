@@ -190,6 +190,40 @@ export function ElementPanel() {
     return grouped;
   }, [bookElements, categoryIds]);
 
+  // Secondary grouping inside a category. Elements with the same groupName
+  // are clumped together; null groupName goes into the "ungrouped" bucket and
+  // is rendered last with no header. Named groups are sorted alphabetically.
+  // Within a group we preserve the parent ordering (updatedAt desc, from
+  // bookElements load).
+  const groupedByCategory = useMemo(() => {
+    const out: Record<string, { groupName: string | null; items: BookElement[] }[]> = {};
+    categoryIds.forEach((categoryId) => {
+      const items = elementsByCategory[categoryId] ?? [];
+      const buckets = new Map<string | null, BookElement[]>();
+      items.forEach((el) => {
+        const key = el.groupName?.trim() || null;
+        const arr = buckets.get(key) ?? [];
+        arr.push(el);
+        buckets.set(key, arr);
+      });
+      const named: { groupName: string; items: BookElement[] }[] = [];
+      let ungrouped: BookElement[] = [];
+      buckets.forEach((arr, key) => {
+        if (key === null) {
+          ungrouped = arr;
+        } else {
+          named.push({ groupName: key, items: arr });
+        }
+      });
+      named.sort((a, b) => a.groupName.localeCompare(b.groupName));
+      out[categoryId] = [
+        ...named.map((g) => ({ groupName: g.groupName as string | null, items: g.items })),
+        ...(ungrouped.length > 0 ? [{ groupName: null as string | null, items: ungrouped }] : []),
+      ];
+    });
+    return out;
+  }, [categoryIds, elementsByCategory]);
+
   const clearHideRingTimer = useCallback(() => {
     if (hideRingTimerRef.current !== null) {
       window.clearTimeout(hideRingTimerRef.current);
@@ -800,9 +834,57 @@ export function ElementPanel() {
               </div>
 
               {!collapsedCategoryIds.has(categoryId) &&
-                (elementsByCategory[categoryId] ?? []).map((element, elementIndex) =>
-                  renderElementCard(element, categoryId, elementIndex),
-                )}
+                (() => {
+                  const groups = groupedByCategory[categoryId] ?? [];
+                  let elementIndex = 0;
+                  return groups.map((group) => {
+                    const cards = group.items.map((element) => {
+                      const card = renderElementCard(element, categoryId, elementIndex);
+                      elementIndex += 1;
+                      return card;
+                    });
+                    return (
+                      <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
+                        {group.groupName !== null && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 10px 2px 26px',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 9,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.1em',
+                              color: 'hsl(var(--ink-4))',
+                            }}
+                          >
+                            <span
+                              aria-hidden
+                              style={{
+                                width: 8,
+                                height: 1,
+                                background: 'hsl(var(--rule))',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {group.groupName}
+                            </span>
+                            <span style={{ color: 'hsl(var(--ink-4))' }}>· {group.items.length}</span>
+                          </div>
+                        )}
+                        {cards}
+                      </div>
+                    );
+                  });
+                })()}
             </div>
           ))}
 

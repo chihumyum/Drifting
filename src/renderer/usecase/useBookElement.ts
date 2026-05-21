@@ -77,6 +77,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         name: input.name?.trim() || 'New Element',
         summary: '',
         contentJson: seededContentJson,
+        groupName: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -97,6 +98,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: persisted.name,
             summary: persisted.summary,
             contentJson: persisted.contentJson,
+            groupName: persisted.groupName,
           }),
       });
     },
@@ -119,6 +121,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         name: updates.name ?? existing.name,
         contentJson: updates.contentJson ?? existing.contentJson,
         summary: updates.summary ?? existing.summary,
+        groupName: updates.groupName !== undefined ? updates.groupName : existing.groupName,
         updatedAt: now.toISOString(),
       };
 
@@ -131,6 +134,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: updatedElement.name,
             summary: updatedElement.summary,
             contentJson: updatedElement.contentJson,
+            groupName: updatedElement.groupName,
             updatedAt: updatedElement.updatedAt,
           });
           if (!persisted) {
@@ -148,6 +152,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: persisted.name,
             summary: persisted.summary,
             contentJson: persisted.contentJson,
+            groupName: persisted.groupName,
           }),
       });
     },

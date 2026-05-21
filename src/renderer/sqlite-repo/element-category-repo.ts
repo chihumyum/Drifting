@@ -99,6 +99,9 @@ export function createElementCategoryRepository(
       updateValues.descriptionJson = updates.descriptionJson;
     if (updates.elementTemplateJson !== undefined)
       updateValues.elementTemplateJson = updates.elementTemplateJson;
+    if (updates.layoutMode !== undefined) updateValues.layoutMode = updates.layoutMode;
+    if (updates.gridX !== undefined) updateValues.gridX = updates.gridX;
+    if (updates.gridY !== undefined) updateValues.gridY = updates.gridY;
 
     await dbProvider()
       .update(ElementCategoryTable)

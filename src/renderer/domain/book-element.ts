@@ -5,9 +5,14 @@ export interface BookElement {
   name: string;
   summary: string;
   contentJson: string;
+  // Lightweight secondary grouping label within a category. Null = "ungrouped".
+  // See schema/drizzle.ts for rationale.
+  groupName: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ElementCategoryLayoutMode = 'auto' | 'pinned';
 
 export interface BookElementCategory {
   id: string;
@@ -19,6 +24,11 @@ export interface BookElementCategory {
   // Existing elements are never touched when this changes.
   elementTemplateJson: string;
   color: string;
+  // SuperElementView placement. 'auto' = skyline solver picks the slot;
+  // 'pinned' = user dragged this category and gridX/gridY hold the anchor.
+  layoutMode: ElementCategoryLayoutMode;
+  gridX: number | null;
+  gridY: number | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -23,6 +23,12 @@ export interface UpdateElementCategoryInput {
   descriptionJson?: string;
   elementTemplateJson?: string;
   color?: string;
+  // SuperElementView layout persistence. Setting layoutMode='pinned' with
+  // grid coords stamps the user's drag; layoutMode='auto' returns the category
+  // to the skyline solver.
+  layoutMode?: 'auto' | 'pinned';
+  gridX?: number | null;
+  gridY?: number | null;
 }
 
 export interface UseElementCategoryContext {
@@ -70,6 +76,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         descriptionJson: resolved.descriptionJson ?? '{}',
         elementTemplateJson: resolved.elementTemplateJson ?? '{}',
         color: randomColor(),
+        layoutMode: 'auto',
+        gridX: null,
+        gridY: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -90,6 +99,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             descriptionJson: created.descriptionJson,
             elementTemplateJson: created.elementTemplateJson,
             color: created.color,
+            layoutMode: created.layoutMode,
+            gridX: created.gridX,
+            gridY: created.gridY,
           }),
       });
     },
@@ -133,6 +145,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
         elementTemplateJson: updates.elementTemplateJson ?? existing.elementTemplateJson,
         color: updates.color ?? existing.color,
+        layoutMode: updates.layoutMode ?? existing.layoutMode,
+        gridX: updates.gridX !== undefined ? updates.gridX : existing.gridX,
+        gridY: updates.gridY !== undefined ? updates.gridY : existing.gridY,
         updatedAt: now,
       };
 
@@ -145,6 +160,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             descriptionJson: updated.descriptionJson,
             elementTemplateJson: updated.elementTemplateJson,
             color: updated.color,
+            layoutMode: updated.layoutMode,
+            gridX: updated.gridX,
+            gridY: updated.gridY,
             updatedAt: updated.updatedAt,
           });
           if (!persisted) {
@@ -161,6 +179,9 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             descriptionJson: persisted.descriptionJson,
             elementTemplateJson: persisted.elementTemplateJson,
             color: persisted.color,
+            layoutMode: persisted.layoutMode,
+            gridX: persisted.gridX,
+            gridY: persisted.gridY,
           }),
       });
     },

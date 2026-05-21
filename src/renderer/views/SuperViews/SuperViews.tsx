@@ -1,6 +1,8 @@
 import { useUiStore } from '../../store/ui-store';
 import { X } from 'lucide-react';
 
+export { SuperElementView } from './SuperElementView';
+
 function SuperOverlay({
   title,
   children,
@@ -45,17 +47,6 @@ function SuperOverlay({
       </div>
       <div style={{ flex: 1, padding: 20 }}>{children}</div>
     </div>
-  );
-}
-
-export function SuperElementView() {
-  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
-  return (
-    <SuperOverlay title="Super Element View" onClose={() => setActiveSuperView('none')}>
-      <div style={{ fontSize: 24, textAlign: 'center', marginTop: 100 }}>
-        High-level view of all Elements
-      </div>
-    </SuperOverlay>
   );
 }
 

@@ -25,6 +25,7 @@ function toDomain(record: typeof BookElementTable.$inferSelect): BookElement {
     name: record.name,
     summary: record.summary,
     contentJson: record.contentJson,
+    groupName: record.groupName,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -78,6 +79,7 @@ export function createBookElementSqliteRepository(
       name: input.name,
       summary: input.summary,
       contentJson: input.contentJson,
+      groupName: input.groupName,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
@@ -99,6 +101,7 @@ export function createBookElementSqliteRepository(
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.summary !== undefined) updateValues.summary = data.summary;
     if (data.contentJson !== undefined) updateValues.contentJson = data.contentJson;
+    if (data.groupName !== undefined) updateValues.groupName = data.groupName;
 
     await dbProvider()
       .update(BookElementTable)

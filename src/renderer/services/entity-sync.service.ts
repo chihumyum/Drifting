@@ -654,6 +654,11 @@ function numberValue(row: Record<string, unknown>, key: string, fallback = 0): n
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function nullableNumberValue(row: Record<string, unknown>, key: string): number | null {
+  const value = row[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function booleanValue(row: Record<string, unknown>, key: string, fallback = false): boolean {
   const value = row[key];
   return typeof value === 'boolean' ? value : fallback;
@@ -754,6 +759,11 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       descriptionJson: stringValue(row, 'descriptionJson', '{}'),
       elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
       color: stringValue(row, 'color'),
+      layoutMode: (stringValue(row, 'layoutMode', 'auto') === 'pinned'
+        ? 'pinned'
+        : 'auto') as 'auto' | 'pinned',
+      gridX: nullableNumberValue(row, 'gridX'),
+      gridY: nullableNumberValue(row, 'gridY'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })),
@@ -766,6 +776,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       name: stringValue(row, 'name'),
       summary: stringValue(row, 'summary'),
       contentJson: stringValue(row, 'contentJson', '{}'),
+      groupName: nullableStringValue(row, 'groupName'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })),
@@ -1082,7 +1093,11 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       projectId: stringValue(row, 'projectId'),
       name: stringValue(row, 'name'),
       descriptionJson: stringValue(row, 'descriptionJson', '{}'),
+      elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
       color: stringValue(row, 'color'),
+      layoutMode: stringValue(row, 'layoutMode', 'auto') || 'auto',
+      gridX: nullableNumberValue(row, 'gridX'),
+      gridY: nullableNumberValue(row, 'gridY'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     }));
@@ -1176,6 +1191,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       name: stringValue(row, 'name'),
       summary: stringValue(row, 'summary'),
       contentJson: stringValue(row, 'contentJson', '{}'),
+      groupName: nullableStringValue(row, 'groupName'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     }));

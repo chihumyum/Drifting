@@ -30,6 +30,11 @@ export const ProjectTable = sqliteTable('project', {
 // element whose categoryId points at this row. Empty doc ({}) means "no
 // template" and the element starts blank. Editing here only affects future
 // elements — existing elements are untouched (see useBookElement.createElement).
+//
+// layoutMode/gridX/gridY drive SuperElementView placement. 'auto' = solver
+// picks the slot (skyline packer, see lib/super-element-layout). 'pinned' =
+// user dragged this category and gridX/gridY hold its grid-cell anchor; the
+// solver treats pinned categories as obstacles when packing the rest.
 export const ElementCategoryTable = sqliteTable(
   'element_category',
   {
@@ -41,6 +46,9 @@ export const ElementCategoryTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    layoutMode: text('layout_mode').notNull().default('auto'), // 'auto' | 'pinned'
+    gridX: integer('grid_x'),
+    gridY: integer('grid_y'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
@@ -191,6 +199,12 @@ export const NodeEdgeTable = sqliteTable(
 
 // Book element
 // Domain: BookElement
+//
+// groupName is a lightweight secondary grouping within a category — just a
+// label, no separate entity. Elements sharing the same (categoryId, groupName)
+// are rendered together inside the category. Null = "ungrouped" bucket, which
+// SuperElementView renders last. Rename by SQL update; delete by setting to
+// null. If we ever need ordering or colors, promote to ElementGroupTable.
 export const BookElementTable = sqliteTable('element', {
   id: text('id').primaryKey(),
   projectId: text('project_id')
@@ -202,6 +216,7 @@ export const BookElementTable = sqliteTable('element', {
   name: text('name').notNull(),
   summary: text('summary').notNull().default(''),
   contentJson: text('content_json').notNull().default('{}'),
+  groupName: text('group_name'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
