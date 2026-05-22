@@ -75,6 +75,13 @@
     --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
+  /* `Settings → Appearance → 全局衬线` collapses the UI sans stack into the
+     literary serif stack. Mono stays untouched so kickers / metric digits
+     keep their own typographic voice. */
+  html[data-ui-serif='on'] {
+    --font-sans: 'Newsreader', 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+  }
+
   .dark {
     /* "Ink mode" — late-night writing */
     --background:            36  8% 10%;   /* deep paper-dark */
@@ -498,8 +505,40 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   background: transparent;
   border: 0;
   cursor: pointer;
+  position: relative;
 }
 .editor-bar__icon:hover { background: hsl(var(--rule)); color: hsl(var(--ink-1)); }
+.editor-bar__icon:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+.editor-bar__icon:disabled:hover {
+  background: transparent;
+  color: hsl(var(--ink-3));
+}
+.editor-bar__icon--active {
+  background: hsl(var(--accent) / 0.10);
+  color: hsl(var(--accent));
+}
+.editor-bar__icon--active:hover {
+  background: hsl(var(--accent) / 0.14);
+  color: hsl(var(--accent));
+}
+.editor-bar__badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 10px;
+  height: 10px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  font-family: var(--font-mono);
+  font-size: 7px;
+  line-height: 10px;
+  letter-spacing: 0;
+}
 
 /* Three-dot actions menu — same visual language as .crumb-dropdown so the
    two popups read as a family. */
@@ -534,6 +573,20 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 .editor-bar__menu-item:hover { background: hsl(var(--rule) / 0.55); color: hsl(var(--ink-1)); }
 .editor-bar__menu-item--danger { color: hsl(var(--accent)); }
 .editor-bar__menu-item--danger:hover { background: hsl(var(--accent) / 0.08); color: hsl(var(--accent)); }
+.editor-bar__menu-item--status { justify-content: space-between; gap: 8px; }
+.editor-bar__menu-item--active { color: hsl(var(--ink-1)); font-weight: 500; }
+.editor-bar__menu-section-label {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+  text-transform: uppercase;
+}
+.editor-bar__menu-divider {
+  height: 1px;
+  margin: 5px 4px;
+  background: hsl(var(--rule));
+}
 
 .editor-crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .editor-crumb {
@@ -772,6 +825,22 @@ html[data-entity-highlight='off'] .entity-link--ai {
   background-image: none !important;
   border-bottom-color: transparent !important;
 }
+
+/* Reference-link rendering master toggle. When off, every entity-link mark
+   (manual / auto / ai) renders as plain inline text — no color, background,
+   underline, deep-link arrow, or pointer affordance. Click navigation is
+   blocked separately in the entity-link plugin via entityLinkConfig. */
+html[data-entity-link-interactive='off'] .entity-link {
+  color: inherit !important;
+  background-image: none !important;
+  border-bottom: none !important;
+  font-weight: inherit !important;
+  cursor: text !important;
+  padding: 0 !important;
+}
+html[data-entity-link-interactive='off'] .entity-link--deep::after {
+  content: none !important;
+}
 .page__body .ProseMirror em { font-style: italic; color: hsl(var(--ink-2)); }
 .page__body .ProseMirror h1 {
   font-family: var(--font-serif);
@@ -804,13 +873,9 @@ html[data-entity-highlight='off'] .entity-link--ai {
 }
 
 /* ============================================================
-   Editor spread layout — TOC | manuscript | margin notes
-   The three-column rail shared by all entity editors.
-   Margin column is placeholder (annotation system not yet built).
+   Editor spread layout — TOC | manuscript | margin comments
    ============================================================ */
 .editor-scroll {
-  /* Don't grab all remaining width — match the page's natural width so the
-     centered group [TOC + scroll] stays compact, with TOC hugging the page. */
   flex: 0 1 768px;
   min-width: 0;
   max-width: 768px;
@@ -820,12 +885,15 @@ html[data-entity-highlight='off'] .entity-link--ai {
   min-height: 0;
   align-self: stretch;
 }
-/* Page-first layout. The TOC lives outside .editor-scroll (see .editor-body
-   above), so the spread is just a centering wrapper for the manuscript.
-   Right margin column is gone for now; reintroduce when annotations land. */
+.editor-scroll--comments {
+  flex-basis: 1032px;
+  max-width: 1032px;
+}
 .editor__spread {
   display: flex;
   justify-content: center;
+  align-items: stretch;
+  gap: 24px;
   padding: 16px 12px 96px;
   margin: 0 auto;
   position: relative;
@@ -835,6 +903,220 @@ html[data-entity-highlight='off'] .entity-link--ai {
   flex: 0 1 720px;
   min-width: 0;
   max-width: 720px;
+}
+.editor__margin {
+  width: 240px;
+  flex: 0 0 240px;
+  position: relative;
+  align-self: stretch;
+  padding: 28px 0;
+  min-height: 600px;
+}
+html[data-margin-notes='off'] .editor__margin {
+  display: none;
+}
+@media (max-width: 980px) {
+  .editor__margin { display: none !important; }
+  .editor-scroll {
+    flex-basis: 768px;
+    max-width: 768px;
+  }
+  .editor__spread { gap: 16px; }
+}
+
+.mnote {
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule));
+  border-left: 2px solid hsl(var(--accent));
+  border-radius: 4px;
+  padding: 9px 11px 10px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  cursor: default;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: hsl(var(--ink-2));
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.06);
+  transition: box-shadow 0.15s, border-color 0.15s;
+  z-index: 1;
+}
+.mnote:hover {
+  border-color: hsl(var(--rule-strong));
+  box-shadow: 0 10px 22px -12px hsl(var(--ink-1) / 0.28);
+  z-index: 5;
+}
+.mnote--resolved {
+  border-left-color: hsl(var(--ink-5));
+  opacity: 0.72;
+}
+.mnote--composer {
+  border-left-color: hsl(var(--accent));
+  z-index: 8;
+}
+.mnote__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  margin-bottom: 4px;
+}
+.mnote__head-l {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mnote__head-glyph {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  color: hsl(var(--accent));
+}
+.mnote__head-conf {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
+}
+.mnote__title {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: hsl(var(--ink));
+  line-height: 1.42;
+  word-break: break-word;
+}
+.mnote__quote {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11.5px;
+  color: hsl(var(--ink-3));
+  border-left: 2px solid hsl(var(--rule-strong));
+  padding-left: 7px;
+  margin-top: 6px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.mnote__actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+  flex-wrap: wrap;
+}
+.mnote__btn,
+.mnote__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 2px;
+  border: 1px solid hsl(var(--rule-strong));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  background: transparent;
+}
+.mnote__btn {
+  padding: 3px 6px;
+}
+.mnote__icon-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+}
+.mnote__btn:hover,
+.mnote__icon-btn:hover {
+  color: hsl(var(--ink));
+  border-color: hsl(var(--ink-4));
+}
+.mnote__btn:disabled,
+.mnote__icon-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.mnote__btn--primary {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--accent));
+}
+.mnote__btn--primary:hover {
+  background: hsl(var(--story-1));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--story-1));
+}
+.mnote__textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 74px;
+  margin-top: 8px;
+  padding: 7px 8px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--page));
+  color: hsl(var(--ink));
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+}
+.mnote__textarea:focus {
+  border-color: hsl(var(--accent));
+}
+.mnote__leader {
+  position: absolute;
+  right: 100%;
+  width: 14px;
+  height: 1px;
+  background: hsl(var(--rule-strong));
+  top: 14px;
+}
+.mnote:hover .mnote__leader {
+  background: hsl(var(--accent));
+}
+.comment-anchor-mark {
+  background:
+    linear-gradient(
+      to right,
+      hsl(var(--accent) / 0.18),
+      hsl(var(--accent) / 0.10)
+    );
+  box-shadow: inset 3px 0 0 hsl(var(--accent));
+}
+.comment-anchor-resolved {
+  background: hsl(var(--ink-5) / 0.08);
+  box-shadow: inset 3px 0 0 hsl(var(--ink-5));
+}
+.editor-comment-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 112px;
+  padding: 4px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 4px;
+  box-shadow: 0 12px 28px -14px hsl(var(--ink-1) / 0.36);
+}
+.editor-comment-menu button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--ink));
+  font-family: var(--font-sans);
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.editor-comment-menu button:hover {
+  background: hsl(var(--accent) / 0.10);
+  color: hsl(var(--accent));
 }
 
 /* Outline rail — pinned absolutely to the top-left of .editor-body (right

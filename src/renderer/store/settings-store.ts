@@ -48,6 +48,12 @@ interface SettingsState {
   setShadowAffectsTheme: (on: boolean) => void;
   animationsEnabled: boolean;
   setAnimationsEnabled: (on: boolean) => void;
+  // When on, the UI sans stack collapses into the literary serif stack —
+  // gives the whole shell a single-typeface "manuscript" look. Only the
+  // mono stack (kickers / metrics) and the editor body keep their own
+  // families. App.tsx pipes this into a `--font-sans` override on <html>.
+  uiSerif: boolean;
+  setUiSerif: (on: boolean) => void;
 
   // 编辑器
   bodyFontSize: number;
@@ -62,6 +68,8 @@ interface SettingsState {
   setFocusLine: (mode: FocusLineMode) => void;
   entityHighlight: boolean;
   setEntityHighlight: (on: boolean) => void;
+  entityLinkInteractive: boolean;
+  setEntityLinkInteractive: (on: boolean) => void;
   marginNotes: boolean;
   setMarginNotes: (on: boolean) => void;
   autosave: boolean;
@@ -156,6 +164,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowAffectsTheme: (on) => set({ shadowAffectsTheme: on }),
       animationsEnabled: true,
       setAnimationsEnabled: (on) => set({ animationsEnabled: on }),
+      uiSerif: false,
+      setUiSerif: (on) => set({ uiSerif: on }),
 
       bodyFontSize: 17,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),
@@ -169,7 +179,9 @@ export const useSettingsStore = create<SettingsState>()(
       setFocusLine: (m) => set({ focusLine: m }),
       entityHighlight: true,
       setEntityHighlight: (on) => set({ entityHighlight: on }),
-      marginNotes: true,
+      entityLinkInteractive: true,
+      setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
+      marginNotes: false,
       setMarginNotes: (on) => set({ marginNotes: on }),
       autosave: true,
       setAutosave: (on) => set({ autosave: on }),
@@ -242,6 +254,14 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: (persistedState, version) => {
+        const state = persistedState as Partial<SettingsState>;
+        if (version < 1) {
+          return { ...state, marginNotes: false };
+        }
+        return state;
+      },
     },
   ),
 );

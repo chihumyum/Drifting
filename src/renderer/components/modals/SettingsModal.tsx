@@ -1263,6 +1263,8 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
+  const uiSerif = useSettingsStore((s) => s.uiSerif);
+  const setUiSerif = useSettingsStore((s) => s.setUiSerif);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
@@ -1318,6 +1320,12 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
           label="Shadow 模式改变主题色调"
           desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
           control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
+        />
+
+        <Row
+          label="全局衬线字体"
+          desc="把整个界面的无衬线字体换成衬线（书面体）。仅影响 UI，编辑器与等宽字段保持原样。"
+          control={<Toggle on={uiSerif} onChange={setUiSerif} />}
         />
       </div>
 

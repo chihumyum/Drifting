@@ -214,6 +214,7 @@ function Layout() {
   const shadowMode = useUiStore((state) => state.shadowMode);
   const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
   const animationsEnabled = useSettingsStore((state) => state.animationsEnabled);
+  const uiSerif = useSettingsStore((state) => state.uiSerif);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -252,6 +253,15 @@ function Layout() {
     if (animationsEnabled) root.removeAttribute('data-no-anim');
     else root.setAttribute('data-no-anim', 'on');
   }, [animationsEnabled]);
+
+  // Serif-UI master switch: redefines the sans CSS var on <html> to point at
+  // the serif stack. Every UI surface that reads `var(--font-sans)` flips
+  // automatically — see index.css.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (uiSerif) root.setAttribute('data-ui-serif', 'on');
+    else root.removeAttribute('data-ui-serif');
+  }, [uiSerif]);
 
   // UI locale → i18next
   const uiLocale = useSettingsStore((state) => state.uiLocale);
