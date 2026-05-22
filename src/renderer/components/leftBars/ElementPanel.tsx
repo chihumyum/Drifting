@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef, type UIEvent } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -14,20 +14,6 @@ import { events } from '../../lib/events';
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
 
-const ZOOM_RING_ACCELERATION_TRIGGER = 0.012;
-const ZOOM_RING_MIN_VELOCITY = 0.16;
-const ZOOM_RING_REFRESH_VELOCITY = 0.04;
-const ZOOM_RING_HIDE_DELAY = 950;
-const ZOOM_RING_MAX_DRIFT = 10;
-const ZOOM_RING_BADGE_HEIGHT_MIN = 18;
-const ZOOM_RING_BADGE_HEIGHT_MAX = 28;
-const ZOOM_RING_BADGE_GAP = 4;
-const ZOOM_RING_COLUMN_LEFT = 10;
-const ZOOM_RING_COLUMN_WIDTH = 102;
-const ZOOM_RING_AXIS_OFFSET = 10;
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
@@ -37,18 +23,6 @@ const formatShortDate = (input: string | number | Date) => {
   const day = `${d.getDate()}`.padStart(2, '0');
   return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
 };
-
-type CategorySectionMetric = {
-  categoryId: string;
-  top: number;
-  height: number;
-  elementCount: number;
-};
-
-type ActiveTick = {
-  categoryId: string;
-  elementIndex: number;
-} | null;
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
@@ -102,25 +76,6 @@ export function ElementPanel() {
     events.on('left-sidebar:collapse-all', handler);
     return () => events.off('left-sidebar:collapse-all', handler);
   }, [bookElementCategories]);
-
-  const [zoomRingVisible, setZoomRingVisible] = useState(false);
-  const [zoomRingHovered, setZoomRingHovered] = useState(false);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [sectionMetrics, setSectionMetrics] = useState<CategorySectionMetric[]>([]);
-
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const categorySectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const elementCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const hideRingTimerRef = useRef<number | null>(null);
-  const lastScrollTopRef = useRef(0);
-  const lastScrollTimeRef = useRef<number | null>(null);
-  const lastScrollVelocityRef = useRef(0);
-  const zoomRingVisibleRef = useRef(false);
-  const zoomRingHoveredRef = useRef(false);
-  const suppressRingUntilRef = useRef(0);
 
   // Shell now owns the LeftSidebarHeader + LeftSidebarSubHeader chrome, so we
   // no longer need the internal create-category toolbar's height.
@@ -224,45 +179,6 @@ export function ElementPanel() {
     return out;
   }, [categoryIds, elementsByCategory]);
 
-  const clearHideRingTimer = useCallback(() => {
-    if (hideRingTimerRef.current !== null) {
-      window.clearTimeout(hideRingTimerRef.current);
-      hideRingTimerRef.current = null;
-    }
-  }, []);
-
-  const showZoomRing = useCallback(() => {
-    clearHideRingTimer();
-    setZoomRingVisible(true);
-  }, [clearHideRingTimer]);
-
-  const scheduleHideZoomRing = useCallback(() => {
-    clearHideRingTimer();
-    hideRingTimerRef.current = window.setTimeout(() => {
-      if (zoomRingHoveredRef.current) {
-        return;
-      }
-      setZoomRingVisible(false);
-    }, ZOOM_RING_HIDE_DELAY);
-  }, [clearHideRingTimer]);
-
-  useEffect(() => {
-    zoomRingVisibleRef.current = zoomRingVisible;
-    if (!zoomRingVisible) {
-      lastScrollVelocityRef.current = 0;
-    }
-  }, [zoomRingVisible]);
-
-  useEffect(() => {
-    zoomRingHoveredRef.current = zoomRingHovered;
-  }, [zoomRingHovered]);
-
-  useEffect(() => {
-    return () => {
-      clearHideRingTimer();
-    };
-  }, [clearHideRingTimer]);
-
   const handleCreateElement = useCallback(
     async (categoryId: string) => {
       try {
@@ -298,226 +214,6 @@ export function ElementPanel() {
     [categoryById, editingCategoryName, updateCategory],
   );
 
-  const measurePanelLayout = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const containerRect = container.getBoundingClientRect();
-    const nextMetrics: CategorySectionMetric[] = categoryIds
-      .map((categoryId) => {
-        const section = categorySectionRefs.current[categoryId];
-        if (!section) {
-          return null;
-        }
-        const sectionRect = section.getBoundingClientRect();
-        return {
-          categoryId,
-          top: sectionRect.top - containerRect.top + container.scrollTop,
-          height: Math.max(sectionRect.height, 1),
-          elementCount: (elementsByCategory[categoryId] ?? []).length,
-        };
-      })
-      .filter((metric): metric is CategorySectionMetric => metric !== null);
-
-    setSectionMetrics(nextMetrics);
-    setScrollTop(container.scrollTop);
-    setViewportHeight(container.clientHeight);
-    setContentHeight(container.scrollHeight);
-  }, [categoryIds, elementsByCategory]);
-
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      measurePanelLayout();
-    });
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [measurePanelLayout, bookElements.length, panelHeight]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      measurePanelLayout();
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [measurePanelLayout]);
-
-  const handlePanelScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      const container = event.currentTarget;
-      const now = performance.now();
-      const nextTop = container.scrollTop;
-      const delta = nextTop - lastScrollTopRef.current;
-      const absDelta = Math.abs(delta);
-
-      lastScrollTopRef.current = nextTop;
-      setScrollTop(nextTop);
-      setViewportHeight(container.clientHeight);
-      setContentHeight(container.scrollHeight);
-
-      if (Date.now() < suppressRingUntilRef.current) {
-        lastScrollVelocityRef.current = 0;
-        lastScrollTimeRef.current = now;
-        return;
-      }
-
-      if (absDelta <= 0.5) {
-        lastScrollVelocityRef.current = 0;
-        lastScrollTimeRef.current = now;
-        return;
-      }
-
-      const dt = Math.max(lastScrollTimeRef.current ? now - lastScrollTimeRef.current : 16, 8);
-      const velocity = delta / dt;
-      const acceleration = (velocity - lastScrollVelocityRef.current) / dt;
-      const absVelocity = Math.abs(velocity);
-      const absAcceleration = Math.abs(acceleration);
-
-      const shouldShowByAcceleration =
-        absAcceleration >= ZOOM_RING_ACCELERATION_TRIGGER && absVelocity >= ZOOM_RING_MIN_VELOCITY;
-
-      if (shouldShowByAcceleration) {
-        showZoomRing();
-        scheduleHideZoomRing();
-      } else if (zoomRingVisibleRef.current && absVelocity >= ZOOM_RING_REFRESH_VELOCITY) {
-        scheduleHideZoomRing();
-      }
-
-      lastScrollVelocityRef.current = velocity;
-      lastScrollTimeRef.current = now;
-    },
-    [scheduleHideZoomRing, showZoomRing],
-  );
-
-  const activeTick = useMemo<ActiveTick>(() => {
-    const container = scrollContainerRef.current;
-    if (!container || categoryIds.length === 0) {
-      return null;
-    }
-
-    const centerY = scrollTop + viewportHeight / 2;
-    const containerRect = container.getBoundingClientRect();
-    let nearest: ActiveTick = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    categoryIds.forEach((categoryId) => {
-      const elements = elementsByCategory[categoryId] ?? [];
-      elements.forEach((element, elementIndex) => {
-        const card = elementCardRefs.current[element.id];
-        if (!card) {
-          return;
-        }
-        const cardRect = card.getBoundingClientRect();
-        const cardCenter =
-          cardRect.top - containerRect.top + container.scrollTop + cardRect.height / 2;
-        const distance = Math.abs(cardCenter - centerY);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearest = { categoryId, elementIndex };
-        }
-      });
-    });
-
-    return nearest;
-  }, [categoryIds, elementsByCategory, scrollTop, viewportHeight]);
-
-  const sectionMetricById = useMemo(() => {
-    return new Map(sectionMetrics.map((metric) => [metric.categoryId, metric]));
-  }, [sectionMetrics]);
-
-  const zoomTrackHeight = Math.max(viewportHeight - 24, 120);
-  const categoryBadgeHeight = useMemo(() => {
-    const count = Math.max(categoryIds.length, 1);
-    const availablePerBadge = Math.floor((zoomTrackHeight - 8) / count) - ZOOM_RING_BADGE_GAP;
-    return clamp(availablePerBadge, ZOOM_RING_BADGE_HEIGHT_MIN, ZOOM_RING_BADGE_HEIGHT_MAX);
-  }, [categoryIds.length, zoomTrackHeight]);
-  const scrollRange = Math.max(contentHeight - viewportHeight, 0);
-  const tickDrift = scrollRange > 0 ? (scrollTop / scrollRange) * ZOOM_RING_MAX_DRIFT : 0;
-
-  const categoryAnchors = useMemo(() => {
-    const lastIndex = Math.max(categoryIds.length - 1, 1);
-    const maxAnchorTop = Math.max(zoomTrackHeight - categoryBadgeHeight, 0);
-    const rawAnchors = categoryIds.map((categoryId, index) => {
-      const metric = sectionMetricById.get(categoryId);
-      const fallback = categoryIds.length <= 1 ? 0 : index / lastIndex;
-      const normalizedTop = metric
-        ? clamp(metric.top / Math.max(contentHeight - 1, 1), 0, 1)
-        : fallback;
-      return normalizedTop * maxAnchorTop;
-    });
-
-    let adjustedAnchors: number[] = rawAnchors;
-    if (rawAnchors.length > 1) {
-      const minGap = categoryBadgeHeight + ZOOM_RING_BADGE_GAP;
-      if (minGap * (rawAnchors.length - 1) > maxAnchorTop) {
-        const step = maxAnchorTop / (rawAnchors.length - 1);
-        adjustedAnchors = rawAnchors.map((_, index) => index * step);
-      } else {
-        adjustedAnchors = [...rawAnchors];
-        for (let index = 1; index < adjustedAnchors.length; index += 1) {
-          adjustedAnchors[index] = Math.max(
-            adjustedAnchors[index],
-            adjustedAnchors[index - 1] + minGap,
-          );
-        }
-        if (adjustedAnchors[adjustedAnchors.length - 1] > maxAnchorTop) {
-          adjustedAnchors[adjustedAnchors.length - 1] = maxAnchorTop;
-          for (let index = adjustedAnchors.length - 2; index >= 0; index -= 1) {
-            adjustedAnchors[index] = Math.min(
-              adjustedAnchors[index],
-              adjustedAnchors[index + 1] - minGap,
-            );
-          }
-        }
-      }
-    }
-
-    return categoryIds.map((categoryId, index) => {
-      return {
-        categoryId,
-        anchorTop: adjustedAnchors[index] ?? 0,
-        elementCount: (elementsByCategory[categoryId] ?? []).length,
-        color: getCategoryColor(categoryId),
-        label: getCategoryLabel(categoryId),
-      };
-    });
-  }, [
-    categoryIds,
-    zoomTrackHeight,
-    categoryBadgeHeight,
-    sectionMetricById,
-    contentHeight,
-    elementsByCategory,
-    getCategoryColor,
-    getCategoryLabel,
-  ]);
-
-  const jumpToCategory = useCallback(
-    (categoryId: string) => {
-      const container = scrollContainerRef.current;
-      const section = categorySectionRefs.current[categoryId];
-      if (!container || !section) {
-        return;
-      }
-
-      clearHideRingTimer();
-      suppressRingUntilRef.current = Date.now() + 650;
-      setZoomRingVisible(false);
-      lastScrollVelocityRef.current = 0;
-      lastScrollTimeRef.current = null;
-      container.scrollTo({
-        top: Math.max(section.offsetTop - 8, 0),
-        behavior: 'smooth',
-      });
-    },
-    [clearHideRingTimer],
-  );
-
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
     const categoryColor = getCategoryColor(categoryId);
@@ -525,13 +221,6 @@ export function ElementPanel() {
     return (
       <div
         key={element.id}
-        ref={(node) => {
-          if (node) {
-            elementCardRefs.current[element.id] = node;
-            return;
-          }
-          delete elementCardRefs.current[element.id];
-        }}
         data-category-id={categoryId}
         data-element-index={elementIndex}
         style={{
@@ -639,8 +328,6 @@ export function ElementPanel() {
         }}
       >
         <div
-          ref={scrollContainerRef}
-          onScroll={handlePanelScroll}
           style={{
             flex: 1,
             overflowY: 'auto',
@@ -651,17 +338,7 @@ export function ElementPanel() {
           }}
         >
           {categoryIds.map((categoryId) => (
-            <div
-              key={categoryId}
-              ref={(node) => {
-                if (node) {
-                  categorySectionRefs.current[categoryId] = node;
-                  return;
-                }
-                delete categorySectionRefs.current[categoryId];
-              }}
-              style={{ marginBottom: 8 }}
-            >
+            <div key={categoryId} style={{ marginBottom: 8 }}>
               <div
                 onClick={() => openEntity({ entityType: 'category', id: categoryId })}
                 onDoubleClick={() => promoteCurrentTab()}
@@ -905,175 +582,6 @@ export function ElementPanel() {
         </div>
       </div>
 
-      <div
-        style={{
-          position: 'absolute',
-          right: -144,
-          top: 0,
-          height: panelHeight,
-          width: 132,
-          zIndex: 12,
-          opacity: zoomRingVisible ? 1 : 0,
-          pointerEvents: zoomRingVisible ? 'auto' : 'none',
-          transform: zoomRingVisible ? 'translateX(0)' : 'translateX(-10px)',
-          transition: 'opacity 180ms ease, transform 220ms ease',
-          display: 'flex',
-          alignItems: 'stretch',
-        }}
-        onMouseEnter={() => {
-          setZoomRingHovered(true);
-          showZoomRing();
-        }}
-        onMouseLeave={() => {
-          setZoomRingHovered(false);
-          scheduleHideZoomRing();
-        }}
-      >
-        <div
-          style={{
-            margin: '8px 0',
-            width: '100%',
-            borderRadius: 4,
-            border: '1px solid hsl(var(--rule))',
-            background: zoomRingHovered ? 'hsl(var(--surface) / 0.98)' : 'hsl(var(--surface) / 0.92)',
-            boxShadow: zoomRingHovered
-              ? '0 6px 18px hsl(var(--ink-1) / 0.12)'
-              : '0 2px 8px hsl(var(--ink-1) / 0.06)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: ZOOM_RING_COLUMN_LEFT + ZOOM_RING_AXIS_OFFSET,
-              width: 1,
-              background: 'hsl(var(--ink-4))',
-            }}
-          />
-
-          <div
-            style={{
-              position: 'absolute',
-              left: ZOOM_RING_COLUMN_LEFT + ZOOM_RING_AXIS_OFFSET - 7,
-              top: '50%',
-              width: 14,
-              height: 1,
-              background: 'hsl(var(--ink-3))',
-              transform: 'translateY(-0.5px)',
-            }}
-          />
-
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              transform: `translateY(${tickDrift}px)`,
-            }}
-          >
-            {categoryAnchors.map((anchor, index) => {
-              const nextAnchorTop = categoryAnchors[index + 1]?.anchorTop ?? zoomTrackHeight - 2;
-              const tickRegionTopBase = anchor.anchorTop + categoryBadgeHeight + 4;
-              const tickRegionBottomBase = Math.max(nextAnchorTop - 5, tickRegionTopBase + 8);
-              const tickRegionHeight = Math.max(tickRegionBottomBase - tickRegionTopBase, 8);
-              const tickRegionTop = clamp(tickRegionTopBase, 0, Math.max(zoomTrackHeight - 8, 0));
-              const isActiveCategory = activeTick?.categoryId === anchor.categoryId;
-              const activeTickIndex = isActiveCategory ? (activeTick?.elementIndex ?? -1) : -1;
-
-              return (
-                <div key={anchor.categoryId}>
-                  <button
-                    onClick={() => jumpToCategory(anchor.categoryId)}
-                    title={anchor.label}
-                    style={{
-                      position: 'absolute',
-                      top: anchor.anchorTop,
-                      left: ZOOM_RING_COLUMN_LEFT,
-                      width: ZOOM_RING_COLUMN_WIDTH,
-                      height: categoryBadgeHeight,
-                      borderRadius: 2,
-                      border: 'none',
-                      borderLeft: `2px solid ${isActiveCategory ? anchor.color : 'transparent'}`,
-                      background: isActiveCategory ? 'hsl(var(--paper-deep))' : 'transparent',
-                      color: isActiveCategory ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 9.5,
-                      fontWeight: 500,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      textAlign: 'left',
-                      padding: '0 8px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      transition: 'background 120ms ease, color 120ms ease',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 1,
-                        background: anchor.color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {anchor.label}
-                    </span>
-                  </button>
-
-                  {anchor.elementCount > 0 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: tickRegionTop,
-                        left: ZOOM_RING_COLUMN_LEFT,
-                        width: ZOOM_RING_COLUMN_WIDTH,
-                        height: tickRegionHeight,
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {Array.from({ length: anchor.elementCount }).map((_, tickIndex) => {
-                        const progress = (tickIndex + 0.5) / anchor.elementCount;
-                        const isActiveTick = activeTickIndex === tickIndex;
-                        return (
-                          <div
-                            key={`${anchor.categoryId}-${tickIndex}`}
-                            style={{
-                              position: 'absolute',
-                              left: 0,
-                              top: `${progress * 100}%`,
-                              width: isActiveTick ? 24 : 16,
-                              height: isActiveTick ? 3 : 2,
-                              borderRadius: 2,
-                              transform: 'translateY(-50%)',
-                              background: isActiveTick ? anchor.color : 'hsl(var(--ink-2))',
-                              boxShadow: isActiveTick ? `0 0 0 1px ${anchor.color}33` : 'none',
-                              opacity: isActiveTick || isActiveCategory ? 1 : 0.8,
-                              transition: 'width 100ms ease, background 100ms ease',
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

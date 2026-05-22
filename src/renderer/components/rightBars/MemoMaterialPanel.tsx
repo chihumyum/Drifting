@@ -1546,6 +1546,23 @@ type MaterialPreviewViewport = {
   panY: number;
 };
 
+function zoomMaterialPreviewAt(
+  prev: MaterialPreviewViewport,
+  scale: number,
+  anchorFromCenterX: number,
+  anchorFromCenterY: number,
+): MaterialPreviewViewport {
+  if (scale === prev.scale) return prev;
+  if (scale <= 1) return { scale: 1, panX: 0, panY: 0 };
+
+  const ratio = scale / prev.scale;
+  return {
+    scale,
+    panX: ratio * prev.panX + (1 - ratio) * anchorFromCenterX,
+    panY: ratio * prev.panY + (1 - ratio) * anchorFromCenterY,
+  };
+}
+
 function isPdfRenderCancel(error: unknown): boolean {
   return error instanceof Error && error.name === 'RenderingCancelledException';
 }
@@ -1609,13 +1626,12 @@ function MaterialFullscreenPreview({
         event.preventDefault();
         event.stopPropagation();
         const zoomFactor = Math.exp(-event.deltaY * 0.002);
+        const rect = node.getBoundingClientRect();
+        const anchorFromCenterX = event.clientX - rect.left - rect.width / 2;
+        const anchorFromCenterY = event.clientY - rect.top - rect.height / 2;
         setViewport((prev) => {
           const scale = clampMaterialPreviewScale(prev.scale * zoomFactor);
-          return {
-            scale,
-            panX: scale === 1 ? 0 : prev.panX,
-            panY: scale === 1 ? 0 : prev.panY,
-          };
+          return zoomMaterialPreviewAt(prev, scale, anchorFromCenterX, anchorFromCenterY);
         });
         return;
       }
@@ -1905,8 +1921,12 @@ function PdfCanvasPreview({
     };
   }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width]);
 
-  const goToPreviousPage = () => setPageNumber((page) => Math.max(1, page - 1));
-  const goToNextPage = () => setPageNumber((page) => Math.min(pageCount, page + 1));
+  const goToPreviousPage = useCallback(() => {
+    setPageNumber((page) => Math.max(1, page - 1));
+  }, []);
+  const goToNextPage = useCallback(() => {
+    setPageNumber((page) => Math.min(pageCount, page + 1));
+  }, [pageCount]);
 
   // ←/→ flip pages while the preview is mounted. Skip when the user is
   // typing somewhere (defensive — no inputs live inside this overlay today,
@@ -1924,7 +1944,7 @@ function PdfCanvasPreview({
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [pdfDocument, pageCount]);
+  }, [pdfDocument, pageCount, goToPreviousPage, goToNextPage]);
 
   return (
     <div
