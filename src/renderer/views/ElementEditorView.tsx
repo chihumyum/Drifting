@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
+import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -95,8 +96,11 @@ export function ElementEditorView({
     projectId: projectId ?? '',
     content: curElement?.contentJson ?? null,
     onPersist: handlePersist,
-    autoFocus: true,
     placeholder: '记 · 传——写此元素的来历、形貌、心性…',
+    selectionKey:
+      projectId && curElement
+        ? editorTabSelectionKey(projectId, { entityType: 'element', id: curElement.id })
+        : null,
   });
 
   // Outline = headings extracted live from the body editor. Built before

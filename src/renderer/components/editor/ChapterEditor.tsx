@@ -49,6 +49,7 @@ interface ChapterEditorProps {
   autoFocus?: boolean;
   minHeight?: string;
   compact?: boolean; // 紧凑模式，用于多章节显示
+  selectionKey?: string | null;
 }
 
 export interface ChapterEditorRef {
@@ -75,6 +76,7 @@ export function ChapterEditor({
   autoFocus = false,
   minHeight = '300px',
   compact = false,
+  selectionKey,
 }: ChapterEditorProps) {
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
@@ -142,6 +144,7 @@ export function ChapterEditor({
     onEntityClick,
     autoFocus,
     minHeight,
+    selectionKey,
     slashExtraItems: [
       {
         id: 'patch',

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -15,6 +15,7 @@ import { ElementEditorView } from '../../views/ElementEditorView';
 import { CategoryEditorView } from '../../views/CategoryEditorView';
 import { AllChaptersEditorView } from '../../views/AllChaptersEditorView';
 import { ProjectDashboard } from '../../views/ProjectDashboard';
+import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
 
 // EditorMainArea sits where <Outlet /> used to be. Its job is to decide
 // whether the editor surface should render a single matched route element
@@ -51,6 +52,11 @@ export function EditorMainArea() {
   const isSplit = activeTab?.kind === 'split';
   const split = isSplit ? (activeTab as SplitTab) : null;
   const hasNoTabs = openTabs.length === 0;
+
+  useEffect(() => {
+    if (!projectId) return;
+    pruneEditorSelectionMemory(projectId, openTabs);
+  }, [projectId, openTabs]);
 
   // Drag-to-split overlay state. `dropSide` is null when no tab drag is in
   // progress over the surface, otherwise indicates which half is hot.
@@ -353,4 +359,3 @@ function DropOverlay({ side }: { side: 'left' | 'right' }) {
     </div>
   );
 }
-

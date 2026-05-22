@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { usePromoteCurrentTab } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
+import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 function toRoman(n: number): string {
@@ -552,8 +553,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   showSummary={true}
                   editableTitle={true}
                   editableSummary={true}
-                  autoFocus={true}
+                  autoFocus={false}
                   minHeight="400px"
+                  selectionKey={editorTabSelectionKey(activeProjectId, {
+                    entityType: 'node',
+                    id: nodeId,
+                  })}
                 />
 
                 <div className="page__ornament" aria-hidden="true">⁂</div>

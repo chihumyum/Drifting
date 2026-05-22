@@ -13,6 +13,7 @@ import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy'
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
+import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 
@@ -132,6 +133,9 @@ export function CategoryEditorView({
     content: curCategory?.descriptionJson ?? null,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
+    selectionKey: curCategory
+      ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })
+      : null,
   });
 
   // Two-block TOC: outer (frameworkItems) = static section anchors —

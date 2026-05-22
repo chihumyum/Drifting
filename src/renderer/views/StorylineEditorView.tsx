@@ -12,6 +12,7 @@ import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy'
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
+import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('StorylineEditorView');
@@ -117,6 +118,9 @@ export function StorylineEditorView({
     content: currentStoryline?.descriptionJson ?? null,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本线的速记、浮缀、风格备忘…',
+    selectionKey: currentStoryline
+      ? editorTabSelectionKey(projectId, { entityType: 'storyline', id: currentStoryline.id })
+      : null,
   });
 
   // Two-block TOC: outer (frameworkItems) = static section anchors —

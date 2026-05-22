@@ -34,6 +34,13 @@ import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
 import { useRegisterActiveEditor } from './useRegisterActiveEditor';
 import { events } from '../lib/events';
+import {
+  getEditorSelectionSnapshot,
+  hasEditorSelectionSnapshot,
+  moveEditorSelectionToStart,
+  restoreEditorSelectionSnapshot,
+  saveEditorSelectionSnapshot,
+} from '../lib/editor-selection-memory';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
@@ -98,6 +105,10 @@ export interface UseEntityEditorConfig {
   placeholder?: string;
   editorClass?: string;
   minHeight?: string;
+
+  // Optional top-level tab selection key. Popovers / virtualized editors leave
+  // this unset so their transient caret positions don't focus newly-opened tabs.
+  selectionKey?: string | null;
 }
 
 export interface UseEntityEditorResult {
@@ -137,6 +148,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     placeholder,
     editorClass,
     minHeight,
+    selectionKey,
   } = config;
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId });
@@ -144,6 +156,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const slashExtraItemsRef = useLatestRef(slashExtraItems);
   const enableMarkdownExportRef = useLatestRef(enableMarkdownExport);
   const onEntityClickRef = useLatestRef(onEntityClick);
+  const selectionKeyRef = useLatestRef(selectionKey ?? null);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -289,6 +302,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     sourceKind: null,
     sourceId: null,
   });
+  const suppressSelectionSaveRef = useRef(false);
 
   // Live outline derived from the editor doc. Recomputed on every update and
   // once on load. Cheap because we already have the JSON in hand; if this
@@ -313,6 +327,26 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       onPersistRef.current(editor);
     },
     [onPersistRef, projectReferences, recomputeOutline],
+  );
+
+  const saveSelection = useCallback(
+    (ed: Editor, options?: { force?: boolean }) => {
+      const key = selectionKeyRef.current;
+      if (!key || ed.isDestroyed) return;
+      if (suppressSelectionSaveRef.current) return;
+      const source = sourceRef.current;
+      if (
+        loadedTokenRef.current.editor !== ed ||
+        loadedTokenRef.current.projectId !== source.projectId ||
+        loadedTokenRef.current.sourceKind !== source.sourceKind ||
+        loadedTokenRef.current.sourceId !== source.sourceId
+      ) {
+        return;
+      }
+      if (!options?.force && !ed.isFocused && !hasEditorSelectionSnapshot(key)) return;
+      saveEditorSelectionSnapshot(key, ed, true);
+    },
+    [selectionKeyRef, sourceRef],
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {
@@ -405,6 +439,13 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           return;
         }
         persistEditorContent(ed);
+        saveSelection(ed);
+      },
+      onSelectionUpdate: ({ editor: ed }) => {
+        saveSelection(ed);
+      },
+      onBlur: ({ editor: ed }) => {
+        saveSelection(ed, { force: true });
       },
     },
     [
@@ -413,6 +454,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       autoFocus,
       editorClass,
       minHeight,
+      saveSelection,
     ],
   );
 
@@ -429,6 +471,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   // editor" is the editor itself once loaded.
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
+    let outlineFrame = 0;
     const source = sourceRef.current;
     if (
       loadedTokenRef.current.editor === editor &&
@@ -452,14 +495,40 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       // user's next edit.
       projectReferences(editor);
       // Seed the live outline so the left TOC reflects existing headings
-      // before the user makes any edits.
-      recomputeOutline(editor);
+      // before the user makes any edits, without synchronously setting React
+      // state from the effect body.
+      outlineFrame = requestAnimationFrame(() => {
+        if (!editor.isDestroyed) {
+          recomputeOutline(editor);
+        }
+      });
+      const selectionSnapshot = getEditorSelectionSnapshot(selectionKeyRef.current);
+      if (selectionSnapshot) {
+        restoreEditorSelectionSnapshot(selectionKeyRef.current, editor);
+      } else if (!autoFocus) {
+        suppressSelectionSaveRef.current = true;
+        moveEditorSelectionToStart(editor);
+        editor.commands.blur();
+        requestAnimationFrame(() => {
+          suppressSelectionSaveRef.current = false;
+        });
+      }
     } catch (error) {
       log.warn('Failed to load entity editor content:', error);
     }
+    return () => {
+      if (outlineFrame) cancelAnimationFrame(outlineFrame);
+    };
     // content is intentionally NOT in deps — see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, projectId, sourceKind, sourceId, projectReferences, recomputeOutline]);
+
+  useEffect(() => {
+    return () => {
+      if (!editor || editor.isDestroyed) return;
+      saveSelection(editor);
+    };
+  }, [editor, projectId, sourceKind, sourceId, saveSelection]);
 
   // Register with the global active-editor registry: Cmd+F finds this
   // instance, Cmd+S runs the same persistence path as onUpdate.
