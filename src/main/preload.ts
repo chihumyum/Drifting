@@ -7,6 +7,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
   getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),
 
+  // Cmd+Q safety: the main process pings us right before terminating so the
+  // renderer can drain pending writes (active editor save, sync queue, etc.).
+  // Renderer subscribes via `onFlushBeforeQuit`; the unsubscribe fn it gets
+  // back is rarely used (the app is on its way out), but matches our other
+  // listener APIs. Call `confirmFlushBeforeQuit()` once flushes resolve to
+  // release the main process so it can quit immediately.
+  onFlushBeforeQuit: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on('app:flush-before-quit', handler);
+    return () => ipcRenderer.removeListener('app:flush-before-quit', handler);
+  },
+  confirmFlushBeforeQuit: () => ipcRenderer.send('app:flush-before-quit-done'),
+
   // Window controls
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -81,6 +94,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 export interface ElectronAPI {
   getVersion: () => Promise<string>;
   getPath: (name: string) => Promise<string>;
+  onFlushBeforeQuit: (callback: () => void) => () => void;
+  confirmFlushBeforeQuit: () => void;
   window: {
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;

@@ -45,6 +45,8 @@ import { startPreferencesSync } from './services/preferences-sync.service';
 import { startSyncObserver } from './services/sync-observer.service';
 import { matchesAccelerator } from './lib/shortcuts';
 import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
+import { forceFlush as forceFlushEntitySync } from './services/entity-sync.service';
+import { flushPreferencesSync } from './services/preferences-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useAuthStore } from './store/auth';
@@ -55,6 +57,7 @@ import { useElementCategory } from './usecase/useElementCategory';
 import { useBookMemo } from './usecase/useBookMemo';
 import { useBookMaterial } from './usecase/useBookMaterial';
 import { useEntityRelations } from './usecase/useEntityRelations';
+import { useManuscriptComment } from './usecase/useManuscriptComment';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
@@ -197,6 +200,7 @@ function Layout() {
   const memoUsecases = useBookMemo({ projectId: projectId, userId: userId });
   const materialUsecases = useBookMaterial({ projectId: projectId, userId: userId });
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
+  const commentUsecases = useManuscriptComment({ projectId: projectId, userId: userId });
 
   // Reset ready state when project or user changes
   useEffect(() => {
@@ -265,6 +269,7 @@ function Layout() {
   const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
   const focusLine = useSettingsStore((s) => s.focusLine);
   const entityHighlight = useSettingsStore((s) => s.entityHighlight);
+  const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
   const marginNotes = useSettingsStore((s) => s.marginNotes);
   useEffect(() => {
     applyEditorPreferences({
@@ -274,6 +279,7 @@ function Layout() {
       paragraphIndent,
       focusLine,
       entityHighlight,
+      entityLinkInteractive,
       marginNotes,
     });
   }, [
@@ -283,6 +289,7 @@ function Layout() {
     paragraphIndent,
     focusLine,
     entityHighlight,
+    entityLinkInteractive,
     marginNotes,
   ]);
 
@@ -321,6 +328,7 @@ function Layout() {
           memoUsecases.loadInitial(),
           materialUsecases.loadInitial(),
           relationUsecases.loadInitial(),
+          commentUsecases.loadInitial(),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
@@ -355,6 +363,7 @@ function Layout() {
     memoUsecases,
     materialUsecases,
     relationUsecases,
+    commentUsecases,
   ]); // Re-init when projectId or user changes
 
   // listen for left topbar events
@@ -571,6 +580,53 @@ function Layout() {
         setFindPanelEditor(null);
       }
     });
+  }, []);
+
+  // Cmd+Q safety net. Main pings before terminating; we synchronously push the
+  // active editor's latest state (writes the SQLite row immediately) then
+  // await the sync-queue / preferences flushes. `confirmFlushBeforeQuit`
+  // releases main as soon as we're done, but main also has its own 2s timer
+  // so a hung flush can't block the quit indefinitely.
+  // Also listen on `beforeunload` so a window reload / close path still
+  // flushes the active editor (best-effort — `beforeunload` is sync).
+  useEffect(() => {
+    const flush = async () => {
+      try {
+        saveActiveEditor();
+      } catch (error) {
+        log.warn('[App] saveActiveEditor during flush failed:', error);
+      }
+      await Promise.allSettled([
+        forceFlushEntitySync(),
+        flushPreferencesSync(),
+      ]);
+    };
+
+    const unsubscribe = window.electronAPI?.onFlushBeforeQuit?.(() => {
+      void flush().finally(() => {
+        try {
+          window.electronAPI?.confirmFlushBeforeQuit?.();
+        } catch (error) {
+          log.warn('[App] confirmFlushBeforeQuit failed:', error);
+        }
+      });
+    });
+
+    const onBeforeUnload = () => {
+      // Synchronous best-effort path — pushes active editor state through
+      // the persistence pipeline before the window actually tears down.
+      try {
+        saveActiveEditor();
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      unsubscribe?.();
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
   }, []);
 
   if (!dbReady) {

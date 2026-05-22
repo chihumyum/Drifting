@@ -101,6 +101,11 @@ async function handleDeepLink(url: string) {
 }
 
 let mainWindow: BrowserWindow | null = null;
+// Set to true once the renderer has acknowledged flushing pending writes
+// (or the safety timer has elapsed). Required so the second `before-quit`
+// emission — triggered by our re-entrant `app.quit()` call below — short
+// circuits instead of looping forever.
+let quitFlushDone = false;
 
 const createWindow = () => {
   // Create the browser window
@@ -163,6 +168,43 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Pre-quit flush. Cmd+Q (and any other path that ends in `app.quit()`)
+// triggers `before-quit` before windows start closing. We give the renderer
+// a chance to drain its in-flight writes — active editor → DB persist plus
+// the debounced server-sync queue — before letting Electron shut everything
+// down. A 2s timer guarantees we never hang the quit indefinitely.
+app.on('before-quit', (event) => {
+  if (quitFlushDone) return;
+  const target = mainWindow;
+  if (!target || target.isDestroyed() || target.webContents.isDestroyed()) {
+    quitFlushDone = true;
+    return;
+  }
+  event.preventDefault();
+
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    quitFlushDone = true;
+    ipcMain.removeListener('app:flush-before-quit-done', finish);
+    app.quit();
+  };
+
+  const timer = setTimeout(finish, 2000);
+  ipcMain.once('app:flush-before-quit-done', () => {
+    clearTimeout(timer);
+    finish();
+  });
+
+  try {
+    target.webContents.send('app:flush-before-quit');
+  } catch {
+    clearTimeout(timer);
+    finish();
   }
 });
 
