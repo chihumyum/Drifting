@@ -1263,8 +1263,8 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
-  const uiSerif = useSettingsStore((s) => s.uiSerif);
-  const setUiSerif = useSettingsStore((s) => s.setUiSerif);
+  const manuscriptSans = useSettingsStore((s) => s.manuscriptSans);
+  const setManuscriptSans = useSettingsStore((s) => s.setManuscriptSans);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
@@ -1323,9 +1323,9 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
         />
 
         <Row
-          label="全局衬线字体"
-          desc="把整个界面的无衬线字体换成衬线（书面体）。仅影响 UI，编辑器与等宽字段保持原样。"
-          control={<Toggle on={uiSerif} onChange={setUiSerif} />}
+          label="正文使用无衬线字体"
+          desc="把正文、章节页面与其他衬线（书面体）一律切到无衬线。UI 本身已是无衬线，开关不会影响它。"
+          control={<Toggle on={manuscriptSans} onChange={setManuscriptSans} />}
         />
       </div>
 

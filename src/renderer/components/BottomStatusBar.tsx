@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Home } from 'lucide-react';
 import { useUiStore, usePromoteCurrentTab } from '../store/ui-store';
-import { useSettingsStore } from '../store/settings-store';
-import { setTypewriterMode } from '../lib/typewriter-mode';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import {
   IcebergIcon,
@@ -36,14 +33,6 @@ export function BottomStatusBar() {
 
   const shadowMode = useUiStore((s) => s.shadowMode);
   const toggleShadowMode = useUiStore((s) => s.toggleShadowMode);
-
-  const typewriterMode = useSettingsStore((s) => s.typewriterMode);
-  const setTypewriter = useSettingsStore((s) => s.setTypewriterMode);
-  // Keep the real DOM-side hook in sync with the persisted setting. Runs
-  // once on mount so a writer who left it on yesterday gets it back today.
-  useEffect(() => {
-    setTypewriterMode(typewriterMode);
-  }, [typewriterMode]);
 
   // Nav-icon clicks should ALWAYS land the user on the navigated route —
   // when a super view is overlaying the editor, clicking Home / 通览全书
@@ -112,20 +101,6 @@ export function BottomStatusBar() {
       </button>
 
       <div className="bsb__spacer" />
-
-      <button
-        type="button"
-        className={`bsb__seg bsb__tool${typewriterMode ? ' is-active' : ''}`}
-        onClick={() => setTypewriter(!typewriterMode)}
-        title={typewriterMode ? '关闭打字机模式' : '开启打字机模式（光标常居中）'}
-        aria-label="Typewriter mode"
-      >
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1 }}>≡</span>
-        <span>Typewriter</span>
-      </button>
-
-      <WritingTimer />
-
       <button
         type="button"
         className={`bsb__seg bsb__shadow${shadowMode ? ' is-active' : ''}`}
@@ -167,85 +142,5 @@ export function BottomStatusBar() {
         <span>Timeline</span>
       </button>
     </div>
-  );
-}
-
-// ─── Writing Timer ───────────────────────────────────────────────
-// Click cycles start → pause → resume. Right-click resets to 00:00.
-// State lives in-component because BottomStatusBar is always mounted at
-// the Layout level — navigating between tabs / projects doesn't unmount
-// it, so a single ref persists for the life of the session. A page
-// reload wipes it (intentional — sessions shouldn't span reloads).
-function WritingTimer() {
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [running, setRunning] = useState(false);
-  // Start instant of the *current* run segment. When paused, we bank the
-  // segment into `elapsedMs` and clear this; on resume we set it to now.
-  const startedAtRef = useRef<number | null>(null);
-  // Render driver — bumped once per second while running so the display
-  // refreshes. We avoid storing `displayMs` in state because the source
-  // of truth is wall-clock; reading it on render is exact.
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    if (!running) return undefined;
-    startedAtRef.current = Date.now();
-    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [running]);
-
-  const liveDelta =
-    running && startedAtRef.current != null ? Date.now() - startedAtRef.current : 0;
-  const totalMs = elapsedMs + liveDelta;
-
-  const toggle = useCallback(() => {
-    setRunning((cur) => {
-      if (cur && startedAtRef.current != null) {
-        // Pausing — bank the current segment.
-        const bank = Date.now() - startedAtRef.current;
-        setElapsedMs((prev) => prev + bank);
-        startedAtRef.current = null;
-        return false;
-      }
-      return true;
-    });
-  }, []);
-
-  const reset = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setRunning(false);
-    startedAtRef.current = null;
-    setElapsedMs(0);
-  }, []);
-
-  const sec = Math.floor(totalMs / 1000);
-  const hh = Math.floor(sec / 3600);
-  const mm = Math.floor((sec % 3600) / 60);
-  const ss = sec % 60;
-  const display =
-    hh > 0
-      ? `${String(hh)}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-      : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-
-  return (
-    <button
-      type="button"
-      className={`bsb__seg bsb__tool bsb__timer${running ? ' is-active' : ''}`}
-      onClick={toggle}
-      onContextMenu={reset}
-      title={
-        running
-          ? '点击暂停 · 右键归零'
-          : totalMs > 0
-            ? '点击继续 · 右键归零'
-            : '点击开始计时 · 右键归零'
-      }
-      aria-label="Writing timer"
-    >
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1 }}>
-        {running ? '◉' : '○'}
-      </span>
-      <span style={{ fontFeatureSettings: '"tnum"' }}>{display}</span>
-    </button>
   );
 }

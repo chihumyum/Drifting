@@ -75,11 +75,12 @@
     --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
-  /* `Settings → Appearance → 全局衬线` collapses the UI sans stack into the
-     literary serif stack. Mono stays untouched so kickers / metric digits
-     keep their own typographic voice. */
-  html[data-ui-serif='on'] {
-    --font-sans: 'Newsreader', 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+  /* `Settings → Appearance → 正文使用无衬线` collapses the serif stack into
+     the sans stack. Affects every surface that draws from `--font-serif`
+     (editor body, page titles, dashboard literary glyphs, …). UI surfaces
+     that already use `--font-sans` aren't touched. */
+  html[data-manuscript-sans='on'] {
+    --font-serif: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
   }
 
   .dark {

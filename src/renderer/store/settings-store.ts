@@ -48,17 +48,13 @@ interface SettingsState {
   setShadowAffectsTheme: (on: boolean) => void;
   animationsEnabled: boolean;
   setAnimationsEnabled: (on: boolean) => void;
-  // When on, the UI sans stack collapses into the literary serif stack —
-  // gives the whole shell a single-typeface "manuscript" look. Only the
-  // mono stack (kickers / metrics) and the editor body keep their own
-  // families. App.tsx pipes this into a `--font-sans` override on <html>.
-  uiSerif: boolean;
-  setUiSerif: (on: boolean) => void;
-  // Typewriter mode — keeps the caret pinned near the vertical centre of
-  // the editor scroll container while typing. Persists across sessions so
-  // a writer who likes the feel doesn't have to flip it on every launch.
-  typewriterMode: boolean;
-  setTypewriterMode: (on: boolean) => void;
+  // When on, anything that draws from the literary serif stack (manuscript
+  // body, page titles, dashboard glyphs, etc.) collapses into the sans
+  // stack — gives the whole app a uniform sans look. UI surfaces that
+  // already use sans aren't affected. App.tsx pipes this into a
+  // `--font-serif` override on <html>.
+  manuscriptSans: boolean;
+  setManuscriptSans: (on: boolean) => void;
 
   // 编辑器
   bodyFontSize: number;
@@ -169,10 +165,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowAffectsTheme: (on) => set({ shadowAffectsTheme: on }),
       animationsEnabled: true,
       setAnimationsEnabled: (on) => set({ animationsEnabled: on }),
-      uiSerif: false,
-      setUiSerif: (on) => set({ uiSerif: on }),
-      typewriterMode: false,
-      setTypewriterMode: (on) => set({ typewriterMode: on }),
+      manuscriptSans: false,
+      setManuscriptSans: (on) => set({ manuscriptSans: on }),
 
       bodyFontSize: 17,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),

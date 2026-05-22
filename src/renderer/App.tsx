@@ -216,7 +216,7 @@ function Layout() {
   const shadowMode = useUiStore((state) => state.shadowMode);
   const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
   const animationsEnabled = useSettingsStore((state) => state.animationsEnabled);
-  const uiSerif = useSettingsStore((state) => state.uiSerif);
+  const manuscriptSans = useSettingsStore((state) => state.manuscriptSans);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -256,14 +256,16 @@ function Layout() {
     else root.setAttribute('data-no-anim', 'on');
   }, [animationsEnabled]);
 
-  // Serif-UI master switch: redefines the sans CSS var on <html> to point at
-  // the serif stack. Every UI surface that reads `var(--font-sans)` flips
-  // automatically — see index.css.
+  // Manuscript-sans master switch: redefines the serif CSS var on <html>
+  // to point at the sans stack. Every literary surface that reads
+  // `var(--font-serif)` (editor body, page titles, dashboard glyphs, …)
+  // flips automatically. UI surfaces that already use `--font-sans`
+  // aren't affected. See index.css.
   useEffect(() => {
     const root = document.documentElement;
-    if (uiSerif) root.setAttribute('data-ui-serif', 'on');
-    else root.removeAttribute('data-ui-serif');
-  }, [uiSerif]);
+    if (manuscriptSans) root.setAttribute('data-manuscript-sans', 'on');
+    else root.removeAttribute('data-manuscript-sans');
+  }, [manuscriptSans]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
