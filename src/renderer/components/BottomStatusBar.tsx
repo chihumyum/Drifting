@@ -1,6 +1,12 @@
-import { Home, BookText, Layers, Network, BookOpen } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { useUiStore, usePromoteCurrentTab } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import {
+  IcebergIcon,
+  AllChaptersIcon,
+  AllRefsIcon,
+  GraphViewIcon,
+} from './BottomStatusBarIcons';
 import '../../styles/bottom-status-bar.css';
 
 // BottomStatusBar — always-visible compact footer. Hosts the project-global
@@ -59,7 +65,7 @@ export function BottomStatusBar() {
         title="通览全书"
         aria-label="通览全书"
       >
-        <BookText size={11} strokeWidth={1.6} />
+        <AllChaptersIcon size={14} />
       </button>
 
       <button
@@ -69,7 +75,7 @@ export function BottomStatusBar() {
         title="Elements"
         aria-label="Elements"
       >
-        <Layers size={11} strokeWidth={1.6} />
+        <IcebergIcon size={14} />
       </button>
       <button
         type="button"
@@ -78,7 +84,7 @@ export function BottomStatusBar() {
         title="Graph"
         aria-label="Graph"
       >
-        <Network size={11} strokeWidth={1.6} />
+        <GraphViewIcon size={14} />
       </button>
       <button
         type="button"
@@ -87,7 +93,7 @@ export function BottomStatusBar() {
         title="References"
         aria-label="References"
       >
-        <BookOpen size={11} strokeWidth={1.6} />
+        <AllRefsIcon size={14} />
       </button>
 
       <div className="bsb__spacer" />
