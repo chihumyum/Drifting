@@ -394,7 +394,6 @@ export function NodesPanel() {
                       color: 'hsl(var(--ink-4))',
                       cursor: 'pointer',
                       padding: 0,
-                      opacity: 0,
                       transition: 'opacity 0.12s, background 0.12s, color 0.12s',
                     }}
                     onMouseEnter={(e) => {
@@ -434,6 +433,7 @@ export function NodesPanel() {
 
       {/* Reveal the per-group + button on hover (no extra chrome at rest). */}
       <style>{`
+        .left-sb-group-add { opacity: 0; }
         .left-sb-group:hover .left-sb-group-add { opacity: 1; }
         .left-panel-scroll-hidden { scrollbar-width: none; }
         .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
