@@ -50,6 +50,8 @@ import { flushPreferencesSync } from './services/preferences-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useAuthStore } from './store/auth';
+import { useDataStore } from './store/data-store';
+import { useWritingStatsStore } from './store/writing-stats-store';
 import { useBookNode } from './usecase/useBookNode';
 import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
@@ -262,6 +264,22 @@ function Layout() {
     if (uiSerif) root.setAttribute('data-ui-serif', 'on');
     else root.removeAttribute('data-ui-serif');
   }, [uiSerif]);
+
+  // Writing-stats recorder. Subscribes directly to the data store so it ticks
+  // regardless of which view is mounted — without this, snapshots would only
+  // refresh when the user happened to load the dashboard. Throttled in the
+  // store itself (a no-op when today's total is unchanged), so the listener
+  // can fire on every keystroke without blowing up localStorage writes.
+  useEffect(() => {
+    if (!projectId) return undefined;
+    const tick = () => {
+      const nodes = useDataStore.getState().bookNodes;
+      const total = nodes.reduce((sum, n) => sum + (n.wordCount || 0), 0);
+      useWritingStatsStore.getState().recordTotalWords(projectId, total);
+    };
+    tick(); // seed on mount so today's snapshot exists even before any edit.
+    return useDataStore.subscribe(tick);
+  }, [projectId]);
 
   // UI locale → i18next
   const uiLocale = useSettingsStore((state) => state.uiLocale);

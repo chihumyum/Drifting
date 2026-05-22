@@ -2,11 +2,15 @@ import { useCallback, useMemo, useState } from 'react';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';
 import { useProject } from '../usecase/useProject';
+import { useElementCategory } from '../usecase/useElementCategory';
 import { useAuthStore } from '../store/auth';
 import { useProjectStore } from '../store/project-store';
+import { useUiStore } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
+import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
+import type { BookNode, WritingStatus } from '../domain/book-node';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -33,11 +37,22 @@ function resolveColor(rawColor: string | undefined, fallbackKey: string): string
   return `hsl(var(${hashToToken(fallbackKey)}))`;
 }
 
-// TODO: replace with real per-node status once the schema tracks done/draft/todo.
-type DerivedStatus = 'done' | 'draft' | 'todo';
-function deriveStatus(wordCount: number): DerivedStatus {
-  if (wordCount >= 2000) return 'done';
-  if (wordCount > 0) return 'draft';
+// Buckets the dashboard cares about: done / draft / todo. Maps real
+// writingStatus values (BookNode) so the chips reflect the user's
+// explicit choices rather than guessing from word count.
+//   finished       → done
+//   waiting_review / revising / draft (with content) → draft
+//   draft (no content yet)        → todo
+//   discarded                     → not surfaced here (set-aside)
+//   drift statuses (drifting/resting) — only seen on drift nodes, which
+//   are filtered out of the dashboard before this is called.
+type DerivedStatus = 'done' | 'draft' | 'todo' | 'discarded';
+function deriveStatus(node: { writingStatus: WritingStatus; wordCount: number }): DerivedStatus {
+  const s = node.writingStatus;
+  if (s === 'finished') return 'done';
+  if (s === 'discarded') return 'discarded';
+  if (s === 'draft' && (node.wordCount || 0) === 0) return 'todo';
+  if (s === 'draft' || s === 'waiting_review' || s === 'revising') return 'draft';
   return 'todo';
 }
 
@@ -56,19 +71,34 @@ function formatRelativeTime(iso: string): string {
 }
 
 export function ProjectDashboard() {
-  const { projectId, openEntity } = useProjectNavigation();
+  const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
   const { storylines, bookElements, bookElementCategories, bookNodes, storylineNodeMapping } =
     useDataStore();
   const recentItems = useRecentEntitiesStore((s) => s.items);
+  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+
+  // Writing plan + per-day stats are stored alongside settings (localStorage)
+  // so they survive app restarts but don't require a SQLite migration.
+  const writingHistory = useWritingStatsStore((s) => s.history[projectId ?? ''] ?? undefined);
+  const writingPlans = useWritingStatsStore((s) => s.plans);
+  const setProjectWordTarget = useWritingStatsStore((s) => s.setProjectWordTarget);
+  const setDailyWordGoal = useWritingStatsStore((s) => s.setDailyWordGoal);
+  const projectPlan = projectId
+    ? (writingPlans[projectId] ?? { projectWordTarget: 120000, dailyWordGoal: 1500 })
+    : { projectWordTarget: 120000, dailyWordGoal: 1500 };
 
   const { createStoryline } = useStoryline({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
   const { updateProject } = useProject({ userId: userId ?? '' });
+  const { createCategory } = useElementCategory({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
 
   // Project-level KV / template KV editors. Both write through updateProject
   // which short-circuits no-op writes inside the usecase, so we can hand the
@@ -101,18 +131,32 @@ export function ProjectDashboard() {
   const [chip, setChip] = useState<'all' | 'draft' | 'todo' | 'done'>('all');
 
   // ─── Hero / aggregate stats ────────────────────────────
-  const totalNodes = bookNodes.length;
-  const totalWc = bookNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
-  // TODO: surface project target word count from settings; placeholder 120k.
-  const targetWc = 120000;
+  // Dashboard treats drift nodes as out-of-band (they live in their own
+  // panel) — filter before counting so totals match what the storylines
+  // grid actually shows.
+  const chapterNodes = useMemo(
+    () => bookNodes.filter((n) => n.mainStorylineId != null),
+    [bookNodes],
+  );
+  const totalNodes = chapterNodes.length;
+  const totalWc = chapterNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
+  const targetWc = projectPlan.projectWordTarget || 0;
 
-  // TODO: derive done/draft/todo from a real status field once added to BookNode.
-  const nodeStatuses = useMemo(() => bookNodes.map((n) => deriveStatus(n.wordCount || 0)), [bookNodes]);
+  const nodeStatuses = useMemo(() => chapterNodes.map((n) => deriveStatus(n)), [chapterNodes]);
   const doneNodes = nodeStatuses.filter((s) => s === 'done').length;
   const draftNodes = nodeStatuses.filter((s) => s === 'draft').length;
   const todoNodes = nodeStatuses.filter((s) => s === 'todo').length;
   const donePct = totalNodes ? Math.round((doneNodes / totalNodes) * 100) : 0;
   const draftPctTtl = totalNodes ? Math.round(((doneNodes + draftNodes) / totalNodes) * 100) : 0;
+
+  // ─── Writing stats (today / week / streak) ─────────────
+  const writingStats = useMemo(
+    () => deriveWritingStats(writingHistory, totalWc),
+    [writingHistory, totalWc],
+  );
+  const dailyGoal = projectPlan.dailyWordGoal || 0;
+  const todayGoalPct = dailyGoal > 0 ? Math.min(100, (writingStats.todayWords / dailyGoal) * 100) : 0;
+  const projectGoalPct = targetWc > 0 ? Math.min(100, (totalWc / targetWc) * 100) : 0;
 
   // ─── Continue card — most recent node ──────────────────
   const continueNode = useMemo(() => {
@@ -145,8 +189,8 @@ export function ProjectDashboard() {
         const sNodes = nodeIds
           .map((nid) => bookNodes.find((n) => n.id === nid))
           .filter((n): n is NonNullable<typeof n> => Boolean(n));
-        const done = sNodes.filter((n) => deriveStatus(n.wordCount || 0) === 'done').length;
-        const draft = sNodes.filter((n) => deriveStatus(n.wordCount || 0) === 'draft').length;
+        const done = sNodes.filter((n) => deriveStatus(n) === 'done').length;
+        const draft = sNodes.filter((n) => deriveStatus(n) === 'draft').length;
         const todo = sNodes.length - done - draft;
         const wc = sNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
         return {
@@ -200,17 +244,31 @@ export function ProjectDashboard() {
     }
   };
 
+  const handleCreateCategory = async () => {
+    try {
+      const created = await createCategory({});
+      openEntity({ entityType: 'category', id: created.id }, { preview: false });
+    } catch (e) {
+      log.error('Failed to create element category', e);
+    }
+  };
+
+  const openStoryGraph = () => setActiveSuperView('graph');
+  const openElementOverview = () => setActiveSuperView('element');
+  const openAllChapters = () => navigateToAllChapters();
+
   const todayDateLabel = new Date().toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
     weekday: 'long',
   });
 
-  // TODO: real activity log not yet wired. Placeholder feed derived from
-  // the most-recently-updated nodes so the surface isn't fully empty.
+  // Recent activity feed — derived from the most-recently-updated chapter
+  // nodes (drifts excluded; they have their own panel). Acts as a "what did
+  // I last touch" surface until a proper activity log lands.
   const recentActivity = useMemo(() => {
-    return [...bookNodes]
-      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+    return [...chapterNodes]
+      .sort((a: BookNode, b: BookNode) => (a.updatedAt < b.updatedAt ? 1 : -1))
       .slice(0, 6)
       .map((n) => {
         const sl = storylines.find((s) => s.id === n.mainStorylineId);
@@ -225,7 +283,7 @@ export function ProjectDashboard() {
           accent: sl ? resolveColor(sl.color, sl.id) : 'hsl(var(--accent))',
         };
       });
-  }, [bookNodes, storylines]);
+  }, [chapterNodes, storylines]);
 
   return (
     <div className="dash">
@@ -277,7 +335,9 @@ export function ProjectDashboard() {
                 <span className="dash-hero__metric-k">Words · 已写</span>
                 <span className="dash-hero__metric-v">
                   {(totalWc / 1000).toFixed(1)}
-                  <em>k / {targetWc / 1000}k</em>
+                  <em>
+                    k{targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''}
+                  </em>
                 </span>
               </div>
               <div className="dash-hero__metric">
@@ -309,9 +369,15 @@ export function ProjectDashboard() {
               </div>
             </div>
             <div className="dash-hero__btns">
-              {/* TODO: hook ⌬ 叙事图 to story graph view once route exists from this page. */}
-              <button className="dash-hero__btn">⌬ 叙事图</button>
-              <button className="dash-hero__btn">⊞ 总览</button>
+              <button className="dash-hero__btn" onClick={openStoryGraph}>
+                ⌬ 叙事图
+              </button>
+              <button className="dash-hero__btn" onClick={openElementOverview}>
+                ⊞ 元素总览
+              </button>
+              <button className="dash-hero__btn" onClick={openAllChapters}>
+                ☷ 通览全书
+              </button>
               <button
                 className="dash-hero__btn dash-hero__btn--primary"
                 onClick={handleCreateStoryline}
@@ -418,35 +484,40 @@ export function ProjectDashboard() {
             <div className="dash-today__kicker">TODAY · 今日</div>
             <div className="dash-today__date">{todayDateLabel}</div>
             <div className="dash-today__main">
-              {/* TODO: real today's word count comes from a writing-session log we don't yet have. */}
-              <span className="dash-today__big">—</span>
+              <span className="dash-today__big">
+                {writingStats.todayWords.toLocaleString()}
+              </span>
               <span className="dash-today__unit">字</span>
             </div>
             <div className="dash-today__goal">
-              {/* TODO: daily goal from user settings. */}
-              目标 <b>1,500</b> 字
+              目标 <b>{dailyGoal.toLocaleString()}</b> 字
             </div>
             <div className="dash-today__bar">
-              <div className="dash-today__bar-fill" style={{ width: '0%' }}></div>
+              <div
+                className="dash-today__bar-fill"
+                style={{ width: `${todayGoalPct}%` }}
+              ></div>
             </div>
             <div className="dash-today__streak">
               <div className="dash-today__streak-cell">
                 <span className="dash-today__streak-k">连续写作</span>
-                {/* TODO: streak / weekly / monthly stats require a sessions table. */}
                 <span className="dash-today__streak-v">
-                  —<em>天</em>
+                  {writingStats.streakDays}
+                  <em>天</em>
                 </span>
               </div>
               <div className="dash-today__streak-cell">
                 <span className="dash-today__streak-k">本周</span>
                 <span className="dash-today__streak-v">
-                  —<em>字</em>
+                  {(writingStats.weekWords / 1000).toFixed(1)}
+                  <em>k字</em>
                 </span>
               </div>
               <div className="dash-today__streak-cell">
                 <span className="dash-today__streak-k">月内</span>
                 <span className="dash-today__streak-v">
-                  —<em>天</em>
+                  {writingStats.monthDaysWritten}
+                  <em>天</em>
                 </span>
               </div>
             </div>
@@ -466,8 +537,12 @@ export function ProjectDashboard() {
               </span>
             </div>
             <div className="dash-section__actions">
-              <button className="dash-section__btn">⌬ 时间轴</button>
-              <button className="dash-section__btn">↕ 重新排序</button>
+              <button className="dash-section__btn" onClick={openStoryGraph}>
+                ⌬ 叙事图
+              </button>
+              <button className="dash-section__btn" onClick={openAllChapters}>
+                ☷ 通览全书
+              </button>
               <button
                 className="dash-section__btn dash-section__btn--accent"
                 onClick={handleCreateStoryline}
@@ -505,7 +580,7 @@ export function ProjectDashboard() {
 
                   <div className="dash-track__chapters" title={`${total} chapters`}>
                     {sNodes.map((n) => {
-                      const status = deriveStatus(n.wordCount || 0);
+                      const status = deriveStatus(n);
                       const isActive = n.id === continueNode?.id;
                       return (
                         <span
@@ -577,8 +652,10 @@ export function ProjectDashboard() {
                 </span>
               </div>
               <div className="dash-section__actions">
-                {/* TODO: wire ＋ 新类目 to createElementCategory once a UI form exists. */}
-                <button className="dash-section__btn dash-section__btn--accent">
+                <button
+                  className="dash-section__btn dash-section__btn--accent"
+                  onClick={handleCreateCategory}
+                >
                   <span className="dash-section__btn-mark">＋</span> 新类目
                 </button>
               </div>
@@ -620,7 +697,7 @@ export function ProjectDashboard() {
                   </div>
                 );
               })}
-              <div className="dash-cat dash-cat--new">
+              <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
                 <span className="dash-cat--new__glyph">＋</span>
                 <span>新建类目</span>
               </div>
@@ -639,7 +716,9 @@ export function ProjectDashboard() {
                 </span>
               </div>
               <div className="dash-section__actions">
-                <button className="dash-section__btn">全部历史 →</button>
+                <button className="dash-section__btn" onClick={openAllChapters}>
+                  通览全书 →
+                </button>
               </div>
             </div>
 
@@ -673,6 +752,98 @@ export function ProjectDashboard() {
             </div>
           </section>
         </div>
+
+        {/* ════════ WRITING PLAN ════════
+            Per-project goals (project word target + daily quota). Both are
+            stored in writing-stats-store (localStorage), independent of
+            the Project model, so a fresh project picks reasonable defaults
+            without a DB migration. */}
+        {projectId && (
+          <section className="dash-section">
+            <div className="dash-section__head">
+              <div className="dash-section__title">
+                <span className="dash-section__title-mark">◷</span>
+                <span className="dash-section__title-cn">写作计划</span>
+                <span className="dash-section__title-en">Writing Plan</span>
+                <span className="dash-section__count">
+                  · 项目 <em>{(totalWc / 1000).toFixed(1)}k</em>
+                  {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} 字
+                </span>
+              </div>
+            </div>
+
+            <div className="dash-plan">
+              <label className="dash-plan__field">
+                <span className="dash-plan__label">项目总目标 · TARGET</span>
+                <span className="dash-plan__input-wrap">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    className="dash-plan__input"
+                    value={projectPlan.projectWordTarget}
+                    onChange={(e) =>
+                      setProjectWordTarget(projectId, Number(e.target.value) || 0)
+                    }
+                  />
+                  <span className="dash-plan__unit">字</span>
+                </span>
+                <span className="dash-plan__hint">
+                  整书规模上限。设为 0 关闭目标进度条。
+                </span>
+              </label>
+
+              <label className="dash-plan__field">
+                <span className="dash-plan__label">每日目标 · DAILY</span>
+                <span className="dash-plan__input-wrap">
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    className="dash-plan__input"
+                    value={projectPlan.dailyWordGoal}
+                    onChange={(e) =>
+                      setDailyWordGoal(projectId, Number(e.target.value) || 0)
+                    }
+                  />
+                  <span className="dash-plan__unit">字 / 天</span>
+                </span>
+                <span className="dash-plan__hint">
+                  今日进度与连续写作天数都依此判定。
+                </span>
+              </label>
+
+              <div className="dash-plan__progress">
+                <div className="dash-plan__progress-row">
+                  <span className="dash-plan__progress-k">项目进度</span>
+                  <span className="dash-plan__progress-v">
+                    {targetWc > 0 ? `${projectGoalPct.toFixed(1)}%` : '未设目标'}
+                  </span>
+                </div>
+                <div className="dash-plan__bar">
+                  <div
+                    className="dash-plan__bar-fill"
+                    style={{ width: `${projectGoalPct}%` }}
+                  ></div>
+                </div>
+                <div className="dash-plan__progress-row">
+                  <span className="dash-plan__progress-k">今日进度</span>
+                  <span className="dash-plan__progress-v">
+                    {dailyGoal > 0
+                      ? `${writingStats.todayWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`
+                      : '未设每日目标'}
+                  </span>
+                </div>
+                <div className="dash-plan__bar">
+                  <div
+                    className="dash-plan__bar-fill dash-plan__bar-fill--day"
+                    style={{ width: `${todayGoalPct}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ════════ PROJECT KV ════════
             Project-level facts (own KV) and the storyline template KV new
