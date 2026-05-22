@@ -54,6 +54,11 @@ interface SettingsState {
   // families. App.tsx pipes this into a `--font-sans` override on <html>.
   uiSerif: boolean;
   setUiSerif: (on: boolean) => void;
+  // Typewriter mode — keeps the caret pinned near the vertical centre of
+  // the editor scroll container while typing. Persists across sessions so
+  // a writer who likes the feel doesn't have to flip it on every launch.
+  typewriterMode: boolean;
+  setTypewriterMode: (on: boolean) => void;
 
   // 编辑器
   bodyFontSize: number;
@@ -166,6 +171,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAnimationsEnabled: (on) => set({ animationsEnabled: on }),
       uiSerif: false,
       setUiSerif: (on) => set({ uiSerif: on }),
+      typewriterMode: false,
+      setTypewriterMode: (on) => set({ typewriterMode: on }),
 
       bodyFontSize: 17,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),
