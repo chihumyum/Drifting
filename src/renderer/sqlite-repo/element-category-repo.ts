@@ -43,6 +43,7 @@ export function createElementCategoryRepository(
       name: normalizeCategoryName(category.name),
       descriptionJson: category.descriptionJson ?? '{}',
       elementTemplateJson: category.elementTemplateJson ?? '{}',
+      elementTemplateKvJson: category.elementTemplateKvJson ?? '[]',
       color: category.color ?? DEFAULT_CATEGORY_COLOR,
     };
     log.debug('Creating category:', newCategory);
@@ -99,6 +100,8 @@ export function createElementCategoryRepository(
       updateValues.descriptionJson = updates.descriptionJson;
     if (updates.elementTemplateJson !== undefined)
       updateValues.elementTemplateJson = updates.elementTemplateJson;
+    if (updates.elementTemplateKvJson !== undefined)
+      updateValues.elementTemplateKvJson = updates.elementTemplateKvJson;
     if (updates.layoutMode !== undefined) updateValues.layoutMode = updates.layoutMode;
     if (updates.gridX !== undefined) updateValues.gridX = updates.gridX;
     if (updates.gridY !== undefined) updateValues.gridY = updates.gridY;

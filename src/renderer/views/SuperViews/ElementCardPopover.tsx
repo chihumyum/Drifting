@@ -9,7 +9,7 @@ import loglevel from 'loglevel';
 const log = loglevel.getLogger('ElementCardPopover');
 log.setLevel(loglevel.levels.WARN);
 
-// Mirrors the GraphView NodeCardPopover two-tier UX:
+// Mirrors the StoryGraphView NodeCardPopover two-tier UX:
 //   · default mode — small anchored card with name + summary quick-edit;
 //     two CTAs ("展开编辑" upgrades, "在编辑器中打开" navigates).
 //   · upgrade mode — centered modal with name + summary + TipTap editor

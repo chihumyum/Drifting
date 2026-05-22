@@ -21,6 +21,8 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
     summary: record.summary,
     orderKey: record.orderKey,
     descriptionJson: record.descriptionJson,
+    kvJson: record.kvJson ?? '[]',
+    nodeContentTemplateJson: record.nodeContentTemplateJson ?? '{}',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };

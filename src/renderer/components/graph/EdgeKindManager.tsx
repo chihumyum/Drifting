@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BookNodeEdge } from '../../domain/book-node';
 
-// Dropdown menu invoked from the graph view's top-right legend. Lists
+// Dropdown menu invoked from the story graph view's top-right legend. Lists
 // every kind that currently exists in the project (plus a locked
 // "storyline transit" row), and exposes inline rename / recolor /
 // delete for each user-defined kind. The "uncategorized" bucket

@@ -16,6 +16,7 @@ import {
   syncNodeUpdate,
   syncNodeDelete,
   syncNodeStorylineLinkCreate,
+  syncNodeContentUpdate,
   syncEdgeCreate,
   syncEdgeUpdate,
   syncEdgeDelete,
@@ -136,11 +137,18 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         updatedAt: now,
       };
 
-      // Create default empty content for the new node
-      const defaultDocJson = JSON.stringify({
-        type: 'doc',
-        content: [],
-      });
+      // Seed the new node's content from its main storyline's
+      // nodeContentTemplateJson when one is set; otherwise fall back to an
+      // empty doc. Drift nodes (no main storyline) skip the template lookup.
+      const emptyDocJson = JSON.stringify({ type: 'doc', content: [] });
+      const mainStoryline = newNode.mainStorylineId
+        ? useDataStore.getState().storylines.find((s) => s.id === newNode.mainStorylineId)
+        : null;
+      const templateJson = mainStoryline?.nodeContentTemplateJson?.trim();
+      const defaultDocJson =
+        templateJson && templateJson !== '' && templateJson !== '{}'
+          ? templateJson
+          : emptyDocJson;
 
       const nextNodes = [...prevNodes, newNode].sort((a, b) => a.bookOrder - b.bookOrder);
 
@@ -173,7 +181,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             addNodeToStorylineMappingState(created.mainStorylineId, created.id);
           }
         },
-        sync: (created) =>
+        sync: (created) => {
           syncNodeCreate(created.id, activeProjectId, {
             id: created.id,
             title: created.title,
@@ -184,7 +192,16 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             mainStorylineId: created.mainStorylineId,
             positionX: created.position.x,
             positionY: created.position.y,
-          }),
+          });
+          // Push the seeded content too so a fresh-from-template node shows
+          // up filled-in on other devices before the user touches the editor.
+          // Skip when the seed is the empty placeholder doc — that's the
+          // pre-template behavior and the server's '{}' default already
+          // matches it.
+          if (defaultDocJson !== emptyDocJson) {
+            syncNodeContentUpdate(created.id, activeProjectId, { contentJson: defaultDocJson });
+          }
+        },
       });
     },
     [

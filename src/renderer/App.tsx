@@ -12,7 +12,7 @@ import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
 import { StorylineEditorView } from './views/StorylineEditorView';
 import { AllChaptersEditorView } from './views/AllChaptersEditorView';
-import { GraphView } from './views/GraphView';
+import { StoryGraphView } from './views/StoryGraphView';
 import { LoginPage } from './views/LoginPage';
 import { RegisterPage } from './views/RegisterPage';
 import { initDatabase } from './lib/db';
@@ -23,7 +23,7 @@ import { LeftSidebarSubHeader } from './components/leftBars/LeftSidebarSubHeader
 import { NodesPanel } from './components/leftBars/NodesPanel';
 import { DriftPanel } from './components/leftBars/DriftPanel';
 import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
-import { SuperElementView, SuperReferenceView } from './views/SuperViews/SuperViews';
+import { SuperElementView, SuperMemoMaterialView } from './views/SuperViews/SuperViews';
 import { Sidebar } from './components/Sidebar';
 import { BottomTimeline } from './components/BottomTimeline/BottomTimeline';
 import { EditorMainArea } from './components/editor/EditorMainArea';
@@ -184,7 +184,7 @@ function Layout() {
   const [dbReady, setDbReady] = useState(false);
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
-  const { openEntity } = useProjectNavigation();
+  const { openEntity, navigateToHome, navigateToAllChapters } = useProjectNavigation();
   const navigate = useNavigate();
   // When the active tab is a split, keep the URL synced with the focused
   // side. Mounted at the Layout level so it runs in both single- and
@@ -388,7 +388,15 @@ function Layout() {
     };
   }, []);
 
-  // Global Shortcut for Graph View (Cmd + Shift + \)
+  // Global Super-View shortcuts. Cmd+Option+1..5 jump to:
+  //   1: Project Dashboard (home)
+  //   2: 纵览全书 (all-chapters)
+  //   3: Story Graph View
+  //   4: Super Element View
+  //   5: Super Memo & Material View
+  // 1/2 navigate routes (and dismiss any active super view); 3..5 toggle the
+  // corresponding super view overlay. Cmd+Shift+3/4 were rejected because
+  // macOS reserves them system-wide for screenshots.
   const activeSuperView = useUiStore((state) => state.activeSuperView);
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
   const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
@@ -396,20 +404,48 @@ function Layout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd + Shift + \ (Backslash)
-      if (e.metaKey && e.shiftKey && e.code === 'Backslash') {
-        e.preventDefault();
-        if (activeSuperView === 'graph') {
-          setActiveSuperView('none');
-        } else {
-          setActiveSuperView('graph');
-        }
+      // Option = altKey on Mac. Require Cmd+Option exactly — no Shift/Ctrl —
+      // so we don't grab unrelated chords.
+      if (!e.metaKey || !e.altKey || e.shiftKey || e.ctrlKey) return;
+      // `code` is layout-independent — Digit1..Digit5 always reflect the
+      // physical 1..5 keys regardless of keyboard layout.
+      const dismissSuperView = () => {
+        if (activeSuperView !== 'none') setActiveSuperView('none');
+      };
+      const toggleSuper = (view: 'graph' | 'element' | 'memo-material') => {
+        setActiveSuperView(activeSuperView === view ? 'none' : view);
+      };
+      switch (e.code) {
+        case 'Digit1':
+          e.preventDefault();
+          dismissSuperView();
+          navigateToHome();
+          return;
+        case 'Digit2':
+          e.preventDefault();
+          dismissSuperView();
+          navigateToAllChapters();
+          return;
+        case 'Digit3':
+          e.preventDefault();
+          toggleSuper('graph');
+          return;
+        case 'Digit4':
+          e.preventDefault();
+          toggleSuper('element');
+          return;
+        case 'Digit5':
+          e.preventDefault();
+          toggleSuper('memo-material');
+          return;
+        default:
+          return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSuperView, setActiveSuperView]);
+  }, [activeSuperView, setActiveSuperView, navigateToHome, navigateToAllChapters]);
 
   // User-configurable shortcuts (close tab, find in editor, global search).
   // Subscribe to the store via getState() inside the handler so we read the
@@ -653,9 +689,9 @@ function Layout() {
       <BottomStatusBar />
 
       {/* Overlays / Modals (绝对定位层) */}
-      {activeSuperView === 'graph' && <GraphView />}
+      {activeSuperView === 'graph' && <StoryGraphView />}
       {activeSuperView === 'element' && <SuperElementView />}
-      {activeSuperView === 'reference' && <SuperReferenceView />}
+      {activeSuperView === 'memo-material' && <SuperMemoMaterialView />}
       <SettingsModal
         isOpen={isSettingsOpen}
         initialRailId={settingsTargetRail}

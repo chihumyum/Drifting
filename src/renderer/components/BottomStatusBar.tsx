@@ -5,15 +5,16 @@ import {
   IcebergIcon,
   AllChaptersIcon,
   AllRefsIcon,
-  GraphViewIcon,
+  StoryGraphViewIcon,
 } from './BottomStatusBarIcons';
 import '../../styles/bottom-status-bar.css';
 
 // BottomStatusBar — always-visible compact footer. Hosts the project-global
-// nav segments (Home / All-Chapters) and super-view toggles (Element / Graph
-// / Reference) on the left, the BottomTimeline visibility toggle on the right.
+// nav segments (Home / All-Chapters) and super-view toggles (Element / Story
+// Graph / Memo & Material) on the left, the BottomTimeline visibility toggle
+// on the right.
 
-type SuperViewId = 'element' | 'graph' | 'reference';
+type SuperViewId = 'element' | 'graph' | 'memo-material';
 
 export function BottomStatusBar() {
   const bottomTimelineHidden = useUiStore((s) => s.bottomTimelineHidden);
@@ -84,17 +85,17 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__super${activeSuperView === 'graph' ? ' is-active' : ''}`}
         onClick={() => toggleSuper('graph')}
-        title="Graph"
-        aria-label="Graph"
+        title="Story Graph"
+        aria-label="Story Graph"
       >
-        <GraphViewIcon size={14} />
+        <StoryGraphViewIcon size={14} />
       </button>
       <button
         type="button"
-        className={`bsb__seg bsb__super${activeSuperView === 'reference' ? ' is-active' : ''}`}
-        onClick={() => toggleSuper('reference')}
-        title="References"
-        aria-label="References"
+        className={`bsb__seg bsb__super${activeSuperView === 'memo-material' ? ' is-active' : ''}`}
+        onClick={() => toggleSuper('memo-material')}
+        title="Memo & Material"
+        aria-label="Memo & Material"
       >
         <AllRefsIcon size={14} />
       </button>

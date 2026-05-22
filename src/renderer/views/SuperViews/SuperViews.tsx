@@ -50,12 +50,12 @@ function SuperOverlay({
   );
 }
 
-export function SuperReferenceView() {
+export function SuperMemoMaterialView() {
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   return (
-    <SuperOverlay title="Reference View" onClose={() => setActiveSuperView('none')}>
+    <SuperOverlay title="Memo & Material View" onClose={() => setActiveSuperView('none')}>
       <div style={{ fontSize: 24, textAlign: 'center', marginTop: 100 }}>
-        Global Reference & Snippets
+        Global Memo & Material
       </div>
     </SuperOverlay>
   );

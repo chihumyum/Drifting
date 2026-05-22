@@ -1946,3 +1946,104 @@ html[data-entity-highlight='off'] .entity-link--ai {
   color: hsl(var(--ink-5));
   text-align: center;
 }
+
+/* ============ KV editor ============ */
+/* Generic key/value table used on Project / Storyline / Element / Category. */
+.kv-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kv-editor__empty {
+  padding: 16px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-5));
+  text-align: center;
+}
+.kv-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kv-editor__row {
+  display: grid;
+  grid-template-columns: 160px 1fr 24px;
+  gap: 8px;
+  align-items: start;
+}
+.kv-editor__key,
+.kv-editor__value {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.6;
+  background: transparent;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  padding: 6px 8px;
+  color: hsl(var(--ink-1));
+  resize: none;
+  outline: none;
+  transition: border-color 0.12s, background 0.12s;
+}
+.kv-editor__key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+}
+.kv-editor__value {
+  min-height: 32px;
+  field-sizing: content;
+}
+.kv-editor__key:focus,
+.kv-editor__value:focus {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.04);
+}
+.kv-editor__key:disabled,
+.kv-editor__value:disabled {
+  color: hsl(var(--ink-4));
+  border-style: dashed;
+  cursor: default;
+}
+.kv-editor__remove {
+  border: none;
+  background: transparent;
+  color: hsl(var(--ink-5));
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 3px;
+  align-self: center;
+}
+.kv-editor__remove:hover {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.08);
+}
+.kv-editor__add {
+  align-self: flex-start;
+  margin-top: 6px;
+  border: 1px dashed hsl(var(--rule));
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  padding: 6px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.kv-editor__add:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.4);
+  background: hsl(var(--accent) / 0.08);
+}
+.kv-editor[data-variant='template'] .kv-editor__key {
+  color: hsl(var(--ink-2));
+}

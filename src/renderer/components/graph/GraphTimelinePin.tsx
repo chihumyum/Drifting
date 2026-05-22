@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TimelineMarker } from '../../domain/timeline-marker';
 
 // Mirrors BottomTimeline's TimelinePin one-to-one (head dot + editable
-// label) but is sized for the graph view's axis row. Drag the head to
+// label) but is sized for the story graph view's axis row. Drag the head to
 // reposition; double-click the label to rename. The vertical line that
 // spans the full canvas is rendered separately by the parent so it can
 // sit at a different z-index than this head/label widget.

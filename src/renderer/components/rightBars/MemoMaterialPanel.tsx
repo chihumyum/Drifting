@@ -133,7 +133,7 @@ export function MemoMaterialPanel({ focused }: Props) {
   const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
   // Two-stage preview for text snippets: clicking the inline body opens this
   // popover first; the popover itself escalates to the fullscreen preview.
-  // Mirrors GraphView's NodeCardPopover default → upgrade flow.
+  // Mirrors StoryGraphView's NodeCardPopover default → upgrade flow.
   const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
 
   // Index manualReferences by from-entity so cards can render their relation
@@ -1571,7 +1571,7 @@ function MaterialThumbnail({ material, onClick }: { material: Material; onClick:
 // ─────────────────────────────────────────────────────────────────────────────
 // Two-stage text snippet popover — first click on a text snippet body opens
 // this compact floating editor; an explicit 全屏 ↗ control escalates to the
-// fullscreen preview. Mirrors the GraphView NodeCardPopover default/upgrade
+// fullscreen preview. Mirrors the StoryGraphView NodeCardPopover default/upgrade
 // staging so quick reads don't force a fullscreen jump.
 
 function TextSnippetPopover({

@@ -11,9 +11,9 @@ export interface BookNode {
   narrativeOrder: number | null;
   storyStageId: string | null;
   // null for "drift" nodes — free-floating notes/inspiration that don't
-  // belong to any storyline and don't appear in timelines or graph view.
+  // belong to any storyline and don't appear in timelines or story graph view.
   mainStorylineId: string | null;
-  position: GraphViewNodePosition;
+  position: StoryGraphViewNodePosition;
   /**
    * Materialized word count derived from this node's content.
    * Counted as: CJK chars + non-CJK whitespace-separated tokens with
@@ -25,7 +25,7 @@ export interface BookNode {
   updatedAt: string;
 }
 
-export interface GraphViewNodePosition {
+export interface StoryGraphViewNodePosition {
   x: number;
   y: number;
 }
@@ -36,7 +36,7 @@ export interface BookNodeEdge {
   sourceNodeId: string;
   targetNodeId: string;
   label: string;
-  // User-defined category — drives GraphView filter chips. null when the
+  // User-defined category — drives StoryGraphView filter chips. null when the
   // author hasn't tagged it; the chips list just whatever distinct values
   // currently exist in the data.
   kind: string | null;

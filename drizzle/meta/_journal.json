@@ -106,6 +106,13 @@
       "when": 1779900000000,
       "tag": "0014_entity_reference_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1780000000000,
+      "tag": "0015_entity_kv_and_templates",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ export interface GraphContextMenuState {
   // Whether the node currently has a narrativeOrder. Drives whether the
   // "回到未放置" detach action is offered.
   hasNarrativeOrder: boolean;
-  // The storyline rendered as this node's row in graph view. Needed by
+  // The storyline rendered as this node's row in story graph view. Needed by
   // the "从主故事线移除" action.
   mainStorylineId: string | null;
 }

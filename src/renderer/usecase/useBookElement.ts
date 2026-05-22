@@ -70,6 +70,10 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         .getState()
         .bookElementCategories.find((c) => c.id === input.categoryId);
       const seededContentJson = category?.elementTemplateJson?.trim() || '{}';
+      // Same logic as the contentJson seed: pull the category's KV template
+      // and stamp it onto the new element. Existing elements stay untouched
+      // when the template later changes.
+      const seededKvJson = category?.elementTemplateKvJson?.trim() || '[]';
       const newElement: BookElement = {
         id: uuidv7(),
         projectId: activeProjectId,
@@ -77,6 +81,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         name: input.name?.trim() || 'New Element',
         summary: '',
         contentJson: seededContentJson,
+        kvJson: seededKvJson,
         groupName: null,
         createdAt: now,
         updatedAt: now,
@@ -98,6 +103,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: persisted.name,
             summary: persisted.summary,
             contentJson: persisted.contentJson,
+            kvJson: persisted.kvJson,
             groupName: persisted.groupName,
           }),
       });
@@ -120,6 +126,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         categoryId: updates.categoryId ?? existing.categoryId,
         name: updates.name ?? existing.name,
         contentJson: updates.contentJson ?? existing.contentJson,
+        kvJson: updates.kvJson ?? existing.kvJson,
         summary: updates.summary ?? existing.summary,
         groupName: updates.groupName !== undefined ? updates.groupName : existing.groupName,
         updatedAt: now.toISOString(),
@@ -134,6 +141,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: updatedElement.name,
             summary: updatedElement.summary,
             contentJson: updatedElement.contentJson,
+            kvJson: updatedElement.kvJson,
             groupName: updatedElement.groupName,
             updatedAt: updatedElement.updatedAt,
           });
@@ -152,6 +160,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             name: persisted.name,
             summary: persisted.summary,
             contentJson: persisted.contentJson,
+            kvJson: persisted.kvJson,
             groupName: persisted.groupName,
           }),
       });

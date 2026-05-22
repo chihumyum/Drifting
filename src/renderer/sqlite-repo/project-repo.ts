@@ -27,6 +27,8 @@ function recordToDomain(record: typeof ProjectTable.$inferSelect): Project {
     userId: record.userId,
     name: record.name,
     descriptionJson: record.descriptionJson ?? '{}',
+    kvJson: record.kvJson ?? '[]',
+    storylineTemplateKvJson: record.storylineTemplateKvJson ?? '[]',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -69,6 +71,8 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
       userId: input.userId,
       name: input.name,
       descriptionJson: input.descriptionJson,
+      kvJson: input.kvJson,
+      storylineTemplateKvJson: input.storylineTemplateKvJson,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
@@ -96,6 +100,9 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
 
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.descriptionJson !== undefined) updateValues.descriptionJson = data.descriptionJson;
+    if (data.kvJson !== undefined) updateValues.kvJson = data.kvJson;
+    if (data.storylineTemplateKvJson !== undefined)
+      updateValues.storylineTemplateKvJson = data.storylineTemplateKvJson;
     if (data.userId !== undefined) updateValues.userId = data.userId;
     const res = await getDb()
       .update(ProjectTable)

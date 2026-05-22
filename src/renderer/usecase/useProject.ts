@@ -21,6 +21,7 @@ import {
   syncCategoryCreate,
 } from './sync-helpers';
 import { randomColor } from '../utils';
+import { defaultProjectKvJson } from '../domain/kv';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import {
@@ -42,7 +43,12 @@ export interface CreateProjectInput {
   projectName?: string | null;
 }
 
-export type UpdateProjectInput = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt'>;
+// Partial so callers can target specific fields (e.g. just `kvJson`) without
+// having to round-trip every project property they don't care about. The
+// repo's update layer already merges against the existing row.
+export type UpdateProjectInput = Partial<
+  Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt'>
+>;
 
 export interface UseProjectContext {
   userId: string;
@@ -70,6 +76,8 @@ type ServerProjectSummary = {
   userId: string;
   name: string;
   descriptionJson?: string | null;
+  kvJson?: string | null;
+  storylineTemplateKvJson?: string | null;
   createdAt: string;
   updatedAt: string;
   stats?: Partial<ProjectStats> | null;
@@ -123,6 +131,8 @@ function normalizeServerProjectSummary(row: ServerProjectSummary, userId: string
     userId: row.userId || userId,
     name: row.name,
     descriptionJson: row.descriptionJson ?? '{}',
+    kvJson: row.kvJson ?? '[]',
+    storylineTemplateKvJson: row.storylineTemplateKvJson ?? '[]',
     createdAt: normalizeDateText(row.createdAt),
     updatedAt: normalizeDateText(row.updatedAt),
     stats: normalizeProjectStats(row.stats),
@@ -222,6 +232,8 @@ async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promis
           userId: project.userId,
           name: project.name,
           descriptionJson: project.descriptionJson,
+          kvJson: project.kvJson,
+          storylineTemplateKvJson: project.storylineTemplateKvJson,
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
         })
@@ -231,6 +243,8 @@ async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promis
             userId: project.userId,
             name: project.name,
             descriptionJson: project.descriptionJson,
+            kvJson: project.kvJson,
+            storylineTemplateKvJson: project.storylineTemplateKvJson,
             createdAt: project.createdAt,
             updatedAt: project.updatedAt,
           },
@@ -359,11 +373,14 @@ export function useProject({ userId }: UseProjectContext) {
       await ensureDb();
 
       const now = new Date().toISOString();
+      const seededProjectKvJson = defaultProjectKvJson();
       const project = await repo.create({
         id: uuidv7(),
         userId,
         name: input.projectName ?? 'New Project',
         descriptionJson: '', // TODO: fix to pmJson, or Ydoc
+        kvJson: seededProjectKvJson,
+        storylineTemplateKvJson: '[]',
         createdAt: now,
         updatedAt: now,
       });
@@ -379,6 +396,12 @@ export function useProject({ userId }: UseProjectContext) {
         summary: '',
         orderKey: 1,
         descriptionJson: '{}',
+        // The freshly-created project has an empty storyline template, so the
+        // bootstrap storyline starts blank. Once the user fills in
+        // storylineTemplateKvJson, subsequent storylines pick it up via
+        // useStoryline.createStoryline.
+        kvJson: '[]',
+        nodeContentTemplateJson: '{}',
         createdAt: now,
         updatedAt: now,
       });
@@ -410,6 +433,7 @@ export function useProject({ userId }: UseProjectContext) {
         name: 'others',
         descriptionJson: '{}',
         elementTemplateJson: '{}',
+        elementTemplateKvJson: '[]',
         color: randomColor(),
         layoutMode: 'auto',
         gridX: null,
@@ -453,6 +477,8 @@ export function useProject({ userId }: UseProjectContext) {
         id: project.id,
         name: project.name,
         descriptionJson: project.descriptionJson,
+        kvJson: project.kvJson,
+        storylineTemplateKvJson: project.storylineTemplateKvJson,
       });
       syncStorylineCreate(defaultStoryline.id, project.id, {
         id: defaultStoryline.id,
@@ -461,12 +487,15 @@ export function useProject({ userId }: UseProjectContext) {
         summary: defaultStoryline.summary,
         orderKey: defaultStoryline.orderKey,
         descriptionJson: defaultStoryline.descriptionJson,
+        kvJson: defaultStoryline.kvJson,
+        nodeContentTemplateJson: defaultStoryline.nodeContentTemplateJson,
       });
       syncCategoryCreate(defaultCategory.id, project.id, {
         id: defaultCategory.id,
         name: defaultCategory.name,
         color: defaultCategory.color,
         descriptionJson: defaultCategory.descriptionJson,
+        elementTemplateKvJson: defaultCategory.elementTemplateKvJson,
       });
 
       return project;
@@ -485,10 +514,25 @@ export function useProject({ userId }: UseProjectContext) {
         userId,
         name: input.name,
         descriptionJson: input.descriptionJson,
+        kvJson: input.kvJson,
+        storylineTemplateKvJson: input.storylineTemplateKvJson,
         updatedAt: new Date().toISOString(),
       });
       if (result) {
-        syncProjectUpdate(id, { name: input.name, descriptionJson: input.descriptionJson });
+        // Reflect the write into useProjectStore so subscribers (the
+        // dashboard's KvEditor in particular) re-render against the
+        // persisted value. Without this, the editor's effect re-seeds
+        // local rows from the stale prop and the user sees their input
+        // vanish on blur. Storylines / categories / elements don't have
+        // this problem because their usecases already write back through
+        // useDataStore.update*State.
+        useProjectStore.getState().updateProjectInList(id, result);
+        syncProjectUpdate(id, {
+          name: input.name,
+          descriptionJson: input.descriptionJson,
+          kvJson: input.kvJson,
+          storylineTemplateKvJson: input.storylineTemplateKvJson,
+        });
       }
       return result;
     },

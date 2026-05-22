@@ -7,6 +7,7 @@ import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
@@ -103,13 +104,20 @@ export function ElementEditorView({
         : null,
   });
 
-  // Outline = headings extracted live from the body editor. Built before
-  // the early return below so the scrollspy hook always runs (Rules of Hooks).
-  const outlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
+  // Outline = framework anchors (overview / 字段 / 传) plus headings
+  // extracted live from the body editor. Built before the early return below
+  // so the scrollspy hook always runs (Rules of Hooks).
+  const frameworkItems: OutlineEntry[] = [
+    { id: 'el-overview', level: 2, num: '一', text: '概述' },
+    { id: 'el-kv', level: 2, num: '二', text: '字段 · facts' },
+    { id: 'el-bio', level: 2, num: '三', text: '传 · biography' },
+  ];
+  const bodyOutlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
     id: h.id,
     level: h.level,
     text: h.text,
   }));
+  const outlineItems: OutlineEntry[] = [...frameworkItems, ...bodyOutlineItems];
   const activeOutlineId = useOutlineScrollspy(scrollEl, outlineItems.map((i) => i.id));
 
   const commitName = async () => {
@@ -125,6 +133,15 @@ export function ElementEditorView({
     promoteCurrentTab();
     await updateElement(elementId, { summary: summaryValue });
   };
+
+  const commitKv = useCallback(
+    (nextJson: string) => {
+      if (!elementId || nextJson === curElement?.kvJson) return;
+      promoteCurrentTab();
+      void updateElement(elementId, { kvJson: nextJson });
+    },
+    [elementId, curElement?.kvJson, updateElement, promoteCurrentTab],
+  );
 
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim() || !elementId) return;
@@ -214,7 +231,8 @@ export function ElementEditorView({
       <div className="editor-body">
         <EditorOutlinePanel
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
-          items={outlineItems}
+          items={frameworkItems}
+          secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
           onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
           footLeft={`e.${elementShortId}`}
@@ -288,8 +306,24 @@ export function ElementEditorView({
               </div>
             </section>
 
-            <h2 id="el-bio" className="page__scene">
+            {/* 二 · 字段 — element's own KV facts. Seeded at creation
+                from the category's elementTemplateKvJson; owned thereafter. */}
+            <h2 id="el-kv" className="page__scene">
               <span className="page__scene-num">二</span>
+              <span className="page__scene-title">字段 · facts</span>
+              <span className="page__scene-meta">alias / 类目 / 生年 / 首次出场 …</span>
+            </h2>
+            <div className="elem-body">
+              <KvEditor
+                key={`el-kv-${curElement.id}`}
+                valueJson={curElement.kvJson}
+                onPersist={commitKv}
+                emptyHint="— 尚无字段。新建元素时若类目模版已定义，会自动填充 —"
+              />
+            </div>
+
+            <h2 id="el-bio" className="page__scene">
+              <span className="page__scene-num">三</span>
               <span className="page__scene-title">记 · 传</span>
             </h2>
             <div className="elem-body">

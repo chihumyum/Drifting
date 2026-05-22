@@ -725,7 +725,6 @@ export function BottomTimeline() {
         }
       >
         <div className="btl-clip__content">
-          <div className="btl-clip__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
           <div className="btl-clip__title">{node.title || '未命名'}</div>
         </div>
       </div>
@@ -889,8 +888,8 @@ export function BottomTimeline() {
   // "打散" — keeps relative ordering, reassigns the active order field
   // (bookOrder or narrativeOrder) with a wide spacing so tiles can't overlap
   // even when their original integers sat closer than a tile width apart.
-  // Spacing 6 > the wider tile width (graph view = 5 units), so the result
-  // is non-overlapping in both BottomTimeline and GraphView.
+  // Spacing 6 > the wider tile width (story graph view = 5 units), so the result
+  // is non-overlapping in both BottomTimeline and StoryGraphView.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
     const sorted = placedNodes

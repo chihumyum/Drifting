@@ -45,13 +45,11 @@ export function NodesPanel() {
     userId: userId ?? '',
   });
 
-  const { createStoryline, updateStoryline } = useStoryline({
+  const { createStoryline } = useStoryline({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
 
-  const [editingStorylineId, setEditingStorylineId] = useState<string | null>(null);
-  const [editingStorylineName, setEditingStorylineName] = useState('');
   const [collapsedStorylineIds, setCollapsedStorylineIds] = useState<Set<string>>(new Set());
 
   const toggleStorylineCollapsed = useCallback((id: string) => {
@@ -134,27 +132,6 @@ export function NodesPanel() {
       }
     },
     [storylines, bookNodes, createNode, createStoryline, activeProjectId, openEntity],
-  );
-
-  const handleSaveStorylineName = useCallback(
-    async (id: string) => {
-      const existing = storylineById.get(id);
-      const nextName = editingStorylineName.trim();
-      if (!existing || !nextName || nextName === existing.name) {
-        setEditingStorylineId(null);
-        setEditingStorylineName('');
-        return;
-      }
-      try {
-        await updateStoryline({ id, name: nextName });
-      } catch (error) {
-        log.error('Failed to rename storyline', error);
-      } finally {
-        setEditingStorylineId(null);
-        setEditingStorylineName('');
-      }
-    },
-    [editingStorylineName, storylineById, updateStoryline],
   );
 
   const renderNodeCard = (node: BookNode, numbered?: { num: number }) => {
@@ -271,6 +248,7 @@ export function NodesPanel() {
 
   return (
     <div
+      className="left-panel-scroll-hidden"
       style={{
         height: '100%',
         overflowY: 'auto',
@@ -370,63 +348,21 @@ export function NodesPanel() {
                         flexShrink: 0,
                       }}
                     />
-                    {editingStorylineId === storyline.id ? (
-                      <input
-                        type="text"
-                        value={editingStorylineName}
-                        onChange={(event) => setEditingStorylineName(event.target.value)}
-                        onBlur={() => void handleSaveStorylineName(storyline.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            event.currentTarget.blur();
-                          }
-                          if (event.key === 'Escape') {
-                            setEditingStorylineId(null);
-                            setEditingStorylineName('');
-                          }
-                        }}
-                        onFocus={(event) => event.target.select()}
-                        autoFocus
-                        onClick={(event) => event.stopPropagation()}
-                        style={{
-                          minWidth: 100,
-                          fontSize: 10,
-                          fontFamily: 'var(--font-mono)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.12em',
-                          color: 'hsl(var(--ink-2))',
-                          padding: '1px 4px',
-                          border: '1px solid hsl(var(--rule))',
-                          borderRadius: 3,
-                          background: 'hsl(var(--surface))',
-                          outline: 'none',
-                        }}
-                      />
-                    ) : (
-                      <span
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          setEditingStorylineId(storyline.id);
-                          setEditingStorylineName(storyline.name);
-                        }}
-                        title="Double-click to rename"
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 9.5,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.12em',
-                          color: 'hsl(var(--ink-3))',
-                          fontWeight: 500,
-                          cursor: 'text',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {storyline.name}
-                      </span>
-                    )}
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9.5,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                        color: 'hsl(var(--ink-3))',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {storyline.name}
+                    </span>
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)',
@@ -499,6 +435,8 @@ export function NodesPanel() {
       {/* Reveal the per-group + button on hover (no extra chrome at rest). */}
       <style>{`
         .left-sb-group:hover .left-sb-group-add { opacity: 1; }
+        .left-panel-scroll-hidden { scrollbar-width: none; }
+        .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
       `}</style>
     </div>
   );

@@ -5,6 +5,7 @@ import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { useDataStore } from '../store/data-store';
+import { useProjectStore } from '../store/project-store';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase, getDb } from '../lib/db';
@@ -44,6 +45,8 @@ export type UpdateStorylineInput = {
   summary?: string;
   orderKey?: number;
   descriptionJson?: string;
+  kvJson?: string;
+  nodeContentTemplateJson?: string;
 };
 
 export interface UseStorylineContext {
@@ -153,6 +156,16 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       const maxOrder = existing.reduce((max, sl) => Math.max(max, sl.orderKey), 0);
       const orderKey = input.orderKey ?? maxOrder + 1;
       const now = new Date().toISOString();
+      // Seed this storyline's kvJson from the parent project's template. We
+      // read the template off the project store rather than re-querying so
+      // the storyline picks up whatever the user has typed in the template
+      // editor, even if the project row hasn't synced back from the server
+      // yet. Falls back to an empty list if the project isn't loaded.
+      const currentProject = useProjectStore.getState().currentProject;
+      const seededKvJson =
+        currentProject?.id === activeProjectId
+          ? currentProject.storylineTemplateKvJson?.trim() || '[]'
+          : '[]';
       const newStoryline: Storyline = {
         id: uuidv7(),
         projectId: activeProjectId,
@@ -161,6 +174,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         summary: input.summary ?? '',
         orderKey,
         descriptionJson: DEFAULT_TIPTAP_DOC_JSON,
+        kvJson: seededKvJson,
+        nodeContentTemplateJson: '{}',
         createdAt: now,
         updatedAt: now,
       };
@@ -183,6 +198,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             summary: storyline.summary,
             orderKey: storyline.orderKey,
             descriptionJson: storyline.descriptionJson,
+            kvJson: storyline.kvJson,
+            nodeContentTemplateJson: storyline.nodeContentTemplateJson,
           }),
       });
     },
@@ -227,6 +244,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         summary: input.summary ?? existing.summary,
         orderKey: input.orderKey ?? existing.orderKey,
         descriptionJson: input.descriptionJson ?? existing.descriptionJson,
+        kvJson: input.kvJson ?? existing.kvJson,
+        nodeContentTemplateJson:
+          input.nodeContentTemplateJson ?? existing.nodeContentTemplateJson,
         updatedAt: now,
       };
       log.debug(`updated storyline is: `, updated);
@@ -240,6 +260,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             summary: updated.summary,
             orderKey: updated.orderKey,
             descriptionJson: updated.descriptionJson,
+            kvJson: updated.kvJson,
+            nodeContentTemplateJson: updated.nodeContentTemplateJson,
             updatedAt: updated.updatedAt,
             projectId: activeProjectId,
           }),
@@ -253,6 +275,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             summary: storyline.summary,
             orderKey: storyline.orderKey,
             descriptionJson: storyline.descriptionJson,
+            kvJson: storyline.kvJson,
+            nodeContentTemplateJson: storyline.nodeContentTemplateJson,
           }),
       });
     },

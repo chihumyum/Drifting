@@ -27,6 +27,8 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
     summary: record.summary,
     orderKey: record.orderKey,
     descriptionJson: record.descriptionJson,
+    kvJson: record.kvJson ?? '[]',
+    nodeContentTemplateJson: record.nodeContentTemplateJson ?? '{}',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -54,6 +56,8 @@ export function createStorylineRepository(
       summary: input.summary ?? '',
       orderKey: input.orderKey,
       descriptionJson: input.descriptionJson ?? '{}',
+      kvJson: input.kvJson ?? '[]',
+      nodeContentTemplateJson: input.nodeContentTemplateJson ?? '{}',
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
@@ -119,6 +123,9 @@ export function createStorylineRepository(
     if (input.summary !== undefined) updateValues.summary = input.summary;
     if (input.orderKey !== undefined) updateValues.orderKey = input.orderKey;
     if (input.descriptionJson !== undefined) updateValues.descriptionJson = input.descriptionJson;
+    if (input.kvJson !== undefined) updateValues.kvJson = input.kvJson;
+    if (input.nodeContentTemplateJson !== undefined)
+      updateValues.nodeContentTemplateJson = input.nodeContentTemplateJson;
 
     const res = await dbProvider()
       .update(StorylineTable)

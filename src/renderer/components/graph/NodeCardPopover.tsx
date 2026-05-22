@@ -93,7 +93,7 @@ export function NodeCardPopover({
 
   // Esc closes the popover in both modes. The explicit "折叠" button still
   // lets users move from the compact editor back to the summary card.
-  // We use the capture phase so we run before GraphView's own Esc-closes-the-
+  // We use the capture phase so we run before StoryGraphView's own Esc-closes-the-
   // super-view handler, and call stopPropagation to suppress that.
   // If a form field or the tiptap editor inside the popover has focus, we
   // let that element's own Esc handler (revert/blur) run instead.

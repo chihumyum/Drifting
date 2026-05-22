@@ -125,6 +125,7 @@ export function DriftPanel() {
 
   return (
     <div
+      className="left-panel-scroll-hidden"
       style={{
         height: '100%',
         overflowY: 'auto',
@@ -146,6 +147,10 @@ export function DriftPanel() {
           no drift notes yet.
         </div>
       )}
+      <style>{`
+        .left-panel-scroll-hidden { scrollbar-width: none; }
+        .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
+      `}</style>
     </div>
   );
 }

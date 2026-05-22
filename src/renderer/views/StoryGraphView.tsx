@@ -19,17 +19,17 @@ import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
-const log = loglevel.getLogger('GraphView');
+const log = loglevel.getLogger('StoryGraphView');
 log.setLevel(loglevel.levels.WARN);
 
-// Phase 4: GraphView now reads node-to-node relation edges from the
+// Phase 4: StoryGraphView now reads node-to-node relation edges from the
 // `book_node_edge` table and renders them on top of the storyline-track
 // canvas. Edges carry a free-form user-defined `kind` (no fixed vocabulary);
 // the filter chips list whatever distinct kinds exist in the project.
 // Edge creation is shift-click-to-pair: shift-click a tile to set it as
 // source, click another tile to open the new-edge dialog.
 
-type GraphView = 'book' | 'narrative';
+type StoryGraphViewMode = 'book' | 'narrative';
 
 const VIEW_STORAGE_KEY = 'graph-view-mode';
 
@@ -38,7 +38,7 @@ const GRAPH_CONFIG = {
   GRID_UNIT: 32,
   // Tile width in grid units; same convention as BottomTimeline.
   TILE_WIDTH_UNITS: 5,
-  // Bigger tiles than Phase 3: GraphView is intended to grow into the
+  // Bigger tiles than Phase 3: StoryGraphView is intended to grow into the
   // primary editing surface for inter-node relationship graphs, so each
   // tile needs room to host more attribute UI later.
   TILE_HEIGHT: 96,
@@ -57,7 +57,7 @@ const GRAPH_CONFIG = {
   CANVAS_PADDING_X: 24,
 };
 
-function readPersistedView(): GraphView {
+function readPersistedView(): StoryGraphViewMode {
   if (typeof localStorage === 'undefined') return 'book';
   const v = localStorage.getItem(VIEW_STORAGE_KEY);
   return v === 'narrative' ? 'narrative' : 'book';
@@ -101,7 +101,7 @@ const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes(
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
 
-export function GraphView() {
+export function StoryGraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
@@ -132,11 +132,11 @@ export function GraphView() {
     [edgeKindMeta.meta],
   );
 
-  const [viewMode, setViewMode] = useState<GraphView>(readPersistedView);
+  const [viewMode, setViewMode] = useState<StoryGraphViewMode>(readPersistedView);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Drift panel state machine — shared with SuperElementView via the
   // useDriftPanelAnim hook. The closePanel returned by the hook only handles
-  // its own animation; GraphView wraps it below to also reset the drag-
+  // its own animation; StoryGraphView wraps it below to also reset the drag-
   // reorder state.
   const {
     mounted: driftPanelMounted,
@@ -748,7 +748,7 @@ export function GraphView() {
 
   // Wrap the shared close-panel callback so it ALSO clears the drag-reorder
   // state when the panel slides out. The base close (from useDriftPanelAnim)
-  // is generic; GraphView's drift cards layer drag-and-drop on top, and we
+  // is generic; StoryGraphView's drift cards layer drag-and-drop on top, and we
   // don't want a half-finished drag lingering once the panel comes back.
   const closeDriftPanel = useCallback(() => {
     setDraggedDrift(null);
@@ -1620,7 +1620,7 @@ export function GraphView() {
 
       {/* ---------------- Drift drawer (floating, bottom-center) ----------------
           Shared shell with SuperElementView via <DriftPanel>. The cards
-          rendered as children keep GraphView's drag-and-drop reorder + edge-
+          rendered as children keep StoryGraphView's drag-and-drop reorder + edge-
           selection visual language; the hand-level drop handler is passed
           through handDragHandlers. */}
       <DriftPanel

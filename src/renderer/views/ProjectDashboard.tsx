@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';
+import { useProject } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
 import { useProjectStore } from '../store/project-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
+import { KvEditor } from '../components/editor/KvEditor';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -66,6 +68,35 @@ export function ProjectDashboard() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
+  const { updateProject } = useProject({ userId: userId ?? '' });
+
+  // Project-level KV / template KV editors. Both write through updateProject
+  // which short-circuits no-op writes inside the usecase, so we can hand the
+  // raw JSON back without guarding here.
+  const commitProjectKv = useCallback(
+    (nextJson: string) => {
+      if (!currentProject || nextJson === currentProject.kvJson) return;
+      void updateProject(currentProject.id, {
+        name: currentProject.name,
+        descriptionJson: currentProject.descriptionJson,
+        kvJson: nextJson,
+        storylineTemplateKvJson: currentProject.storylineTemplateKvJson,
+      });
+    },
+    [currentProject, updateProject],
+  );
+  const commitStorylineTemplateKv = useCallback(
+    (nextJson: string) => {
+      if (!currentProject || nextJson === currentProject.storylineTemplateKvJson) return;
+      void updateProject(currentProject.id, {
+        name: currentProject.name,
+        descriptionJson: currentProject.descriptionJson,
+        kvJson: currentProject.kvJson,
+        storylineTemplateKvJson: nextJson,
+      });
+    },
+    [currentProject, updateProject],
+  );
 
   const [chip, setChip] = useState<'all' | 'draft' | 'todo' | 'done'>('all');
 
@@ -278,7 +309,7 @@ export function ProjectDashboard() {
               </div>
             </div>
             <div className="dash-hero__btns">
-              {/* TODO: hook ⌬ 叙事图 to graph view once route exists from this page. */}
+              {/* TODO: hook ⌬ 叙事图 to story graph view once route exists from this page. */}
               <button className="dash-hero__btn">⌬ 叙事图</button>
               <button className="dash-hero__btn">⊞ 总览</button>
               <button
@@ -642,6 +673,51 @@ export function ProjectDashboard() {
             </div>
           </section>
         </div>
+
+        {/* ════════ PROJECT KV ════════
+            Project-level facts (own KV) and the storyline template KV new
+            storylines inherit. Mirrors the same KvEditor used on storyline /
+            element / category, plumbed through updateProject. */}
+        {currentProject && (
+          <div className="dash-row dash-row--2">
+            <section className="dash-section" style={{ marginBottom: 0 }}>
+              <div className="dash-section__head">
+                <div className="dash-section__title">
+                  <span className="dash-section__title-mark">⁂</span>
+                  <span className="dash-section__title-cn">本书字段</span>
+                  <span className="dash-section__title-en">Project Facts</span>
+                </div>
+              </div>
+              <div style={{ padding: '0 4px' }}>
+                <KvEditor
+                  key={`proj-kv-${currentProject.id}`}
+                  valueJson={currentProject.kvJson}
+                  onPersist={commitProjectKv}
+                  emptyHint="— 暂无字段 —"
+                />
+              </div>
+            </section>
+
+            <section className="dash-section" style={{ marginBottom: 0 }}>
+              <div className="dash-section__head">
+                <div className="dash-section__title">
+                  <span className="dash-section__title-mark">§</span>
+                  <span className="dash-section__title-cn">故事线字段模版</span>
+                  <span className="dash-section__title-en">Storyline Template</span>
+                </div>
+              </div>
+              <div style={{ padding: '0 4px' }}>
+                <KvEditor
+                  key={`proj-sl-tpl-${currentProject.id}`}
+                  valueJson={currentProject.storylineTemplateKvJson}
+                  onPersist={commitStorylineTemplateKv}
+                  variant="template"
+                  emptyHint="— 尚未定义模版字段。可加 视角 / 主角 / 时间线 等 —"
+                />
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* ════════ FOOTER ════════ */}
         <footer className="dash-foot">

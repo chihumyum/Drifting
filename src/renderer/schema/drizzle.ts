@@ -12,10 +12,22 @@ import {
 
 // project
 // Domain: Project
+//
+// kvJson: this project's own list of key/value facts (book goal, writing
+// style, reference works, etc). Stored as a JSON array of { key, value }
+// strings — see domain/kv.ts. New projects are seeded with a small default
+// set; users can add/remove/edit freely after.
+//
+// storylineTemplateKvJson: project-level KV template seeded into every new
+// storyline created under this project (e.g. POV, protagonist). Editing
+// here only affects future storylines — existing rows are untouched.
+// Same shape as kvJson.
 export const ProjectTable = sqliteTable('project', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   descriptionJson: text('description_json').default('{}'),
+  kvJson: text('kv_json').notNull().default('[]'),
+  storylineTemplateKvJson: text('storyline_template_kv_json').notNull().default('[]'),
   userId: text('user_id').notNull(), // should reference to userId in server pg
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -42,6 +54,10 @@ export const ElementCategoryTable = sqliteTable(
     name: text('name').notNull(),
     descriptionJson: text('description_json').default('{}'),
     elementTemplateJson: text('element_template_json').default('{}'),
+    // KV template seeded into every new element of this category (e.g.
+    // 别名 / 出生地 / 阵营). Same JSON array shape as Project.kvJson — see
+    // domain/kv.ts. Editing only affects future elements.
+    elementTemplateKvJson: text('element_template_kv_json').notNull().default('[]'),
     color: text('color').notNull(),
     projectId: text('project_id')
       .notNull()
@@ -83,6 +99,14 @@ export const StoryStageTable = sqliteTable(
 // project(1) <-> storyline(N)
 // storyline(N) <-> node(N)
 // Domain: Storyline
+//
+// kvJson: this storyline's own KV facts (本章 POV / 关键人物 / 时间线 …).
+// Seeded from the parent project's storylineTemplateKvJson at creation;
+// after that the storyline owns its copy. JSON array, see domain/kv.ts.
+//
+// nodeContentTemplateJson: TipTap doc JSON seeded into NodeContent.contentJson
+// when a new node is created under this storyline. '{}' means "no template"
+// and the new node starts with an empty doc. Edits affect future nodes only.
 export const StorylineTable = sqliteTable('storylines', {
   id: text('id').primaryKey(),
   projectId: text('project_id')
@@ -93,6 +117,8 @@ export const StorylineTable = sqliteTable('storylines', {
   summary: text('summary').notNull().default(''),
   orderKey: integer('order_key').notNull(),
   descriptionJson: text('description_json').notNull().default('{}'),
+  kvJson: text('kv_json').notNull().default('[]'),
+  nodeContentTemplateJson: text('node_content_template_json').notNull().default('{}'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -131,7 +157,7 @@ export const BookNodeTable = sqliteTable(
     wordCount: integer('word_count').notNull().default(0),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
-    // graph view positions
+    // story graph view positions
     positionX: real('position_x').notNull(),
     positionY: real('position_y').notNull(),
   },
@@ -161,7 +187,7 @@ export const NodeContentTable = sqliteTable(
 );
 
 // Node Edges
-// for graph view UI persistence
+// for story graph view UI persistence
 // Domain: BookNodeEdge
 export const NodeEdgeTable = sqliteTable(
   'book_node_edge',
@@ -177,7 +203,7 @@ export const NodeEdgeTable = sqliteTable(
       .notNull()
       .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
     label: text('label').notNull().default(''),
-    // Free-form user-defined category. GraphView groups edges by `kind`
+    // Free-form user-defined category. StoryGraphView groups edges by `kind`
     // for its filter chips; null = uncategorized. There is no fixed
     // vocabulary — authors mint kinds as they need them (e.g. "引用",
     // "回响", "同人物"); a hash of the string drives the default color.
@@ -216,6 +242,10 @@ export const BookElementTable = sqliteTable('element', {
   name: text('name').notNull(),
   summary: text('summary').notNull().default(''),
   contentJson: text('content_json').notNull().default('{}'),
+  // Element's own KV facts. Seeded at creation from the parent category's
+  // elementTemplateKvJson; once seeded, the element owns its copy. JSON
+  // array, same shape as Project.kvJson — see domain/kv.ts.
+  kvJson: text('kv_json').notNull().default('[]'),
   groupName: text('group_name'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

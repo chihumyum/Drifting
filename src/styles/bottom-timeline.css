@@ -319,6 +319,7 @@
   /* Leaves clearance for the absolute-positioned stripe (3px) on the
      left edge — keeps rail text from sitting on top of the stripe. */
   padding-left: 10px;
+  padding-right: 8px;
   border-right: 1px solid hsl(var(--rule));
   background: hsl(var(--paper-deep));
   cursor: default;
@@ -346,10 +347,13 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
 }
 .btl-rail__name {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-serif);
   font-style: italic;
   font-size: 12.5px;
@@ -365,6 +369,7 @@
   color: hsl(var(--ink-1));
 }
 .btl-rail__count {
+  flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: 9px;
   text-transform: uppercase;
@@ -582,15 +587,6 @@
   box-sizing: border-box;
   min-height: 0;
   pointer-events: none;
-}
-.btl-clip__num {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  opacity: 0.78;
-  line-height: 1;
-  flex-shrink: 0;
 }
 .btl-clip__title {
   font-family: var(--font-serif);

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TimelineMarker } from '../domain/timeline-marker';
 
-// Module-level pub-sub so every hook instance (BottomTimeline, GraphView,
+// Module-level pub-sub so every hook instance (BottomTimeline, StoryGraphView,
 // any future consumer) re-renders when ANY instance persists a change.
-// Without this, GraphView's drag-to-reposition only bumps GraphView's
+// Without this, StoryGraphView's drag-to-reposition only bumps StoryGraphView's
 // local state — BottomTimeline keeps showing the pre-drag positions
 // until the user refreshes or otherwise triggers a re-render.
 const markerSubscribers = new Set<() => void>();
@@ -90,7 +90,7 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
   }, [projectId, bump]);
 
   // Re-render this instance whenever ANY instance persists, so a drag in
-  // GraphView is immediately reflected in BottomTimeline (and vice versa).
+  // StoryGraphView is immediately reflected in BottomTimeline (and vice versa).
   useEffect(() => {
     const cb = () => setBump((n) => n + 1);
     markerSubscribers.add(cb);

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -44,14 +44,37 @@ export function ElementPanel() {
     userId: userId ?? '',
   });
 
-  const { updateCategory, getCategoryColor } = useElementCategory({
+  const { getCategoryColor } = useElementCategory({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
 
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [editingCategoryName, setEditingCategoryName] = useState('');
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const categorySectionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const footerScrollRef = useRef<HTMLDivElement | null>(null);
+  const footerChipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  // While a manual chip click is in effect, ignore scroll-driven updates so
+  // the highlighted chip stays put even when the section can't fully scroll
+  // to the anchor (e.g. last category near the end of the list).
+  const manualActiveLockUntilRef = useRef<number>(0);
+
+  // Footer height. null means "use natural one-row height + horizontal scroll".
+  // Once dragged taller than the natural row, the inner scroll switches to
+  // vertical with chips wrapping onto multiple lines. Persisted in ui-store.
+  const footerHeight = useUiStore((s) => s.elementCategoryFooterHeight);
+  const setFooterHeight = useUiStore((s) => s.setElementCategoryFooterHeight);
+  const minFooterHeightRef = useRef<number>(0);
+  const [hoverPreview, setHoverPreview] = useState<{
+    element: BookElement;
+    categoryColor: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
 
   const toggleCategoryCollapsed = useCallback((id: string) => {
     setCollapsedCategoryIds((prev) => {
@@ -64,6 +87,129 @@ export function ElementPanel() {
       return next;
     });
   }, []);
+
+  // Track which category section is currently at the top of the scroll
+  // viewport, so the footer chip can highlight it.
+  const updateActiveFromScroll = useCallback(() => {
+    if (Date.now() < manualActiveLockUntilRef.current) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
+    // anchor a little below the top edge so the highlight flips as a category
+    // header crosses past it
+    const anchorY = containerRect.top + 8;
+
+    let bestId: string | null = null;
+    let bestTop = -Infinity;
+    categorySectionRefs.current.forEach((el, id) => {
+      const rect = el.getBoundingClientRect();
+      // pick the last section whose top is at or above the anchor
+      if (rect.top <= anchorY && rect.top > bestTop) {
+        bestTop = rect.top;
+        bestId = id;
+      }
+    });
+    // fallback: first visible section
+    if (!bestId) {
+      let firstId: string | null = null;
+      let firstTop = Infinity;
+      categorySectionRefs.current.forEach((el, id) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom > containerRect.top && rect.top < firstTop) {
+          firstTop = rect.top;
+          firstId = id;
+        }
+      });
+      bestId = firstId;
+    }
+    setActiveCategoryId((prev) => (prev === bestId ? prev : bestId));
+  }, []);
+
+  // Auto-scroll the footer so the active chip stays in view.
+  useEffect(() => {
+    if (!activeCategoryId) return;
+    const footer = footerScrollRef.current;
+    const chip = footerChipRefs.current.get(activeCategoryId);
+    if (!footer || !chip) return;
+    const footerRect = footer.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    if (chipRect.left < footerRect.left + 8) {
+      footer.scrollBy({ left: chipRect.left - footerRect.left - 16, behavior: 'smooth' });
+    } else if (chipRect.right > footerRect.right - 8) {
+      footer.scrollBy({ left: chipRect.right - footerRect.right + 16, behavior: 'smooth' });
+    }
+  }, [activeCategoryId]);
+
+  const startFooterResize = useCallback((event: React.MouseEvent) => {
+    if (!footerScrollRef.current) return;
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = footerScrollRef.current.offsetHeight;
+    const min = minFooterHeightRef.current || startHeight;
+
+    const onMove = (ev: MouseEvent) => {
+      const next = startHeight + (startY - ev.clientY);
+      const max = Math.max(min, Math.round(window.innerHeight * 0.5));
+      const clamped = Math.max(min, Math.min(max, next));
+      // Snap back to "natural" when within a couple px of the min.
+      setFooterHeight(clamped <= min + 2 ? null : clamped);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  }, [setFooterHeight]);
+
+  const scrollToCategory = useCallback((categoryId: string) => {
+    // Lock the highlight to the clicked chip first. If the section can fully
+    // scroll to the anchor, normal tracking would arrive at the same chip
+    // once the lock expires; if it can't (last category near the bottom), the
+    // chip stays selected until the user manually scrolls again.
+    setActiveCategoryId(categoryId);
+    manualActiveLockUntilRef.current = Date.now() + 700;
+    const section = categorySectionRefs.current.get(categoryId);
+    const container = scrollContainerRef.current;
+    if (!section || !container) return;
+    const sectionRect = section.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const delta = sectionRect.top - containerRect.top;
+    container.scrollBy({ top: delta, behavior: 'smooth' });
+  }, []);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current != null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
+  const handleRowHoverEnter = useCallback(
+    (element: BookElement, categoryColor: string, rect: DOMRect) => {
+      clearHoverTimer();
+      hoverTimerRef.current = window.setTimeout(() => {
+        setHoverPreview({
+          element,
+          categoryColor,
+          top: rect.top,
+          left: rect.right + 8,
+        });
+      }, 220);
+    },
+    [clearHoverTimer],
+  );
+
+  const handleRowHoverLeave = useCallback(() => {
+    clearHoverTimer();
+    setHoverPreview(null);
+  }, [clearHoverTimer]);
+
+  useEffect(() => () => clearHoverTimer(), [clearHoverTimer]);
 
   // Sub-header collapse-all toggles between "expand all" and "collapse all".
   useEffect(() => {
@@ -85,13 +231,6 @@ export function ElementPanel() {
   const getCategoryLabel = useCallback(
     (categoryId: string) => {
       return categoryById.get(categoryId)?.name ?? categoryId;
-    },
-    [categoryById],
-  );
-
-  const isReservedCategory = useCallback(
-    (categoryId: string) => {
-      return categoryById.get(categoryId)?.name === 'others';
     },
     [categoryById],
   );
@@ -120,6 +259,35 @@ export function ElementPanel() {
 
     return result;
   }, [bookElementCategories, bookElements, getCategoryLabel]);
+
+  // Lower bound for the resize gesture = natural one-row footer height.
+  // Prefer measuring directly when footerHeight is null (the footer is at its
+  // natural size). Otherwise derive it from a single chip's height plus the
+  // footer's own padding+border — measuring offsetHeight while an explicit
+  // height is applied would lock min to the persisted value, causing later
+  // drags to jump straight past the 2-row size.
+  useLayoutEffect(() => {
+    if (!footerScrollRef.current) return;
+    if (footerHeight == null) {
+      minFooterHeightRef.current = footerScrollRef.current.offsetHeight;
+      return;
+    }
+    const firstChip = footerChipRefs.current.values().next().value;
+    if (firstChip) {
+      // footer paddingTop + paddingBottom + borderTop
+      minFooterHeightRef.current = firstChip.offsetHeight + 6 + 6 + 1;
+    }
+  }, [footerHeight, categoryIds.length]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    updateActiveFromScroll();
+    container.addEventListener('scroll', updateActiveFromScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', updateActiveFromScroll);
+    };
+  }, [updateActiveFromScroll, categoryIds, collapsedCategoryIds]);
 
   const elementsByCategory = useMemo(() => {
     const grouped: Record<string, BookElement[]> = {};
@@ -184,29 +352,6 @@ export function ElementPanel() {
     [createElement, openEntity],
   );
 
-  const handleSaveCategoryName = useCallback(
-    async (categoryId: string) => {
-      const category = categoryById.get(categoryId);
-      const nextName = editingCategoryName.trim();
-
-      if (!category || category.name === 'others' || !nextName || nextName === category.name) {
-        setEditingCategoryId(null);
-        setEditingCategoryName('');
-        return;
-      }
-
-      try {
-        await updateCategory(categoryId, { name: nextName });
-      } catch (error) {
-        log.error('Failed to update category name', error);
-      } finally {
-        setEditingCategoryId(null);
-        setEditingCategoryName('');
-      }
-    },
-    [categoryById, editingCategoryName, updateCategory],
-  );
-
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
     const categoryColor = getCategoryColor(categoryId);
@@ -230,11 +375,17 @@ export function ElementPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--paper-deep))';
           }
+          handleRowHoverEnter(
+            element,
+            categoryColor,
+            event.currentTarget.getBoundingClientRect(),
+          );
         }}
         onMouseLeave={(event) => {
           if (!selected) {
             event.currentTarget.style.background = 'transparent';
           }
+          handleRowHoverLeave();
         }}
         onClick={() => {
           openEntity({ entityType: 'element', id: element.id });
@@ -321,6 +472,8 @@ export function ElementPanel() {
         }}
       >
         <div
+          ref={scrollContainerRef}
+          className="left-panel-scroll"
           style={{
             flex: 1,
             overflowY: 'auto',
@@ -331,7 +484,15 @@ export function ElementPanel() {
           }}
         >
           {categoryIds.map((categoryId) => (
-            <div key={categoryId} style={{ marginBottom: 8 }}>
+            <div
+              key={categoryId}
+              ref={(el) => {
+                if (el) categorySectionRefs.current.set(categoryId, el);
+                else categorySectionRefs.current.delete(categoryId);
+              }}
+              data-category-section={categoryId}
+              style={{ marginBottom: 8 }}
+            >
               <div
                 onClick={() => openEntity({ entityType: 'category', id: categoryId })}
                 onDoubleClick={() => promoteCurrentTab()}
@@ -387,75 +548,21 @@ export function ElementPanel() {
                       flexShrink: 0,
                     }}
                   />
-                  {editingCategoryId === categoryId ? (
-                    <input
-                      type="text"
-                      value={editingCategoryName}
-                      onChange={(event) => setEditingCategoryName(event.target.value)}
-                      onBlur={() => {
-                        void handleSaveCategoryName(categoryId);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          event.currentTarget.blur();
-                        }
-                        if (event.key === 'Escape') {
-                          setEditingCategoryId(null);
-                          setEditingCategoryName('');
-                        }
-                      }}
-                      onFocus={(event) => event.target.select()}
-                      autoFocus
-                      onClick={(event) => event.stopPropagation()}
-                      style={{
-                        minWidth: 120,
-                        fontSize: 11,
-                        fontFamily: 'var(--font-mono)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.12em',
-                        color: 'hsl(var(--ink-2))',
-                        padding: '2px 4px',
-                        border: '1px solid hsl(var(--rule))',
-                        borderRadius: 3,
-                        background: 'hsl(var(--surface))',
-                        outline: 'none',
-                      }}
-                    />
-                  ) : (
-                    <span
-                      onDoubleClick={(event) => {
-                        if (!categoryById.get(categoryId) || isReservedCategory(categoryId)) {
-                          return;
-                        }
-                        event.stopPropagation();
-                        setEditingCategoryId(categoryId);
-                        setEditingCategoryName(getCategoryLabel(categoryId));
-                      }}
-                      title={
-                        isReservedCategory(categoryId)
-                          ? 'Reserved category'
-                          : 'Double-click to rename'
-                      }
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 9.5,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.12em',
-                        color: 'hsl(var(--ink-3))',
-                        fontWeight: 500,
-                        cursor:
-                          categoryById.get(categoryId) && !isReservedCategory(categoryId)
-                            ? 'text'
-                            : 'default',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {getCategoryLabel(categoryId)}
-                    </span>
-                  )}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 9.5,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      color: 'hsl(var(--ink-3))',
+                      fontWeight: 500,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {getCategoryLabel(categoryId)}
+                  </span>
                   <span
                     style={{
                       fontFamily: 'var(--font-mono)',
@@ -573,8 +680,206 @@ export function ElementPanel() {
             </div>
           )}
         </div>
+
+        {/* Category footer — horizontal chips; highlights the section currently
+            scrolled into view and lets the user jump between categories. */}
+        {categoryIds.length > 0 && (
+          <div
+            ref={footerScrollRef}
+            className="left-panel-cat-footer"
+            style={{
+              position: 'relative',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: footerHeight == null ? 'center' : 'flex-start',
+              flexWrap: footerHeight == null ? 'nowrap' : 'wrap',
+              alignContent: 'flex-start',
+              gap: 4,
+              padding: '6px 8px',
+              overflowX: footerHeight == null ? 'auto' : 'hidden',
+              overflowY: footerHeight == null ? 'hidden' : 'auto',
+              borderTop: '1px solid hsl(var(--rule))',
+              background: 'hsl(var(--paper))',
+              whiteSpace: footerHeight == null ? 'nowrap' : 'normal',
+              height: footerHeight ?? undefined,
+            }}
+          >
+            {/* Invisible drag handle on the top border — no extra UI. */}
+            <div
+              onMouseDown={startFooterResize}
+              title="拖拽调整高度"
+              style={{
+                position: 'absolute',
+                top: -3,
+                left: 0,
+                right: 0,
+                height: 6,
+                cursor: 'ns-resize',
+                zIndex: 5,
+              }}
+            />
+            {categoryIds.map((categoryId) => {
+              const active = categoryId === activeCategoryId;
+              const color = getCategoryColor(categoryId);
+              return (
+                <button
+                  key={categoryId}
+                  ref={(el) => {
+                    if (el) footerChipRefs.current.set(categoryId, el);
+                    else footerChipRefs.current.delete(categoryId);
+                  }}
+                  onClick={() => scrollToCategory(categoryId)}
+                  title={getCategoryLabel(categoryId)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    flexShrink: 0,
+                    padding: '3px 8px',
+                    border: '1px solid',
+                    borderColor: active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))',
+                    borderRadius: 3,
+                    background: active ? 'hsl(var(--ink-1))' : 'transparent',
+                    color: active ? 'hsl(var(--paper))' : 'hsl(var(--ink-3))',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9.5,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 2,
+                      background: color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      maxWidth: 96,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {getCategoryLabel(categoryId)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
+      {hoverPreview && (
+        <ElementHoverPreview
+          element={hoverPreview.element}
+          categoryColor={hoverPreview.categoryColor}
+          top={hoverPreview.top}
+          left={hoverPreview.left}
+        />
+      )}
+
+      {/* Hide the vertical scrollbar on the inner scroll container and the
+          horizontal scrollbar on the category footer (scroll still works). */}
+      <style>{`
+        .left-panel-scroll { scrollbar-width: none; }
+        .left-panel-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+        .left-panel-cat-footer { scrollbar-width: none; }
+        .left-panel-cat-footer::-webkit-scrollbar { width: 0; height: 0; display: none; }
+      `}</style>
+    </div>
+  );
+}
+
+function ElementHoverPreview({
+  element,
+  categoryColor,
+  top,
+  left,
+}: {
+  element: BookElement;
+  categoryColor: string;
+  top: number;
+  left: number;
+}) {
+  const summary = element.summary?.trim() ?? '';
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top,
+        left,
+        width: 260,
+        maxHeight: 200,
+        background: 'hsl(var(--surface))',
+        border: '1px solid hsl(var(--rule-strong))',
+        boxShadow: '0 6px 18px hsl(var(--ink-1) / 0.15)',
+        zIndex: 10000,
+        pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: 'var(--font-sans)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          borderBottom: '1px solid hsl(var(--rule) / 0.6)',
+          background: 'hsl(var(--paper))',
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: 11,
+            color: categoryColor,
+            lineHeight: 1,
+          }}
+        >
+          ◆
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            color: 'hsl(var(--ink-1))',
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {element.name || 'Untitled'}
+        </span>
+      </div>
+      <div
+        style={{
+          padding: '8px 10px',
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          color: summary ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
+          fontStyle: summary ? 'normal' : 'italic',
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: 8,
+          whiteSpace: 'pre-wrap',
+          wordWrap: 'break-word',
+        }}
+      >
+        {summary || 'No summary'}
+      </div>
     </div>
   );
 }

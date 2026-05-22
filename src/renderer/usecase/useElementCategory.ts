@@ -16,12 +16,14 @@ export type CreateElementCategoryInput = {
   name?: string;
   descriptionJson?: string;
   elementTemplateJson?: string;
+  elementTemplateKvJson?: string;
 };
 
 export interface UpdateElementCategoryInput {
   name?: string;
   descriptionJson?: string;
   elementTemplateJson?: string;
+  elementTemplateKvJson?: string;
   color?: string;
   // SuperElementView layout persistence. Setting layoutMode='pinned' with
   // grid coords stamps the user's drag; layoutMode='auto' returns the category
@@ -75,6 +77,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         name: resolved.name?.trim() || 'New Category',
         descriptionJson: resolved.descriptionJson ?? '{}',
         elementTemplateJson: resolved.elementTemplateJson ?? '{}',
+        elementTemplateKvJson: resolved.elementTemplateKvJson ?? '[]',
         color: randomColor(),
         layoutMode: 'auto',
         gridX: null,
@@ -98,6 +101,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             name: created.name,
             descriptionJson: created.descriptionJson,
             elementTemplateJson: created.elementTemplateJson,
+            elementTemplateKvJson: created.elementTemplateKvJson,
             color: created.color,
             layoutMode: created.layoutMode,
             gridX: created.gridX,
@@ -144,6 +148,8 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         name: updates.name ?? existing.name,
         descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
         elementTemplateJson: updates.elementTemplateJson ?? existing.elementTemplateJson,
+        elementTemplateKvJson:
+          updates.elementTemplateKvJson ?? existing.elementTemplateKvJson,
         color: updates.color ?? existing.color,
         layoutMode: updates.layoutMode ?? existing.layoutMode,
         gridX: updates.gridX !== undefined ? updates.gridX : existing.gridX,
@@ -159,6 +165,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             name: updated.name,
             descriptionJson: updated.descriptionJson,
             elementTemplateJson: updated.elementTemplateJson,
+            elementTemplateKvJson: updated.elementTemplateKvJson,
             color: updated.color,
             layoutMode: updated.layoutMode,
             gridX: updated.gridX,
@@ -178,6 +185,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
             name: persisted.name,
             descriptionJson: persisted.descriptionJson,
             elementTemplateJson: persisted.elementTemplateJson,
+            elementTemplateKvJson: persisted.elementTemplateKvJson,
             color: persisted.color,
             layoutMode: persisted.layoutMode,
             gridX: persisted.gridX,

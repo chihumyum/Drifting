@@ -6,17 +6,17 @@ import { useUiStore } from '../store/ui-store';
  * Provides methods to update UI-related state
  */
 export function useUi() {
-  const isGraphViewOpen = useUiStore((state) => state.activeSuperView === 'graph');
+  const isStoryGraphViewOpen = useUiStore((state) => state.activeSuperView === 'graph');
 
-  const setGraphViewOpen = useCallback((isOpen: boolean) => {
+  const setStoryGraphViewOpen = useCallback((isOpen: boolean) => {
     useUiStore.getState().setActiveSuperView(isOpen ? 'graph' : 'none');
   }, []);
 
   return useMemo(
     () => ({
-      isGraphViewOpen,
-      setGraphViewOpen,
+      isStoryGraphViewOpen,
+      setStoryGraphViewOpen,
     }),
-    [isGraphViewOpen, setGraphViewOpen],
+    [isStoryGraphViewOpen, setStoryGraphViewOpen],
   );
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import '../../styles/drift-panel.css';
 
 // Shared drift-panel UX: bottom-anchored tab → slide-up panel with cards →
-// close button → slide-down. Used by GraphView (drift↔node) and
+// close button → slide-down. Used by StoryGraphView (drift↔node) and
 // SuperElementView (drift↔element); the only thing the two views differ on
 // is what the cards connect to. Card rendering itself lives in the parent
 // (as children) — that lets each view keep its own click / drag / popover
@@ -115,7 +115,7 @@ export interface DriftPanelProps {
   /** ARIA hidden flag for the inner panel (used during closing). */
   panelAriaHidden?: boolean;
   /**
-   * Drag-and-drop handlers for the .drift-panel__hand container. GraphView
+   * Drag-and-drop handlers for the .drift-panel__hand container. StoryGraphView
    * uses these for drag-reorder "drop in empty space"; SuperElementView
    * doesn't pass anything.
    */

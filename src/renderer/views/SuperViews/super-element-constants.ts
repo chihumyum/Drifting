@@ -33,7 +33,7 @@ export const ZOOM_MAX = 2.0;
 // EntityReference rows don't carry a free-form `kind`, so `origin` is the
 // classification axis. Stroke style + color are derived from origin;
 // visibility toggles via the header filter chips. If the schema grows a
-// `kind` column later, swap this for a hash palette like GraphView's
+// `kind` column later, swap this for a hash palette like StoryGraphView's
 // colorForKind without touching the renderer.
 export type EdgeOrigin = 'manual' | 'auto' | 'ai';
 

@@ -173,6 +173,11 @@ interface UiState {
   setBottomTimelineHidden: (hidden: boolean) => void;
   toggleBottomTimelineHidden: () => void;
 
+  // Resized height of the ElementPanel category footer. null = natural
+  // one-row height (horizontal scroll mode).
+  elementCategoryFooterHeight: number | null;
+  setElementCategoryFooterHeight: (height: number | null) => void;
+
   resizingSidebar: SidebarType | null;
   setResizingSidebar: (type: SidebarType | null) => void;
 
@@ -193,10 +198,10 @@ interface UiState {
   setShadowMode: (active: boolean) => void;
   toggleShadowMode: () => void;
 
-  activeSuperView: 'none' | 'element' | 'graph' | 'reference';
-  setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'reference') => void;
-  lastActiveSuperView: 'element' | 'graph' | 'reference' | null;
-  setLastActiveSuperView: (view: 'element' | 'graph' | 'reference' | null) => void;
+  activeSuperView: 'none' | 'element' | 'graph' | 'memo-material';
+  setActiveSuperView: (view: 'none' | 'element' | 'graph' | 'memo-material') => void;
+  lastActiveSuperView: 'element' | 'graph' | 'memo-material' | null;
+  setLastActiveSuperView: (view: 'element' | 'graph' | 'memo-material' | null) => void;
 
   tabsByProject: Record<string, ProjectTabsState>;
   openEntityTab: (projectId: string, ref: TabRef, options?: { preview?: boolean }) => void;
@@ -441,6 +446,9 @@ export const useUiStore = create<UiState>()(
 
       bottomTimelineHidden: false,
       setBottomTimelineHidden: (hidden) => set({ bottomTimelineHidden: hidden }),
+
+      elementCategoryFooterHeight: null,
+      setElementCategoryFooterHeight: (height) => set({ elementCategoryFooterHeight: height }),
       toggleBottomTimelineHidden: () =>
         set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
 
@@ -1014,6 +1022,7 @@ export const useUiStore = create<UiState>()(
         tabsByProject: state.tabsByProject,
         outlineCollapsed: state.outlineCollapsed,
         bottomTimelineHidden: state.bottomTimelineHidden,
+        elementCategoryFooterHeight: state.elementCategoryFooterHeight,
       }),
       // v1 → v2 migration adds the `kind` discriminator to every tab so the
       // store can tell leaf tabs from split tabs. v1 only had flat Tab[]
@@ -1057,12 +1066,28 @@ export const useUiStore = create<UiState>()(
       },
       // Older persisted state used 'references' | 'inspirations' | 'ai' for
       // activeRightPanel. Coerce any unknown value back to the default so the
-      // first render after upgrade doesn't crash the right panel.
+      // first render after upgrade doesn't crash the right panel. Same idea
+      // for activeSuperView, which was renamed 'reference' → 'memo-material'
+      // when the placeholder view was clarified.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<UiState>) };
         const allowed = new Set(['fragments', 'stats', 'shadow']);
         if (!allowed.has(merged.activeRightPanel as string)) {
           merged.activeRightPanel = 'fragments';
+        }
+        const allowedSuper = new Set(['none', 'element', 'graph', 'memo-material']);
+        if ((merged.activeSuperView as string) === 'reference') {
+          merged.activeSuperView = 'memo-material';
+        } else if (!allowedSuper.has(merged.activeSuperView as string)) {
+          merged.activeSuperView = 'none';
+        }
+        if ((merged.lastActiveSuperView as string) === 'reference') {
+          merged.lastActiveSuperView = 'memo-material';
+        } else if (
+          merged.lastActiveSuperView !== null &&
+          !allowedSuper.has(merged.lastActiveSuperView as string)
+        ) {
+          merged.lastActiveSuperView = null;
         }
         return merged;
       },

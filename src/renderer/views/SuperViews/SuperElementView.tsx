@@ -117,7 +117,7 @@ const KIND_PALETTE = [
   'hsl(var(--story-5))',
   'hsl(var(--story-6))',
 ];
-/** Stable color per kind string (djb2-ish hash, same shape as GraphView). */
+/** Stable color per kind string (djb2-ish hash, same shape as StoryGraphView). */
 function colorForKind(kind: string | null, origin: EdgeOrigin): string {
   if (!kind) return EDGE_ORIGIN_META[origin].fallbackColor;
   let h = 5381;
@@ -494,7 +494,7 @@ function ChapterBand({
         ))}
       </svg>
 
-      {/* Node pills. Mirror GraphView's tile pattern: title on top, summary
+      {/* Node pills. Mirror StoryGraphView's tile pattern: title on top, summary
           as a 2-line clamp underneath when present. Hover title attribute
           stays as a fallback so the full text is still inspectable when the
           clamp truncates. Shift-click marks the pill as a link source for
@@ -923,7 +923,7 @@ export function SuperElementView() {
   // without the other.
   const [edgesViewportOnly, setEdgesViewportOnly] = useState(false);
   // Drift panel state machine + open/close helpers come from the shared
-  // hook so SuperElementView and GraphView stay in sync.
+  // hook so SuperElementView and StoryGraphView stay in sync.
   const {
     mounted: driftPanelMounted,
     open: driftPanelOpen,
@@ -941,10 +941,11 @@ export function SuperElementView() {
   // Hidden kinds — UNCATEGORIZED_KIND sentinel covers null-kind refs.
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set());
 
-  // ESC stack — most-recent overlay pops first. The popover registers its
-  // own capture-phase ESC, so we don't include it in our priority list
-  // (window-bubble fires AFTER popover's capture-handler closes it). For
-  // every other overlay, we own the dismiss here.
+  // ESC stack — most-recent sub-overlay pops first. The popover registers
+  // its own capture-phase ESC, so we don't include it in our priority list
+  // (window-bubble fires AFTER popover's capture-handler closes it). ESC no
+  // longer exits the super view itself; users return via the global shortcut
+  // or the back button.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -965,12 +966,10 @@ export function SuperElementView() {
         closeDriftPanelRef.current?.();
         return;
       }
-      close();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [
-    close,
     activePopover,
     pendingLink,
     selectedEdgeId,
@@ -1151,7 +1150,7 @@ export function SuperElementView() {
   // pulls non-inline refs (fromBlockId IS NULL — that's the store filter);
   // inline @-mention refs live in reference-index.service and aren't
   // surfaced here yet. The edge endpoints must be either element ↔ element
-  // or element ↔ node (we don't render pure node ↔ node, that's GraphView's
+  // or element ↔ node (we don't render pure node ↔ node, that's StoryGraphView's
   // job). Drift-touching edges are also dropped here and rendered by the
   // viewport-space drift layer instead.
   const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
@@ -1781,7 +1780,7 @@ export function SuperElementView() {
   // world transform), so the SVG that connects drift cards to their linked
   // elements has to be in viewport coordinates. We measure both endpoints
   // via getBoundingClientRect on each animation frame while the panel is
-  // mounted — same recipe as GraphView.
+  // mounted — same recipe as StoryGraphView.
   const driftCardRefs = useRef(new Map<string, HTMLDivElement>());
   const elementCardRefs = useRef(new Map<string, HTMLDivElement>());
   type DriftEdgeGeom = {
@@ -2084,7 +2083,7 @@ export function SuperElementView() {
               cursor: 'pointer',
               WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
             }}
-            title="ESC 关闭"
+            title="返回"
           >
             <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>‹</span>
             返回
@@ -2393,7 +2392,7 @@ export function SuperElementView() {
               return (
                 <g key={edge.id} data-super-edge>
                   {/* Invisible wide stroke for hit-testing — same trick as
-                      GraphView. The visible path below sits on top and is
+                      StoryGraphView. The visible path below sits on top and is
                       pointer-events:none so it doesn't intercept clicks. */}
                   <path
                     d={d}
@@ -2610,7 +2609,7 @@ export function SuperElementView() {
         )}
       </div>
 
-      {/* Element popover — two-tier editor mirroring GraphView's
+      {/* Element popover — two-tier editor mirroring StoryGraphView's
           NodeCardPopover. Positioned fixed so pan/zoom don't drag it. */}
       {activePopover && projectId && (() => {
         const element = bookElements.find((el) => el.id === activePopover.elementId);
@@ -2737,7 +2736,7 @@ export function SuperElementView() {
                 </div>
               </div>
 
-              {/* Kind input + suggestions. Same shape as GraphView's
+              {/* Kind input + suggestions. Same shape as StoryGraphView's
                   new-edge dialog: focus shows suggestions; mousedown on a
                   suggestion fills the input without losing focus. */}
               <div style={{ padding: '0 18px 14px' }}>
@@ -2966,7 +2965,7 @@ export function SuperElementView() {
           animation, then on scroll/resize/pan-end thereafter. While the
           user is mid-pan, data-panning on the SVG hides it via CSS — no
           React re-render involved. Each edge has a halo + animated dash
-          line, mirroring GraphView's drift-edge visual language. */}
+          line, mirroring StoryGraphView's drift-edge visual language. */}
       {driftPanelOpen && driftEdgeGeom.length > 0 && (
         <svg
           ref={driftEdgeLayerRef}
@@ -3040,7 +3039,7 @@ export function SuperElementView() {
       )}
 
       {/* Drift node popover — clicking a drift card opens the two-tier
-          NodeCardPopover (same component GraphView uses), so drift nodes
+          NodeCardPopover (same component StoryGraphView uses), so drift nodes
           get the same name + summary + body editor flow as chapter nodes. */}
       {activeDriftPopover && projectId && (() => {
         const node = bookNodes.find((n) => n.id === activeDriftPopover.nodeId);
