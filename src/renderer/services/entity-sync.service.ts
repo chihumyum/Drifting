@@ -841,6 +841,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         toBlockId: nullableStringValue(row, 'toBlockId'),
         origin: (stringValue(row, 'origin', 'manual') || 'manual') as 'manual' | 'auto' | 'ai',
         confidence: typeof row.confidence === 'number' ? row.confidence : null,
+        kind: nullableStringValue(row, 'kind'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
       }))
@@ -1219,6 +1220,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       toBlockId: nullableStringValue(row, 'toBlockId'),
       origin: stringValue(row, 'origin', 'manual'),
       confidence: typeof row.confidence === 'number' ? row.confidence : null,
+      kind: nullableStringValue(row, 'kind'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.fromId && row.toId);

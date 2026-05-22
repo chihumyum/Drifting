@@ -24,12 +24,24 @@ export function BottomStatusBar() {
   const toggleSuper = (id: SuperViewId) =>
     setActiveSuperView(activeSuperView === id ? 'none' : id);
 
+  // Nav-icon clicks should ALWAYS land the user on the navigated route —
+  // when a super view is overlaying the editor, clicking Home / 通览全书
+  // would otherwise silently open the tab in the background while the
+  // overlay still covers it. Dismiss the super view as part of the nav
+  // gesture so the user sees the new route immediately.
+  const dismissSuperView = () => {
+    if (activeSuperView !== 'none') setActiveSuperView('none');
+  };
+
   return (
     <div className="bsb">
       <button
         type="button"
         className="bsb__seg bsb__nav"
-        onClick={() => navigateToHome()}
+        onClick={() => {
+          dismissSuperView();
+          navigateToHome();
+        }}
         onDoubleClick={() => promoteCurrentTab()}
         title="Project Home"
         aria-label="Project Home"
@@ -39,7 +51,10 @@ export function BottomStatusBar() {
       <button
         type="button"
         className="bsb__seg bsb__nav"
-        onClick={() => navigateToAllChapters()}
+        onClick={() => {
+          dismissSuperView();
+          navigateToAllChapters();
+        }}
         onDoubleClick={() => promoteCurrentTab()}
         title="通览全书"
         aria-label="通览全书"

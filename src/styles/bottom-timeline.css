@@ -83,9 +83,13 @@
     background 0.12s,
     color 0.12s;
 }
-.btl__head-btn:hover {
+.btl__head-btn:hover:not(:disabled) {
   background: hsl(var(--rule));
   color: hsl(var(--ink-1));
+}
+.btl__head-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .btl__state-toggle {

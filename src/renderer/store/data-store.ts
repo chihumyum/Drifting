@@ -18,6 +18,8 @@ export interface EntityReferenceLink {
   toBlockId: string | null;
   origin: 'manual' | 'auto' | 'ai';
   confidence: number | null;
+  /** Free-form relation category (NOT endpoint type). Null = uncategorised. */
+  kind: string | null;
   createdAt: string;
   updatedAt: string;
 }

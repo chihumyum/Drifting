@@ -886,6 +886,32 @@ export function BottomTimeline() {
     });
   }, []);
 
+  // "打散" — keeps relative ordering, reassigns the active order field
+  // (bookOrder or narrativeOrder) with a wide spacing so tiles can't overlap
+  // even when their original integers sat closer than a tile width apart.
+  // Spacing 6 > the wider tile width (graph view = 5 units), so the result
+  // is non-overlapping in both BottomTimeline and GraphView.
+  const handleSpread = useCallback(async () => {
+    if (placedNodes.length < 2) return;
+    const sorted = placedNodes
+      .slice()
+      .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
+    const SPACING = 6;
+    const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
+    const updates: Array<{ id: string; newOrder: number }> = [];
+    sorted.forEach((node, i) => {
+      const newOrder = startOrder + i * SPACING;
+      if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
+    });
+    try {
+      for (const u of updates) {
+        await updateNode(u.id, { [orderField]: u.newOrder });
+      }
+    } catch (err) {
+      log.error('Failed to spread timeline nodes', err);
+    }
+  }, [placedNodes, orderOf, updateNode, orderField]);
+
   const handleAddPin = useCallback(() => {
     if (snapValues.length === 0) return;
     const container = scrollContainerRef.current;
@@ -1010,6 +1036,34 @@ export function BottomTimeline() {
           )}
         </div>
         <div className="btl__head-right">
+          <button
+            className="btl__head-btn"
+            title={
+              placedNodes.length < 2
+                ? '至少两个章节才能打散'
+                : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
+            }
+            disabled={placedNodes.length < 2}
+            onClick={() => {
+              void handleSpread();
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            >
+              <line x1="3" y1="8" x2="1.5" y2="8" />
+              <line x1="14.5" y1="8" x2="13" y2="8" />
+              <path d="M4 5l-2 3 2 3" />
+              <path d="M12 5l2 3-2 3" />
+              <line x1="7" y1="8" x2="9" y2="8" />
+            </svg>
+          </button>
           <button
             className="btl__head-btn"
             title="定位到当前章节"

@@ -7,17 +7,22 @@
 
 .graph-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Leave the always-visible BottomStatusBar (20px tall) exposed below
+     the overlay so users can navigate without first dismissing GraphView. */
+  bottom: 20px;
   z-index: 250;
   background: hsl(var(--paper));
   display: flex;
   flex-direction: column;
   font-family: var(--font-sans);
-  animation: graph-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-@keyframes graph-in {
-  from { opacity: 0; transform: scale(0.985); }
-  to   { opacity: 1; transform: scale(1); }
+  /* No mount animation: position:fixed children (drift panel, drift tab)
+     are positioned relative to a transform-parent, so any scale here makes
+     the tab appear to "drop down" as it grows. The opacity ramp also let
+     the editor below leak through during super-view-to-super-view swaps.
+     Instant mount is fine; ESC/back still close cleanly. */
 }
 
 /* ---------------- Head bar ---------------- */
@@ -107,6 +112,33 @@
 .graph-head__view-toggle button.is-active {
   background: hsl(var(--ink-1));
   color: hsl(var(--paper));
+}
+.graph-head__spread-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--graph-head-control-height);
+  padding: 0 9px;
+  box-sizing: border-box;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-4));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.graph-head__spread-btn:hover:not(:disabled) {
+  background: hsl(var(--ink-1));
+  color: hsl(var(--paper));
+  border-color: hsl(var(--ink-1));
+}
+.graph-head__spread-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .graph-head__filters {
   display: inline-flex;
@@ -1305,7 +1337,10 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Anchored above the BottomStatusBar (20px) so cards / tab don't get
+     hidden by the status bar. Must stay in sync with .graph-overlay's
+     bottom inset above. */
+  bottom: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;

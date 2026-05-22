@@ -53,6 +53,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       toBlockId: row.toBlockId,
       origin: row.origin as 'manual' | 'auto' | 'ai',
       confidence: row.confidence,
+      kind: row.kind ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
@@ -65,17 +66,22 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       fromId: string,
       toKind: EntityKind,
       toId: string,
+      options?: { kind?: string | null },
     ) => {
       await ensureDb();
+      const kind = options?.kind?.trim() || null;
       const state = useDataStore.getState();
-      // Don't double-add the same manual link.
+      // Don't double-add the SAME manual link with the SAME kind. Different
+      // kinds between the same pair are allowed — that's how users surface
+      // multiple relationships between two entities.
       const dup = state.manualReferences.find(
         (r) =>
           r.fromBlockId == null &&
           r.fromKind === fromKind &&
           r.fromId === fromId &&
           r.toKind === toKind &&
-          r.toId === toId,
+          r.toId === toId &&
+          (r.kind ?? null) === kind,
       );
       if (dup) return dup;
 
@@ -92,6 +98,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         toBlockId: null,
         origin: 'manual',
         confidence: null,
+        kind,
         createdAt: now,
         updatedAt: now,
       };
@@ -121,6 +128,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
             toBlockId: newRow.toBlockId,
             origin: newRow.origin,
             confidence: newRow.confidence,
+            kind: newRow.kind,
           }),
       });
     },

@@ -317,6 +317,11 @@ export const EntityReferenceTable = sqliteTable(
 
     origin: text('origin').notNull().default('manual'), // 'manual' | 'auto' | 'ai'
     confidence: real('confidence'),
+    // Free-form user category for the relation itself (NOT the endpoint type
+    // — that's fromKind/toKind). Mirrors BookNodeEdge.kind: nullable string,
+    // no fixed vocabulary. SuperElementView's manual-create modal feeds
+    // this; auto / ai-origin refs leave it null by default.
+    kind: text('kind'),
 
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),

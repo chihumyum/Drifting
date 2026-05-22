@@ -14,6 +14,7 @@ import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPo
 import { GraphContextMenu, type GraphContextMenuState } from '../components/graph/GraphContextMenu';
 import { EdgeKindManager } from '../components/graph/EdgeKindManager';
 import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
+import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
@@ -99,7 +100,6 @@ const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes(
 // Card flex-basis 168 + gap 10. Module-scoped because the cards are
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
-const DRIFT_PANEL_ANIMATION_MS = 320;
 
 export function GraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
@@ -134,11 +134,18 @@ export function GraphView() {
 
   const [viewMode, setViewMode] = useState<GraphView>(readPersistedView);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Drift panel: mounted separately from its visible/open state so close can
-  // slide the hand below the viewport before the bottom tab comes back.
-  const [driftPanelMounted, setDriftPanelMounted] = useState(false);
-  const [driftPanelOpen, setDriftPanelOpen] = useState(false);
-  const [driftPanelClosing, setDriftPanelClosing] = useState(false);
+  // Drift panel state machine — shared with SuperElementView via the
+  // useDriftPanelAnim hook. The closePanel returned by the hook only handles
+  // its own animation; GraphView wraps it below to also reset the drag-
+  // reorder state.
+  const {
+    mounted: driftPanelMounted,
+    open: driftPanelOpen,
+    closing: driftPanelClosing,
+    openPanel: openDriftPanel,
+    closePanel: closeDriftPanelBase,
+    closePanelRef: closeDriftPanelRef,
+  } = useDriftPanelAnim();
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -242,6 +249,17 @@ export function GraphView() {
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
 
+  // Vertical offset between `.graph-tracks` top and the FIRST row's tile
+  // center origin. The base `AXIS_HEIGHT` puts the tile in the lower half
+  // of its row so the storyline reading-line traces the tile's upper edge
+  // (the book-mode look). In narrative mode the in-canvas time-pin axis
+  // (`.graph-axis`) already consumes AXIS_HEIGHT in flow — without
+  // doubling the offset here, the same formula lands the tile back in the
+  // row's upper half and the reading-line bisects it instead.
+  const tileTopOffset = isNarrative
+    ? GRAPH_CONFIG.AXIS_HEIGHT * 2
+    : GRAPH_CONFIG.AXIS_HEIGHT;
+
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
@@ -256,7 +274,6 @@ export function GraphView() {
   // so it's NOT in the candidates here — the event simply never
   // reaches this listener while the popover is open.
   const overlayOpenTimes = useRef<Record<string, number>>({});
-  const closeDriftPanelRef = useRef<(() => void) | null>(null);
   const escStateRef = useRef({
     newEdgePair: null as typeof newEdgePair,
     drawerOpen: false,
@@ -609,6 +626,31 @@ export function GraphView() {
       return next;
     });
   }, []);
+  // "打散" — keeps relative ordering, reassigns the active order field
+  // (bookOrder or narrativeOrder) with spacing > TILE_WIDTH_UNITS so adjacent
+  // tiles can't overlap. Shared semantics with BottomTimeline's handleSpread
+  // since both views read from the same node integers.
+  const handleSpread = useCallback(async () => {
+    if (placedNodes.length < 2) return;
+    const sorted = placedNodes
+      .slice()
+      .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
+    const SPACING = GRAPH_CONFIG.TILE_WIDTH_UNITS + 1;
+    const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
+    const updates: Array<{ id: string; newOrder: number }> = [];
+    sorted.forEach((node, i) => {
+      const newOrder = startOrder + i * SPACING;
+      if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
+    });
+    try {
+      for (const u of updates) {
+        await updateNode(u.id, { [orderField]: u.newOrder });
+      }
+    } catch (err) {
+      log.error('Failed to spread graph nodes', err);
+    }
+  }, [placedNodes, orderOf, updateNode, orderField]);
+
   const handleAddPin = useCallback(() => {
     if (!isNarrative || snapValues.length === 0) return;
     const canvas = canvasRef.current;
@@ -704,64 +746,15 @@ export function GraphView() {
     [draggedDrift, driftDropIndex],
   );
 
-  const driftPanelOpenRafRef = useRef<number | null>(null);
-  const driftPanelCloseTimerRef = useRef<number | null>(null);
-
-  const openDriftPanel = useCallback(() => {
-    if (driftPanelCloseTimerRef.current !== null) {
-      window.clearTimeout(driftPanelCloseTimerRef.current);
-      driftPanelCloseTimerRef.current = null;
-    }
-    setDriftPanelClosing(false);
-    setDriftPanelMounted(true);
-  }, []);
-
+  // Wrap the shared close-panel callback so it ALSO clears the drag-reorder
+  // state when the panel slides out. The base close (from useDriftPanelAnim)
+  // is generic; GraphView's drift cards layer drag-and-drop on top, and we
+  // don't want a half-finished drag lingering once the panel comes back.
   const closeDriftPanel = useCallback(() => {
-    if (!driftPanelMounted || driftPanelClosing) return;
-    if (driftPanelOpenRafRef.current !== null) {
-      cancelAnimationFrame(driftPanelOpenRafRef.current);
-      driftPanelOpenRafRef.current = null;
-    }
-    setDriftPanelClosing(true);
-    setDriftPanelOpen(false);
     setDraggedDrift(null);
     setDriftDropIndex(null);
-    driftPanelCloseTimerRef.current = window.setTimeout(() => {
-      setDriftPanelMounted(false);
-      setDriftPanelClosing(false);
-      driftPanelCloseTimerRef.current = null;
-    }, DRIFT_PANEL_ANIMATION_MS);
-  }, [driftPanelClosing, driftPanelMounted]);
-
-  useLayoutEffect(() => {
-    closeDriftPanelRef.current = closeDriftPanel;
-  }, [closeDriftPanel]);
-
-  useEffect(() => {
-    if (!driftPanelMounted || driftPanelOpen || driftPanelClosing) return;
-    driftPanelOpenRafRef.current = requestAnimationFrame(() => {
-      setDriftPanelOpen(true);
-      driftPanelOpenRafRef.current = null;
-    });
-    return () => {
-      if (driftPanelOpenRafRef.current !== null) {
-        cancelAnimationFrame(driftPanelOpenRafRef.current);
-        driftPanelOpenRafRef.current = null;
-      }
-    };
-  }, [driftPanelClosing, driftPanelMounted, driftPanelOpen]);
-
-  useEffect(
-    () => () => {
-      if (driftPanelOpenRafRef.current !== null) {
-        cancelAnimationFrame(driftPanelOpenRafRef.current);
-      }
-      if (driftPanelCloseTimerRef.current !== null) {
-        window.clearTimeout(driftPanelCloseTimerRef.current);
-      }
-    },
-    [],
-  );
+    closeDriftPanelBase();
+  }, [closeDriftPanelBase]);
 
   // Drift edges that touch at least one drift endpoint. Other edges are
   // already handled by `visibleEdges` (which skips them because drift nodes
@@ -1054,6 +1047,7 @@ export function GraphView() {
         .graph-head__back,
         .graph-head__view-toggle,
         .graph-head__view-toggle button,
+        .graph-head__spread-btn,
         .graph-head__legend,
         .graph-head__filters,
         .graph-head__filter,
@@ -1095,6 +1089,38 @@ export function GraphView() {
               叙事时
             </button>
           </div>
+          <button
+            type="button"
+            className="graph-head__spread-btn"
+            disabled={placedNodes.length < 2}
+            onClick={() => {
+              void handleSpread();
+            }}
+            title={
+              placedNodes.length < 2
+                ? '至少两个章节才能打散'
+                : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
+            }
+            aria-label="打散节点"
+          >
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <line x1="3" y1="8" x2="1.5" y2="8" />
+              <line x1="14.5" y1="8" x2="13" y2="8" />
+              <path d="M4 5l-2 3 2 3" />
+              <path d="M12 5l2 3-2 3" />
+              <line x1="7" y1="8" x2="9" y2="8" />
+            </svg>
+            <span>打散</span>
+          </button>
 
           {/* Unplaced chapters — narrative mode only. Same role as the
               equivalent control in BottomTimeline: surface chapters
@@ -1391,8 +1417,8 @@ export function GraphView() {
                     edges). They visualise multi-storyline membership rather
                     than authored relations. */}
                 {crossLinks.map((link) => {
-                  const y1 = GRAPH_CONFIG.AXIS_HEIGHT + link.fromY;
-                  const y2 = GRAPH_CONFIG.AXIS_HEIGHT + link.toY;
+                  const y1 = tileTopOffset + link.fromY;
+                  const y2 = tileTopOffset + link.toY;
                   const midY = (y1 + y2) / 2;
                   const d = `M ${link.fromX} ${y1} C ${link.fromX} ${midY}, ${link.toX} ${midY}, ${link.toX} ${y2}`;
                   return (
@@ -1411,8 +1437,8 @@ export function GraphView() {
                     confirm); the floating × badge rendered as a sibling
                     DOM node handles the actual delete. */}
                 {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
-                  const yy1 = GRAPH_CONFIG.AXIS_HEIGHT + y1;
-                  const yy2 = GRAPH_CONFIG.AXIS_HEIGHT + y2;
+                  const yy1 = tileTopOffset + y1;
+                  const yy2 = tileTopOffset + y2;
                   const midY = (yy1 + yy2) / 2;
                   const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
                   const selected = isEdgeSelected(edge.id);
@@ -1457,8 +1483,8 @@ export function GraphView() {
               (() => {
                 const sel = visibleEdges.find((v) => v.edge.id === selectedEdgeId);
                 if (!sel) return null;
-                const yy1 = GRAPH_CONFIG.AXIS_HEIGHT + sel.y1;
-                const yy2 = GRAPH_CONFIG.AXIS_HEIGHT + sel.y2;
+                const yy1 = tileTopOffset + sel.y1;
+                const yy2 = tileTopOffset + sel.y2;
                 const midX = (sel.x1 + sel.x2) / 2;
                 const midY = (yy1 + yy2) / 2;
                 return (
@@ -1572,7 +1598,7 @@ export function GraphView() {
                   style={
                     {
                       left: node.x,
-                      top: GRAPH_CONFIG.AXIS_HEIGHT + node.y - GRAPH_CONFIG.TILE_HEIGHT / 2,
+                      top: tileTopOffset + node.y - GRAPH_CONFIG.TILE_HEIGHT / 2,
                       width: GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT,
                       height: GRAPH_CONFIG.TILE_HEIGHT,
                       ['--tile-color' as string]: color,
@@ -1593,188 +1619,150 @@ export function GraphView() {
       </div>
 
       {/* ---------------- Drift drawer (floating, bottom-center) ----------------
-          Small tab pinned to bottom-center. Click expands a centered "hand"
-          of drift cards (free-floating notes). Cards live only here — not
-          draggable to the storyline canvas, but reorderable among
-          themselves via drag-and-drop. Edges touching drift endpoints
-          render with a glowing fixed SVG when the panel is open. */}
-      <div
-        className={[
-          'graph-drift',
-          driftPanelOpen ? 'is-open' : '',
-          driftPanelClosing ? 'is-closing' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+          Shared shell with SuperElementView via <DriftPanel>. The cards
+          rendered as children keep GraphView's drag-and-drop reorder + edge-
+          selection visual language; the hand-level drop handler is passed
+          through handDragHandlers. */}
+      <DriftPanel
+        count={driftNodes.length}
+        bottomOffset={20}
+        mounted={driftPanelMounted}
+        open={driftPanelOpen}
+        closing={driftPanelClosing}
+        onOpen={openDriftPanel}
+        onClose={closeDriftPanel}
+        closeDisabled={driftPanelClosing}
+        panelAriaHidden={!driftPanelOpen || driftPanelClosing}
+        handDragHandlers={{
+          onDragOver: (e) => {
+            // Drop in empty space at the ends — per-card handlers cover
+            // the between-cards case.
+            if (!draggedDrift) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          },
+          onDrop: (e) => {
+            if (!draggedDrift) return;
+            e.preventDefault();
+            // Snapshot dragged card rect for the FLIP settle.
+            const draggedEl = driftCardRefs.current.get(draggedDrift.id);
+            if (draggedEl) {
+              draggedIdAtDropRef.current = draggedDrift.id;
+              draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
+            }
+            void commitDriftReorder();
+          },
+        }}
       >
-        {/* Centered close button at the top of the panel. It stays mounted
-            through the closing animation to keep the panel's vertical slot
-            stable, but CSS fades/pointer-disables it while closing. */}
-        {driftPanelMounted && (
-          <button
-            type="button"
-            className="graph-drift__close"
-            onClick={closeDriftPanel}
-            disabled={driftPanelClosing}
-            title="收起浮缀"
-            aria-label="收起浮缀"
-          >
-            <span aria-hidden>×</span>
-          </button>
-        )}
-        {driftPanelMounted && (
-          <div className="graph-drift__panel" aria-hidden={!driftPanelOpen || driftPanelClosing}>
-            <div
-              className="graph-drift__hand"
-              onDragOver={(e) => {
-                // Allow drop in the empty space at the ends. Per-card handlers
-                // cover the between-cards case.
-                if (!draggedDrift) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-              }}
-              onDrop={(e) => {
-                if (!draggedDrift) return;
-                e.preventDefault();
-                // Snapshot dragged card rect for the FLIP settle (same as
-                // the per-card drop handler).
-                const draggedEl = driftCardRefs.current.get(draggedDrift.id);
-                if (draggedEl) {
-                  draggedIdAtDropRef.current = draggedDrift.id;
-                  draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
-                }
-                void commitDriftReorder();
-              }}
-            >
-              {driftNodes.length === 0 ? (
-                <div className="graph-drift__empty">
-                  还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记
-                </div>
-              ) : (
-                driftNodes.map((node, index) => {
-                  const isLinkSource = linkSource === node.id;
-                  const isDragged = draggedDrift?.id === node.id;
-                  const shift = computeDriftShift(index);
-                  return (
-                    <div
-                      key={node.id}
-                      ref={(el) => {
-                        if (el) driftCardRefs.current.set(node.id, el);
-                        else driftCardRefs.current.delete(node.id);
-                      }}
-                      className={[
-                        'graph-drift__card',
-                        isLinkSource ? 'is-link-source' : '',
-                        isDragged ? 'is-dragged' : '',
-                        isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{
-                        transform: shift || undefined,
-                        // CSS transition lives on the class; we only set the
-                        // transform value at render-time so the live shift
-                        // smoothly transitions when the drop target moves.
-                      }}
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedDrift({ id: node.id, index });
-                        setDriftDropIndex(index);
-                        e.dataTransfer.effectAllowed = 'move';
-                        const el = e.currentTarget as HTMLElement;
-                        const rect = el.getBoundingClientRect();
-                        e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
-                      }}
-                      onDragEnd={() => {
-                        // Cancelled drag (released outside any drop target):
-                        // just clear state, no commit, no FLIP.
-                        setDraggedDrift(null);
-                        setDriftDropIndex(null);
-                      }}
-                      onDragOver={(e) => {
-                        if (!draggedDrift) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                        const beforeHalf = e.clientX - rect.left < rect.width / 2;
-                        setDriftDropIndex(beforeHalf ? index : index + 1);
-                      }}
-                      onDrop={(e) => {
-                        if (!draggedDrift) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Snapshot the dragged card's pre-commit rect so the
-                        // FLIP effect can slide it from its old slot to its
-                        // new slot. Other cards stay in place visually
-                        // (their inline shift becomes the new DOM slot).
-                        const draggedEl = driftCardRefs.current.get(draggedDrift.id);
-                        if (draggedEl) {
-                          draggedIdAtDropRef.current = draggedDrift.id;
-                          draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
-                        }
-                        void commitDriftReorder();
-                      }}
-                      onClick={(e) => {
-                        // Same shift-click pairing semantics as storyline
-                        // tiles. A drift card can sit on either end of the
-                        // pair — the data model doesn't care whether the
-                        // endpoints are placed or drift.
-                        if (e.shiftKey) {
-                          setLinkSource((prev) => (prev === node.id ? null : node.id));
-                          return;
-                        }
-                        if (linkSource && linkSource !== node.id) {
-                          setNewEdgePair({ source: linkSource, target: node.id });
-                          setNewEdgeKind('');
-                          setLinkSource(null);
-                          return;
-                        }
-                        // Mirror the tile-click popover so the in-view
-                        // editing UX stays consistent.
-                        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                        setPopover({
-                          nodeId: node.id,
-                          anchor: {
-                            left: rect.left,
-                            top: rect.top,
-                            width: rect.width,
-                            height: rect.height,
-                          },
-                        });
-                      }}
-                      onDoubleClick={() => {
-                        openEntity({ entityType: 'node', id: node.id }, { preview: false });
-                        close();
-                      }}
-                      title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字 · shift+点击起关联`}
-                    >
-                      <div className="graph-drift__card-num">浮缀</div>
-                      <div className="graph-drift__card-title">{node.title || '未命名'}</div>
-                      {node.summary && (
-                        <div className="graph-drift__card-summary">{node.summary}</div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+        {driftNodes.length === 0 ? (
+          <div className="drift-card__empty">
+            还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记
           </div>
+        ) : (
+          driftNodes.map((node, index) => {
+            const isLinkSource = linkSource === node.id;
+            const isDragged = draggedDrift?.id === node.id;
+            const shift = computeDriftShift(index);
+            return (
+              <div
+                key={node.id}
+                ref={(el) => {
+                  if (el) driftCardRefs.current.set(node.id, el);
+                  else driftCardRefs.current.delete(node.id);
+                }}
+                className={[
+                  'drift-card',
+                  isLinkSource ? 'is-link-source' : '',
+                  isDragged ? 'is-dragged' : '',
+                  isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                style={{
+                  transform: shift || undefined,
+                  cursor: 'grab',
+                  // CSS transition lives on the class; we only set the
+                  // transform value at render-time so the live shift
+                  // smoothly transitions when the drop target moves.
+                }}
+                draggable
+                onDragStart={(e) => {
+                  setDraggedDrift({ id: node.id, index });
+                  setDriftDropIndex(index);
+                  e.dataTransfer.effectAllowed = 'move';
+                  const el = e.currentTarget as HTMLElement;
+                  const rect = el.getBoundingClientRect();
+                  e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
+                }}
+                onDragEnd={() => {
+                  // Cancelled drag (released outside any drop target):
+                  // just clear state, no commit, no FLIP.
+                  setDraggedDrift(null);
+                  setDriftDropIndex(null);
+                }}
+                onDragOver={(e) => {
+                  if (!draggedDrift) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const beforeHalf = e.clientX - rect.left < rect.width / 2;
+                  setDriftDropIndex(beforeHalf ? index : index + 1);
+                }}
+                onDrop={(e) => {
+                  if (!draggedDrift) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Snapshot the dragged card's pre-commit rect so the
+                  // FLIP effect can slide it from its old slot to its
+                  // new slot. Other cards stay in place visually
+                  // (their inline shift becomes the new DOM slot).
+                  const draggedEl = driftCardRefs.current.get(draggedDrift.id);
+                  if (draggedEl) {
+                    draggedIdAtDropRef.current = draggedDrift.id;
+                    draggedCardRectAtDropRef.current = draggedEl.getBoundingClientRect();
+                  }
+                  void commitDriftReorder();
+                }}
+                onClick={(e) => {
+                  if (e.shiftKey) {
+                    setLinkSource((prev) => (prev === node.id ? null : node.id));
+                    return;
+                  }
+                  if (linkSource && linkSource !== node.id) {
+                    setNewEdgePair({ source: linkSource, target: node.id });
+                    setNewEdgeKind('');
+                    setLinkSource(null);
+                    return;
+                  }
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  setPopover({
+                    nodeId: node.id,
+                    anchor: {
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                  });
+                }}
+                onDoubleClick={() => {
+                  openEntity({ entityType: 'node', id: node.id }, { preview: false });
+                  close();
+                }}
+                title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字 · shift+点击起关联`}
+              >
+                <div className="drift-card__num">
+                  §{String(node.bookOrder).padStart(2, '0')}
+                </div>
+                <div className="drift-card__title">{node.title || '未命名'}</div>
+                {node.summary && (
+                  <div className="drift-card__summary">{node.summary}</div>
+                )}
+              </div>
+            );
+          })
         )}
-        {/* Rectangular tab button. Only shown while the panel is
-            closed — opening hides the tab, and the panel's inline
-            close button takes over the "collapse" role. */}
-        {!driftPanelMounted && (
-          <button
-            type="button"
-            className="graph-drift__tab"
-            onClick={openDriftPanel}
-            title="浮缀 — 暂时未入故事线的灵感卡（点击展开）"
-          >
-            <span>浮缀</span>
-            <span className="graph-drift__count">{driftNodes.length}</span>
-          </button>
-        )}
-      </div>
+      </DriftPanel>
 
       {/* Fixed-position SVG overlay for drift edges. Endpoints are in
           viewport coordinates (computed in the rAF loop above), so this SVG

@@ -30,6 +30,8 @@ export interface EntityReferenceRecord {
   toBlockId: string | null;
   origin: LinkOrigin;
   confidence: number | null;
+  /** Free-form relation category. */
+  kind: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -126,6 +128,7 @@ function toRecord(
     toBlockId: row.toBlockId,
     origin: row.origin as LinkOrigin,
     confidence: row.confidence,
+    kind: row.kind ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -168,6 +171,7 @@ export function createReferenceRepository(): ReferenceRepository {
         toBlockId: d.toBlockId,
         origin: d.origin,
         confidence: d.confidence ?? null,
+        kind: null, // inline mention refs are uncategorised by default
         createdAt: now,
         updatedAt: now,
       }));
@@ -197,6 +201,7 @@ export function createReferenceRepository(): ReferenceRepository {
       toBlockId,
       origin: 'manual' as LinkOrigin,
       confidence: null,
+      kind: null as string | null,
       createdAt: now,
       updatedAt: now,
     };
