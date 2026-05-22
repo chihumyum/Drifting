@@ -51,6 +51,11 @@
   background: hsl(var(--accent) / 0.10);
   box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.30);
 }
+.bsb__shadow.is-active {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.10);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.30);
+}
 .bsb__timeline-toggle.is-open {
   color: hsl(var(--ink-1));
   background: hsl(var(--rule) / 0.3);

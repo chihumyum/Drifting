@@ -30,6 +30,9 @@ export function BottomStatusBar() {
   const toggleSuper = (id: SuperViewId) =>
     setActiveSuperView(activeSuperView === id ? 'none' : id);
 
+  const shadowMode = useUiStore((s) => s.shadowMode);
+  const toggleShadowMode = useUiStore((s) => s.toggleShadowMode);
+
   // Nav-icon clicks should ALWAYS land the user on the navigated route —
   // when a super view is overlaying the editor, clicking Home / 通览全书
   // would otherwise silently open the tab in the background while the
@@ -97,6 +100,25 @@ export function BottomStatusBar() {
       </button>
 
       <div className="bsb__spacer" />
+      <button
+        type="button"
+        className={`bsb__seg bsb__shadow${shadowMode ? ' is-active' : ''}`}
+        onClick={toggleShadowMode}
+        title={shadowMode ? '退回 Shadow' : '唤起 Shadow'}
+        aria-label={shadowMode ? '退回 Shadow' : '唤起 Shadow'}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: 12,
+            lineHeight: 1,
+          }}
+        >
+          ◐
+        </span>
+        <span>Shadow</span>
+      </button>
       <button
         type="button"
         className={`bsb__seg bsb__timeline-toggle${bottomTimelineHidden ? '' : ' is-open'}`}

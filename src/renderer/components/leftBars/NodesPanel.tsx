@@ -26,7 +26,7 @@ const formatShortDate = (input: string | number | Date) => {
 
 export function NodesPanel() {
   const { bookNodes, storylines, storylineNodeMapping } = useDataStore();
-  const { nodeUi, timelineHeight } = useUiStore();
+  const { nodeUi } = useUiStore();
   const viewMode = useUiStore((s) => s.nodesPanelViewMode);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
@@ -80,13 +80,6 @@ export function NodesPanel() {
     events.on('left-sidebar:collapse-all', handler);
     return () => events.off('left-sidebar:collapse-all', handler);
   }, [storylines]);
-
-  // The shell already owns the LeftSidebarHeader (40px) and
-  // LeftSidebarSubHeader (~32px). Subtract both plus the bottom timeline.
-  const panelHeight = useMemo(
-    () => `calc(100vh - 114px - ${timelineHeight}px)`,
-    [timelineHeight],
-  );
 
   const storylineById = useMemo(
     () => new Map(storylines.map((s) => [s.id, s])),
@@ -279,7 +272,7 @@ export function NodesPanel() {
   return (
     <div
       style={{
-        height: panelHeight,
+        height: '100%',
         overflowY: 'auto',
         padding: '6px 0 24px',
       }}

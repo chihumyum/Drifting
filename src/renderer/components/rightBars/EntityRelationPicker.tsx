@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
 export interface RelationTarget {
@@ -14,6 +15,12 @@ interface Props {
   selected: Set<string>;
   onAdd: (target: RelationTarget) => void;
   onRemove: (target: RelationTarget) => void;
+  /** Behavior of the already-selected chips in the top row.
+   *  - `navigate` (default): chip body opens the entity, trailing × removes
+   *    the relation. Used in memo / material cards in the side panel.
+   *  - `toggle`: whole chip removes the relation. Used inside compose
+   *    dialogs where navigating away would dismiss the dialog. */
+  selectedChipMode?: 'navigate' | 'toggle';
 }
 
 /**
@@ -24,10 +31,39 @@ interface Props {
  * Drifts are nodes with `mainStorylineId == null` — they appear under a
  * separate header so users don't confuse them with regular chapters.
  */
-export function EntityRelationPicker({ selected, onAdd, onRemove }: Props) {
+export function EntityRelationPicker({
+  selected,
+  onAdd,
+  onRemove,
+  selectedChipMode = 'navigate',
+}: Props) {
   const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStore();
+  const { navigateToNode, navigateToElement, navigateToStoryline, navigateToCategory } =
+    useProjectNavigation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+
+  // Click on the selected-chip body should jump to the linked entity. Click
+  // on the ×/+ icon (handled inside Chip) still removes the relation. The
+  // group-picker chips below keep the "whole chip toggles" semantics.
+  const navigateToTarget = (t: RelationTarget) => {
+    switch (t.kind) {
+      case 'node':
+        navigateToNode(t.id);
+        return;
+      case 'element':
+        navigateToElement(t.id);
+        return;
+      case 'storyline':
+        navigateToStoryline(t.id);
+        return;
+      case 'category':
+        navigateToCategory(t.id);
+        return;
+      default:
+        return;
+    }
+  };
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -118,9 +154,24 @@ export function EntityRelationPicker({ selected, onAdd, onRemove }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-        {selectedChips.map((chip) => (
-          <Chip key={`${chip.kind}:${chip.id}`} target={chip} selected onClick={() => toggle(chip)} />
-        ))}
+        {selectedChips.map((chip) =>
+          selectedChipMode === 'navigate' ? (
+            <Chip
+              key={`${chip.kind}:${chip.id}`}
+              target={chip}
+              selected
+              onClick={() => navigateToTarget(chip)}
+              onRemove={() => onRemove(chip)}
+            />
+          ) : (
+            <Chip
+              key={`${chip.kind}:${chip.id}`}
+              target={chip}
+              selected
+              onClick={() => toggle(chip)}
+            />
+          ),
+        )}
         <button
           onClick={() => setOpen((v) => !v)}
           style={{
@@ -223,11 +274,107 @@ function Chip({
   target,
   selected,
   onClick,
+  onRemove,
 }: {
   target: RelationTarget;
   selected: boolean;
   onClick: () => void;
+  /** When set, splits the chip so body click runs `onClick` and the trailing
+   *  × runs `onRemove`. Without it the whole chip is one toggle button. */
+  onRemove?: () => void;
 }) {
+  if (onRemove) {
+    // Split-mode: rendered as a div so the body and × can be independent
+    // click targets (nested <button>s are invalid HTML).
+    return (
+      <div
+        title={target.id}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          fontFamily: 'var(--font-serif)',
+          fontSize: 12,
+          padding: '2px 4px 2px 8px',
+          borderRadius: 12,
+          border: '1px solid hsl(var(--rule))',
+          background: 'hsl(var(--ink-1) / 0.06)',
+          color: 'hsl(var(--ink-1))',
+          maxWidth: 200,
+        }}
+      >
+        <button
+          onClick={onClick}
+          title={`跳转至 ${target.label}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: 0,
+            background: 'transparent',
+            border: 'none',
+            color: 'inherit',
+            font: 'inherit',
+            cursor: 'pointer',
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+        >
+          {target.color && (
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: target.color,
+                display: 'inline-block',
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{target.label}</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          title="移除关联"
+          aria-label="移除关联"
+          style={{
+            display: 'inline-grid',
+            placeItems: 'center',
+            width: 14,
+            height: 14,
+            padding: 0,
+            border: 'none',
+            background: 'transparent',
+            color: 'hsl(var(--ink-4))',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            lineHeight: 1,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'hsl(var(--rule))';
+            e.currentTarget.style.color = 'hsl(var(--ink-1))';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'hsl(var(--ink-4))';
+          }}
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={onClick}

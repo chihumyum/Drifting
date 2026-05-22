@@ -17,16 +17,10 @@ const formatShortDate = (input: string | number | Date) => {
 
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
-  const { nodeUi, timelineHeight } = useUiStore();
+  const { nodeUi } = useUiStore();
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
-
-  // Same shell-height math as NodesPanel/ElementPanel.
-  const panelHeight = useMemo(
-    () => `calc(100vh - 114px - ${timelineHeight}px)`,
-    [timelineHeight],
-  );
 
   // Drift nodes — off-timeline notes, sorted by recency.
   const driftNodes = useMemo(
@@ -132,7 +126,7 @@ export function DriftPanel() {
   return (
     <div
       style={{
-        height: panelHeight,
+        height: '100%',
         overflowY: 'auto',
         padding: '6px 0 24px',
       }}

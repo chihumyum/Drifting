@@ -26,7 +26,7 @@ const formatShortDate = (input: string | number | Date) => {
 
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
-  const { elementUi, timelineHeight } = useUiStore();
+  const { elementUi } = useUiStore();
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -76,13 +76,6 @@ export function ElementPanel() {
     events.on('left-sidebar:collapse-all', handler);
     return () => events.off('left-sidebar:collapse-all', handler);
   }, [bookElementCategories]);
-
-  // Shell now owns the LeftSidebarHeader + LeftSidebarSubHeader chrome, so we
-  // no longer need the internal create-category toolbar's height.
-  const panelHeight = useMemo(
-    () => `calc(100vh - 114px - ${timelineHeight}px)`,
-    [timelineHeight],
-  );
 
   const categoryById = useMemo(
     () => new Map(bookElementCategories.map((category) => [category.id, category])),
@@ -321,7 +314,7 @@ export function ElementPanel() {
     <div style={{ height: '100%', position: 'relative' }}>
       <div
         style={{
-          height: panelHeight,
+          height: '100%',
           display: 'flex',
           flexDirection: 'column',
           padding: 0,

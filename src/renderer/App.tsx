@@ -57,7 +57,6 @@ import { useBookMaterial } from './usecase/useBookMaterial';
 import { useEntityRelations } from './usecase/useEntityRelations';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
-import { ShadowOrb } from './components/ShadowOrb';
 import { isAuthRequired } from './lib/config';
 import { pullAndHydrateProjectGraph } from './services/entity-sync.service';
 import { rebuildProjectInlineReferenceIndex } from './services/reference-index.service';
@@ -678,9 +677,6 @@ function Layout() {
         />
       )}
       <SyncStatusHUD />
-
-      {/* Floating Shadow orb — toggles shadow-mode (right panel grows a Shadow tab). */}
-      <ShadowOrb />
     </div>
   );
 }

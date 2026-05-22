@@ -131,6 +131,10 @@ export function MemoMaterialPanel({ focused }: Props) {
   const [composeOpen, setComposeOpen] = useState<null | 'memo' | 'material'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
+  // Two-stage preview for text snippets: clicking the inline body opens this
+  // popover first; the popover itself escalates to the fullscreen preview.
+  // Mirrors GraphView's NodeCardPopover default → upgrade flow.
+  const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
 
   // Index manualReferences by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
@@ -180,6 +184,11 @@ export function MemoMaterialPanel({ focused }: Props) {
     [materials, previewMaterialId],
   );
 
+  const textPopoverMaterial = useMemo(
+    () => materials.find((mat) => mat.id === textPopoverId) ?? null,
+    [materials, textPopoverId],
+  );
+
   const openMaterialInSystem = async (m: Material) => {
     // text snippets are edited inline on the card — no popover / OS hand-off.
     if (m.kind === 'text') return;
@@ -199,6 +208,13 @@ export function MemoMaterialPanel({ focused }: Props) {
   const openMaterialInApp = (m: Material) => {
     if (m.kind === 'url') {
       void openMaterialInSystem(m);
+      return;
+    }
+    if (m.kind === 'text') {
+      // First stage of the two-step preview — open the floating popover
+      // instead of jumping straight to fullscreen. The popover renders a
+      // 全屏 ↗ control that does the actual escalation.
+      setTextPopoverId(m.id);
       return;
     }
     setPreviewMaterialId(m.id);
@@ -330,6 +346,21 @@ export function MemoMaterialPanel({ focused }: Props) {
           material={previewMaterial}
           onClose={() => setPreviewMaterialId(null)}
           onUpdate={(updates) => materialUsecases.updateMaterial(previewMaterial.id, updates)}
+        />
+      )}
+
+      {textPopoverMaterial && (
+        <TextSnippetPopover
+          key={textPopoverMaterial.id}
+          material={textPopoverMaterial}
+          onClose={() => setTextPopoverId(null)}
+          onExpand={() => {
+            setTextPopoverId(null);
+            setPreviewMaterialId(textPopoverMaterial.id);
+          }}
+          onUpdate={(updates) =>
+            materialUsecases.updateMaterial(textPopoverMaterial.id, updates)
+          }
         />
       )}
 
@@ -1538,6 +1569,186 @@ function MaterialThumbnail({ material, onClick }: { material: Material; onClick:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Two-stage text snippet popover — first click on a text snippet body opens
+// this compact floating editor; an explicit 全屏 ↗ control escalates to the
+// fullscreen preview. Mirrors the GraphView NodeCardPopover default/upgrade
+// staging so quick reads don't force a fullscreen jump.
+
+function TextSnippetPopover({
+  material,
+  onClose,
+  onExpand,
+  onUpdate,
+}: {
+  material: Material;
+  onClose: () => void;
+  onExpand: () => void;
+  onUpdate: (updates: Partial<Material>) => void;
+}) {
+  const [draft, setDraft] = useState(material.bodyJson ?? '');
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  const persistIfChanged = useCallback(() => {
+    const next = draftRef.current;
+    if (next !== (material.bodyJson ?? '')) {
+      onUpdate({ bodyJson: next });
+    }
+  }, [material.bodyJson, onUpdate]);
+
+  const close = useCallback(() => {
+    persistIfChanged();
+    onClose();
+  }, [persistIfChanged, onClose]);
+
+  const expand = useCallback(() => {
+    persistIfChanged();
+    onExpand();
+  }, [persistIfChanged, onExpand]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [close]);
+
+  return createPortal(
+    <div
+      onClick={close}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'hsl(var(--ink-1) / 0.22)',
+        zIndex: 950,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'hsl(var(--paper))',
+          border: '1px solid hsl(var(--rule))',
+          borderRadius: 6,
+          width: 'min(440px, 92vw)',
+          maxHeight: '70vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 16px 36px -12px hsl(var(--ink-1) / 0.30)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 12px',
+            borderBottom: '1px solid hsl(var(--rule))',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              color: 'hsl(var(--story-4))',
+            }}
+          >
+            片段
+          </span>
+          <span
+            title={material.title}
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: 13.5,
+              color: 'hsl(var(--ink-1))',
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {material.title || 'Untitled'}
+          </span>
+          <button
+            onClick={expand}
+            title="展开全屏 (Stage 2)"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              padding: '3px 8px',
+              borderRadius: 3,
+              border: '1px solid hsl(var(--rule))',
+              background: 'transparent',
+              color: 'hsl(var(--ink-2))',
+              cursor: 'pointer',
+            }}
+          >
+            全屏 ↗
+          </button>
+          <button
+            onClick={close}
+            title="关闭 (Esc)"
+            aria-label="关闭"
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              padding: '0 6px',
+              borderRadius: 3,
+              border: 'none',
+              background: 'transparent',
+              color: 'hsl(var(--ink-4))',
+              cursor: 'pointer',
+            }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, padding: 12, overflow: 'hidden' }}>
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="片段正文…"
+            style={{
+              width: '100%',
+              height: '100%',
+              minHeight: 180,
+              resize: 'none',
+              border: '1px solid hsl(var(--rule))',
+              borderRadius: 4,
+              padding: '8px 10px',
+              background: 'hsl(var(--paper))',
+              color: 'hsl(var(--ink-1))',
+              fontFamily: 'var(--font-serif)',
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              outline: 'none',
+              whiteSpace: 'pre-wrap',
+            }}
+          />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Full-screen material preview
 
 type MaterialPreviewViewport = {
@@ -2314,6 +2525,7 @@ function ComposeMemoDialog({
       <div style={{ marginTop: 10 }}>
         <EntityRelationPicker
           selected={selectedSet}
+          selectedChipMode="toggle"
           onAdd={(t) => setRelations((prev) => [...prev, t])}
           onRemove={(t) =>
             setRelations((prev) => prev.filter((r) => !(r.kind === t.kind && r.id === t.id)))
@@ -2624,6 +2836,7 @@ function ComposeMaterialDialog({
       <div style={{ marginTop: 10 }}>
         <EntityRelationPicker
           selected={selectedSet}
+          selectedChipMode="toggle"
           onAdd={(t) => setRelations((prev) => [...prev, t])}
           onRemove={(t) =>
             setRelations((prev) => prev.filter((r) => !(r.kind === t.kind && r.id === t.id)))
