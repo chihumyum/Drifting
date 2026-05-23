@@ -21,7 +21,7 @@ export function BottomStatusBar() {
   const toggleBottomTimelineHidden = useUiStore((s) => s.toggleBottomTimelineHidden);
 
   const { projectId, navigateToHome, navigateToAllChapters } = useProjectNavigation();
-  // Mirror NodesPanel's "double-click promotes the preview tab to a dedicated
+  // Mirror ChapterPanel's "double-click promotes the preview tab to a dedicated
   // tab" gesture — so Home / 通览全书 can open as a real tab without a
   // right-click detour.
   const promoteCurrentTab = usePromoteCurrentTab(projectId);

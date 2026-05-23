@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
@@ -21,11 +22,17 @@ const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateNodeUsecaseInput {
-  // null = drift node (no storyline membership)
-  mainStorylineId: string | null;
-  // Optional / nullable: drift nodes (mainStorylineId == null) have no
-  // place on the reading axis. Callers creating a chapter should pass the
-  // computed bookOrder; drift callers should omit it or pass null.
+  // 'chapter' — sits on the reading-order axis, may or may not have a primary
+  //             storyline (no storyline → 未归属 chapter, single-lane mode).
+  // 'drift'   — free-floating note, no storyline, no bookOrder.
+  // The two are explicit: a chapter without a storyline is still a chapter
+  // (kind='chapter', mainStorylineId=null), not auto-coerced to drift.
+  kind: 'chapter' | 'drift';
+  // Optional. Ignored when kind='drift'. null/undefined for kind='chapter'
+  // means the new chapter goes 未归属.
+  mainStorylineId?: string | null;
+  // Optional / nullable. Drift nodes never have a bookOrder; chapter callers
+  // should pass the computed next-bookOrder.
   bookOrder?: number | null;
   narrativeOrder?: number | null;
   title?: string;
@@ -114,30 +121,31 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         createdAt: now,
         updatedAt: now,
       };
-      // Drift vs chapter is the discriminator — build the correct variant
-      // so the domain invariant `drift => bookOrder == null` is enforced at
-      // the source and TypeScript can narrow downstream.
+      // Drift vs chapter is the explicit `kind` from the caller. A chapter
+      // with no primary storyline is legal (未归属 / single-lane mode) — the
+      // primary-storyline link goes into node_storyline_link when set.
+      const primaryStorylineId = input.kind === 'drift' ? null : input.mainStorylineId ?? null;
       const newNode: BookNode =
-        input.mainStorylineId == null
+        input.kind === 'drift'
           ? {
               ...baseFields,
-              mainStorylineId: null,
+              kind: 'drift',
               bookOrder: null,
               writingStatus: 'drifting',
             }
           : {
               ...baseFields,
-              mainStorylineId: input.mainStorylineId,
+              kind: 'chapter',
               bookOrder: input.bookOrder ?? 0,
               writingStatus: 'draft',
             };
 
-      // Seed the new node's content from its main storyline's
+      // Seed the new node's content from its primary storyline's
       // nodeContentTemplateJson when one is set; otherwise fall back to an
-      // empty doc. Drift nodes (no main storyline) skip the template lookup.
+      // empty doc. Drift nodes (no primary storyline) skip the template lookup.
       const emptyDocJson = JSON.stringify({ type: 'doc', content: [] });
-      const mainStoryline = newNode.mainStorylineId
-        ? useDataStore.getState().storylines.find((s) => s.id === newNode.mainStorylineId)
+      const mainStoryline = primaryStorylineId
+        ? useDataStore.getState().storylines.find((s) => s.id === primaryStorylineId)
         : null;
       const templateJson = mainStoryline?.nodeContentTemplateJson?.trim();
       const defaultDocJson =
@@ -156,8 +164,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
             const contentRepoTx = createBookContentRepository(tx);
             const created = await nodeRepoTx.create(newNode);
-            if (created.mainStorylineId) {
-              await linkRepoTx.addNodeToStoryline(created.id, created.mainStorylineId);
+            if (primaryStorylineId) {
+              await linkRepoTx.addNodeToStoryline(created.id, primaryStorylineId, {
+                isPrimary: true,
+              });
             }
             await contentRepoTx.create({
               nodeId: created.id,
@@ -172,8 +182,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             .map((node) => (node.id === created.id ? created : node))
             .sort(compareBookOrder);
           setNodesState(merged);
-          if (created.mainStorylineId) {
-            addNodeToStorylineMappingState(created.mainStorylineId, created.id);
+          if (primaryStorylineId) {
+            addNodeToStorylineMappingState(primaryStorylineId, created.id);
+            useDataStore.getState().setNodePrimaryStoryline(created.id, primaryStorylineId);
           }
         },
         sync: (created) => {
@@ -183,7 +194,11 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             summary: created.summary,
             bookOrder: created.bookOrder,
             narrativeOrder: created.narrativeOrder,
-            mainStorylineId: created.mainStorylineId,
+            // mainStorylineId is sent as a sync-time signal so the server
+            // upserts the corresponding node_storyline_link.is_primary row
+            // alongside the book_node insert. It is NOT a column on book_node.
+            mainStorylineId: primaryStorylineId,
+            kind: created.kind,
             positionX: created.position.x,
             positionY: created.position.y,
             writingStatus: created.writingStatus,
@@ -320,52 +335,67 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState, activeProjectId],
   );
 
+  // `mainStorylineId` is accepted as an update SIGNAL — not a domain field on
+  // BookNode (the column was retired). When set, it flips the primary storyline
+  // link for this node; when null, it demotes whatever primary exists.
   const updateNode = useCallback(
-    async (id: string, updates: Partial<BookNode>) => {
+    async (
+      id: string,
+      updates: Partial<BookNode> & { mainStorylineId?: string | null },
+    ) => {
       await ensureDb();
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);
 
       const updatedAt = new Date().toISOString();
-      const serverUpdates: Record<string, unknown> = { ...updates };
-      if (updates.position) {
-        serverUpdates.positionX = updates.position.x;
-        serverUpdates.positionY = updates.position.y;
+      const { mainStorylineId: newPrimary, ...nodeUpdates } = updates;
+      const serverUpdates: Record<string, unknown> = { ...nodeUpdates };
+      if (nodeUpdates.position) {
+        serverUpdates.positionX = nodeUpdates.position.x;
+        serverUpdates.positionY = nodeUpdates.position.y;
         delete serverUpdates.position;
       }
 
-      const mainChanged =
-        updates.mainStorylineId !== undefined && updates.mainStorylineId !== existing.mainStorylineId;
+      const currentPrimary =
+        useDataStore.getState().primaryStorylineByNode[id] ?? null;
+      const mainChanged = newPrimary !== undefined && newPrimary !== currentPrimary;
 
       return withOptimisticUpdate({
         apply: () => {
-          updateNodeState(id, { ...updates, updatedAt });
-          if (mainChanged && updates.mainStorylineId) {
-            addNodeToStorylineMappingState(updates.mainStorylineId, id);
+          updateNodeState(id, { ...nodeUpdates, updatedAt });
+          if (mainChanged) {
+            useDataStore.getState().setNodePrimaryStoryline(id, newPrimary ?? null);
+            if (newPrimary) addNodeToStorylineMappingState(newPrimary, id);
           }
         },
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
           if (!mainChanged) {
-            await nodeRepo.update(id, { ...updates, updatedAt });
+            await nodeRepo.update(id, { ...nodeUpdates, updatedAt });
             return;
           }
 
           await getDb().transaction(async (tx) => {
             const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
-            await nodeRepoTx.update(id, { ...updates, updatedAt });
-            if (updates.mainStorylineId) {
-              const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
-              await linkRepoTx.addNodeToStoryline(id, updates.mainStorylineId);
-            }
+            await nodeRepoTx.update(id, { ...nodeUpdates, updatedAt });
+            // Flip the primary link atomically — demotes the previous primary
+            // and promotes the new one (or just demotes when going to null).
+            const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId, tx);
+            await linkRepoTx.setPrimaryStoryline(id, newPrimary ?? null);
           });
         },
         sync: () => {
           syncNodeUpdate(id, activeProjectId, serverUpdates);
-          if (mainChanged && updates.mainStorylineId) {
-            syncNodeStorylineLinkCreate(id, updates.mainStorylineId, activeProjectId);
+          if (mainChanged && newPrimary) {
+            syncNodeStorylineLinkCreate(id, newPrimary, activeProjectId, {
+              isPrimary: true,
+            });
           }
+          // For demotion-without-replacement (newPrimary === null) the local
+          // SQLite is updated, but the server outbox doesn't have a dedicated
+          // "demote primary" path yet — Step 5 introduces the deletion-driven
+          // semantics that supply this signal cleanly via the bulk PUT.
         },
       });
     },
@@ -390,6 +420,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
       log.debug('[deleteBookNode] Node found, removing from state optimistically');
       const nextNodes = prevNodes.filter((node) => node.id !== id);
+      // Drop any tabs pointing at this node before we mutate the entity
+      // store — otherwise the tab bar holds onto an "Untitled" leaf because
+      // the entity lookup goes empty after apply().
+      useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'node', id });
       return withOptimisticUpdate({
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prevNodes),

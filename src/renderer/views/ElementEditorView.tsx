@@ -18,7 +18,7 @@ import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
-import { usePromoteCurrentTab } from '../store/ui-store';
+import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
 const log = loglevel.getLogger('ElementEditorView');
@@ -46,9 +46,11 @@ export function ElementEditorView({
   });
   const { updateElement } = elementUsecases;
 
+  const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
+
   const [editingCategory, setEditingCategory] = useState(false);
-  const [nameValue, setNameValue] = useState('');
-  const [summaryValue, setSummaryValue] = useState('');
+  const [nameValue, setNameValue] = useState(curElement?.name || '');
+  const [summaryValue, setSummaryValue] = useState(curElement?.summary || '');
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
@@ -74,7 +76,6 @@ export function ElementEditorView({
     }
   }, [elementId, navigate]);
 
-  const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
   const commentCount = useMemo(
     () =>
       manuscriptComments.filter(
@@ -188,22 +189,59 @@ export function ElementEditorView({
     setEditingCategory(false);
   };
 
-  const handleContextAction = async (action: string) => {
-    if (!elementId || !curElement) return;
-    if (action === 'deleteElement') {
-      const confirmed = window.confirm(`Delete element "${curElement.name}"?`);
-      if (!confirmed) return;
-      try {
-        await elementUsecases.removeElement(elementId);
-        navigateToHome();
-      } catch (error) {
-        log.error('Failed to delete element:', error);
-        alert('Failed to delete element. Please try again.');
+  const handleContextAction = useCallback(
+    async (action: string) => {
+      if (!elementId || !curElement) return;
+      if (action === 'deleteElement') {
+        const confirmed = window.confirm(`Delete element "${curElement.name}"?`);
+        if (!confirmed) return;
+        try {
+          await elementUsecases.removeElement(elementId);
+          navigateToHome();
+        } catch (error) {
+          log.error('Failed to delete element:', error);
+          alert('Failed to delete element. Please try again.');
+        }
+      } else if (action === 'categoryPicker') {
+        setEditingCategory(true);
+      } else if (action === 'groupPicker') {
+        // groupName is a free-form label — a plain prompt keeps the UX
+        // identical here and from every other element cmenu surface.
+        // Empty input clears the group.
+        const next = window.prompt(
+          '分组名称（留空 = 不分组）',
+          curElement.groupName ?? '',
+        );
+        if (next == null) return;
+        const trimmed = next.trim();
+        const nextGroup = trimmed === '' ? null : trimmed;
+        if (nextGroup === (curElement.groupName ?? null)) return;
+        try {
+          await updateElement(elementId, { groupName: nextGroup });
+        } catch (error) {
+          log.error('Failed to update group:', error);
+          alert('Failed to update group. Please try again.');
+        }
       }
-    } else if (action === 'categoryPicker') {
-      setEditingCategory(true);
-    }
-  };
+    },
+    [elementId, curElement, elementUsecases, navigateToHome, updateElement],
+  );
+
+  // Pending-action consumer — see NodeEditorView for the queue rationale.
+  const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
+  const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
+  useEffect(() => {
+    if (!elementId || !curElement) return;
+    if (!pendingEntityAction) return;
+    const queued = consumeEntityAction('element', elementId);
+    if (queued) void handleContextAction(queued);
+  }, [
+    elementId,
+    curElement,
+    pendingEntityAction,
+    consumeEntityAction,
+    handleContextAction,
+  ]);
 
   if (!elementId || !curElement) {
     return (

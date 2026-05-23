@@ -1,11 +1,9 @@
 import { useMemo, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode } from '../domain/book-node';
-import { normalizeBookNode } from '../domain/book-node';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
-import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
 import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import { useProjectStore } from '../store/project-store';
 import { randomColor } from '../utils';
 import { v7 as uuidv7 } from 'uuid';
@@ -15,7 +13,6 @@ import {
   syncStorylineCreate,
   syncStorylineUpdate,
   syncStorylineDelete,
-  syncNodeUpdate,
   syncNodeStorylineLinkCreate,
   syncNodeStorylineLinkDelete,
   syncNodeStorylinesSet,
@@ -182,16 +179,53 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       };
 
       const prevStorylines = getStorylinesState().slice();
+      // First-storyline migration: when a project goes from 0 → 1 storyline,
+      // all existing chapters are automatically pulled into the new storyline
+      // as primary. This bridges "single-lane / default writing mode" → the
+      // multi-storyline regime cleanly, without leaving chapters orphaned in
+      // a 未归属 lane the user didn't ask for.
+      const isFirstStoryline = prevStorylines.length === 0;
+      const orphanChapterIds = isFirstStoryline
+        ? useDataStore
+            .getState()
+            .bookNodes.filter((n) => n.kind === 'chapter')
+            .map((n) => n.id)
+        : [];
+
       return withOptimisticUpdate({
         apply: () => addStorylineState(newStoryline),
         rollback: () => setStorylinesState(prevStorylines),
-        effect: () => repo.createStoryline(newStoryline),
+        effect: async () => {
+          await repo.createStoryline(newStoryline);
+          if (orphanChapterIds.length > 0) {
+            // Insert one link row per chapter with isPrimary=true. The link
+            // repo's per-call setPrimaryStoryline demotes any existing primary
+            // — there are none here (project was in 0-storyline mode), so the
+            // demote step is a cheap no-op.
+            const linkRepoTx = createNodeStorylineLinkRepository(activeProjectId);
+            for (const nodeId of orphanChapterIds) {
+              await linkRepoTx.setPrimaryStoryline(nodeId, newStoryline.id);
+            }
+          }
+          return newStoryline;
+        },
         onSuccess: (storyline) => {
           console.log('Storyline created successfully:', storyline);
           const current = getStorylinesState();
           setStorylinesState(current.map((sl) => (sl.id === storyline.id ? storyline : sl)));
+          if (orphanChapterIds.length > 0) {
+            const store = useDataStore.getState();
+            // Update primaryStorylineByNode + storylineNodeMapping for the
+            // newly-migrated chapters.
+            const nextPrimary = { ...store.primaryStorylineByNode };
+            for (const nid of orphanChapterIds) nextPrimary[nid] = storyline.id;
+            store.setPrimaryStorylineByNode(nextPrimary);
+            const nextForward = { ...store.storylineNodeMapping };
+            nextForward[storyline.id] = orphanChapterIds.slice();
+            store.setStorylineNodeMapping(nextForward);
+          }
         },
-        sync: (storyline) =>
+        sync: (storyline) => {
           syncStorylineCreate(storyline.id, activeProjectId, {
             id: storyline.id,
             name: storyline.name,
@@ -201,7 +235,13 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             descriptionJson: storyline.descriptionJson,
             kvJson: storyline.kvJson,
             nodeContentTemplateJson: storyline.nodeContentTemplateJson,
-          }),
+          });
+          for (const nodeId of orphanChapterIds) {
+            syncNodeStorylineLinkCreate(nodeId, storyline.id, activeProjectId, {
+              isPrimary: true,
+            });
+          }
+        },
       });
     },
     [repo, addStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState],
@@ -284,88 +324,93 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     [repo, updateStorylineState, activeProjectId, ensureDb, getStorylinesState, setStorylinesState],
   );
 
+  // Delete a storyline with the "chapter → 未归属" semantics:
+  //   • Chapters whose PRIMARY storyline is the deleted one:
+  //       - Lose the primary link.
+  //       - All their OTHER (non-primary) storyline links are also cleared,
+  //         per the project's "don't auto-fallback" rule. The chapter ends up
+  //         in the 未归属 lane with its bookOrder preserved.
+  //   • Chapters with only a non-primary link to the deleted storyline:
+  //       - That single link is removed; primary stays untouched.
+  // Drift nodes are unaffected (they never have storyline links). The book_node
+  // row itself is never mutated — kind stays 'chapter', bookOrder is preserved.
   const deleteStoryline = useCallback(
-    async (id: string, opts?: { reassignMainTo?: string }): Promise<void> => {
+    async (id: string): Promise<void> => {
       await ensureDb();
       const prevStorylines = getStorylinesState().slice();
+      if (!prevStorylines.some((sl) => sl.id === id)) return;
 
-      if (!prevStorylines.some((sl) => sl.id === id)) {
-        return;
-      }
-      if (opts?.reassignMainTo === id) {
-        throw new Error('Reassign target cannot be the storyline being deleted.');
-      }
-      if (opts?.reassignMainTo && !prevStorylines.some((sl) => sl.id === opts.reassignMainTo)) {
-        throw new Error(`Reassign target storyline ${opts.reassignMainTo} not found in project.`);
-      }
-
-      const prevNodes = useDataStore.getState().bookNodes.slice();
+      const prevPrimaryStorylineByNode = useDataStore.getState().primaryStorylineByNode;
       const prevForwardMapping = getStorylineNodeMappingState();
       const reverseMapping = cloneStorylineNodeMapping(prevForwardMapping);
-      const affectedNodes = prevNodes.filter((n) => n.mainStorylineId === id);
+      const prevNodeStorylineMapping = { ...useDataStore.getState().nodeStorylineMapping };
 
-      // Resolve per-node fallback main:
-      //   - explicit reassignMainTo (if given), else
-      //   - any other storyline this node still belongs to, else
-      //   - null → node becomes a drift node
-      const otherStorylineIds = (nodeId: string): string[] => {
-        const out: string[] = [];
-        Object.entries(prevForwardMapping).forEach(([slId, nodeIds]) => {
-          if (slId !== id && nodeIds.includes(nodeId)) out.push(slId);
-        });
-        return out;
-      };
+      // Nodes whose primary is this storyline — they go to 未归属 AND lose any
+      // non-primary links too.
+      const nodesGoingUnaffiliated = Object.entries(prevPrimaryStorylineByNode)
+        .filter(([, slId]) => slId === id)
+        .map(([nid]) => nid);
 
-      const now = new Date().toISOString();
-      type Reassignment = { nodeId: string; newMain: string | null };
-      const reassignments: Reassignment[] = affectedNodes.map((n) => {
-        if (opts?.reassignMainTo) return { nodeId: n.id, newMain: opts.reassignMainTo };
-        const others = otherStorylineIds(n.id);
-        return { nodeId: n.id, newMain: others[0] ?? null };
-      });
-
-      const reassignByNode = new Map(reassignments.map((r) => [r.nodeId, r.newMain]));
-      // When the storyline is being deleted and a node loses its last
-      // storyline membership, reassignByNode maps it to null — flipping a
-      // chapter into a drift. `normalizeBookNode` coerces the merged record
-      // to the correct discriminated-union variant (drift loses bookOrder,
-      // gets DriftStatus) so downstream code keeps narrowing cleanly.
-      const nextNodes: BookNode[] = prevNodes.map((n) => {
-        if (!reassignByNode.has(n.id)) return n;
-        return normalizeBookNode({
-          ...n,
-          mainStorylineId: reassignByNode.get(n.id) ?? null,
-          updatedAt: now,
-        });
-      });
+      // Drop any tabs pointing at this storyline first — by the time apply()
+      // mutates the entity store the tab lookup would already render
+      // "Untitled Storyline" for the leaf.
+      useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'storyline', id });
 
       return withOptimisticUpdate({
         apply: () => {
-          useDataStore.getState().setBookNodes(nextNodes);
+          const store = useDataStore.getState();
+          // Demote primary → null for affected chapters.
+          const nextPrimary = { ...prevPrimaryStorylineByNode };
+          for (const nid of nodesGoingUnaffiliated) nextPrimary[nid] = null;
+          store.setPrimaryStorylineByNode(nextPrimary);
+          // Clear the affected chapters' entire storyline membership (per the
+          // "don't auto-fallback" rule) and also remove every other node's
+          // link to the deleted storyline.
+          const nextForward = { ...prevForwardMapping };
+          delete nextForward[id];
+          for (const nid of nodesGoingUnaffiliated) {
+            // Make sure they don't appear under any storyline.
+            for (const slId of Object.keys(nextForward)) {
+              nextForward[slId] = nextForward[slId].filter((x) => x !== nid);
+            }
+          }
+          store.setStorylineNodeMapping(nextForward);
           removeStorylineState(id);
         },
         rollback: () => {
+          const store = useDataStore.getState();
           setStorylinesState(prevStorylines);
-          useDataStore.getState().setBookNodes(prevNodes);
-          setStorylineNodeMappingState(reverseMapping);
+          store.setStorylineNodeMapping(prevForwardMapping);
+          store.setPrimaryStorylineByNode(prevPrimaryStorylineByNode);
+          // setStorylineNodeMapping rebuilds the reverse map internally, so
+          // restoring just the forward map (above) is enough.
+          void prevNodeStorylineMapping;
+          void reverseMapping;
         },
         effect: async () => {
           await getDb().transaction(async (tx) => {
-            const nodeRepoTx = createBookNodeSqliteRepository(activeProjectId, tx);
-            for (const r of reassignments) {
-              await nodeRepoTx.update(r.nodeId, { mainStorylineId: r.newMain, updatedAt: now });
+            // Wipe ALL link rows for the affected chapters first (they go
+            // 未归属 with no remaining memberships).
+            if (nodesGoingUnaffiliated.length > 0) {
+              const { NodeStorylineLinkTable } = await import('../schema/drizzle');
+              const { inArray } = await import('drizzle-orm');
+              await tx
+                .delete(NodeStorylineLinkTable)
+                .where(inArray(NodeStorylineLinkTable.nodeId, nodesGoingUnaffiliated));
             }
+            // Then delete the storyline itself; ON DELETE CASCADE on the link
+            // table sweeps up any remaining (non-primary) rows pointing at it.
             const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
-            // FK: the storyline → node_storyline_link rows cascade; the
-            // book_node.main_storyline_id FK is ON DELETE SET NULL so any nodes
-            // we missed degrade safely to drift instead of blocking the delete.
             await storylineRepoTx.deleteStoryline(id);
           });
         },
         sync: () => {
-          reassignments.forEach((r) =>
-            syncNodeUpdate(r.nodeId, activeProjectId, { mainStorylineId: r.newMain }),
-          );
+          // For each unaffiliated chapter: bulk-replace its memberships with
+          // an empty set + null primary. This is the only sync signal needed —
+          // the server's storyline delete cascades the rest.
+          for (const nid of nodesGoingUnaffiliated) {
+            syncNodeStorylinesSet(nid, activeProjectId, [], { primaryStorylineId: null });
+          }
           syncStorylineDelete(id, activeProjectId);
         },
       });
@@ -378,7 +423,6 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       activeProjectId,
       cloneStorylineNodeMapping,
       getStorylineNodeMappingState,
-      setStorylineNodeMappingState,
     ],
   );
 
@@ -407,8 +451,9 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const removeNodeFromStoryline = useCallback(
     async (nodeId: string, storylineId: string): Promise<void> => {
       await ensureDb();
-      const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
-      if (node && node.mainStorylineId === storylineId) {
+      const currentPrimary =
+        useDataStore.getState().primaryStorylineByNode[nodeId] ?? null;
+      if (currentPrimary === storylineId) {
         throw new Error(
           `Cannot unlink node ${nodeId} from its main storyline. Change the main storyline first.`,
         );
@@ -457,21 +502,35 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   );
 
   const setNodeStorylines = useCallback(
-    async (nodeId: string, storylineIds: string[]): Promise<void> => {
+    async (
+      nodeId: string,
+      storylineIds: string[],
+      options?: { primaryStorylineId?: string | null },
+    ): Promise<void> => {
       await ensureDb();
-      const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
-      // Auto-pin the node's main storyline into the membership set (drift nodes
-      // have no main; pin nothing in that case).
+      // Resolve the primary: caller may pass an explicit override (used by
+      // cross-storyline drag, where we want to swap memberships AND the
+      // primary in one state apply to avoid a transient [source, target]
+      // membership that flashes a cross-storyline dashed edge). Otherwise
+      // auto-pin the current primary into the membership set so the
+      // is_primary row survives the bulk replace.
+      const currentPrimary =
+        useDataStore.getState().primaryStorylineByNode[nodeId] ?? null;
+      const primaryStorylineId =
+        options && 'primaryStorylineId' in options
+          ? options.primaryStorylineId ?? null
+          : currentPrimary;
       const effectiveIds: string[] =
-        node && node.mainStorylineId && !storylineIds.includes(node.mainStorylineId)
-          ? [node.mainStorylineId, ...storylineIds]
+        primaryStorylineId && !storylineIds.includes(primaryStorylineId)
+          ? [primaryStorylineId, ...storylineIds]
           : storylineIds;
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
       return withOptimisticUpdate({
         apply: () => setNodeStorylinesMappingState(nodeId, effectiveIds),
         rollback: () => setStorylineNodeMappingState(prevMapping),
-        effect: () => linkRepo.setNodeStorylines(nodeId, effectiveIds),
-        sync: () => syncNodeStorylinesSet(nodeId, activeProjectId, effectiveIds),
+        effect: () => linkRepo.setNodeStorylines(nodeId, effectiveIds, { primaryStorylineId }),
+        sync: () =>
+          syncNodeStorylinesSet(nodeId, activeProjectId, effectiveIds, { primaryStorylineId }),
       });
     },
     [

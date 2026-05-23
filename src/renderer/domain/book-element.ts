@@ -1,3 +1,9 @@
+export const RESERVED_ELEMENT_CATEGORY_NAME = 'others';
+
+export function isReservedElementCategoryName(name?: string | null): boolean {
+  return (name ?? '').trim().toLowerCase() === RESERVED_ELEMENT_CATEGORY_NAME;
+}
+
 export interface BookElement {
   id: string;
   projectId: string;

@@ -1,7 +1,11 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { ElementCategoryTable } from '../schema/drizzle';
 import { eq, asc, and } from 'drizzle-orm';
-import type { BookElementCategory } from '../domain/book-element';
+import {
+  RESERVED_ELEMENT_CATEGORY_NAME,
+  isReservedElementCategoryName,
+  type BookElementCategory,
+} from '../domain/book-element';
 import Loglevel from 'loglevel';
 const log = Loglevel.getLogger('ElementCategoryRepositorySQLite');
 log.setLevel(Loglevel.levels.DEBUG);
@@ -18,7 +22,7 @@ export interface ElementCategoryRepository {
   delete(id: string): Promise<void>;
 }
 
-const DEFAULT_CATEGORY_NAME = 'others';
+const DEFAULT_CATEGORY_NAME = RESERVED_ELEMENT_CATEGORY_NAME;
 const DEFAULT_CATEGORY_COLOR = '#8B7355';
 
 function normalizeCategoryName(name?: string): string {
@@ -155,6 +159,9 @@ export function createElementCategoryRepository(
       throw new Error(
         `Cannot delete category: projectId mismatch. Expected ${projectId}, got ${target.projectId}`,
       );
+    }
+    if (isReservedElementCategoryName(target.name)) {
+      throw new Error('Cannot delete the reserved "others" category.');
     }
 
     const allCats = await dbProvider()

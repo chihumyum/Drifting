@@ -30,6 +30,14 @@ interface DataState {
   storylineNodeMapping: Record<string, string[]>;
   /** node.id → storylineId[]; reverse of storylineNodeMapping, kept in sync by reducers */
   nodeStorylineMapping: Record<string, string[]>;
+  /**
+   * node.id → primary storyline.id (or null for chapters without a primary —
+   * "未归属" — and for drifts which never have storylines). Single source of
+   * truth for "which storyline owns this chapter in lane rendering" after the
+   * mainStorylineId column was retired. Kept in sync by reducers; populated
+   * from node_storyline_link.is_primary during hydrate.
+   */
+  primaryStorylineByNode: Record<string, string | null>;
   setStorylines: (storylines: Storyline[]) => void;
   addStoryline: (storyline: Storyline) => void;
   updateStoryline: (id: string, updates: Partial<Storyline>) => void;
@@ -38,6 +46,8 @@ interface DataState {
   addNodeToStorylineMapping: (storylineId: string, nodeId: string) => void;
   removeNodeFromStorylineMapping: (storylineId: string, nodeId: string) => void;
   setNodeStorylinesMapping: (nodeId: string, storylineIds: string[]) => void;
+  setPrimaryStorylineByNode: (mapping: Record<string, string | null>) => void;
+  setNodePrimaryStoryline: (nodeId: string, storylineId: string | null) => void;
 
   bookNodes: BookNode[];
   setBookNodes: (nodes: BookNode[]) => void;
@@ -113,6 +123,7 @@ export const useDataStore = create<DataState>((set) => ({
   storylines: [],
   storylineNodeMapping: {},
   nodeStorylineMapping: {},
+  primaryStorylineByNode: {},
   addStoryline: (storyline) => set((state) => ({ storylines: [...state.storylines, storyline] })),
   setStorylines: (storylines) => set({ storylines }),
   updateStoryline: (id, updates) =>
@@ -164,6 +175,12 @@ export const useDataStore = create<DataState>((set) => ({
       };
       return { storylineNodeMapping: forward, nodeStorylineMapping: reverse };
     }),
+  setPrimaryStorylineByNode: (primaryStorylineByNode) => set({ primaryStorylineByNode }),
+  setNodePrimaryStoryline: (nodeId, storylineId) =>
+    set((state) => ({
+      primaryStorylineByNode: { ...state.primaryStorylineByNode, [nodeId]: storylineId },
+    })),
+
   setNodeStorylinesMapping: (nodeId, storylineIds) =>
     set((state) => {
       const forward = { ...state.storylineNodeMapping };

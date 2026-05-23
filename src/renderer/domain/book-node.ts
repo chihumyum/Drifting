@@ -22,11 +22,16 @@ export type ChapterWritingStatus =
 export type DriftStatus = 'drifting' | 'resting';
 
 // Storage type — the `writing_status` column holds whichever enum is
-// appropriate for that row. Disambiguation is by `mainStorylineId`: null
-// means drift (DriftStatus values), non-null means chapter (ChapterWritingStatus
-// values). New code should narrow via isChapter / isDrift rather than treating
-// this as a single flat enum.
+// appropriate for that row. Disambiguation is by the explicit `kind` field.
+// New code should narrow via isChapter / isDrift rather than treating this
+// as a single flat enum.
 export type WritingStatus = ChapterWritingStatus | DriftStatus;
+
+// Chapter / drift discriminator. Materialized on book_node.kind. Replaces the
+// historical "mainStorylineId nullability" implicit discriminator: a chapter
+// without a primary storyline link is still a chapter (kind='chapter'), not
+// auto-degraded to drift.
+export type BookNodeKind = 'chapter' | 'drift';
 
 export const CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
   'draft',
@@ -78,10 +83,14 @@ interface BookNodeBase {
   updatedAt: string;
 }
 
-// Chapter — sits on the reading-order axis (bookOrder always set) and belongs
-// to a primary storyline. WritingStatus is the chapter-only enum.
+// Chapter — sits on the reading-order axis. `bookOrder` is always set
+// (chapters keep their position even when "未归属"). The primary storyline
+// (if any) is derived from node_storyline_link.is_primary; readers should
+// consult `useDataStore().primaryStorylineByNode[nodeId]`.
+//
+// WritingStatus is the chapter-only enum.
 export interface ChapterNode extends BookNodeBase {
-  mainStorylineId: string;
+  kind: 'chapter';
   bookOrder: number;
   writingStatus: ChapterWritingStatus;
 }
@@ -89,21 +98,22 @@ export interface ChapterNode extends BookNodeBase {
 // Drift — free-floating inspiration note. No storyline membership, no place
 // on the reading axis, and a separate status enum.
 export interface DriftNode extends BookNodeBase {
-  mainStorylineId: null;
+  kind: 'drift';
   bookOrder: null;
   writingStatus: DriftStatus;
 }
 
-// Discriminated union. Narrow via `isChapter` / `isDrift` rather than poking
-// at `mainStorylineId` inline so the intent is explicit at the use site.
+// Discriminated union. Narrow via `isChapter` / `isDrift` (which inspect the
+// explicit `kind` field) rather than poking at any other property — the
+// discriminator is exactly `kind`, nothing else.
 export type BookNode = ChapterNode | DriftNode;
 
 export function isChapter(node: BookNode): node is ChapterNode {
-  return node.mainStorylineId !== null;
+  return node.kind === 'chapter';
 }
 
 export function isDrift(node: BookNode): node is DriftNode {
-  return node.mainStorylineId === null;
+  return node.kind === 'drift';
 }
 
 // Mixed-array sort. Chapters sort by bookOrder ascending; drift rows (which
@@ -117,19 +127,25 @@ export function compareBookOrder(a: BookNode, b: BookNode): number {
 }
 
 // Normalize a loose, record-like node shape (post-merge or wire payload) into
-// the discriminated union by branching on mainStorylineId. Used by stores and
-// the optimistic-update path where a `{ ...node, ...updates }` merge erases
-// the variant information TypeScript needs.
+// the discriminated union. The explicit `kind` field is preserved as-is —
+// chapters are never auto-coerced to drift, even when bookOrder happens to be
+// null. Used by stores and the optimistic-update path where a
+// `{ ...node, ...updates }` merge erases the variant information TS needs.
 type LooseBookNode = Omit<BookNodeBase, never> & {
-  mainStorylineId: string | null;
+  kind: BookNodeKind;
   bookOrder: number | null;
   writingStatus: WritingStatus;
 };
 export function normalizeBookNode(node: LooseBookNode): BookNode {
-  if (node.mainStorylineId == null) {
+  // Destructure off the discriminator-axis fields so the spread doesn't carry
+  // their `LooseBookNode` types into the result.
+  const { kind, bookOrder: _bookOrder, writingStatus: _writingStatus, ...rest } = node;
+  void _bookOrder;
+  void _writingStatus;
+  if (kind === 'drift') {
     return {
-      ...(node as LooseBookNode),
-      mainStorylineId: null,
+      ...rest,
+      kind: 'drift',
       bookOrder: null,
       writingStatus: (isDriftStatus(node.writingStatus)
         ? node.writingStatus
@@ -137,8 +153,8 @@ export function normalizeBookNode(node: LooseBookNode): BookNode {
     };
   }
   return {
-    ...(node as LooseBookNode),
-    mainStorylineId: node.mainStorylineId,
+    ...rest,
+    kind: 'chapter',
     bookOrder: node.bookOrder ?? 0,
     writingStatus: (isDriftStatus(node.writingStatus)
       ? 'draft'

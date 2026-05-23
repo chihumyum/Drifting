@@ -20,18 +20,21 @@ export interface BottomTimelineContextMenuState {
   storylineId?: string;
   nodeId?: string;
   position?: number;
-  canAddCurrentNode?: boolean;
   nodeTitle?: string;
   nodeSummary?: string | null;
   nodeStorylines?: Storyline[];
 }
 
+// BottomTimeline-local action set. The shared per-entity menu options
+// (delete, edit storylines, status flips, ...) come from EditorTopBar's
+// getMenuItems via EntityCellContextMenu — only the actions unique to the
+// timeline live here.
 export type BottomTimelineContextMenuAction =
-  | 'createChapter'
-  | 'editChapter'
-  | 'removeFromStoryline'
-  | 'deleteNode'
-  | 'addToStoryline'
+  // Create a chapter at the cursor's bookOrder slot on the right-clicked
+  // storyline row. Only present when the click landed on empty track.
+  | 'createChapterHere'
+  // Clears all storyline memberships → chapter becomes 未归属.
+  | 'moveToUnaffiliated'
   // Narrative-view only: clears node.narrativeOrder, which moves the
   // node out of the storyline rows and back into the "未放置" popover
   // so the author can re-place it later.

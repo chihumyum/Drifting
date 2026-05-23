@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useDataStore } from '../../../store/data-store';
+import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import {
   useUiStore,
@@ -138,6 +139,7 @@ export function TopTimeline() {
   const storylines = useDataStore((s) => s.storylines);
   const bookElements = useDataStore((s) => s.bookElements);
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
+  const primaryStorylineByNode = useDataStore((s) => s.primaryStorylineByNode);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -165,7 +167,7 @@ export function TopTimeline() {
           const n = bookNodes.find((b) => b.id === leaf.id);
           if (!n) return 'Untitled Chapter';
           if (n.title) return n.title;
-          return n.mainStorylineId ? 'Untitled Chapter' : 'Untitled Drift';
+          return isChapter(n) ? 'Untitled Chapter' : 'Untitled Drift';
         }
         case 'storyline':
           return storylines.find((s) => s.id === leaf.id)?.name || 'Untitled Storyline';
@@ -184,9 +186,8 @@ export function TopTimeline() {
         case 'node': {
           const n = bookNodes.find((b) => b.id === leaf.id);
           if (!n) return undefined;
-          return n.mainStorylineId
-            ? storylines.find((s) => s.id === n.mainStorylineId)?.color
-            : undefined;
+          const primaryId = primaryStorylineByNode[n.id] ?? null;
+          return primaryId ? storylines.find((s) => s.id === primaryId)?.color : undefined;
         }
         case 'storyline':
           return storylines.find((s) => s.id === leaf.id)?.color;
@@ -208,10 +209,10 @@ export function TopTimeline() {
     const isDriftLeaf = (leaf: LeafTab): boolean => {
       if (leaf.entityType !== 'node') return false;
       const n = bookNodes.find((b) => b.id === leaf.id);
-      return Boolean(n) && !n!.mainStorylineId;
+      return Boolean(n) && isDriftNode(n!);
     };
     return { labelOfLeaf, colorOfLeaf, isDriftLeaf };
-  }, [bookNodes, storylines, bookElements, bookElementCategories]);
+  }, [bookNodes, storylines, bookElements, bookElementCategories, primaryStorylineByNode]);
 
   // Three-phase tab sizing:
   //

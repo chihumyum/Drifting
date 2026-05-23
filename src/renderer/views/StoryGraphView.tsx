@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
-import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../domain/book-node';
 import { useDataStore, type EntityRelationLink } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
@@ -13,7 +13,8 @@ import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
 import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
-import { GraphContextMenu, type GraphContextMenuState } from '../components/graph/GraphContextMenu';
+import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
+import { useEntityCellAction } from '../hooks/useEntityCellAction';
 import { EdgeKindManager } from '../components/graph/EdgeKindManager';
 import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
@@ -132,12 +133,19 @@ function colorForKind(kind: string | null): string {
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
 
+// Synthetic lane sentinels — see BottomTimeline for the full rationale. The
+// two views render lanes in lockstep so the IDs are duplicated rather than
+// shared (the two files don't share a constants module today).
+const DEFAULT_LANE_ID = '__default__';
+const UNAFFILIATED_LANE_ID = '__unaffiliated__';
+
 export function StoryGraphView() {
-  const { bookNodes, storylines, nodeStorylineMapping, entityRelations } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, entityRelations, primaryStorylineByNode } =
+    useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode, deleteNode } = useBookNode({
+  const { updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -146,7 +154,7 @@ export function StoryGraphView() {
     userId: user?.id ?? '',
   });
   const edgeKindMeta = useEdgeKindMeta(projectId);
-  const { removeNodeFromStoryline } = useStoryline({
+  const { setNodeStorylines } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -211,6 +219,20 @@ export function StoryGraphView() {
   // Pending source for shift-click edge creation. The first shift-click sets
   // this; the next plain click on a different tile opens the new-edge dialog.
   const [linkSource, setLinkSource] = useState<string | null>(null);
+  // Drift card right-click — mirrors SuperElementView's drift cmenu: same
+  // unified EntityCellContextMenu, with `startEdgeFrom` appended so users
+  // can wire a drift into a chapter from the bottom drawer.
+  const [driftContextMenu, setDriftContextMenu] = useState<
+    | {
+        x: number;
+        y: number;
+        nodeId: string;
+        nodeTitle?: string;
+        nodeSummary?: string;
+        writingStatus: BookNode['writingStatus'];
+      }
+    | null
+  >(null);
   const [newEdgePair, setNewEdgePair] = useState<{ source: string; target: string } | null>(null);
   const [newEdgeKind, setNewEdgeKind] = useState('');
   // Suggestions popover for the new-edge dialog's kind input. Default
@@ -221,8 +243,29 @@ export function StoryGraphView() {
   // Popover targeting a single tile. `anchor` is the tile's viewport rect at
   // the moment of click — the popover positions itself relative to it.
   const [popover, setPopover] = useState<{ nodeId: string; anchor: AnchorRect } | null>(null);
-  const [contextMenu, setContextMenu] = useState<GraphContextMenuState | null>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
+  // Two kinds of right-click menu live here: per-chapter (node) and per-row
+  // (storyline). Discriminated by `kind` so the render branch can pick the
+  // correct EntityCellContextMenu shape.
+  type GraphCmenuState =
+    | {
+        kind: 'node';
+        x: number;
+        y: number;
+        nodeId: string;
+        nodeTitle?: string | null;
+        nodeSummary?: string | null;
+        nodeStorylines?: Storyline[];
+        hasNarrativeOrder: boolean;
+        mainStorylineId: string | null;
+      }
+    | {
+        kind: 'storyline';
+        x: number;
+        y: number;
+        storylineId: string;
+      };
+  const [contextMenu, setContextMenu] = useState<GraphCmenuState | null>(null);
+  const dispatchEntityAction = useEntityCellAction();
   const [edgeMgrOpen, setEdgeMgrOpen] = useState(false);
   const edgeMgrBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -393,28 +436,8 @@ export function StoryGraphView() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Close the context menu on outside click or ESC.
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handlePointerDown = (e: PointerEvent) => {
-      if (e.button !== 0 && e.button !== 2) return;
-      const target = e.target as Node | null;
-      if (target && contextMenuRef.current?.contains(target)) return;
-      setContextMenu(null);
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setContextMenu(null);
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown, true);
-    document.addEventListener('keydown', handleEscape, true);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [contextMenu]);
+  // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
+  // itself, so no separate effect is needed for the graph cmenu state.
 
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
@@ -435,9 +458,10 @@ export function StoryGraphView() {
       const sls = nodeStorylines(node.id);
       if (sls.length === 0) return null;
       const fallback = sls[0]?.id ?? null;
-      return sls.some((sl) => sl.id === node.mainStorylineId) ? node.mainStorylineId : fallback;
+      const declared = primaryStorylineByNode[node.id] ?? null;
+      return declared && sls.some((sl) => sl.id === declared) ? declared : fallback;
     },
-    [nodeStorylines],
+    [nodeStorylines, primaryStorylineByNode],
   );
 
   const orderOf = useCallback(
@@ -453,8 +477,11 @@ export function StoryGraphView() {
     const unplaced: BookNode[] = [];
     const drift: BookNode[] = [];
     for (const n of bookNodes) {
-      // Drift nodes (no storyline) surface in the bottom drift panel only.
-      if (!primaryStorylineId(n)) {
+      // Drift kind always surfaces in the bottom drift panel only. Chapters
+      // without a primary storyline are NOT drift — they belong on the main
+      // canvas (in the default lane when no storylines exist, or the 未归属
+      // lane when storylines do exist).
+      if (isDrift(n)) {
         drift.push(n);
         continue;
       }
@@ -465,7 +492,7 @@ export function StoryGraphView() {
     // recency so newly-touched drifts surface, matching DriftPanel.
     drift.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
     return { placedNodes: placed, unplacedNodes: unplaced, driftNodes: drift };
-  }, [bookNodes, primaryStorylineId, orderOf]);
+  }, [bookNodes, orderOf]);
 
   const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
 
@@ -478,11 +505,55 @@ export function StoryGraphView() {
     return m;
   }, [bookNodes]);
 
+  // Lane-based layout: real storylines plus at most one synthetic lane.
+  //   storylines.length === 0  →  single "本书" default lane.
+  //   storylines.length >= 1   →  always append 未归属 lane (even when empty)
+  //                               so drawer drags from "未放置" 未归属
+  //                               chapters have a place to land.
+  const unaffiliatedChapters = useMemo(() => {
+    if (storylines.length === 0) return [] as BookNode[];
+    return placedNodes.filter((n) => !primaryStorylineId(n));
+  }, [storylines.length, placedNodes, primaryStorylineId]);
+
+  type Lane = { id: string; name: string; color: string; synthetic: boolean };
+  const lanesToRender = useMemo<Lane[]>(() => {
+    if (storylines.length === 0) {
+      return [
+        { id: DEFAULT_LANE_ID, name: '本书', color: 'hsl(var(--accent))', synthetic: true },
+      ];
+    }
+    const real: Lane[] = storylines.map((s) => ({
+      id: s.id,
+      name: s.name || 'Untitled',
+      color: s.color || 'hsl(var(--story-4))',
+      synthetic: false,
+    }));
+    real.push({
+      id: UNAFFILIATED_LANE_ID,
+      name: '未归属',
+      color: 'hsl(var(--ink-3))',
+      synthetic: true,
+    });
+    return real;
+  }, [storylines]);
+
   const storylineRowIndex = useMemo(() => {
     const map = new Map<string, number>();
-    storylines.forEach((s, i) => map.set(s.id, i));
+    lanesToRender.forEach((lane, i) => map.set(lane.id, i));
     return map;
-  }, [storylines]);
+  }, [lanesToRender]);
+
+  // Resolves which lane row index a chapter belongs to: its primary if it has
+  // one, else the synthetic default/未归属 lane.
+  const laneRowForNode = useCallback(
+    (node: BookNode): number | undefined => {
+      const primary = primaryStorylineId(node);
+      if (primary) return storylineRowIndex.get(primary);
+      const fallbackLaneId = storylines.length === 0 ? DEFAULT_LANE_ID : UNAFFILIATED_LANE_ID;
+      return storylineRowIndex.get(fallbackLaneId);
+    },
+    [primaryStorylineId, storylineRowIndex, storylines.length],
+  );
 
   // Compute the order span across all placed nodes; canvas width derives
   // from this. Pads either side so tiles don't hug the edges.
@@ -506,13 +577,14 @@ export function StoryGraphView() {
   const positionedNodes = useMemo<PositionedNode[]>(() => {
     return placedNodes
       .map((node) => {
-        const mainId = primaryStorylineId(node);
-        if (!mainId) return null;
-        const rowIndex = storylineRowIndex.get(mainId);
+        // Resolve the lane row this chapter belongs to. Chapters without a
+        // primary land on the synthetic default/未归属 lane via laneRowForNode.
+        const rowIndex = laneRowForNode(node);
         if (rowIndex === undefined) return null;
         const ord = orderOf(node);
         if (ord === null) return null;
-        const sl = storylineById.get(mainId) ?? null;
+        const mainId = primaryStorylineId(node);
+        const sl = mainId ? storylineById.get(mainId) ?? null : null;
         return {
           ...node,
           storyline: sl,
@@ -523,7 +595,7 @@ export function StoryGraphView() {
         } as PositionedNode;
       })
       .filter((n): n is PositionedNode => Boolean(n));
-  }, [placedNodes, primaryStorylineId, storylineRowIndex, orderOf, storylineById, nodeStorylines, orderToX]);
+  }, [placedNodes, primaryStorylineId, laneRowForNode, orderOf, storylineById, nodeStorylines, orderToX]);
 
   // ---- Cross-storyline trails ----
   // Same semantic as BottomTimeline: a node on its main storyline appears
@@ -930,7 +1002,20 @@ export function StoryGraphView() {
   const canDropOnStoryline = useCallback(
     (storylineId: string | null) => {
       if (!draggedNode) return false;
+      if (storylineId === DEFAULT_LANE_ID) return true;
+      if (storylineId === UNAFFILIATED_LANE_ID) {
+        // Drawer drag: only 未归属 chapters belong in 未归属. A chapter
+        // with a primary storyline shouldn't escape to the orphan lane
+        // through a narrative-axis placement; the dedicated 转移至未归属
+        // context-menu action covers that intent for axis-to-axis drags.
+        if (draggedFromDrawer) return draggedMainStorylineId == null;
+        return true;
+      }
       if (!draggedFromDrawer) return true;
+      // Drawer drag with no primary (unaffiliated chapter) is allowed on
+      // any real storyline — the drop handler promotes the target to
+      // primary. Mirrors BottomTimeline's canDropOnStoryline.
+      if (draggedMainStorylineId == null) return true;
       return storylineId === draggedMainStorylineId;
     },
     [draggedNode, draggedFromDrawer, draggedMainStorylineId],
@@ -961,17 +1046,19 @@ export function StoryGraphView() {
     e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
   };
 
-  // Map a mouse Y (in canvas-content coordinates) to the storyline whose row
+  // Map a mouse Y (in canvas-content coordinates) to the lane whose row
   // contains it. Returns null when above the axis or below the last row.
+  // Synthetic lane ids (DEFAULT_LANE_ID / UNAFFILIATED_LANE_ID) are valid
+  // drop targets and resolve like any other lane.
   const storylineAtY = useCallback(
     (yInTracks: number): string | null => {
       const relative = yInTracks - GRAPH_CONFIG.AXIS_HEIGHT;
       if (relative < 0) return null;
       const idx = Math.floor(relative / GRAPH_CONFIG.TRACK_HEIGHT);
-      if (idx < 0 || idx >= storylines.length) return null;
-      return storylines[idx]?.id ?? null;
+      if (idx < 0 || idx >= lanesToRender.length) return null;
+      return lanesToRender[idx]?.id ?? null;
     },
-    [storylines],
+    [lanesToRender],
   );
 
   const handleTracksDragOver = (e: React.DragEvent) => {
@@ -1011,18 +1098,43 @@ export function StoryGraphView() {
     try {
       const currentMain = draggedMainStorylineId;
       const targetRow = dragOver.storylineId;
-      // Mirror BottomTimeline: when an axis-to-axis tile drag lands on a
-      // different storyline row (and the node already belongs to that
-      // storyline), re-route the node's main storyline alongside the
-      // order update. Drawer drags are constrained to the primary row, so
-      // this branch only fires for tile drags.
-      if (
-        !draggedFromDrawer &&
-        targetRow &&
-        targetRow !== currentMain &&
-        draggedNode.id &&
-        nodeStorylines(draggedNode.id).some((sl) => sl.id === targetRow)
-      ) {
+
+      if (targetRow === DEFAULT_LANE_ID) {
+        // Single-lane mode — only reorder, no storyline membership change.
+        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
+      } else if (targetRow === UNAFFILIATED_LANE_ID) {
+        // Drag INTO 未归属 = clear primary + clear all other memberships per
+        // the "no auto-fallback" rule. Null the primary first so
+        // setNodeStorylines doesn't auto-pin it back into the membership set.
+        await updateNode(draggedNode.id, { mainStorylineId: null });
+        await setNodeStorylines(draggedNode.id, []);
+        await updateNode(draggedNode.id, { [orderField]: dragOver.order });
+      } else if (targetRow && targetRow !== currentMain) {
+        // Real-row → real-row reroute. Two cases collapsed into one:
+        //   (a) target already a secondary membership → promote it
+        //   (b) target is brand new → promote it AND drop the source
+        //       membership so the chapter physically moves to its new
+        //       lane (mirrors BottomTimeline's drag semantics).
+        // Drawer drags only land here when canDropOnStoryline allows
+        // (drawer → main row), so no fromDrawer guard needed.
+        //
+        // To avoid a flicker of a multi-storyline membership — which would
+        // briefly draw a dashed cross-storyline edge — we replace the
+        // membership set in a SINGLE state apply via setNodeStorylines and
+        // override its auto-pin to point at the new target. The follow-up
+        // updateNode call brings the store's primary state into agreement
+        // with the link table; in between, primaryStorylineId() falls back
+        // to the only membership (target), so nothing observably wrong
+        // renders.
+        const existingMemberIds = nodeStorylines(draggedNode.id).map((sl) => sl.id);
+        const nextMemberIds = existingMemberIds.includes(targetRow)
+          ? existingMemberIds.filter((id) => id !== currentMain)
+          : existingMemberIds
+              .filter((id) => id !== currentMain)
+              .concat(targetRow);
+        await setNodeStorylines(draggedNode.id, nextMemberIds, {
+          primaryStorylineId: targetRow,
+        });
         await updateNode(draggedNode.id, {
           [orderField]: dragOver.order,
           mainStorylineId: targetRow,
@@ -1301,23 +1413,46 @@ export function StoryGraphView() {
               style={{ height: GRAPH_CONFIG.AXIS_HEIGHT, borderBottom: '1px solid hsl(var(--rule))' }}
             />
           )}
-          {storylines.map((s) => {
-            const lane = sortedNodesByStoryline.get(s.id) ?? [];
-            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(s.id);
+          {lanesToRender.map((lane) => {
+            const laneNodes =
+              lane.id === DEFAULT_LANE_ID
+                ? placedNodes
+                : lane.id === UNAFFILIATED_LANE_ID
+                  ? unaffiliatedChapters
+                  : (sortedNodesByStoryline.get(lane.id) ?? []);
+            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
             return (
               <div
-                key={s.id}
-                className={`graph-rail__row${dimmed ? ' is-drop-disabled' : ''}`}
+                key={lane.id}
+                className={`graph-rail__row${dimmed ? ' is-drop-disabled' : ''}${
+                  lane.synthetic ? ' is-synthetic' : ''
+                }`}
                 style={{ height: GRAPH_CONFIG.TRACK_HEIGHT }}
+                onContextMenu={(e) => {
+                  // Synthetic lanes (本书 / 未归属) have no storyline entity
+                  // behind them — no editor actions apply.
+                  if (lane.synthetic) {
+                    e.preventDefault();
+                    return;
+                  }
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({
+                    kind: 'storyline',
+                    x: e.clientX + 2,
+                    y: e.clientY - 2,
+                    storylineId: lane.id,
+                  });
+                }}
               >
                 <div className="graph-rail__name">
                   <span
                     className="graph-rail__name-dot"
-                    style={{ background: s.color || 'hsl(var(--story-4))' }}
+                    style={{ background: lane.color }}
                   />
-                  <span>{s.name || 'Untitled'}</span>
+                  <span>{lane.name}</span>
                 </div>
-                <div className="graph-rail__meta">{lane.length} 章</div>
+                <div className="graph-rail__meta">{laneNodes.length} 章</div>
               </div>
             );
           })}
@@ -1352,6 +1487,27 @@ export function StoryGraphView() {
             className="graph-canvas"
             onDragOver={handleTracksDragOver}
             onDrop={handleTracksDrop}
+            onContextMenu={(e) => {
+              // Tile-level handlers stopPropagation, so this only fires for
+              // right-clicks on empty track area. Map the cursor Y to a
+              // lane → open the same storyline cmenu the rail uses (synthetic
+              // lanes have no entity behind them, so silently skip).
+              const canvas = canvasRef.current;
+              if (!canvas) return;
+              const rect = canvas.getBoundingClientRect();
+              const yInTracks = e.clientY - rect.top + canvas.scrollTop;
+              const sid = storylineAtY(yInTracks);
+              if (!sid || sid === DEFAULT_LANE_ID || sid === UNAFFILIATED_LANE_ID) {
+                return;
+              }
+              e.preventDefault();
+              setContextMenu({
+                kind: 'storyline',
+                x: e.clientX + 2,
+                y: e.clientY - 2,
+                storylineId: sid,
+              });
+            }}
           >
             <div
               className="graph-tracks"
@@ -1414,17 +1570,19 @@ export function StoryGraphView() {
                   );
                 })}
 
-            {/* One row per storyline with the dotted reading-line behind tiles */}
-            {storylines.map((s) => {
-              const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(s.id);
+            {/* One row per lane with the dotted reading-line behind tiles. */}
+            {lanesToRender.map((lane) => {
+              const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
               return (
                 <div
-                  key={s.id}
-                  className={`graph-track${dimmed ? ' is-drop-disabled' : ''}`}
+                  key={lane.id}
+                  className={`graph-track${dimmed ? ' is-drop-disabled' : ''}${
+                    lane.synthetic ? ' is-synthetic' : ''
+                  }`}
                   style={
                     {
                       height: GRAPH_CONFIG.TRACK_HEIGHT,
-                      ['--track-color' as string]: s.color || 'hsl(var(--story-4))',
+                      ['--track-color' as string]: lane.color,
                     } as React.CSSProperties
                   }
                 />
@@ -1436,7 +1594,7 @@ export function StoryGraphView() {
               <svg
                 className="graph-edges"
                 width={canvasContentWidth}
-                height={GRAPH_CONFIG.AXIS_HEIGHT + storylines.length * GRAPH_CONFIG.TRACK_HEIGHT}
+                height={GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
                 style={{ top: 0, left: 0 }}
               >
                 {/* Cross-storyline transit trails (dashed, behind relation
@@ -1585,6 +1743,7 @@ export function StoryGraphView() {
                     e.preventDefault();
                     e.stopPropagation();
                     setContextMenu({
+                      kind: 'node',
                       x: e.clientX + 2,
                       y: e.clientY - 2,
                       nodeId: node.id,
@@ -1777,6 +1936,18 @@ export function StoryGraphView() {
                       width: rect.width,
                       height: rect.height,
                     },
+                  });
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDriftContextMenu({
+                    x: e.clientX + 2,
+                    y: e.clientY - 2,
+                    nodeId: node.id,
+                    nodeTitle: node.title ?? undefined,
+                    nodeSummary: node.summary ?? undefined,
+                    writingStatus: node.writingStatus,
                   });
                 }}
                 onDoubleClick={() => {
@@ -2011,66 +2182,130 @@ export function StoryGraphView() {
         </div>
       )}
 
-      {contextMenu && (
-        <GraphContextMenu
-          state={contextMenu}
-          menuRef={contextMenuRef}
-          edgeCountForNode={
-            nodeEdges.filter(
-              (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
-            ).length
-          }
-          isNarrative={isNarrative}
-          onClose={() => setContextMenu(null)}
-          onAction={async (action) => {
-            const nid = contextMenu.nodeId;
-            setContextMenu(null);
-            try {
-              switch (action) {
-                case 'editChapter':
-                  openEntity({ entityType: 'node', id: nid }, { preview: false });
-                  close();
-                  break;
-                case 'startEdgeFrom':
-                  setLinkSource(nid);
-                  break;
-                case 'deleteAllEdges': {
-                  const related = nodeEdges.filter(
-                    (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
-                  );
-                  for (const e of related) {
-                    await deleteEdge(e.id);
+      {contextMenu && contextMenu.kind === 'node' && (() => {
+        const node = bookNodes.find((n) => n.id === contextMenu.nodeId);
+        if (!node) return null;
+        const edgeCount = nodeEdges.filter(
+          (e) => e.sourceNodeId === contextMenu.nodeId || e.targetNodeId === contextMenu.nodeId,
+        ).length;
+        const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
+        return (
+          <EntityCellContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            editorType="node"
+            nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
+            nodeWritingStatus={node.writingStatus}
+            header={{
+              title: contextMenu.nodeTitle ?? undefined,
+              subtitle: contextMenu.nodeSummary ?? undefined,
+              tags: contextMenu.nodeStorylines?.map((sl) => ({
+                id: sl.id,
+                name: sl.name,
+                color: sl.color,
+              })),
+            }}
+            extraGroups={[
+              [
+                ...(hasAnyStoryline
+                  ? [{ action: 'moveToUnaffiliated', label: '转移至未归属' }]
+                  : []),
+                ...(isNarrative && contextMenu.hasNarrativeOrder
+                  ? [{ action: 'detachFromNarrative', label: '回到未放置' }]
+                  : []),
+              ],
+              [
+                { action: 'startEdgeFrom', label: '从此节点新建关联' },
+                {
+                  action: 'deleteAllEdges',
+                  label: `删除此节点的所有关联 (${edgeCount})`,
+                  danger: true,
+                  disabled: edgeCount === 0,
+                },
+              ],
+            ]}
+            onAction={async (action) => {
+              const nid = contextMenu.nodeId;
+              try {
+                switch (action) {
+                  case 'moveToUnaffiliated':
+                    await updateNode(nid, { mainStorylineId: null });
+                    await setNodeStorylines(nid, []);
+                    return;
+                  case 'detachFromNarrative':
+                    await updateNode(nid, { narrativeOrder: null });
+                    return;
+                  case 'startEdgeFrom':
+                    setLinkSource(nid);
+                    return;
+                  case 'deleteAllEdges': {
+                    const related = nodeEdges.filter(
+                      (e) => e.sourceNodeId === nid || e.targetNodeId === nid,
+                    );
+                    for (const e of related) {
+                      await deleteEdge(e.id);
+                    }
+                    return;
                   }
-                  break;
+                  default:
+                    // Shared per-entity actions (status / edit storylines /
+                    // delete) flow through the canonical dispatcher.
+                    void dispatchEntityAction({
+                      entityType: 'node',
+                      id: nid,
+                      action,
+                    });
                 }
-                case 'detachFromNarrative':
-                  await updateNode(nid, { narrativeOrder: null });
-                  break;
-                case 'removeFromMainStoryline': {
-                  // Promote a different storyline to main, then unlink the
-                  // old main. Mirrors BottomTimeline's primary-storyline
-                  // removal — keeps the guard in removeNodeFromStoryline
-                  // happy (you can't unlink the current primary directly).
-                  const main = contextMenu.mainStorylineId;
-                  if (!main) break;
-                  const remaining = (contextMenu.nodeStorylines ?? [])
-                    .filter((s) => s.id !== main)
-                    .map((s) => s.id);
-                  if (remaining.length === 0) break;
-                  await updateNode(nid, { mainStorylineId: remaining[0] });
-                  await removeNodeFromStoryline(nid, main);
-                  break;
-                }
-                case 'deleteNode':
-                  if (window.confirm('删除此章节？此操作不可撤销。')) {
-                    await deleteNode(nid);
-                  }
-                  break;
+              } catch (err) {
+                log.error('Graph context menu action failed', err);
               }
-            } catch (err) {
-              log.error('Graph context menu action failed', err);
-            }
+            }}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
+
+      {contextMenu && contextMenu.kind === 'storyline' &&
+        contextMenu.storylineId !== DEFAULT_LANE_ID &&
+        contextMenu.storylineId !== UNAFFILIATED_LANE_ID && (
+          <EntityCellContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            editorType="storyline"
+            onAction={(action) => {
+              void dispatchEntityAction({
+                entityType: 'storyline',
+                id: contextMenu.storylineId,
+                action,
+              });
+            }}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+      {driftContextMenu && (
+        <EntityCellContextMenu
+          x={driftContextMenu.x}
+          y={driftContextMenu.y}
+          editorType="node"
+          nodeStatusKind="drift"
+          nodeWritingStatus={driftContextMenu.writingStatus}
+          header={{
+            title: driftContextMenu.nodeTitle,
+            subtitle: driftContextMenu.nodeSummary,
           }}
+          extraGroups={[
+            [{ action: 'startEdgeFrom', label: '从此浮缀新建关联' }],
+          ]}
+          onAction={(action) => {
+            const nid = driftContextMenu.nodeId;
+            if (action === 'startEdgeFrom') {
+              setLinkSource(nid);
+              return;
+            }
+            void dispatchEntityAction({ entityType: 'node', id: nid, action });
+          }}
+          onClose={() => setDriftContextMenu(null)}
         />
       )}
 

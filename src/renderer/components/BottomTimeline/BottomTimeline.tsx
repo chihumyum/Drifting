@@ -3,7 +3,7 @@ import { useMatch } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
-import { CHAPTER_ORDER_STRIDE } from '../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
@@ -12,10 +12,11 @@ import { useTimelineExpandedScale } from './useTimelineExpandedScale';
 import { useBottomTimelineContextMenuActions } from './useBottomTimelineContextMenuActions';
 import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
-import { BottomTimelineContextMenu } from './BottomTimelineContextMenu';
+import { EntityCellContextMenu } from '../leftBars/EntityCellContextMenu';
+import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { FullBookLane } from './FullBookLane';
-import type { BottomTimelineContextMenuAction, TimelineNode } from './types';
-import { useUiStore } from '../../store/ui-store';
+import type { TimelineNode } from './types';
+import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import loglevel from 'loglevel';
 import '../../../styles/bottom-timeline.css';
@@ -189,22 +190,53 @@ function TimelinePin({
   );
 }
 
+// Synthetic lane sentinels. These never hit the DB — they're virtual lanes
+// for the two edge cases the storyline rendering needs to handle:
+//   • DEFAULT_LANE_ID: project has zero storylines (single-lane writing mode).
+//     All chapters render in one lane labelled "本书".
+//   • UNAFFILIATED_LANE_ID: project has ≥ 1 storyline AND some chapters have
+//     no primary storyline link ("未归属"). Default collapsed.
+const DEFAULT_LANE_ID = '__default__';
+const UNAFFILIATED_LANE_ID = '__unaffiliated__';
+
+function makeSyntheticStoryline(id: string, name: string, color: string): Storyline {
+  // Filling in the Storyline shape with empty/placeholder values for fields
+  // the lane renderer reads but the synthetic lane doesn't conceptually have.
+  return {
+    id,
+    projectId: '',
+    name,
+    color,
+    summary: '',
+    orderKey: 0,
+    descriptionJson: '{}',
+    kvJson: '[]',
+    nodeContentTemplateJson: '{}',
+    createdAt: '',
+    updatedAt: '',
+  };
+}
+
 export function BottomTimeline() {
   const editorMatch = useMatch('/project/:projectId/editor/:nodeId');
   const storylineMatch = useMatch('/project/:projectId/editor/storyline/:storylineId');
   const nodeId = editorMatch?.params.nodeId;
   const storylineId = storylineMatch?.params.storylineId;
   const user = useAuthStore((state) => state.user);
-  const { bookNodes, storylines, nodeStorylineMapping } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStore();
   const setNodeSelection = useUiStore((state) => state.setNodeSelection);
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
-  const { projectId, navigateToNode, navigateToHome } = useProjectNavigation();
+  const { projectId, navigateToNode, openEntity } = useProjectNavigation();
+  const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
-  const { createNode, updateNode, deleteNode } = useBookNode({
+  const { createNode, updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const { addNodeToStoryline, getStorylinesByNode, removeNodeFromStoryline } = useStoryline({
+  const {
+    removeNodeFromStoryline,
+    setNodeStorylines,
+  } = useStoryline({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -212,7 +244,7 @@ export function BottomTimeline() {
   const nodesWithStorylines = useMemo<TimelineNode[]>(() => {
     const storylineById = new Map(storylines.map((sl) => [sl.id, sl]));
     return bookNodes
-      .filter((node) => node.mainStorylineId != null)
+      .filter(isChapter)
       .map((node) => ({
         ...node,
         storylines: (nodeStorylineMapping[node.id] || [])
@@ -224,6 +256,12 @@ export function BottomTimeline() {
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
+  // Unaffiliated lane (chapters with no primary storyline) visibility is
+  // persisted in ui-store so the toggle decision sticks across sessions —
+  // users who keep the lane open shouldn't have to re-toggle it every time
+  // they reopen the app.
+  const unaffiliatedVisible = useUiStore((s) => s.bottomTimelineUnaffiliatedVisible);
+  const setUnaffiliatedVisible = useUiStore((s) => s.setBottomTimelineUnaffiliatedVisible);
   const [customHeight, setCustomHeight] = useState<number | null>(() => {
     if (typeof localStorage === 'undefined') return null;
     const v = localStorage.getItem(TIMELINE_HEIGHT_STORAGE_KEY);
@@ -254,7 +292,6 @@ export function BottomTimeline() {
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
   const { expandedScale, touchHandlers } = useTimelineExpandedScale({
     isExpanded: true,
     scrollContainerRef,
@@ -348,15 +385,16 @@ export function BottomTimeline() {
     orderField,
   });
 
-  // Helper: which storyline owns this node as its "main" row.
+  // Helper: which storyline owns this node as its "main" row. Reads the
+  // primary from the link table (via the store), falling back to the first
+  // storyline in the membership list when no primary is set.
   const primaryStorylineId = useCallback(
-    (node: { mainStorylineId: string | null; storylines: Storyline[] }) => {
-      const fallback = node.storylines[0]?.id ?? null;
-      return node.storylines.some((sl) => sl.id === node.mainStorylineId)
-        ? node.mainStorylineId
-        : fallback;
+    (node: { id: string; storylines: Storyline[] }) => {
+      const declared = primaryStorylineByNode[node.id] ?? null;
+      if (declared && node.storylines.some((sl) => sl.id === declared)) return declared;
+      return node.storylines[0]?.id ?? null;
     },
-    [],
+    [primaryStorylineByNode],
   );
 
   // Drift nodes (no storyline) don't appear on the global reading lane —
@@ -381,56 +419,21 @@ export function BottomTimeline() {
   const getTimelineHeight = () =>
     Math.max(TIMELINE_CONFIG.MIN_HEIGHT, customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT);
 
-  const getContextMenuPosition = (x: number, y: number, menuWidth: number, menuHeight: number) => {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const padding = 8;
-    let adjustedX = x;
-    let adjustedY = y;
-    if (x + menuWidth + padding > viewportWidth) adjustedX = Math.max(padding, x - menuWidth);
-    if (y + menuHeight + padding > viewportHeight)
-      adjustedY = Math.max(padding, viewportHeight - menuHeight - padding);
-    if (adjustedX < padding) adjustedX = padding;
-    if (adjustedY < padding) adjustedY = padding;
-    return { x: adjustedX, y: adjustedY };
-  };
-
+  const dispatchEntityAction = useEntityCellAction();
   const { handleContextMenuAction } = useBottomTimelineContextMenuActions({
     contextMenu,
     projectId,
-    currentRouteNodeId: nodeId,
-    nodesWithStorylines,
     scrollContainerRef,
     createNode,
-    addNodeToStoryline,
-    getStorylinesByNode,
-    deleteNode,
-    removeNodeFromStoryline,
+    setNodeStorylines,
     updateNode,
     navigateToNode,
-    navigateToHome,
     onCloseMenu: clearContextMenu,
     onError: (message, error) => log.error(message, error),
   });
 
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handlePointerDownCapture = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      const target = e.target as Node | null;
-      if (target && contextMenuRef.current?.contains(target)) return;
-      clearContextMenu();
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') clearContextMenu();
-    };
-    document.addEventListener('pointerdown', handlePointerDownCapture, true);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDownCapture, true);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [contextMenu, clearContextMenu]);
+  // Outside-click / Esc dismissal is handled inside EntityCellContextMenu
+  // itself, so no separate effect is needed for the timeline cmenu state.
 
   // Close the unplaced popover on outside click or ESC.
   const unplacedPopoverRef = useRef<HTMLDivElement>(null);
@@ -488,7 +491,20 @@ export function BottomTimeline() {
   );
   const canDropOnStoryline = (rowStorylineId: string) => {
     if (!draggedNode) return false;
+    if (rowStorylineId === DEFAULT_LANE_ID) return true; // default lane: always
+    if (rowStorylineId === UNAFFILIATED_LANE_ID) {
+      // Drawer drag: only 未归属 chapters belong in 未归属 — a chapter with
+      // a primary storyline shouldn't escape to the orphan lane via a
+      // narrative-axis placement. Axis-to-axis drags handle 未归属 via the
+      // dedicated context-menu action instead.
+      if (isDraggedFromDrawer) return draggedNodePrimaryStorylineId == null;
+      return true;
+    }
     if (!isDraggedFromDrawer) return true; // axis-to-axis drag: any row
+    // Drawer drag with no primary storyline: the chapter is 未归属, so
+    // there's no "main row" to constrain to. Drop is allowed on any real
+    // storyline — the drop handler promotes the target to mainStoryline.
+    if (draggedNodePrimaryStorylineId == null) return true;
     return rowStorylineId === draggedNodePrimaryStorylineId;
   };
 
@@ -526,19 +542,57 @@ export function BottomTimeline() {
 
     try {
       const fromDrawer = currentOrder === null;
+      const targetIsDefault = targetStorylineId === DEFAULT_LANE_ID;
+      const targetIsUnaffiliated = targetStorylineId === UNAFFILIATED_LANE_ID;
+      // Drawer drag for an unaffiliated chapter: dropping on a real storyline
+      // is the implicit "assign primary" gesture, so the chapter doesn't get
+      // a narrativeOrder without a home. Default / unaffiliated targets keep
+      // their existing semantics (no membership change).
+      if (
+        fromDrawer &&
+        primaryStorylineId(node) == null &&
+        !targetIsDefault &&
+        !targetIsUnaffiliated
+      ) {
+        await updateNode(node.id, { mainStorylineId: targetStorylineId });
+      }
       if (!fromDrawer) {
-        // Axis-to-axis drag may also re-route the node's primary storyline.
-        const isPrimaryStoryline =
-          primaryStorylineId(node) === sourceStorylineId;
-        if (!isPrimaryStoryline) {
-          log.warn('Can only drag from primary storyline');
-          return;
-        }
-        const isTargetInNodeStorylines = node.storylines.some((t) => t.id === targetStorylineId);
-        if (sourceStorylineId !== targetStorylineId) {
+        const sourceIsSynthetic =
+          sourceStorylineId === DEFAULT_LANE_ID ||
+          sourceStorylineId === UNAFFILIATED_LANE_ID;
+
+        if (targetIsDefault) {
+          // Single-lane mode — no storyline membership state to track. Only
+          // reorder fires below.
+        } else if (targetIsUnaffiliated) {
+          // Drag INTO 未归属 = demote primary (and clear other memberships per
+          // the "no auto-fallback" rule). Order matters: setNodeStorylines
+          // auto-pins the current primary back into the membership set, so
+          // we must null the primary FIRST, otherwise the chapter snaps
+          // straight back to its old storyline.
+          await updateNode(node.id, { mainStorylineId: null });
+          await setNodeStorylines(node.id, []);
+        } else if (sourceIsSynthetic) {
+          // Drag OUT of a synthetic lane onto a real storyline = promote it
+          // to primary. The link repo's setPrimaryStoryline (invoked via
+          // updateNode below with the mainStorylineId signal) creates the
+          // link row if it's missing.
           await updateNode(node.id, { mainStorylineId: targetStorylineId });
-          if (!isTargetInNodeStorylines) {
-            await removeNodeFromStoryline(node.id, sourceStorylineId);
+        } else {
+          // Real-storyline → real-storyline drag may re-route the node's
+          // primary alongside the order update.
+          const isPrimaryStoryline =
+            primaryStorylineId(node) === sourceStorylineId;
+          if (!isPrimaryStoryline) {
+            log.warn('Can only drag from primary storyline');
+            return;
+          }
+          const isTargetInNodeStorylines = node.storylines.some((t) => t.id === targetStorylineId);
+          if (sourceStorylineId !== targetStorylineId) {
+            await updateNode(node.id, { mainStorylineId: targetStorylineId });
+            if (!isTargetInNodeStorylines) {
+              await removeNodeFromStoryline(node.id, sourceStorylineId);
+            }
           }
         }
       }
@@ -679,7 +733,13 @@ export function BottomTimeline() {
   const renderNodeCard = (node: TimelineNode, storylineId: string) => {
     const storyline = storylineById.get(storylineId);
     const isSelected = (selectedNodeUiId ?? nodeId) === node.id;
-    const isPrimary = isPrimaryStorylineForNode(node, storylineId);
+    // Synthetic lanes (本书 / 未归属) host nodes that have no real primary
+    // storyline — the lane itself is the visible "primary". Skipping the
+    // primary check ensures these tiles render; clip color falls back to
+    // the synthetic lane's color below.
+    const isSyntheticLane =
+      storylineId === DEFAULT_LANE_ID || storylineId === UNAFFILIATED_LANE_ID;
+    const isPrimary = isSyntheticLane || isPrimaryStorylineForNode(node, storylineId);
 
     if (!isPrimary) return null;
 
@@ -741,22 +801,25 @@ export function BottomTimeline() {
     );
   };
 
-  const renderStorylineRow = (storyline: Storyline) => {
-    const nodesInStoryline = getNodesInStoryline(storyline.id);
-    const isRouteActive = storylineId === storyline.id;
+  const renderStorylineRow = (
+    storyline: Storyline,
+    laneOpts?: { nodes?: TimelineNode[]; synthetic?: boolean },
+  ) => {
+    // Synthetic lanes pass their nodes in explicitly (they aren't in
+    // nodesByStoryline). Real storylines look up via the selector.
+    const nodesInStoryline = laneOpts?.nodes ?? getNodesInStoryline(storyline.id);
+    const isSynthetic = laneOpts?.synthetic ?? false;
+    const isRouteActive = !isSynthetic && storylineId === storyline.id;
     const railColor = storyline.color || 'hsl(var(--story-4))';
-
-    const activeId = selectedNodeUiId ?? nodeId;
-    const selectedNode = activeId ? (nodeById.get(activeId) ?? null) : null;
-    const selectedNodeBelongsToStoryline =
-      selectedNode?.storylines.some((t) => t.id === storyline.id) ?? false;
 
     const isDropDisabled = !!draggedNode && !canDropOnStoryline(storyline.id);
 
     return (
       <div
         key={storyline.id}
-        className={`btl-row${isDropDisabled ? ' is-drop-disabled' : ''}`}
+        className={`btl-row${isDropDisabled ? ' is-drop-disabled' : ''}${
+          isSynthetic ? ' is-synthetic' : ''
+        }`}
         onDragOver={(e) => handleNodeDragOver(e, storyline.id)}
         onDrop={(e) => handleDrop(e, storyline.id)}
         onClick={(e) => {
@@ -764,6 +827,38 @@ export function BottomTimeline() {
           clearContextMenu();
         }}
         onContextMenu={(e) => {
+          // Synthetic lanes don't expose the storyline-level context menu
+          // (no rename / recolor / add-node-to-this-storyline operations).
+          // Node-level interactions still need to work, so we plumb those
+          // through but stop here for the storyline-level fallback.
+          if (isSynthetic) {
+            e.preventDefault();
+            const container = e.currentTarget.querySelector(
+              '[data-node-container]',
+            ) as HTMLElement | null;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const clickedNode = nodesInStoryline.find((node) => {
+              const ord = orderOf(node);
+              if (ord === null) return false;
+              const nl = orderToPosition(ord);
+              return x >= nl && x <= nl + nodeWidth;
+            });
+            if (clickedNode) {
+              setContextMenu({
+                x: e.clientX + 2,
+                y: e.clientY - 2,
+                type: 'node',
+                nodeId: clickedNode.id,
+                storylineId: storyline.id,
+                nodeTitle: clickedNode.title,
+                nodeSummary: clickedNode.summary,
+                nodeStorylines: clickedNode.storylines,
+              });
+            }
+            return;
+          }
           e.preventDefault();
           const container = e.currentTarget.querySelector('[data-node-container]') as HTMLElement;
           if (!container) return;
@@ -773,7 +868,11 @@ export function BottomTimeline() {
             minOrder,
             Math.round(x / (TIMELINE_CONFIG.GRID_UNIT * scaleFactor)) + minOrder,
           );
+          // Only the primary storyline's row renders a tile for a chapter, so
+          // a hit at the chapter's x-position on a secondary row should fall
+          // through to the storyline-level menu — not the node menu.
           const clickedNode = nodesInStoryline.find((node) => {
+            if (!isPrimaryStorylineForNode(node, storyline.id)) return false;
             const ord = orderOf(node);
             if (ord === null) return false;
             const nl = orderToPosition(ord);
@@ -797,17 +896,54 @@ export function BottomTimeline() {
               type: 'storyline',
               storylineId: storyline.id,
               position,
-              canAddCurrentNode: Boolean(activeId && !selectedNodeBelongsToStoryline),
             });
           }
         }}
       >
         <div
           data-track-rail
-          className={`btl-rail ${isRouteActive ? 'is-active' : ''}`}
-          onClick={(e) => e.stopPropagation()}
-          title={storyline.name || 'Untitled Storyline'}
-          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
+          className={`btl-rail ${isRouteActive ? 'is-active' : ''}${
+            isSynthetic ? '' : ' is-clickable'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Real storylines: clicking the rail navigates to the storyline
+            // editor tab (mirrors ChapterPanel's storyline-group click).
+            // Synthetic lanes have no entity behind them, so they no-op.
+            if (!isSynthetic) {
+              openEntity({ entityType: 'storyline', id: storyline.id });
+            }
+          }}
+          onDoubleClick={() => {
+            if (!isSynthetic) promoteCurrentTab();
+          }}
+          onContextMenu={(e) => {
+            // Synthetic rails (本书 / 未归属) have no entity to operate on.
+            if (isSynthetic) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+            // On a real storyline rail, expose the same cmenu the chapter
+            // panel storyline-cell uses — edit / delete / merge — so the
+            // rail is a discoverable surface for storyline-level actions.
+            e.preventDefault();
+            e.stopPropagation();
+            setContextMenu({
+              x: e.clientX + 2,
+              y: e.clientY - 2,
+              type: 'storyline',
+              storylineId: storyline.id,
+              // position omitted: rail click doesn't carry a bookOrder
+              // slot, so the createChapterHere extra is suppressed.
+            });
+          }}
+          title={
+            isSynthetic
+              ? storyline.name || ''
+              : `点击打开「${storyline.name || 'Untitled Storyline'}」`
+          }
+          style={{ width: TIMELINE_CONFIG.RAIL_WIDTH, cursor: isSynthetic ? 'default' : 'pointer' }}
         >
           <span aria-hidden className="btl-rail__stripe" style={{ background: railColor }} />
           <div className="btl-rail__main">
@@ -859,12 +995,59 @@ export function BottomTimeline() {
   // summary above the narrative axis would just be a misleading repetition
   // of bookOrder layout that doesn't match the axis below.
   const fullBookLaneHeight = isNarrative ? 0 : TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT;
-  const axisHeight = isNarrative && storylines.length > 0 ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
+  const axisHeight = isNarrative ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
+
+  // Lanes to render: real storylines + at most one synthetic lane.
+  //   • 0 storylines → 1 synthetic "本书" default lane (single-lane mode)
+  //   • ≥1 storylines + any chapter with no primary → append synthetic
+  //     "未归属" lane (collapsed by default; only its header counts toward
+  //     row height when collapsed so the storyline lanes don't lose space)
+  const unaffiliatedChapters = useMemo(() => {
+    if (storylines.length === 0) return [] as TimelineNode[];
+    // Use the same primary-resolution as the render path. A chapter with
+    // memberships but no DECLARED primary still falls back to `storylines[0]`
+    // and renders in that lane — filtering on `primaryStorylineByNode` alone
+    // would let such a chapter ALSO show up in 未归属, duplicating it.
+    // StoryGraphView's unaffiliated filter is correct for the same reason.
+    return placedNodes.filter((n) => primaryStorylineId(n) == null);
+  }, [storylines.length, placedNodes, primaryStorylineId]);
+
+  type Lane = { storyline: Storyline; nodes: TimelineNode[]; synthetic: boolean };
+  const lanesToRender = useMemo<Lane[]>(() => {
+    if (storylines.length === 0) {
+      return [
+        {
+          storyline: makeSyntheticStoryline(DEFAULT_LANE_ID, '本书', 'hsl(var(--accent))'),
+          nodes: placedNodes,
+          synthetic: true,
+        },
+      ];
+    }
+    const real: Lane[] = storylines.map((sl) => ({
+      storyline: sl,
+      nodes: getNodesInStoryline(sl.id),
+      synthetic: false,
+    }));
+    // 未归属 is opt-in via the header toggle, but the toggle itself is
+    // always available whenever storylines exist — so the lane appears
+    // even when no chapter is currently unaffiliated. That keeps the
+    // narrative-view drop target reachable for "未放置 + 未归属" chapters
+    // dragged out of the holding popover.
+    if (unaffiliatedVisible) {
+      real.push({
+        storyline: makeSyntheticStoryline(UNAFFILIATED_LANE_ID, '未归属', 'hsl(var(--ink-3))'),
+        nodes: unaffiliatedChapters,
+        synthetic: true,
+      });
+    }
+    return real;
+  }, [storylines, placedNodes, getNodesInStoryline, unaffiliatedChapters, unaffiliatedVisible]);
+
   const rowsAreaHeight = Math.max(
     0,
     totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - fullBookLaneHeight - axisHeight,
   );
-  const rowHeight = storylines.length > 0 ? rowsAreaHeight / storylines.length : 0;
+  const rowHeight = lanesToRender.length > 0 ? rowsAreaHeight / lanesToRender.length : 0;
   const overlayTopOffset = axisHeight;
   const rowCenterY = (idx: number) => overlayTopOffset + idx * rowHeight + rowHeight / 2;
   const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
@@ -941,7 +1124,7 @@ export function BottomTimeline() {
   }, [snapValues, addMarker, orderToPosition]);
 
   const renderTimeAxis = () => {
-    if (!isNarrative || storylines.length === 0) return null;
+    if (!isNarrative) return null;
     return (
       <div className="btl-axis">
         <div
@@ -992,6 +1175,28 @@ export function BottomTimeline() {
               叙事时
             </button>
           </div>
+          {/* 未归属 toggle — only meaningful when there are storylines AND
+              chapters with no primary. Click reveals the 未归属 lane in the
+              timeline; click again hides it. Hidden by default per UX spec. */}
+          {storylines.length > 0 && (
+            <button
+              type="button"
+              className={`btl__unaffiliated-toggle${unaffiliatedVisible ? ' is-active' : ''}`}
+              onClick={() => setUnaffiliatedVisible(!unaffiliatedVisible)}
+              title={unaffiliatedVisible ? '隐藏未归属轨道' : '显示未归属轨道'}
+            >
+              {unaffiliatedVisible ? (
+                '隐藏未归属'
+              ) : (
+                <>
+                  显示未归属
+                  <span className="btl__unaffiliated-toggle-count">
+                    {unaffiliatedChapters.length}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
           {isNarrative && (
             <div className="btl__unplaced" ref={unplacedPopoverRef}>
               <button
@@ -1044,6 +1249,10 @@ export function BottomTimeline() {
           )}
         </div>
         <div className="btl__head-right">
+          {/* New-storyline action lives on the ChapterPanel subheader's primary
+              create button now — surfacing it here too made the affordance
+              redundant. The timeline keeps only the layout / navigation
+              controls below. */}
           <button
             className="btl__head-btn"
             title={
@@ -1173,14 +1382,14 @@ export function BottomTimeline() {
       >
         {renderTimeAxis()}
 
-        {storylines.length > 0 ? (
-          storylines.map((storyline) => renderStorylineRow(storyline))
-        ) : (
-          <div className="btl-loading">Loading storylines…</div>
+        {lanesToRender.map((lane) =>
+          renderStorylineRow(lane.storyline, {
+            nodes: lane.nodes,
+            synthetic: lane.synthetic,
+          }),
         )}
 
         {isNarrative &&
-          storylines.length > 0 &&
           markers.map((m) => (
             <TimelinePin
               key={`pin-${m.id}`}
@@ -1240,20 +1449,82 @@ export function BottomTimeline() {
         )}
       </div>
 
-      <BottomTimelineContextMenu
-        contextMenu={contextMenu}
-        contextMenuRef={contextMenuRef}
-        getContextMenuPosition={getContextMenuPosition}
-        onAction={(action: BottomTimelineContextMenuAction) => {
-          void handleContextMenuAction(action);
-        }}
-        isNarrative={isNarrative}
-        selectedNodeHasNarrativeOrder={(() => {
-          if (contextMenu?.type !== 'node' || !contextMenu.nodeId) return false;
-          const n = nodeById.get(contextMenu.nodeId);
-          return n != null && typeof n.narrativeOrder === 'number';
-        })()}
-      />
+      {contextMenu?.type === 'node' && contextMenu.nodeId && (() => {
+        const node = nodeById.get(contextMenu.nodeId);
+        if (!node) return null;
+        const hasNarrativeOrder = typeof node.narrativeOrder === 'number';
+        const hasAnyStoryline = (contextMenu.nodeStorylines?.length ?? 0) > 0;
+        return (
+          <EntityCellContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            editorType="node"
+            nodeStatusKind={isChapter(node) ? 'chapter' : 'drift'}
+            nodeWritingStatus={node.writingStatus}
+            header={{
+              title: contextMenu.nodeTitle,
+              subtitle: contextMenu.nodeSummary,
+              tags: contextMenu.nodeStorylines?.map((sl) => ({
+                id: sl.id,
+                name: sl.name,
+                color: sl.color,
+              })),
+            }}
+            extraGroups={[
+              [
+                ...(hasAnyStoryline
+                  ? [{ action: 'moveToUnaffiliated', label: '转移至未归属' }]
+                  : []),
+                ...(isNarrative && hasNarrativeOrder
+                  ? [{ action: 'detachFromNarrative', label: '回到未放置' }]
+                  : []),
+              ],
+            ]}
+            onAction={(action) => {
+              // Timeline-local actions stay in handleContextMenuAction; the
+              // rest (delete, edit storylines, status flips) route through
+              // the shared per-entity dispatcher.
+              if (action === 'moveToUnaffiliated' || action === 'detachFromNarrative') {
+                void handleContextMenuAction(action);
+                return;
+              }
+              const nid = contextMenu.nodeId;
+              if (!nid) return;
+              void dispatchEntityAction({ entityType: 'node', id: nid, action });
+            }}
+            onClose={clearContextMenu}
+          />
+        );
+      })()}
+
+      {contextMenu?.type === 'storyline' && contextMenu.storylineId && !(() => {
+        // Synthetic lanes don't have a real storyline behind them — no
+        // editor actions apply, and createChapterHere is suppressed for
+        // 未归属 / 本书 too since they don't own a primary storyline.
+        const sid = contextMenu.storylineId;
+        return sid === '__default__' || sid === '__unaffiliated__';
+      })() && (
+        <EntityCellContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          editorType="storyline"
+          extraGroups={[
+            contextMenu.position !== undefined
+              ? [{ action: 'createChapterHere', label: '在此处新建章节' }]
+              : [],
+          ]}
+          onAction={(action) => {
+            if (action === 'createChapterHere') {
+              void handleContextMenuAction(action);
+              return;
+            }
+            const sid = contextMenu.storylineId;
+            if (!sid) return;
+            void dispatchEntityAction({ entityType: 'storyline', id: sid, action });
+          }}
+          onClose={clearContextMenu}
+        />
+      )}
 
       <NodeHoverPreview
         node={hoveredNodeId ? (nodeById.get(hoveredNodeId) ?? null) : null}

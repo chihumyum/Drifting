@@ -10,7 +10,7 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
-import type { BookNode, WritingStatus } from '../domain/book-node';
+import { isChapter, type BookNode, type WritingStatus } from '../domain/book-node';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -75,8 +75,14 @@ export function ProjectDashboard() {
   const userId = useAuthStore((state) => state.user?.id);
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
-  const { storylines, bookElements, bookElementCategories, bookNodes, storylineNodeMapping } =
-    useDataStore();
+  const {
+    storylines,
+    bookElements,
+    bookElementCategories,
+    bookNodes,
+    storylineNodeMapping,
+    primaryStorylineByNode,
+  } = useDataStore();
   const recentItems = useRecentEntitiesStore((s) => s.items);
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
 
@@ -134,10 +140,7 @@ export function ProjectDashboard() {
   // Dashboard treats drift nodes as out-of-band (they live in their own
   // panel) — filter before counting so totals match what the storylines
   // grid actually shows.
-  const chapterNodes = useMemo(
-    () => bookNodes.filter((n) => n.mainStorylineId != null),
-    [bookNodes],
-  );
+  const chapterNodes = useMemo(() => bookNodes.filter(isChapter), [bookNodes]);
   const totalNodes = chapterNodes.length;
   const totalWc = chapterNodes.reduce((a, n) => a + (n.wordCount || 0), 0);
   const targetWc = projectPlan.projectWordTarget || 0;
@@ -173,9 +176,9 @@ export function ProjectDashboard() {
 
   const continueStoryline = useMemo(() => {
     if (!continueNode) return null;
-    const slId = continueNode.mainStorylineId;
-    return storylines.find((s) => s.id === slId) ?? null;
-  }, [continueNode, storylines]);
+    const slId = primaryStorylineByNode[continueNode.id] ?? null;
+    return slId ? storylines.find((s) => s.id === slId) ?? null : null;
+  }, [continueNode, primaryStorylineByNode, storylines]);
 
   const continueStorylineColor = continueStoryline
     ? resolveColor(continueStoryline.color, continueStoryline.id)
@@ -271,7 +274,8 @@ export function ProjectDashboard() {
       .sort((a: BookNode, b: BookNode) => (a.updatedAt < b.updatedAt ? 1 : -1))
       .slice(0, 6)
       .map((n) => {
-        const sl = storylines.find((s) => s.id === n.mainStorylineId);
+        const primaryId = primaryStorylineByNode[n.id] ?? null;
+        const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
         return {
           id: n.id,
           dateLabel: formatRelativeTime(n.updatedAt),

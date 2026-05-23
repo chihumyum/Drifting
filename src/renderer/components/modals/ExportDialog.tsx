@@ -23,6 +23,7 @@ import {
   type ExportFormat,
 } from '../../services/export';
 import { useDataStore } from '../../store/data-store';
+import { isChapter } from '../../domain/book-node';
 import { useProjectStore } from '../../store/project-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import type { EntityKind } from '../../lib/extensions/entity-link';
@@ -93,13 +94,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       const { getBookSchema } = await import('../../lib/extensions/book-schema');
       const schema: Schema = getBookSchema();
 
-      // Drift nodes (mainStorylineId === null) are inspiration fragments,
-      // not chapters in the manuscript — exclude them from book export.
-      // The remaining are ordered by their `bookOrder` so the export
-      // reads in reading order, matching the book-order timeline.
+      // Drift nodes are inspiration fragments, not chapters in the manuscript
+      // — exclude them from book export. The remaining are ordered by their
+      // `bookOrder` so the export reads in reading order, matching the
+      // book-order timeline.
       const bookNodes = nodes
-        .filter((n) => n.projectId === projectId && n.mainStorylineId !== null)
-        .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0));
+        .filter((n) => n.projectId === projectId)
+        .filter(isChapter)
+        .sort((a, b) => a.bookOrder - b.bookOrder);
 
       const repo = createBookContentRepository();
       const chapters = await Promise.all(

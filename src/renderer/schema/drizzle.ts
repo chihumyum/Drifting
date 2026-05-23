@@ -5,8 +5,10 @@ import {
   real,
   primaryKey,
   index,
+  uniqueIndex,
   blob,
 } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 // schema definition in users' local sqlite database.
 
 // project
@@ -106,11 +108,10 @@ export const BookNodeTable = sqliteTable(
     id: text('id').primaryKey(),
     title: text('title').notNull(),
     summary: text('summary').notNull().default(''),
-    // Pure sortable integer for book/reading order. Was `start` back when
-    // node tiles had a `start`/`end` "video clip" metaphor; the metaphor was
-    // dropped — tiles are fixed-width now and order is the only thing this
-    // value encodes. Nullable: drift nodes (mainStorylineId == null) have no
-    // place on the reading order axis and store NULL here.
+    // Pure sortable integer for book/reading order. Nullable: drift nodes
+    // have no place on the reading order axis and store NULL here. Chapters
+    // always carry a value (even when their primary storyline link has been
+    // removed — the "未归属" state preserves the order).
     bookOrder: integer('book_order'),
     // Author-defined position on the narrative timeline (separate axis from
     // book order — allows flashbacks / non-linear chronology). Nullable: a
@@ -119,12 +120,6 @@ export const BookNodeTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    // Nullable: drift nodes (free-floating inspiration notes) have no main
-    // storyline. When a storyline is deleted, affected nodes are reassigned to
-    // one of their other storylines, or fall back to drift if none remain.
-    mainStorylineId: text('main_storyline_id').references(() => StorylineTable.id, {
-      onDelete: 'set null',
-    }),
     // Materialized word count, derived from this node's content.
     // Updated on every save; defaults to 0 for nodes that have never been edited.
     wordCount: integer('word_count').notNull().default(0),
@@ -133,6 +128,12 @@ export const BookNodeTable = sqliteTable(
     // waiting_review → revising before landing on finished). Stored as plain
     // text — the enum lives in the domain layer (see WritingStatus).
     writingStatus: text('writing_status').notNull().default('draft'),
+    // Explicit discriminator between 'chapter' and 'drift'. Replaces the
+    // historical "mainStorylineId nullability" implicit discriminator. A
+    // chapter without a primary storyline link is now a legal state ("未归属"
+    // / unaffiliated chapter); the type was previously forced to drift.
+    // See domain/book-node.ts for the WritingStatus enum split.
+    kind: text('kind').notNull().default('drift'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     // story graph view positions
@@ -143,6 +144,7 @@ export const BookNodeTable = sqliteTable(
     index('idx_book_node_project').on(t.projectId),
     index('idx_book_node_project_book_order').on(t.projectId, t.bookOrder),
     index('idx_book_node_project_narrative_order').on(t.projectId, t.narrativeOrder),
+    index('idx_book_node_project_kind').on(t.projectId, t.kind),
   ],
 );
 
@@ -183,7 +185,11 @@ export const BookElementTable = sqliteTable('element', {
     .references(() => ProjectTable.id, { onDelete: 'cascade' }),
   categoryId: text('category_id')
     .notNull()
-    .references(() => ElementCategoryTable.id, { onDelete: 'set null' }),
+    // CASCADE (not SET NULL) — the column is NOT NULL, so the historical
+    // SET NULL action was unusable: it raised a constraint violation
+    // whenever a category with elements was deleted, including via
+    // project-delete cascade. Cascade keeps the schema honest.
+    .references(() => ElementCategoryTable.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   summary: text('summary').notNull().default(''),
   contentJson: text('content_json').notNull().default('{}'),
@@ -197,6 +203,15 @@ export const BookElementTable = sqliteTable('element', {
 });
 
 // Node <-> Storyline (Many-to-Many)
+// Node <-> Storyline (Many-to-Many)
+// `isPrimary` marks the node's primary storyline — the one whose lane the
+// node sits in on BottomTimeline / StoryGraphView, and the storyline its
+// bookOrder is keyed to. At most one row per node may have isPrimary=true,
+// enforced by the partial unique index below + write-path guards.
+//
+// Chapters typically have one isPrimary row. They may also have additional
+// (non-primary) link rows for secondary memberships. Drift nodes are never
+// allowed to have link rows at all — see write-path guards in useBookNode.
 export const NodeStorylineLinkTable = sqliteTable(
   'node_storyline_link',
   {
@@ -206,11 +221,17 @@ export const NodeStorylineLinkTable = sqliteTable(
     storylineId: text('storyline_id')
       .notNull()
       .references(() => StorylineTable.id, { onDelete: 'cascade' }),
+    isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.nodeId, table.storylineId] }),
     index('idx_node_storyline_node').on(table.nodeId),
     index('idx_node_storyline_storyline').on(table.storylineId),
+    // At most one primary storyline per node. Partial unique — only rows with
+    // is_primary = true participate.
+    uniqueIndex('uniq_node_primary_storyline')
+      .on(table.nodeId)
+      .where(sql`${table.isPrimary} = 1`),
   ],
 );
 

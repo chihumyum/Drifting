@@ -88,8 +88,16 @@ export function syncNodeStorylineLinkCreate(
   nodeId: string,
   storylineId: string,
   projectId: string,
+  options?: { isPrimary?: boolean },
 ) {
-  enqueueSync('nodeStorylineLink', 'create', nodeId, projectId, undefined, storylineId);
+  enqueueSync(
+    'nodeStorylineLink',
+    'create',
+    nodeId,
+    projectId,
+    options?.isPrimary ? { isPrimary: true } : undefined,
+    storylineId,
+  );
 }
 
 export function syncNodeStorylineLinkDelete(
@@ -100,8 +108,16 @@ export function syncNodeStorylineLinkDelete(
   enqueueSync('nodeStorylineLink', 'delete', nodeId, projectId, undefined, storylineId);
 }
 
-export function syncNodeStorylinesSet(nodeId: string, projectId: string, storylineIds: string[]) {
-  enqueueSync('nodeStorylineLink', 'update', nodeId, projectId, { storylineIds });
+export function syncNodeStorylinesSet(
+  nodeId: string,
+  projectId: string,
+  storylineIds: string[],
+  options?: { primaryStorylineId?: string | null },
+) {
+  enqueueSync('nodeStorylineLink', 'update', nodeId, projectId, {
+    storylineIds,
+    primaryStorylineId: options?.primaryStorylineId ?? null,
+  });
 }
 
 export function syncElementCreate(id: string, projectId: string, payload: Record<string, unknown>) {

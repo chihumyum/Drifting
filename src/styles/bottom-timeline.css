@@ -270,6 +270,41 @@
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
+/* ---------------- Unaffiliated toggle (head, next to 书序/叙事时) ----
+   Mirrors the unplaced button styling so the two head-level toggles read as
+   a matching pair. Active state uses the same darker tint as `.is-open` to
+   reinforce that the lane is currently visible. */
+.btl__unaffiliated-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid hsl(var(--rule));
+  background: hsl(var(--surface));
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.btl__unaffiliated-toggle:hover,
+.btl__unaffiliated-toggle.is-active {
+  background: hsl(var(--rule) / 0.4);
+  color: hsl(var(--ink-1));
+}
+.btl__unaffiliated-toggle-count {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-2));
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 9px;
+  min-width: 14px;
+  text-align: center;
+}
+
 .btl__unplaced-chip-title {
   font-family: var(--font-serif);
   font-size: 11.5px;

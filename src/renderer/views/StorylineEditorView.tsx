@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -16,7 +16,7 @@ import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy'
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { isChapter } from '../domain/book-node';
 import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
-import { usePromoteCurrentTab } from '../store/ui-store';
+import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 
@@ -241,12 +241,26 @@ export function StorylineEditorView({
           log.error('Failed to delete storyline:', error);
           alert('Failed to delete storyline. Please try again.');
         }
-      } else if (action === 'mergeStoryline') {
-        alert('Merge storylines is not implemented yet.');
       }
     },
     [storylineId, currentStoryline, storylineUsecases, navigateToHome],
   );
+
+  // Pending-action consumer — see NodeEditorView for the queue rationale.
+  const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
+  const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
+  useEffect(() => {
+    if (!storylineId || !currentStoryline) return;
+    if (!pendingEntityAction) return;
+    const queued = consumeEntityAction('storyline', storylineId);
+    if (queued) void handleContextAction(queued);
+  }, [
+    storylineId,
+    currentStoryline,
+    pendingEntityAction,
+    consumeEntityAction,
+    handleContextAction,
+  ]);
 
   if (!currentStoryline) {
     return (

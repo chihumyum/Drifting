@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
+import { isChapter } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -473,7 +474,7 @@ function EntityFilterButton({
     const { kind, id } = entityFilter;
     if (kind === 'node') {
       const n = bookNodes.find((x) => x.id === id);
-      return n?.title || (n?.mainStorylineId ? 'Untitled Chapter' : 'Untitled Drift');
+      return n?.title || (n && isChapter(n) ? 'Untitled Chapter' : 'Untitled Drift');
     }
     if (kind === 'element')
       return bookElements.find((x) => x.id === id)?.name || 'Untitled Element';

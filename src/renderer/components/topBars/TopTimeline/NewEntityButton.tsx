@@ -1,14 +1,13 @@
 import { Plus } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useBookNode } from '../../../usecase/useBookNode';
-import { useStoryline } from '../../../usecase/useStoryline';
 import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../../../store/auth';
-import { CHAPTER_ORDER_STRIDE, isChapter } from '../../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../../domain/book-node';
 
 const log = loglevel.getLogger('NewEntityButton');
 log.setLevel(loglevel.levels.ERROR);
@@ -36,10 +35,6 @@ export function NewEntityButton() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { createStoryline } = useStoryline({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
-  });
   const { createElement } = useBookElement({
     projectId: projectId ?? '',
     userId: userId ?? '',
@@ -48,35 +43,34 @@ export function NewEntityButton() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { bookNodes, storylines, bookElements, bookElementCategories } = useDataStore();
+  const { bookNodes, bookElements, bookElementCategories, primaryStorylineByNode } =
+    useDataStore();
   const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
   const isElementContext = Boolean(elementId || categoryId);
-  const buttonLabel = isElementContext ? 'Element' : 'Chapter';
+  // Drift editor context = currently routed to a node whose kind is 'drift'.
+  // That's the only place "+ New" should create a drift; the left-panel
+  // drift tab has its own dedicated create button via the sub-header.
+  const focusedNode = nodeId ? bookNodes.find((n) => n.id === nodeId) ?? null : null;
+  const isDriftContext = focusedNode != null && isDrift(focusedNode);
+  const buttonLabel = isElementContext ? 'E' : isDriftContext ? 'D' : 'C';
 
   const handleCreateChapter = async () => {
     try {
       let defaultStorylineId: string | null = null;
 
-      // Priority 1: current storyline if in storyline editor.
+      // Only context-derived storylines count:
+      //   1. current storyline editor route
+      //   2. focused node's primary storyline
+      // Anything else → null (chapter goes 未归属). No silent fallback to
+      // `storylines[0]` and no auto-create.
       if (storylineId) {
         defaultStorylineId = storylineId;
       } else if (nodeId) {
-        // Priority 2: selected node's primary storyline.
-        const selectedNode = bookNodes.find((node) => node.id === nodeId);
-        defaultStorylineId = selectedNode?.mainStorylineId ?? null;
-      }
-      // Priority 3: first available storyline.
-      if (!defaultStorylineId) {
-        defaultStorylineId = storylines[0]?.id ?? null;
-      }
-      // Priority 4: create one.
-      if (!defaultStorylineId) {
-        const created = await createStoryline({ projectId });
-        defaultStorylineId = created.id;
+        defaultStorylineId = primaryStorylineByNode[nodeId] ?? null;
       }
 
       // Use the global chapter max + STRIDE, matching every other create-
-      // chapter entry point (LeftSidebar / NodesPanel / ImportDialog) so the
+      // chapter entry point (LeftSidebar / ChapterPanel / ImportDialog) so the
       // user only has to learn one "where does a new chapter land" rule.
       // Filtering by `isChapter` narrows bookOrder to a non-nullable number.
       const maxOrder = bookNodes
@@ -85,6 +79,7 @@ export function NewEntityButton() {
       const nextOrder = maxOrder + CHAPTER_ORDER_STRIDE;
 
       const newNode = await createNode({
+        kind: 'chapter',
         title: 'New Chapter',
         mainStorylineId: defaultStorylineId,
         bookOrder: nextOrder,
@@ -106,6 +101,20 @@ export function NewEntityButton() {
       }, 100);
     } catch (error) {
       log.error('Failed to create chapter:', error);
+    }
+  };
+
+  const handleCreateDrift = async () => {
+    try {
+      const created = await createNode({
+        kind: 'drift',
+        title: 'New Drift',
+        bookOrder: null,
+        mainStorylineId: null,
+      });
+      openEntity({ entityType: 'node', id: created.id }, { preview: false });
+    } catch (error) {
+      log.error('Failed to create drift:', error);
     }
   };
 
@@ -141,6 +150,8 @@ export function NewEntityButton() {
   const handleClick = () => {
     if (isElementContext) {
       void handleCreateElement();
+    } else if (isDriftContext) {
+      void handleCreateDrift();
     } else {
       void handleCreateChapter();
     }

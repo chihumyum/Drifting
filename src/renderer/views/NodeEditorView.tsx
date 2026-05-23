@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
-import { useStoryline } from '../usecase/useStoryline';
 import { useBookContent } from '../usecase/useBookContent';
 import {
   BookNode,
@@ -9,6 +8,7 @@ import {
   CHAPTER_ORDER_STRIDE,
   DRIFT_STATUSES,
   isChapter,
+  isDrift,
   type WritingStatus,
 } from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
@@ -33,7 +33,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { usePromoteCurrentTab } from '../store/ui-store';
+import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
@@ -95,6 +95,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     storylineNodeMapping,
     manuscriptComments,
     bookElementCategories,
+    primaryStorylineByNode,
   } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
@@ -140,16 +141,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     outline.map((h) => h.id),
   );
 
-  const [editingStorylines, setEditingStorylines] = useState(false);
-  const [draftStorylineIds, setDraftStorylineIds] = useState<string[]>([]);
-  const [draftMainStorylineId, setDraftMainStorylineId] = useState<string | null>(null);
   const wordCountBackfillRef = useRef<string | null>(null);
   // usecases
   const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({
-    projectId: activeProjectId,
-    userId: activeUserId,
-  });
-  const { setNodeStorylines } = useStoryline({
     projectId: activeProjectId,
     userId: activeUserId,
   });
@@ -197,14 +191,19 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     return new Map(storylines.map((storyline) => [storyline.id, storyline]));
   }, [storylines]);
 
+  const curNodePrimaryStorylineId = curNode ? primaryStorylineByNode[curNode.id] ?? null : null;
+
   const currentStorylineIds = useMemo(() => {
     if (!nodeId || !curNode) return [];
     const mappedIds = nodeStorylineMapping[nodeId] ?? [];
-    const ids = curNode.mainStorylineId
-      ? [curNode.mainStorylineId, ...mappedIds.filter((id) => id !== curNode.mainStorylineId)]
+    const ids = curNodePrimaryStorylineId
+      ? [
+          curNodePrimaryStorylineId,
+          ...mappedIds.filter((id) => id !== curNodePrimaryStorylineId),
+        ]
       : mappedIds;
     return ids.filter((id, index) => ids.indexOf(id) === index && storylineById.has(id));
-  }, [curNode, nodeId, nodeStorylineMapping, storylineById]);
+  }, [curNode, curNodePrimaryStorylineId, nodeId, nodeStorylineMapping, storylineById]);
 
   const currentStorylines = useMemo(() => {
     return currentStorylineIds
@@ -213,7 +212,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   }, [currentStorylineIds, storylineById]);
 
   const mainStoryline =
-    (curNode?.mainStorylineId ? storylineById.get(curNode.mainStorylineId) : null) ??
+    (curNodePrimaryStorylineId ? storylineById.get(curNodePrimaryStorylineId) : null) ??
     currentStorylines[0] ??
     null;
 
@@ -234,22 +233,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     const idx = sameStorylineNodes.findIndex((n) => n.id === nodeId);
     return idx >= 0 ? idx + 1 : 0;
   }, [nodeId, sameStorylineNodes]);
-
-  useEffect(() => {
-    if (!editingStorylines) return;
-    const timer = window.setTimeout(() => {
-      if (draftStorylineIds.length === 0) {
-        if (draftMainStorylineId) {
-          setDraftMainStorylineId(null);
-        }
-        return;
-      }
-      if (!draftMainStorylineId || !draftStorylineIds.includes(draftMainStorylineId)) {
-        setDraftMainStorylineId(draftStorylineIds[0]);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [draftMainStorylineId, draftStorylineIds, editingStorylines]);
 
   // load content when node changes
   useEffect(() => {
@@ -406,64 +389,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     [navigateToCategory, navigateToElement, navigateToNode, navigateToStoryline],
   );
 
-  const openStorylineEditor = useCallback(() => {
-    if (!curNode) return;
-    const initialIds =
-      currentStorylineIds.length > 0
-        ? currentStorylineIds
-        : curNode.mainStorylineId
-          ? [curNode.mainStorylineId]
-          : [];
-    setDraftStorylineIds(initialIds);
-    setDraftMainStorylineId(
-      curNode.mainStorylineId && initialIds.includes(curNode.mainStorylineId)
-        ? curNode.mainStorylineId
-        : initialIds[0] || null,
-    );
-    setEditingStorylines(true);
-  }, [curNode, currentStorylineIds]);
-
-  const handleToggleDraftStoryline = useCallback(
-    (storylineId: string) => {
-      setDraftStorylineIds((prev) => {
-        if (prev.includes(storylineId)) {
-          if (prev.length === 1) return prev;
-          return prev.filter((id) => id !== storylineId);
-        }
-
-        return [...prev, storylineId];
-      });
-    },
-    [],
+  const setChapterStorylineEditorNodeId = useUiStore(
+    (s) => s.setChapterStorylineEditorNodeId,
   );
-
-  const handleSelectDraftMainStoryline = useCallback((storylineId: string) => {
-    setDraftStorylineIds((prev) => (prev.includes(storylineId) ? prev : [...prev, storylineId]));
-    setDraftMainStorylineId(storylineId);
-  }, []);
-
-  const handleSaveStorylines = useCallback(async () => {
-    if (!nodeId || !curNode || !draftMainStorylineId) return;
-
-    const selectedIds = Array.from(new Set([draftMainStorylineId, ...draftStorylineIds]));
-    try {
-      if (draftMainStorylineId !== curNode.mainStorylineId) {
-        await updateNode(nodeId, { mainStorylineId: draftMainStorylineId });
-      }
-      await setNodeStorylines(nodeId, selectedIds);
-      setEditingStorylines(false);
-    } catch (error) {
-      log.error('[NodeEditor] Failed to update node storylines:', error);
-      alert('Failed to update node storylines. Please try again.');
-    }
-  }, [
-    curNode,
-    draftMainStorylineId,
-    draftStorylineIds,
-    nodeId,
-    setNodeStorylines,
-    updateNode,
-  ]);
+  const openStorylineEditor = useCallback(() => {
+    if (!nodeId) return;
+    setChapterStorylineEditorNodeId(nodeId);
+  }, [nodeId, setChapterStorylineEditorNodeId]);
 
   const handleContextAction = useCallback(
     async (action: string) => {
@@ -475,7 +407,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       }
 
       if (action === CONVERT_DRIFT_TO_CHAPTER_ACTION) {
-        if (curNode.mainStorylineId != null) return;
+        if (!isDrift(curNode)) return;
         if (storylines.length === 0) {
           alert('请先在左侧或时间轴新建一条 Storyline，才能把 drift 转换为章节。');
           return;
@@ -486,7 +418,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       }
 
       if (action === CONVERT_DRIFT_TO_ELEMENT_ACTION) {
-        if (curNode.mainStorylineId != null) return;
+        if (!isDrift(curNode)) return;
         if (bookElementCategories.length === 0) {
           alert('请先在元素超视图新建一个 Category，才能把 drift 转换为元素。');
           return;
@@ -501,8 +433,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         // Only accept values from the enum that matches this node's kind so
         // chapter and drift status sets stay disjoint (you can't drop a
         // drift node into "finished" via a stale menu, etc.).
-        const allowed =
-          curNode.mainStorylineId == null ? DRIFT_STATUSES : CHAPTER_WRITING_STATUSES;
+        const allowed = isDrift(curNode) ? DRIFT_STATUSES : CHAPTER_WRITING_STATUSES;
         if (!allowed.includes(next as never) || next === curNode.writingStatus) return;
         try {
           await updateNode(nodeId, { writingStatus: next });
@@ -538,9 +469,24 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     ],
   );
 
+  // Pending-action consumer: when a left-sidebar context menu queued an
+  // action against this node (e.g. drift conversion), pull it off the
+  // queue once the node has actually loaded and dispatch it through the
+  // same handler the three-dot menu uses. Watching `pendingEntityAction`
+  // (not just nodeId/curNode) handles the "same entity already open" case
+  // where navigation is a no-op.
+  const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
+  const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
+  useEffect(() => {
+    if (!nodeId || !curNode) return;
+    if (!pendingEntityAction) return;
+    const queued = consumeEntityAction('node', nodeId);
+    if (queued) void handleContextAction(queued);
+  }, [nodeId, curNode, pendingEntityAction, consumeEntityAction, handleContextAction]);
+
   const handleConfirmConversion = useCallback(async () => {
     if (!curNode || !nodeId || !conversionTarget || !conversionPickedId) return;
-    if (curNode.mainStorylineId != null) {
+    if (!isDrift(curNode)) {
       // Sanity: somehow the node became a chapter between modal-open and
       // confirm — bail without writing.
       setConversionTarget(null);
@@ -638,7 +584,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             // node" — writingStatus is just the per-axis state and can be
             // stale (e.g. pre-migration drift rows still carrying 'draft').
             nodeWritingStatus={curNode.writingStatus}
-            nodeStatusKind={curNode.mainStorylineId == null ? 'drift' : 'chapter'}
+            nodeStatusKind={curNode.kind}
             referenceLinkToggle={{
               enabled: entityLinkInteractive,
               onToggle: toggleEntityLinkInteractive,
@@ -793,187 +739,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             </div>
           </div>
         </>
-      )}
-
-      {editingStorylines && curNode && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1000,
-            background: 'rgba(35, 28, 20, 0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-          onClick={() => setEditingStorylines(false)}
-        >
-          <div
-            style={{
-              width: 'min(520px, 100%)',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              background: '#fefdfb',
-              border: '1px solid hsl(var(--accent-border))',
-              borderRadius: 10,
-              boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
-            }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div
-              style={{
-                padding: '20px 22px 14px',
-                borderBottom: '1px solid rgba(184, 153, 104, 0.18)',
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>
-                Edit Node Storylines
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{curNode.title}</div>
-            </div>
-
-            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {storylines.map((storyline) => {
-                const selected = draftStorylineIds.includes(storyline.id);
-                const isMain = draftMainStorylineId === storyline.id;
-                return (
-                  <div
-                    key={storyline.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '24px 1fr auto',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: selected
-                        ? `1px solid ${storyline.color || '#b89968'}66`
-                        : '1px solid rgba(184, 153, 104, 0.18)',
-                      background: selected ? `${storyline.color || '#b89968'}12` : '#fffaf2',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => handleToggleDraftStoryline(storyline.id)}
-                      aria-label={`Include ${storyline.name}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleToggleDraftStoryline(storyline.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        minWidth: 0,
-                        border: 'none',
-                        background: 'transparent',
-                        padding: 0,
-                        color: '#3c3025',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                    >
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: storyline.color || '#b89968',
-                          flex: '0 0 auto',
-                        }}
-                      />
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          fontSize: 14,
-                          fontWeight: selected ? 700 : 500,
-                        }}
-                      >
-                        {storyline.name}
-                      </span>
-                    </button>
-                    <label
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        color: selected ? '#5a4a3a' : '#a39787',
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="main-storyline"
-                        checked={isMain}
-                        disabled={!selected}
-                        onChange={() => handleSelectDraftMainStoryline(storyline.id)}
-                      />
-                      Main
-                    </label>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 10,
-                padding: '14px 18px 18px',
-                borderTop: '1px solid rgba(184, 153, 104, 0.18)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setEditingStorylines(false)}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 6,
-                  border: '1px solid hsl(var(--accent-border))',
-                  background: '#fefdfb',
-                  color: '#5a4a3a',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!draftMainStorylineId || draftStorylineIds.length === 0}
-                onClick={() => void handleSaveStorylines()}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background:
-                    !draftMainStorylineId || draftStorylineIds.length === 0
-                      ? '#d8d0c3'
-                      : 'hsl(var(--accent))',
-                  color: '#fefdfb',
-                  cursor:
-                    !draftMainStorylineId || draftStorylineIds.length === 0
-                      ? 'not-allowed'
-                      : 'pointer',
-                  fontWeight: 700,
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {conversionTarget && curNode && (

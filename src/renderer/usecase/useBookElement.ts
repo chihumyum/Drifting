@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import type { BookElement } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { initDatabase } from '../lib/db';
@@ -176,6 +177,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       if (!existing) throw new Error(`Element with id ${id} not found`);
 
       const filtered = elements.filter((e) => e.id !== id);
+      useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'element', id });
       return withOptimisticUpdate({
         apply: () => setElements(filtered),
         rollback: () => setElements(elements),

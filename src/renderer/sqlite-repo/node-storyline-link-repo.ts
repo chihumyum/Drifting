@@ -4,12 +4,25 @@ import { eq, asc, and, inArray } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
 
 export interface NodeStorylineLinkRepository {
-  addNodeToStoryline(nodeId: string, storylineId: string): Promise<void>;
+  addNodeToStoryline(
+    nodeId: string,
+    storylineId: string,
+    options?: { isPrimary?: boolean },
+  ): Promise<void>;
   removeNodeFromStoryline(nodeId: string, storylineId: string): Promise<void>;
   getStorylinesByNode(nodeId: string): Promise<Storyline[]>;
   getStorylinesByNodeIds(nodeIds: string[]): Promise<Record<string, Storyline[]>>;
   getNodeIdsByStoryline(storylineId: string): Promise<string[]>;
-  setNodeStorylines(nodeId: string, storylineIds: string[]): Promise<void>;
+  setNodeStorylines(
+    nodeId: string,
+    storylineIds: string[],
+    options?: { primaryStorylineId?: string | null },
+  ): Promise<void>;
+  // Make `storylineId` the primary for `nodeId`. If `storylineId` is null,
+  // demote any current primary (no replacement). The link row for the new
+  // primary is created if missing. Atomically demotes the previous primary,
+  // so the partial unique index never sees two true rows.
+  setPrimaryStoryline(nodeId: string, storylineId: string | null): Promise<void>;
 }
 
 function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
@@ -56,16 +69,78 @@ export function createNodeStorylineLinkRepository(
     }
   };
 
-  const addNodeToStoryline = async (nodeId: string, storylineId: string): Promise<void> => {
+  const addNodeToStoryline = async (
+    nodeId: string,
+    storylineId: string,
+    options?: { isPrimary?: boolean },
+  ): Promise<void> => {
     await Promise.all([ensureStorylineInProject(storylineId), ensureNodeInProject(nodeId)]);
 
-    await dbProvider()
-      .insert(NodeStorylineLinkTable)
-      .values({
-        nodeId,
-        storylineId,
-      })
-      .onConflictDoNothing();
+    const isPrimary = options?.isPrimary ?? false;
+
+    await dbProvider().transaction(async (tx) => {
+      if (isPrimary) {
+        // Demote any existing primary on this node before inserting the new
+        // one — preserves the partial unique index invariant.
+        await tx
+          .update(NodeStorylineLinkTable)
+          .set({ isPrimary: false })
+          .where(
+            and(
+              eq(NodeStorylineLinkTable.nodeId, nodeId),
+              eq(NodeStorylineLinkTable.isPrimary, true),
+            ),
+          );
+        // Upsert: promote to primary on conflict. The `set` clause is the
+        // only-upward flip (false → true); demote-without-replacement goes
+        // through setPrimaryStoryline instead.
+        await tx
+          .insert(NodeStorylineLinkTable)
+          .values({ nodeId, storylineId, isPrimary: true })
+          .onConflictDoUpdate({
+            target: [NodeStorylineLinkTable.nodeId, NodeStorylineLinkTable.storylineId],
+            set: { isPrimary: true },
+          });
+      } else {
+        // Non-primary add: if the row already exists (with whatever isPrimary
+        // value), leave it alone. Drizzle rejects `onConflictDoUpdate({ set: {} })`
+        // as "No values to set", so we use `onConflictDoNothing` here.
+        await tx
+          .insert(NodeStorylineLinkTable)
+          .values({ nodeId, storylineId, isPrimary: false })
+          .onConflictDoNothing();
+      }
+    });
+  };
+
+  const setPrimaryStoryline = async (
+    nodeId: string,
+    storylineId: string | null,
+  ): Promise<void> => {
+    await ensureNodeInProject(nodeId);
+    if (storylineId != null) await ensureStorylineInProject(storylineId);
+
+    await dbProvider().transaction(async (tx) => {
+      // Always demote the current primary first.
+      await tx
+        .update(NodeStorylineLinkTable)
+        .set({ isPrimary: false })
+        .where(
+          and(
+            eq(NodeStorylineLinkTable.nodeId, nodeId),
+            eq(NodeStorylineLinkTable.isPrimary, true),
+          ),
+        );
+      if (storylineId == null) return;
+      // Promote the new primary, creating the link row if necessary.
+      await tx
+        .insert(NodeStorylineLinkTable)
+        .values({ nodeId, storylineId, isPrimary: true })
+        .onConflictDoUpdate({
+          target: [NodeStorylineLinkTable.nodeId, NodeStorylineLinkTable.storylineId],
+          set: { isPrimary: true },
+        });
+    });
   };
 
   const removeNodeFromStoryline = async (nodeId: string, storylineId: string): Promise<void> => {
@@ -137,7 +212,11 @@ export function createNodeStorylineLinkRepository(
     return rows.map((r) => r.nodeId);
   };
 
-  const setNodeStorylines = async (nodeId: string, storylineIds: string[]): Promise<void> => {
+  const setNodeStorylines = async (
+    nodeId: string,
+    storylineIds: string[],
+    options?: { primaryStorylineId?: string | null },
+  ): Promise<void> => {
     await ensureNodeInProject(nodeId);
 
     if (storylineIds.length > 0) {
@@ -152,6 +231,11 @@ export function createNodeStorylineLinkRepository(
       }
     }
 
+    const primaryStorylineId = options?.primaryStorylineId ?? null;
+    if (primaryStorylineId != null && !storylineIds.includes(primaryStorylineId)) {
+      throw new Error('primaryStorylineId must be one of the supplied storylineIds.');
+    }
+
     await dbProvider().transaction(async (tx) => {
       await tx.delete(NodeStorylineLinkTable).where(eq(NodeStorylineLinkTable.nodeId, nodeId));
 
@@ -160,6 +244,7 @@ export function createNodeStorylineLinkRepository(
           storylineIds.map((sid) => ({
             nodeId,
             storylineId: sid,
+            isPrimary: sid === primaryStorylineId,
           })),
         );
       }
@@ -173,5 +258,6 @@ export function createNodeStorylineLinkRepository(
     getStorylinesByNodeIds,
     getNodeIdsByStoryline,
     setNodeStorylines,
+    setPrimaryStoryline,
   };
 }

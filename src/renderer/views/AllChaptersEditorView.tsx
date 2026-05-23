@@ -11,7 +11,7 @@ import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
-import type { BookNode } from '../domain/book-node';
+import { isChapter, type ChapterNode } from '../domain/book-node';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
@@ -61,7 +61,7 @@ export function AllChaptersEditorView() {
   if (!projectId) throw new Error('AllChaptersEditorView requires a projectId');
   if (!userId) throw new Error('AllChaptersEditorView requires a logged-in user');
 
-  const { bookNodes, storylines } = useDataStore();
+  const { bookNodes, storylines, primaryStorylineByNode } = useDataStore();
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Untitled';
@@ -108,11 +108,8 @@ export function AllChaptersEditorView() {
   // Drift nodes (mainStorylineId == null) live outside the book's structural
   // ordering and surface in a dedicated sidebar tab — they shouldn't appear in
   // 通览全书, which is a chapter-by-chapter read-through.
-  const orderedNodes = useMemo<BookNode[]>(
-    () =>
-      bookNodes
-        .filter((n) => n.mainStorylineId != null)
-        .sort((a, b) => a.bookOrder - b.bookOrder),
+  const orderedNodes = useMemo<ChapterNode[]>(
+    () => bookNodes.filter(isChapter).sort((a, b) => a.bookOrder - b.bookOrder),
     [bookNodes],
   );
 
@@ -472,7 +469,8 @@ export function AllChaptersEditorView() {
         />
         <div className="editor-scroll" ref={scrollRef}>
           {orderedNodes.map((node, idx) => {
-            const storyline = node.mainStorylineId ? storylineById.get(node.mainStorylineId) : undefined;
+            const primaryId = primaryStorylineByNode[node.id] ?? null;
+            const storyline = primaryId ? storylineById.get(primaryId) : undefined;
             return (
               <section
                 key={node.id}

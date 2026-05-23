@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
+import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
@@ -27,6 +28,7 @@ export function RightSidebarPanels() {
     storylines,
     bookElementCategories,
     storylineNodeMapping,
+    primaryStorylineByNode,
   } = useDataStore();
 
   // Decode the active tab into a resolved target so the right panel can show
@@ -49,15 +51,14 @@ export function RightSidebarPanels() {
     if (leaf.entityType === 'node') {
       const node = bookNodes.find((n) => n.id === leaf.id);
       if (!node) return { kind: 'none', id: leaf.id, title: '—', kicker: '—' };
-      const isDrift = node.mainStorylineId == null;
-      const storyline = node.mainStorylineId
-        ? storylines.find((s) => s.id === node.mainStorylineId)
-        : undefined;
+      const drift = isDrift(node);
+      const primaryId = primaryStorylineByNode[node.id] ?? null;
+      const storyline = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
       return {
-        kind: isDrift ? 'drift' : 'chapter',
+        kind: drift ? 'drift' : 'chapter',
         id: node.id,
-        title: node.title || (isDrift ? 'Untitled Drift' : 'Untitled Chapter'),
-        kicker: isDrift ? '本浮缀 · 片段与材料' : '本章 · 片段与材料',
+        title: node.title || (drift ? 'Untitled Drift' : 'Untitled Chapter'),
+        kicker: drift ? '本浮缀 · 片段与材料' : '本章 · 片段与材料',
         color: storyline?.color,
       };
     }
@@ -200,6 +201,7 @@ export function RightSidebarPanels() {
             storylines={storylines}
             categories={bookElementCategories}
             storylineNodeMapping={storylineNodeMapping}
+            primaryStorylineByNode={primaryStorylineByNode}
           />
         )}
         {activeRightPanel === 'shadow' && <ShadowAgentView />}
@@ -218,6 +220,9 @@ interface StatsViewProps {
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
   storylineNodeMapping: ReturnType<typeof useDataStore.getState>['storylineNodeMapping'];
+  primaryStorylineByNode: ReturnType<
+    typeof useDataStore.getState
+  >['primaryStorylineByNode'];
 }
 
 function StatsView({
@@ -227,11 +232,19 @@ function StatsView({
   storylines,
   categories,
   storylineNodeMapping,
+  primaryStorylineByNode,
 }: StatsViewProps) {
   if (target.kind === 'chapter' || target.kind === 'drift') {
     const node = bookNodes.find((n) => n.id === target.id);
     if (!node) return <EmptyState message="找不到当前章节。" />;
-    return <ChapterStats node={node} storylines={storylines} target={target} />;
+    return (
+      <ChapterStats
+        node={node}
+        storylines={storylines}
+        target={target}
+        primaryStorylineId={primaryStorylineByNode[node.id] ?? null}
+      />
+    );
   }
   if (target.kind === 'storyline') {
     const storyline = storylines.find((s) => s.id === target.id);
@@ -261,13 +274,15 @@ function ChapterStats({
   node,
   storylines,
   target,
+  primaryStorylineId,
 }: {
   node: ReturnType<typeof useDataStore.getState>['bookNodes'][number];
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
   target: ResolvedTarget;
+  primaryStorylineId: string | null;
 }) {
-  const storyline = node.mainStorylineId
-    ? storylines.find((s) => s.id === node.mainStorylineId)
+  const storyline = primaryStorylineId
+    ? storylines.find((s) => s.id === primaryStorylineId)
     : undefined;
   const targetWc = 3000; // placeholder until per-chapter goals exist
   const wcPct = Math.min(100, (node.wordCount / targetWc) * 100);

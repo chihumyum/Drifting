@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
+import { isChapter } from '../../domain/book-node';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { StructuralEntityKind } from '../../domain/entity-kinds';
 
@@ -40,7 +41,8 @@ export function EntityRelationPicker({
   onRemove,
   selectedChipMode = 'navigate',
 }: Props) {
-  const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStore();
+  const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
+    useDataStore();
   const { navigateToNode, navigateToElement, navigateToStoryline, navigateToCategory } =
     useProjectNavigation();
   const [query, setQuery] = useState('');
@@ -75,13 +77,13 @@ export function EntityRelationPicker({
     const chapters: RelationTarget[] = [];
     const drifts: RelationTarget[] = [];
     bookNodes.forEach((n) => {
-      const label = n.title || (n.mainStorylineId ? 'Untitled Chapter' : 'Untitled Drift');
+      const isCh = isChapter(n);
+      const label = n.title || (isCh ? 'Untitled Chapter' : 'Untitled Drift');
       if (!matches(label)) return;
-      const sl = n.mainStorylineId
-        ? storylines.find((s) => s.id === n.mainStorylineId)
-        : undefined;
+      const primaryId = primaryStorylineByNode[n.id] ?? null;
+      const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
       const target: RelationTarget = { kind: 'node', id: n.id, label, color: sl?.color };
-      if (n.mainStorylineId) chapters.push(target);
+      if (isCh) chapters.push(target);
       else drifts.push(target);
     });
 
@@ -120,13 +122,13 @@ export function EntityRelationPicker({
       switch (kind) {
         case 'node': {
           const n = bookNodes.find((x) => x.id === id);
-          const sl = n?.mainStorylineId
-            ? storylines.find((s) => s.id === n.mainStorylineId)
-            : undefined;
+          const isCh = n ? isChapter(n) : false;
+          const primaryId = n ? primaryStorylineByNode[n.id] ?? null : null;
+          const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
           out.push({
             kind,
             id,
-            label: n?.title || (n?.mainStorylineId ? 'Untitled Chapter' : 'Untitled Drift'),
+            label: n?.title || (isCh ? 'Untitled Chapter' : 'Untitled Drift'),
             color: sl?.color,
           });
           break;

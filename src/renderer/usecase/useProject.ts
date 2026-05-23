@@ -2,10 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { eq, inArray } from 'drizzle-orm';
 
 import type { Project } from '../domain/project';
-import type { Storyline } from '../domain/storyline';
 import type { BookElementCategory } from '../domain/book-element';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
-import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
 import { getDb, initDatabase } from '../lib/db';
 import apiClient from '../lib/axios-config';
@@ -17,7 +15,6 @@ import {
   syncProjectCreate,
   syncProjectUpdate,
   syncProjectDelete,
-  syncStorylineCreate,
   syncCategoryCreate,
 } from './sync-helpers';
 import { randomColor } from '../utils';
@@ -378,44 +375,9 @@ export function useProject({ userId }: UseProjectContext) {
         updatedAt: now,
       });
 
-      // Enforce invariant: Project must have at least one default storyline
-      const storylineRepo = createStorylineRepository(project.id);
-      const defaultStorylineId = uuidv7();
-      const createdStoryline = await storylineRepo.createStoryline({
-        id: defaultStorylineId,
-        projectId: project.id,
-        name: 'New Storyline',
-        color: randomColor(),
-        summary: '',
-        orderKey: 1,
-        descriptionJson: '{}',
-        // The freshly-created project has an empty storyline template, so the
-        // bootstrap storyline starts blank. Once the user fills in
-        // storylineTemplateKvJson, subsequent storylines pick it up via
-        // useStoryline.createStoryline.
-        kvJson: '[]',
-        nodeContentTemplateJson: '{}',
-        createdAt: now,
-        updatedAt: now,
-      });
-      log.debug('Created default storyline:', createdStoryline);
-      let defaultStoryline: Storyline | null = createdStoryline;
-      if (!defaultStoryline?.id || !defaultStoryline.name?.trim()) {
-        defaultStoryline = await storylineRepo.getStorylineById(defaultStorylineId);
-      }
-      if (!defaultStoryline) {
-        throw new Error('Failed to create default storyline');
-      }
-      if (!defaultStoryline.name?.trim()) {
-        await storylineRepo.updateStoryline(defaultStoryline.id || defaultStorylineId, {
-          name: 'New Storyline',
-          updatedAt: new Date().toISOString(),
-        });
-        defaultStoryline = await storylineRepo.getStorylineById(defaultStorylineId);
-        if (!defaultStoryline) {
-          throw new Error('Failed to recover default storyline after name update');
-        }
-      }
+      // Projects are allowed to have zero storylines (single-lane / default
+      // writing mode). The first storyline gets created on demand — when the
+      // user adds one explicitly, or when storyline-aware features need it.
 
       // Enforce invariant: Project must have at least one 'others' element category
       const categoryRepo = createElementCategoryRepository(project.id);
@@ -452,15 +414,13 @@ export function useProject({ userId }: UseProjectContext) {
         }
       }
 
-      const [storylines, categories] = await Promise.all([
-        storylineRepo.getStorylinesByProject(),
-        categoryRepo.findAll(),
-      ]);
-      const safeStorylines = storylines.filter((s) => Boolean(s?.id) && Boolean(s?.name?.trim()));
+      const categories = await categoryRepo.findAll();
       const safeCategories = categories.filter((c) => Boolean(c?.id) && Boolean(c?.name?.trim()));
 
       const dataStore = useDataStore.getState();
-      dataStore.setStorylines(safeStorylines.length > 0 ? safeStorylines : [defaultStoryline]);
+      // Storylines start empty — the project is in "single-lane" mode until
+      // the user creates one explicitly.
+      dataStore.setStorylines([]);
       dataStore.setBookElementCategories(
         safeCategories.length > 0 ? safeCategories : [defaultCategory],
       );
@@ -472,16 +432,6 @@ export function useProject({ userId }: UseProjectContext) {
         descriptionJson: project.descriptionJson,
         kvJson: project.kvJson,
         storylineTemplateKvJson: project.storylineTemplateKvJson,
-      });
-      syncStorylineCreate(defaultStoryline.id, project.id, {
-        id: defaultStoryline.id,
-        name: defaultStoryline.name,
-        color: defaultStoryline.color,
-        summary: defaultStoryline.summary,
-        orderKey: defaultStoryline.orderKey,
-        descriptionJson: defaultStoryline.descriptionJson,
-        kvJson: defaultStoryline.kvJson,
-        nodeContentTemplateJson: defaultStoryline.nodeContentTemplateJson,
       });
       syncCategoryCreate(defaultCategory.id, project.id, {
         id: defaultCategory.id,

@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
@@ -10,6 +9,10 @@ import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { GroupHeaderCell } from './GroupHeaderCell';
+import { useEntityCellAction } from '../../hooks/useEntityCellAction';
+import type { EditorType } from '../editor/EditorTopBar';
 
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
@@ -73,6 +76,14 @@ export function ElementPanel() {
   const footerHeight = useUiStore((s) => s.elementCategoryFooterHeight);
   const setFooterHeight = useUiStore((s) => s.setElementCategoryFooterHeight);
   const minFooterHeightRef = useRef<number>(0);
+  // Per-cell context menu — reuses the editor top-bar three-dot menu items
+  // via EntityCellContextMenu so element & category context options stay in
+  // lockstep with what the editor exposes.
+  const dispatchEntityAction = useEntityCellAction();
+  const [contextMenu, setContextMenu] = useState<
+    | { x: number; y: number; entityType: EditorType; id: string }
+    | null
+  >(null);
   const [hoverPreview, setHoverPreview] = useState<{
     element: BookElement;
     categoryColor: string;
@@ -367,18 +378,24 @@ export function ElementPanel() {
         data-category-id={categoryId}
         data-element-index={elementIndex}
         style={{
+          // Aligned with ChapterPanel renderNodeCard so all three left-bar
+          // entity cells share the same row metrics — only the leading
+          // chrome (stripe / diamond / drift glyph) differs.
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '7px 10px 7px 14px',
+          padding: '5px 14px 5px 22px',
           cursor: 'pointer',
           position: 'relative',
-          background: selected ? 'hsl(var(--accent) / 0.08)' : 'transparent',
-          transition: 'background 0.12s ease',
+          background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
+          color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+          fontSize: 12.5,
+          lineHeight: 1.35,
+          transition: 'background 0.1s',
         }}
         onMouseEnter={(event) => {
           if (!selected) {
-            event.currentTarget.style.background = 'hsl(var(--paper-deep))';
+            event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
           handleRowHoverEnter(
             element,
@@ -398,6 +415,16 @@ export function ElementPanel() {
         onDoubleClick={() => {
           promoteCurrentTab();
         }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            entityType: 'element',
+            id: element.id,
+          });
+        }}
       >
         {selected && (
           <span
@@ -405,25 +432,27 @@ export function ElementPanel() {
             style={{
               position: 'absolute',
               left: 0,
-              top: 5,
-              bottom: 5,
+              top: 4,
+              bottom: 4,
               width: 2,
               background: 'hsl(var(--accent))',
             }}
           />
         )}
 
-        {/* Element mark — diamond in category color */}
+        {/* Element mark — diamond in category color. Sized to occupy the
+            same 12px-wide slot the chapter stripe uses, so titles line up
+            across panels. */}
         <span
           aria-hidden
           style={{
             fontFamily: 'var(--font-serif)',
             fontStyle: 'italic',
-            fontSize: 12,
+            fontSize: 11,
             color: categoryColor,
             flexShrink: 0,
             lineHeight: 1,
-            width: 10,
+            width: 12,
             textAlign: 'center',
           }}
         >
@@ -435,8 +464,7 @@ export function ElementPanel() {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 13,
-            color: 'hsl(var(--ink-1))',
+            color: 'inherit',
             fontWeight: selected ? 500 : 400,
             letterSpacing: '-0.005em',
             overflow: 'hidden',
@@ -500,122 +528,28 @@ export function ElementPanel() {
               data-category-section={categoryId}
               style={{ marginBottom: 8 }}
             >
-              <div
+              <GroupHeaderCell
+                name={getCategoryLabel(categoryId)}
+                count={(elementsByCategory[categoryId] ?? []).length}
+                color={getCategoryColor(categoryId)}
+                collapsed={collapsedCategoryIds.has(categoryId)}
+                onToggleCollapsed={() => toggleCategoryCollapsed(categoryId)}
                 onClick={() => openEntity({ entityType: 'category', id: categoryId })}
                 onDoubleClick={() => promoteCurrentTab()}
-                style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  marginBottom: 2,
-                  padding: '14px 10px 6px 12px',
-                  background: 'hsl(var(--paper))',
-                  borderBottom: '1px solid hsl(var(--rule) / 0.5)',
-                  cursor: 'pointer',
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setContextMenu({
+                    x: event.clientX,
+                    y: event.clientY,
+                    entityType: 'category',
+                    id: categoryId,
+                  });
                 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleCategoryCollapsed(categoryId);
-                    }}
-                    title={collapsedCategoryIds.has(categoryId) ? 'Expand' : 'Collapse'}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 16,
-                      height: 16,
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'hsl(var(--ink-4))',
-                      cursor: 'pointer',
-                      padding: 0,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {collapsedCategoryIds.has(categoryId) ? (
-                      <ChevronRight size={12} strokeWidth={2} />
-                    ) : (
-                      <ChevronDown size={12} strokeWidth={2} />
-                    )}
-                  </button>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 2,
-                      background: getCategoryColor(categoryId),
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 9.5,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.12em',
-                      color: 'hsl(var(--ink-3))',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {getCategoryLabel(categoryId)}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 9.5,
-                      color: 'hsl(var(--ink-4))',
-                      flexShrink: 0,
-                    }}
-                  >
-                    · {(elementsByCategory[categoryId] ?? []).length}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: 2 }}>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleCreateElement(categoryId);
-                    }}
-                    title="New element in this category"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 3,
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'hsl(var(--ink-4))',
-                      cursor: 'pointer',
-                      padding: 0,
-                      transition: 'background 0.12s, color 0.12s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                      e.currentTarget.style.color = 'hsl(var(--ink-1))';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = 'hsl(var(--ink-4))';
-                    }}
-                  >
-                    <Plus size={13} strokeWidth={1.6} />
-                  </button>
-                </div>
-              </div>
+                addButtonTitle="New element in this category"
+                onAdd={() => void handleCreateElement(categoryId)}
+                sticky
+              />
 
               {!collapsedCategoryIds.has(categoryId) &&
                 (() => {
@@ -635,9 +569,10 @@ export function ElementPanel() {
                               display: 'flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '6px 10px 2px 26px',
+                              padding: '2px 10px 0 26px',
                               fontFamily: 'var(--font-mono)',
                               fontSize: 9,
+                              lineHeight: 1.2,
                               textTransform: 'uppercase',
                               letterSpacing: '0.1em',
                               color: 'hsl(var(--ink-4))',
@@ -789,6 +724,22 @@ export function ElementPanel() {
           categoryColor={hoverPreview.categoryColor}
           top={hoverPreview.top}
           left={hoverPreview.left}
+        />
+      )}
+
+      {contextMenu && (
+        <EntityCellContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          editorType={contextMenu.entityType}
+          onAction={(action) => {
+            void dispatchEntityAction({
+              entityType: contextMenu.entityType === 'element' ? 'element' : 'category',
+              id: contextMenu.id,
+              action,
+            });
+          }}
+          onClose={() => setContextMenu(null)}
         />
       )}
 

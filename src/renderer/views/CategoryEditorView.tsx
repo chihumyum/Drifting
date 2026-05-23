@@ -4,6 +4,10 @@ import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
+import {
+  RESERVED_ELEMENT_CATEGORY_NAME,
+  isReservedElementCategoryName,
+} from '../domain/book-element';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
@@ -15,7 +19,7 @@ import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
-import { usePromoteCurrentTab } from '../store/ui-store';
+import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
@@ -60,7 +64,7 @@ export function CategoryEditorView({
     return bookElementCategories.find((cat) => cat.id === categoryId) || null;
   }, [bookElementCategories, categoryId]);
 
-  const isReservedCategory = curCategory?.name === 'others';
+  const isReservedCategory = isReservedElementCategoryName(curCategory?.name);
 
   // Elements belonging to this category.
   const cEls = useMemo(() => {
@@ -219,25 +223,56 @@ export function CategoryEditorView({
     [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
   );
 
-  const handleContextAction = async (action: string) => {
-    if (!curCategory) return;
-    if (action === 'deleteCategory') {
-      const confirmed = window.confirm(
-        `Delete category "${curCategory.name}"?\n\nAll elements in this category will be moved to "others".`,
-      );
-      if (!confirmed) return;
-      try {
-        for (const element of cEls) {
-          await updateElement(element.id, { categoryId: 'others' });
+  const handleContextAction = useCallback(
+    async (action: string) => {
+      if (!curCategory) return;
+      if (action === 'deleteCategory') {
+        if (isReservedElementCategoryName(curCategory.name)) {
+          alert('The reserved "others" category cannot be deleted.');
+          return;
         }
-        await categoryUsecases.deleteCategory(curCategory.id);
-        navigateToHome();
-      } catch (error) {
-        log.error('Failed to delete category:', error);
-        alert('Failed to delete category. Please try again.');
+        const fallbackCategory = bookElementCategories.find((cat) =>
+          isReservedElementCategoryName(cat.name),
+        );
+        if (!fallbackCategory) {
+          alert('Cannot delete category because the reserved "others" category is missing.');
+          return;
+        }
+        const confirmed = window.confirm(
+          `Delete category "${curCategory.name}"?\n\nAll elements in this category will be moved to "${RESERVED_ELEMENT_CATEGORY_NAME}".`,
+        );
+        if (!confirmed) return;
+        try {
+          for (const element of cEls) {
+            await updateElement(element.id, { categoryId: fallbackCategory.id });
+          }
+          await categoryUsecases.deleteCategory(curCategory.id);
+          navigateToHome();
+        } catch (error) {
+          log.error('Failed to delete category:', error);
+          alert('Failed to delete category. Please try again.');
+        }
       }
-    }
-  };
+    },
+    [
+      curCategory,
+      bookElementCategories,
+      cEls,
+      updateElement,
+      categoryUsecases,
+      navigateToHome,
+    ],
+  );
+
+  // Pending-action consumer — see NodeEditorView for the queue rationale.
+  const pendingEntityAction = useUiStore((s) => s.pendingEntityAction);
+  const consumeEntityAction = useUiStore((s) => s.consumeEntityAction);
+  useEffect(() => {
+    if (!curCategory) return;
+    if (!pendingEntityAction) return;
+    const queued = consumeEntityAction('category', curCategory.id);
+    if (queued) void handleContextAction(queued);
+  }, [curCategory, pendingEntityAction, consumeEntityAction, handleContextAction]);
 
   if (!curCategory) {
     return (
@@ -253,8 +288,8 @@ export function CategoryEditorView({
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
       <EditorTopBar
-        editorType="category"
-        onMenuAction={handleContextAction}
+        editorType={isReservedCategory ? undefined : 'category'}
+        onMenuAction={isReservedCategory ? undefined : handleContextAction}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,

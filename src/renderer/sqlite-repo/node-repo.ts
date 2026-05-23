@@ -3,6 +3,7 @@ import { BookNodeTable, ProjectTable } from '../schema/drizzle';
 import { eq, asc } from 'drizzle-orm';
 import type {
   BookNode,
+  BookNodeKind,
   ChapterWritingStatus,
   DriftStatus,
 } from '../domain/book-node';
@@ -15,14 +16,14 @@ log.setLevel(loglevel.levels.WARN);
 export type BookNodeCreateData = BookNode;
 // Flat update shape — BookNode is a discriminated union so `Partial<BookNode>`
 // can't carry cross-variant fields (e.g. switching a drift into a chapter by
-// setting mainStorylineId + bookOrder + writingStatus together). The repo
-// only persists field-by-field, so a flat partial is the right tool here.
+// setting kind + bookOrder + writingStatus together). The repo only persists
+// field-by-field, so a flat partial is the right tool here.
 export interface BookNodeUpdateData {
   title?: string;
   summary?: string;
   bookOrder?: number | null;
   narrativeOrder?: number | null;
-  mainStorylineId?: string | null;
+  kind?: BookNodeKind;
   projectId?: string;
   position?: { x?: number | null; y?: number | null };
   wordCount?: number;
@@ -55,13 +56,15 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     updatedAt: record.updatedAt,
   };
 
-  if (record.mainStorylineId == null) {
-    // Drift row. Force bookOrder to null even if the DB still carries a
-    // legacy value — the domain invariant `drift => bookOrder == null` is
-    // enforced here at the boundary so callers never see a stale order.
+  // Discriminator is the explicit `kind` column. mainStorylineId is no longer
+  // a column; the primary storyline (if any) is sourced from the
+  // node_storyline_link table.
+  const kind: BookNodeKind = record.kind === 'chapter' ? 'chapter' : 'drift';
+
+  if (kind === 'drift') {
     return {
       ...base,
-      mainStorylineId: null,
+      kind: 'drift',
       bookOrder: null,
       writingStatus: (record.writingStatus ?? 'drifting') as DriftStatus,
     };
@@ -69,7 +72,7 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
 
   return {
     ...base,
-    mainStorylineId: record.mainStorylineId,
+    kind: 'chapter',
     bookOrder: record.bookOrder ?? 0,
     writingStatus: (record.writingStatus ?? 'draft') as ChapterWritingStatus,
   };
@@ -122,7 +125,7 @@ export function createBookNodeSqliteRepository(
         bookOrder: data.bookOrder,
         narrativeOrder: data.narrativeOrder,
         summary: data.summary,
-        mainStorylineId: data.mainStorylineId ?? null,
+        kind: data.kind,
         positionX: data.position.x,
         positionY: data.position.y,
         wordCount: data.wordCount ?? 0,
@@ -161,8 +164,6 @@ export function createBookNodeSqliteRepository(
       if (updates.bookOrder !== undefined) updateValues.bookOrder = updates.bookOrder;
       if (updates.narrativeOrder !== undefined) updateValues.narrativeOrder = updates.narrativeOrder;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
-      if (updates.mainStorylineId !== undefined)
-        updateValues.mainStorylineId = updates.mainStorylineId ?? null;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
       if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
       if (updates.writingStatus !== undefined) updateValues.writingStatus = updates.writingStatus;

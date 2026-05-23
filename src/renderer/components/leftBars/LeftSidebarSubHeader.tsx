@@ -1,14 +1,13 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlignLeft, GitBranch, Minus, ArrowDownUp, ListFilter, Plus } from 'lucide-react';
+import { Minus, ArrowDownUp, ListFilter, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
-import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
-import { useBookElement } from '../../usecase/useBookElement';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
@@ -21,8 +20,7 @@ const META_HIDE_WIDTH = 220;
 
 export function LeftSidebarSubHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
-  const nodesViewMode = useUiStore((s) => s.nodesPanelViewMode);
-  const setNodesViewMode = useUiStore((s) => s.setNodesPanelViewMode);
+  const nodesViewMode = useUiStore((s) => s.chapterPanelViewMode);
 
   const storylines = useDataStore((s) => s.storylines);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -32,23 +30,14 @@ export function LeftSidebarSubHeader() {
   const userId = useAuthStore((s) => s.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
 
-  const driftCount = useMemo(() => bookNodes.filter((n) => n.mainStorylineId == null).length, [
-    bookNodes,
-  ]);
-  const storylineNodeCount = useMemo(
-    () => bookNodes.filter((n) => n.mainStorylineId != null).length,
-    [bookNodes],
-  );
+  const driftCount = useMemo(() => bookNodes.filter(isDrift).length, [bookNodes]);
+  const storylineNodeCount = useMemo(() => bookNodes.filter(isChapter).length, [bookNodes]);
 
   const { createNode } = useBookNode({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
   const { createStoryline } = useStoryline({
-    projectId: projectId ?? '',
-    userId: userId ?? '',
-  });
-  const { createElement } = useBookElement({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -60,25 +49,24 @@ export function LeftSidebarSubHeader() {
   const handleCreateNode = useCallback(async () => {
     if (!projectId) return;
     try {
-      let mainStorylineId: string | null = storylines[0]?.id ?? null;
-      if (!mainStorylineId) {
-        const created = await createStoryline({ projectId });
-        mainStorylineId = created.id;
-      }
+      // This entry point carries no storyline context — the new chapter
+      // always lands 未归属. Users curate primary storyline downstream via
+      // the right sidebar / context menu / drag-drop in BottomTimeline.
       const maxOrder = bookNodes
         .filter(isChapter)
         .reduce((max, n) => Math.max(max, n.bookOrder), 0);
       const nextOrder = maxOrder + CHAPTER_ORDER_STRIDE;
       const created = await createNode({
+        kind: 'chapter',
         title: 'New Chapter',
         bookOrder: nextOrder,
-        mainStorylineId,
+        mainStorylineId: null,
       });
       openEntity({ entityType: 'node', id: created.id }, { preview: false });
     } catch (error) {
       log.error('Failed to create node', error);
     }
-  }, [projectId, storylines, bookNodes, createNode, createStoryline, openEntity]);
+  }, [projectId, bookNodes, createNode, openEntity]);
 
   const handleCreateStoryline = useCallback(async () => {
     if (!projectId) return;
@@ -94,6 +82,7 @@ export function LeftSidebarSubHeader() {
     if (!projectId) return;
     try {
       const created = await createNode({
+        kind: 'drift',
         title: 'New Drift',
         bookOrder: null,
         mainStorylineId: null,
@@ -104,25 +93,6 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createNode, openEntity]);
 
-  const handleCreateElement = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      // Default new elements into the first user-defined category; fall back
-      // to "others" (reserved) when no other category exists, or create one
-      // on demand if the project has nothing at all.
-      let categoryId = bookElementCategories.find((c) => c.name !== 'others')?.id;
-      if (!categoryId) categoryId = bookElementCategories.find((c) => c.name === 'others')?.id;
-      if (!categoryId) {
-        const created = await createCategory();
-        categoryId = created.id;
-      }
-      const created = await createElement({ categoryId });
-      openEntity({ entityType: 'element', id: created.id }, { preview: false });
-    } catch (error) {
-      log.error('Failed to create element', error);
-    }
-  }, [projectId, bookElementCategories, createElement, createCategory, openEntity]);
-
   const handleCreateCategory = useCallback(async () => {
     if (!projectId) return;
     try {
@@ -132,9 +102,15 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createCategory]);
 
+  // Chapter panel meta — "N STORYLINES · M 章" only makes sense in
+  // storyline-grouping mode. Global view collapses to a flat chapter list,
+  // and the storyline count is irrelevant chrome there.
+  const showStorylineMeta = nodesViewMode === 'storyline' && storylines.length > 0;
   const meta =
     activeLeftPanel === 'nodes'
-      ? `${storylines.length} STORYLINES · ${storylineNodeCount} 章`
+      ? showStorylineMeta
+        ? `${storylines.length} STORYLINES · ${storylineNodeCount} 章`
+        : `${storylineNodeCount} 章`
       : activeLeftPanel === 'elements'
         ? `${bookElementCategories.length} 类 · ${bookElements.length} 元素`
         : `${driftCount} 浮缀`;
@@ -156,72 +132,86 @@ export function LeftSidebarSubHeader() {
     events.emit('left-sidebar:collapse-all');
   }, []);
 
-  const renderViewToggle = () => {
-    if (activeLeftPanel !== 'nodes') return null;
-    return (
-      <div style={{ display: 'inline-flex', marginRight: 4 }}>
-        <ViewToggleBtn
-          active={nodesViewMode === 'global'}
-          title="按章节顺序"
-          first
-          onClick={() => setNodesViewMode('global')}
-        >
-          <AlignLeft size={11} strokeWidth={1.8} />
-        </ViewToggleBtn>
-        <ViewToggleBtn
-          active={nodesViewMode === 'storyline'}
-          title="按故事线分组"
-          last
-          onClick={() => setNodesViewMode('storyline')}
-        >
-          <GitBranch size={11} strokeWidth={1.8} />
-        </ViewToggleBtn>
-      </div>
-    );
-  };
+  // Chapter-panel view mode is no longer controlled here — it lives on a
+  // hover dropdown attached to the 章节 tab itself (see LeftSidebarHeader).
+  // The subheader keeps the value around so it can hide unrelated chrome
+  // (collapse-all, "N STORYLINES" meta) when in global mode.
 
   const renderPrimaryCreate = () => {
     let onClick: () => void;
     let title: string;
+    let icon: React.ReactNode = <Plus size={11} strokeWidth={2} />;
     if (activeLeftPanel === 'nodes') {
-      onClick = nodesViewMode === 'global' ? () => void handleCreateNode() : () => void handleCreateStoryline();
-      title = nodesViewMode === 'global' ? '新章节' : '新故事线';
+      // Mirror ChapterPanel: when there are no storylines the view collapses to
+      // 'global', so the primary CTA must be "+ 新章节" regardless of the
+      // persisted nodesViewMode value.
+      const effectiveMode = storylines.length === 0 ? 'global' : nodesViewMode;
+      const isStorylineMode = effectiveMode === 'storyline';
+      onClick = isStorylineMode
+        ? () => void handleCreateStoryline()
+        : () => void handleCreateNode();
+      title = isStorylineMode ? '新故事线' : '新章节';
+      if (isStorylineMode) {
+        // Reuse the BottomTimeline "+ storyline" glyph (horizontal lane +
+        // plus above) so this button reads as a sibling of the timeline's
+        // affordance. The two are the same action, surfaced from two places.
+        icon = (
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          >
+            <line x1="2" y1="11" x2="14" y2="11" />
+            <line x1="8" y1="3" x2="8" y2="8" />
+            <line x1="5.5" y1="5.5" x2="10.5" y2="5.5" />
+          </svg>
+        );
+      }
     } else if (activeLeftPanel === 'elements') {
-      onClick = () => void handleCreateElement();
-      title = '新元素';
+      // Elements panel header only exposes "new category" — each category
+      // cell carries its own "+ new element" button so a hovered category
+      // is the implicit target. Avoids the surprise where the header +
+      // creates an element under whichever category sorts first.
+      onClick = () => void handleCreateCategory();
+      title = '新类目';
+      // Mirror the storyline glyph's "shape + plus above" structure with two
+      // stacked lines (a "group/list" of items) so the affordance reads as
+      // "+ category" rather than the ambiguous bare plus that users would
+      // otherwise mistake for "+ element".
+      icon = (
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <line x1="4" y1="10" x2="12" y2="10" />
+          <line x1="4" y1="13" x2="12" y2="13" />
+          <line x1="8" y1="3" x2="8" y2="7" />
+          <line x1="6" y1="5" x2="10" y2="5" />
+        </svg>
+      );
     } else {
       onClick = () => void handleCreateDrift();
       title = '新浮缀';
     }
     return (
       <SubIconBtn title={title} onClick={onClick} accent>
-        <Plus size={11} strokeWidth={2} />
+        {icon}
       </SubIconBtn>
     );
   };
 
   const renderSecondaryCreate = () => {
-    // Elements panel exposes "new category" alongside "new element"; nodes
-    // panel in storyline mode already creates a storyline via the +; nothing
-    // for drift.
-    if (activeLeftPanel === 'elements') {
-      return (
-        <SubIconBtn title="新类目" onClick={() => void handleCreateCategory()}>
-          <Plus size={11} strokeWidth={1.6} />
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 8.5,
-              marginLeft: 1,
-              letterSpacing: '0.05em',
-              color: 'inherit',
-            }}
-          >
-            类
-          </span>
-        </SubIconBtn>
-      );
-    }
+    // Header-level "+ element" was removed — each category cell carries its
+    // own element-add button. Other panels have nothing to slot here either.
     return null;
   };
 
@@ -249,10 +239,16 @@ export function LeftSidebarSubHeader() {
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {renderViewToggle()}
-        <SubIconBtn title="折叠全部" onClick={collapseAll}>
-          <Minus size={11} strokeWidth={1.6} />
-        </SubIconBtn>
+        {/* "折叠全部" only applies to the storyline-grouping view's expandable
+            storyline rows. In chapter-global view (or other panels without a
+            collapsible structure) the button is meaningless, so we hide it
+            entirely rather than leave it as a dead affordance. */}
+        {(activeLeftPanel !== 'nodes' ||
+          (storylines.length > 0 && nodesViewMode === 'storyline')) && (
+          <SubIconBtn title="折叠全部" onClick={collapseAll}>
+            <Minus size={11} strokeWidth={1.6} />
+          </SubIconBtn>
+        )}
         <SubIconBtn title="排序（待接入）" disabled>
           <ArrowDownUp size={11} strokeWidth={1.6} />
         </SubIconBtn>
@@ -315,43 +311,3 @@ function SubIconBtn({
   );
 }
 
-function ViewToggleBtn({
-  active,
-  first,
-  last,
-  title,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  first?: boolean;
-  last?: boolean;
-  title: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 22,
-        height: 20,
-        border: '1px solid hsl(var(--rule))',
-        background: active ? 'hsl(var(--ink-1))' : 'transparent',
-        color: active ? 'hsl(var(--paper))' : 'hsl(var(--ink-3))',
-        borderColor: active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))',
-        cursor: 'pointer',
-        padding: 0,
-        borderRadius: first ? '3px 0 0 3px' : last ? '0 3px 3px 0' : 0,
-        marginLeft: first ? 0 : -1,
-        transition: 'background 0.12s, color 0.12s, border-color 0.12s',
-      }}
-    >
-      {children}
-    </button>
-  );
-}

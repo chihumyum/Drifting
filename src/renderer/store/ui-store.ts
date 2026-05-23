@@ -178,19 +178,54 @@ interface UiState {
   elementCategoryFooterHeight: number | null;
   setElementCategoryFooterHeight: (height: number | null) => void;
 
+  // Resized height of the ChapterPanel 未归属 footer when expanded. null =
+  // default ratio (40% of the panel). Persisted so the layout sticks across
+  // sessions; only meaningful while the footer is expanded.
+  chapterUnaffiliatedFooterHeight: number | null;
+  setChapterUnaffiliatedFooterHeight: (height: number | null) => void;
+
+  // Whether the BottomTimeline 未归属 lane is currently visible. Persisted so
+  // toggling the lane sticks across sessions; the lane itself is meaningful
+  // only when the project has at least one storyline (see BottomTimeline).
+  bottomTimelineUnaffiliatedVisible: boolean;
+  setBottomTimelineUnaffiliatedVisible: (visible: boolean) => void;
+
   resizingSidebar: SidebarType | null;
   setResizingSidebar: (type: SidebarType | null) => void;
 
   activeLeftPanel: 'nodes' | 'elements' | 'drift';
   setActiveLeftPanel: (panel: 'nodes' | 'elements' | 'drift') => void;
+  // Global Edit Chapter Storyline modal target — set to a chapter id to open
+  // the modal, null to close. Lives in the store (instead of local state in
+  // every caller) so the chapter context menus in BottomTimeline and
+  // StoryGraphView can open it without each owning a copy of the dialog.
+  chapterStorylineEditorNodeId: string | null;
+  setChapterStorylineEditorNodeId: (nodeId: string | null) => void;
+
+  // Pending entity action queue. Left-sidebar context menus dispatch actions
+  // that need editor-local modals (e.g. element 'categoryPicker', drift
+  // conversions) by opening the entity tab AND queueing the action here. The
+  // target editor view consumes the queued action on mount / when the matching
+  // entity becomes active.
+  pendingEntityAction:
+    | { entityType: TabEntityType; id: string; action: string }
+    | null;
+  enqueueEntityAction: (
+    entityType: TabEntityType,
+    id: string,
+    action: string,
+  ) => void;
+  // Pull-and-clear if the queued action matches (entityType, id); otherwise
+  // returns null and leaves the queue alone.
+  consumeEntityAction: (entityType: TabEntityType, id: string) => string | null;
   /**
-   * NodesPanel layout — 'global' lists every storyline-anchored node sorted by
-   * timeline start; 'storyline' groups nodes under their parent storylines.
-   * Lifted to the store so the sub-meta toolbar (LeftSidebarSubHeader) can
-   * drive it from outside the panel.
+   * ChapterPanel layout — 'global' lists every chapter sorted by bookOrder;
+   * 'storyline' groups chapters under their primary storylines. Lifted to the
+   * store so the sub-meta toolbar (LeftSidebarSubHeader) can drive it from
+   * outside the panel.
    */
-  nodesPanelViewMode: 'global' | 'storyline';
-  setNodesPanelViewMode: (mode: 'global' | 'storyline') => void;
+  chapterPanelViewMode: 'global' | 'storyline';
+  setChapterPanelViewMode: (mode: 'global' | 'storyline') => void;
   activeRightPanel: 'fragments' | 'stats' | 'shadow';
   setActiveRightPanel: (panel: 'fragments' | 'stats' | 'shadow') => void;
 
@@ -285,11 +320,21 @@ interface UiState {
   closeOtherTabs: (projectId: string, keepKey: string) => { nextActive: LeafTab | null };
   closeTabsToRight: (projectId: string, anchorKey: string) => { nextActive: LeafTab | null };
   closeAllTabs: (projectId: string) => void;
+
+  // Drop every tab — top-level leaf or split-internal side — that points at
+  // the given entity. Splits where both sides match collapse entirely; with
+  // only one side matching, the split degrades to the surviving side. Used
+  // by delete-entity flows so the tab bar doesn't keep a phantom leaf
+  // showing "Untitled" for the now-missing entity.
+  closeTabsForEntity: (
+    projectId: string,
+    ref: TabRef,
+  ) => { nextActive: LeafTab | null; wasActive: boolean };
 }
 
 export const useUiStore = create<UiState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
 
       sidebars: {
@@ -449,6 +494,12 @@ export const useUiStore = create<UiState>()(
 
       elementCategoryFooterHeight: null,
       setElementCategoryFooterHeight: (height) => set({ elementCategoryFooterHeight: height }),
+      chapterUnaffiliatedFooterHeight: null,
+      setChapterUnaffiliatedFooterHeight: (height) =>
+        set({ chapterUnaffiliatedFooterHeight: height }),
+      bottomTimelineUnaffiliatedVisible: false,
+      setBottomTimelineUnaffiliatedVisible: (visible) =>
+        set({ bottomTimelineUnaffiliatedVisible: visible }),
       toggleBottomTimelineHidden: () =>
         set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
 
@@ -457,8 +508,22 @@ export const useUiStore = create<UiState>()(
 
       activeLeftPanel: 'elements',
       setActiveLeftPanel: (panel) => set({ activeLeftPanel: panel }),
-      nodesPanelViewMode: 'storyline',
-      setNodesPanelViewMode: (mode) => set({ nodesPanelViewMode: mode }),
+      chapterStorylineEditorNodeId: null,
+      setChapterStorylineEditorNodeId: (nodeId) =>
+        set({ chapterStorylineEditorNodeId: nodeId }),
+      pendingEntityAction: null,
+      enqueueEntityAction: (entityType, id, action) =>
+        set({ pendingEntityAction: { entityType, id, action } }),
+      consumeEntityAction: (entityType, id) => {
+        const pending = get().pendingEntityAction;
+        if (!pending || pending.entityType !== entityType || pending.id !== id) {
+          return null;
+        }
+        set({ pendingEntityAction: null });
+        return pending.action;
+      },
+      chapterPanelViewMode: 'storyline',
+      setChapterPanelViewMode: (mode) => set({ chapterPanelViewMode: mode }),
       activeRightPanel: 'fragments',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
 
@@ -1019,6 +1084,100 @@ export const useUiStore = create<UiState>()(
             },
           };
         }),
+
+      closeTabsForEntity: (projectId, ref) => {
+        let nextActive: LeafTab | null = null;
+        let wasActive = false;
+        set((state) => {
+          const project = state.tabsByProject[projectId];
+          if (!project) return {};
+          const target = `${ref.entityType}:${ref.id}`;
+          const matchesLeaf = (leaf: LeafTab) =>
+            leaf.entityType === ref.entityType && leaf.id === ref.id;
+          // Map each existing top-level tab to: null (drop), the same tab
+          // (keep as-is), or a degraded replacement (split collapsed to its
+          // surviving side). The pre/post arrays let us recompute the
+          // active-tab key with the same "prefer right neighbor" rule
+          // closeTab uses.
+          const replacements: Array<AnyTab | null> = project.openTabs.map((tab) => {
+            if (tab.kind === 'leaf') {
+              return matchesLeaf(tab) ? null : tab;
+            }
+            const leftDead = matchesLeaf(tab.left);
+            const rightDead = matchesLeaf(tab.right);
+            if (leftDead && rightDead) return null;
+            if (!leftDead && !rightDead) return tab;
+            const survivor: LeafTab = leftDead ? tab.right : tab.left;
+            return { ...survivor, isPreview: false };
+          });
+          const nothingChanged = replacements.every((t, i) => t === project.openTabs[i]);
+          if (nothingChanged) return {};
+
+          const nextOpenTabs: AnyTab[] = [];
+          replacements.forEach((t) => {
+            if (t) nextOpenTabs.push(t);
+          });
+
+          let nextActiveTabKey: string | null = project.activeTabKey;
+          const activeIdx = project.openTabs.findIndex(
+            (t) => tabKey(t) === project.activeTabKey,
+          );
+          const activeStillThere =
+            activeIdx >= 0 && replacements[activeIdx] === project.openTabs[activeIdx];
+          if (!activeStillThere && project.activeTabKey != null) {
+            // Active tab changed identity (split collapsed) or was dropped.
+            // Walk right from its original slot for a successor; fall back
+            // to the last surviving tab on the bar.
+            wasActive = true;
+            if (nextOpenTabs.length === 0) {
+              nextActiveTabKey = null;
+            } else if (activeIdx >= 0) {
+              const replacement = replacements[activeIdx];
+              if (replacement) {
+                nextActiveTabKey = tabKey(replacement);
+                nextActive = focusedLeafOf(replacement);
+              } else {
+                let pick: AnyTab | null = null;
+                for (let i = activeIdx + 1; i < replacements.length; i++) {
+                  if (replacements[i]) {
+                    pick = replacements[i];
+                    break;
+                  }
+                }
+                if (!pick) {
+                  for (let i = activeIdx - 1; i >= 0; i--) {
+                    if (replacements[i]) {
+                      pick = replacements[i];
+                      break;
+                    }
+                  }
+                }
+                if (pick) {
+                  nextActiveTabKey = tabKey(pick);
+                  nextActive = focusedLeafOf(pick);
+                } else {
+                  nextActiveTabKey = null;
+                }
+              }
+            } else {
+              // activeTabKey pointed at a tab that's already gone — shouldn't
+              // happen, but treat as "no successor".
+              nextActiveTabKey = null;
+            }
+          } else if (project.activeTabKey === target) {
+            // Defensive: in case target tab equaled the activeTabKey but the
+            // identity-stability check above missed it for any reason.
+            wasActive = true;
+          }
+          return {
+            tabsByProject: {
+              ...state.tabsByProject,
+              [projectId]: { openTabs: nextOpenTabs, activeTabKey: nextActiveTabKey },
+            },
+          };
+        });
+        return { nextActive, wasActive };
+      },
     }),
     {
       name: 'ui-storage', // unique name
@@ -1027,7 +1186,7 @@ export const useUiStore = create<UiState>()(
         theme: state.theme,
         sidebars: state.sidebars,
         activeLeftPanel: state.activeLeftPanel,
-        nodesPanelViewMode: state.nodesPanelViewMode,
+        chapterPanelViewMode: state.chapterPanelViewMode,
         activeRightPanel: state.activeRightPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
@@ -1036,6 +1195,8 @@ export const useUiStore = create<UiState>()(
         outlineCollapsed: state.outlineCollapsed,
         bottomTimelineHidden: state.bottomTimelineHidden,
         elementCategoryFooterHeight: state.elementCategoryFooterHeight,
+        chapterUnaffiliatedFooterHeight: state.chapterUnaffiliatedFooterHeight,
+        bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,
       }),
       // v1 → v2 migration adds the `kind` discriminator to every tab so the
       // store can tell leaf tabs from split tabs. v1 only had flat Tab[]

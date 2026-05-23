@@ -1,9 +1,13 @@
 import { useMemo, useCallback } from 'react';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
-import type { BookElementCategory } from '../domain/book-element';
+import {
+  isReservedElementCategoryName,
+  type BookElementCategory,
+} from '../domain/book-element';
 import { v7 as uuidv7 } from 'uuid';
 import { randomColor } from '../utils';
 import { useDataStore } from '../store/data-store';
+import { useUiStore } from '../store/ui-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { syncCategoryCreate, syncCategoryUpdate, syncCategoryDelete } from './sync-helpers';
@@ -131,11 +135,12 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       updates: UpdateElementCategoryInput,
     ): Promise<BookElementCategory> => {
       await ensureDb();
-      const prevCategories = getCategoriesState().slice();
+      let prevCategories = getCategoriesState().slice();
       let existing = prevCategories.find((cat) => cat.id === categoryId);
       if (!existing) {
         const freshCategories = await repo.findAll();
         setCategoriesState(freshCategories);
+        prevCategories = freshCategories.slice();
         existing = freshCategories.find((cat) => cat.id === categoryId);
       }
       if (!existing) {
@@ -199,7 +204,30 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
   const deleteCategory = useCallback(
     async (categoryId: string): Promise<void> => {
       await ensureDb();
-      const prevCategories = getCategoriesState().slice();
+      let prevCategories = getCategoriesState().slice();
+      let existing = prevCategories.find((cat) => cat.id === categoryId);
+      if (!existing) {
+        const freshCategories = await repo.findAll();
+        setCategoriesState(freshCategories);
+        prevCategories = freshCategories.slice();
+        existing = freshCategories.find((cat) => cat.id === categoryId);
+      }
+      if (existing && isReservedElementCategoryName(existing.name)) {
+        throw new Error('Cannot delete the reserved "others" category.');
+      }
+
+      // Close any tab pointing at this category — and at elements that
+      // cascade-delete with it — before the entity state mutates, so the
+      // tab bar doesn't render "Untitled" leaves for now-gone entities.
+      // Category → element cascade lives in the FK (see migration 0027).
+      const uiStore = useUiStore.getState();
+      uiStore.closeTabsForEntity(activeProjectId, { entityType: 'category', id: categoryId });
+      const elementsOfCategory = useDataStore
+        .getState()
+        .bookElements.filter((el) => el.categoryId === categoryId);
+      for (const el of elementsOfCategory) {
+        uiStore.closeTabsForEntity(activeProjectId, { entityType: 'element', id: el.id });
+      }
 
       return withOptimisticUpdate({
         apply: () => removeCategoryState(categoryId),

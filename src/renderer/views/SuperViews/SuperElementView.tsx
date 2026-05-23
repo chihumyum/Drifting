@@ -5,8 +5,10 @@ import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
-import { isDrift } from '../../domain/book-node';
+import { isChapter, isDrift } from '../../domain/book-node';
 import type { Storyline } from '../../domain/storyline';
+import { EntityCellContextMenu } from '../../components/leftBars/EntityCellContextMenu';
+import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import {
   solveSuperElementLayout,
   type LayoutInput,
@@ -280,6 +282,8 @@ interface ChapterBandProps {
   storylines: Storyline[];
   nodes: BookNode[];
   nodeStorylineMapping: Record<string, string[]>;
+  /** Map from nodeId to its primary storyline id (null = "未归属"). */
+  primaryStorylineByNode: Record<string, string | null>;
   /** Cell-coordinate origin: gridX=0, gridY=0 corresponds to band top-left. */
   bandWidthCells: number;
   bandHeightCells: number;
@@ -291,15 +295,13 @@ function ChapterBand({
   storylines,
   nodes,
   nodeStorylineMapping,
+  primaryStorylineByNode,
   bandWidthCells,
   bandHeightCells,
   onNodeClick,
   linkSourceNodeId,
 }: ChapterBandProps) {
-  const placedNodes = useMemo(
-    () => nodes.filter((n) => n.mainStorylineId != null),
-    [nodes],
-  );
+  const placedNodes = useMemo(() => nodes.filter(isChapter), [nodes]);
 
   const storylineById = useMemo(
     () => new Map(storylines.map((s) => [s.id, s])),
@@ -352,9 +354,11 @@ function ChapterBand({
       for (let i = 0; i < lane.length - 1; i++) {
         const a = lane[i];
         const b = lane[i + 1];
-        if (a.mainStorylineId === sl.id && b.mainStorylineId === sl.id) continue;
-        const rowA = rowIndexByStoryline.get(a.mainStorylineId ?? '');
-        const rowB = rowIndexByStoryline.get(b.mainStorylineId ?? '');
+        const primaryA = primaryStorylineByNode[a.id] ?? null;
+        const primaryB = primaryStorylineByNode[b.id] ?? null;
+        if (primaryA === sl.id && primaryB === sl.id) continue;
+        const rowA = rowIndexByStoryline.get(primaryA ?? '');
+        const rowB = rowIndexByStoryline.get(primaryB ?? '');
         const idxA = slotIndexByNodeId.get(a.id);
         const idxB = slotIndexByNodeId.get(b.id);
         if (rowA === undefined || rowB === undefined) continue;
@@ -370,7 +374,7 @@ function ChapterBand({
       }
     }
     return out;
-  }, [storylines, sortedByStoryline, rowIndexByStoryline, slotIndexByNodeId]);
+  }, [storylines, sortedByStoryline, rowIndexByStoryline, slotIndexByNodeId, primaryStorylineByNode]);
 
   // Band fits exactly N slots wide. Caller passes bandWidthCells purely for
   // the empty/legend states; the actual pixel width is derived from the
@@ -494,9 +498,10 @@ function ChapterBand({
           clamp truncates. Shift-click marks the pill as a link source for
           cross-band relations. */}
       {sortedPlacedNodes.map((node, idx) => {
-        const rowIdx = rowIndexByStoryline.get(node.mainStorylineId ?? '');
+        const primaryId = primaryStorylineByNode[node.id] ?? null;
+        const rowIdx = rowIndexByStoryline.get(primaryId ?? '');
         if (rowIdx === undefined) return null;
-        const sl = storylineById.get(node.mainStorylineId ?? '');
+        const sl = primaryId ? storylineById.get(primaryId) : undefined;
         const color = sl?.color || 'hsl(var(--ink-4))';
         const x = idx * BAND_SLOT_PX;
         // Pill mirrors element cards (CELL_H - 6 tall, 3px top inset). The
@@ -597,6 +602,13 @@ interface CategoryBoxProps {
    * itself on unmount.
    */
   elementCardRefs?: React.MutableRefObject<Map<string, HTMLDivElement>>;
+  // Per-card right-click. The parent owns the menu state so SuperElementView
+  // can render a single EntityCellContextMenu at the canvas root.
+  onElementContextMenu?: (
+    event: React.MouseEvent,
+    element: { id: string; categoryId: string; groupName: string | null; name: string },
+  ) => void;
+  onCategoryContextMenu?: (event: React.MouseEvent, categoryId: string) => void;
 }
 
 function CategoryBox({
@@ -606,6 +618,8 @@ function CategoryBox({
   onCategoryClick,
   linkSourceElementId,
   elementCardRefs,
+  onElementContextMenu,
+  onCategoryContextMenu,
 }: CategoryBoxProps) {
   const { category, groups, widthCells, heightCells, totalElements } = model;
   const accent = category?.color ?? 'hsl(var(--ink-4))';
@@ -641,6 +655,12 @@ function CategoryBox({
         onClick={(e) => {
           e.stopPropagation();
           onCategoryClick(model.categoryId);
+        }}
+        onContextMenu={(e) => {
+          if (!onCategoryContextMenu) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onCategoryContextMenu(e, model.categoryId);
         }}
         title={category?.name ?? model.categoryId}
         style={{
@@ -762,6 +782,12 @@ function CategoryBox({
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 onElementClick(element, rect, { shiftKey: e.shiftKey });
               }}
+              onContextMenu={(e) => {
+                if (!onElementContextMenu) return;
+                e.preventDefault();
+                e.stopPropagation();
+                onElementContextMenu(e, element);
+              }}
               style={{
                 position: 'absolute',
                 left: left + 3,
@@ -877,6 +903,7 @@ export function SuperElementView() {
     storylines,
     nodeStorylineMapping,
     entityRelations,
+    primaryStorylineByNode,
   } = useDataStore();
 
   // Active popover state. Card click opens the two-tier editor; the popover
@@ -894,6 +921,41 @@ export function SuperElementView() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [linkSource, setLinkSource] = useState<
     { kind: 'element' | 'node'; id: string } | null
+  >(null);
+  // Element / category card right-click menu — reuses EntityCellContextMenu
+  // so the same per-entity options surface in left panel, editor top bar,
+  // and here. SuperElementView-specific actions (start edge from this
+  // card) come in as extras.
+  const dispatchEntityAction = useEntityCellAction();
+  const [contextMenu, setContextMenu] = useState<
+    | {
+        kind: 'element';
+        x: number;
+        y: number;
+        elementId: string;
+        elementName: string;
+      }
+    | {
+        kind: 'category';
+        x: number;
+        y: number;
+        categoryId: string;
+      }
+    | null
+  >(null);
+  // Drift card right-click — same EntityCellContextMenu surface as the
+  // 浮缀 left panel, with `startEdgeFrom` appended so users can wire a
+  // drift card into an element / node from the bottom drawer.
+  const [driftContextMenu, setDriftContextMenu] = useState<
+    | {
+        x: number;
+        y: number;
+        nodeId: string;
+        nodeTitle?: string;
+        nodeSummary?: string;
+        writingStatus: BookNode['writingStatus'];
+      }
+    | null
   >(null);
   const [pendingLink, setPendingLink] = useState<
     | {
@@ -1029,10 +1091,7 @@ export function SuperElementView() {
 
   // Band width in cells: spans the bookOrder range of placed nodes, plus
   // 2 cells slack on each side for the pill width.
-  const placedNodes = useMemo(
-    () => bookNodes.filter((n) => n.mainStorylineId != null),
-    [bookNodes],
-  );
+  const placedNodes = useMemo(() => bookNodes.filter(isChapter), [bookNodes]);
   // bandWidthCells is now purely a fallback for the empty-state band; when
   // there are chapters, the band sizes itself to the slot count via the
   // ChapterBand component's internal math.
@@ -1118,7 +1177,7 @@ export function SuperElementView() {
     const rowIndex = new Map<string, number>();
     storylines.forEach((s, i) => rowIndex.set(s.id, i));
     sortedPlacedNodesAll.forEach((n, idx) => {
-      const rowIdx = rowIndex.get(n.mainStorylineId ?? '');
+      const rowIdx = rowIndex.get(primaryStorylineByNode[n.id] ?? '');
       if (rowIdx === undefined) return;
       const x = bandWorldLeft + idx * BAND_SLOT_PX + BAND_PILL_PX / 2;
       // Band top in world coords sits at bandTopWorldY (outer pad). Inside
@@ -1127,7 +1186,13 @@ export function SuperElementView() {
       m.set(n.id, { x, y });
     });
     return m;
-  }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandTopWorldY]);
+  }, [
+    sortedPlacedNodesAll,
+    storylines,
+    bandWorldLeft,
+    bandTopWorldY,
+    primaryStorylineByNode,
+  ]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
   const driftNodes = useMemo(
@@ -2247,6 +2312,7 @@ export function SuperElementView() {
                 storylines={storylines}
                 nodes={bookNodes}
                 nodeStorylineMapping={nodeStorylineMapping}
+                primaryStorylineByNode={primaryStorylineByNode}
                 bandWidthCells={bandWidthCells}
                 bandHeightCells={bandHeightCells}
                 onNodeClick={(node, rect, opts) => {
@@ -2276,6 +2342,23 @@ export function SuperElementView() {
                 onCategoryClick={(id) => {
                   openEntity({ entityType: 'category', id });
                   close();
+                }}
+                onElementContextMenu={(event, element) => {
+                  setContextMenu({
+                    kind: 'element',
+                    x: event.clientX + 2,
+                    y: event.clientY - 2,
+                    elementId: element.id,
+                    elementName: element.name,
+                  });
+                }}
+                onCategoryContextMenu={(event, categoryId) => {
+                  setContextMenu({
+                    kind: 'category',
+                    x: event.clientX + 2,
+                    y: event.clientY - 2,
+                    categoryId,
+                  });
                 }}
               />
             );
@@ -2497,6 +2580,7 @@ export function SuperElementView() {
               storylines={storylines}
               nodes={bookNodes}
               nodeStorylineMapping={nodeStorylineMapping}
+              primaryStorylineByNode={primaryStorylineByNode}
               bandWidthCells={bandWidthCells}
               bandHeightCells={bandHeightCells}
               onNodeClick={(node, rect, opts) => {
@@ -2859,6 +2943,18 @@ export function SuperElementView() {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   handleEntityClick('node', node.id, rect, { shiftKey: e.shiftKey });
                 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDriftContextMenu({
+                    x: e.clientX + 2,
+                    y: e.clientY - 2,
+                    nodeId: node.id,
+                    nodeTitle: node.title ?? undefined,
+                    nodeSummary: node.summary ?? undefined,
+                    writingStatus: node.writingStatus,
+                  });
+                }}
                 title={
                   node.summary
                     ? `${node.title || '未命名'}\n\n${node.summary}`
@@ -2979,6 +3075,67 @@ export function SuperElementView() {
           />
         );
       })()}
+
+      {contextMenu?.kind === 'element' && (
+        <EntityCellContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          editorType="element"
+          header={{ title: contextMenu.elementName }}
+          extraGroups={[
+            [{ action: 'startEdgeFrom', label: '从此元素新建关联' }],
+          ]}
+          onAction={(action) => {
+            const eid = contextMenu.elementId;
+            if (action === 'startEdgeFrom') {
+              setLinkSource({ kind: 'element', id: eid });
+              return;
+            }
+            void dispatchEntityAction({ entityType: 'element', id: eid, action });
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+      {contextMenu?.kind === 'category' && (
+        <EntityCellContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          editorType="category"
+          onAction={(action) => {
+            void dispatchEntityAction({
+              entityType: 'category',
+              id: contextMenu.categoryId,
+              action,
+            });
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+      {driftContextMenu && (
+        <EntityCellContextMenu
+          x={driftContextMenu.x}
+          y={driftContextMenu.y}
+          editorType="node"
+          nodeStatusKind="drift"
+          nodeWritingStatus={driftContextMenu.writingStatus}
+          header={{
+            title: driftContextMenu.nodeTitle,
+            subtitle: driftContextMenu.nodeSummary,
+          }}
+          extraGroups={[
+            [{ action: 'startEdgeFrom', label: '从此浮缀新建关联' }],
+          ]}
+          onAction={(action) => {
+            const nid = driftContextMenu.nodeId;
+            if (action === 'startEdgeFrom') {
+              setLinkSource({ kind: 'node', id: nid });
+              return;
+            }
+            void dispatchEntityAction({ entityType: 'node', id: nid, action });
+          }}
+          onClose={() => setDriftContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

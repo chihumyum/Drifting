@@ -22,7 +22,7 @@ export type NodeStatusKind = 'chapter' | 'drift';
 
 export const SET_STATUS_ACTION_PREFIX = 'setWritingStatus:';
 
-const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
+export const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
   draft: '草稿',
   waiting_review: '等待 AI 审阅',
   revising: '修订中',
@@ -32,7 +32,7 @@ const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
   resting: '休眠',
 };
 
-const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
+export const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
   chapter: '写作状态',
   drift: 'Drift 状态',
 };
@@ -312,7 +312,7 @@ function EditorBarMenu({
   );
 }
 
-interface MenuItem {
+export interface MenuItem {
   action: string;
   label: string;
   danger?: boolean;
@@ -323,7 +323,10 @@ interface MenuItem {
 export const CONVERT_DRIFT_TO_CHAPTER_ACTION = 'convertDriftToChapter';
 export const CONVERT_DRIFT_TO_ELEMENT_ACTION = 'convertDriftToElement';
 
-function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatusKind): MenuItem[] {
+// Exported so left-sidebar panel cells can render the same per-entity
+// context menu as the editor top bar — single source of truth for menu
+// options keeps the two surfaces aligned without duplication.
+export function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatusKind): MenuItem[] {
   switch (editorType) {
     case 'node':
       // Drift nodes don't belong to a storyline yet — multi-select
@@ -344,15 +347,13 @@ function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatusKind): 
     case 'element':
       return [
         { action: 'categoryPicker', label: 'Change Category' },
+        { action: 'groupPicker', label: 'Change Group' },
         { action: 'deleteElement', label: 'Delete Element', danger: true },
       ];
     case 'category':
       return [{ action: 'deleteCategory', label: 'Delete Category', danger: true }];
     case 'storyline':
-      return [
-        { action: 'mergeStoryline', label: 'Merge Into...' },
-        { action: 'deleteStoryline', label: 'Delete Storyline', danger: true },
-      ];
+      return [{ action: 'deleteStoryline', label: 'Delete Storyline', danger: true }];
     default:
       return [];
   }

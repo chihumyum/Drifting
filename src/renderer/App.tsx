@@ -20,7 +20,7 @@ import { events } from './lib/events';
 import { ElementPanel } from './components/leftBars/ElementPanel';
 import { LeftSidebarHeader } from './components/leftBars/LeftSidebarHeader';
 import { LeftSidebarSubHeader } from './components/leftBars/LeftSidebarSubHeader';
-import { NodesPanel } from './components/leftBars/NodesPanel';
+import { ChapterPanel } from './components/leftBars/ChapterPanel';
 import { DriftPanel } from './components/leftBars/DriftPanel';
 import { RightSidebarPanels } from './components/rightBars/RightSidebarPanels';
 import { SuperElementView, SuperMemoMaterialView } from './views/SuperViews/SuperViews';
@@ -32,6 +32,7 @@ import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { ExportDialog } from './components/modals/ExportDialog';
 import { ImportDialog } from './components/modals/ImportDialog';
+import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
@@ -440,6 +441,10 @@ function Layout() {
   const setActiveSuperView = useUiStore((state) => state.setActiveSuperView);
   const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
   const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
+  const chapterStorylineEditorNodeId = useUiStore((state) => state.chapterStorylineEditorNodeId);
+  const setChapterStorylineEditorNodeId = useUiStore(
+    (state) => state.setChapterStorylineEditorNodeId,
+  );
 
   // Track the last singleton-nav shortcut so a quick repeat (Digit1/Digit2)
   // promotes the preview tab to dedicated — mirrors the dblclick gesture on
@@ -739,7 +744,7 @@ function Layout() {
             ) : activeLeftPanel === 'drift' ? (
               <DriftPanel />
             ) : (
-              <NodesPanel />
+              <ChapterPanel />
             )}
           </div>
         </Sidebar>
@@ -813,6 +818,12 @@ function Layout() {
       />
       <ExportDialog open={isExportOpen} onClose={() => setIsExportOpen(false)} />
       <ImportDialog open={isImportOpen} onClose={() => setIsImportOpen(false)} />
+      {chapterStorylineEditorNodeId && (
+        <EditChapterStorylineModal
+          nodeId={chapterStorylineEditorNodeId}
+          onClose={() => setChapterStorylineEditorNodeId(null)}
+        />
+      )}
       <GlobalSearchModal
         isOpen={isGlobalSearchOpen}
         onClose={() => setIsGlobalSearchOpen(false)}

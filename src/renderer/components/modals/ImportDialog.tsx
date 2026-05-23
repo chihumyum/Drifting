@@ -181,6 +181,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         if (target === 'chapter') {
           if (!storylineId) throw new Error('Storyline required');
           const created = await nodeUsecases.createNode({
+            kind: 'chapter',
             title,
             mainStorylineId: storylineId,
             bookOrder: nextOrder,
@@ -189,6 +190,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
           nextOrder += CHAPTER_ORDER_STRIDE;
         } else if (target === 'inspiration') {
           const created = await nodeUsecases.createNode({
+            kind: 'drift',
             title,
             mainStorylineId: null,
             bookOrder: null,

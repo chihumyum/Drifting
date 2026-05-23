@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronUp } from 'lucide-react';
 
-import type { BookNode } from '../../domain/book-node';
+import { isDrift, type BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 
 // 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
 const DATE_HIDE_WIDTH = 200;
@@ -39,7 +41,7 @@ export function DriftPanel() {
   // legacy values like 'draft' from pre-migration rows. Sorted by recency.
   const { driftingNodes, restingNodes } = useMemo(() => {
     const drift = bookNodes
-      .filter((n) => n.mainStorylineId == null)
+      .filter(isDrift)
       .slice()
       .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
     const resting: BookNode[] = [];
@@ -56,11 +58,17 @@ export function DriftPanel() {
   const [restingExpanded, setRestingExpanded] = useState(false);
   const [restingHeight, setRestingHeight] = useState(RESTING_DEFAULT_HEIGHT);
 
-  // If the user empties the resting bucket, collapse the drawer so the
-  // footer doesn't sit there with no content.
-  useEffect(() => {
-    if (restingNodes.length === 0 && restingExpanded) setRestingExpanded(false);
-  }, [restingNodes.length, restingExpanded]);
+  // Expanded state survives an empty bucket — the placeholder hint serves as
+  // the content. (Auto-collapsing here caused a flash: click → expand → effect
+  // fires because length is 0 → re-collapse.)
+
+  // Per-cell context menu — reuses the editor top-bar three-dot menu items
+  // via EntityCellContextMenu so drift context options match the editor.
+  const dispatchEntityAction = useEntityCellAction();
+  const [contextMenu, setContextMenu] = useState<
+    | { x: number; y: number; nodeId: string; writingStatus: BookNode['writingStatus'] }
+    | null
+  >(null);
 
   const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -144,6 +152,16 @@ export function DriftPanel() {
         onDoubleClick={() => {
           promoteCurrentTab();
         }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setContextMenu({
+            x: event.clientX,
+            y: event.clientY,
+            nodeId: node.id,
+            writingStatus: node.writingStatus,
+          });
+        }}
       >
         {selected && (
           <span
@@ -159,17 +177,26 @@ export function DriftPanel() {
           />
         )}
 
+        {/* Drift mark — ❦ glyph, sized to the same 12px-wide chrome slot the
+            chapter stripe / element diamond use so the three left-panel
+            cells line up visually. The leading icon was the drift tab's
+            glyph before it moved here; the tab itself now wears a
+            different glyph. */}
         <span
           aria-hidden
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            border: '1px solid hsl(var(--ink-3))',
-            background: muted ? 'hsl(var(--ink-4) / 0.3)' : 'transparent',
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: 11,
+            color: muted ? 'hsl(var(--ink-4))' : 'hsl(var(--ink-3))',
             flexShrink: 0,
+            lineHeight: 1,
+            width: 12,
+            textAlign: 'center',
           }}
-        />
+        >
+          ❦
+        </span>
 
         <div
           style={{
@@ -203,7 +230,11 @@ export function DriftPanel() {
     );
   };
 
-  const showRestingFooter = restingNodes.length > 0;
+  // Resting footer is always visible so the user has a permanent affordance
+  // to park / surface resting drifts, regardless of whether there's anything
+  // resting at the moment. Expanding into an empty list is fine — it shows
+  // an "no resting drifts" placeholder.
+  const showRestingFooter = true;
   const footerHeight = restingExpanded ? restingHeight : RESTING_HEADER_HEIGHT;
   const totalDrift = driftingNodes.length + restingNodes.length;
 
@@ -329,10 +360,43 @@ export function DriftPanel() {
                 padding: '4px 0 12px',
               }}
             >
-              {restingNodes.map((node) => renderNodeCard(node, { muted: true }))}
+              {restingNodes.length > 0 ? (
+                restingNodes.map((node) => renderNodeCard(node, { muted: true }))
+              ) : (
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: 'var(--font-serif)',
+                    fontStyle: 'italic',
+                    color: 'hsl(var(--ink-4))',
+                    padding: '16px 20px',
+                    textAlign: 'center',
+                  }}
+                >
+                  no resting drifts.
+                </div>
+              )}
             </div>
           )}
         </div>
+      )}
+
+      {contextMenu && (
+        <EntityCellContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          editorType="node"
+          nodeStatusKind="drift"
+          nodeWritingStatus={contextMenu.writingStatus}
+          onAction={(action) => {
+            void dispatchEntityAction({
+              entityType: 'node',
+              id: contextMenu.nodeId,
+              action,
+            });
+          }}
+          onClose={() => setContextMenu(null)}
+        />
       )}
 
       <style>{`

@@ -691,10 +691,19 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
     .map((row) => ({
       nodeId: stringValue(row, 'nodeId'),
       storylineId: stringValue(row, 'storylineId'),
+      isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
     }))
     .filter((row) => row.nodeId && row.storylineId);
 
+  // Derived: which storyline is primary for each node. Replaces the role of
+  // book_node.mainStorylineId — the column is gone, the link table is truth.
+  const primaryStorylineByNode: Record<string, string | null> = {};
+  for (const link of nodeStorylineLinks) {
+    if (link.isPrimary) primaryStorylineByNode[link.nodeId] = link.storylineId;
+  }
+
   const dataStore = useDataStore.getState();
+  dataStore.setPrimaryStorylineByNode(primaryStorylineByNode);
   dataStore.setStorylines(
     graph.storylines.map((row) => ({
       id: stringValue(row, 'id'),
@@ -726,18 +735,19 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
       };
-      const mainStorylineId = nullableStringValue(row, 'mainStorylineId');
-      if (mainStorylineId == null) {
+      const rowKind = stringValue(row, 'kind', '');
+      const kind: 'chapter' | 'drift' = rowKind === 'chapter' ? 'chapter' : 'drift';
+      if (kind === 'drift') {
         return {
           ...base,
-          mainStorylineId: null,
+          kind: 'drift',
           bookOrder: null,
           writingStatus: stringValue(row, 'writingStatus', 'drifting') as DriftStatus,
         };
       }
       return {
         ...base,
-        mainStorylineId,
+        kind: 'chapter',
         bookOrder: row.bookOrder == null ? 0 : numberValue(row, 'bookOrder'),
         writingStatus: stringValue(row, 'writingStatus', 'draft') as ChapterWritingStatus,
       };
@@ -1139,21 +1149,25 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(StorylineTable).values(storylines as any[]);
     }
 
-    const nodes = normalizeRows(graph.nodes, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      title: stringValue(row, 'title'),
-      summary: stringValue(row, 'summary'),
-      bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
-      narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
-      mainStorylineId: nullableStringValue(row, 'mainStorylineId'),
-      positionX: numberValue(row, 'positionX'),
-      positionY: numberValue(row, 'positionY'),
-      wordCount: numberValue(row, 'wordCount'),
-      writingStatus: stringValue(row, 'writingStatus', 'draft'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
+    const nodes = normalizeRows(graph.nodes, (row) => {
+      const rowKind = stringValue(row, 'kind', '');
+      const kind = rowKind === 'chapter' ? 'chapter' : 'drift';
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        title: stringValue(row, 'title'),
+        summary: stringValue(row, 'summary'),
+        bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
+        narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
+        kind,
+        positionX: numberValue(row, 'positionX'),
+        positionY: numberValue(row, 'positionY'),
+        wordCount: numberValue(row, 'wordCount'),
+        writingStatus: stringValue(row, 'writingStatus', 'draft'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    });
     if (nodes.length > 0) {
       await tx.insert(BookNodeTable).values(nodes as any[]);
     }
@@ -1188,6 +1202,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     const nodeStorylineLinks = normalizeRows(graph.nodeStorylineLinks, (row) => ({
       nodeId: stringValue(row, 'nodeId'),
       storylineId: stringValue(row, 'storylineId'),
+      isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
     })).filter((row) => row.nodeId && row.storylineId);
     if (nodeStorylineLinks.length > 0) {
       await tx.insert(NodeStorylineLinkTable).values(nodeStorylineLinks as any[]);
