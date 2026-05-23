@@ -54,6 +54,10 @@ interface AuthState {
   // Actions
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  // Adopt the session set by better-auth in the current cookie jar. Used by
+  // login flows (OTP, 2FA) that finish the sign-in handshake outside the
+  // password-only path above.
+  adoptSession: () => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
   initAuth: () => Promise<void>;
@@ -178,6 +182,32 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           log.error('[Auth] Registration failed:', error);
           throw error;
+        }
+      },
+
+      // Finish a sign-in started elsewhere (OTP, 2FA verify). Pulls the
+      // session that better-auth wrote to the cookie jar and runs the same
+      // post-login bookkeeping as `login`.
+      adoptSession: async () => {
+        const sessionResult = await authClient.getSession();
+        const session = sessionResult.data || null;
+        const resolvedUser = sessionResult.data?.user as User | undefined;
+        if (!resolvedUser?.id) {
+          throw new Error('Session adoption failed: missing user');
+        }
+
+        set({
+          isAuthenticated: true,
+          session,
+          user: resolvedUser,
+        });
+
+        try {
+          await resetDatabase();
+          await initDatabase(resolvedUser.id);
+          events.emit('db:ready');
+        } catch (error) {
+          log.error('[Auth] adoptSession db init failed:', error);
         }
       },
 

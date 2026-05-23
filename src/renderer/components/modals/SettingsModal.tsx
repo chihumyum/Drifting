@@ -29,6 +29,7 @@ import {
   type ThemeMode,
 } from '../../store/settings-store';
 import { useAuthStore } from '../../store/auth';
+import { authClient } from '../../lib/auth-client';
 import {
   SHORTCUT_ACTIONS,
   useShortcutsStore,
@@ -430,6 +431,15 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   // better-auth carries `twoFactorEnabled` once the plugin is wired up.
   const tfaEnabled = (user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled ?? false;
 
+  // Email verification (OTP). Only relevant when user.emailVerified === false.
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifySent, setVerifySent] = useState(false);
+  const emailVerified = (user as unknown as { emailVerified?: boolean })?.emailVerified ?? false;
+  const checkSession = useAuthStore((s) => s.checkSession);
+
   // Deletion grace period
   const [deletion, setDeletion] = useState<DeletionStatus | null>(null);
   const [deletionBusy, setDeletionBusy] = useState(false);
@@ -529,6 +539,45 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
     }
   };
 
+  const handleSendVerifyOtp = async () => {
+    if (!user?.email) return;
+    setVerifyBusy(true);
+    setVerifyError(null);
+    try {
+      const res = await authClient.emailOtp.sendVerificationOtp({
+        email: user.email,
+        type: 'email-verification',
+      });
+      if (res.error) throw new Error(res.error.message || '发送失败');
+      setVerifySent(true);
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!user?.email) return;
+    setVerifyBusy(true);
+    setVerifyError(null);
+    try {
+      const res = await authClient.emailOtp.verifyEmail({
+        email: user.email,
+        otp: verifyCode.trim(),
+      });
+      if (res.error) throw new Error(res.error.message || '验证失败');
+      setVerifyOpen(false);
+      setVerifyCode('');
+      setVerifySent(false);
+      await checkSession();
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
   const handleRequestDeletion = async () => {
     if (!window.confirm('确认请求注销账户？账号将进入 30 天宽限期。')) return;
     setDeletionBusy(true);
@@ -620,6 +669,23 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             ) : (
               <div className="set-field">
                 <span className="set-field__value set-mono">{user?.email ?? '—'}</span>
+                {user?.email && (
+                  emailVerified ? (
+                    <span className="set-mono" style={{ fontSize: 11, color: 'hsl(var(--accent))' }}>
+                      ✓ 已验证
+                    </span>
+                  ) : (
+                    <button
+                      className="set-field__edit"
+                      onClick={() => {
+                        setVerifyOpen((v) => !v);
+                        setVerifyError(null);
+                      }}
+                    >
+                      验证
+                    </button>
+                  )
+                )}
                 <button className="set-field__edit" onClick={() => setEmailDraft(user?.email ?? '')}>
                   更改
                 </button>
@@ -627,6 +693,76 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             )
           }
         />
+        {verifyOpen && !emailVerified && (
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: '12px 16px',
+              background: 'hsl(var(--paper-deep))',
+              borderRadius: 5,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            {!verifySent ? (
+              <>
+                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
+                  我们会向 <code>{user?.email}</code> 寄一个 6 位验证码。
+                </div>
+                {verifyError && (
+                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{verifyError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="set-btn set-btn--primary"
+                    onClick={handleSendVerifyOtp}
+                    disabled={verifyBusy}
+                  >
+                    寄出
+                  </button>
+                  <button className="set-btn" onClick={() => setVerifyOpen(false)}>取消</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
+                  已寄到 <code>{user?.email}</code>，10 分钟内输入 6 位验证码。
+                </div>
+                <input
+                  className="set-input set-input--mono"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="6 位数字"
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+                {verifyError && (
+                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{verifyError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="set-btn set-btn--primary"
+                    onClick={handleVerifyEmailOtp}
+                    disabled={verifyBusy || verifyCode.length !== 6}
+                  >
+                    确认
+                  </button>
+                  <button className="set-btn" onClick={handleSendVerifyOtp} disabled={verifyBusy}>
+                    重发
+                  </button>
+                  <button
+                    className="set-btn"
+                    onClick={() => { setVerifyOpen(false); setVerifySent(false); setVerifyCode(''); }}
+                  >
+                    取消
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <Row
           label="密码"
           desc="更改后其他设备会被强制下线。"
