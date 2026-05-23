@@ -147,8 +147,8 @@ export function normalizeBookNode(node: LooseBookNode): BookNode {
 }
 
 // Story-graph edges are no longer a standalone entity. Visual relations
-// between nodes (and any other entity kinds) are stored as polymorphic rows
-// in `entity_reference` — fromKind/toKind carry the endpoint types, `kind`
-// holds the user's free-form relation category, and the renderer derives all
-// geometry from the current node positions. See `EntityReferenceLink` in
+// between nodes (and any other entity kinds) are stored as rows in
+// `entity_relation` — fromKind/toKind carry the endpoint types, `kind` holds
+// the user's free-form relation category, and the renderer derives all
+// geometry from the current node positions. See `EntityRelationLink` in
 // `store/data-store.ts` for the runtime shape.

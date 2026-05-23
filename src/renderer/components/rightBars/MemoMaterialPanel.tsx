@@ -107,7 +107,7 @@ type ViewFilter = 'all' | 'related';
 /**
  * Global memo + material list — replaces the old per-entity mock fragments
  * view. Memos and materials are project-scoped; the `related` filter narrows
- * the list to items whose entity_reference rows point at `focused`.
+ * the list to items whose entity_relation rows point at `focused`.
  *
  * Memos use a three-state resolution machine:
  *   no_action  → no checkbox; pure note. Promote to 'unresolved' via
@@ -122,7 +122,7 @@ export function MemoMaterialPanel({ focused }: Props) {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const memos = useDataStore((s) => s.memos);
   const materials = useDataStore((s) => s.materials);
-  const manualReferences = useDataStore((s) => s.manualReferences);
+  const entityRelations = useDataStore((s) => s.entityRelations);
 
   const memoUsecases = useBookMemo({ projectId, userId });
   const materialUsecases = useBookMaterial({ projectId, userId });
@@ -137,18 +137,18 @@ export function MemoMaterialPanel({ focused }: Props) {
   // Mirrors StoryGraphView's NodeCardPopover default → upgrade flow.
   const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
 
-  // Index manualReferences by from-entity so cards can render their relation
+  // Index entityRelations by from-entity so cards can render their relation
   // chips and the filter can pick out items related to `focused`.
   const refsByFrom = useMemo(() => {
-    const map = new Map<string, typeof manualReferences>();
-    manualReferences.forEach((r) => {
+    const map = new Map<string, typeof entityRelations>();
+    entityRelations.forEach((r) => {
       const key = `${r.fromKind}:${r.fromId}`;
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     });
     return map;
-  }, [manualReferences]);
+  }, [entityRelations]);
 
   const isRelatedToFocus = useCallback(
     (kind: EntityKind, id: string) => {
@@ -265,13 +265,12 @@ export function MemoMaterialPanel({ focused }: Props) {
             onDelete={() => memoUsecases.removeMemo(m.id)}
             onAddRelation={(t) => relationUsecases.addRelation('memo', m.id, t.kind, t.id)}
             onRemoveRelation={(t) => {
-              const ref = manualReferences.find(
+              const ref = entityRelations.find(
                 (r) =>
                   r.fromKind === 'memo' &&
                   r.fromId === m.id &&
                   r.toKind === t.kind &&
-                  r.toId === t.id &&
-                  r.fromBlockId == null,
+                  r.toId === t.id,
               );
               if (ref) relationUsecases.removeRelation(ref.id);
             }}
@@ -293,13 +292,12 @@ export function MemoMaterialPanel({ focused }: Props) {
               relationUsecases.addRelation('material', mat.id, t.kind, t.id)
             }
             onRemoveRelation={(t) => {
-              const ref = manualReferences.find(
+              const ref = entityRelations.find(
                 (r) =>
                   r.fromKind === 'material' &&
                   r.fromId === mat.id &&
                   r.toKind === t.kind &&
-                  r.toId === t.id &&
-                  r.fromBlockId == null,
+                  r.toId === t.id,
               );
               if (ref) relationUsecases.removeRelation(ref.id);
             }}

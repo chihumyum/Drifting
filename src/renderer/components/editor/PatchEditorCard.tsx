@@ -6,7 +6,7 @@ import {
   createElementPatchRepository,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
-import { createReferenceRepository } from '../../sqlite-repo/reference-repo';
+import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
 
@@ -26,7 +26,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const [titleValue, setTitleValue] = useState(patch.title ?? '');
   const [collapsed, setCollapsed] = useState(true);
   const patchRepoRef = useRef(createElementPatchRepository());
-  const referenceRepoRef = useRef(createReferenceRepository());
+  const mentionRepoRef = useRef(createInlineMentionRepository());
 
   // Persist patch content on every editor update. Reference projection is
   // handled inside useEntityEditor; we just write the doc back to the row.
@@ -63,8 +63,8 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const handleDelete = useCallback(async () => {
     try {
       await patchRepoRef.current.delete(patch.id);
-      // Also clear any inline refs emitted from this patch.
-      await referenceRepoRef.current.deleteAllForSource('patch', patch.id);
+      // Also clear any inline mentions emitted from this patch.
+      await mentionRepoRef.current.deleteAllForSource('patch', patch.id);
       onDelete?.();
     } catch (error) {
       log.error('Failed to delete patch:', error);

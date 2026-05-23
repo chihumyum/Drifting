@@ -1,19 +1,19 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
-import { useDataStore, type EntityReferenceLink } from '../store/data-store';
-import { createReferenceRepository } from '../sqlite-repo/reference-repo';
+import { useDataStore, type EntityRelationLink } from '../store/data-store';
+import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import {
-  syncEntityReferenceCreate,
-  syncEntityReferenceDelete,
-  syncEntityReferenceUpdate,
+  syncEntityRelationCreate,
+  syncEntityRelationDelete,
+  syncEntityRelationUpdate,
 } from './sync-helpers';
 import {
   isStructuralEntityKind,
-  type EntityKind,
   type EntityRefSourceKind,
   type EntityRefTargetKind,
+  type StructuralEntityKind,
 } from '../domain/entity-kinds';
 
 export interface UseEntityRelationsContext {
@@ -22,16 +22,16 @@ export interface UseEntityRelationsContext {
 }
 
 /**
- * Manage manual whole-to-whole entity references (memo → node, material → element …).
+ * Manage user-curated cross-entity relations (memo → node, material → element …).
  *
- * Inline TipTap-mark refs are handled separately by `reference-index.service`;
- * this hook is for the right-sidebar relation picker only.
+ * Inline mentions are NOT in scope here — they're a derived index handled by
+ * `reference-index.service` + the editor's projection pass.
  */
 export function useEntityRelations({ projectId, userId }: UseEntityRelationsContext) {
   if (!projectId) throw new Error('useEntityRelations requires a projectId');
   if (!userId) throw new Error('useEntityRelations requires a userId');
 
-  const repo = useMemo(() => createReferenceRepository(), []);
+  const repo = useMemo(() => createEntityRelationRepository(), []);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -39,32 +39,24 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
   const loadInitial = useCallback(async () => {
     await ensureDb();
     const { getDb } = await import('../lib/db');
-    const { EntityReferenceTable } = await import('../schema/drizzle');
-    const { and, eq, isNull } = await import('drizzle-orm');
+    const { EntityRelationTable } = await import('../schema/drizzle');
+    const { eq } = await import('drizzle-orm');
     const rows = await getDb()
       .select()
-      .from(EntityReferenceTable)
-      .where(
-        and(
-          eq(EntityReferenceTable.projectId, projectId),
-          isNull(EntityReferenceTable.fromBlockId),
-        ),
-      );
-    const mapped: EntityReferenceLink[] = rows.map((row) => ({
+      .from(EntityRelationTable)
+      .where(eq(EntityRelationTable.projectId, projectId));
+    const mapped: EntityRelationLink[] = rows.map((row) => ({
       id: row.id,
       projectId: row.projectId,
-      fromKind: row.fromKind as EntityKind,
+      fromKind: row.fromKind as EntityRelationLink['fromKind'],
       fromId: row.fromId,
-      fromBlockId: row.fromBlockId,
-      fromSpansJson: row.fromSpansJson,
-      toKind: row.toKind as EntityKind,
+      toKind: row.toKind as StructuralEntityKind,
       toId: row.toId,
-      toBlockId: row.toBlockId,
       kind: row.kind ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
-    useDataStore.getState().setManualReferences(mapped);
+    useDataStore.getState().setEntityRelations(mapped);
   }, [ensureDb, projectId]);
 
   const addRelation = useCallback(
@@ -78,18 +70,16 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       await ensureDb();
       if (!isStructuralEntityKind(toKind)) {
         throw new Error(
-          `Cannot create entity reference: toKind '${toKind}' is not a structural kind ` +
+          `Cannot create entity relation: toKind '${toKind}' is not a structural kind ` +
             `(memo / material can only appear as fromKind).`,
         );
       }
       const kind = options?.kind?.trim() || null;
       const state = useDataStore.getState();
-      // Don't double-add the SAME manual link with the SAME kind. Different
-      // kinds between the same pair are allowed — that's how users surface
-      // multiple relationships between two entities.
-      const dup = state.manualReferences.find(
+      // Don't double-add the same pair with the same kind. Different kinds
+      // between the same pair are allowed.
+      const dup = state.entityRelations.find(
         (r) =>
-          r.fromBlockId == null &&
           r.fromKind === fromKind &&
           r.fromId === fromId &&
           r.toKind === toKind &&
@@ -99,44 +89,37 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       if (dup) return dup;
 
       const now = new Date().toISOString();
-      const newRow: EntityReferenceLink = {
+      const newRow: EntityRelationLink = {
         id: uuidv7(),
         projectId,
         fromKind,
         fromId,
-        fromBlockId: null,
-        fromSpansJson: null,
         toKind,
         toId,
-        toBlockId: null,
         kind,
         createdAt: now,
         updatedAt: now,
       };
 
-      const prev = state.manualReferences.slice();
+      const prev = state.entityRelations.slice();
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setManualReferences([...prev, newRow]),
-        rollback: () => useDataStore.getState().setManualReferences(prev),
-        // The existing repo helper inserts a row but assigns its own uuid;
-        // bypass it for the manual flow so the optimistic row id matches the
-        // persisted id (otherwise rollback / sync would diverge).
+        apply: () => useDataStore.getState().setEntityRelations([...prev, newRow]),
+        rollback: () => useDataStore.getState().setEntityRelations(prev),
+        // Insert directly so the optimistic row id matches the persisted id
+        // (otherwise rollback / sync would diverge).
         effect: async () => {
           const { getDb } = await import('../lib/db');
-          const { EntityReferenceTable } = await import('../schema/drizzle');
-          await getDb().insert(EntityReferenceTable).values(newRow);
+          const { EntityRelationTable } = await import('../schema/drizzle');
+          await getDb().insert(EntityRelationTable).values(newRow);
           return newRow;
         },
         sync: () =>
-          syncEntityReferenceCreate(newRow.id, projectId, {
+          syncEntityRelationCreate(newRow.id, projectId, {
             id: newRow.id,
             fromKind: newRow.fromKind,
             fromId: newRow.fromId,
-            fromBlockId: newRow.fromBlockId,
-            fromSpansJson: newRow.fromSpansJson,
             toKind: newRow.toKind,
             toId: newRow.toId,
-            toBlockId: newRow.toBlockId,
             kind: newRow.kind,
           }),
       });
@@ -148,54 +131,52 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
     async (id: string) => {
       await ensureDb();
       const state = useDataStore.getState();
-      const existing = state.manualReferences.find((r) => r.id === id);
+      const existing = state.entityRelations.find((r) => r.id === id);
       if (!existing) return;
-      const prev = state.manualReferences.slice();
+      const prev = state.entityRelations.slice();
       const filtered = prev.filter((r) => r.id !== id);
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setManualReferences(filtered),
-        rollback: () => useDataStore.getState().setManualReferences(prev),
+        apply: () => useDataStore.getState().setEntityRelations(filtered),
+        rollback: () => useDataStore.getState().setEntityRelations(prev),
         effect: async () => {
-          await repo.removeManualRelation(id);
+          await repo.removeRelation(id);
           return true;
         },
-        sync: () => syncEntityReferenceDelete(id, projectId),
+        sync: () => syncEntityRelationDelete(id, projectId),
       });
     },
     [repo, ensureDb, projectId],
   );
 
-  // Update the free-form relation category on an existing manual link. Used
-  // by EdgeKindManager's rename flow to retag all rows of a given kind at
-  // once. Goes straight through the table (no repo method) since this is
-  // currently the only update surface manual refs have.
+  // Update the free-form relation category. Used by EdgeKindManager's rename
+  // flow to retag all rows of a given kind at once.
   const updateRelationKind = useCallback(
     async (id: string, kind: string | null) => {
       await ensureDb();
       const state = useDataStore.getState();
-      const existing = state.manualReferences.find((r) => r.id === id);
+      const existing = state.entityRelations.find((r) => r.id === id);
       if (!existing) return;
       const trimmed = typeof kind === 'string' ? kind.trim() || null : null;
-      const prev = state.manualReferences.slice();
+      const prev = state.entityRelations.slice();
       const now = new Date().toISOString();
       const next = prev.map((r) =>
         r.id === id ? { ...r, kind: trimmed, updatedAt: now } : r,
       );
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setManualReferences(next),
-        rollback: () => useDataStore.getState().setManualReferences(prev),
+        apply: () => useDataStore.getState().setEntityRelations(next),
+        rollback: () => useDataStore.getState().setEntityRelations(prev),
         effect: async () => {
           const { getDb } = await import('../lib/db');
-          const { EntityReferenceTable } = await import('../schema/drizzle');
+          const { EntityRelationTable } = await import('../schema/drizzle');
           const { eq } = await import('drizzle-orm');
           await getDb()
-            .update(EntityReferenceTable)
+            .update(EntityRelationTable)
             .set({ kind: trimmed, updatedAt: now })
-            .where(eq(EntityReferenceTable.id, id));
+            .where(eq(EntityRelationTable.id, id));
           return true;
         },
         sync: () =>
-          syncEntityReferenceUpdate(id, projectId, {
+          syncEntityRelationUpdate(id, projectId, {
             kind: trimmed,
           }),
       });

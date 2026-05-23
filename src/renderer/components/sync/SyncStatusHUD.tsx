@@ -115,8 +115,8 @@ function getEntityTypeLabel(entityType?: string): string {
       return 'Memo';
     case 'material':
       return 'Material';
-    case 'entityReference':
-      return 'Reference';
+    case 'entityRelation':
+      return 'Relation';
     case 'manuscriptComment':
       return 'Comment';
     case 'commentAction':

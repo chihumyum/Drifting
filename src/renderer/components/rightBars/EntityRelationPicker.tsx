@@ -29,7 +29,7 @@ interface Props {
 /**
  * Inline relation editor for a memo or material. Surfaces every project
  * entity (chapter / drift / element / storyline / category) as a chip;
- * clicking toggles the relation in the underlying `entity_reference` table.
+ * clicking toggles the relation in the underlying `entity_relation` table.
  *
  * Drifts are nodes with `mainStorylineId == null` — they appear under a
  * separate header so users don't confuse them with regular chapters.

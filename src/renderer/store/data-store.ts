@@ -6,18 +6,18 @@ import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { Memo } from '../domain/memo';
 import type { Material } from '../domain/material';
 import type { CommentAction, ManuscriptComment } from '../domain/manuscript-comment';
-import type { EntityKind } from '../lib/extensions/entity-link';
+import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
-export interface EntityReferenceLink {
+// User-curated cross-entity link. Mirrors the `entity_relation` table row.
+// Inline mentions are NOT mirrored to the store; they're queried on demand
+// by ReferencesPanel from the `inline_mention` table.
+export interface EntityRelationLink {
   id: string;
   projectId: string;
   fromKind: EntityKind;
   fromId: string;
-  fromBlockId: string | null;
-  fromSpansJson: string | null;
-  toKind: EntityKind;
+  toKind: StructuralEntityKind;
   toId: string;
-  toBlockId: string | null;
   /** Free-form relation category (NOT endpoint type). Null = uncategorised. */
   kind: string | null;
   createdAt: string;
@@ -82,14 +82,14 @@ interface DataState {
   removeCommentAction: (id: string) => void;
 
   /**
-   * Manual whole-to-whole entity references (memo → node, material → element …).
-   * Inline TipTap-mark references are NOT mirrored here; only the manual link
-   * rows used by the right sidebar relation picker.
+   * User-curated cross-entity relations (memo → node, material → element …).
+   * Inline mentions are NOT mirrored here; only relation rows used by the
+   * right sidebar relation picker.
    */
-  manualReferences: EntityReferenceLink[];
-  setManualReferences: (refs: EntityReferenceLink[]) => void;
-  addManualReference: (ref: EntityReferenceLink) => void;
-  removeManualReference: (id: string) => void;
+  entityRelations: EntityRelationLink[];
+  setEntityRelations: (relations: EntityRelationLink[]) => void;
+  addEntityRelation: (relation: EntityRelationLink) => void;
+  removeEntityRelation: (id: string) => void;
 }
 
 function deriveNodeStorylineMapping(
@@ -284,12 +284,12 @@ export const useDataStore = create<DataState>((set) => ({
       commentActions: state.commentActions.filter((action) => action.id !== id),
     })),
 
-  manualReferences: [],
-  setManualReferences: (manualReferences) => set({ manualReferences }),
-  addManualReference: (ref) =>
-    set((state) => ({ manualReferences: [...state.manualReferences, ref] })),
-  removeManualReference: (id) =>
+  entityRelations: [],
+  setEntityRelations: (entityRelations) => set({ entityRelations }),
+  addEntityRelation: (relation) =>
+    set((state) => ({ entityRelations: [...state.entityRelations, relation] })),
+  removeEntityRelation: (id) =>
     set((state) => ({
-      manualReferences: state.manualReferences.filter((r) => r.id !== id),
+      entityRelations: state.entityRelations.filter((r) => r.id !== id),
     })),
 }));

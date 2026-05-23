@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import loglevel from 'loglevel';
 import {
-  createReferenceRepository,
-  type BacklinkRecord,
-  type EntityKind,
-  type EntityReferenceRecord,
-} from '../../sqlite-repo/reference-repo';
-import type { StructuralEntityKind } from '../../domain/entity-kinds';
+  createInlineMentionRepository,
+  type InlineMentionBacklink,
+  type InlineMentionRecord,
+} from '../../sqlite-repo/inline-mention-repo';
+import {
+  createEntityRelationRepository,
+  type EntityRelationBacklink,
+  type EntityRelationRecord,
+} from '../../sqlite-repo/entity-relation-repo';
+import type { EntityKind, StructuralEntityKind } from '../../domain/entity-kinds';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
@@ -65,8 +69,12 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     useProjectNavigation();
   const { bookElements, bookNodes, bookElementCategories, storylines } = useDataStore();
 
-  const [backlinks, setBacklinks] = useState<BacklinkRecord[]>([]);
-  const [outgoing, setOutgoing] = useState<EntityReferenceRecord[]>([]);
+  // Incoming inline mentions + manual relations to this entity.
+  const [inlineBacklinks, setInlineBacklinks] = useState<InlineMentionBacklink[]>([]);
+  const [relationBacklinks, setRelationBacklinks] = useState<EntityRelationBacklink[]>([]);
+  // Outgoing inline mentions + manual relations from this entity.
+  const [inlineOutgoing, setInlineOutgoing] = useState<InlineMentionRecord[]>([]);
+  const [relationOutgoing, setRelationOutgoing] = useState<EntityRelationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
@@ -85,14 +93,34 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     ) => {
       if (!targetId) return;
       try {
-        const repo = createReferenceRepository();
-        const [b, o] = await Promise.all([
-          repo.listBacklinksToTarget(targetKind, targetId),
-          repo.listReferencesFromSource(targetKind, targetId),
+        const mentionRepo = createInlineMentionRepository();
+        const relationRepo = createEntityRelationRepository();
+        // Inline mentions are constrained to structural target kinds, so skip
+        // the inline queries when the panel is open on a memo / material (they
+        // never appear as inline-mention targets anyway).
+        const isStructural =
+          targetKind === 'node' ||
+          targetKind === 'element' ||
+          targetKind === 'patch' ||
+          targetKind === 'category' ||
+          targetKind === 'storyline';
+        const [ibl, rbl, iout, rout] = await Promise.all([
+          isStructural
+            ? mentionRepo.listBacklinksToTarget(targetKind, targetId)
+            : Promise.resolve([] as InlineMentionBacklink[]),
+          isStructural
+            ? relationRepo.listBacklinksToTarget(targetKind, targetId)
+            : Promise.resolve([] as EntityRelationBacklink[]),
+          isStructural
+            ? mentionRepo.listMentionsFromSource(targetKind, targetId)
+            : Promise.resolve([] as InlineMentionRecord[]),
+          relationRepo.listRelationsFromSource(targetKind, targetId),
         ]);
         if (!shouldApply()) return;
-        setBacklinks(b);
-        setOutgoing(o);
+        setInlineBacklinks(ibl);
+        setRelationBacklinks(rbl);
+        setInlineOutgoing(iout);
+        setRelationOutgoing(rout);
       } catch (error) {
         log.error('Failed to load references:', error);
       } finally {
@@ -167,8 +195,7 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
   // Aggregate inline backlinks by (fromKind, fromId).
   const incomingGroups: IncomingGroup[] = useMemo(() => {
     const map = new Map<string, IncomingGroup>();
-    for (const row of backlinks) {
-      if (!row.fromBlockId) continue; // manual relations handled separately
+    for (const row of inlineBacklinks) {
       const key = `${row.fromKind}:${row.fromId}`;
       const spans = safeParseSpans(row.fromSpansJson).length || 1;
       const existing = map.get(key);
@@ -188,13 +215,12 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     }
     return Array.from(map.values());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backlinks, bookElements, bookElementCategories, bookNodes, storylines]);
+  }, [inlineBacklinks, bookElements, bookElementCategories, bookNodes, storylines]);
 
-  // Aggregate outgoing references by (toKind, toId).
+  // Aggregate outgoing inline mentions by (toKind, toId).
   const outgoingGroups: OutgoingGroup[] = useMemo(() => {
     const map = new Map<string, OutgoingGroup>();
-    for (const row of outgoing) {
-      if (!row.fromBlockId) continue; // manual whole-entity outgoing handled separately
+    for (const row of inlineOutgoing) {
       const key = `${row.toKind}:${row.toId}`;
       const spans = safeParseSpans(row.fromSpansJson).length || 1;
       const existing = map.get(key);
@@ -212,14 +238,12 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     }
     return Array.from(map.values());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outgoing, bookElements, bookElementCategories, bookNodes, storylines]);
+  }, [inlineOutgoing, bookElements, bookElementCategories, bookNodes, storylines]);
 
-  // Manual whole-entity relations on either side, keyed by the *other* entity.
+  // User-curated relations on either side, keyed by the *other* entity.
   const manualRelations: ManualRelation[] = useMemo(() => {
     const result: ManualRelation[] = [];
-    // Manual relations where this entity is the target.
-    for (const row of backlinks) {
-      if (row.fromBlockId) continue;
+    for (const row of relationBacklinks) {
       result.push({
         id: row.id,
         otherKind: row.fromKind,
@@ -228,9 +252,7 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
         direction: 'incoming',
       });
     }
-    // Manual relations where this entity is the source.
-    for (const row of outgoing) {
-      if (row.fromBlockId) continue;
+    for (const row of relationOutgoing) {
       result.push({
         id: row.id,
         otherKind: row.toKind,
@@ -241,7 +263,7 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backlinks, outgoing, bookElements, bookElementCategories, bookNodes, storylines]);
+  }, [relationBacklinks, relationOutgoing, bookElements, bookElementCategories, bookNodes, storylines]);
 
   // Picker exclusion: only existing *manual* relations (and self). Inline
   // mentions don't block manual linking — the two are independent assertions
@@ -316,11 +338,11 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
 
   const handleAddManual = async (otherKind: StructuralEntityKind, otherId: string) => {
     try {
-      const repo = createReferenceRepository();
-      // Convention: panel entity is the from-side of a manual relation it
-      // owns. So "+ Link" inside element X's panel produces (from=element X,
+      const relationRepo = createEntityRelationRepository();
+      // Convention: panel entity is the from-side of a relation it owns. So
+      // "+ Link" inside element X's panel produces (from=element X,
       // to=otherKind/otherId).
-      await repo.addManualRelation(projectId, entityKind, entityId, otherKind, otherId);
+      await relationRepo.addRelation(projectId, entityKind, entityId, otherKind, otherId);
       events.emit('references:changed', {
         projectId,
         fromKind: entityKind,
@@ -337,8 +359,8 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
 
   const handleRemoveManual = async (rel: ManualRelation) => {
     try {
-      const repo = createReferenceRepository();
-      await repo.removeManualRelation(rel.id);
+      const relationRepo = createEntityRelationRepository();
+      await relationRepo.removeRelation(rel.id);
       events.emit('references:changed', {
         projectId,
         fromKind: rel.direction === 'outgoing' ? entityKind : rel.otherKind,

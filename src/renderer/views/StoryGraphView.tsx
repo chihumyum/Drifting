@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } fr
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
-import { useDataStore, type EntityReferenceLink } from '../store/data-store';
+import { useDataStore, type EntityRelationLink } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -25,15 +25,15 @@ const log = loglevel.getLogger('StoryGraphView');
 log.setLevel(loglevel.levels.WARN);
 
 // Edges between nodes (chapter ↔ chapter, chapter ↔ drift, drift ↔ drift) are
-// persisted as manual rows in `entity_reference` (fromKind/toKind = 'node',
-// fromBlockId IS NULL). Each carries a free-form user-defined `kind` that
-// drives the filter chips; the renderer derives geometry from the current
-// node positions and uses a fixed bezier formula for the path.
-// Edge creation is shift-click-to-pair: shift-click a tile to set it as
-// source, click another tile to open the new-edge dialog.
+// persisted as rows in `entity_relation` with fromKind/toKind = 'node'. Each
+// carries a free-form user-defined `kind` that drives the filter chips; the
+// renderer derives geometry from the current node positions and uses a fixed
+// bezier formula for the path. Edge creation is shift-click-to-pair:
+// shift-click a tile to set it as source, click another tile to open the
+// new-edge dialog.
 
 // View-side projection of a graph edge — chapter↔chapter and chapter↔drift
-// links pulled out of `manualReferences` and pinned to node id endpoints.
+// links pulled out of `entityRelations` and pinned to node id endpoints.
 type GraphEdge = {
   id: string;
   sourceNodeId: string;
@@ -42,7 +42,7 @@ type GraphEdge = {
 };
 
 function toGraphEdges(
-  refs: EntityReferenceLink[],
+  refs: EntityRelationLink[],
   nodeIds: Set<string>,
 ): GraphEdge[] {
   const out: GraphEdge[] = [];
@@ -133,7 +133,7 @@ function colorForKind(kind: string | null): string {
 const DRIFT_SLOT_WIDTH = 168 + 10;
 
 export function StoryGraphView() {
-  const { bookNodes, storylines, nodeStorylineMapping, manualReferences } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, entityRelations } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
@@ -159,11 +159,11 @@ export function StoryGraphView() {
   // were deleted out from under the edge.
   const nodeEdges = useMemo<GraphEdge[]>(() => {
     const nodeIds = new Set(bookNodes.map((n) => n.id));
-    return toGraphEdges(manualReferences, nodeIds);
-  }, [manualReferences, bookNodes]);
+    return toGraphEdges(entityRelations, nodeIds);
+  }, [entityRelations, bookNodes]);
 
   // Thin adapters so the shift-click create flow and edge-mgr delete flow
-  // keep their call shape. `addRelation` returns the new EntityReferenceLink;
+  // keep their call shape. `addRelation` returns the new EntityRelationLink;
   // `removeRelation` takes an id; both are already optimistic-update aware.
   const createEdge = useCallback(
     (
@@ -1258,7 +1258,7 @@ export function StoryGraphView() {
                 clearKindColor={edgeKindMeta.clearColor}
                 reassignMeta={edgeKindMeta.reassign}
                 removeMeta={edgeKindMeta.remove}
-                nodeEdges={manualReferences.filter(
+                nodeEdges={entityRelations.filter(
                   (r) => r.fromKind === 'node' && r.toKind === 'node',
                 )}
                 updateEdgeKind={updateEdgeKind}

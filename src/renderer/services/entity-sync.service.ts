@@ -14,7 +14,7 @@
  *   from the server and reconcile with local state (server wins on conflict).
  */
 
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { apiClient } from '../lib/axios-config';
 import { APP_CONFIG, isSyncEnabled } from '../lib/config';
 import { getDb } from '../lib/db';
@@ -26,7 +26,8 @@ import {
   CommentActionTable,
   ElementCategoryTable,
   ElementPatchTable,
-  EntityReferenceTable,
+  EntityRelationTable,
+  InlineMentionTable,
   LocalSyncMutationTable,
   ManuscriptCommentTable,
   MaterialTable,
@@ -57,7 +58,7 @@ export type EntityType =
   | 'elementCategory'
   | 'memo'
   | 'material'
-  | 'entityReference'
+  | 'entityRelation'
   | 'manuscriptComment'
   | 'commentAction';
 
@@ -109,7 +110,8 @@ export interface ProjectGraphPayload {
   nodeStorylineLinks: Record<string, unknown>[];
   elements: Record<string, unknown>[];
   elementCategories: Record<string, unknown>[];
-  entityReferences: Record<string, unknown>[];
+  entityRelations: Record<string, unknown>[];
+  inlineMentions: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
   memos: Record<string, unknown>[];
   materials: Record<string, unknown>[];
@@ -492,22 +494,22 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/materials/${entityId}` };
 
-    // ---- Entity Reference (polymorphic link) ----
-    case 'entityReference':
+    // ---- Entity Relation (user-curated cross-entity link) ----
+    case 'entityRelation':
       if (mutationType === 'create') {
         return {
           method: 'POST',
-          endpoint: `/api/projects/${projectId}/references`,
+          endpoint: `/api/projects/${projectId}/relations`,
           data: payload,
         };
       } else if (mutationType === 'update') {
         return {
           method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/references/${entityId}`,
+          endpoint: `/api/projects/${projectId}/relations/${entityId}`,
           data: payload,
         };
       }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/references/${entityId}` };
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/relations/${entityId}` };
 
     // ---- Manuscript Comment ----
     case 'manuscriptComment':
@@ -612,7 +614,8 @@ export interface PullResult {
   elements?: unknown[];
   elementCategories?: unknown[];
   categories?: unknown[];
-  entityReferences?: unknown[];
+  entityRelations?: unknown[];
+  inlineMentions?: unknown[];
   entityPatches?: unknown[];
   memos?: unknown[];
   materials?: unknown[];
@@ -636,7 +639,8 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     elements: graph.elements,
     elementCategories: graph.elementCategories,
     categories: graph.elementCategories,
-    entityReferences: graph.entityReferences,
+    entityRelations: graph.entityRelations,
+    inlineMentions: graph.inlineMentions,
     entityPatches: graph.entityPatches,
     memos: graph.memos,
     materials: graph.materials,
@@ -852,27 +856,22 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       appliedAt: nullableStringValue(row, 'appliedAt'),
     })),
   );
-  // Surface manual (whole-to-whole) entity-reference rows so the right sidebar
-  // relation picker can render attached chapters / elements / etc. without
-  // hitting SQLite. Inline (block-anchored) refs are still indexed separately
-  // by the reference-index service.
-  dataStore.setManualReferences(
-    graph.entityReferences
-      .map((row) => ({
-        id: stringValue(row, 'id'),
-        projectId: stringValue(row, 'projectId'),
-        fromKind: stringValue(row, 'fromKind') as any,
-        fromId: stringValue(row, 'fromId'),
-        fromBlockId: nullableStringValue(row, 'fromBlockId'),
-        fromSpansJson: nullableStringValue(row, 'fromSpansJson'),
-        toKind: stringValue(row, 'toKind') as any,
-        toId: stringValue(row, 'toId'),
-        toBlockId: nullableStringValue(row, 'toBlockId'),
-        kind: nullableStringValue(row, 'kind'),
-        createdAt: dateText(row.createdAt),
-        updatedAt: dateText(row.updatedAt),
-      }))
-      .filter((row) => row.fromBlockId == null),
+  // Surface user-curated cross-entity relations so the right sidebar relation
+  // picker can render attached chapters / elements / etc. without hitting
+  // SQLite. Inline mentions are NOT mirrored to the store — ReferencesPanel
+  // queries them directly from the inline_mention table on demand.
+  dataStore.setEntityRelations(
+    graph.entityRelations.map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      fromKind: stringValue(row, 'fromKind') as any,
+      fromId: stringValue(row, 'fromId'),
+      toKind: stringValue(row, 'toKind') as any,
+      toId: stringValue(row, 'toId'),
+      kind: nullableStringValue(row, 'kind'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
   );
 
   const project = {
@@ -913,16 +912,18 @@ function normalizeRows(
   return rows.map(mapper);
 }
 
-interface ManualReferenceKeyInput {
+interface EntityRelationKeyInput {
   fromKind: string;
   fromId: string;
   toKind: string;
   toId: string;
-  toBlockId: string | null;
+  kind: string | null;
 }
 
-function manualReferenceKey(row: ManualReferenceKeyInput): string {
-  return `${row.fromKind}:${row.fromId}->${row.toKind}:${row.toId}:${row.toBlockId ?? ''}`;
+function entityRelationKey(row: EntityRelationKeyInput): string {
+  // Distinct (from, to, kind) is the user-meaningful relation identity — same
+  // pair can carry multiple `kind` values as distinct rows.
+  return `${row.fromKind}:${row.fromId}->${row.toKind}:${row.toId}:${row.kind ?? ''}`;
 }
 
 async function countPendingMutations(projectId?: string): Promise<number> {
@@ -944,15 +945,13 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
   const db = getDb();
 
   await db.transaction(async (tx) => {
-    const localManualReferences = await tx
+    // Stash all local entity_relation rows so we can re-insert any that the
+    // server-side payload missed. Inline mentions aren't preserved — they're
+    // a pure projection of doc content and will be rebuilt after hydrate.
+    const localEntityRelations = await tx
       .select()
-      .from(EntityReferenceTable)
-      .where(
-        and(
-          eq(EntityReferenceTable.projectId, projectId),
-          isNull(EntityReferenceTable.fromBlockId),
-        ),
-      );
+      .from(EntityRelationTable)
+      .where(eq(EntityRelationTable.projectId, projectId));
 
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
@@ -976,124 +975,107 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     const oldStorylineIds = oldStorylines.map((row) => row.id);
     const oldCategoryIds = oldCategories.map((row) => row.id);
 
+    // Polymorphic cleanup helper: both tables carry (kind, id) on each end
+    // without FK enforcement, so we run explicit deletes when an endpoint is
+    // about to be wiped.
+    const deletePolymorphicForIds = async (
+      kind: 'node' | 'element' | 'storyline' | 'category',
+      ids: string[],
+    ) => {
+      if (ids.length === 0) return;
+      await tx
+        .delete(EntityRelationTable)
+        .where(
+          and(eq(EntityRelationTable.fromKind, kind), inArray(EntityRelationTable.fromId, ids)),
+        );
+      await tx
+        .delete(EntityRelationTable)
+        .where(
+          and(eq(EntityRelationTable.toKind, kind), inArray(EntityRelationTable.toId, ids)),
+        );
+      await tx
+        .delete(InlineMentionTable)
+        .where(
+          and(eq(InlineMentionTable.fromKind, kind), inArray(InlineMentionTable.fromId, ids)),
+        );
+      await tx
+        .delete(InlineMentionTable)
+        .where(
+          and(eq(InlineMentionTable.toKind, kind), inArray(InlineMentionTable.toId, ids)),
+        );
+    };
+
     if (oldNodeIds.length > 0) {
       await tx.delete(NodeContentTable).where(inArray(NodeContentTable.nodeId, oldNodeIds));
-      await tx.delete(NodeStorylineLinkTable).where(inArray(NodeStorylineLinkTable.nodeId, oldNodeIds));
-      // Polymorphic refs: drop any reference whose `from` or `to` was an
-      // about-to-be-deleted node. We can't express the from/to OR via inArray
-      // in a single delete, so issue two deletes.
       await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.fromKind, 'node'),
-            inArray(EntityReferenceTable.fromId, oldNodeIds),
-          ),
-        );
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.toKind, 'node'),
-            inArray(EntityReferenceTable.toId, oldNodeIds),
-          ),
-        );
+        .delete(NodeStorylineLinkTable)
+        .where(inArray(NodeStorylineLinkTable.nodeId, oldNodeIds));
+      await deletePolymorphicForIds('node', oldNodeIds);
       // ElementPatch.sourceNodeId is ON DELETE SET NULL — letting the BookNode
       // deletion below cascade is enough; rows themselves are owned by elements
       // and will be cleared when those cascade.
     }
-    if (oldElementIds.length > 0) {
-      // Polymorphic refs touching the elements being deleted (either side).
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.fromKind, 'element'),
-            inArray(EntityReferenceTable.fromId, oldElementIds),
-          ),
-        );
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.toKind, 'element'),
-            inArray(EntityReferenceTable.toId, oldElementIds),
-          ),
-        );
-    }
+    await deletePolymorphicForIds('element', oldElementIds);
     if (oldStorylineIds.length > 0) {
       await tx
         .delete(NodeStorylineLinkTable)
         .where(inArray(NodeStorylineLinkTable.storylineId, oldStorylineIds));
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.fromKind, 'storyline'),
-            inArray(EntityReferenceTable.fromId, oldStorylineIds),
-          ),
-        );
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.toKind, 'storyline'),
-            inArray(EntityReferenceTable.toId, oldStorylineIds),
-          ),
-        );
+      await deletePolymorphicForIds('storyline', oldStorylineIds);
     }
-    if (oldCategoryIds.length > 0) {
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.fromKind, 'category'),
-            inArray(EntityReferenceTable.fromId, oldCategoryIds),
-          ),
-        );
-      await tx
-        .delete(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.toKind, 'category'),
-            inArray(EntityReferenceTable.toId, oldCategoryIds),
-          ),
-        );
-    }
+    await deletePolymorphicForIds('category', oldCategoryIds);
 
-    // Memos and materials are project-scoped; wipe and reinsert from the payload.
-    // Their polymorphic entity_reference rows are dropped here too — server is
-    // the source of truth for memo/material relations.
+    // Memos and materials are project-scoped; wipe and reinsert from the
+    // payload. Their entity_relation rows are dropped here too — server is the
+    // source of truth for memo/material relations. (Inline mentions never
+    // target memo/material, so only relation cleanup is needed.)
     await tx
-      .delete(EntityReferenceTable)
+      .delete(EntityRelationTable)
       .where(
         and(
-          eq(EntityReferenceTable.projectId, projectId),
-          eq(EntityReferenceTable.fromKind, 'memo'),
+          eq(EntityRelationTable.projectId, projectId),
+          eq(EntityRelationTable.fromKind, 'memo'),
         ),
       );
     await tx
-      .delete(EntityReferenceTable)
+      .delete(EntityRelationTable)
       .where(
         and(
-          eq(EntityReferenceTable.projectId, projectId),
-          eq(EntityReferenceTable.toKind, 'memo'),
+          eq(EntityRelationTable.projectId, projectId),
+          eq(EntityRelationTable.toKind, 'memo'),
         ),
       );
     await tx
-      .delete(EntityReferenceTable)
+      .delete(EntityRelationTable)
       .where(
         and(
-          eq(EntityReferenceTable.projectId, projectId),
-          eq(EntityReferenceTable.fromKind, 'material'),
+          eq(EntityRelationTable.projectId, projectId),
+          eq(EntityRelationTable.fromKind, 'material'),
         ),
       );
     await tx
-      .delete(EntityReferenceTable)
+      .delete(EntityRelationTable)
       .where(
         and(
-          eq(EntityReferenceTable.projectId, projectId),
-          eq(EntityReferenceTable.toKind, 'material'),
+          eq(EntityRelationTable.projectId, projectId),
+          eq(EntityRelationTable.toKind, 'material'),
+        ),
+      );
+    // Inline mentions originating from memo/material bodies (if the user
+    // happens to @-mention an element in their memo) — wipe alongside.
+    await tx
+      .delete(InlineMentionTable)
+      .where(
+        and(
+          eq(InlineMentionTable.projectId, projectId),
+          eq(InlineMentionTable.fromKind, 'memo'),
+        ),
+      );
+    await tx
+      .delete(InlineMentionTable)
+      .where(
+        and(
+          eq(InlineMentionTable.projectId, projectId),
+          eq(InlineMentionTable.fromKind, 'material'),
         ),
       );
     await tx.delete(MemoTable).where(eq(MemoTable.projectId, projectId));
@@ -1211,50 +1193,65 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(NodeStorylineLinkTable).values(nodeStorylineLinks as any[]);
     }
 
-    const entityReferences = normalizeRows(graph.entityReferences, (row) => ({
+    const entityRelations = normalizeRows(graph.entityRelations, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       fromKind: stringValue(row, 'fromKind'),
       fromId: stringValue(row, 'fromId'),
-      fromBlockId: nullableStringValue(row, 'fromBlockId'),
-      fromSpansJson: nullableStringValue(row, 'fromSpansJson'),
       toKind: stringValue(row, 'toKind'),
       toId: stringValue(row, 'toId'),
-      toBlockId: nullableStringValue(row, 'toBlockId'),
       kind: nullableStringValue(row, 'kind'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.fromId && row.toId);
-    if (entityReferences.length > 0) {
-      await tx.insert(EntityReferenceTable).values(entityReferences as any[]);
+    if (entityRelations.length > 0) {
+      await tx.insert(EntityRelationTable).values(entityRelations as any[]);
     }
 
-    if (localManualReferences.length > 0) {
-      const currentManualReferences = await tx
+    // Restore any local relations the server didn't return — typically created
+    // offline and not yet flushed. Identity is (from, to, kind).
+    if (localEntityRelations.length > 0) {
+      const currentRelations = await tx
         .select({
-          fromKind: EntityReferenceTable.fromKind,
-          fromId: EntityReferenceTable.fromId,
-          toKind: EntityReferenceTable.toKind,
-          toId: EntityReferenceTable.toId,
-          toBlockId: EntityReferenceTable.toBlockId,
+          fromKind: EntityRelationTable.fromKind,
+          fromId: EntityRelationTable.fromId,
+          toKind: EntityRelationTable.toKind,
+          toId: EntityRelationTable.toId,
+          kind: EntityRelationTable.kind,
         })
-        .from(EntityReferenceTable)
-        .where(
-          and(
-            eq(EntityReferenceTable.projectId, projectId),
-            isNull(EntityReferenceTable.fromBlockId),
-          ),
-        );
-      const currentManualKeys = new Set(currentManualReferences.map(manualReferenceKey));
-      const manualReferencesToRestore = localManualReferences.filter(
-        (row) => !currentManualKeys.has(manualReferenceKey(row)),
+        .from(EntityRelationTable)
+        .where(eq(EntityRelationTable.projectId, projectId));
+      const currentKeys = new Set(currentRelations.map(entityRelationKey));
+      const relationsToRestore = localEntityRelations.filter(
+        (row) => !currentKeys.has(entityRelationKey(row)),
       );
-      if (manualReferencesToRestore.length > 0) {
+      if (relationsToRestore.length > 0) {
         await tx
-          .insert(EntityReferenceTable)
-          .values(manualReferencesToRestore as any[])
+          .insert(EntityRelationTable)
+          .values(relationsToRestore as any[])
           .onConflictDoNothing();
       }
+    }
+
+    // Inline mentions are a derived index; insert what the server has, but
+    // they'll be rebuilt locally from doc content by
+    // rebuildProjectInlineReferenceIndex right after this transaction.
+    const inlineMentions = normalizeRows(graph.inlineMentions, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      fromKind: stringValue(row, 'fromKind'),
+      fromId: stringValue(row, 'fromId'),
+      fromBlockId: stringValue(row, 'fromBlockId'),
+      fromSpansJson: stringValue(row, 'fromSpansJson'),
+      toKind: stringValue(row, 'toKind'),
+      toId: stringValue(row, 'toId'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter(
+      (row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson,
+    );
+    if (inlineMentions.length > 0) {
+      await tx.insert(InlineMentionTable).values(inlineMentions as any[]);
     }
 
     // ElementPatch rows are owned by their element; they were cascade-deleted
@@ -1411,7 +1408,8 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.nodeStorylineLinks.length +
       response.data.elements.length +
       response.data.elementCategories.length +
-      response.data.entityReferences.length +
+      response.data.entityRelations.length +
+      response.data.inlineMentions.length +
       response.data.entityPatches.length +
       response.data.memos.length +
       response.data.materials.length +

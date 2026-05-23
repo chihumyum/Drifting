@@ -168,24 +168,24 @@ export function syncMaterialDelete(id: string, projectId: string) {
   enqueueSync('material', 'delete', id, projectId);
 }
 
-export function syncEntityReferenceCreate(
+export function syncEntityRelationCreate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('entityReference', 'create', id, projectId, payload);
+  enqueueSync('entityRelation', 'create', id, projectId, payload);
 }
 
-export function syncEntityReferenceUpdate(
+export function syncEntityRelationUpdate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('entityReference', 'update', id, projectId, payload);
+  enqueueSync('entityRelation', 'update', id, projectId, payload);
 }
 
-export function syncEntityReferenceDelete(id: string, projectId: string) {
-  enqueueSync('entityReference', 'delete', id, projectId);
+export function syncEntityRelationDelete(id: string, projectId: string) {
+  enqueueSync('entityRelation', 'delete', id, projectId);
 }
 
 export function syncManuscriptCommentCreate(

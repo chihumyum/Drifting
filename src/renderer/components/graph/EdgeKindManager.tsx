@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { EntityReferenceLink } from '../../store/data-store';
+import type { EntityRelationLink } from '../../store/data-store';
 
 // Dropdown menu invoked from the story graph view's top-right legend. Lists
 // every kind that currently exists in the project (plus a locked
@@ -43,10 +43,10 @@ export interface EdgeKindManagerProps {
   reassignMeta: (oldKind: string | null, newKind: string | null) => void;
   removeMeta: (kind: string | null) => void;
   // Edge data + mutators for the bulk rename / delete operations. Edges live
-  // in entity_reference now; the graph view restricts these to manual rows
-  // (fromBlockId IS NULL) so renaming/deleting here only touches what the
-  // user authored on the canvas.
-  nodeEdges: EntityReferenceLink[];
+  // in entity_relation now; the graph view restricts these to node↔node rows
+  // so renaming/deleting here only touches what the user authored on the
+  // canvas.
+  nodeEdges: EntityRelationLink[];
   updateEdgeKind: (id: string, kind: string | null) => Promise<unknown>;
   deleteEdge: (id: string) => Promise<unknown>;
 }

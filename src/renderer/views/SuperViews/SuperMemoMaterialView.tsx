@@ -73,7 +73,7 @@ export function SuperMemoMaterialView() {
 
   const memos = useDataStore((s) => s.memos);
   const materials = useDataStore((s) => s.materials);
-  const manualReferences = useDataStore((s) => s.manualReferences);
+  const entityRelations = useDataStore((s) => s.entityRelations);
 
   const memoUsecases = useBookMemo({ projectId, userId });
   const materialUsecases = useBookMaterial({ projectId, userId });
@@ -92,18 +92,18 @@ export function SuperMemoMaterialView() {
   // itself; users return via the BottomStatusBar toggle"). Compose dialogs
   // and material preview popovers handle their own ESC dismissal internally.
 
-  // Group manualReferences by from-entity so each card can render its
+  // Group entityRelations by from-entity so each card can render its
   // relation chips and the filters can narrow to a specific target.
   const refsByFrom = useMemo(() => {
-    const map = new Map<string, typeof manualReferences>();
-    manualReferences.forEach((r) => {
+    const map = new Map<string, typeof entityRelations>();
+    entityRelations.forEach((r) => {
       const key = `${r.fromKind}:${r.fromId}`;
       const list = map.get(key) ?? [];
       list.push(r);
       map.set(key, list);
     });
     return map;
-  }, [manualReferences]);
+  }, [entityRelations]);
 
   const isRelatedToEntity = useCallback(
     (fromKind: EntityKind, fromId: string) => {
@@ -231,17 +231,16 @@ export function SuperMemoMaterialView() {
 
   const removeRelation = useCallback(
     (fromKind: EntityKind, fromId: string, toKind: EntityKind, toId: string) => {
-      const ref = manualReferences.find(
+      const ref = entityRelations.find(
         (r) =>
           r.fromKind === fromKind &&
           r.fromId === fromId &&
           r.toKind === toKind &&
-          r.toId === toId &&
-          r.fromBlockId == null,
+          r.toId === toId,
       );
       if (ref) relationUsecases.removeRelation(ref.id);
     },
-    [manualReferences, relationUsecases],
+    [entityRelations, relationUsecases],
   );
 
   const focusedEntity: FocusedEntity = entityFilter;
@@ -291,7 +290,7 @@ export function SuperMemoMaterialView() {
           setEditingId={setEditingId}
           memoUsecases={memoUsecases}
           relationUsecases={relationUsecases}
-          manualReferences={manualReferences}
+          entityRelations={entityRelations}
           onCompose={() => setComposeOpen('memo')}
         />
 
@@ -615,7 +614,7 @@ function TodoRail({
   setEditingId,
   memoUsecases,
   relationUsecases,
-  manualReferences,
+  entityRelations,
   onCompose,
 }: {
   todoMemos: Memo[];
@@ -625,13 +624,12 @@ function TodoRail({
   setEditingId: (id: string | null) => void;
   memoUsecases: ReturnType<typeof useBookMemo>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
-  manualReferences: Array<{
+  entityRelations: Array<{
     id: string;
     fromKind: EntityKind;
     fromId: string;
     toKind: EntityKind;
     toId: string;
-    fromBlockId: string | null;
   }>;
   onCompose: () => void;
 }) {
@@ -647,13 +645,12 @@ function TodoRail({
       onDelete={() => memoUsecases.removeMemo(memo.id)}
       onAddRelation={(t) => relationUsecases.addRelation('memo', memo.id, t.kind, t.id)}
       onRemoveRelation={(t) => {
-        const ref = manualReferences.find(
+        const ref = entityRelations.find(
           (r) =>
             r.fromKind === 'memo' &&
             r.fromId === memo.id &&
             r.toKind === t.kind &&
-            r.toId === t.id &&
-            r.fromBlockId == null,
+            r.toId === t.id,
         );
         if (ref) relationUsecases.removeRelation(ref.id);
       }}

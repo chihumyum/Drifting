@@ -13,7 +13,7 @@
 //                comment-able, not @-mention-able.
 //
 //   ALL        — STRUCTURAL ∪ ANNOTATIVE. The full polymorphic vocabulary
-//                that may appear in `entity_reference.fromKind`. The
+//                that may appear in `entity_relation.fromKind`. The
 //                `toKind` set is strictly STRUCTURAL.
 
 export const STRUCTURAL_ENTITY_KINDS = [

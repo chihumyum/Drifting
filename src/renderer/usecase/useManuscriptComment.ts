@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase, getDb } from '../lib/db';
-import { EntityReferenceTable } from '../schema/drizzle';
+import { EntityRelationTable } from '../schema/drizzle';
 import { createPlainCommentDoc, extractTextFromCommentBody, getSelectedTextFromAnchor } from '../domain/manuscript-comment';
 import type {
   CommentAction,
@@ -17,11 +17,11 @@ import {
   createCommentActionRepository,
   createManuscriptCommentRepository,
 } from '../sqlite-repo/manuscript-comment-repo';
-import { useDataStore, type EntityReferenceLink } from '../store/data-store';
+import { useDataStore, type EntityRelationLink } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
 import {
   syncCommentActionCreate,
-  syncEntityReferenceCreate,
+  syncEntityRelationCreate,
   syncManuscriptCommentCreate,
   syncManuscriptCommentDelete,
   syncManuscriptCommentUpdate,
@@ -258,7 +258,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       const commentsBefore = state.manuscriptComments.slice();
       const actionsBefore = state.commentActions.slice();
       const memosBefore = state.memos.slice();
-      const refsBefore = state.manualReferences.slice();
+      const refsBefore = state.entityRelations.slice();
       const existing = commentsBefore.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
       if (existing.status === 'converted') return null;
@@ -284,16 +284,16 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         updatedAt: now,
       };
 
-      const reference: EntityReferenceLink = {
+      // The comment's block anchor (targetBlockId) is dropped here — the memo
+      // is associated with the whole entity, not the specific block. Block-
+      // level anchoring belongs to manuscript_comment, not the relation table.
+      const relation: EntityRelationLink = {
         id: uuidv7(),
         projectId,
         fromKind: 'memo',
         fromId: memo.id,
-        fromBlockId: null,
-        fromSpansJson: null,
         toKind: existing.targetKind,
         toId: existing.targetId,
-        toBlockId: existing.targetBlockId,
         kind: null,
         createdAt: now,
         updatedAt: now,
@@ -307,7 +307,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         label: 'Convert to memo TODO',
         payloadJson: JSON.stringify({ memoId: memo.id }),
         status: 'applied',
-        resultJson: JSON.stringify({ memoId: memo.id, referenceId: reference.id }),
+        resultJson: JSON.stringify({ memoId: memo.id, relationId: relation.id }),
         createdByKind: 'user',
         createdById: userId,
         createdAt: now,
@@ -325,7 +325,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       try {
         const store = useDataStore.getState();
         store.setMemos([memo, ...memosBefore]);
-        store.setManualReferences([...refsBefore, reference]);
+        store.setEntityRelations([...refsBefore, relation]);
         store.setCommentActions([...actionsBefore, action]);
         store.setManuscriptComments(
           commentsBefore.map((comment) => (comment.id === id ? converted : comment)),
@@ -336,7 +336,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
           const txActionRepo = createCommentActionRepository(projectId, tx);
           const txMemoRepo = createMemoSqliteRepository(projectId, tx);
           await txMemoRepo.create(memo);
-          await tx.insert(EntityReferenceTable).values(reference);
+          await tx.insert(EntityRelationTable).values(relation);
           await txCommentRepo.update(id, {
             status: converted.status,
             resolvedAt: converted.resolvedAt,
@@ -346,16 +346,13 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         });
 
         syncMemoCreate(memo.id, projectId, memoSyncPayload(memo));
-        syncEntityReferenceCreate(reference.id, projectId, {
-          id: reference.id,
-          fromKind: reference.fromKind,
-          fromId: reference.fromId,
-          fromBlockId: reference.fromBlockId,
-          fromSpansJson: reference.fromSpansJson,
-          toKind: reference.toKind,
-          toId: reference.toId,
-          toBlockId: reference.toBlockId,
-          kind: reference.kind,
+        syncEntityRelationCreate(relation.id, projectId, {
+          id: relation.id,
+          fromKind: relation.fromKind,
+          fromId: relation.fromId,
+          toKind: relation.toKind,
+          toId: relation.toId,
+          kind: relation.kind,
         });
         syncManuscriptCommentUpdate(existing.id, projectId, {
           status: converted.status,
@@ -369,7 +366,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         store.setManuscriptComments(commentsBefore);
         store.setCommentActions(actionsBefore);
         store.setMemos(memosBefore);
-        store.setManualReferences(refsBefore);
+        store.setEntityRelations(refsBefore);
         throw error;
       }
     },

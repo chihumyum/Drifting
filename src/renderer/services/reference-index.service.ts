@@ -10,14 +10,15 @@ import {
   NodeContentTable,
   StorylineTable,
 } from '../schema/drizzle';
-import { createReferenceRepository, type EntityKind } from '../sqlite-repo/reference-repo';
-import { projectInlineReferencesFromJson } from './reference-projection.service';
+import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
+import type { StructuralEntityKind } from '../domain/entity-kinds';
+import { projectInlineMentionsFromJson } from './reference-projection.service';
 
 const log = loglevel.getLogger('ReferenceIndexService');
 log.setLevel(loglevel.levels.WARN);
 
 interface ReferenceSourceDoc {
-  kind: EntityKind;
+  kind: StructuralEntityKind;
   id: string;
   contentJson: string | null | undefined;
 }
@@ -31,7 +32,7 @@ export interface ReferenceIndexRebuildStats {
 export async function rebuildProjectInlineReferenceIndex(
   projectId: string,
 ): Promise<ReferenceIndexRebuildStats> {
-  const referenceRepo = createReferenceRepository();
+  const mentionRepo = createInlineMentionRepository();
   const sources = await loadReferenceSourceDocs(projectId);
   let references = 0;
   let skipped = 0;
@@ -43,9 +44,9 @@ export async function rebuildProjectInlineReferenceIndex(
       continue;
     }
 
-    const drafts = projectInlineReferencesFromJson(parsed.json);
+    const drafts = projectInlineMentionsFromJson(parsed.json);
     references += drafts.length;
-    await referenceRepo.replaceInlineReferencesFromSource(
+    await mentionRepo.replaceMentionsFromSource(
       projectId,
       source.kind,
       source.id,
@@ -108,7 +109,7 @@ async function loadReferenceSourceDocs(projectId: string): Promise<ReferenceSour
 }
 
 function sourceDoc(
-  kind: EntityKind,
+  kind: StructuralEntityKind,
   id: string,
   contentJson: string | null | undefined,
 ): ReferenceSourceDoc {

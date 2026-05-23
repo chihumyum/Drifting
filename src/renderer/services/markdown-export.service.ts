@@ -1,5 +1,5 @@
 import type { Mark as PMMark, Node as PMNode } from '@tiptap/pm/model';
-import type { EntityKind } from '../sqlite-repo/reference-repo';
+import type { EntityKind } from '../domain/entity-kinds';
 
 // Resolves the human display label for an entityLink target. Implementations
 // typically pull from the live data store (bookElements / bookNodes). Falls

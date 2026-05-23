@@ -97,7 +97,7 @@ const BAND_OUTER_RESERVE_CELLS = 1;
 const STICKY_PAD_CELLS_X = 3;
 const STICKY_PAD_CELLS_Y = 3;
 
-// Manual EntityReference rows carry a free-form `kind` (the user category
+// EntityRelation rows carry a free-form `kind` (the user category
 // they choose at create time). Color is hashed from the kind string so two
 // edges of the same kind always look identical across renders; null-kind
 // edges fall back to a neutral tint.
@@ -876,7 +876,7 @@ export function SuperElementView() {
     bookNodes,
     storylines,
     nodeStorylineMapping,
-    manualReferences,
+    entityRelations,
   } = useDataStore();
 
   // Active popover state. Card click opens the two-tier editor; the popover
@@ -1168,7 +1168,7 @@ export function SuperElementView() {
   };
   const worldEdges = useMemo<WorldEdge[]>(() => {
     const out: WorldEdge[] = [];
-    for (const ref of manualReferences) {
+    for (const ref of entityRelations) {
       const kind = ref.kind ?? null;
       const filterKey = kind ?? UNCATEGORIZED_KIND;
       if (hiddenKinds.has(filterKey)) continue;
@@ -1215,7 +1215,7 @@ export function SuperElementView() {
     }
     return out;
   }, [
-    manualReferences,
+    entityRelations,
     hiddenKinds,
     elementCenters,
     nodeCenters,
@@ -1229,7 +1229,7 @@ export function SuperElementView() {
   const availableKinds = useMemo<string[]>(() => {
     const named = new Set<string>();
     let hasNull = false;
-    manualReferences.forEach((r) => {
+    entityRelations.forEach((r) => {
       if (!(r.fromKind === 'element' || r.toKind === 'element')) return;
       if (r.kind && r.kind.trim()) named.add(r.kind);
       else hasNull = true;
@@ -1237,7 +1237,7 @@ export function SuperElementView() {
     const sorted = [...named].sort();
     if (hasNull) sorted.push(UNCATEGORIZED_KIND);
     return sorted;
-  }, [manualReferences]);
+  }, [entityRelations]);
 
   // ---- Pan + zoom ----
   // Lazy initial state seeds the world transform so the FIRST frame already
@@ -1735,9 +1735,9 @@ export function SuperElementView() {
     [linkSource, driftIds],
   );
 
-  // Commit a manual EntityReference for the pending link, then dismiss the
+  // Commit a entity relation for the pending link, then dismiss the
   // modal. Caller passes the modal source/target verbatim. No "kind" input
-  // Commits a manual EntityReference for the pending pair. `kind` is the
+  // Commits a entity relation for the pending pair. `kind` is the
   // free-form category typed in the modal (trim → null if empty). Origin
   // is always 'manual' for shift-click flow.
   const confirmPendingLink = useCallback(async () => {
@@ -1825,7 +1825,7 @@ export function SuperElementView() {
     let stop = false;
     const recompute = () => {
       const out: DriftEdgeGeom[] = [];
-      for (const ref of manualReferences) {
+      for (const ref of entityRelations) {
         const kind = ref.kind ?? null;
         const filterKey = kind ?? UNCATEGORIZED_KIND;
         if (hiddenKinds.has(filterKey)) continue;
@@ -1880,7 +1880,7 @@ export function SuperElementView() {
       window.removeEventListener('scroll', onScrollOrResize, true);
       window.removeEventListener('super-element:pan-end', onScrollOrResize);
     };
-  }, [driftPanelOpen, manualReferences, hiddenKinds, driftIds]);
+  }, [driftPanelOpen, entityRelations, hiddenKinds, driftIds]);
 
   // ---- Viewport edge geometry (sticky mode only) ----
   // Recomputed whenever the committed pan/zoom changes (state-driven), i.e.
@@ -1930,7 +1930,7 @@ export function SuperElementView() {
     else bandY = naturalBandY;
 
     const out: ViewportEdgeGeom[] = [];
-    for (const ref of manualReferences) {
+    for (const ref of entityRelations) {
       const kind = ref.kind ?? null;
       const filterKey = kind ?? UNCATEGORIZED_KIND;
       if (hiddenKinds.has(filterKey)) continue;
@@ -2006,7 +2006,7 @@ export function SuperElementView() {
     zoom,
     bandHeightCells,
     bandTopWorldY,
-    manualReferences,
+    entityRelations,
     hiddenKinds,
     elementCenters,
     nodeCenters,
@@ -2552,7 +2552,7 @@ export function SuperElementView() {
         );
       })()}
 
-      {/* Pending link modal — confirms creation of a manual EntityReference
+      {/* Pending link modal — confirms creation of a entity relation
           for a shift-click pairing. Captures an optional user-defined kind
           (free-form string, with suggestions sourced from existing kinds in
           the project so terminology drifts less). */}

@@ -25,9 +25,9 @@ import {
   type MentionableEntity,
 } from '../lib/extensions/entity-mention-suggestion';
 import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-menu';
-import { projectInlineReferencesFromDoc } from '../services/reference-projection.service';
+import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
 import { exportDocToMarkdown } from '../services/markdown-export.service';
-import { createReferenceRepository } from '../sqlite-repo/reference-repo';
+import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useAuthStore } from '../store/auth';
@@ -317,9 +317,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     [navigationRef, onEntityClickRef],
   );
 
-  // Projection: walk the doc, derive inline references, replace this source's
+  // Projection: walk the doc, derive inline mentions, replace this source's
   // rows. Debounced so a typing burst writes once.
-  const referenceRepoRef = useRef(createReferenceRepository());
+  const mentionRepoRef = useRef(createInlineMentionRepository());
   const projectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const projectReferences = useCallback(
     (editor: Editor) => {
@@ -327,10 +327,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       const source = sourceRef.current;
       if (!source.projectId || !source.sourceId) return;
       if (editor.isDestroyed) return;
-      const drafts = projectInlineReferencesFromDoc(editor.state.doc);
+      const drafts = projectInlineMentionsFromDoc(editor.state.doc);
       projectTimeoutRef.current = setTimeout(async () => {
         try {
-          await referenceRepoRef.current.replaceInlineReferencesFromSource(
+          await mentionRepoRef.current.replaceMentionsFromSource(
             source.projectId,
             source.sourceKind,
             source.sourceId,

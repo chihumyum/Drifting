@@ -1,6 +1,6 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isBlockType } from '../lib/extensions/block-id';
-import type { InlineReferenceDraft } from '../sqlite-repo/reference-repo';
+import type { InlineMentionDraft } from '../sqlite-repo/inline-mention-repo';
 import {
   isStructuralEntityKind,
   type InlineMentionKind,
@@ -17,11 +17,10 @@ interface BlockInfo {
   blockStart: number;
 }
 
-interface ReferenceMetadata {
+interface MentionMetadata {
   fromBlockId: string;
   toKind: InlineMentionKind;
   toId: string;
-  toBlockId: string | null;
 }
 
 interface JsonNode {
@@ -53,15 +52,15 @@ function findContainingBlock(doc: PMNode, pos: number): BlockInfo | null {
   return null;
 }
 
-// Walk a ProseMirror document and produce one InlineReferenceDraft per
+// Walk a ProseMirror document and produce one InlineMentionDraft per
 // (block, target) pair. All spans of the same target inside the same block are
 // aggregated into one row; offsets are relative to the containing block's
 // content start so they survive block-internal edits as the block id stays
 // stable.
-export function projectInlineReferencesFromDoc(doc: PMNode): InlineReferenceDraft[] {
-  // key = blockId::targetKind::targetId::targetBlockId
+export function projectInlineMentionsFromDoc(doc: PMNode): InlineMentionDraft[] {
+  // key = blockId::targetKind::targetId
   const spanBuckets = new Map<string, Span[]>();
-  const metadata = new Map<string, ReferenceMetadata>();
+  const metadata = new Map<string, MentionMetadata>();
 
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
@@ -84,9 +83,9 @@ export function projectInlineReferencesFromDoc(doc: PMNode): InlineReferenceDraf
   return draftsFromBuckets(spanBuckets, metadata);
 }
 
-export function projectInlineReferencesFromJson(json: unknown): InlineReferenceDraft[] {
+export function projectInlineMentionsFromJson(json: unknown): InlineMentionDraft[] {
   const spanBuckets = new Map<string, Span[]>();
-  const metadata = new Map<string, ReferenceMetadata>();
+  const metadata = new Map<string, MentionMetadata>();
 
   const walk = (nodeValue: unknown, activeBlock: JsonBlockContext | null): void => {
     const node = asRecord(nodeValue) as JsonNode | null;
@@ -139,7 +138,7 @@ export function projectInlineReferencesFromJson(json: unknown): InlineReferenceD
 
 function addSpanToBuckets(
   spanBuckets: Map<string, Span[]>,
-  metadata: Map<string, ReferenceMetadata>,
+  metadata: Map<string, MentionMetadata>,
   fromBlockId: string,
   from: number,
   to: number,
@@ -149,10 +148,8 @@ function addSpanToBuckets(
   const targetKind = normalizeEntityKind(attrs.targetKind);
   const targetId = typeof attrs.targetId === 'string' && attrs.targetId ? attrs.targetId : null;
   if (!targetKind || !targetId) return;
-  const targetBlockId =
-    typeof attrs.targetBlockId === 'string' && attrs.targetBlockId ? attrs.targetBlockId : null;
 
-  const key = `${fromBlockId}::${targetKind}::${targetId}::${targetBlockId ?? ''}`;
+  const key = `${fromBlockId}::${targetKind}::${targetId}`;
 
   const existing = spanBuckets.get(key);
   if (existing) {
@@ -163,16 +160,15 @@ function addSpanToBuckets(
       fromBlockId,
       toKind: targetKind,
       toId: targetId,
-      toBlockId: targetBlockId,
     });
   }
 }
 
 function draftsFromBuckets(
   spanBuckets: Map<string, Span[]>,
-  metadata: Map<string, ReferenceMetadata>,
-): InlineReferenceDraft[] {
-  const drafts: InlineReferenceDraft[] = [];
+  metadata: Map<string, MentionMetadata>,
+): InlineMentionDraft[] {
+  const drafts: InlineMentionDraft[] = [];
   for (const [key, spans] of spanBuckets) {
     const meta = metadata.get(key)!;
     drafts.push({
@@ -180,7 +176,6 @@ function draftsFromBuckets(
       fromSpansJson: JSON.stringify(spans),
       toKind: meta.toKind,
       toId: meta.toId,
-      toBlockId: meta.toBlockId,
     });
   }
   return drafts;

@@ -163,11 +163,10 @@ export const NodeContentTable = sqliteTable(
   (t) => [index('idx_node_content_node').on(t.nodeId)],
 );
 
-// Story-graph edges live in `entity_reference` now — manual whole-to-whole
-// rows with fromKind/toKind = 'node' and the user-defined relation category
-// in `kind`. The legacy book_node_edge table was folded into entity_reference
-// by migration 0021; its visual columns (anchors/control points/style) were
-// never read by the renderer, so they were dropped.
+// Story-graph edges live in `entity_relation` now — rows with fromKind/toKind
+// = 'node' and the user-defined relation category in `kind`. Visual columns
+// (anchors/control points/style) from the legacy `book_node_edge` table were
+// never read by the renderer and were dropped by migration 0021.
 
 // Book element
 // Domain: BookElement
@@ -258,23 +257,20 @@ export const ElementPatchTable = sqliteTable(
   ],
 );
 
-// Entity Reference
-// A directed reference: "the document (fromKind, fromId) references the entity (toKind, toId)".
-// Both ends are polymorphic across nodes / elements / patches. The reference can be
-// inline (sitting in the from-document's content) or manual (an asserted relation
-// without any content mark). The target may be the whole entity or a specific block.
+// Entity Relation
+// User-curated directed link between two entities. Source of truth for cross-
+// entity associations the user explicitly asserts: memo→node, material→element,
+// node→node (story-graph edges), element↔element, etc.
 //
-//   fromBlockId   | toBlockId      | meaning
-//   --------------|----------------|----------------------------------
-//   non-null      | null           | mention in fromBlock points to whole entity
-//   non-null      | non-null       | mention in fromBlock deep-links to a block
-//   null          | null           | manual whole-to-whole relation (no content)
-//   null          | non-null       | manual whole-to-block relation (rare)
+// "Curated" not "manual" — provenance (who created the row) is irrelevant to
+// the table's purpose; an AI-suggested relation accepted by the user would
+// land here too. Distinct from `inline_mention`, which is a derived index of
+// @-mentions sitting inside an entity's manuscript content.
 //
-// FK enforcement is skipped on the polymorphic columns; cleanup of orphaned
-// rows is done explicitly when an entity is deleted.
-export const EntityReferenceTable = sqliteTable(
-  'entity_reference',
+// Polymorphic both ways. FK is not enforced on the kind/id columns; orphans
+// are cleaned up explicitly when an endpoint entity is deleted.
+export const EntityRelationTable = sqliteTable(
+  'entity_relation',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
@@ -286,12 +282,8 @@ export const EntityReferenceTable = sqliteTable(
     // See domain/entity-kinds.ts for the canonical vocabulary + guards.
     fromKind: text('from_kind').notNull(),
     fromId: text('from_id').notNull(),
-    fromBlockId: text('from_block_id'),
-    fromSpansJson: text('from_spans_json'),
-
     toKind: text('to_kind').notNull(),
     toId: text('to_id').notNull(),
-    toBlockId: text('to_block_id'),
 
     // Free-form user category for the relation itself (NOT the endpoint type
     // — that's fromKind/toKind). Nullable string, no fixed vocabulary; the
@@ -303,16 +295,55 @@ export const EntityReferenceTable = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    index('idx_ref_from').on(t.fromKind, t.fromId),
-    index('idx_ref_to').on(t.toKind, t.toId),
-    index('idx_ref_project').on(t.projectId),
+    index('idx_relation_from').on(t.fromKind, t.fromId),
+    index('idx_relation_to').on(t.toKind, t.toId),
+    index('idx_relation_project').on(t.projectId),
+  ],
+);
+
+// Inline Mention
+// Derived index of entityLink marks projected from manuscript content. One row
+// per (fromBlock, toEntity) pair; multiple spans in the same block collapse
+// into fromSpansJson. Rebuilt on every save of the source document by
+// reference-projection.service.
+//
+// Strictly structural on both ends — memo / material don't have manuscripts
+// to host marks, and inline marks always target whole entities (never deep-
+// linking to a specific block).
+//
+// Not a source of truth — `entity_relation` is. Deleting an inline_mention
+// row by hand is meaningless; it'll come back on the next projection.
+export const InlineMentionTable = sqliteTable(
+  'inline_mention',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+
+    // Both endpoints must be StructuralEntityKind. See domain/entity-kinds.ts.
+    fromKind: text('from_kind').notNull(),
+    fromId: text('from_id').notNull(),
+    fromBlockId: text('from_block_id').notNull(),
+    fromSpansJson: text('from_spans_json').notNull(),
+
+    toKind: text('to_kind').notNull(),
+    toId: text('to_id').notNull(),
+
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_mention_from').on(t.fromKind, t.fromId),
+    index('idx_mention_to').on(t.toKind, t.toId),
+    index('idx_mention_project').on(t.projectId),
   ],
 );
 
 // Manuscript Comment
 // Word-style marginal comment anchored to a block in a content-bearing entity.
 // It is intentionally independent from Memo and ElementPatch:
-// - Memo is project-level thinking / TODO, linked through entity_reference.
+// - Memo is project-level thinking / TODO, linked through entity_relation.
 // - ElementPatch is additive canonical content for an element.
 // - ManuscriptComment is review/annotation state that may later carry AI,
 //   external, copilot, or patch-suggestion metadata through comment_action.
@@ -387,7 +418,7 @@ export const CommentActionTable = sqliteTable(
 //   'resolved'   — completed; hidden from the main list, surfaced in
 //                  the collapsed "已解决" archive group
 // Linkage to other entities (chapter / drift / element / storyline / category)
-// goes through `entity_reference` with fromKind='memo'.
+// goes through `entity_relation` with fromKind='memo'.
 export const MemoTable = sqliteTable(
   'memo',
   {
@@ -418,7 +449,7 @@ export const MemoTable = sqliteTable(
 //   'url'   — uri is the http(s) URL itself
 // Markdown materials store their content inline in bodyJson (TipTap doc).
 // notesJson is the author's free-form annotations attached to the material.
-// Linkage goes through `entity_reference` with fromKind='material'.
+// Linkage goes through `entity_relation` with fromKind='material'.
 export const MaterialTable = sqliteTable(
   'material',
   {

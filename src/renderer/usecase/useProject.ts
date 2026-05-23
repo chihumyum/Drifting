@@ -28,7 +28,8 @@ import {
   BookElementTable,
   BookNodeTable,
   ElementCategoryTable,
-  EntityReferenceTable,
+  EntityRelationTable,
+  InlineMentionTable,
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
@@ -59,7 +60,8 @@ export interface ProjectStats {
   storylineLinks: number;
   elements: number;
   categories: number;
-  entityReferences: number;
+  entityRelations: number;
+  inlineMentions: number;
 }
 
 export type ProjectSummary = Project & {
@@ -86,7 +88,8 @@ const EMPTY_PROJECT_STATS: ProjectStats = {
   storylineLinks: 0,
   elements: 0,
   categories: 0,
-  entityReferences: 0,
+  entityRelations: 0,
+  inlineMentions: 0,
 };
 
 function createRequestId(prefix: string): string {
@@ -166,7 +169,7 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
 
   const nodeIds = nodes.map((node) => node.id);
 
-  const [nodeStorylineLinks, entityReferences] = await Promise.all([
+  const [nodeStorylineLinks, entityRelations, inlineMentions] = await Promise.all([
     nodeIds.length
       ? db
           .select({
@@ -176,11 +179,15 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
           .from(NodeStorylineLinkTable)
           .where(inArray(NodeStorylineLinkTable.nodeId, nodeIds))
       : [],
-    // Polymorphic refs are filtered by project_id directly; no FK to nodes.
+    // Polymorphic; filtered by project_id directly (no FK to nodes).
     db
-      .select({ id: EntityReferenceTable.id })
-      .from(EntityReferenceTable)
-      .where(eq(EntityReferenceTable.projectId, projectId)),
+      .select({ id: EntityRelationTable.id })
+      .from(EntityRelationTable)
+      .where(eq(EntityRelationTable.projectId, projectId)),
+    db
+      .select({ id: InlineMentionTable.id })
+      .from(InlineMentionTable)
+      .where(eq(InlineMentionTable.projectId, projectId)),
   ]);
 
   return {
@@ -190,7 +197,8 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     storylineLinks: nodeStorylineLinks.length,
     elements: elements.length,
     categories: elementCategories.length,
-    entityReferences: entityReferences.length,
+    entityRelations: entityRelations.length,
+    inlineMentions: inlineMentions.length,
   };
 }
 
