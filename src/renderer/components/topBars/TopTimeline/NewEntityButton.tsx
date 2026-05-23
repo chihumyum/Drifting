@@ -8,6 +8,7 @@ import { useDataStore } from '../../../store/data-store';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../../../store/auth';
+import { CHAPTER_ORDER_STRIDE, isChapter } from '../../../domain/book-node';
 
 const log = loglevel.getLogger('NewEntityButton');
 log.setLevel(loglevel.levels.ERROR);
@@ -74,11 +75,14 @@ export function NewEntityButton() {
         defaultStorylineId = created.id;
       }
 
-      const storylineNodes = bookNodes.filter(
-        (node) => node.mainStorylineId === defaultStorylineId,
-      );
-      const maxOrder = storylineNodes.reduce((m, n) => Math.max(m, n.bookOrder), 0);
-      const nextOrder = maxOrder > 0 ? maxOrder + 1 : 1;
+      // Use the global chapter max + STRIDE, matching every other create-
+      // chapter entry point (LeftSidebar / NodesPanel / ImportDialog) so the
+      // user only has to learn one "where does a new chapter land" rule.
+      // Filtering by `isChapter` narrows bookOrder to a non-nullable number.
+      const maxOrder = bookNodes
+        .filter(isChapter)
+        .reduce((m, n) => Math.max(m, n.bookOrder), 0);
+      const nextOrder = maxOrder + CHAPTER_ORDER_STRIDE;
 
       const newNode = await createNode({
         title: 'New Chapter',

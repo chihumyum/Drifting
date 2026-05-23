@@ -3,6 +3,7 @@ import { AlignLeft, GitBranch, Minus, ArrowDownUp, ListFilter, Plus } from 'luci
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
+import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -61,8 +62,10 @@ export function LeftSidebarSubHeader() {
         const created = await createStoryline({ projectId });
         mainStorylineId = created.id;
       }
-      const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
-      const nextOrder = maxOrder + 1;
+      const maxOrder = bookNodes
+        .filter(isChapter)
+        .reduce((max, n) => Math.max(max, n.bookOrder), 0);
+      const nextOrder = maxOrder + CHAPTER_ORDER_STRIDE;
       const created = await createNode({
         title: 'New Chapter',
         bookOrder: nextOrder,
@@ -87,18 +90,16 @@ export function LeftSidebarSubHeader() {
   const handleCreateDrift = useCallback(async () => {
     if (!projectId) return;
     try {
-      const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
-      const nextOrder = maxOrder + 1;
       const created = await createNode({
         title: 'New Drift',
-        bookOrder: nextOrder,
+        bookOrder: null,
         mainStorylineId: null,
       });
       openEntity({ entityType: 'node', id: created.id }, { preview: false });
     } catch (error) {
       log.error('Failed to create drift node', error);
     }
-  }, [projectId, bookNodes, createNode, openEntity]);
+  }, [projectId, createNode, openEntity]);
 
   const handleCreateElement = useCallback(async () => {
     if (!projectId) return;

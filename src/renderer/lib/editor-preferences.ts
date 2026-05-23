@@ -16,6 +16,7 @@ export interface EditorPreferences {
   paragraphIndent: ParagraphIndent;
   focusLine: FocusLineMode;
   entityHighlight: boolean;
+  entityLinkInteractive: boolean;
   marginNotes: boolean;
 }
 
@@ -33,5 +34,6 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-indent', INDENT_EM[prefs.paragraphIndent]);
   root.setAttribute('data-focus-line', prefs.focusLine);
   root.setAttribute('data-entity-highlight', prefs.entityHighlight ? 'on' : 'off');
+  root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
   root.setAttribute('data-margin-notes', prefs.marginNotes ? 'on' : 'off');
 }

@@ -113,8 +113,16 @@ function getEntityTypeLabel(entityType?: string): string {
       return 'Element';
     case 'elementCategory':
       return 'Element category';
-    case 'storyStage':
-      return 'Story stage';
+    case 'memo':
+      return 'Memo';
+    case 'material':
+      return 'Material';
+    case 'entityReference':
+      return 'Reference';
+    case 'manuscriptComment':
+      return 'Comment';
+    case 'commentAction':
+      return 'Comment action';
     default:
       return 'Entity';
   }

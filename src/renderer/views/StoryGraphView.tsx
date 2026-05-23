@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
@@ -37,7 +38,7 @@ const GRAPH_CONFIG = {
   // Wider grid units than BottomTimeline — fullscreen has room to breathe.
   GRID_UNIT: 32,
   // Tile width in grid units; same convention as BottomTimeline.
-  TILE_WIDTH_UNITS: 5,
+  TILE_WIDTH_UNITS: 4,
   // Bigger tiles than Phase 3: StoryGraphView is intended to grow into the
   // primary editing surface for inter-node relationship graphs, so each
   // tile needs room to host more attribute UI later.
@@ -63,13 +64,16 @@ function readPersistedView(): StoryGraphViewMode {
   return v === 'narrative' ? 'narrative' : 'book';
 }
 
-interface PositionedNode extends BookNode {
+// BookNode is a discriminated union; `extends` doesn't accept unions, so we
+// use an intersection. PositionedNode keeps either variant intact and adds
+// the StoryGraphView's per-node layout fields on top.
+type PositionedNode = BookNode & {
   storyline: Storyline | null;
   storylines: Storyline[];
   rowIndex: number;
   x: number; // tile left, in canvas pixels (already includes padding)
   y: number; // track center, in canvas pixels
-}
+};
 
 // Sentinel used in the filter map for edges with `kind === null`.
 const UNCATEGORIZED_KIND = '__uncategorized__';
@@ -399,10 +403,9 @@ export function StoryGraphView() {
       if (orderOf(n) === null) unplaced.push(n);
       else placed.push(n);
     }
-    // Sorted by bookOrder ascending so reorder via bookOrder permutation
-    // produces a stable, persisted order. New drifts are appended with
-    // max+1 bookOrder so they land at the right end.
-    drift.sort((a, b) => a.bookOrder - b.bookOrder);
+    // Drift nodes have no reading-order axis (bookOrder is null) — sort by
+    // recency so newly-touched drifts surface, matching DriftPanel.
+    drift.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
     return { placedNodes: placed, unplacedNodes: unplaced, driftNodes: drift };
   }, [bookNodes, primaryStorylineId, orderOf]);
 
@@ -627,15 +630,16 @@ export function StoryGraphView() {
     });
   }, []);
   // "打散" — keeps relative ordering, reassigns the active order field
-  // (bookOrder or narrativeOrder) with spacing > TILE_WIDTH_UNITS so adjacent
-  // tiles can't overlap. Shared semantics with BottomTimeline's handleSpread
-  // since both views read from the same node integers.
+  // (bookOrder or narrativeOrder) with the same stride that new chapters
+  // use (CHAPTER_ORDER_STRIDE = tile width + 1), so scatter spacing matches
+  // creation spacing and adjacent tiles sit a single grid unit apart. Shared
+  // semantics with BottomTimeline's handleSpread.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
     const sorted = placedNodes
       .slice()
       .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
-    const SPACING = GRAPH_CONFIG.TILE_WIDTH_UNITS + 1;
+    const SPACING = CHAPTER_ORDER_STRIDE;
     const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
     const updates: Array<{ id: string; newOrder: number }> = [];
     sorted.forEach((node, i) => {
@@ -975,38 +979,16 @@ export function StoryGraphView() {
     setDragOver(null);
   };
 
-  // Commit a drift-card reorder by permuting just the bookOrder integers
-  // that already belong to the drift set. This keeps drift orderings
-  // distinct from placed-node orderings (no integer collisions) and only
-  // touches nodes whose position actually changed.
+  // Drift cards used to persist their order by permuting bookOrder, but
+  // drift no longer carries bookOrder at all — that axis is chapter-only.
+  // The drag UX is kept so a future drift-order axis (e.g. a dedicated
+  // sort_key on DriftNode) can re-wire persistence here without touching
+  // the renderer. For now the drop is a visual no-op: drift cards always
+  // re-sort by updatedAt on the next render.
   const commitDriftReorder = useCallback(async () => {
-    if (!draggedDrift || driftDropIndex == null) return;
-    const ordered = driftNodes.slice();
-    const [moved] = ordered.splice(draggedDrift.index, 1);
-    // After removal the insertion index shifts left if dropping past
-    // the original position.
-    const insertAt =
-      driftDropIndex > draggedDrift.index ? driftDropIndex - 1 : driftDropIndex;
-    ordered.splice(insertAt, 0, moved);
-    const sortedOrders = driftNodes
-      .map((n) => n.bookOrder)
-      .slice()
-      .sort((a, b) => a - b);
-    const updates: Array<{ id: string; bookOrder: number }> = [];
-    ordered.forEach((n, i) => {
-      const newOrder = sortedOrders[i];
-      if (n.bookOrder !== newOrder) updates.push({ id: n.id, bookOrder: newOrder });
-    });
     setDraggedDrift(null);
     setDriftDropIndex(null);
-    try {
-      for (const u of updates) {
-        await updateNode(u.id, { bookOrder: u.bookOrder });
-      }
-    } catch (err) {
-      log.error('Failed to reorder drift cards', err);
-    }
-  }, [draggedDrift, driftDropIndex, driftNodes, updateNode]);
+  }, []);
 
   const totalsLabel = `${storylines.length} ${storylines.length === 1 ? '故事线' : '故事线'} · ${placedNodes.length}/${bookNodes.length} 章`;
 
@@ -1529,7 +1511,11 @@ export function StoryGraphView() {
 
             {/* Tiles */}
             {positionedNodes.map((node) => {
-              const isDraft = node.wordCount === 0;
+              // finished keeps the existing default look here (per user
+              // scope); only draft-ish and discarded get explicit classes.
+              const status = node.writingStatus;
+              const isDiscarded = status === 'discarded';
+              const isDraft = !isDiscarded && status !== 'finished';
               const color = node.storyline?.color || 'hsl(var(--story-4))';
               const isLinkSource = linkSource === node.id;
               return (
@@ -1542,6 +1528,7 @@ export function StoryGraphView() {
                   className={[
                     'graph-tile',
                     isDraft ? 'is-draft' : '',
+                    isDiscarded ? 'is-discarded' : '',
                     isLinkSource ? 'is-link-source' : '',
                     isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
                   ]
@@ -1662,6 +1649,7 @@ export function StoryGraphView() {
           driftNodes.map((node, index) => {
             const isLinkSource = linkSource === node.id;
             const isDragged = draggedDrift?.id === node.id;
+            const isResting = node.writingStatus === 'resting';
             const shift = computeDriftShift(index);
             return (
               <div
@@ -1674,6 +1662,7 @@ export function StoryGraphView() {
                   'drift-card',
                   isLinkSource ? 'is-link-source' : '',
                   isDragged ? 'is-dragged' : '',
+                  isResting ? 'is-resting' : '',
                   isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
                 ]
                   .filter(Boolean)

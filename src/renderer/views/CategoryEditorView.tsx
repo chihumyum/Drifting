@@ -5,14 +5,16 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
+import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { CommentRail } from '../components/editor/CommentRail';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityEditor } from '../hooks/useEntityEditor';
+import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -43,7 +45,7 @@ export function CategoryEditorView({
   if (!projectId) throw new Error('Project ID is required');
   if (!userId) throw new Error('User must be authenticated');
 
-  const { bookElementCategories, bookElements } = useDataStore();
+  const { bookElementCategories, bookElements, manuscriptComments } = useDataStore();
   const { updateElement } = useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
   const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
@@ -67,6 +69,39 @@ export function CategoryEditorView({
   }, [bookElements, categoryId]);
 
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
+  const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const marginNotes = useSettingsStore((state) => state.marginNotes);
+  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
+  const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
+  const toggleEntityLinkInteractive = useCallback(
+    () => setEntityLinkInteractive(!entityLinkInteractive),
+    [entityLinkInteractive, setEntityLinkInteractive],
+  );
+  const commentCount = useMemo(
+    () =>
+      manuscriptComments.filter(
+        (comment) =>
+          comment.projectId === projectId &&
+          comment.targetKind === 'category' &&
+          comment.targetId === (categoryId ?? '') &&
+          comment.status !== 'converted',
+      ).length,
+    [categoryId, manuscriptComments, projectId],
+  );
+  const toggleComments = useCallback(() => {
+    if (!marginNotes && commentCount === 0) return;
+    const next = !marginNotes;
+    setMarginNotes(next);
+    if (!next) setPendingComment(null);
+  }, [commentCount, marginNotes, setMarginNotes]);
+  const handleAddCommentRequest = useCallback(
+    (request: EditorCommentRequest) => {
+      setMarginNotes(true);
+      setPendingComment(request);
+    },
+    [setMarginNotes],
+  );
   const filteredEls = cEls.filter((e) => {
     if (elementFilter === 'all') return true;
     // No per-element mention count in schema yet — treat any saved summary
@@ -145,6 +180,7 @@ export function CategoryEditorView({
     content: curCategory?.descriptionJson ?? null,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
+    onAddCommentRequest: handleAddCommentRequest,
     selectionKey: curCategory
       ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })
       : null,
@@ -219,6 +255,16 @@ export function CategoryEditorView({
       <EditorTopBar
         editorType="category"
         onMenuAction={handleContextAction}
+        referenceLinkToggle={{
+          enabled: entityLinkInteractive,
+          onToggle: toggleEntityLinkInteractive,
+        }}
+        commentToggle={{
+          enabled: marginNotes,
+          count: commentCount,
+          disabled: !marginNotes && commentCount === 0,
+          onToggle: toggleComments,
+        }}
         right={
           <>
             <span>{cEls.length} 元素</span>
@@ -261,7 +307,7 @@ export function CategoryEditorView({
           footLeft={`c.${categoryShortId}`}
           footRight={`${cEls.length} 元素`}
         />
-        <div className="editor-scroll" ref={setScrollEl}>
+        <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
           <article className="page" style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
@@ -449,9 +495,18 @@ export function CategoryEditorView({
               <EditorContent editor={editor} />
             </div>
           </article>
+          {marginNotes && (
+            <CommentRail
+              projectId={projectId}
+              targetKind="category"
+              targetId={curCategory.id}
+              scrollEl={scrollEl}
+              pendingRequest={pendingComment}
+              onPendingRequestChange={setPendingComment}
+            />
+          )}
           </div>
         </div>
-        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
     </div>
   );

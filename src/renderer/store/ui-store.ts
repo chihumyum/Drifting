@@ -782,6 +782,7 @@ export const useUiStore = create<UiState>()(
 
           const active = workingTabs[activeIdx];
           let newSplit: SplitTab;
+          let displacedLeaf: LeafTab | null = null;
           if (active.kind === 'leaf') {
             const activeLeaf: LeafTab = { ...active, isPreview: false };
             const left = side === 'left' ? sourceLeaf : activeLeaf;
@@ -796,7 +797,16 @@ export const useUiStore = create<UiState>()(
             };
           } else {
             // Active is already a split — replace the requested side with
-            // the source leaf and shift focus there.
+            // the source leaf, and push the leaf that *was* there back into
+            // the bar as a top-level tab so the user doesn't silently lose
+            // it (same semantics as "extract this side first, then split").
+            const existing = side === 'left' ? active.left : active.right;
+            if (tabKey(existing) === tabKey(sourceLeaf)) {
+              // No-op: source is already the leaf on this side. Avoid
+              // duplicating it as a top-level tab.
+              return {};
+            }
+            displacedLeaf = { ...existing, isPreview: false };
             newSplit = {
               ...active,
               [side]: { ...sourceLeaf, isPreview: false },
@@ -804,6 +814,9 @@ export const useUiStore = create<UiState>()(
             } as SplitTab;
           }
           workingTabs[activeIdx] = newSplit;
+          if (displacedLeaf) {
+            workingTabs.splice(activeIdx + 1, 0, displacedLeaf);
+          }
           return {
             tabsByProject: {
               ...state.tabsByProject,

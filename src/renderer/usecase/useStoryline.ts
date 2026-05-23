@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
+import { normalizeBookNode } from '../domain/book-node';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
@@ -324,11 +325,19 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       });
 
       const reassignByNode = new Map(reassignments.map((r) => [r.nodeId, r.newMain]));
-      const nextNodes: BookNode[] = prevNodes.map((n) =>
-        reassignByNode.has(n.id)
-          ? { ...n, mainStorylineId: reassignByNode.get(n.id) ?? null, updatedAt: now }
-          : n,
-      );
+      // When the storyline is being deleted and a node loses its last
+      // storyline membership, reassignByNode maps it to null — flipping a
+      // chapter into a drift. `normalizeBookNode` coerces the merged record
+      // to the correct discriminated-union variant (drift loses bookOrder,
+      // gets DriftStatus) so downstream code keeps narrowing cleanly.
+      const nextNodes: BookNode[] = prevNodes.map((n) => {
+        if (!reassignByNode.has(n.id)) return n;
+        return normalizeBookNode({
+          ...n,
+          mainStorylineId: reassignByNode.get(n.id) ?? null,
+          updatedAt: now,
+        });
+      });
 
       return withOptimisticUpdate({
         apply: () => {

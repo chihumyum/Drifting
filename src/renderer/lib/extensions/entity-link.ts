@@ -40,6 +40,10 @@ export interface EntityLinkOptions {
 export const entityLinkConfig = {
   autoDetectTargets: new Map<string, AutoDetectTarget>(),
   autoDetectEnabled: true,
+  // When false, clicks on entity-link marks are ignored (no navigation).
+  // Visual styling is gated separately via the `data-entity-link-interactive`
+  // attribute on <html> (see editor-preferences.ts and index.css).
+  interactionEnabled: true,
 };
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
@@ -211,6 +215,7 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         props: {
           handleClick(_view, _pos, event) {
             if (!onClick) return false;
+            if (!entityLinkConfig.interactionEnabled) return false;
             const target = event.target as HTMLElement | null;
             if (!target?.classList.contains('entity-link')) return false;
 

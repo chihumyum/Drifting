@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronUp } from 'lucide-react';
 
 import type { BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
@@ -15,6 +16,12 @@ const formatShortDate = (input: string | number | Date) => {
   return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
 };
 
+// Resting drawer sizing — purely component-local so it resets per session;
+// no need for persistence layer churn.
+const RESTING_MIN_HEIGHT = 80;
+const RESTING_DEFAULT_HEIGHT = 200;
+const RESTING_HEADER_HEIGHT = 28;
+
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
   const { nodeUi } = useUiStore();
@@ -22,18 +29,79 @@ export function DriftPanel() {
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
 
-  // Drift nodes — off-timeline notes, sorted by recency.
-  const driftNodes = useMemo(
-    () =>
-      bookNodes
-        .filter((n) => n.mainStorylineId == null)
-        .slice()
-        .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1)),
-    [bookNodes],
+  // Split drift nodes by DriftStatus. Anything that isn't explicitly
+  // 'resting' falls into the active list — that includes 'drifting' plus
+  // legacy values like 'draft' from pre-migration rows. Sorted by recency.
+  const { driftingNodes, restingNodes } = useMemo(() => {
+    const drift = bookNodes
+      .filter((n) => n.mainStorylineId == null)
+      .slice()
+      .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
+    const resting: BookNode[] = [];
+    const drifting: BookNode[] = [];
+    for (const node of drift) {
+      if (node.writingStatus === 'resting') resting.push(node);
+      else drifting.push(node);
+    }
+    return { driftingNodes: drifting, restingNodes: resting };
+  }, [bookNodes]);
+
+  // Resting drawer state — collapsed by default. Height is the expanded
+  // total (header + body); collapsed shows just the header strip.
+  const [restingExpanded, setRestingExpanded] = useState(false);
+  const [restingHeight, setRestingHeight] = useState(RESTING_DEFAULT_HEIGHT);
+
+  // If the user empties the resting bucket, collapse the drawer so the
+  // footer doesn't sit there with no content.
+  useEffect(() => {
+    if (restingNodes.length === 0 && restingExpanded) setRestingExpanded(false);
+  }, [restingNodes.length, restingExpanded]);
+
+  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const handleDragMove = useCallback((event: PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state) return;
+    // Pointer moves down → drawer shrinks; moves up → grows.
+    const delta = state.startY - event.clientY;
+    const next = Math.max(RESTING_MIN_HEIGHT, state.startHeight + delta);
+    setRestingHeight(next);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragStateRef.current = null;
+    window.removeEventListener('pointermove', handleDragMove);
+    window.removeEventListener('pointerup', handleDragEnd);
+    window.removeEventListener('pointercancel', handleDragEnd);
+  }, [handleDragMove]);
+
+  const handleDragStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!restingExpanded) return;
+      event.preventDefault();
+      dragStateRef.current = { startY: event.clientY, startHeight: restingHeight };
+      window.addEventListener('pointermove', handleDragMove);
+      window.addEventListener('pointerup', handleDragEnd);
+      window.addEventListener('pointercancel', handleDragEnd);
+    },
+    [handleDragEnd, handleDragMove, restingExpanded, restingHeight],
   );
 
-  const renderNodeCard = (node: BookNode) => {
+  useEffect(() => {
+    // Belt-and-braces: if the component unmounts mid-drag, tear down the
+    // global listeners so we don't leak handlers.
+    return () => {
+      if (dragStateRef.current) {
+        window.removeEventListener('pointermove', handleDragMove);
+        window.removeEventListener('pointerup', handleDragEnd);
+        window.removeEventListener('pointercancel', handleDragEnd);
+      }
+    };
+  }, [handleDragEnd, handleDragMove]);
+
+  const renderNodeCard = (node: BookNode, opts?: { muted?: boolean }) => {
     const selected = node.id === selectedNodeId;
+    const muted = opts?.muted ?? false;
     return (
       <div
         key={node.id}
@@ -45,10 +113,15 @@ export function DriftPanel() {
           cursor: 'pointer',
           position: 'relative',
           background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
-          color: selected ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+          color: selected
+            ? 'hsl(var(--ink-1))'
+            : muted
+              ? 'hsl(var(--ink-3))'
+              : 'hsl(var(--ink-2))',
           fontSize: 12.5,
           lineHeight: 1.35,
-          transition: 'background 0.1s',
+          opacity: muted && !selected ? 0.7 : 1,
+          transition: 'background 0.1s, opacity 0.1s',
         }}
         onMouseEnter={(event) => {
           if (!selected) {
@@ -88,7 +161,7 @@ export function DriftPanel() {
             height: 6,
             borderRadius: '50%',
             border: '1px solid hsl(var(--ink-3))',
-            background: 'transparent',
+            background: muted ? 'hsl(var(--ink-4) / 0.3)' : 'transparent',
             flexShrink: 0,
           }}
         />
@@ -123,30 +196,138 @@ export function DriftPanel() {
     );
   };
 
+  const showRestingFooter = restingNodes.length > 0;
+  const footerHeight = restingExpanded ? restingHeight : RESTING_HEADER_HEIGHT;
+  const totalDrift = driftingNodes.length + restingNodes.length;
+
   return (
     <div
-      className="left-panel-scroll-hidden"
       style={{
         height: '100%',
-        overflowY: 'auto',
-        padding: '6px 0 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
       }}
     >
-      {driftNodes.map((node) => renderNodeCard(node))}
-      {driftNodes.length === 0 && (
+      <div
+        className="left-panel-scroll-hidden"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '6px 0 12px',
+        }}
+      >
+        {driftingNodes.map((node) => renderNodeCard(node))}
+        {totalDrift === 0 && (
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              color: 'hsl(var(--ink-3))',
+              padding: '40px 20px',
+              textAlign: 'center',
+            }}
+          >
+            no drift notes yet.
+          </div>
+        )}
+        {driftingNodes.length === 0 && restingNodes.length > 0 && (
+          <div
+            style={{
+              fontSize: 11.5,
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              color: 'hsl(var(--ink-3))',
+              padding: '28px 20px 8px',
+              textAlign: 'center',
+            }}
+          >
+            no active drifts · {restingNodes.length} resting below
+          </div>
+        )}
+      </div>
+
+      {showRestingFooter && (
         <div
           style={{
-            fontSize: 12,
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            color: 'hsl(var(--ink-3))',
-            padding: '40px 20px',
-            textAlign: 'center',
+            height: footerHeight,
+            borderTop: '1px solid hsl(var(--rule))',
+            background: 'hsl(var(--paper-deep) / 0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: RESTING_HEADER_HEIGHT,
+            // Smooth the open/close toggle, but skip transitions while
+            // actively drag-resizing so the cursor stays glued to the edge.
+            transition: dragStateRef.current ? 'none' : 'height 0.18s ease',
+            flexShrink: 0,
           }}
         >
-          no drift notes yet.
+          {/* Drag handle — only meaningful when expanded. Kept on top of
+              the header so the visible affordance lines up with the seam
+              between scroll list and footer. */}
+          <div
+            onPointerDown={handleDragStart}
+            style={{
+              height: 4,
+              marginTop: -2,
+              cursor: restingExpanded ? 'ns-resize' : 'default',
+              userSelect: 'none',
+            }}
+            aria-hidden
+          />
+          <button
+            type="button"
+            onClick={() => setRestingExpanded((prev) => !prev)}
+            style={{
+              all: 'unset',
+              boxSizing: 'border-box',
+              height: RESTING_HEADER_HEIGHT - 4,
+              padding: '0 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              cursor: 'pointer',
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'hsl(var(--ink-3))',
+              fontFamily: 'var(--font-mono)',
+              flexShrink: 0,
+            }}
+            aria-expanded={restingExpanded}
+            title={restingExpanded ? '收起休眠' : '展开休眠'}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>休眠</span>
+              <span style={{ color: 'hsl(var(--ink-4))' }}>{restingNodes.length}</span>
+            </span>
+            <ChevronUp
+              size={12}
+              style={{
+                transform: restingExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.18s ease',
+              }}
+            />
+          </button>
+          {restingExpanded && (
+            <div
+              className="left-panel-scroll-hidden"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                padding: '4px 0 12px',
+              }}
+            >
+              {restingNodes.map((node) => renderNodeCard(node, { muted: true }))}
+            </div>
+          )}
         </div>
       )}
+
       <style>{`
         .left-panel-scroll-hidden { scrollbar-width: none; }
         .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }

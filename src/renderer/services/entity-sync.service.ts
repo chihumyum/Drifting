@@ -23,10 +23,12 @@ import { events, type SyncOperationEvent } from '../lib/events';
 import {
   BookElementTable,
   BookNodeTable,
+  CommentActionTable,
   ElementCategoryTable,
   ElementPatchTable,
   EntityReferenceTable,
   LocalSyncMutationTable,
+  ManuscriptCommentTable,
   MaterialTable,
   MemoTable,
   NodeContentTable,
@@ -34,10 +36,10 @@ import {
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
-  StoryStageTable,
 } from '../schema/drizzle';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
+import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import loglevel from 'loglevel';
 
@@ -55,10 +57,11 @@ export type EntityType =
   | 'nodeStorylineLink'
   | 'element'
   | 'elementCategory'
-  | 'storyStage'
   | 'memo'
   | 'material'
-  | 'entityReference';
+  | 'entityReference'
+  | 'manuscriptComment'
+  | 'commentAction';
 
 export type MutationType = 'create' | 'update' | 'delete';
 
@@ -109,11 +112,12 @@ export interface ProjectGraphPayload {
   nodeStorylineLinks: Record<string, unknown>[];
   elements: Record<string, unknown>[];
   elementCategories: Record<string, unknown>[];
-  storyStages: Record<string, unknown>[];
   entityReferences: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
   memos: Record<string, unknown>[];
   materials: Record<string, unknown>[];
+  manuscriptComments: Record<string, unknown>[];
+  commentActions: Record<string, unknown>[];
 }
 
 function shouldPersistOutbox(): boolean {
@@ -478,19 +482,6 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/categories/${entityId}` };
 
-    // ---- Story Stage ----
-    case 'storyStage':
-      if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/stages`, data: payload };
-      } else if (mutationType === 'update') {
-        return {
-          method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/stages/${entityId}`,
-          data: payload,
-        };
-      }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/stages/${entityId}` };
-
     // ---- Memo ----
     case 'memo':
       if (mutationType === 'create') {
@@ -533,6 +524,43 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/references/${entityId}` };
+
+    // ---- Manuscript Comment ----
+    case 'manuscriptComment':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/comments`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/comments/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/comments/${entityId}` };
+
+    // ---- Comment Action ----
+    case 'commentAction':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/comment-actions`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/comment-actions/${entityId}`,
+          data: payload,
+        };
+      }
+      return {
+        method: 'DELETE',
+        endpoint: `/api/projects/${projectId}/comment-actions/${entityId}`,
+      };
 
     default:
       log.warn(`[sync] unknown entity type: ${entityType}`);
@@ -601,11 +629,12 @@ export interface PullResult {
   elements?: unknown[];
   elementCategories?: unknown[];
   categories?: unknown[];
-  stages?: unknown[];
   entityReferences?: unknown[];
   entityPatches?: unknown[];
   memos?: unknown[];
   materials?: unknown[];
+  manuscriptComments?: unknown[];
+  commentActions?: unknown[];
 }
 
 /**
@@ -625,11 +654,12 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     elements: graph.elements,
     elementCategories: graph.elementCategories,
     categories: graph.elementCategories,
-    stages: graph.storyStages,
     entityReferences: graph.entityReferences,
     entityPatches: graph.entityPatches,
     memos: graph.memos,
     materials: graph.materials,
+    manuscriptComments: graph.manuscriptComments,
+    commentActions: graph.commentActions,
   };
 }
 
@@ -714,23 +744,37 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
     })),
   );
   dataStore.setBookNodes(
-    graph.nodes.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      title: stringValue(row, 'title'),
-      summary: stringValue(row, 'summary'),
-      bookOrder: numberValue(row, 'bookOrder'),
-      narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
-      storyStageId: nullableStringValue(row, 'storyStageId'),
-      mainStorylineId: nullableStringValue(row, 'mainStorylineId'),
-      position: {
-        x: numberValue(row, 'positionX'),
-        y: numberValue(row, 'positionY'),
-      },
-      wordCount: numberValue(row, 'wordCount'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
+    graph.nodes.map((row): BookNode => {
+      const base = {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        title: stringValue(row, 'title'),
+        summary: stringValue(row, 'summary'),
+        narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
+        position: {
+          x: numberValue(row, 'positionX'),
+          y: numberValue(row, 'positionY'),
+        },
+        wordCount: numberValue(row, 'wordCount'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+      const mainStorylineId = nullableStringValue(row, 'mainStorylineId');
+      if (mainStorylineId == null) {
+        return {
+          ...base,
+          mainStorylineId: null,
+          bookOrder: null,
+          writingStatus: stringValue(row, 'writingStatus', 'drifting') as DriftStatus,
+        };
+      }
+      return {
+        ...base,
+        mainStorylineId,
+        bookOrder: row.bookOrder == null ? 0 : numberValue(row, 'bookOrder'),
+        writingStatus: stringValue(row, 'writingStatus', 'draft') as ChapterWritingStatus,
+      };
+    }),
   );
   dataStore.setNodeEdges(
     graph.nodeEdges.map((row) => ({
@@ -825,6 +869,44 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       orderKey: numberValue(row, 'orderKey'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  dataStore.setManuscriptComments(
+    graph.manuscriptComments.map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      targetKind: stringValue(row, 'targetKind') as any,
+      targetId: stringValue(row, 'targetId'),
+      targetBlockId: stringValue(row, 'targetBlockId'),
+      anchorJson: stringValue(row, 'anchorJson', '{}'),
+      authorKind: (stringValue(row, 'authorKind', 'user') || 'user') as any,
+      authorId: nullableStringValue(row, 'authorId'),
+      authorName: nullableStringValue(row, 'authorName'),
+      bodyJson: stringValue(row, 'bodyJson', '{}'),
+      status: (stringValue(row, 'status', 'open') || 'open') as any,
+      priority: nullableStringValue(row, 'priority') as any,
+      source: (stringValue(row, 'source', 'manual') || 'manual') as any,
+      metadataJson: nullableStringValue(row, 'metadataJson'),
+      resolvedAt: nullableStringValue(row, 'resolvedAt'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  dataStore.setCommentActions(
+    graph.commentActions.map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      commentId: stringValue(row, 'commentId'),
+      kind: stringValue(row, 'kind') as any,
+      label: nullableStringValue(row, 'label'),
+      payloadJson: stringValue(row, 'payloadJson', '{}'),
+      status: (stringValue(row, 'status', 'pending') || 'pending') as any,
+      resultJson: nullableStringValue(row, 'resultJson'),
+      createdByKind: (stringValue(row, 'createdByKind', 'user') || 'user') as any,
+      createdById: nullableStringValue(row, 'createdById'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+      appliedAt: nullableStringValue(row, 'appliedAt'),
     })),
   );
   // Surface manual (whole-to-whole) entity-reference rows so the right sidebar
@@ -1075,11 +1157,12 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       );
     await tx.delete(MemoTable).where(eq(MemoTable.projectId, projectId));
     await tx.delete(MaterialTable).where(eq(MaterialTable.projectId, projectId));
+    await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
+    await tx.delete(ManuscriptCommentTable).where(eq(ManuscriptCommentTable.projectId, projectId));
     await tx.delete(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
-    await tx.delete(StoryStageTable).where(eq(StoryStageTable.projectId, projectId));
     await tx.delete(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, projectId));
 
     const project = normalizeProjectRow(graph.project);
@@ -1117,20 +1200,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(ElementCategoryTable).values(elementCategories as any[]);
     }
 
-    const storyStages = normalizeRows(graph.storyStages, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      descriptionJson: stringValue(row, 'descriptionJson', '{}'),
-      orderKey: numberValue(row, 'orderKey'),
-      color: stringValue(row, 'color'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (storyStages.length > 0) {
-      await tx.insert(StoryStageTable).values(storyStages as any[]);
-    }
-
     const storylines = normalizeRows(graph.storylines, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
@@ -1153,13 +1222,13 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       projectId: stringValue(row, 'projectId'),
       title: stringValue(row, 'title'),
       summary: stringValue(row, 'summary'),
-      bookOrder: numberValue(row, 'bookOrder'),
+      bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
       narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
-      storyStageId: nullableStringValue(row, 'storyStageId'),
       mainStorylineId: nullableStringValue(row, 'mainStorylineId'),
       positionX: numberValue(row, 'positionX'),
       positionY: numberValue(row, 'positionY'),
       wordCount: numberValue(row, 'wordCount'),
+      writingStatus: stringValue(row, 'writingStatus', 'draft'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     }));
@@ -1328,6 +1397,48 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     if (materials.length > 0) {
       await tx.insert(MaterialTable).values(materials as any[]);
     }
+
+    const manuscriptComments = normalizeRows(graph.manuscriptComments, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      targetKind: stringValue(row, 'targetKind'),
+      targetId: stringValue(row, 'targetId'),
+      targetBlockId: stringValue(row, 'targetBlockId'),
+      anchorJson: stringValue(row, 'anchorJson', '{}'),
+      authorKind: stringValue(row, 'authorKind', 'user') || 'user',
+      authorId: nullableStringValue(row, 'authorId'),
+      authorName: nullableStringValue(row, 'authorName'),
+      bodyJson: stringValue(row, 'bodyJson', '{}'),
+      status: stringValue(row, 'status', 'open') || 'open',
+      priority: nullableStringValue(row, 'priority'),
+      source: stringValue(row, 'source', 'manual') || 'manual',
+      metadataJson: nullableStringValue(row, 'metadataJson'),
+      resolvedAt: nullableStringValue(row, 'resolvedAt'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.targetId && row.targetBlockId);
+    if (manuscriptComments.length > 0) {
+      await tx.insert(ManuscriptCommentTable).values(manuscriptComments as any[]);
+    }
+
+    const commentActions = normalizeRows(graph.commentActions, (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      commentId: stringValue(row, 'commentId'),
+      kind: stringValue(row, 'kind'),
+      label: nullableStringValue(row, 'label'),
+      payloadJson: stringValue(row, 'payloadJson', '{}'),
+      status: stringValue(row, 'status', 'pending') || 'pending',
+      resultJson: nullableStringValue(row, 'resultJson'),
+      createdByKind: stringValue(row, 'createdByKind', 'user') || 'user',
+      createdById: nullableStringValue(row, 'createdById'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+      appliedAt: nullableStringValue(row, 'appliedAt'),
+    })).filter((row) => row.id && row.commentId && row.kind);
+    if (commentActions.length > 0) {
+      await tx.insert(CommentActionTable).values(commentActions as any[]);
+    }
   });
 
   applyGraphToStores(graph);
@@ -1383,11 +1494,12 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.nodeStorylineLinks.length +
       response.data.elements.length +
       response.data.elementCategories.length +
-      response.data.storyStages.length +
       response.data.entityReferences.length +
       response.data.entityPatches.length +
       response.data.memos.length +
-      response.data.materials.length;
+      response.data.materials.length +
+      response.data.manuscriptComments.length +
+      response.data.commentActions.length;
 
     setStatus('idle');
     emitSyncOperation({
@@ -1444,7 +1556,6 @@ export function startPeriodicPull(projectId: string, onData: (data: PullResult) 
       storylines: graph.storylines,
       elements: graph.elements,
       categories: graph.elementCategories,
-      stages: graph.storyStages,
     });
   });
 
@@ -1456,7 +1567,6 @@ export function startPeriodicPull(projectId: string, onData: (data: PullResult) 
         storylines: graph.storylines,
         elements: graph.elements,
         categories: graph.elementCategories,
-        stages: graph.storyStages,
       });
     });
   }, PULL_INTERVAL_MS);

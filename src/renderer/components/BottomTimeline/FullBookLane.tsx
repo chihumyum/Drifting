@@ -66,9 +66,14 @@ export function FullBookLane({
 
   // Sort by bookOrder so neighboring chips reflect adjacent chapters.
   // Tie-break on id so equal bookOrder keeps a deterministic visual order.
+  // Drift nodes (bookOrder == null) are filtered out upstream — defensively
+  // coerce nulls to Infinity so a stray drift would sort to the tail rather
+  // than poison the comparator with NaN.
   const sorted = useMemo(() => {
     return nodes.slice().sort((a, b) => {
-      const diff = a.bookOrder - b.bookOrder;
+      const av = a.bookOrder ?? Number.POSITIVE_INFINITY;
+      const bv = b.bookOrder ?? Number.POSITIVE_INFINITY;
+      const diff = av - bv;
       return diff !== 0 ? diff : a.id.localeCompare(b.id);
     });
   }, [nodes]);
@@ -108,12 +113,21 @@ export function FullBookLane({
           const slId = primaryStorylineId(node);
           const color = (slId ? storylineById.get(slId)?.color : null) || 'hsl(var(--ink-4))';
           const isActive = node.id === activeNodeId;
-          const isDraft = node.wordCount === 0;
+          // Mutually-exclusive status classes. The intermediate AI states
+          // (waiting_review, revising) fall through to is-draft for now —
+          // user intent until the AI pipeline ships.
+          const status = node.writingStatus;
+          const stateClass =
+            status === 'finished'
+              ? ' is-finished'
+              : status === 'discarded'
+                ? ' is-discarded'
+                : ' is-draft';
           return (
             <button
               type="button"
               key={node.id}
-              className={`fbl__chip${isActive ? ' is-active' : ''}${isDraft ? ' is-draft' : ''}`}
+              className={`fbl__chip${isActive ? ' is-active' : ''}${stateClass}`}
               style={
                 {
                   left: chipLayout.lefts[idx],
@@ -125,7 +139,7 @@ export function FullBookLane({
                 e.stopPropagation();
                 onNodeClick?.(node.id);
               }}
-              title={`§ ${String(node.bookOrder).padStart(2, '0')} · ${node.title || '未命名'}`}
+              title={`§ ${String(node.bookOrder ?? 0).padStart(2, '0')} · ${node.title || '未命名'}`}
             >
               <span className="fbl__chip-dot" aria-hidden />
               <span className="fbl__chip-title">{node.title || '未命名'}</span>

@@ -4,7 +4,7 @@ import type { Editor } from '@tiptap/core';
 import { extractOutline, serializeOutline, type OutlineItem } from '../../lib/outline';
 import { type EntityLinkRef } from '../../lib/extensions/entity-link';
 import { isBlockType } from '../../lib/extensions/block-id';
-import { useEntityEditor } from '../../hooks/useEntityEditor';
+import { useEntityEditor, type EditorCommentRequest } from '../../hooks/useEntityEditor';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
@@ -36,6 +36,7 @@ interface ChapterEditorProps {
   // Live outline of the chapter's headings (h1/h2/h3). Fires on load and
   // after every edit. Used by NodeEditorView to render the left TOC rail.
   onOutlineChange?: (outline: OutlineItem[]) => void;
+  onAddCommentRequest?: (request: EditorCommentRequest) => void;
 
   // 显示选项
   showTitle?: boolean;
@@ -69,6 +70,7 @@ export function ChapterEditor({
   onSummaryUpdate,
   onEntityClick,
   onOutlineChange,
+  onAddCommentRequest,
   showTitle = false,
   showSummary = false,
   editableTitle = false,
@@ -145,6 +147,7 @@ export function ChapterEditor({
     autoFocus,
     minHeight,
     selectionKey,
+    onAddCommentRequest,
     slashExtraItems: [
       {
         id: 'patch',

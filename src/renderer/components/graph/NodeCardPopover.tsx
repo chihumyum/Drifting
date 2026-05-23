@@ -243,7 +243,8 @@ export function NodeCardPopover({
     };
   })();
 
-  const labelNum = `§ ${String(node.bookOrder).padStart(2, '0')}`;
+  const labelNum =
+    node.bookOrder != null ? `§ ${String(node.bookOrder).padStart(2, '0')}` : '§ —';
 
   return (
     <>

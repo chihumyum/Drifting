@@ -301,8 +301,12 @@ function ChapterStats({
               </MetaV>
             </>
           )}
-          <MetaK>书序</MetaK>
-          <MetaV>第 {node.bookOrder} 章</MetaV>
+          {node.bookOrder != null && (
+            <>
+              <MetaK>书序</MetaK>
+              <MetaV>第 {node.bookOrder} 章</MetaV>
+            </>
+          )}
           <MetaK>最近修改</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(node.updatedAt)}</SerifSpan>

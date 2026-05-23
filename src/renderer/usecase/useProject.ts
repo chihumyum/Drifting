@@ -33,7 +33,6 @@ import {
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
-  StoryStageTable,
 } from '../schema/drizzle';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('UseProject');
@@ -61,7 +60,6 @@ export interface ProjectStats {
   storylineLinks: number;
   elements: number;
   categories: number;
-  storyStages: number;
   edges: number;
   entityReferences: number;
 }
@@ -90,7 +88,6 @@ const EMPTY_PROJECT_STATS: ProjectStats = {
   storylineLinks: 0,
   elements: 0,
   categories: 0,
-  storyStages: 0,
   edges: 0,
   entityReferences: 0,
 };
@@ -152,7 +149,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     storylines,
     elements,
     elementCategories,
-    storyStages,
   ] = await Promise.all([
     db
       .select({ id: BookNodeTable.id, wordCount: BookNodeTable.wordCount })
@@ -171,10 +167,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
       .select({ id: ElementCategoryTable.id })
       .from(ElementCategoryTable)
       .where(eq(ElementCategoryTable.projectId, projectId)),
-    db
-      .select({ id: StoryStageTable.id })
-      .from(StoryStageTable)
-      .where(eq(StoryStageTable.projectId, projectId)),
   ]);
 
   const nodeIds = nodes.map((node) => node.id);
@@ -203,7 +195,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     storylineLinks: nodeStorylineLinks.length,
     elements: elements.length,
     categories: elementCategories.length,
-    storyStages: storyStages.length,
     edges: nodeEdges.length,
     entityReferences: entityReferences.length,
   };

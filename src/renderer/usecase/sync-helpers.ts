@@ -148,18 +148,6 @@ export function syncCategoryDelete(id: string, projectId: string) {
   enqueueSync('elementCategory', 'delete', id, projectId);
 }
 
-export function syncStageCreate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('storyStage', 'create', id, projectId, payload);
-}
-
-export function syncStageUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('storyStage', 'update', id, projectId, payload);
-}
-
-export function syncStageDelete(id: string, projectId: string) {
-  enqueueSync('storyStage', 'delete', id, projectId);
-}
-
 export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {
   enqueueSync('memo', 'create', id, projectId, payload);
 }
@@ -204,3 +192,42 @@ export function syncEntityReferenceDelete(id: string, projectId: string) {
   enqueueSync('entityReference', 'delete', id, projectId);
 }
 
+export function syncManuscriptCommentCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('manuscriptComment', 'create', id, projectId, payload);
+}
+
+export function syncManuscriptCommentUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('manuscriptComment', 'update', id, projectId, payload);
+}
+
+export function syncManuscriptCommentDelete(id: string, projectId: string) {
+  enqueueSync('manuscriptComment', 'delete', id, projectId);
+}
+
+export function syncCommentActionCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('commentAction', 'create', id, projectId, payload);
+}
+
+export function syncCommentActionUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('commentAction', 'update', id, projectId, payload);
+}
+
+export function syncCommentActionDelete(id: string, projectId: string) {
+  enqueueSync('commentAction', 'delete', id, projectId);
+}

@@ -7,6 +7,7 @@ import {
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode, BookNodeEdge } from '../domain/book-node.ts';
+import { compareBookOrder, isChapter } from '../domain/book-node.ts';
 import { initDatabase, getDb } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
@@ -26,10 +27,12 @@ const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
 
 export interface CreateNodeUsecaseInput {
-  storyStageId?: string;
   // null = drift node (no storyline membership)
   mainStorylineId: string | null;
-  bookOrder: number;
+  // Optional / nullable: drift nodes (mainStorylineId == null) have no
+  // place on the reading axis. Callers creating a chapter should pass the
+  // computed bookOrder; drift callers should omit it or pass null.
+  bookOrder?: number | null;
   narrativeOrder?: number | null;
   title?: string;
   position?: BookNode['position'];
@@ -96,7 +99,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       'ids:',
       nodes.map((n) => n.id),
     );
-    const sorted = nodes.slice().sort((a, b) => a.bookOrder - b.bookOrder);
+    const sorted = nodes.slice().sort(compareBookOrder);
     setNodesState(sorted);
     return sorted;
   }, [nodeRepo, ensureDb, setNodesState]);
@@ -118,15 +121,12 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       }
 
       const now = new Date().toISOString();
-      const newNode: BookNode = {
+      const baseFields = {
         id: uuidv7(),
         title: input.title ?? 'New Node',
         projectId: activeProjectId,
-        bookOrder: input.bookOrder,
         narrativeOrder: input.narrativeOrder ?? null,
         summary: '',
-        storyStageId: input.storyStageId ?? null,
-        mainStorylineId: input.mainStorylineId,
         position: input.position ?? {
           // TODO: properly fit the graph node
           x: (Math.random() - 0.5) * 600,
@@ -136,6 +136,23 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         createdAt: now,
         updatedAt: now,
       };
+      // Drift vs chapter is the discriminator — build the correct variant
+      // so the domain invariant `drift => bookOrder == null` is enforced at
+      // the source and TypeScript can narrow downstream.
+      const newNode: BookNode =
+        input.mainStorylineId == null
+          ? {
+              ...baseFields,
+              mainStorylineId: null,
+              bookOrder: null,
+              writingStatus: 'drifting',
+            }
+          : {
+              ...baseFields,
+              mainStorylineId: input.mainStorylineId,
+              bookOrder: input.bookOrder ?? 0,
+              writingStatus: 'draft',
+            };
 
       // Seed the new node's content from its main storyline's
       // nodeContentTemplateJson when one is set; otherwise fall back to an
@@ -150,7 +167,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           ? templateJson
           : emptyDocJson;
 
-      const nextNodes = [...prevNodes, newNode].sort((a, b) => a.bookOrder - b.bookOrder);
+      const nextNodes = [...prevNodes, newNode].sort(compareBookOrder);
 
       return withOptimisticUpdate({
         apply: () => setNodesState(nextNodes),
@@ -175,7 +192,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
           const current = getNodesState();
           const merged = current
             .map((node) => (node.id === created.id ? created : node))
-            .sort((a, b) => a.bookOrder - b.bookOrder);
+            .sort(compareBookOrder);
           setNodesState(merged);
           if (created.mainStorylineId) {
             addNodeToStorylineMappingState(created.mainStorylineId, created.id);
@@ -188,10 +205,10 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             summary: created.summary,
             bookOrder: created.bookOrder,
             narrativeOrder: created.narrativeOrder,
-            storyStageId: created.storyStageId,
             mainStorylineId: created.mainStorylineId,
             positionX: created.position.x,
             positionY: created.position.y,
+            writingStatus: created.writingStatus,
           });
           // Push the seeded content too so a fresh-from-template node shows
           // up filled-in on other devices before the user touches the editor.
@@ -239,34 +256,32 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   const reorderNode = useCallback(
     async (id: string, direction: 'up' | 'down') => {
       await ensureDb();
-      const nodes = getNodesState()
-        .slice()
-        .sort((a, b) => a.bookOrder - b.bookOrder);
-      const index = nodes.findIndex((node) => node.id === id);
+      // Reorder only walks chapters — drift has no bookOrder axis to permute.
+      const allNodes = getNodesState();
+      const chapters = allNodes.filter(isChapter).slice().sort((a, b) => a.bookOrder - b.bookOrder);
+      const index = chapters.findIndex((node) => node.id === id);
       if (index === -1) return;
 
       const swapIndex = direction === 'up' ? index - 1 : index + 1;
-      if (swapIndex < 0 || swapIndex >= nodes.length) return;
+      if (swapIndex < 0 || swapIndex >= chapters.length) return;
 
-      const current = nodes[index];
-      const target = nodes[swapIndex];
+      const current = chapters[index];
+      const target = chapters[swapIndex];
       const currentOrder = current.bookOrder;
       const targetOrder = target.bookOrder;
       const now = new Date().toISOString();
 
-      const nextNodes = nodes
-        .map((node) => {
-          if (node.id === current.id) {
-            return { ...node, bookOrder: targetOrder, updatedAt: now };
-          }
-          if (node.id === target.id) {
-            return { ...node, bookOrder: currentOrder, updatedAt: now };
-          }
-          return node;
-        })
-        .sort((a, b) => a.bookOrder - b.bookOrder);
+      const nextNodes: BookNode[] = allNodes.map((node) => {
+        if (node.id === current.id && isChapter(node)) {
+          return { ...node, bookOrder: targetOrder, updatedAt: now };
+        }
+        if (node.id === target.id && isChapter(node)) {
+          return { ...node, bookOrder: currentOrder, updatedAt: now };
+        }
+        return node;
+      });
 
-      const prev = getNodesState().slice();
+      const prev = allNodes.slice();
 
       return withOptimisticUpdate({
         apply: () => setNodesState(nextNodes),

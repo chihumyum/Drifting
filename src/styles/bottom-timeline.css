@@ -564,8 +564,37 @@
   color: var(--clip-color, hsl(var(--ink-3)));
   border: 1px dashed var(--clip-color, hsl(var(--ink-3)));
 }
+/* Writing status: finished. No CSS needed — the base `.btl-clip` rule
+   already renders solid `--clip-color` + paper text, which is exactly the
+   "实色背景 + 白字" treatment the design calls for. The class is still
+   emitted by JSX to keep the status taxonomy explicit and to give CSS a
+   hook if we ever need finished-only tweaks. */
+
+/* Writing status: discarded — soft-deleted. Mute the card to paper-deep,
+   strike through the title, knock it back with opacity so it's clearly
+   parked but still scannable + clickable. */
+.btl-clip.is-discarded {
+  background: hsl(var(--paper-deep));
+  color: hsl(var(--ink-3));
+  border: 1px dashed hsl(var(--rule-strong));
+  opacity: 0.6;
+}
+.btl-clip.is-discarded:hover {
+  opacity: 0.9;
+  filter: none;
+}
+.btl-clip.is-discarded .btl-clip__title {
+  color: hsl(var(--ink-3));
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4));
+}
+.btl-clip.is-selected.is-discarded {
+  opacity: 1;
+}
+
 .btl-clip.is-selected,
-.btl-clip.is-selected.is-draft {
+.btl-clip.is-selected.is-draft,
+.btl-clip.is-selected.is-discarded {
   /* Same shape as the very first selection style (2px outline + soft
      depth shadow), but the outline borrows the tile's storyline color
      from the inline `--clip-color` var so it reads as "this storyline's

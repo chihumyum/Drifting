@@ -204,6 +204,22 @@
 .drift-card.is-dragged {
   opacity: 0.2;
 }
+/* Drift status: resting — parked, no longer in active rotation. Dim the
+   card so active (drifting) notes stand out, but keep it interactive: the
+   user might pull it back out, so it shouldn't read as disabled. */
+.drift-card.is-resting {
+  opacity: 0.55;
+  background: hsl(var(--paper-deep));
+  border-style: dashed;
+  border-color: hsl(var(--rule));
+}
+.drift-card.is-resting:hover {
+  opacity: 0.85;
+}
+.drift-card.is-resting .drift-card__title,
+.drift-card.is-resting .drift-card__summary {
+  color: hsl(var(--ink-3));
+}
 
 .drift-card__num {
   font-family: var(--font-mono);

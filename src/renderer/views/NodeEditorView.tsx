@@ -3,23 +3,40 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useStoryline } from '../usecase/useStoryline';
 import { useBookContent } from '../usecase/useBookContent';
-import { BookNode } from '../domain/book-node';
+import {
+  BookNode,
+  CHAPTER_WRITING_STATUSES,
+  CHAPTER_ORDER_STRIDE,
+  DRIFT_STATUSES,
+  isChapter,
+  type WritingStatus,
+} from '../domain/book-node';
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
+import { CommentRail } from '../components/editor/CommentRail';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import type { OutlineItem } from '../lib/outline';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
-import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import {
+  CONVERT_DRIFT_TO_CHAPTER_ACTION,
+  CONVERT_DRIFT_TO_ELEMENT_ACTION,
+  EditorCrumb,
+  EditorTopBar,
+  SET_STATUS_ACTION_PREFIX,
+} from '../components/editor/EditorTopBar';
+import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
+import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { usePromoteCurrentTab } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
+import type { EditorCommentRequest } from '../hooks/useEntityEditor';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 function toRoman(n: number): string {
@@ -71,13 +88,53 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const activeProjectId = projectId;
   const activeUserId = userId;
   const promoteCurrentTab = usePromoteCurrentTab(activeProjectId);
-  const { bookNodes, storylines, nodeStorylineMapping, storylineNodeMapping } = useDataStore();
+  const {
+    bookNodes,
+    storylines,
+    nodeStorylineMapping,
+    storylineNodeMapping,
+    manuscriptComments,
+    bookElementCategories,
+  } = useDataStore();
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
   const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const marginNotes = useSettingsStore((state) => state.marginNotes);
+  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
+  const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
+  const toggleEntityLinkInteractive = useCallback(
+    () => setEntityLinkInteractive(!entityLinkInteractive),
+    [entityLinkInteractive, setEntityLinkInteractive],
+  );
+  const commentCount = useMemo(
+    () =>
+      manuscriptComments.filter(
+        (comment) =>
+          comment.projectId === activeProjectId &&
+          comment.targetKind === 'node' &&
+          comment.targetId === (nodeId ?? '') &&
+          comment.status !== 'converted',
+      ).length,
+    [activeProjectId, manuscriptComments, nodeId],
+  );
+  const toggleComments = useCallback(() => {
+    if (!marginNotes && commentCount === 0) return;
+    const next = !marginNotes;
+    setMarginNotes(next);
+    if (!next) setPendingComment(null);
+  }, [commentCount, marginNotes, setMarginNotes]);
+  const handleAddCommentRequest = useCallback(
+    (request: EditorCommentRequest) => {
+      setMarginNotes(true);
+      setPendingComment(request);
+    },
+    [setMarginNotes],
+  );
   const activeOutlineId = useOutlineScrollspy(
     scrollEl,
     outline.map((h) => h.id),
@@ -100,6 +157,19 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     userId: activeUserId,
     projectId: activeProjectId,
   });
+  // Element usecase — used by the drift→element conversion path (createElement
+  // then updateElement to inject the drift's existing content/summary).
+  const { createElement, updateElement } = useBookElement({
+    userId: activeUserId,
+    projectId: activeProjectId,
+  });
+
+  // Drift conversion modal. `null` = closed; otherwise the target picks which
+  // candidate list to show (storylines vs categories) and which write path to
+  // run on confirm.
+  const [conversionTarget, setConversionTarget] = useState<'chapter' | 'element' | null>(null);
+  const [conversionPickedId, setConversionPickedId] = useState<string | null>(null);
+  const [conversionBusy, setConversionBusy] = useState(false);
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
   const activeNodeIdRef = useRef<string | null>(nodeId ?? null);
@@ -155,6 +225,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     return ids
       .map((id) => bookNodeById.get(id))
       .filter((n): n is BookNode => Boolean(n))
+      .filter(isChapter)
       .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodeById, mainStoryline, storylineNodeMapping]);
 
@@ -403,6 +474,45 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         return;
       }
 
+      if (action === CONVERT_DRIFT_TO_CHAPTER_ACTION) {
+        if (curNode.mainStorylineId != null) return;
+        if (storylines.length === 0) {
+          alert('请先在左侧或时间轴新建一条 Storyline，才能把 drift 转换为章节。');
+          return;
+        }
+        setConversionPickedId(storylines[0].id);
+        setConversionTarget('chapter');
+        return;
+      }
+
+      if (action === CONVERT_DRIFT_TO_ELEMENT_ACTION) {
+        if (curNode.mainStorylineId != null) return;
+        if (bookElementCategories.length === 0) {
+          alert('请先在元素超视图新建一个 Category，才能把 drift 转换为元素。');
+          return;
+        }
+        setConversionPickedId(bookElementCategories[0].id);
+        setConversionTarget('element');
+        return;
+      }
+
+      if (action.startsWith(SET_STATUS_ACTION_PREFIX)) {
+        const next = action.slice(SET_STATUS_ACTION_PREFIX.length) as WritingStatus;
+        // Only accept values from the enum that matches this node's kind so
+        // chapter and drift status sets stay disjoint (you can't drop a
+        // drift node into "finished" via a stale menu, etc.).
+        const allowed =
+          curNode.mainStorylineId == null ? DRIFT_STATUSES : CHAPTER_WRITING_STATUSES;
+        if (!allowed.includes(next as never) || next === curNode.writingStatus) return;
+        try {
+          await updateNode(nodeId, { writingStatus: next });
+        } catch (error) {
+          log.error('[NodeEditor] Failed to set writing status:', error);
+          alert('Failed to update writing status. Please try again.');
+        }
+        return;
+      }
+
       if (action === 'deleteNode') {
         const confirmed = window.confirm(`Delete node "${curNode.title}"?`);
         if (!confirmed) return;
@@ -416,8 +526,97 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         }
       }
     },
-    [curNode, deleteNode, navigateToHome, nodeId, openStorylineEditor],
+    [
+      curNode,
+      deleteNode,
+      navigateToHome,
+      nodeId,
+      openStorylineEditor,
+      updateNode,
+      storylines,
+      bookElementCategories,
+    ],
   );
+
+  const handleConfirmConversion = useCallback(async () => {
+    if (!curNode || !nodeId || !conversionTarget || !conversionPickedId) return;
+    if (curNode.mainStorylineId != null) {
+      // Sanity: somehow the node became a chapter between modal-open and
+      // confirm — bail without writing.
+      setConversionTarget(null);
+      return;
+    }
+
+    setConversionBusy(true);
+    try {
+      if (conversionTarget === 'chapter') {
+        // Single write: setting mainStorylineId pulls the drift into the
+        // picked storyline (the useBookNode update path also creates the
+        // node↔storyline link transactionally), and the status flip from
+        // drift→draft puts it on the chapter axis.
+        //
+        // Drift nodes carry no bookOrder — when we lift one into a chapter
+        // we have to assign one. Append to the tail of the global chapter
+        // axis, jumping by CHAPTER_ORDER_STRIDE so the new tile lands next
+        // to (not overlapping) the current last chapter.
+        const maxChapterOrder = bookNodes
+          .filter(isChapter)
+          .reduce((max, n) => Math.max(max, n.bookOrder), 0);
+        await updateNode(nodeId, {
+          mainStorylineId: conversionPickedId,
+          writingStatus: 'draft',
+          bookOrder: maxChapterOrder + CHAPTER_ORDER_STRIDE,
+        });
+      } else {
+        // Element conversion is destructive: we lift the drift's title /
+        // summary / content into a brand-new BookElement, then delete the
+        // drift (its NodeEdges cascade away with it — those edges referred
+        // to a node-shaped entity and don't survive the schema change).
+        //
+        // The drift's content may not have been hydrated into bookContent
+        // yet (e.g. user opened the menu before the content loader ran),
+        // so pull from the repo as the source of truth.
+        const driftContent = await getContentByNodeId(nodeId);
+        // Lift the drift's title onto the new element so the rename the user
+        // gave the drift carries over. createElement handles the empty-string
+        // fallback itself — don't pre-fill 'Untitled' here, that would mask a
+        // real empty drift title and leak an English placeholder.
+        const created = await createElement({
+          categoryId: conversionPickedId,
+          name: curNode.title,
+        });
+        if (!created) throw new Error('createElement returned no row');
+        await updateElement(created.id, {
+          summary: curNode.summary,
+          contentJson: driftContent?.contentJson ?? '{}',
+        });
+        await deleteNode(nodeId);
+        setConversionTarget(null);
+        setConversionPickedId(null);
+        navigateToElement(created.id);
+        return;
+      }
+      setConversionTarget(null);
+      setConversionPickedId(null);
+    } catch (error) {
+      log.error('[NodeEditor] Drift conversion failed:', error);
+      alert('转换失败，请重试。');
+    } finally {
+      setConversionBusy(false);
+    }
+  }, [
+    bookNodes,
+    conversionPickedId,
+    conversionTarget,
+    createElement,
+    curNode,
+    deleteNode,
+    getContentByNodeId,
+    navigateToElement,
+    nodeId,
+    updateElement,
+    updateNode,
+  ]);
 
   const storylineColor = mainStoryline?.color || '#8A2A1E';
   const chapterRoman = chapterIndex > 0 ? toRoman(chapterIndex) : '–';
@@ -434,6 +633,21 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           <EditorTopBar
             editorType="node"
             onMenuAction={handleContextAction}
+            // mainStorylineId is the source of truth for "is this a drift
+            // node" — writingStatus is just the per-axis state and can be
+            // stale (e.g. pre-migration drift rows still carrying 'draft').
+            nodeWritingStatus={curNode.writingStatus}
+            nodeStatusKind={curNode.mainStorylineId == null ? 'drift' : 'chapter'}
+            referenceLinkToggle={{
+              enabled: entityLinkInteractive,
+              onToggle: toggleEntityLinkInteractive,
+            }}
+            commentToggle={{
+              enabled: marginNotes,
+              count: commentCount,
+              disabled: !marginNotes && commentCount === 0,
+              onToggle: toggleComments,
+            }}
             right={
               <>
                 <span>{curNode.wordCount.toLocaleString()} 字</span>
@@ -518,7 +732,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               footRight={`${curNode.wordCount.toLocaleString()} 字`}
               emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
             />
-            <div className="editor-scroll" ref={setScrollEl}>
+            <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
               <article className="page">
                 <div className="page__folio" aria-hidden="true">
@@ -549,6 +763,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   onSummaryUpdate={handleSummaryUpdate}
                   onEntityClick={handleEntityClick}
                   onOutlineChange={setOutline}
+                  onAddCommentRequest={handleAddCommentRequest}
                   showTitle={true}
                   showSummary={true}
                   editableTitle={true}
@@ -563,13 +778,18 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
                 <div className="page__ornament" aria-hidden="true">⁂</div>
               </article>
+              {marginNotes && (
+                <CommentRail
+                  projectId={activeProjectId}
+                  targetKind="node"
+                  targetId={nodeId ?? ''}
+                  scrollEl={scrollEl}
+                  pendingRequest={pendingComment}
+                  onPendingRequestChange={setPendingComment}
+                />
+              )}
               </div>
             </div>
-            {/* DEFERRED: right-side margin annotations (Word-style notes
-                anchored to paragraphs / blocks). No column reserved while
-                the feature doesn't exist — page gets the recovered width.
-                When annotations land, drop a right-aligned column inside
-                .editor-body and restore the spread's flex behaviour. */}
           </div>
         </>
       )}
@@ -754,6 +974,231 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           </div>
         </div>
       )}
+
+      {conversionTarget && curNode && (
+        <ConversionPickerModal
+          target={conversionTarget}
+          nodeTitle={curNode.title}
+          pickedId={conversionPickedId}
+          busy={conversionBusy}
+          storylines={storylines}
+          categories={bookElementCategories}
+          onPick={setConversionPickedId}
+          onCancel={() => {
+            if (conversionBusy) return;
+            setConversionTarget(null);
+            setConversionPickedId(null);
+          }}
+          onConfirm={handleConfirmConversion}
+        />
+      )}
+    </div>
+  );
+}
+
+interface ConversionPickerModalProps {
+  target: 'chapter' | 'element';
+  nodeTitle: string;
+  pickedId: string | null;
+  busy: boolean;
+  storylines: Storyline[];
+  categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
+  onPick: (id: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function ConversionPickerModal({
+  target,
+  nodeTitle,
+  pickedId,
+  busy,
+  storylines,
+  categories,
+  onPick,
+  onCancel,
+  onConfirm,
+}: ConversionPickerModalProps) {
+  const isChapter = target === 'chapter';
+  const options = isChapter
+    ? storylines.map((s) => ({ id: s.id, name: s.name, color: s.color }))
+    : categories.map((c) => ({ id: c.id, name: c.name, color: c.color }));
+  const title = isChapter ? '转换为章节' : '转换为元素';
+  const subtitle = isChapter
+    ? '选择该 drift 归属的 storyline。状态会重置为 draft。'
+    : '选择该 drift 归属的 category。drift 节点会被删除，内容迁移到新建元素中。';
+  const confirmLabel = isChapter ? '转换为章节' : '转换为元素';
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1000,
+        background: 'rgba(35, 28, 20, 0.32)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          width: 'min(460px, 100%)',
+          maxHeight: '80vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#fefdfb',
+          border: '1px solid var(--accent-border, #e8dcc8)',
+          borderRadius: 10,
+          boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
+        }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: '20px 22px 14px',
+            borderBottom: '1px solid rgba(184, 153, 104, 0.18)',
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>{title}</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{nodeTitle || 'Untitled'}</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#a39787', lineHeight: 1.4 }}>
+            {subtitle}
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: 14,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
+          {options.length === 0 && (
+            <div
+              style={{
+                padding: 24,
+                textAlign: 'center',
+                color: '#a39787',
+                fontStyle: 'italic',
+                fontSize: 13,
+              }}
+            >
+              {isChapter ? '没有可用的 Storyline' : '没有可用的 Category'}
+            </div>
+          )}
+          {options.map((opt) => {
+            const selected = pickedId === opt.id;
+            return (
+              <button
+                type="button"
+                key={opt.id}
+                onClick={() => onPick(opt.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  border: selected
+                    ? `1px solid ${opt.color || '#b89968'}`
+                    : '1px solid rgba(184, 153, 104, 0.18)',
+                  background: selected ? `${opt.color || '#b89968'}14` : '#fffaf2',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: 14,
+                  fontWeight: selected ? 600 : 500,
+                  color: '#2a1a0a',
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: opt.color || '#b89968',
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {opt.name || 'Untitled'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            padding: '12px 18px 16px',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            borderTop: '1px solid rgba(184, 153, 104, 0.12)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: '1px solid rgba(184, 153, 104, 0.4)',
+              background: 'transparent',
+              cursor: busy ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              color: '#5a4a3a',
+            }}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy || !pickedId || options.length === 0}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: 'none',
+              // `--accent` is stored as raw HSL components — must be wrapped
+              // in `hsl()` to render as a color. The old `var(--accent, ...)`
+              // produced an invalid value, leaving the button transparent
+              // and the light text unreadable.
+              background:
+                busy || !pickedId || options.length === 0
+                  ? 'hsl(var(--ink-4))'
+                  : 'hsl(var(--accent))',
+              color: 'hsl(var(--accent-foreground))',
+              cursor: busy || !pickedId || options.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            {busy ? '转换中…' : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

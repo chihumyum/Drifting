@@ -1,4 +1,4 @@
-import { MoreVertical } from 'lucide-react';
+import { Check, Link2, MessageSquare, MoreVertical } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -8,8 +8,34 @@ import {
   useRef,
   useState,
 } from 'react';
+import {
+  CHAPTER_WRITING_STATUSES,
+  DRIFT_STATUSES,
+  type WritingStatus,
+} from '../../domain/book-node';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
+
+// `chapter` for storyline-anchored nodes (the WritingStatus pipeline);
+// `drift` for free-floating drift nodes (drifting / resting).
+export type NodeStatusKind = 'chapter' | 'drift';
+
+export const SET_STATUS_ACTION_PREFIX = 'setWritingStatus:';
+
+const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
+  draft: '草稿',
+  waiting_review: '等待 AI 审阅',
+  revising: '修订中',
+  finished: '已完成',
+  discarded: '已弃用',
+  drifting: '漂浮中',
+  resting: '休眠',
+};
+
+const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
+  chapter: '写作状态',
+  drift: 'Drift 状态',
+};
 
 /*
   Shared editor top bar:
@@ -23,9 +49,34 @@ interface EditorTopBarProps {
   right?: ReactNode;
   editorType?: EditorType;
   onMenuAction?: (action: string) => void;
+  // Only used when editorType === 'node'. Drives the status section at the
+  // top of the three-dot menu; the current value is shown with a check.
+  // `nodeStatusKind` picks the enum/labels (chapter or drift); both must be
+  // supplied together for the section to render.
+  nodeWritingStatus?: WritingStatus;
+  nodeStatusKind?: NodeStatusKind;
+  commentToggle?: {
+    enabled: boolean;
+    count: number;
+    disabled?: boolean;
+    onToggle: () => void;
+  };
+  referenceLinkToggle?: {
+    enabled: boolean;
+    onToggle: () => void;
+  };
 }
 
-export function EditorTopBar({ children, right, editorType, onMenuAction }: EditorTopBarProps) {
+export function EditorTopBar({
+  children,
+  right,
+  editorType,
+  onMenuAction,
+  nodeWritingStatus,
+  nodeStatusKind,
+  commentToggle,
+  referenceLinkToggle,
+}: EditorTopBarProps) {
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
 
@@ -34,8 +85,45 @@ export function EditorTopBar({ children, right, editorType, onMenuAction }: Edit
       <div className="editor-crumbs">{crumbs}</div>
       <div className="editor-bar__right">
         {right}
+        {referenceLinkToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={referenceLinkToggle.enabled ? '隐藏引用链接样式' : '显示引用链接样式'}
+            aria-pressed={referenceLinkToggle.enabled}
+            onClick={referenceLinkToggle.onToggle}
+          >
+            <Link2 size={14} />
+          </button>
+        )}
+        {commentToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={
+              commentToggle.disabled
+                ? 'No comments'
+                : commentToggle.enabled
+                  ? 'Hide comments'
+                  : 'Show comments'
+            }
+            aria-pressed={commentToggle.enabled}
+            disabled={commentToggle.disabled}
+            onClick={commentToggle.onToggle}
+          >
+            <MessageSquare size={14} />
+            {commentToggle.count > 0 && (
+              <span className="editor-bar__badge">{commentToggle.count}</span>
+            )}
+          </button>
+        )}
         {showMenu && editorType && onMenuAction && (
-          <EditorBarMenu editorType={editorType} onAction={onMenuAction} />
+          <EditorBarMenu
+            editorType={editorType}
+            onAction={onMenuAction}
+            nodeWritingStatus={nodeWritingStatus}
+            nodeStatusKind={nodeStatusKind}
+          />
         )}
       </div>
     </div>
@@ -116,9 +204,16 @@ export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCru
 interface EditorBarMenuProps {
   editorType: EditorType;
   onAction: (action: string) => void;
+  nodeWritingStatus?: WritingStatus;
+  nodeStatusKind?: NodeStatusKind;
 }
 
-function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
+function EditorBarMenu({
+  editorType,
+  onAction,
+  nodeWritingStatus,
+  nodeStatusKind,
+}: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -149,8 +244,15 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
     };
   }, [isOpen]);
 
-  const items = getMenuItems(editorType);
-  if (items.length === 0) return null;
+  const items = getMenuItems(editorType, nodeStatusKind);
+  const showStatus =
+    editorType === 'node' && nodeWritingStatus !== undefined && nodeStatusKind !== undefined;
+  const statusOptions: readonly WritingStatus[] = showStatus
+    ? nodeStatusKind === 'drift'
+      ? DRIFT_STATUSES
+      : CHAPTER_WRITING_STATUSES
+    : [];
+  if (items.length === 0 && !showStatus) return null;
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
@@ -166,6 +268,31 @@ function EditorBarMenu({ editorType, onAction }: EditorBarMenuProps) {
 
       {isOpen && (
         <div className="editor-bar__menu">
+          {showStatus && nodeStatusKind && (
+            <>
+              <div className="editor-bar__menu-section-label">
+                {STATUS_SECTION_LABEL[nodeStatusKind]}
+              </div>
+              {statusOptions.map((status) => {
+                const active = status === nodeWritingStatus;
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`editor-bar__menu-item editor-bar__menu-item--status${active ? ' editor-bar__menu-item--active' : ''}`}
+                    onClick={() => {
+                      if (!active) onAction(`${SET_STATUS_ACTION_PREFIX}${status}`);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <span>{WRITING_STATUS_LABELS[status]}</span>
+                    {active && <Check size={12} />}
+                  </button>
+                );
+              })}
+              {items.length > 0 && <div className="editor-bar__menu-divider" />}
+            </>
+          )}
           {items.map((item) => (
             <button
               key={item.action}
@@ -191,9 +318,25 @@ interface MenuItem {
   danger?: boolean;
 }
 
-function getMenuItems(editorType: EditorType): MenuItem[] {
+// Action names for drift → chapter / element conversions. Surfaced as named
+// exports so NodeEditorView can branch on them without string duplication.
+export const CONVERT_DRIFT_TO_CHAPTER_ACTION = 'convertDriftToChapter';
+export const CONVERT_DRIFT_TO_ELEMENT_ACTION = 'convertDriftToElement';
+
+function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatusKind): MenuItem[] {
   switch (editorType) {
     case 'node':
+      // Drift nodes don't belong to a storyline yet — multi-select
+      // "edit storylines" doesn't make sense pre-conversion. Surface the
+      // conversion entries instead. Once converted, the menu naturally
+      // flips back to the chapter set because nodeStatusKind changes.
+      if (nodeStatusKind === 'drift') {
+        return [
+          { action: CONVERT_DRIFT_TO_CHAPTER_ACTION, label: '转换为章节…' },
+          { action: CONVERT_DRIFT_TO_ELEMENT_ACTION, label: '转换为元素…' },
+          { action: 'deleteNode', label: 'Delete Node', danger: true },
+        ];
+      }
       return [
         { action: 'editNodeStorylines', label: 'Edit Storylines' },
         { action: 'deleteNode', label: 'Delete Node', danger: true },

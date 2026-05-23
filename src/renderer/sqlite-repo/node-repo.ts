@@ -1,7 +1,12 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, NodeEdgeTable, ProjectTable } from '../schema/drizzle';
 import { eq, asc } from 'drizzle-orm';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type {
+  BookNode,
+  BookNodeEdge,
+  ChapterWritingStatus,
+  DriftStatus,
+} from '../domain/book-node';
 
 import loglevel from 'loglevel';
 
@@ -9,9 +14,22 @@ const log = loglevel.getLogger('BookNodeRepository');
 log.setLevel(loglevel.levels.WARN);
 
 export type BookNodeCreateData = BookNode;
-export type BookNodeUpdateData = Partial<Omit<BookNode, 'id' | 'createdAt'>> & {
+// Flat update shape — BookNode is a discriminated union so `Partial<BookNode>`
+// can't carry cross-variant fields (e.g. switching a drift into a chapter by
+// setting mainStorylineId + bookOrder + writingStatus together). The repo
+// only persists field-by-field, so a flat partial is the right tool here.
+export interface BookNodeUpdateData {
+  title?: string;
+  summary?: string;
+  bookOrder?: number | null;
+  narrativeOrder?: number | null;
+  mainStorylineId?: string | null;
+  projectId?: string;
+  position?: { x?: number | null; y?: number | null };
+  wordCount?: number;
+  writingStatus?: ChapterWritingStatus | DriftStatus;
   updatedAt: string;
-};
+}
 export type BookNodeEdgeUpdateData = Partial<BookNodeEdge>;
 
 export interface BookNodeRepository {
@@ -21,8 +39,8 @@ export interface BookNodeRepository {
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
   swapOrder(
-    first: Pick<BookNode, 'id' | 'bookOrder'>,
-    second: Pick<BookNode, 'id' | 'bookOrder'>,
+    first: { id: string; bookOrder: number },
+    second: { id: string; bookOrder: number },
   ): Promise<void>;
 }
 
@@ -39,22 +57,35 @@ export interface BookNodeDataSource {
 }
 
 function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
-  return {
+  const base = {
     id: record.id,
     projectId: record.projectId,
     title: record.title,
-    bookOrder: record.bookOrder,
-    narrativeOrder: record.narrativeOrder ?? null,
     summary: record.summary,
-    storyStageId: record.storyStageId ?? null,
-    mainStorylineId: record.mainStorylineId ?? null,
-    position: {
-      x: record.positionX,
-      y: record.positionY,
-    },
+    narrativeOrder: record.narrativeOrder ?? null,
+    position: { x: record.positionX, y: record.positionY },
     wordCount: record.wordCount ?? 0,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+  };
+
+  if (record.mainStorylineId == null) {
+    // Drift row. Force bookOrder to null even if the DB still carries a
+    // legacy value — the domain invariant `drift => bookOrder == null` is
+    // enforced here at the boundary so callers never see a stale order.
+    return {
+      ...base,
+      mainStorylineId: null,
+      bookOrder: null,
+      writingStatus: (record.writingStatus ?? 'drifting') as DriftStatus,
+    };
+  }
+
+  return {
+    ...base,
+    mainStorylineId: record.mainStorylineId,
+    bookOrder: record.bookOrder ?? 0,
+    writingStatus: (record.writingStatus ?? 'draft') as ChapterWritingStatus,
   };
 }
 
@@ -129,11 +160,11 @@ export function createBookNodeSqliteRepository(
         bookOrder: data.bookOrder,
         narrativeOrder: data.narrativeOrder,
         summary: data.summary,
-        storyStageId: data.storyStageId ?? null,
         mainStorylineId: data.mainStorylineId ?? null,
         positionX: data.position.x,
         positionY: data.position.y,
         wordCount: data.wordCount ?? 0,
+        writingStatus: data.writingStatus ?? 'draft',
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       };
@@ -145,6 +176,7 @@ export function createBookNodeSqliteRepository(
         positionX: newNode.positionX!,
         positionY: newNode.positionY!,
         wordCount: newNode.wordCount ?? 0,
+        writingStatus: newNode.writingStatus ?? 'draft',
       } as typeof BookNodeTable.$inferSelect);
     },
 
@@ -167,12 +199,11 @@ export function createBookNodeSqliteRepository(
       if (updates.bookOrder !== undefined) updateValues.bookOrder = updates.bookOrder;
       if (updates.narrativeOrder !== undefined) updateValues.narrativeOrder = updates.narrativeOrder;
       if (updates.summary !== undefined) updateValues.summary = updates.summary;
-      if (updates.storyStageId !== undefined)
-        updateValues.storyStageId = updates.storyStageId ?? null;
       if (updates.mainStorylineId !== undefined)
         updateValues.mainStorylineId = updates.mainStorylineId ?? null;
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
       if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
+      if (updates.writingStatus !== undefined) updateValues.writingStatus = updates.writingStatus;
 
       if (updates.position) {
         if (updates.position.x !== undefined && updates.position.x !== null)
@@ -197,7 +228,10 @@ export function createBookNodeSqliteRepository(
       return (result as any).rowsAffected > 0;
     },
 
-    async swapOrder(first: BookNode, second: BookNode) {
+    async swapOrder(
+      first: { id: string; bookOrder: number },
+      second: { id: string; bookOrder: number },
+    ) {
       const now = new Date().toISOString();
       const db = dbProvider();
       if (dbOverride) {

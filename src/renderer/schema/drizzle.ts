@@ -5,7 +5,6 @@ import {
   real,
   primaryKey,
   index,
-  uniqueIndex,
   blob,
 } from 'drizzle-orm/sqlite-core';
 // schema definition in users' local sqlite database.
@@ -71,30 +70,6 @@ export const ElementCategoryTable = sqliteTable(
   (t) => [index('idx_element_category_project').on(t.projectId)],
 );
 
-// Story Stages
-// project(1) <-> storyStage(N)
-// storyStage(1) <-> node(N)
-// Domain: StoryStage
-export const StoryStageTable = sqliteTable(
-  'story_stages',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    descriptionJson: text('description_json').default('{}'),
-    orderKey: integer('order_key').notNull(),
-    color: text('color').notNull(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    uniqueIndex('idx_unique_stage_per_project').on(t.projectId, t.orderKey),
-    index('idx_story_stage_project').on(t.projectId),
-  ],
-);
-
 // Storylines
 // project(1) <-> storyline(N)
 // storyline(N) <-> node(N)
@@ -134,8 +109,9 @@ export const BookNodeTable = sqliteTable(
     // Pure sortable integer for book/reading order. Was `start` back when
     // node tiles had a `start`/`end` "video clip" metaphor; the metaphor was
     // dropped — tiles are fixed-width now and order is the only thing this
-    // value encodes.
-    bookOrder: integer('book_order').notNull(),
+    // value encodes. Nullable: drift nodes (mainStorylineId == null) have no
+    // place on the reading order axis and store NULL here.
+    bookOrder: integer('book_order'),
     // Author-defined position on the narrative timeline (separate axis from
     // book order — allows flashbacks / non-linear chronology). Nullable: a
     // node may not yet be placed on the narrative axis.
@@ -143,9 +119,6 @@ export const BookNodeTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    storyStageId: text('story_stage_id').references(() => StoryStageTable.id, {
-      onDelete: 'set null',
-    }),
     // Nullable: drift nodes (free-floating inspiration notes) have no main
     // storyline. When a storyline is deleted, affected nodes are reassigned to
     // one of their other storylines, or fall back to drift if none remain.
@@ -155,6 +128,11 @@ export const BookNodeTable = sqliteTable(
     // Materialized word count, derived from this node's content.
     // Updated on every save; defaults to 0 for nodes that have never been edited.
     wordCount: integer('word_count').notNull().default(0),
+    // Author-facing chapter status. Manual: user marks 'finished' from the
+    // editor menu (the future AI-review pipeline will route that through
+    // waiting_review → revising before landing on finished). Stored as plain
+    // text — the enum lives in the domain layer (see WritingStatus).
+    writingStatus: text('writing_status').notNull().default('draft'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     // story graph view positions
@@ -163,7 +141,6 @@ export const BookNodeTable = sqliteTable(
   },
   (t) => [
     index('idx_book_node_project').on(t.projectId),
-    index('idx_book_node_stage').on(t.storyStageId),
     index('idx_book_node_project_book_order').on(t.projectId, t.bookOrder),
     index('idx_book_node_project_narrative_order').on(t.projectId, t.narrativeOrder),
   ],
@@ -360,6 +337,76 @@ export const EntityReferenceTable = sqliteTable(
     index('idx_ref_from').on(t.fromKind, t.fromId),
     index('idx_ref_to').on(t.toKind, t.toId),
     index('idx_ref_project').on(t.projectId),
+  ],
+);
+
+// Manuscript Comment
+// Word-style marginal comment anchored to a block in a content-bearing entity.
+// It is intentionally independent from Memo and ElementPatch:
+// - Memo is project-level thinking / TODO, linked through entity_reference.
+// - ElementPatch is additive canonical content for an element.
+// - ManuscriptComment is review/annotation state that may later carry AI,
+//   external, copilot, or patch-suggestion metadata through comment_action.
+export const ManuscriptCommentTable = sqliteTable(
+  'manuscript_comment',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').notNull(), // 'node' | 'element' | 'storyline' | 'category' | 'patch'
+    targetId: text('target_id').notNull(),
+    targetBlockId: text('target_block_id').notNull(),
+    anchorJson: text('anchor_json').notNull().default('{}'),
+    authorKind: text('author_kind').notNull().default('user'), // user | ai | copilot | external
+    authorId: text('author_id'),
+    authorName: text('author_name'),
+    bodyJson: text('body_json').notNull().default('{}'),
+    status: text('status').notNull().default('open'), // open | resolved | converted
+    priority: text('priority'),
+    source: text('source').notNull().default('manual'), // manual | shadow | copilot | api
+    metadataJson: text('metadata_json'),
+    resolvedAt: text('resolved_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_comment_project').on(t.projectId),
+    index('idx_comment_target').on(t.targetKind, t.targetId),
+    index('idx_comment_block').on(t.targetKind, t.targetId, t.targetBlockId),
+    index('idx_comment_project_status').on(t.projectId, t.status),
+  ],
+);
+
+// Comment Action
+// Append-only-ish action record for operations initiated from a comment.
+// v1 writes convert_to_memo; future patch/apply/reject/copilot actions can
+// share this surface without changing ManuscriptComment itself.
+export const CommentActionTable = sqliteTable(
+  'comment_action',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    commentId: text('comment_id')
+      .notNull()
+      .references(() => ManuscriptCommentTable.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    label: text('label'),
+    payloadJson: text('payload_json').notNull().default('{}'),
+    status: text('status').notNull().default('pending'), // pending | applied | failed
+    resultJson: text('result_json'),
+    createdByKind: text('created_by_kind').notNull().default('user'),
+    createdById: text('created_by_id'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+    appliedAt: text('applied_at'),
+  },
+  (t) => [
+    index('idx_comment_action_comment').on(t.commentId),
+    index('idx_comment_action_project').on(t.projectId),
+    index('idx_comment_action_status').on(t.status),
   ],
 );
 

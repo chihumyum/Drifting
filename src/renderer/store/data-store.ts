@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { Memo } from '../domain/memo';
 import type { Material } from '../domain/material';
+import type { CommentAction, ManuscriptComment } from '../domain/manuscript-comment';
 import type { EntityKind } from '../lib/extensions/entity-link';
 
 export interface EntityReferenceLink {
@@ -71,6 +73,18 @@ interface DataState {
   addMaterial: (material: Material) => void;
   updateMaterial: (id: string, updates: Partial<Material>) => void;
   removeMaterial: (id: string) => void;
+
+  manuscriptComments: ManuscriptComment[];
+  setManuscriptComments: (comments: ManuscriptComment[]) => void;
+  addManuscriptComment: (comment: ManuscriptComment) => void;
+  updateManuscriptComment: (id: string, updates: Partial<ManuscriptComment>) => void;
+  removeManuscriptComment: (id: string) => void;
+
+  commentActions: CommentAction[];
+  setCommentActions: (actions: CommentAction[]) => void;
+  addCommentAction: (action: CommentAction) => void;
+  updateCommentAction: (id: string, updates: Partial<CommentAction>) => void;
+  removeCommentAction: (id: string) => void;
 
   /**
    * Manual whole-to-whole entity references (memo → node, material → element …).
@@ -189,11 +203,10 @@ export const useDataStore = create<DataState>((set) => ({
         const position = updates.position
           ? { ...node.position, ...updates.position }
           : node.position;
-        return {
-          ...node,
-          ...updates,
-          position,
-        };
+        // A naive `{ ...node, ...updates }` can cross the discriminator
+        // boundary (e.g. drift→chapter when mainStorylineId is set). Normalize
+        // to coerce the merged record back into the correct union variant.
+        return normalizeBookNode({ ...node, ...updates, position });
       }),
     })),
   removeBookNode: (id) =>
@@ -246,6 +259,37 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeMaterial: (id) =>
     set((state) => ({ materials: state.materials.filter((m) => m.id !== id) })),
+
+  manuscriptComments: [],
+  setManuscriptComments: (manuscriptComments) => set({ manuscriptComments }),
+  addManuscriptComment: (comment) =>
+    set((state) => ({ manuscriptComments: [...state.manuscriptComments, comment] })),
+  updateManuscriptComment: (id, updates) =>
+    set((state) => ({
+      manuscriptComments: state.manuscriptComments.map((comment) =>
+        comment.id === id ? { ...comment, ...updates } : comment,
+      ),
+    })),
+  removeManuscriptComment: (id) =>
+    set((state) => ({
+      manuscriptComments: state.manuscriptComments.filter((comment) => comment.id !== id),
+      commentActions: state.commentActions.filter((action) => action.commentId !== id),
+    })),
+
+  commentActions: [],
+  setCommentActions: (commentActions) => set({ commentActions }),
+  addCommentAction: (action) =>
+    set((state) => ({ commentActions: [...state.commentActions, action] })),
+  updateCommentAction: (id, updates) =>
+    set((state) => ({
+      commentActions: state.commentActions.map((action) =>
+        action.id === id ? { ...action, ...updates } : action,
+      ),
+    })),
+  removeCommentAction: (id) =>
+    set((state) => ({
+      commentActions: state.commentActions.filter((action) => action.id !== id),
+    })),
 
   manualReferences: [],
   setManualReferences: (manualReferences) => set({ manualReferences }),

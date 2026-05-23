@@ -3,6 +3,7 @@ import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
@@ -88,7 +89,7 @@ export function NodesPanel() {
   const sortedNodesGlobal = useMemo(
     () =>
       bookNodes
-        .filter((n) => n.mainStorylineId != null)
+        .filter(isChapter)
         .slice()
         .sort((a, b) => a.bookOrder - b.bookOrder),
     [bookNodes],
@@ -101,6 +102,7 @@ export function NodesPanel() {
       grouped[s.id] = ids
         .map((id) => nodeById.get(id))
         .filter((n): n is BookNode => Boolean(n))
+        .filter(isChapter)
         .sort((a, b) => a.bookOrder - b.bookOrder);
     });
     return grouped;
@@ -118,8 +120,10 @@ export function NodesPanel() {
           mainStorylineId = createdStoryline.id;
         }
 
-        const maxOrder = bookNodes.reduce((max, n) => Math.max(max, n.bookOrder), 0);
-        const nextOrder = maxOrder + 1;
+        const maxOrder = bookNodes
+          .filter(isChapter)
+          .reduce((max, n) => Math.max(max, n.bookOrder), 0);
+        const nextOrder = maxOrder + CHAPTER_ORDER_STRIDE;
 
         const created = await createNode({
           title: 'New Chapter',

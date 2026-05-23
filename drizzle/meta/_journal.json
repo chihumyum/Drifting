@@ -113,6 +113,41 @@
       "when": 1780000000000,
       "tag": "0015_entity_kv_and_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1780100000000,
+      "tag": "0016_manuscript_comment",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780200000000,
+      "tag": "0017_drop_story_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780300000000,
+      "tag": "0018_book_node_writing_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1780400000000,
+      "tag": "0019_drift_status_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1780500000000,
+      "tag": "0020_drift_book_order_nullable",
+      "breakpoints": true
     }
   ]
 }

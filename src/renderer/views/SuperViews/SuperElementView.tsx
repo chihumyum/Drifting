@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
+import { isDrift } from '../../domain/book-node';
 import type { Storyline } from '../../domain/storyline';
 import {
   solveSuperElementLayout,
@@ -1135,8 +1136,13 @@ export function SuperElementView() {
     return m;
   }, [sortedPlacedNodesAll, storylines, bandWorldLeft, bandTopWorldY]);
 
+  // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
   const driftNodes = useMemo(
-    () => bookNodes.filter((n) => n.mainStorylineId == null).sort((a, b) => a.bookOrder - b.bookOrder),
+    () =>
+      bookNodes
+        .filter(isDrift)
+        .slice()
+        .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)),
     [bookNodes],
   );
 
@@ -2924,12 +2930,13 @@ export function SuperElementView() {
         >
           {driftNodes.map((node) => {
             const isLinkSource = linkSource?.kind === 'node' && linkSource.id === node.id;
+            const isResting = node.writingStatus === 'resting';
             return (
               <div
                 key={node.id}
                 data-super-card="node"
                 data-node-id={node.id}
-                className={`drift-card${isLinkSource ? ' is-link-source' : ''}`}
+                className={`drift-card${isLinkSource ? ' is-link-source' : ''}${isResting ? ' is-resting' : ''}`}
                 ref={(el) => {
                   if (el) driftCardRefs.current.set(node.id, el);
                   else driftCardRefs.current.delete(node.id);

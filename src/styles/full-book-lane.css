@@ -105,8 +105,55 @@
   color: hsl(var(--ink-1));
   z-index: 3;
 }
+/* Writing status: draft (default, plus AI-pipeline intermediates
+   waiting_review / revising — treated as draft until that flow ships).
+   Dashed border + title in storyline color, matching the timeline clip /
+   graph node draft treatment in the redesign mocks. */
+.fbl__chip.is-draft {
+  border-style: dashed;
+  border-color: var(--chip-color, hsl(var(--rule)));
+}
 .fbl__chip.is-draft .fbl__chip-num {
   opacity: 0.55;
+}
+.fbl__chip.is-draft .fbl__chip-title {
+  color: var(--chip-color, hsl(var(--ink-3)));
+  opacity: 0.9;
+}
+
+/* Writing status: finished — solid storyline-color fill + paper text so
+   completed chapters pop out from drafts on the same row. */
+.fbl__chip.is-finished {
+  background: var(--chip-color, hsl(var(--ink-3)));
+  border-color: var(--chip-color, hsl(var(--ink-3)));
+  color: hsl(var(--paper));
+}
+.fbl__chip.is-finished .fbl__chip-dot {
+  background: hsl(var(--paper));
+  opacity: 0.85;
+}
+.fbl__chip.is-finished .fbl__chip-title {
+  color: hsl(var(--paper));
+}
+
+/* Writing status: discarded — soft-deleted. Mute the storyline color and
+   strike through the title so it reads as "set aside" without being
+   visually noisy. Still clickable. */
+.fbl__chip.is-discarded {
+  background: hsl(var(--paper-deep));
+  border-color: hsl(var(--rule));
+  opacity: 0.55;
+}
+.fbl__chip.is-discarded .fbl__chip-dot {
+  background: hsl(var(--ink-4));
+}
+.fbl__chip.is-discarded .fbl__chip-title {
+  color: hsl(var(--ink-3));
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4));
+}
+.fbl__chip.is-discarded:hover {
+  opacity: 0.85;
 }
 .fbl__chip-dot {
   width: 5px;

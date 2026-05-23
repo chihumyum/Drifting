@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
+import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { CommentRail } from '../components/editor/CommentRail';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -15,7 +17,7 @@ import { PatchesSection } from '../components/editor/PatchesSection';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityEditor } from '../hooks/useEntityEditor';
+import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
@@ -32,7 +34,7 @@ export function ElementEditorView({
   const elementId = elementIdOverride ?? params.elementId;
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const userId = useAuthStore((state) => state.user?.id);
-  const { bookElements, bookElementCategories } = useDataStore();
+  const { bookElements, bookElementCategories, manuscriptComments } = useDataStore();
 
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',
@@ -50,6 +52,15 @@ export function ElementEditorView({
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const marginNotes = useSettingsStore((state) => state.marginNotes);
+  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
+  const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
+  const toggleEntityLinkInteractive = useCallback(
+    () => setEntityLinkInteractive(!entityLinkInteractive),
+    [entityLinkInteractive, setEntityLinkInteractive],
+  );
 
   // Derive curElement from the store at render time. Local edit-state values
   // (nameValue, summaryValue) reset whenever the underlying element id changes
@@ -64,6 +75,30 @@ export function ElementEditorView({
   }, [elementId, navigate]);
 
   const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
+  const commentCount = useMemo(
+    () =>
+      manuscriptComments.filter(
+        (comment) =>
+          comment.projectId === (projectId ?? '') &&
+          comment.targetKind === 'element' &&
+          comment.targetId === (elementId ?? '') &&
+          comment.status !== 'converted',
+      ).length,
+    [elementId, manuscriptComments, projectId],
+  );
+  const toggleComments = useCallback(() => {
+    if (!marginNotes && commentCount === 0) return;
+    const next = !marginNotes;
+    setMarginNotes(next);
+    if (!next) setPendingComment(null);
+  }, [commentCount, marginNotes, setMarginNotes]);
+  const handleAddCommentRequest = useCallback(
+    (request: EditorCommentRequest) => {
+      setMarginNotes(true);
+      setPendingComment(request);
+    },
+    [setMarginNotes],
+  );
   const [syncedElementKey, setSyncedElementKey] = useState({
     routeId: elementId ?? null,
     entityId: curElement?.id ?? null,
@@ -98,6 +133,7 @@ export function ElementEditorView({
     content: curElement?.contentJson ?? null,
     onPersist: handlePersist,
     placeholder: '记 · 传——写此元素的来历、形貌、心性…',
+    onAddCommentRequest: handleAddCommentRequest,
     selectionKey:
       projectId && curElement
         ? editorTabSelectionKey(projectId, { entityType: 'element', id: curElement.id })
@@ -191,7 +227,20 @@ export function ElementEditorView({
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
-      <EditorTopBar editorType="element" onMenuAction={handleContextAction}>
+      <EditorTopBar
+        editorType="element"
+        onMenuAction={handleContextAction}
+        referenceLinkToggle={{
+          enabled: entityLinkInteractive,
+          onToggle: toggleEntityLinkInteractive,
+        }}
+        commentToggle={{
+          enabled: marginNotes,
+          count: commentCount,
+          disabled: !marginNotes && commentCount === 0,
+          onToggle: toggleComments,
+        }}
+      >
         {currentCategory && (
           <EditorCrumb
             dotColor={currentCategory.color || '#8A2A1E'}
@@ -238,7 +287,7 @@ export function ElementEditorView({
           footLeft={`e.${elementShortId}`}
           emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
         />
-        <div className="editor-scroll" ref={setScrollEl}>
+        <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
           <article className="page">
             <div className="page__folio" aria-hidden="true">
@@ -339,9 +388,18 @@ export function ElementEditorView({
               <PatchesSection elementId={elementId} projectId={projectId} />
             )}
           </article>
+          {marginNotes && (
+            <CommentRail
+              projectId={projectId ?? curElement.projectId}
+              targetKind="element"
+              targetId={elementId}
+              scrollEl={scrollEl}
+              pendingRequest={pendingComment}
+              onPendingRequestChange={setPendingComment}
+            />
+          )}
           </div>
         </div>
-        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
 
       {/* Category picker (triggered from 3-dot menu) */}

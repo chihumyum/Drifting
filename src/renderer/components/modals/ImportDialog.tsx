@@ -23,6 +23,7 @@ import { useDataStore } from '../../store/data-store';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useBookContent } from '../../usecase/useBookContent';
+import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import {
   inferFormat,
   parseFile,
@@ -158,11 +159,15 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
     let ok = 0;
     let failed = 0;
 
-    // For chapter / inspiration imports we append after the current max
-    // bookOrder. We snapshot once so a 50-file import stays monotonically
-    // ordered even as creations come back interleaved with React state.
+    // Chapter imports append after the current max bookOrder. We snapshot
+    // once so a 50-file import stays monotonically ordered even as creations
+    // come back interleaved with React state. `isChapter` narrows the pool
+    // to nodes with a non-nullable bookOrder so the math is plain.
+    const chapterPool = bookNodes.filter(isChapter);
     let nextOrder =
-      bookNodes.length > 0 ? Math.max(...bookNodes.map((n) => n.bookOrder)) + 1 : 0;
+      chapterPool.length > 0
+        ? Math.max(...chapterPool.map((n) => n.bookOrder)) + CHAPTER_ORDER_STRIDE
+        : 0;
 
     const readyItems = items.filter((it) => it.status === 'ready' && it.parsed);
     for (const item of readyItems) {
@@ -181,15 +186,14 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
             bookOrder: nextOrder,
           });
           await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
-          nextOrder += 1;
+          nextOrder += CHAPTER_ORDER_STRIDE;
         } else if (target === 'inspiration') {
           const created = await nodeUsecases.createNode({
             title,
             mainStorylineId: null,
-            bookOrder: nextOrder,
+            bookOrder: null,
           });
           await contentUsecases.updateContentByNodeId(created.id, { contentJson: docJson });
-          nextOrder += 1;
         } else if (target === 'element') {
           if (!categoryId) throw new Error('Category required');
           const created = await elementUsecases.createElement({ name: title, categoryId });

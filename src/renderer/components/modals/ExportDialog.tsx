@@ -99,7 +99,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
       // reads in reading order, matching the book-order timeline.
       const bookNodes = nodes
         .filter((n) => n.projectId === projectId && n.mainStorylineId !== null)
-        .sort((a, b) => a.bookOrder - b.bookOrder);
+        .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0));
 
       const repo = createBookContentRepository();
       const chapters = await Promise.all(

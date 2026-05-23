@@ -5,14 +5,17 @@ import type { Editor } from '@tiptap/core';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { CommentRail } from '../components/editor/CommentRail';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityEditor } from '../hooks/useEntityEditor';
+import { isChapter } from '../domain/book-node';
+import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
 import { usePromoteCurrentTab } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -42,7 +45,7 @@ export function StorylineEditorView({
   if (!user) throw new Error('No user in auth store');
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const { storylines, bookNodes, storylineNodeMapping } = useDataStore();
+  const { storylines, bookNodes, storylineNodeMapping, manuscriptComments } = useDataStore();
   const { navigateToStoryline, navigateToHome, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
@@ -52,6 +55,8 @@ export function StorylineEditorView({
   }, [storylineId, storylines]);
 
   // Chapters belonging to this storyline, sorted by timeline position.
+  // `isChapter` narrows bookOrder to a non-nullable number so the sort
+  // comparator is a plain subtraction.
   const sNodes = useMemo(() => {
     if (!storylineId) return [];
     const ids = storylineNodeMapping[storylineId] ?? [];
@@ -59,6 +64,7 @@ export function StorylineEditorView({
     return ids
       .map((id) => byId.get(id))
       .filter((n): n is NonNullable<typeof n> => Boolean(n))
+      .filter(isChapter)
       .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodes, storylineId, storylineNodeMapping]);
 
@@ -67,6 +73,39 @@ export function StorylineEditorView({
   const unwrittenCount = sNodes.length - writtenCount;
 
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>('all');
+  const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const marginNotes = useSettingsStore((state) => state.marginNotes);
+  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
+  const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
+  const toggleEntityLinkInteractive = useCallback(
+    () => setEntityLinkInteractive(!entityLinkInteractive),
+    [entityLinkInteractive, setEntityLinkInteractive],
+  );
+  const commentCount = useMemo(
+    () =>
+      manuscriptComments.filter(
+        (comment) =>
+          comment.projectId === projectId &&
+          comment.targetKind === 'storyline' &&
+          comment.targetId === (storylineId ?? '') &&
+          comment.status !== 'converted',
+      ).length,
+    [manuscriptComments, projectId, storylineId],
+  );
+  const toggleComments = useCallback(() => {
+    if (!marginNotes && commentCount === 0) return;
+    const next = !marginNotes;
+    setMarginNotes(next);
+    if (!next) setPendingComment(null);
+  }, [commentCount, marginNotes, setMarginNotes]);
+  const handleAddCommentRequest = useCallback(
+    (request: EditorCommentRequest) => {
+      setMarginNotes(true);
+      setPendingComment(request);
+    },
+    [setMarginNotes],
+  );
   const filteredNodes = sNodes.filter((n) => {
     if (chapterFilter === 'all') return true;
     const hasContent = (n.wordCount || 0) > 0;
@@ -147,6 +186,7 @@ export function StorylineEditorView({
     content: currentStoryline?.descriptionJson ?? null,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本线的速记、浮缀、风格备忘…',
+    onAddCommentRequest: handleAddCommentRequest,
     selectionKey: currentStoryline
       ? editorTabSelectionKey(projectId, { entityType: 'storyline', id: currentStoryline.id })
       : null,
@@ -224,6 +264,16 @@ export function StorylineEditorView({
       <EditorTopBar
         editorType="storyline"
         onMenuAction={handleContextAction}
+        referenceLinkToggle={{
+          enabled: entityLinkInteractive,
+          onToggle: toggleEntityLinkInteractive,
+        }}
+        commentToggle={{
+          enabled: marginNotes,
+          count: commentCount,
+          disabled: !marginNotes && commentCount === 0,
+          onToggle: toggleComments,
+        }}
         right={
           <>
             <span>{sNodes.length} 章</span>
@@ -272,7 +322,7 @@ export function StorylineEditorView({
           footLeft={`s.${storylineShortId}`}
           footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
         />
-        <div className="editor-scroll" ref={setScrollEl}>
+        <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
           <article className="page" style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
@@ -486,9 +536,18 @@ export function StorylineEditorView({
               <EditorContent editor={editor} />
             </div>
           </article>
+          {marginNotes && (
+            <CommentRail
+              projectId={projectId}
+              targetKind="storyline"
+              targetId={currentStoryline.id}
+              scrollEl={scrollEl}
+              pendingRequest={pendingComment}
+              onPendingRequestChange={setPendingComment}
+            />
+          )}
           </div>
         </div>
-        {/* DEFERRED: right-side margin annotations (no column reserved). */}
       </div>
     </div>
   );

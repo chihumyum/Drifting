@@ -40,10 +40,60 @@ function urlForLeaf(
   }
 }
 
-const TAB_MIN_WIDTH = 64;
-const TAB_MAX_WIDTH = 200;
+// Floor: absolute survival width — chrome (icon + close) just fits, label
+// area collapses. Tabs may dip below this only if their idealW is naturally
+// smaller (which can't happen since idealW ≥ chrome).
+const TAB_FLOOR_WIDTH = 56;
+// Min: the *readable* threshold. When proportional shrink would push the
+// longest tab below this, the virtual canvas doubles and tabs spread out
+// again — the bar grows wider (overflowX:auto scrolls), but each tab stays
+// readable.
+const TAB_MIN_WIDTH = 120;
+// Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
+const TAB_MAX_WIDTH = 320;
 const TAB_GAP = 2;
 const CONTAINER_PADDING_X = 20;
+// A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
+const SPLIT_WEIGHT = 1.6;
+
+// Hidden DOM span used to measure label widths in the *actual* rendered font.
+// canvas measureText can't resolve `var(--font-sans)` and silently falls back
+// to a different system font — the resulting under/over-estimate is what was
+// causing tabs to truncate labels even in Phase A.
+const labelMeasureEl: HTMLSpanElement | null = (() => {
+  if (typeof document === 'undefined') return null;
+  const span = document.createElement('span');
+  span.style.cssText = [
+    'position:absolute',
+    'visibility:hidden',
+    'pointer-events:none',
+    'top:-9999px',
+    'left:-9999px',
+    'white-space:nowrap',
+    "font-family:var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif",
+    'font-size:12.5px',
+    'font-weight:400',
+    'letter-spacing:-0.005em',
+  ].join(';');
+  document.body.appendChild(span);
+  return span;
+})();
+
+function measureLabelWidth(text: string): number {
+  if (!labelMeasureEl) return Math.ceil(text.length * 8);
+  labelMeasureEl.textContent = text;
+  return Math.ceil(labelMeasureEl.getBoundingClientRect().width);
+}
+
+// Chrome layout on a leaf tab:
+//   paddingL 10 + icon 14 + gap 6 + label + gap 6 + closeMargin 2 + close 16 + paddingR 6
+// (the flex container has gap:6 between *every* adjacent pair — there are
+// two gaps with three children, both must be counted.)
+const TAB_CHROME_WIDTH = 10 + 14 + 6 + 6 + 2 + 16 + 6;
+// Split tab = two SplitSubLabel slots around a 1px divider. Each sub-label:
+//   paddingL 8 + icon 12 + gap 5 + label + gap 5 + close 14 + paddingR 6 = 50 + label
+// Total chrome = 50 + 50 + 1 (divider) = 101.
+const SPLIT_CHROME_WIDTH = 50 + 50 + 1;
 
 // Tab bar glyph. For node entities, the caller passes isDrift so chapters
 // (§) can be distinguished from drift nodes (❦ — matches the
@@ -66,22 +116,6 @@ function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): st
       return '☰';
   }
 }
-
-const textMeasureCanvas =
-  typeof document !== 'undefined' ? document.createElement('canvas') : null;
-
-function measureLabelWidth(text: string): number {
-  if (!textMeasureCanvas) return Math.ceil(text.length * 8);
-  const ctx = textMeasureCanvas.getContext('2d');
-  if (!ctx) return Math.ceil(text.length * 8);
-  ctx.font = '400 12.5px var(--font-sans), -apple-system, BlinkMacSystemFont, sans-serif';
-  return Math.ceil(ctx.measureText(text).width);
-}
-
-const TAB_CHROME_WIDTH = 14 + 6 + 2 + 16 + 16;
-// A fused tab carries two sub-labels side-by-side with a divider; treat its
-// natural width as ~1.6× a leaf tab so its label has room.
-const SPLIT_CHROME_WIDTH = TAB_CHROME_WIDTH + 12;
 
 export function TopTimeline() {
   const navigate = useNavigate();
@@ -179,37 +213,66 @@ export function TopTimeline() {
     return { labelOfLeaf, colorOfLeaf, isDriftLeaf };
   }, [bookNodes, storylines, bookElements, bookElementCategories]);
 
-  // Approximate label width for a top-level tab — used for the Safari-style
-  // shrink-to-fit math. Splits get the union of their two label widths plus
-  // the extra chrome.
-  const idealWidths = useMemo(() => {
-    return openTabs.map((tab) => {
-      if (tab.kind === 'leaf') {
-        const labelW = measureLabelWidth(lookups.labelOfLeaf(tab));
-        return Math.min(Math.max(labelW + TAB_CHROME_WIDTH, TAB_MIN_WIDTH), TAB_MAX_WIDTH);
-      }
-      const leftW = measureLabelWidth(lookups.labelOfLeaf(tab.left));
-      const rightW = measureLabelWidth(lookups.labelOfLeaf(tab.right));
-      return Math.min(
-        Math.max(leftW + rightW + SPLIT_CHROME_WIDTH, TAB_MIN_WIDTH * 2),
-        TAB_MAX_WIDTH * 1.6,
-      );
-    });
-  }, [openTabs, lookups]);
-
+  // Three-phase tab sizing:
+  //
+  //   A. Plenty of space (idealTotal ≤ availableW)
+  //      Each tab is exactly its ideal width — label + chrome, capped at MAX
+  //      to keep one long title from dominating. Empty space hangs off the
+  //      right end.
+  //
+  //   B. Cramped (idealTotal > availableW)
+  //      Tabs shrink proportionally by a single scale factor, so every tab
+  //      keeps its share of the bar relative to its title length. Short tabs
+  //      stay smaller than long ones.
+  //
+  //   C. Virtual canvas expansion
+  //      If the scale in B would push the longest tab below TAB_MIN_WIDTH
+  //      (readable threshold), the virtual canvas doubles (visible × 2, × 4,
+  //      …) until the longest tab is back at or above MIN. The bar then
+  //      exceeds visible width and overflowX:auto on the container lets the
+  //      user scroll. This trades scroll distance for readability — exactly
+  //      the spec'd behavior.
+  //
+  // Splits count as SPLIT_WEIGHT leaf-units throughout (for ideal width and
+  // for the MIN/FLOOR clamps), so a fused tab gets ~1.6× the space.
   const tabWidths = useMemo(() => {
     if (openTabs.length === 0) return [] as number[];
-    if (containerWidth === 0) return idealWidths;
+    const weights = openTabs.map((t) => (t.kind === 'split' ? SPLIT_WEIGHT : 1));
+    const ideals = openTabs.map((tab, i) => {
+      const raw =
+        tab.kind === 'leaf'
+          ? measureLabelWidth(lookups.labelOfLeaf(tab)) + TAB_CHROME_WIDTH
+          : measureLabelWidth(lookups.labelOfLeaf(tab.left)) +
+            measureLabelWidth(lookups.labelOfLeaf(tab.right)) +
+            SPLIT_CHROME_WIDTH;
+      return Math.min(TAB_MAX_WIDTH * weights[i], raw);
+    });
     const totalGaps = TAB_GAP * Math.max(0, openTabs.length - 1);
     const availableW = Math.max(0, containerWidth - CONTAINER_PADDING_X - totalGaps);
-    const idealTotal = idealWidths.reduce((a, b) => a + b, 0);
-    if (idealTotal <= availableW) return idealWidths;
-    const evenW = availableW / openTabs.length;
-    if (evenW >= TAB_MIN_WIDTH) {
-      return idealWidths.map((w) => Math.min(w, evenW));
+    const idealTotal = ideals.reduce((a, b) => a + b, 0);
+
+    // Phase A — or initial render before ResizeObserver fires.
+    if (containerWidth === 0 || idealTotal <= availableW) {
+      return ideals.map((w, i) =>
+        Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w)),
+      );
     }
-    return idealWidths.map(() => TAB_MIN_WIDTH);
-  }, [openTabs, idealWidths, containerWidth]);
+
+    // Phase B/C — proportional shrink, expanding the virtual canvas in 2×
+    // steps until the per-unit longest tab stays ≥ MIN.
+    const perUnit = ideals.map((w, i) => w / weights[i]);
+    const maxPerUnit = Math.max(...perUnit);
+    let virtual = availableW;
+    // Cap iterations: log2(32) = 5 doublings is more headroom than any
+    // realistic tab count needs, and guards against degenerate inputs.
+    for (let k = 0; k < 5 && (virtual / idealTotal) * maxPerUnit < TAB_MIN_WIDTH; k++) {
+      virtual *= 2;
+    }
+    const scale = Math.min(1, virtual / idealTotal);
+    return ideals.map((w, i) =>
+      Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)),
+    );
+  }, [openTabs, lookups, containerWidth]);
 
   // Click a top-level tab. Tab activation always bypasses openEntity:
   //   - splits would otherwise have their focused side replaced (openEntity
@@ -611,7 +674,7 @@ function LeafTabSlot({
           paddingLeft: 10,
           paddingRight: 6,
           width,
-          minWidth: TAB_MIN_WIDTH,
+          minWidth: TAB_FLOOR_WIDTH,
           background: isActive ? tone.selectedBackground : 'transparent',
           opacity: isDragging ? 0.5 : 1,
           cursor: 'pointer',
@@ -774,7 +837,7 @@ function SplitTabSlot({
         display: 'flex',
         alignItems: 'stretch',
         width,
-        minWidth: TAB_MIN_WIDTH * 2,
+        minWidth: TAB_FLOOR_WIDTH * SPLIT_WEIGHT,
         background: isActive ? tone.selectedBackground : 'transparent',
         opacity: isDragging ? 0.5 : 1,
         cursor: 'pointer',

@@ -130,6 +130,23 @@ export function useSyncSplitFocusedUrl(): void {
     const focusedChanged =
       prevFocused !== null && !sameEntity(prevFocused, focused);
 
+    // Bare project URL + active tab from persistence → push focused leaf
+    // into the URL. ProjectPickerView navigates to /project/:id (no path)
+    // when opening a project, and after the store rehydrates the tab bar
+    // shows an active tab while the matched index route renders null —
+    // resulting in a white editor surface until the user switches tabs.
+    // The close-last-tab paths also land on bare URL but they leave
+    // openTabs empty, so active is null and we don't reach here.
+    if (!urlEntity) {
+      const expected = expectedPathnameFor(projectId, focused);
+      if (expected && location.pathname !== expected) {
+        navigate(expected, { replace: true });
+        mirrorSelection(focused, setNodeSelection, setElementSelection);
+        prevFocusedRef.current = focused;
+        return;
+      }
+    }
+
     if (
       urlEntity &&
       !sameEntity(urlEntity, focused)

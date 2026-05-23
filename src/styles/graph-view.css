@@ -856,12 +856,46 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+/* Writing status: draft (plus AI-pipeline intermediates waiting_review /
+   revising — treated as draft until that flow ships). Paper background +
+   dashed border in storyline color + storyline-color title, matching the
+   redesign mock's `.graph-node--draft` treatment. Finished chapters drop
+   the class and revert to the neutral default tile. */
 .graph-tile.is-draft {
-  background: hsl(var(--paper-deep));
+  background: hsl(var(--paper));
   border-style: dashed;
+  border-color: var(--tile-color, hsl(var(--rule)));
+  box-shadow: none;
 }
 .graph-tile.is-draft .graph-tile__title {
+  color: var(--tile-color, hsl(var(--ink-3)));
+}
+
+/* Writing status: discarded — soft-deleted. Mute the storyline color and
+   strike through the title so a parked chapter reads as set-aside without
+   disappearing from the canvas. */
+.graph-tile.is-discarded {
+  background: hsl(var(--paper-deep));
+  border-style: dashed;
+  border-color: hsl(var(--rule-strong));
+  box-shadow: none;
+  opacity: 0.6;
+}
+.graph-tile.is-discarded:hover {
+  opacity: 0.9;
+  transform: none;
+}
+.graph-tile.is-discarded .graph-tile__stripe {
+  background: hsl(var(--ink-4));
+  opacity: 0.5;
+}
+.graph-tile.is-discarded .graph-tile__title {
   color: hsl(var(--ink-3));
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-4));
+}
+.graph-tile.is-discarded .graph-tile__summary {
+  color: hsl(var(--ink-4));
 }
 
 /* ---------------- Selected edge: highlight + delete badge ----------------

@@ -3,6 +3,7 @@ import { useMatch } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
+import { CHAPTER_ORDER_STRIDE } from '../../domain/book-node';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
@@ -688,7 +689,16 @@ export function BottomTimeline() {
     const defaultColor = '#2D4A6B';
     const clipColor = storyline?.color || defaultColor;
     const leftPosition = orderToPosition(order);
-    const isDraft = node.wordCount === 0;
+    // Mutually-exclusive status classes — see FullBookLane for the same
+    // logic. waiting_review / revising are visually treated as draft until
+    // the AI-review pipeline ships its own affordances.
+    const status = node.writingStatus;
+    const stateClass =
+      status === 'finished'
+        ? 'is-finished'
+        : status === 'discarded'
+          ? 'is-discarded'
+          : 'is-draft';
 
     const handleMouseMove = (e: React.MouseEvent) => {
       if (draggedNode) {
@@ -700,7 +710,7 @@ export function BottomTimeline() {
       }
     };
 
-    const className = ['btl-clip', isSelected ? 'is-selected' : '', isDraft ? 'is-draft' : '']
+    const className = ['btl-clip', isSelected ? 'is-selected' : '', stateClass]
       .filter(Boolean)
       .join(' ');
 
@@ -886,16 +896,15 @@ export function BottomTimeline() {
   }, []);
 
   // "打散" — keeps relative ordering, reassigns the active order field
-  // (bookOrder or narrativeOrder) with a wide spacing so tiles can't overlap
-  // even when their original integers sat closer than a tile width apart.
-  // Spacing 6 > the wider tile width (story graph view = 5 units), so the result
-  // is non-overlapping in both BottomTimeline and StoryGraphView.
+  // (bookOrder or narrativeOrder) with the same stride that new chapters
+  // use (CHAPTER_ORDER_STRIDE = tile width + 1), so scatter spacing matches
+  // creation spacing and adjacent tiles sit a single grid unit apart.
   const handleSpread = useCallback(async () => {
     if (placedNodes.length < 2) return;
     const sorted = placedNodes
       .slice()
       .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
-    const SPACING = 6;
+    const SPACING = CHAPTER_ORDER_STRIDE;
     const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
     const updates: Array<{ id: string; newOrder: number }> = [];
     sorted.forEach((node, i) => {
@@ -1019,7 +1028,7 @@ export function BottomTimeline() {
                           >
                             <span className="btl__unplaced-chip-dot" />
                             <span className="btl__unplaced-chip-num">
-                              § {String(node.bookOrder).padStart(2, '0')}
+                              § {String(node.bookOrder ?? 0).padStart(2, '0')}
                             </span>
                             <span className="btl__unplaced-chip-title">
                               {node.title || '未命名'}

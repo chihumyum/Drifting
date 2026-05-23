@@ -3,6 +3,7 @@ import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
 import { Node as PMNode } from '@tiptap/pm/model';
+import type { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -11,7 +12,7 @@ import { Placeholder } from '@tiptap/extensions';
 import loglevel from 'loglevel';
 
 import { extractOutline, type OutlineItem } from '../lib/outline';
-import { BlockId } from '../lib/extensions/block-id';
+import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import {
   EntityLink,
   entityLinkConfig,
@@ -41,11 +42,24 @@ import {
   restoreEditorSelectionSnapshot,
   saveEditorSelectionSnapshot,
 } from '../lib/editor-selection-memory';
+import type { CommentTargetKind } from '../domain/manuscript-comment';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);
 
 const DEFAULT_DOC: JSONContent = { type: 'doc', content: [] };
+const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
+
+export interface EditorCommentRequest {
+  projectId: string;
+  sourceKind: CommentTargetKind;
+  sourceId: string;
+  targetBlockId: string;
+  selectedText: string;
+  anchorJson: string;
+  clientX: number;
+  clientY: number;
+}
 
 // Replace editor content with a transaction marked `addToHistory: false` so
 // the initial load doesn't enter the undo stack. Without this, Cmd+Z all the
@@ -79,6 +93,55 @@ function useLatestRef<T>(value: T) {
   return ref;
 }
 
+function isCommentTargetKind(kind: EntityKind): kind is CommentTargetKind {
+  return kind === 'node' || kind === 'element' || kind === 'storyline' || kind === 'category' || kind === 'patch';
+}
+
+function removeCommentContextMenu(): void {
+  document.querySelectorAll(`.${COMMENT_CONTEXT_MENU_CLASS}`).forEach((node) => node.remove());
+}
+
+function findSelectionBlockId(state: EditorState): string | null {
+  const resolved = state.doc.resolve(state.selection.from);
+  for (let depth = resolved.depth; depth >= 0; depth--) {
+    const node = resolved.node(depth);
+    if (!isBlockType(node.type.name)) continue;
+    const id = node.attrs?.id as string | null | undefined;
+    if (id) return id;
+  }
+  return null;
+}
+
+function openCommentContextMenu(
+  request: EditorCommentRequest,
+  onAddCommentRequest: (request: EditorCommentRequest) => void,
+): void {
+  removeCommentContextMenu();
+  const menu = document.createElement('div');
+  menu.className = COMMENT_CONTEXT_MENU_CLASS;
+  menu.style.left = `${request.clientX}px`;
+  menu.style.top = `${request.clientY}px`;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = '添加批注';
+  button.addEventListener('mousedown', (event) => event.preventDefault());
+  button.addEventListener('click', () => {
+    removeCommentContextMenu();
+    onAddCommentRequest(request);
+  });
+  menu.appendChild(button);
+  document.body.appendChild(menu);
+
+  const close = (event: MouseEvent) => {
+    if (!menu.contains(event.target as Node)) {
+      removeCommentContextMenu();
+      document.removeEventListener('mousedown', close, true);
+    }
+  };
+  setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+}
+
 export interface UseEntityEditorConfig {
   // What this editor is editing — drives projection direction and self-exclusion.
   sourceKind: EntityKind;
@@ -109,6 +172,10 @@ export interface UseEntityEditorConfig {
   // Optional top-level tab selection key. Popovers / virtualized editors leave
   // this unset so their transient caret positions don't focus newly-opened tabs.
   selectionKey?: string | null;
+
+  // Optional Word-style comment creation entry. The hook only detects the
+  // selected block and selected text; persistence/UI lives above it.
+  onAddCommentRequest?: (request: EditorCommentRequest) => void;
 }
 
 export interface UseEntityEditorResult {
@@ -149,6 +216,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     editorClass,
     minHeight,
     selectionKey,
+    onAddCommentRequest,
   } = config;
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId });
@@ -157,10 +225,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const enableMarkdownExportRef = useLatestRef(enableMarkdownExport);
   const onEntityClickRef = useLatestRef(onEntityClick);
   const selectionKeyRef = useLatestRef(selectionKey ?? null);
+  const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
   const autoElementLinkEnabled = useSettingsStore((state) => state.autoElementLinkEnabled);
+  const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
 
   const bookElements = useDataStore((state) => state.bookElements);
   const bookNodes = useDataStore((state) => state.bookNodes);
@@ -423,6 +493,44 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           style: minHeight ? `min-height: ${minHeight}` : '',
           spellcheck: 'false',
         },
+        handleDOMEvents: {
+          contextmenu: (view, event) => {
+            const handler = onAddCommentRequestRef.current;
+            if (!handler) return false;
+            const source = sourceRef.current;
+            if (!source.projectId || !source.sourceId || !isCommentTargetKind(source.sourceKind)) {
+              return false;
+            }
+            const { selection } = view.state;
+            if (selection.empty) return false;
+            const selectedText = view.state.doc
+              .textBetween(selection.from, selection.to, '\n')
+              .trim();
+            if (!selectedText) return false;
+            const targetBlockId = findSelectionBlockId(view.state);
+            if (!targetBlockId) return false;
+
+            event.preventDefault();
+            event.stopPropagation();
+            const request: EditorCommentRequest = {
+              projectId: source.projectId,
+              sourceKind: source.sourceKind,
+              sourceId: source.sourceId,
+              targetBlockId,
+              selectedText,
+              anchorJson: JSON.stringify({
+                selectedText,
+                selectionFrom: selection.from,
+                selectionTo: selection.to,
+                createdAt: new Date().toISOString(),
+              }),
+              clientX: event.clientX,
+              clientY: event.clientY,
+            };
+            openCommentContextMenu(request, handler);
+            return true;
+          },
+        },
       },
       onUpdate: ({ editor: ed }) => {
         const source = sourceRef.current;
@@ -463,7 +571,8 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   useEffect(() => {
     entityLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
     entityLinkConfig.autoDetectTargets = autoDetectTargets;
-  }, [autoElementLinkEnabled, autoDetectTargets]);
+    entityLinkConfig.interactionEnabled = entityLinkInteractive;
+  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive]);
 
   // Load content into the editor whenever the (editor instance, sourceId)
   // pair changes. Don't depend on `content` — that would re-load on every
@@ -525,6 +634,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
 
   useEffect(() => {
     return () => {
+      removeCommentContextMenu();
       if (!editor || editor.isDestroyed) return;
       saveSelection(editor);
     };
