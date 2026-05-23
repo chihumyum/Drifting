@@ -606,7 +606,7 @@ interface CategoryBoxProps {
   // can render a single EntityCellContextMenu at the canvas root.
   onElementContextMenu?: (
     event: React.MouseEvent,
-    element: { id: string; categoryId: string; groupName: string | null; name: string },
+    element: { id: string; categoryId: string | null; groupName: string | null; name: string },
   ) => void;
   onCategoryContextMenu?: (event: React.MouseEvent, categoryId: string) => void;
 }
@@ -1050,12 +1050,17 @@ export function SuperElementView() {
   }, [selectedEdgeId]);
 
   // ---- Build category render models (size + internal layout) ----
+  // Sentinel bucket for elements with categoryId === null ("未分类").
+  // Surfaced by SuperElementView as a category-less group at the tail.
+  const UNCATEGORIZED_KEY = '__uncategorized__';
+
   const elementsByCategory = useMemo(() => {
     const m = new Map<string, BookElement[]>();
     for (const cat of bookElementCategories) m.set(cat.id, []);
     for (const el of bookElements) {
-      if (!m.has(el.categoryId)) m.set(el.categoryId, []);
-      m.get(el.categoryId)!.push(el);
+      const key = el.categoryId ?? UNCATEGORIZED_KEY;
+      if (!m.has(key)) m.set(key, []);
+      m.get(key)!.push(el);
     }
     return m;
   }, [bookElements, bookElementCategories]);
@@ -1067,15 +1072,17 @@ export function SuperElementView() {
       const items = elementsByCategory.get(cat.id) ?? [];
       models.push(buildCategoryRenderModel(cat.id, cat, items));
     }
-    // Catch orphan elements (categoryId referencing a missing category) so
-    // they're still visible. Rare — the schema enforces categoryId references —
-    // but better to surface them than to silently swallow.
+    // Two flavors of "no category":
+    //   * `categoryId === null` → the new "未分类" bucket (post-trash refactor)
+    //   * `categoryId === <id of a missing category>` → orphan from a stale row
+    // Both render as a category-less group with category=null.
     const orphanBuckets = new Map<string, BookElement[]>();
     for (const el of bookElements) {
-      if (known.has(el.categoryId)) continue;
-      const list = orphanBuckets.get(el.categoryId) ?? [];
+      const key = el.categoryId ?? UNCATEGORIZED_KEY;
+      if (el.categoryId != null && known.has(el.categoryId)) continue;
+      const list = orphanBuckets.get(key) ?? [];
       list.push(el);
-      orphanBuckets.set(el.categoryId, list);
+      orphanBuckets.set(key, list);
     }
     orphanBuckets.forEach((items, cid) => {
       models.push(buildCategoryRenderModel(cid, null, items));

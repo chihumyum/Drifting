@@ -8,7 +8,6 @@ import { useBookNode } from '../usecase/useBookNode';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useStoryline } from '../usecase/useStoryline';
-import { isReservedElementCategoryName, RESERVED_ELEMENT_CATEGORY_NAME } from '../domain/book-element';
 import {
   CHAPTER_WRITING_STATUSES,
   DRIFT_STATUSES,
@@ -141,29 +140,10 @@ export function useEntityCellAction() {
           const category = bookElementCategories.find((c) => c.id === id);
           if (!category) return;
           if (action === 'deleteCategory') {
-            if (isReservedElementCategoryName(category.name)) {
-              alert('The reserved "others" category cannot be deleted.');
-              return;
-            }
-            const fallback = bookElementCategories.find((c) =>
-              isReservedElementCategoryName(c.name),
-            );
             const confirmed = window.confirm(
-              `Delete category "${category.name}"?\n\nAll elements in this category will be moved to "${RESERVED_ELEMENT_CATEGORY_NAME}".`,
+              `Delete category "${category.name}"?\n\nElements in this category will move to "未分类" (categoryId becomes empty).`,
             );
             if (!confirmed) return;
-            // Re-parent elements to the reserved fallback before delete so
-            // they don't get cascaded away with the category (matches the
-            // editor-view delete handler's behavior).
-            if (fallback) {
-              // No bulk re-parent helper — call updateElement per row. We
-              // don't import it here to avoid widening the hook's surface;
-              // queueing + navigating into CategoryEditorView reuses its
-              // logic instead.
-              enqueueEntityAction(entityType, id, action);
-              openEntity({ entityType: 'category', id }, { preview: false });
-              return;
-            }
             await deleteCategory(id);
             return;
           }

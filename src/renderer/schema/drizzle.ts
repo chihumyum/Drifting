@@ -66,10 +66,14 @@ export const ElementCategoryTable = sqliteTable(
     layoutMode: text('layout_mode').notNull().default('auto'), // 'auto' | 'pinned'
     gridX: integer('grid_x'),
     gridY: integer('grid_y'),
+    deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (t) => [index('idx_element_category_project').on(t.projectId)],
+  (t) => [
+    index('idx_element_category_project').on(t.projectId),
+    index('idx_element_category_deleted_at').on(t.deletedAt),
+  ],
 );
 
 // Storylines
@@ -96,9 +100,12 @@ export const StorylineTable = sqliteTable('storylines', {
   descriptionJson: text('description_json').notNull().default('{}'),
   kvJson: text('kv_json').notNull().default('[]'),
   nodeContentTemplateJson: text('node_content_template_json').notNull().default('{}'),
+  deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-});
+}, (t) => [
+  index('idx_storyline_deleted_at').on(t.deletedAt),
+]);
 
 // Story Nodes
 // Domain: BookNode
@@ -134,6 +141,9 @@ export const BookNodeTable = sqliteTable(
     // / unaffiliated chapter); the type was previously forced to drift.
     // See domain/book-node.ts for the WritingStatus enum split.
     kind: text('kind').notNull().default('drift'),
+    // Soft-delete marker. Non-null = in trash. List queries must filter
+    // `deletedAt IS NULL`. Pro/Studio feature — Free tier still hard-deletes.
+    deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
     // story graph view positions
@@ -145,6 +155,7 @@ export const BookNodeTable = sqliteTable(
     index('idx_book_node_project_book_order').on(t.projectId, t.bookOrder),
     index('idx_book_node_project_narrative_order').on(t.projectId, t.narrativeOrder),
     index('idx_book_node_project_kind').on(t.projectId, t.kind),
+    index('idx_book_node_deleted_at').on(t.deletedAt),
   ],
 );
 
@@ -183,13 +194,12 @@ export const BookElementTable = sqliteTable('element', {
   projectId: text('project_id')
     .notNull()
     .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-  categoryId: text('category_id')
-    .notNull()
-    // CASCADE (not SET NULL) — the column is NOT NULL, so the historical
-    // SET NULL action was unusable: it raised a constraint violation
-    // whenever a category with elements was deleted, including via
-    // project-delete cascade. Cascade keeps the schema honest.
-    .references(() => ElementCategoryTable.id, { onDelete: 'cascade' }),
+  // Nullable since the trash refactor (migration 0028): when a category is
+  // soft-deleted or hard-deleted, its elements detach to NULL ("未分类")
+  // instead of cascading. Restoring the category does NOT re-link them.
+  categoryId: text('category_id').references(() => ElementCategoryTable.id, {
+    onDelete: 'set null',
+  }),
   name: text('name').notNull(),
   summary: text('summary').notNull().default(''),
   contentJson: text('content_json').notNull().default('{}'),
@@ -198,9 +208,13 @@ export const BookElementTable = sqliteTable('element', {
   // array, same shape as Project.kvJson — see domain/kv.ts.
   kvJson: text('kv_json').notNull().default('[]'),
   groupName: text('group_name'),
+  deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-});
+}, (t) => [
+  index('idx_element_deleted_at').on(t.deletedAt),
+  index('idx_element_category').on(t.categoryId),
+]);
 
 // Node <-> Storyline (Many-to-Many)
 // Node <-> Storyline (Many-to-Many)

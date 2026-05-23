@@ -62,7 +62,10 @@ export type EntityType =
   | 'manuscriptComment'
   | 'commentAction';
 
-export type MutationType = 'create' | 'update' | 'delete';
+// 'softDelete' moves the entity to trash (deletedAt = now); restore clears
+// it back to NULL; 'delete' is still hard-DELETE (used by the Free tier and
+// by the trash-purge job).
+export type MutationType = 'create' | 'update' | 'delete' | 'softDelete' | 'restore';
 
 export interface SyncMutation {
   entityType: EntityType;
@@ -386,6 +389,16 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
           endpoint: `/api/projects/${projectId}/nodes/${entityId}`,
           data: payload,
         };
+      } else if (mutationType === 'softDelete') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/nodes/${entityId}/trash`,
+        };
+      } else if (mutationType === 'restore') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/nodes/${entityId}/restore`,
+        };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/nodes/${entityId}` };
 
@@ -413,6 +426,16 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
           method: 'PATCH',
           endpoint: `/api/projects/${projectId}/storylines/${entityId}`,
           data: payload,
+        };
+      } else if (mutationType === 'softDelete') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/storylines/${entityId}/trash`,
+        };
+      } else if (mutationType === 'restore') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/storylines/${entityId}/restore`,
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/storylines/${entityId}` };
@@ -448,6 +471,16 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
           endpoint: `/api/projects/${projectId}/elements/${entityId}`,
           data: payload,
         };
+      } else if (mutationType === 'softDelete') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/elements/${entityId}/trash`,
+        };
+      } else if (mutationType === 'restore') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/elements/${entityId}/restore`,
+        };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/elements/${entityId}` };
 
@@ -464,6 +497,16 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
           method: 'PATCH',
           endpoint: `/api/projects/${projectId}/categories/${entityId}`,
           data: payload,
+        };
+      } else if (mutationType === 'softDelete') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/categories/${entityId}/trash`,
+        };
+      } else if (mutationType === 'restore') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/categories/${entityId}/restore`,
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/categories/${entityId}` };

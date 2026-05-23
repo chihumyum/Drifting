@@ -14,9 +14,12 @@ import {
   syncNodeCreate,
   syncNodeUpdate,
   syncNodeDelete,
+  syncNodeSoftDelete,
+  syncNodeRestore,
   syncNodeStorylineLinkCreate,
   syncNodeContentUpdate,
 } from './sync-helpers';
+import { canUseFeature } from '../lib/feature-access';
 
 const log = loglevel.getLogger('UseBookNode');
 log.setLevel(loglevel.levels.ERROR);
@@ -413,30 +416,50 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
   const deleteNode = useCallback(
     async (id: string) => {
       await ensureDb();
-      log.debug('[deleteBookNode] Starting delete for node:', id);
       const prevNodes = getNodesState().slice();
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);
 
-      log.debug('[deleteBookNode] Node found, removing from state optimistically');
       const nextNodes = prevNodes.filter((node) => node.id !== id);
-      // Drop any tabs pointing at this node before we mutate the entity
-      // store — otherwise the tab bar holds onto an "Untitled" leaf because
-      // the entity lookup goes empty after apply().
       useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'node', id });
+
+      // Paywall: Pro/Studio users send the entity to the trash (soft-delete);
+      // Free users get the historical hard-DELETE behavior. The server-side
+      // free-tier-cleanup job catches anyone who churns from paid → free.
+      if (canUseFeature('trash')) {
+        return withOptimisticUpdate({
+          apply: () => setNodesState(nextNodes),
+          rollback: () => setNodesState(prevNodes),
+          effect: () => nodeRepo.softDelete(id),
+          sync: () => syncNodeSoftDelete(id, activeProjectId),
+        });
+      }
+
       return withOptimisticUpdate({
         apply: () => setNodesState(nextNodes),
         rollback: () => setNodesState(prevNodes),
-        effect: async () => {
-          log.debug('[deleteBookNode] Calling repository delete');
-          await nodeRepo.delete(id);
-          log.debug('[deleteBookNode] Repository delete successful');
-        },
+        effect: () => nodeRepo.delete(id),
         sync: () => syncNodeDelete(id, activeProjectId),
       });
     },
     [nodeRepo, ensureDb, getNodesState, setNodesState, activeProjectId],
   );
+
+  const restoreNode = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      await nodeRepo.restore(id);
+      syncNodeRestore(id, activeProjectId);
+      const fresh = await nodeRepo.findAll();
+      setNodesState(fresh);
+    },
+    [nodeRepo, ensureDb, setNodesState, activeProjectId],
+  );
+
+  const listTrashedNodes = useCallback(async () => {
+    await ensureDb();
+    return await nodeRepo.findTrashed();
+  }, [nodeRepo, ensureDb]);
 
   return useMemo(
     () => ({
@@ -448,6 +471,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNodeSummary,
       updateNode,
       deleteNode,
+      restoreNode,
+      listTrashedNodes,
     }),
     [
       loadNodes,
@@ -458,6 +483,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNodeSummary,
       updateNode,
       deleteNode,
+      restoreNode,
+      listTrashedNodes,
     ],
   );
 }

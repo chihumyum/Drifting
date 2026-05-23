@@ -1,11 +1,7 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { ElementCategoryTable } from '../schema/drizzle';
-import { eq, asc, and } from 'drizzle-orm';
-import {
-  RESERVED_ELEMENT_CATEGORY_NAME,
-  isReservedElementCategoryName,
-  type BookElementCategory,
-} from '../domain/book-element';
+import { eq, asc, and, isNull, isNotNull } from 'drizzle-orm';
+import type { BookElementCategory } from '../domain/book-element';
 import Loglevel from 'loglevel';
 const log = Loglevel.getLogger('ElementCategoryRepositorySQLite');
 log.setLevel(Loglevel.levels.DEBUG);
@@ -18,11 +14,17 @@ export interface ElementCategoryRepository {
   create(category: BookElementCategory): Promise<BookElementCategory>;
   update(id: string, updates: ElementCategoryUpdateData): Promise<BookElementCategory | null>;
   findAll(): Promise<BookElementCategory[]>;
+  findTrashed(): Promise<Array<BookElementCategory & { deletedAt: string }>>;
   findByName(name: string): Promise<BookElementCategory | null>;
   delete(id: string): Promise<void>;
+  softDelete(id: string): Promise<void>;
+  restore(id: string): Promise<void>;
 }
 
-const DEFAULT_CATEGORY_NAME = RESERVED_ELEMENT_CATEGORY_NAME;
+// Default name when the user creates a category with an empty input.
+// Historically this was the auto-seeded "others" bucket; that special role
+// went away with the trash refactor and is now just a literal placeholder.
+const DEFAULT_CATEGORY_NAME = 'untitled';
 const DEFAULT_CATEGORY_COLOR = '#8B7355';
 
 function normalizeCategoryName(name?: string): string {
@@ -128,10 +130,22 @@ export function createElementCategoryRepository(
     const rows = await dbProvider()
       .select()
       .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.projectId, projectId))
+      .where(
+        and(eq(ElementCategoryTable.projectId, projectId), isNull(ElementCategoryTable.deletedAt)),
+      )
       .orderBy(asc(ElementCategoryTable.name));
 
     return rows as BookElementCategory[];
+  };
+
+  const findTrashed = async (): Promise<Array<BookElementCategory & { deletedAt: string }>> => {
+    const rows = await dbProvider()
+      .select()
+      .from(ElementCategoryTable)
+      .where(
+        and(eq(ElementCategoryTable.projectId, projectId), isNotNull(ElementCategoryTable.deletedAt)),
+      );
+    return rows.map((r) => ({ ...(r as BookElementCategory), deletedAt: r.deletedAt as string }));
   };
 
   const findByName = async (name: string): Promise<BookElementCategory | null> => {
@@ -146,41 +160,36 @@ export function createElementCategoryRepository(
   };
 
   const deleteCategory = async (id: string): Promise<void> => {
-    // Invariant check: need count of categories in this project
-    const target = (
-      await dbProvider()
-        .select()
-        .from(ElementCategoryTable)
-        .where(eq(ElementCategoryTable.id, id))
-        .limit(1)
-    )[0];
-    if (!target) return;
-    if (target.projectId !== projectId) {
-      throw new Error(
-        `Cannot delete category: projectId mismatch. Expected ${projectId}, got ${target.projectId}`,
-      );
-    }
-    if (isReservedElementCategoryName(target.name)) {
-      throw new Error('Cannot delete the reserved "others" category.');
-    }
-
-    const allCats = await dbProvider()
-      .select({ id: ElementCategoryTable.id })
-      .from(ElementCategoryTable)
-      .where(eq(ElementCategoryTable.projectId, projectId));
-
-    if (allCats.length <= 1) {
-      throw new Error('Cannot delete the last category in the project.');
-    }
-
+    // No more reserved-category guard or last-category guard. element rows
+    // pointing at this category get their categoryId set to NULL by the FK
+    // (ON DELETE SET NULL) — they fall into the "未分类" bucket.
     await dbProvider().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, id));
+  };
+
+  const softDeleteCategory = async (id: string): Promise<void> => {
+    const now = new Date().toISOString();
+    await dbProvider()
+      .update(ElementCategoryTable)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(eq(ElementCategoryTable.id, id));
+  };
+
+  const restoreCategory = async (id: string): Promise<void> => {
+    const now = new Date().toISOString();
+    await dbProvider()
+      .update(ElementCategoryTable)
+      .set({ deletedAt: null, updatedAt: now })
+      .where(eq(ElementCategoryTable.id, id));
   };
 
   return {
     create,
     update,
     findAll,
+    findTrashed,
     findByName,
     delete: deleteCategory,
+    softDelete: softDeleteCategory,
+    restore: restoreCategory,
   };
 }

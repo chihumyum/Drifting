@@ -6,7 +6,14 @@ import type { BookElement } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import { syncElementCreate, syncElementUpdate, syncElementDelete } from './sync-helpers';
+import {
+  syncElementCreate,
+  syncElementUpdate,
+  syncElementDelete,
+  syncElementSoftDelete,
+  syncElementRestore,
+} from './sync-helpers';
+import { canUseFeature } from '../lib/feature-access';
 
 export interface CreateBookElementInput {
   categoryId: string;
@@ -178,6 +185,16 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
 
       const filtered = elements.filter((e) => e.id !== id);
       useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'element', id });
+
+      if (canUseFeature('trash')) {
+        return withOptimisticUpdate({
+          apply: () => setElements(filtered),
+          rollback: () => setElements(elements),
+          effect: () => elementRepo.softDelete(id),
+          sync: () => syncElementSoftDelete(id, activeProjectId),
+        });
+      }
+
       return withOptimisticUpdate({
         apply: () => setElements(filtered),
         rollback: () => setElements(elements),
@@ -188,13 +205,31 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     [elementRepo, getElements, setElements, ensureDb, activeProjectId],
   );
 
+  const restoreElement = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      await elementRepo.restore(id);
+      syncElementRestore(id, activeProjectId);
+      const fresh = await elementRepo.findAll();
+      setElements(fresh);
+    },
+    [elementRepo, ensureDb, setElements, activeProjectId],
+  );
+
+  const listTrashedElements = useCallback(async () => {
+    await ensureDb();
+    return await elementRepo.findTrashed();
+  }, [elementRepo, ensureDb]);
+
   return useMemo(
     () => ({
       loadInitial,
       createElement,
       updateElement,
       removeElement,
+      restoreElement,
+      listTrashedElements,
     }),
-    [loadInitial, createElement, updateElement, removeElement],
+    [loadInitial, createElement, updateElement, removeElement, restoreElement, listTrashedElements],
   );
 }

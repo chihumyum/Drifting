@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookNodeTable, ProjectTable } from '../schema/drizzle';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, isNull, isNotNull, and } from 'drizzle-orm';
 import type {
   BookNode,
   BookNodeKind,
@@ -34,9 +34,12 @@ export interface BookNodeUpdateData {
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
   findAll(): Promise<BookNode[]>;
+  findTrashed(): Promise<Array<BookNode & { deletedAt: string }>>;
   create(data: BookNodeCreateData): Promise<BookNode>;
   update(id: string, data: BookNodeUpdateData): Promise<BookNode | null>;
   delete(id: string): Promise<boolean>;
+  softDelete(id: string): Promise<boolean>;
+  restore(id: string): Promise<boolean>;
   swapOrder(
     first: { id: string; bookOrder: number },
     second: { id: string; bookOrder: number },
@@ -97,9 +100,18 @@ export function createBookNodeSqliteRepository(
       const rows = await dbProvider()
         .select()
         .from(BookNodeTable)
-        .where(eq(BookNodeTable.projectId, pid))
+        .where(and(eq(BookNodeTable.projectId, pid), isNull(BookNodeTable.deletedAt)))
         .orderBy(asc(BookNodeTable.bookOrder));
       return rows.map(toBookNode);
+    },
+
+    async findTrashed() {
+      const pid = currentProject;
+      const rows = await dbProvider()
+        .select()
+        .from(BookNodeTable)
+        .where(and(eq(BookNodeTable.projectId, pid), isNotNull(BookNodeTable.deletedAt)));
+      return rows.map((r) => ({ ...toBookNode(r), deletedAt: r.deletedAt as string }));
     },
 
     async create(data: BookNodeCreateData) {
@@ -188,6 +200,24 @@ export function createBookNodeSqliteRepository(
 
     async delete(id: string) {
       const result = await dbProvider().delete(BookNodeTable).where(eq(BookNodeTable.id, id));
+      return (result as any).rowsAffected > 0;
+    },
+
+    async softDelete(id: string) {
+      const now = new Date().toISOString();
+      const result = await dbProvider()
+        .update(BookNodeTable)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(eq(BookNodeTable.id, id));
+      return (result as any).rowsAffected > 0;
+    },
+
+    async restore(id: string) {
+      const now = new Date().toISOString();
+      const result = await dbProvider()
+        .update(BookNodeTable)
+        .set({ deletedAt: null, updatedAt: now })
+        .where(eq(BookNodeTable.id, id));
       return (result as any).rowsAffected > 0;
     },
 

@@ -4,10 +4,6 @@ import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
-import {
-  RESERVED_ELEMENT_CATEGORY_NAME,
-  isReservedElementCategoryName,
-} from '../domain/book-element';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
@@ -50,7 +46,7 @@ export function CategoryEditorView({
   if (!userId) throw new Error('User must be authenticated');
 
   const { bookElementCategories, bookElements, manuscriptComments } = useDataStore();
-  const { updateElement } = useBookElement({ projectId, userId });
+  useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
   const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
 
@@ -63,8 +59,6 @@ export function CategoryEditorView({
     if (!categoryId) return null;
     return bookElementCategories.find((cat) => cat.id === categoryId) || null;
   }, [bookElementCategories, categoryId]);
-
-  const isReservedCategory = isReservedElementCategoryName(curCategory?.name);
 
   // Elements belonging to this category.
   const cEls = useMemo(() => {
@@ -129,7 +123,7 @@ export function CategoryEditorView({
   const displayedName = isEditingName ? nameDraft : currentName;
 
   const commitName = async () => {
-    if (!curCategory || isReservedCategory) return;
+    if (!curCategory) return;
     const next = nameDraft.trim();
     if (!next || next === curCategory.name) return;
     promoteCurrentTab();
@@ -227,25 +221,11 @@ export function CategoryEditorView({
     async (action: string) => {
       if (!curCategory) return;
       if (action === 'deleteCategory') {
-        if (isReservedElementCategoryName(curCategory.name)) {
-          alert('The reserved "others" category cannot be deleted.');
-          return;
-        }
-        const fallbackCategory = bookElementCategories.find((cat) =>
-          isReservedElementCategoryName(cat.name),
-        );
-        if (!fallbackCategory) {
-          alert('Cannot delete category because the reserved "others" category is missing.');
-          return;
-        }
         const confirmed = window.confirm(
-          `Delete category "${curCategory.name}"?\n\nAll elements in this category will be moved to "${RESERVED_ELEMENT_CATEGORY_NAME}".`,
+          `Delete category "${curCategory.name}"?\n\nElements in this category will move to "未分类" (their categoryId becomes empty).`,
         );
         if (!confirmed) return;
         try {
-          for (const element of cEls) {
-            await updateElement(element.id, { categoryId: fallbackCategory.id });
-          }
           await categoryUsecases.deleteCategory(curCategory.id);
           navigateToHome();
         } catch (error) {
@@ -254,14 +234,7 @@ export function CategoryEditorView({
         }
       }
     },
-    [
-      curCategory,
-      bookElementCategories,
-      cEls,
-      updateElement,
-      categoryUsecases,
-      navigateToHome,
-    ],
+    [curCategory, categoryUsecases, navigateToHome],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.
@@ -288,8 +261,8 @@ export function CategoryEditorView({
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
       <EditorTopBar
-        editorType={isReservedCategory ? undefined : 'category'}
-        onMenuAction={isReservedCategory ? undefined : handleContextAction}
+        editorType={'category'}
+        onMenuAction={handleContextAction}
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
@@ -375,7 +348,6 @@ export function CategoryEditorView({
                     type="text"
                     className="elem-hero__name"
                     value={displayedName}
-                    disabled={isReservedCategory}
                     onFocus={() => { setNameDraft(currentName); setIsEditingName(true); }}
                     onChange={(e) => setNameDraft(e.target.value)}
                     onCompositionStart={() => setIsComposingName(true)}
@@ -392,7 +364,6 @@ export function CategoryEditorView({
                       }
                     }}
                     placeholder="Untitled category"
-                    title={isReservedCategory ? 'Reserved category — cannot rename' : undefined}
                   />
 
                   <div className="elem-hero__facts">

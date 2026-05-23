@@ -13,10 +13,13 @@ import {
   syncStorylineCreate,
   syncStorylineUpdate,
   syncStorylineDelete,
+  syncStorylineSoftDelete,
+  syncStorylineRestore,
   syncNodeStorylineLinkCreate,
   syncNodeStorylineLinkDelete,
   syncNodeStorylinesSet,
 } from './sync-helpers';
+import { canUseFeature } from '../lib/feature-access';
 
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('useStoryline');
@@ -334,6 +337,24 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   //       - That single link is removed; primary stays untouched.
   // Drift nodes are unaffected (they never have storyline links). The book_node
   // row itself is never mutated — kind stays 'chapter', bookOrder is preserved.
+  const restoreStoryline = useCallback(
+    async (id: string): Promise<void> => {
+      await ensureDb();
+      const repo = createStorylineRepository(activeProjectId);
+      await repo.restoreStoryline(id);
+      syncStorylineRestore(id, activeProjectId);
+      const fresh = await repo.getStorylinesByProject();
+      setStorylinesState(fresh);
+    },
+    [activeProjectId, ensureDb, setStorylinesState],
+  );
+
+  const listTrashedStorylines = useCallback(async () => {
+    await ensureDb();
+    const repo = createStorylineRepository(activeProjectId);
+    return await repo.getTrashedStorylines();
+  }, [activeProjectId, ensureDb]);
+
   const deleteStoryline = useCallback(
     async (id: string): Promise<void> => {
       await ensureDb();
@@ -388,9 +409,14 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
           void reverseMapping;
         },
         effect: async () => {
+          // Pro/Studio: soft-delete only. The storyline disappears from list
+          // queries but the row + its link rows linger (no FK cascade fires
+          // because nothing is hard-deleted). We still wipe link rows for
+          // chapters that go 未归属 — that's the "restore doesn't restore
+          // relations" rule from the spec.
+          //
+          // Free: full hard delete inside a transaction so FK cascade runs.
           await getDb().transaction(async (tx) => {
-            // Wipe ALL link rows for the affected chapters first (they go
-            // 未归属 with no remaining memberships).
             if (nodesGoingUnaffiliated.length > 0) {
               const { NodeStorylineLinkTable } = await import('../schema/drizzle');
               const { inArray } = await import('drizzle-orm');
@@ -398,20 +424,23 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
                 .delete(NodeStorylineLinkTable)
                 .where(inArray(NodeStorylineLinkTable.nodeId, nodesGoingUnaffiliated));
             }
-            // Then delete the storyline itself; ON DELETE CASCADE on the link
-            // table sweeps up any remaining (non-primary) rows pointing at it.
             const storylineRepoTx = createStorylineRepository(activeProjectId, tx);
-            await storylineRepoTx.deleteStoryline(id);
+            if (canUseFeature('trash')) {
+              await storylineRepoTx.softDeleteStoryline(id);
+            } else {
+              await storylineRepoTx.deleteStoryline(id);
+            }
           });
         },
         sync: () => {
-          // For each unaffiliated chapter: bulk-replace its memberships with
-          // an empty set + null primary. This is the only sync signal needed —
-          // the server's storyline delete cascades the rest.
           for (const nid of nodesGoingUnaffiliated) {
             syncNodeStorylinesSet(nid, activeProjectId, [], { primaryStorylineId: null });
           }
-          syncStorylineDelete(id, activeProjectId);
+          if (canUseFeature('trash')) {
+            syncStorylineSoftDelete(id, activeProjectId);
+          } else {
+            syncStorylineDelete(id, activeProjectId);
+          }
         },
       });
     },
@@ -553,6 +582,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       getStorylinesByProject,
       updateStoryline,
       deleteStoryline,
+      restoreStoryline,
+      listTrashedStorylines,
       addNodeToStoryline,
       removeNodeFromStoryline,
       getStorylinesByNode,
@@ -568,6 +599,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       getStorylinesByProject,
       updateStoryline,
       deleteStoryline,
+      restoreStoryline,
+      listTrashedStorylines,
       addNodeToStoryline,
       removeNodeFromStoryline,
       getStorylinesByNode,

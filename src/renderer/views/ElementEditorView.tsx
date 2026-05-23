@@ -472,7 +472,7 @@ export function ElementEditorView({
           >
             <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Change Category</h3>
             <select
-              value={curElement.categoryId}
+              value={curElement.categoryId ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '__new__') {

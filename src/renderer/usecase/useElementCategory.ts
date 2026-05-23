@@ -1,16 +1,20 @@
 import { useMemo, useCallback } from 'react';
 import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
-import {
-  isReservedElementCategoryName,
-  type BookElementCategory,
-} from '../domain/book-element';
+import type { BookElementCategory } from '../domain/book-element';
 import { v7 as uuidv7 } from 'uuid';
 import { randomColor } from '../utils';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import { syncCategoryCreate, syncCategoryUpdate, syncCategoryDelete } from './sync-helpers';
+import {
+  syncCategoryCreate,
+  syncCategoryUpdate,
+  syncCategoryDelete,
+  syncCategorySoftDelete,
+  syncCategoryRestore,
+} from './sync-helpers';
+import { canUseFeature } from '../lib/feature-access';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('useElementCategory');
@@ -212,21 +216,20 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         prevCategories = freshCategories.slice();
         existing = freshCategories.find((cat) => cat.id === categoryId);
       }
-      if (existing && isReservedElementCategoryName(existing.name)) {
-        throw new Error('Cannot delete the reserved "others" category.');
-      }
-
-      // Close any tab pointing at this category — and at elements that
-      // cascade-delete with it — before the entity state mutates, so the
-      // tab bar doesn't render "Untitled" leaves for now-gone entities.
-      // Category → element cascade lives in the FK (see migration 0027).
+      // Close any tab pointing at this category. Children (elements) are NOT
+      // cascade-deleted any more — the FK is ON DELETE SET NULL (migration
+      // 0028), so elements detach into the "未分类" bucket and their tabs
+      // stay open.
       const uiStore = useUiStore.getState();
       uiStore.closeTabsForEntity(activeProjectId, { entityType: 'category', id: categoryId });
-      const elementsOfCategory = useDataStore
-        .getState()
-        .bookElements.filter((el) => el.categoryId === categoryId);
-      for (const el of elementsOfCategory) {
-        uiStore.closeTabsForEntity(activeProjectId, { entityType: 'element', id: el.id });
+
+      if (canUseFeature('trash')) {
+        return withOptimisticUpdate({
+          apply: () => removeCategoryState(categoryId),
+          rollback: () => setCategoriesState(prevCategories),
+          effect: () => repo.softDelete(categoryId),
+          sync: () => syncCategorySoftDelete(categoryId, activeProjectId),
+        });
       }
 
       return withOptimisticUpdate({
@@ -238,6 +241,22 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
     },
     [ensureDb, getCategoriesState, removeCategoryState, repo, setCategoriesState, activeProjectId],
   );
+
+  const restoreCategory = useCallback(
+    async (categoryId: string): Promise<void> => {
+      await ensureDb();
+      await repo.restore(categoryId);
+      syncCategoryRestore(categoryId, activeProjectId);
+      const fresh = await repo.findAll();
+      setCategoriesState(fresh);
+    },
+    [ensureDb, repo, setCategoriesState, activeProjectId],
+  );
+
+  const listTrashedCategories = useCallback(async () => {
+    await ensureDb();
+    return await repo.findTrashed();
+  }, [ensureDb, repo]);
 
   const getCategoryColor = useCallback(
     (categoryId: string): string => {
@@ -265,8 +284,18 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       loadCategories,
       updateCategory,
       deleteCategory,
+      restoreCategory,
+      listTrashedCategories,
       getCategoryColor,
     }),
-    [createCategory, loadCategories, updateCategory, deleteCategory, getCategoryColor],
+    [
+      createCategory,
+      loadCategories,
+      updateCategory,
+      deleteCategory,
+      restoreCategory,
+      listTrashedCategories,
+      getCategoryColor,
+    ],
   );
 }

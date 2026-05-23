@@ -2,9 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { eq, inArray } from 'drizzle-orm';
 
 import type { Project } from '../domain/project';
-import type { BookElementCategory } from '../domain/book-element';
 import { createProjectRepository } from '../sqlite-repo/project-repo';
-import { createElementCategoryRepository } from '../sqlite-repo/element-category-repo';
 import { getDb, initDatabase } from '../lib/db';
 import apiClient from '../lib/axios-config';
 import { isSyncEnabled } from '../lib/config';
@@ -15,9 +13,7 @@ import {
   syncProjectCreate,
   syncProjectUpdate,
   syncProjectDelete,
-  syncCategoryCreate,
 } from './sync-helpers';
-import { randomColor } from '../utils';
 import { defaultProjectKvJson } from '../domain/kv';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
@@ -375,70 +371,20 @@ export function useProject({ userId }: UseProjectContext) {
         updatedAt: now,
       });
 
-      // Projects are allowed to have zero storylines (single-lane / default
-      // writing mode). The first storyline gets created on demand — when the
-      // user adds one explicitly, or when storyline-aware features need it.
-
-      // Enforce invariant: Project must have at least one 'others' element category
-      const categoryRepo = createElementCategoryRepository(project.id);
-      const defaultCategoryId = uuidv7();
-      const createdCategory = await categoryRepo.create({
-        id: defaultCategoryId,
-        projectId: project.id,
-        name: 'others',
-        descriptionJson: '{}',
-        elementTemplateJson: '{}',
-        elementTemplateKvJson: '[]',
-        color: randomColor(),
-        layoutMode: 'auto',
-        gridX: null,
-        gridY: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-      let defaultCategory: BookElementCategory | null = createdCategory;
-      if (!defaultCategory?.id || !defaultCategory.name?.trim()) {
-        defaultCategory = await categoryRepo.findByName('others');
-      }
-      if (!defaultCategory) {
-        throw new Error('Failed to create default element category');
-      }
-      if (!defaultCategory.name?.trim()) {
-        await categoryRepo.update(defaultCategory.id || defaultCategoryId, {
-          name: 'others',
-          updatedAt: new Date().toISOString(),
-        });
-        defaultCategory = await categoryRepo.findByName('others');
-        if (!defaultCategory) {
-          throw new Error('Failed to recover default category after name update');
-        }
-      }
-
-      const categories = await categoryRepo.findAll();
-      const safeCategories = categories.filter((c) => Boolean(c?.id) && Boolean(c?.name?.trim()));
+      // Projects are allowed to have zero storylines AND zero categories. Both
+      // are user-created on demand. element.categoryId is nullable; orphan
+      // elements live in the "未分类" bucket.
 
       const dataStore = useDataStore.getState();
-      // Storylines start empty — the project is in "single-lane" mode until
-      // the user creates one explicitly.
       dataStore.setStorylines([]);
-      dataStore.setBookElementCategories(
-        safeCategories.length > 0 ? safeCategories : [defaultCategory],
-      );
+      dataStore.setBookElementCategories([]);
 
-      // Sync to server (fire-and-forget)
       syncProjectCreate(project.id, {
         id: project.id,
         name: project.name,
         descriptionJson: project.descriptionJson,
         kvJson: project.kvJson,
         storylineTemplateKvJson: project.storylineTemplateKvJson,
-      });
-      syncCategoryCreate(defaultCategory.id, project.id, {
-        id: defaultCategory.id,
-        name: defaultCategory.name,
-        color: defaultCategory.color,
-        descriptionJson: defaultCategory.descriptionJson,
-        elementTemplateKvJson: defaultCategory.elementTemplateKvJson,
       });
 
       return project;

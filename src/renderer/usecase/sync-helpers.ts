@@ -56,6 +56,14 @@ export function syncNodeDelete(id: string, projectId: string) {
   enqueueSync('node', 'delete', id, projectId);
 }
 
+export function syncNodeSoftDelete(id: string, projectId: string) {
+  enqueueSync('node', 'softDelete', id, projectId);
+}
+
+export function syncNodeRestore(id: string, projectId: string) {
+  enqueueSync('node', 'restore', id, projectId);
+}
+
 export function syncNodeContentUpdate(
   nodeId: string,
   projectId: string,
@@ -82,6 +90,14 @@ export function syncStorylineUpdate(
 
 export function syncStorylineDelete(id: string, projectId: string) {
   enqueueSync('storyline', 'delete', id, projectId);
+}
+
+export function syncStorylineSoftDelete(id: string, projectId: string) {
+  enqueueSync('storyline', 'softDelete', id, projectId);
+}
+
+export function syncStorylineRestore(id: string, projectId: string) {
+  enqueueSync('storyline', 'restore', id, projectId);
 }
 
 export function syncNodeStorylineLinkCreate(
@@ -132,6 +148,14 @@ export function syncElementDelete(id: string, projectId: string) {
   enqueueSync('element', 'delete', id, projectId);
 }
 
+export function syncElementSoftDelete(id: string, projectId: string) {
+  enqueueSync('element', 'softDelete', id, projectId);
+}
+
+export function syncElementRestore(id: string, projectId: string) {
+  enqueueSync('element', 'restore', id, projectId);
+}
+
 export function syncCategoryCreate(
   id: string,
   projectId: string,
@@ -150,6 +174,14 @@ export function syncCategoryUpdate(
 
 export function syncCategoryDelete(id: string, projectId: string) {
   enqueueSync('elementCategory', 'delete', id, projectId);
+}
+
+export function syncCategorySoftDelete(id: string, projectId: string) {
+  enqueueSync('elementCategory', 'softDelete', id, projectId);
+}
+
+export function syncCategoryRestore(id: string, projectId: string) {
+  enqueueSync('elementCategory', 'restore', id, projectId);
 }
 
 export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {

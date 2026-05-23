@@ -1,13 +1,9 @@
-export const RESERVED_ELEMENT_CATEGORY_NAME = 'others';
-
-export function isReservedElementCategoryName(name?: string | null): boolean {
-  return (name ?? '').trim().toLowerCase() === RESERVED_ELEMENT_CATEGORY_NAME;
-}
-
 export interface BookElement {
   id: string;
   projectId: string;
-  categoryId: string;
+  // Nullable since the trash refactor: elements with categoryId === null are
+  // in the "未分类" bucket (rendered last in SuperElementView).
+  categoryId: string | null;
   name: string;
   summary: string;
   contentJson: string;

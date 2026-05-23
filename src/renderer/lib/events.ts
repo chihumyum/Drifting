@@ -8,7 +8,7 @@ export type SyncOperationEvent = {
   kind: 'yjs' | 'crud';
   phase: 'push' | 'pull';
   state: 'started' | 'succeeded' | 'failed';
-  operation: 'create' | 'update' | 'delete' | 'push' | 'pull';
+  operation: 'create' | 'update' | 'delete' | 'softDelete' | 'restore' | 'push' | 'pull';
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   endpoint: string;
   docId?: string;

@@ -1,6 +1,6 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { StorylineTable } from '../schema/drizzle';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and, isNull, isNotNull } from 'drizzle-orm';
 import type { Storyline } from '../domain/storyline';
 import LogLevel from 'loglevel';
 const log = LogLevel.getLogger('StorylineRepository');
@@ -14,8 +14,11 @@ export interface StorylineRepository {
   createStoryline(input: Storyline): Promise<Storyline>;
   getStorylineById(id: string): Promise<Storyline | null>;
   getStorylinesByProject(): Promise<Storyline[]>;
+  getTrashedStorylines(): Promise<Array<Storyline & { deletedAt: string }>>;
   updateStoryline(id: string, input: UpdateStorylineInput): Promise<Storyline>;
   deleteStoryline(id: string): Promise<void>;
+  softDeleteStoryline(id: string): Promise<void>;
+  restoreStoryline(id: string): Promise<void>;
 }
 
 function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
@@ -100,9 +103,17 @@ export function createStorylineRepository(
     const rows = await dbProvider()
       .select()
       .from(StorylineTable)
-      .where(eq(StorylineTable.projectId, projectId))
+      .where(and(eq(StorylineTable.projectId, projectId), isNull(StorylineTable.deletedAt)))
       .orderBy(asc(StorylineTable.orderKey));
     return rows.map(toStoryline);
+  };
+
+  const getTrashedStorylines = async (): Promise<Array<Storyline & { deletedAt: string }>> => {
+    const rows = await dbProvider()
+      .select()
+      .from(StorylineTable)
+      .where(and(eq(StorylineTable.projectId, projectId), isNotNull(StorylineTable.deletedAt)));
+    return rows.map((r) => ({ ...toStoryline(r), deletedAt: r.deletedAt as string }));
   };
 
   const updateStoryline = async (id: string, input: UpdateStorylineInput): Promise<Storyline> => {
@@ -143,11 +154,30 @@ export function createStorylineRepository(
     await dbProvider().delete(StorylineTable).where(eq(StorylineTable.id, id));
   };
 
+  const softDeleteStoryline = async (id: string): Promise<void> => {
+    const now = new Date().toISOString();
+    await dbProvider()
+      .update(StorylineTable)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(eq(StorylineTable.id, id));
+  };
+
+  const restoreStoryline = async (id: string): Promise<void> => {
+    const now = new Date().toISOString();
+    await dbProvider()
+      .update(StorylineTable)
+      .set({ deletedAt: null, updatedAt: now })
+      .where(eq(StorylineTable.id, id));
+  };
+
   return {
     createStoryline,
     getStorylineById,
     getStorylinesByProject,
+    getTrashedStorylines,
     updateStoryline,
     deleteStoryline,
+    softDeleteStoryline,
+    restoreStoryline,
   };
 }
