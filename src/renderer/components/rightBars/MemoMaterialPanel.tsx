@@ -388,13 +388,27 @@ function Toolbar({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const [compact, setCompact] = useState(false);
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
     triggerRef.current?.blur();
   }, []);
   useEscapeToClose(menuOpen, closeMenu);
+  // Swap pill labels to short English when the toolbar is too narrow to fit
+  // 全部 / 仅当前条目 alongside the counter + "+" button on one line.
+  useEffect(() => {
+    const node = toolbarRef.current;
+    if (!node) return;
+    const update = () => setCompact(node.clientWidth < 280);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
   return (
     <div
+      ref={toolbarRef}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -413,14 +427,14 @@ function Toolbar({
     >
       <div style={{ display: 'flex', gap: 4 }}>
         <FilterPill active={filter === 'all'} onClick={() => onFilterChange('all')}>
-          全部
+          {compact ? 'All' : '全部'}
         </FilterPill>
         <FilterPill
           active={filter === 'related'}
           disabled={!focusedKind}
           onClick={() => onFilterChange('related')}
         >
-          仅当前条目
+          {compact ? 'Cur' : '仅当前条目'}
         </FilterPill>
       </div>
       <div

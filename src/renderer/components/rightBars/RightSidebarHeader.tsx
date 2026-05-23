@@ -4,11 +4,10 @@ import { useUiStore } from '../../store/ui-store';
 type RightPanelId = 'fragments' | 'stats' | 'shadow';
 
 interface RightSidebarHeaderProps {
-  fragmentCount: number;
   shadowReviewCount: number;
   kicker: string;
   title: string;
-  /** Pulsates the fragments-count badge after a shadow → fragment conversion. */
+  /** Pulsates the fragments tab label after a shadow → fragment conversion. */
   fragmentCountFlash?: boolean;
   /** Pulsates the Shadow tab when shadow mode first activates. */
   shadowJustAppeared?: boolean;
@@ -19,7 +18,6 @@ interface RightSidebarHeaderProps {
 }
 
 export function RightSidebarHeader({
-  fragmentCount,
   shadowReviewCount,
   kicker,
   title,
@@ -61,18 +59,16 @@ export function RightSidebarHeader({
             active={activeRightPanel === 'fragments'}
             onClick={() => setActiveRightPanel('fragments')}
           >
-            <span style={{ whiteSpace: 'nowrap' }}>备忘与参考</span>
             <span
               style={
                 {
-                  color: 'hsl(var(--ink-4))',
-                  fontSize: 9.5,
+                  whiteSpace: 'nowrap',
                   animation: fragmentCountFlash ? 'insp-tab-count-pulse 700ms ease' : undefined,
                   display: 'inline-block',
                 } as React.CSSProperties
               }
             >
-              {fragmentCount}
+              备忘与参考
             </span>
           </RightPanelTab>
           <RightPanelTab

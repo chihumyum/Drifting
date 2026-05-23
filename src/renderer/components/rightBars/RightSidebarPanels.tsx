@@ -27,8 +27,6 @@ export function RightSidebarPanels() {
     storylines,
     bookElementCategories,
     storylineNodeMapping,
-    memos,
-    materials,
   } = useDataStore();
 
   // Decode the active tab into a resolved target so the right panel can show
@@ -97,13 +95,6 @@ export function RightSidebarPanels() {
     return { kind: 'none', id: null, title: '—', kicker: '—' };
   }, [activeTabKey, openTabs, bookNodes, bookElements, storylines, bookElementCategories]);
 
-  // Memo + material counts feed the badge on the fragments tab. These are now
-  // project-global, not per-entity — the panel itself owns the "全部 / 仅当前
-  //条目" toggle. Resolved memos don't contribute to the headline count.
-  const fragmentCount = useMemo(
-    () => memos.filter((m) => m.resolution !== 'resolved').length + materials.length,
-    [memos, materials],
-  );
   const focusedForPanel: FocusedEntity = useMemo(() => {
     if (!target.kind || target.kind === 'none' || !target.id) {
       return { kind: null, id: null };
@@ -191,7 +182,6 @@ export function RightSidebarPanels() {
       )}
 
       <RightSidebarHeader
-        fragmentCount={fragmentCount}
         shadowReviewCount={shadowReviewCount}
         kicker={headerKicker}
         title={headerTitle}
