@@ -16,11 +16,9 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
   const resizingSidebar = useUiStore((s) => s.resizingSidebar);
 
   // Calculate widths
-  // Traffic lights usually take ~70-80px. LeftSidebarTopBar has paddingLeft: 90.
-  // Plus button width ~30px + paddingRight 16px.
-  // 90 + 28 + 16 ~= 134px. Let's say 140px safe.
-  // Or just let it be auto? No, we want animation.
-  const LEFT_COLLAPSED_WIDTH = 200;
+  // Collapsed left section just hosts the two buttons hugging the traffic lights:
+  // paddingLeft 78 (traffic lights) + search 26 + gap 2 + toggle 26 + paddingRight 8 = 140
+  const LEFT_COLLAPSED_WIDTH = 140;
   // Collapsed right section must fit the sidebar-toggle button (26px) and the
   // always-visible user avatar (26px), plus paddings + gap (~22px).
   const RIGHT_COLLAPSED_WIDTH = 80;

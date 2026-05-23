@@ -163,7 +163,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             list.style.display = 'flex';
             list.style.flexDirection = 'column';
             list.style.background = '#fefdfb';
-            list.style.border = '1px solid var(--accent-border, #e8dcc8)';
+            list.style.border = '1px solid hsl(var(--accent-border))';
             list.style.borderRadius = '6px';
             list.style.boxShadow = '0 4px 16px rgba(139, 115, 85, 0.12)';
             // max-height is set dynamically by updatePosition based on
@@ -185,10 +185,10 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
               return;
             }
 
-            const accentColor =
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--accent')
-                .trim() || '#b89968';
+            const accentHsl = getComputedStyle(document.documentElement)
+              .getPropertyValue('--accent')
+              .trim();
+            const accentColor = accentHsl ? `hsl(${accentHsl})` : '#b89968';
 
             items.forEach((item, idx) => {
               const btn = document.createElement('button');

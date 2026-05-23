@@ -38,6 +38,9 @@
     --input:                 35 15% 84%;
     --ring:                    8 55% 33%;
 
+    /* Runtime-overridden by theme.ts based on the user's accent hue. */
+    --accent-border:         30 25% 82%;
+
     --radius: 0.375rem;
 
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
@@ -112,6 +115,8 @@
     --border:                36  8% 20%;
     --input:                 36  8% 20%;
     --ring:                   13 45% 60%;
+
+    --accent-border:         36 10% 25%;
 
     --paper:                 36  8% 10%;
     --paper-deep:            36  8%  8%;

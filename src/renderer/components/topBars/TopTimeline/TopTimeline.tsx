@@ -274,6 +274,26 @@ export function TopTimeline() {
     );
   }, [openTabs, lookups, containerWidth]);
 
+  // When the active tab changes (or the layout shifts enough to push it out of
+  // view), scroll the bar so the active tab is fully visible. Without this,
+  // activating a tab via shortcut / split focus change / URL nav can leave the
+  // active tab inside the horizontal overflow with no visual cue.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !activeTabKey) return;
+    const activeEl = container.querySelector(
+      `[data-tab-key="${CSS.escape(activeTabKey)}"]`,
+    ) as HTMLElement | null;
+    if (!activeEl) return;
+    const cRect = container.getBoundingClientRect();
+    const eRect = activeEl.getBoundingClientRect();
+    if (eRect.left < cRect.left) {
+      container.scrollBy({ left: eRect.left - cRect.left - 8, behavior: 'smooth' });
+    } else if (eRect.right > cRect.right) {
+      container.scrollBy({ left: eRect.right - cRect.right + 8, behavior: 'smooth' });
+    }
+  }, [activeTabKey, tabWidths, containerWidth]);
+
   // Click a top-level tab. Tab activation always bypasses openEntity:
   //   - splits would otherwise have their focused side replaced (openEntity
   //     treats them as "active is split → swap focused side"),
@@ -624,6 +644,7 @@ function LeafTabSlot({
     <div
       role="tab"
       aria-selected={isActive}
+      data-tab-key={tabKey(tab)}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
@@ -812,6 +833,7 @@ function SplitTabSlot({
     <div
       role="tab"
       aria-selected={isActive}
+      data-tab-key={tabKey(tab)}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';

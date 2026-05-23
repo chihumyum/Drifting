@@ -14,6 +14,9 @@ import { events } from '../../lib/events';
 const log = loglevel.getLogger('ElementPanel');
 log.setLevel(loglevel.levels.ERROR);
 
+// 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
+const DATE_HIDE_WIDTH = 200;
+
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
@@ -27,6 +30,8 @@ const formatShortDate = (input: string | number | Date) => {
 export function ElementPanel() {
   const { bookElements, bookElementCategories } = useDataStore();
   const { elementUi } = useUiStore();
+  const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
+  const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -443,17 +448,19 @@ export function ElementPanel() {
         </div>
 
         {/* Date */}
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'hsl(var(--ink-4))',
-            flexShrink: 0,
-            letterSpacing: '0.04em',
-          }}
-        >
-          {formatShortDate(element.updatedAt)}
-        </span>
+        {showDate && (
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              color: 'hsl(var(--ink-4))',
+              flexShrink: 0,
+              letterSpacing: '0.04em',
+            }}
+          >
+            {formatShortDate(element.updatedAt)}
+          </span>
+        )}
 
       </div>
     );

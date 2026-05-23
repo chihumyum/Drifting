@@ -9,19 +9,9 @@ export function initAccentColor() {
 export function applyAccentColor(hue: number) {
   const root = document.documentElement;
 
-  // Generate accent color variations based on hue
-  // Base saturation and lightness values for scholarly aesthetic
-  // Design tokens store HSL triplets because the CSS uses hsl(var(--accent)).
-  // Storing a full hsl(...) color here would produce invalid hsl(hsl(...)).
-  const accentBase = `${hue} 35% 55%`; // Main accent - mild saturation, medium light
-  const accentHover = `hsl(${hue}, 35%, 48%)`; // Hover - slightly darker
-  const accentActive = `hsl(${hue}, 35%, 42%)`; // Active - darker still
-  const accentBorder = `hsl(${hue}, 25%, 82%)`; // Border - very light, low saturation
-  const accentBorderLight = `hsl(${hue}, 20%, 90%)`; // Border light - extremely light
-
-  root.style.setProperty('--accent', accentBase);
-  root.style.setProperty('--accent-hover', accentHover);
-  root.style.setProperty('--accent-active', accentActive);
-  root.style.setProperty('--accent-border', accentBorder);
-  root.style.setProperty('--accent-border-light', accentBorderLight);
+  // Design tokens are HSL triplets (no hsl() wrapper). Consumers must wrap
+  // them as `hsl(var(--accent))` to render — this lets the same token also
+  // be used with alpha, e.g. `hsl(var(--accent) / 0.1)`.
+  root.style.setProperty('--accent', `${hue} 35% 55%`);
+  root.style.setProperty('--accent-border', `${hue} 25% 82%`);
 }

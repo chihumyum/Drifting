@@ -116,7 +116,7 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
         list.style.display = 'flex';
         list.style.flexDirection = 'column';
         list.style.background = '#fefdfb';
-        list.style.border = '1px solid var(--accent-border, #e8dcc8)';
+        list.style.border = '1px solid hsl(var(--accent-border))';
         list.style.borderRadius = '6px';
         list.style.boxShadow = '0 4px 16px rgba(139, 115, 85, 0.12)';
         // Scrollable list when items overflow available vertical space — the
@@ -135,9 +135,9 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
           btn.style.padding = '6px 12px';
           btn.style.textAlign = 'left';
           btn.style.border = 'none';
-          const accentColor =
-            getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() ||
-            '#b89968';
+          const accentHsl =
+            getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+          const accentColor = accentHsl ? `hsl(${accentHsl})` : '#b89968';
           btn.style.background = idx === selected ? accentColor : '#fefdfb';
           btn.style.color = idx === selected ? '#fefdfb' : '#5a4a3a';
           btn.style.cursor = 'pointer';

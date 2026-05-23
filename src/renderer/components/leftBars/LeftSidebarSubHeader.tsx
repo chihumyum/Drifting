@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlignLeft, GitBranch, Minus, ArrowDownUp, ListFilter, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -15,6 +15,9 @@ import { events } from '../../lib/events';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
+
+// 容器宽度低于此值时隐藏左侧 meta 统计文本，把空间让给右侧操作按钮。
+const META_HIDE_WIDTH = 220;
 
 export function LeftSidebarSubHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
@@ -136,6 +139,19 @@ export function LeftSidebarSubHeader() {
         ? `${bookElementCategories.length} 类 · ${bookElements.length} 元素`
         : `${driftCount} 浮缀`;
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [showMeta, setShowMeta] = useState(true);
+
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const measure = () => setShowMeta(el.clientWidth >= META_HIDE_WIDTH);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const collapseAll = useCallback(() => {
     events.emit('left-sidebar:collapse-all');
   }, []);
@@ -211,10 +227,11 @@ export function LeftSidebarSubHeader() {
 
   return (
     <div
+      ref={rootRef}
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: showMeta ? 'space-between' : 'flex-end',
         gap: 8,
         padding: '6px 10px 6px 12px',
         fontFamily: 'var(--font-mono)',
@@ -226,9 +243,11 @@ export function LeftSidebarSubHeader() {
         flexShrink: 0,
       }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {meta}
-      </span>
+      {showMeta && (
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {meta}
+        </span>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {renderViewToggle()}
         <SubIconBtn title="折叠全部" onClick={collapseAll}>

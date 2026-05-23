@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Navigate,
   Route,
@@ -441,6 +441,10 @@ function Layout() {
   const activeLeftPanel = useUiStore((state) => state.activeLeftPanel);
   const bottomTimelineHidden = useUiStore((state) => state.bottomTimelineHidden);
 
+  // Track the last singleton-nav shortcut so a quick repeat (Digit1/Digit2)
+  // promotes the preview tab to dedicated — mirrors the dblclick gesture on
+  // the BottomStatusBar Home / 通览全书 buttons.
+  const lastSingletonShortcut = useRef<{ code: 'Digit1' | 'Digit2'; t: number } | null>(null);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Option = altKey on Mac. Require Cmd+Option exactly — no Shift/Ctrl —
@@ -454,16 +458,28 @@ function Layout() {
       const toggleSuper = (view: 'graph' | 'element' | 'memo-material') => {
         setActiveSuperView(activeSuperView === view ? 'none' : view);
       };
+      const maybePromote = (code: 'Digit1' | 'Digit2') => {
+        const prev = lastSingletonShortcut.current;
+        const now = performance.now();
+        if (prev && prev.code === code && now - prev.t <= 500 && projectId) {
+          useUiStore.getState().promoteTab(projectId);
+          lastSingletonShortcut.current = null;
+        } else {
+          lastSingletonShortcut.current = { code, t: now };
+        }
+      };
       switch (e.code) {
         case 'Digit1':
           e.preventDefault();
           dismissSuperView();
           navigateToHome();
+          maybePromote('Digit1');
           return;
         case 'Digit2':
           e.preventDefault();
           dismissSuperView();
           navigateToAllChapters();
+          maybePromote('Digit2');
           return;
         case 'Digit3':
           e.preventDefault();
@@ -484,7 +500,7 @@ function Layout() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSuperView, setActiveSuperView, navigateToHome, navigateToAllChapters]);
+  }, [activeSuperView, setActiveSuperView, navigateToHome, navigateToAllChapters, projectId]);
 
   // User-configurable shortcuts (close tab, find in editor, global search).
   // Subscribe to the store via getState() inside the handler so we read the

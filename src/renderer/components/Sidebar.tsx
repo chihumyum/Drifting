@@ -26,7 +26,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
     const handleMouseMove = (e: MouseEvent) => {
       let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
-      const minWidth = 220;
+      // 对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）。
+      const minWidth = 140;
       const maxWidth = window.innerWidth * 0.3;
 
       if (newWidth < minWidth) newWidth = minWidth;

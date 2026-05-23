@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronUp } from 'lucide-react';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
 // Electron 40's V8. The legacy build ships the polyfill.
@@ -127,7 +128,6 @@ export function MemoMaterialPanel({ focused }: Props) {
   const relationUsecases = useEntityRelations({ projectId, userId });
 
   const [filter, setFilter] = useState<ViewFilter>('all');
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState<null | 'memo' | 'material'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
@@ -221,7 +221,7 @@ export function MemoMaterialPanel({ focused }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <Toolbar
         filter={filter}
         onFilterChange={setFilter}
@@ -231,7 +231,17 @@ export function MemoMaterialPanel({ focused }: Props) {
         materialTotal={materials.length}
       />
 
-      <div style={{ padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '8px 12px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
         {filteredMemos.length === 0 && filteredMaterials.length === 0 && (
           <EmptyState
             message={
@@ -295,19 +305,15 @@ export function MemoMaterialPanel({ focused }: Props) {
           />
         ))}
 
-        {resolvedMemos.length > 0 && (
-          <Archive open={archiveOpen} onToggle={() => setArchiveOpen((v) => !v)} count={resolvedMemos.length}>
-            {resolvedMemos.map((m) => (
-              <ResolvedMemoCard
-                key={m.id}
-                memo={m}
-                onReopen={() => memoUsecases.setMemoResolution(m.id, 'unresolved')}
-                onDelete={() => memoUsecases.removeMemo(m.id)}
-              />
-            ))}
-          </Archive>
-        )}
       </div>
+
+      {resolvedMemos.length > 0 && (
+        <ResolvedArchive
+          memos={resolvedMemos}
+          onReopen={(id) => memoUsecases.setMemoResolution(id, 'unresolved')}
+          onDelete={(id) => memoUsecases.removeMemo(id)}
+        />
+      )}
 
       {composeOpen === 'memo' && (
         <ComposeMemoDialog
@@ -2362,44 +2368,150 @@ const MATERIAL_KIND_LABEL: Record<MaterialKind, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Resolved archive
+// Resolved archive — bottom-pinned drawer, mirrors DriftPanel's resting bucket:
+// collapsed header strip by default, click to expand, drag the top edge to
+// resize while expanded. Auto-collapses once the archive empties.
 
-function Archive({
-  open,
-  onToggle,
-  count,
-  children,
+const RESOLVED_MIN_HEIGHT = 80;
+const RESOLVED_DEFAULT_HEIGHT = 200;
+const RESOLVED_HEADER_HEIGHT = 28;
+
+function ResolvedArchive({
+  memos,
+  onReopen,
+  onDelete,
 }: {
-  open: boolean;
-  onToggle: () => void;
-  count: number;
-  children: React.ReactNode;
+  memos: Memo[];
+  onReopen: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [height, setHeight] = useState(RESOLVED_DEFAULT_HEIGHT);
+  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  useEffect(() => {
+    if (memos.length === 0 && expanded) setExpanded(false);
+  }, [memos.length, expanded]);
+
+  const handleDragMove = useCallback((event: PointerEvent) => {
+    const state = dragStateRef.current;
+    if (!state) return;
+    const delta = state.startY - event.clientY;
+    const next = Math.max(RESOLVED_MIN_HEIGHT, state.startHeight + delta);
+    setHeight(next);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragStateRef.current = null;
+    window.removeEventListener('pointermove', handleDragMove);
+    window.removeEventListener('pointerup', handleDragEnd);
+    window.removeEventListener('pointercancel', handleDragEnd);
+  }, [handleDragMove]);
+
+  const handleDragStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!expanded) return;
+      event.preventDefault();
+      dragStateRef.current = { startY: event.clientY, startHeight: height };
+      window.addEventListener('pointermove', handleDragMove);
+      window.addEventListener('pointerup', handleDragEnd);
+      window.addEventListener('pointercancel', handleDragEnd);
+    },
+    [expanded, handleDragEnd, handleDragMove, height],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (dragStateRef.current) {
+        window.removeEventListener('pointermove', handleDragMove);
+        window.removeEventListener('pointerup', handleDragEnd);
+        window.removeEventListener('pointercancel', handleDragEnd);
+      }
+    };
+  }, [handleDragEnd, handleDragMove]);
+
+  const drawerHeight = expanded ? height : RESOLVED_HEADER_HEIGHT;
+
   return (
-    <div style={{ marginTop: 12 }}>
-      <button
-        onClick={onToggle}
+    <div
+      style={{
+        height: drawerHeight,
+        borderTop: '1px solid hsl(var(--rule))',
+        background: 'hsl(var(--paper-deep) / 0.5)',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: RESOLVED_HEADER_HEIGHT,
+        transition: dragStateRef.current ? 'none' : 'height 0.18s ease',
+        flexShrink: 0,
+      }}
+    >
+      <div
+        onPointerDown={handleDragStart}
         style={{
-          width: '100%',
+          height: 4,
+          marginTop: -2,
+          cursor: expanded ? 'ns-resize' : 'default',
+          userSelect: 'none',
+        }}
+        aria-hidden
+      />
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        style={{
+          all: 'unset',
+          boxSizing: 'border-box',
+          height: RESOLVED_HEADER_HEIGHT - 4,
+          padding: '0 14px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '6px 8px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-4))',
-          background: 'transparent',
-          border: 'none',
-          borderTop: '1px dotted hsl(var(--rule))',
+          gap: 8,
           cursor: 'pointer',
+          fontSize: 11,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'hsl(var(--ink-3))',
+          fontFamily: 'var(--font-mono)',
+          flexShrink: 0,
         }}
+        aria-expanded={expanded}
+        title={expanded ? '收起已解决' : '展开已解决'}
       >
-        <span>已解决 ({count})</span>
-        <span>{open ? '▾' : '▸'}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>已解决</span>
+          <span style={{ color: 'hsl(var(--ink-4))' }}>{memos.length}</span>
+        </span>
+        <ChevronUp
+          size={12}
+          style={{
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.18s ease',
+          }}
+        />
       </button>
-      {open && <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{children}</div>}
+      {expanded && (
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            padding: '4px 12px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          {memos.map((m) => (
+            <ResolvedMemoCard
+              key={m.id}
+              memo={m}
+              onReopen={() => onReopen(m.id)}
+              onDelete={() => onDelete(m.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

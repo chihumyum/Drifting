@@ -6,6 +6,9 @@ import { useDataStore } from '../../store/data-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 
+// 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
+const DATE_HIDE_WIDTH = 200;
+
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
@@ -25,6 +28,8 @@ const RESTING_HEADER_HEIGHT = 28;
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
   const { nodeUi } = useUiStore();
+  const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
+  const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
@@ -181,17 +186,19 @@ export function DriftPanel() {
           <span>{node.title || 'Untitled'}</span>
         </div>
 
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            color: 'hsl(var(--ink-4))',
-            flexShrink: 0,
-            letterSpacing: '0.04em',
-          }}
-        >
-          {formatShortDate(node.updatedAt)}
-        </span>
+        {showDate && (
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              color: 'hsl(var(--ink-4))',
+              flexShrink: 0,
+              letterSpacing: '0.04em',
+            }}
+          >
+            {formatShortDate(node.updatedAt)}
+          </span>
+        )}
       </div>
     );
   };

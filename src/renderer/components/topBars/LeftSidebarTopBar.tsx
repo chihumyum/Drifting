@@ -33,11 +33,11 @@ export function LeftSidebarTopBar() {
         } as React.CSSProperties
       }
     >
-      {/* 红绿灯和按钮之间的空白区域 — 预留给未来的全局状态展示（灵动岛式自适应信息） */}
+      {/* 红绿灯和按钮之间的空白区域 — 展开时预留给未来的全局状态展示（灵动岛式自适应信息）；收起时按钮直接贴红绿灯 */}
       <GhostIconBtn
         onClick={handleOpenSearch}
         title="Search"
-        marginLeft="auto"
+        marginLeft={isLeftSidebarOpen ? 'auto' : undefined}
         icon={<Search size={iconSize} strokeWidth={1.6} />}
       />
       <GhostIconBtn

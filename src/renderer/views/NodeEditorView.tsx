@@ -819,7 +819,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               maxHeight: '80vh',
               overflow: 'auto',
               background: '#fefdfb',
-              border: '1px solid var(--accent-border, #e8dcc8)',
+              border: '1px solid hsl(var(--accent-border))',
               borderRadius: 10,
               boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
             }}
@@ -940,7 +940,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 style={{
                   padding: '8px 14px',
                   borderRadius: 6,
-                  border: '1px solid var(--accent-border, #e8dcc8)',
+                  border: '1px solid hsl(var(--accent-border))',
                   background: '#fefdfb',
                   color: '#5a4a3a',
                   cursor: 'pointer',
@@ -959,7 +959,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   background:
                     !draftMainStorylineId || draftStorylineIds.length === 0
                       ? '#d8d0c3'
-                      : 'var(--accent, #b89968)',
+                      : 'hsl(var(--accent))',
                   color: '#fefdfb',
                   cursor:
                     !draftMainStorylineId || draftStorylineIds.length === 0
@@ -1055,7 +1055,7 @@ function ConversionPickerModal({
           display: 'flex',
           flexDirection: 'column',
           background: '#fefdfb',
-          border: '1px solid var(--accent-border, #e8dcc8)',
+          border: '1px solid hsl(var(--accent-border))',
           borderRadius: 10,
           boxShadow: '0 18px 50px rgba(42, 26, 10, 0.22)',
         }}
@@ -1181,10 +1181,6 @@ function ConversionPickerModal({
               padding: '8px 16px',
               borderRadius: 6,
               border: 'none',
-              // `--accent` is stored as raw HSL components — must be wrapped
-              // in `hsl()` to render as a color. The old `var(--accent, ...)`
-              // produced an invalid value, leaving the button transparent
-              // and the light text unreadable.
               background:
                 busy || !pickedId || options.length === 0
                   ? 'hsl(var(--ink-4))'
