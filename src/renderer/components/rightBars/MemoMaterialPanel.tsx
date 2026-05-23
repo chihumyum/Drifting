@@ -950,6 +950,10 @@ export function MemoCard({
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          // In a flex-column scroll parent, overflow:hidden makes min-height
+          // resolve to 0 — without this the parent shrinks each card to fit
+          // its viewport instead of scrolling, clipping the relation picker.
+          flexShrink: 0,
         }}
       >
         <div
@@ -1200,6 +1204,9 @@ export function MaterialCard({
           overflow: isTextExpanded ? 'visible' : 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          // See MemoCard: prevents the flex-column scroll parent from
+          // shrinking each card and clipping the relation picker.
+          flexShrink: 0,
         }}
       >
         <div
