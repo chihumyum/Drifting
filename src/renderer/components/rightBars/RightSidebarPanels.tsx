@@ -57,7 +57,7 @@ export function RightSidebarPanels() {
         kind: isDrift ? 'drift' : 'chapter',
         id: node.id,
         title: node.title || (isDrift ? 'Untitled Drift' : 'Untitled Chapter'),
-        kicker: isDrift ? '本浮缀 · 片段与参考' : '本章 · 片段与参考',
+        kicker: isDrift ? '本浮缀 · 片段与材料' : '本章 · 片段与材料',
         color: storyline?.color,
       };
     }
@@ -67,7 +67,7 @@ export function RightSidebarPanels() {
         kind: 'storyline',
         id: leaf.id,
         title: s?.name || 'Untitled Storyline',
-        kicker: '本故事线 · 片段与参考',
+        kicker: '本故事线 · 片段与材料',
         color: s?.color,
       };
     }
@@ -78,7 +78,7 @@ export function RightSidebarPanels() {
         kind: 'element',
         id: leaf.id,
         title: e?.name || 'Untitled Element',
-        kicker: '本元素 · 片段与参考',
+        kicker: '本元素 · 片段与材料',
         color: cat?.color,
       };
     }
@@ -88,7 +88,7 @@ export function RightSidebarPanels() {
         kind: 'category',
         id: leaf.id,
         title: c?.name || leaf.id,
-        kicker: '本类目 · 片段与参考',
+        kicker: '本类目 · 片段与材料',
         color: c?.color,
       };
     }
@@ -139,13 +139,13 @@ export function RightSidebarPanels() {
   const headerKicker = activeRightPanel === 'shadow'
     ? 'Shadow Agent · 跨章节任务'
     : activeRightPanel === 'stats'
-      ? target.kicker.replace('片段与参考', '详细统计')
-      : '全项目 · 备忘与参考';
+      ? target.kicker.replace('片段与材料', '详细统计')
+      : '全项目 · 备忘与材料';
   const headerTitle =
     activeRightPanel === 'shadow'
       ? '全书 · 跨章节'
       : activeRightPanel === 'fragments'
-        ? '备忘 & 参考'
+        ? '备忘 & 材料'
         : target.title;
 
   return (

@@ -246,8 +246,8 @@ export function MemoMaterialPanel({ focused }: Props) {
           <EmptyState
             message={
               filter === 'related'
-                ? '当前条目没有关联的备忘或参考。'
-                : '还没有备忘或参考。点击右上 "+" 新建。'
+                ? '当前条目没有关联的备忘或材料。'
+                : '还没有备忘或材料。点击右上 "+" 新建。'
             }
           />
         )}
@@ -454,7 +454,7 @@ function Toolbar({
           letterSpacing: '0.08em',
         }}
       >
-        <span>{memoTotal} memo · {materialTotal} 参考</span>
+        <span>{memoTotal} memo · {materialTotal} 材料</span>
         <div style={{ position: 'relative' }}>
           <button
             ref={triggerRef}
@@ -503,7 +503,7 @@ function Toolbar({
                     onCompose('material');
                   }}
                 >
-                  ✦ 新建参考
+                  ✦ 新建材料
                 </ComposeMenuItem>
               </div>
             </>
@@ -877,7 +877,7 @@ function MaterialContextMenu({
       <div className="btl-cmenu__group">
         <MaterialContextMenuItem
           glyph="×"
-          label="删除参考"
+          label="删除材料"
           action="delete"
           onAction={handleAction}
           variant="danger"
@@ -1475,7 +1475,7 @@ function MaterialCard({
           </button>
         )}
 
-        {isTextSnippet && (
+        {isTextSnippet && !isTextExpanded && (
           <div
             onClick={onOpenInApp}
             style={{
@@ -2822,7 +2822,7 @@ function ComposeMaterialDialog({
   };
 
   return (
-    <DialogShell title="新建参考" onCancel={onCancel}>
+    <DialogShell title="新建材料" onCancel={onCancel}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['url', 'image', 'pdf', 'text'] as MaterialKind[]).map((k) => (
           <FilterPill key={k} active={kind === k} onClick={() => setKind(k)}>

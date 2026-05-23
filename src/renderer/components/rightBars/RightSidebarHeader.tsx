@@ -68,7 +68,7 @@ export function RightSidebarHeader({
                 } as React.CSSProperties
               }
             >
-              备忘与参考
+              备忘与材料
             </span>
           </RightPanelTab>
           <RightPanelTab
