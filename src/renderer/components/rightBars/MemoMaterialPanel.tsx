@@ -891,7 +891,7 @@ function MaterialContextMenu({
 // ─────────────────────────────────────────────────────────────────────────────
 // Memo card
 
-function MemoCard({
+export function MemoCard({
   memo,
   relations,
   editing,
@@ -1114,7 +1114,7 @@ function MemoCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Material card
 
-function MaterialCard({
+export function MaterialCard({
   material,
   relations,
   editing,
@@ -1125,6 +1125,7 @@ function MaterialCard({
   onDelete,
   onAddRelation,
   onRemoveRelation,
+  defaultExpanded = false,
 }: {
   material: Material;
   relations: { id: string; toKind: EntityKind; toId: string }[];
@@ -1136,12 +1137,15 @@ function MaterialCard({
   onDelete: () => void;
   onAddRelation: (t: RelationTarget) => void;
   onRemoveRelation: (t: RelationTarget) => void;
+  /** Pre-expand image / text bodies on mount. Used by the global super view
+   *  where there's enough vertical room to show full bodies up front. */
+  defaultExpanded?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [imageExpanded, setImageExpanded] = useState(false);
-  const [textExpanded, setTextExpanded] = useState(false);
+  const [imageExpanded, setImageExpanded] = useState(defaultExpanded);
+  const [textExpanded, setTextExpanded] = useState(defaultExpanded);
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
@@ -1594,7 +1598,7 @@ function MaterialThumbnail({ material, onClick }: { material: Material; onClick:
 // fullscreen preview. Mirrors the StoryGraphView NodeCardPopover default/upgrade
 // staging so quick reads don't force a fullscreen jump.
 
-function TextSnippetPopover({
+export function TextSnippetPopover({
   material,
   onClose,
   onExpand,
@@ -1798,7 +1802,7 @@ function isPdfRenderCancel(error: unknown): boolean {
   return error instanceof Error && error.name === 'RenderingCancelledException';
 }
 
-function MaterialFullscreenPreview({
+export function MaterialFullscreenPreview({
   material,
   onClose,
   onUpdate,
@@ -2360,7 +2364,7 @@ function AutoGrowTextarea({
   );
 }
 
-const MATERIAL_KIND_LABEL: Record<MaterialKind, string> = {
+export const MATERIAL_KIND_LABEL: Record<MaterialKind, string> = {
   image: '图片',
   pdf: 'PDF',
   url: 'URL',
@@ -2599,7 +2603,7 @@ function ResolvedMemoCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Compose dialogs
 
-function ComposeMemoDialog({
+export function ComposeMemoDialog({
   focused,
   onCancel,
   onCreate,
@@ -2667,7 +2671,7 @@ function ComposeMemoDialog({
   );
 }
 
-function ComposeMaterialDialog({
+export function ComposeMaterialDialog({
   focused,
   onCancel,
   onCreate,

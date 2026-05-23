@@ -541,6 +541,15 @@ function Layout() {
 
       if (matchesAccelerator(e, bindings.goBack)) {
         e.preventDefault();
+        // Inside a super view (StoryGraphView / SuperElementView /
+        // SuperMemoMaterialView), goBack closes the overlay instead of
+        // walking router history — the overlay sits on top of the same
+        // route, so navigate(-1) would scroll the underlying tab back one
+        // step instead of dismissing the view the user is actually looking at.
+        if (useUiStore.getState().activeSuperView !== 'none') {
+          useUiStore.getState().setActiveSuperView('none');
+          return;
+        }
         navigate(-1);
         return;
       }
