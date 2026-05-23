@@ -11,6 +11,7 @@ import { apiClient } from '../lib/axios-config';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
+import { parseDocId, entityTypeForDocKind } from '../lib/yjs-doc-id';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('yjs-sync');
@@ -30,9 +31,20 @@ function createRequestId(phase: SyncOperationEvent['phase'], docId: string): str
   return `${phase}:${docId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
 }
 
-function getNodeIdFromDocId(docId: string): string | undefined {
-  if (!docId.startsWith('node-content:')) return undefined;
-  return docId.slice('node-content:'.length) || undefined;
+function getEntityMetaFromDocId(docId: string): {
+  entityType: string;
+  entityId: string | undefined;
+} {
+  const parsed = parseDocId(docId);
+  if (!parsed) {
+    // Unknown docId format — fall back to letting the event carry the raw
+    // string so SyncActivityPanel still shows something useful.
+    return { entityType: 'unknown', entityId: undefined };
+  }
+  return {
+    entityType: entityTypeForDocKind(parsed.kind),
+    entityId: parsed.entityId || undefined,
+  };
 }
 
 function emitSyncOperation(event: Omit<SyncOperationEvent, 'at'>): void {
@@ -136,8 +148,8 @@ export async function pushUpdates(
       method: 'POST',
       endpoint: '/api/sync/push',
       docId,
-      entityType: 'nodeContent',
-      entityId: getNodeIdFromDocId(docId),
+      ...getEntityMetaFromDocId(docId),
+      
       projectId,
       deviceId,
       localUpdateCount: batch.length,
@@ -162,8 +174,8 @@ export async function pushUpdates(
         method: 'POST',
         endpoint: '/api/sync/push',
         docId,
-        entityType: 'nodeContent',
-        entityId: getNodeIdFromDocId(docId),
+        ...getEntityMetaFromDocId(docId),
+        
         projectId,
         deviceId,
         localUpdateCount: batch.length,
@@ -181,8 +193,8 @@ export async function pushUpdates(
         method: 'POST',
         endpoint: '/api/sync/push',
         docId,
-        entityType: 'nodeContent',
-        entityId: getNodeIdFromDocId(docId),
+        ...getEntityMetaFromDocId(docId),
+        
         projectId,
         deviceId,
         localUpdateCount: batch.length,
@@ -214,8 +226,8 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
     method: 'GET',
     endpoint: '/api/sync/pull',
     docId,
-    entityType: 'nodeContent',
-    entityId: getNodeIdFromDocId(docId),
+    ...getEntityMetaFromDocId(docId),
+    
     deviceId,
   });
 
@@ -241,8 +253,8 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
         method: 'GET',
         endpoint: '/api/sync/pull',
         docId,
-        entityType: 'nodeContent',
-        entityId: getNodeIdFromDocId(docId),
+        ...getEntityMetaFromDocId(docId),
+        
         deviceId,
         remoteUpdateCount: 0,
         appliedUpdateCount: 0,
@@ -284,8 +296,8 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       method: 'GET',
       endpoint: '/api/sync/pull',
       docId,
-      entityType: 'nodeContent',
-      entityId: getNodeIdFromDocId(docId),
+      ...getEntityMetaFromDocId(docId),
+      
       deviceId,
       remoteUpdateCount: updates.length,
       appliedUpdateCount: appliedCount,
@@ -303,8 +315,8 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       method: 'GET',
       endpoint: '/api/sync/pull',
       docId,
-      entityType: 'nodeContent',
-      entityId: getNodeIdFromDocId(docId),
+      ...getEntityMetaFromDocId(docId),
+      
       deviceId,
       durationMs: nowMs() - startedAt,
       error: getErrorMessage(error),

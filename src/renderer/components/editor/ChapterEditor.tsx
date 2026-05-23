@@ -5,6 +5,10 @@ import { extractOutline, serializeOutline, type OutlineItem } from '../../lib/ou
 import { type EntityLinkRef } from '../../lib/extensions/entity-link';
 import { isBlockType } from '../../lib/extensions/block-id';
 import { useEntityEditor, type EditorCommentRequest } from '../../hooks/useEntityEditor';
+import { useYjsSync } from '../../hooks/useYjsSync';
+import { makeDocId } from '../../lib/yjs-doc-id';
+import { syncNodeContentUpdate } from '../../usecase/sync-helpers';
+import { useAuthStore } from '../../store/auth';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
@@ -137,11 +141,59 @@ export function ChapterEditor({
     [nodeId, onContentUpdate],
   );
 
+  // Yjs sync for the chapter body. The Y.Doc is the source of truth; the
+  // legacy `content` prop seeds it on first load (when there are no local
+  // updates / snapshot for this docId yet) and is otherwise ignored.
+  const userId = useAuthStore((s) => s.user?.id);
+  const seedFromLegacy = useCallback(
+    async (apply: (mutator: (ydoc: import('yjs').Doc) => void) => void) => {
+      if (!content || content === '{}') return;
+      try {
+        const [{ getSchema }, { prosemirrorJSONToYDoc }, Y, StarterKit, Underline, Link, TextAlign] =
+          await Promise.all([
+            import('@tiptap/core'),
+            import('y-prosemirror'),
+            import('yjs'),
+            import('@tiptap/starter-kit').then((m) => m.default),
+            import('@tiptap/extension-underline').then((m) => m.default),
+            import('@tiptap/extension-link').then((m) => m.default),
+            import('@tiptap/extension-text-align').then((m) => m.default),
+          ]);
+        // Build a minimal schema with the same node set as the editor — only
+        // nodes matter for seeding; mark/extension configs that affect parsing
+        // are noise here.
+        const schema = getSchema([StarterKit, Underline, Link, TextAlign] as never);
+        const json = JSON.parse(content);
+        const seeded = prosemirrorJSONToYDoc(schema, json, 'default');
+        const update = Y.encodeStateAsUpdate(seeded);
+        apply((targetDoc) => {
+          Y.applyUpdate(targetDoc, update);
+        });
+      } catch (err) {
+        log.warn('[ChapterEditor] legacy seed failed:', err);
+      }
+    },
+    [content],
+  );
+
+  const { ydoc, isReady: ydocReady } = useYjsSync({
+    docId: makeDocId('node-content', nodeId),
+    userId: userId ?? '',
+    projectId,
+    onMaterialize: (contentJson) => {
+      // PG materialized cache. Server never reconstructs Y.Doc — this row is
+      // the LWW preview consumed by list views and search.
+      syncNodeContentUpdate(nodeId, projectId, { contentJson });
+    },
+    seedFromLegacy: userId ? seedFromLegacy : undefined,
+  });
+
   const { editor, outline } = useEntityEditor({
     sourceKind: 'node',
     sourceId: nodeId,
     projectId,
     content,
+    ydoc: userId && ydocReady ? ydoc : undefined,
     onPersist: handlePersist,
     onEntityClick,
     autoFocus,

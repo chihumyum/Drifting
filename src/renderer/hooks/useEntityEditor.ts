@@ -9,6 +9,8 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extensions';
+import Collaboration from '@tiptap/extension-collaboration';
+import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
 import { extractOutline, type OutlineItem } from '../lib/outline';
@@ -149,7 +151,15 @@ export interface UseEntityEditorConfig {
   projectId: string;
 
   // Initial document JSON string from the persisted row. Null = empty doc.
+  // Ignored when `ydoc` is provided — Collaboration extension owns content.
   content: string | null;
+
+  // Optional Y.Doc backing this editor. When set, the Collaboration extension
+  // binds Tiptap directly to ydoc's default fragment, replacing the legacy
+  // content-string load path. The caller is responsible for wiring sync via
+  // useYjsSync. The hook still calls onPersist after each edit so chapter
+  // word-count / outline derivation continues to work.
+  ydoc?: Y.Doc;
 
   // Fired after every persistable edit. Receives the Editor instance so the
   // caller can derive whatever they need (pmJson, outline, wordCount, etc.).
@@ -207,6 +217,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     sourceId,
     projectId,
     content,
+    ydoc,
     onPersist,
     slashExtraItems,
     enableMarkdownExport = true,
@@ -455,7 +466,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           bulletList: { keepMarks: true },
           orderedList: { keepMarks: true },
           codeBlock: {},
-          undoRedo: { depth: editorUndoDepth },
+          // Collaboration ships its own y-undo manager; if StarterKit's
+          // undoRedo is left on alongside it, ProseMirror's history plugin
+          // collides with the Yjs binding and crashes on first edit.
+          undoRedo: ydoc ? false : { depth: editorUndoDepth },
           underline: false,
           link: false,
         }),
@@ -467,6 +481,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           defaultAlignment: 'left',
         }),
         ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
+        // Collaboration must come AFTER StarterKit so it can swap the doc
+        // contents. The default fragment name 'default' matches the one the
+        // double-write hook in useYjsSync serializes from.
+        ...(ydoc ? [Collaboration.configure({ document: ydoc, field: 'default' })] : []),
         BlockId,
         // These callbacks are registered with ProseMirror and execute later,
         // outside React render. They intentionally read latest-value refs.
@@ -591,7 +609,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       return;
     }
     try {
-      loadDocWithoutHistory(editor, parseContentJson(content));
+      // ydoc mode: Collaboration owns the document. Don't setContent — that
+      // would race the Yjs binding and produce ghost content. Just stamp the
+      // loaded token so onUpdate starts firing.
+      if (!ydoc) {
+        loadDocWithoutHistory(editor, parseContentJson(content));
+      }
       loadedTokenRef.current = {
         editor,
         projectId: source.projectId,
