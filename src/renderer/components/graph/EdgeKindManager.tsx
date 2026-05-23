@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BookNodeEdge } from '../../domain/book-node';
+import type { EntityReferenceLink } from '../../store/data-store';
 
 // Dropdown menu invoked from the story graph view's top-right legend. Lists
 // every kind that currently exists in the project (plus a locked
@@ -42,9 +42,12 @@ export interface EdgeKindManagerProps {
   clearKindColor: (kind: string | null) => void;
   reassignMeta: (oldKind: string | null, newKind: string | null) => void;
   removeMeta: (kind: string | null) => void;
-  // Edge data + mutators for the bulk rename / delete operations.
-  nodeEdges: BookNodeEdge[];
-  updateEdge: (id: string, updates: Partial<BookNodeEdge>) => Promise<unknown>;
+  // Edge data + mutators for the bulk rename / delete operations. Edges live
+  // in entity_reference now; the graph view restricts these to manual rows
+  // (fromBlockId IS NULL) so renaming/deleting here only touches what the
+  // user authored on the canvas.
+  nodeEdges: EntityReferenceLink[];
+  updateEdgeKind: (id: string, kind: string | null) => Promise<unknown>;
   deleteEdge: (id: string) => Promise<unknown>;
 }
 
@@ -59,7 +62,7 @@ export function EdgeKindManager({
   reassignMeta,
   removeMeta,
   nodeEdges,
-  updateEdge,
+  updateEdgeKind,
   deleteEdge,
 }: EdgeKindManagerProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -103,7 +106,7 @@ export function EdgeKindManager({
     const affected = nodeEdges.filter((e) => (e.kind ?? null) === oldKindForData);
     for (const e of affected) {
       try {
-        await updateEdge(e.id, { kind: newKind });
+        await updateEdgeKind(e.id, newKind);
       } catch {
         /* swallow per-edge errors — partial rename is still useful */
       }

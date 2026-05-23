@@ -9,13 +9,17 @@ import {
   StorylineTable,
 } from '../schema/drizzle';
 
-// Re-export the canonical EntityKind union from the mark layer to keep the
-// reference table's polymorphic columns in lock-step with what marks can
-// produce. `category` and `storyline` are valid source kinds (their
-// description content can mention other entities).
-import type { EntityKind } from '../lib/extensions/entity-link';
+// Polymorphic columns use the canonical entity-kind vocabulary. `fromKind`
+// accepts any EntityKind (memo / material link OUT to structural entities);
+// `toKind` is restricted to structural kinds by domain rule — see
+// addManualRelation's runtime check below.
+import type {
+  EntityKind,
+  EntityRefSourceKind,
+  EntityRefTargetKind,
+} from '../domain/entity-kinds';
+import { isStructuralEntityKind } from '../domain/entity-kinds';
 export type { EntityKind };
-export type LinkOrigin = 'manual' | 'auto' | 'ai';
 
 // Raw row.
 export interface EntityReferenceRecord {
@@ -28,8 +32,6 @@ export interface EntityReferenceRecord {
   toKind: EntityKind;
   toId: string;
   toBlockId: string | null;
-  origin: LinkOrigin;
-  confidence: number | null;
   /** Free-form relation category. */
   kind: string | null;
   createdAt: string;
@@ -44,8 +46,6 @@ export interface InlineReferenceDraft {
   toKind: EntityKind;
   toId: string;
   toBlockId: string | null;
-  origin: LinkOrigin;
-  confidence?: number | null;
 }
 
 // Read shape for backlink panels — joins to the from-entity's display name.
@@ -59,7 +59,6 @@ export interface BacklinkRecord {
   toKind: EntityKind;
   toId: string;
   toBlockId: string | null;
-  origin: LinkOrigin;
   createdAt: string;
 }
 
@@ -74,22 +73,26 @@ export interface ReferenceRepository {
   ): Promise<void>;
 
   // Manual whole-entity (or whole→block) relations created by user UI.
-  // fromBlockId is always null for manual relations.
+  // fromBlockId is always null for manual relations. `kind` is the free-form
+  // relation category (e.g. "引用" / "回响"); same pair with different `kind`
+  // values stays as separate rows so the story graph can render them as
+  // distinct edges. `toKind` is constrained to structural entities (memo /
+  // material can only appear as `fromKind`); the runtime check at the top
+  // of addManualRelation throws if you pass an annotative kind in.
   addManualRelation(
     projectId: string,
-    fromKind: EntityKind,
+    fromKind: EntityRefSourceKind,
     fromId: string,
-    toKind: EntityKind,
+    toKind: EntityRefTargetKind,
     toId: string,
-    toBlockId?: string | null,
+    options?: { toBlockId?: string | null; kind?: string | null },
   ): Promise<EntityReferenceRecord>;
 
-  removeManualRelation(
-    fromKind: EntityKind,
-    fromId: string,
-    toKind: EntityKind,
-    toId: string,
-  ): Promise<void>;
+  // Deletes a single manual row by id. Pair-based delete was the old
+  // signature and is unsound now that the same pair can carry multiple
+  // kinds — callers must hold the row id (which optimistic-update flows
+  // already do).
+  removeManualRelation(id: string): Promise<void>;
 
   // All inline + manual references *out of* a source document.
   listReferencesFromSource(
@@ -126,8 +129,6 @@ function toRecord(
     toKind: row.toKind as EntityKind,
     toId: row.toId,
     toBlockId: row.toBlockId,
-    origin: row.origin as LinkOrigin,
-    confidence: row.confidence,
     kind: row.kind ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -169,8 +170,6 @@ export function createReferenceRepository(): ReferenceRepository {
         toKind: d.toKind,
         toId: d.toId,
         toBlockId: d.toBlockId,
-        origin: d.origin,
-        confidence: d.confidence ?? null,
         kind: null, // inline mention refs are uncategorised by default
         createdAt: now,
         updatedAt: now,
@@ -181,12 +180,17 @@ export function createReferenceRepository(): ReferenceRepository {
 
   const addManualRelation = async (
     projectId: string,
-    fromKind: EntityKind,
+    fromKind: EntityRefSourceKind,
     fromId: string,
-    toKind: EntityKind,
+    toKind: EntityRefTargetKind,
     toId: string,
-    toBlockId: string | null = null,
+    options?: { toBlockId?: string | null; kind?: string | null },
   ): Promise<EntityReferenceRecord> => {
+    if (!isStructuralEntityKind(toKind)) {
+      throw new Error(
+        `Cannot create entity reference: toKind '${toKind}' is not a structural kind (memo / material can only appear as fromKind).`,
+      );
+    }
     const db = getDb();
     const now = new Date().toISOString();
     const row = {
@@ -198,10 +202,8 @@ export function createReferenceRepository(): ReferenceRepository {
       fromSpansJson: null,
       toKind,
       toId,
-      toBlockId,
-      origin: 'manual' as LinkOrigin,
-      confidence: null,
-      kind: null as string | null,
+      toBlockId: options?.toBlockId ?? null,
+      kind: options?.kind?.trim() || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -209,22 +211,11 @@ export function createReferenceRepository(): ReferenceRepository {
     return toRecord(row as typeof EntityReferenceTable.$inferSelect);
   };
 
-  const removeManualRelation = async (
-    fromKind: EntityKind,
-    fromId: string,
-    toKind: EntityKind,
-    toId: string,
-  ): Promise<void> => {
+  const removeManualRelation = async (id: string): Promise<void> => {
     await getDb()
       .delete(EntityReferenceTable)
       .where(
-        and(
-          eq(EntityReferenceTable.fromKind, fromKind),
-          eq(EntityReferenceTable.fromId, fromId),
-          eq(EntityReferenceTable.toKind, toKind),
-          eq(EntityReferenceTable.toId, toId),
-          isNull(EntityReferenceTable.fromBlockId),
-        ),
+        and(eq(EntityReferenceTable.id, id), isNull(EntityReferenceTable.fromBlockId)),
       );
   };
 
@@ -261,7 +252,6 @@ export function createReferenceRepository(): ReferenceRepository {
         toKind: EntityReferenceTable.toKind,
         toId: EntityReferenceTable.toId,
         toBlockId: EntityReferenceTable.toBlockId,
-        origin: EntityReferenceTable.origin,
         createdAt: EntityReferenceTable.createdAt,
         nodeTitle: BookNodeTable.title,
         elementName: BookElementTable.name,
@@ -315,7 +305,6 @@ export function createReferenceRepository(): ReferenceRepository {
       toKind: row.toKind as EntityKind,
       toId: row.toId,
       toBlockId: row.toBlockId,
-      origin: row.origin as LinkOrigin,
       createdAt: row.createdAt,
     }));
   };

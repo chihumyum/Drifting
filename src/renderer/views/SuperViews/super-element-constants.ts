@@ -30,25 +30,6 @@ export const CATEGORY_INNER_PAD_Y_BOTTOM = 4;
 export const ZOOM_MIN = 0.4;
 export const ZOOM_MAX = 2.0;
 
-// EntityReference rows don't carry a free-form `kind`, so `origin` is the
-// classification axis. Stroke style + color are derived from origin;
-// visibility toggles via the header filter chips. If the schema grows a
-// `kind` column later, swap this for a hash palette like StoryGraphView's
-// colorForKind without touching the renderer.
-export type EdgeOrigin = 'manual' | 'auto' | 'ai';
-
-export interface EdgeOriginMeta {
-  color: string;
-  label: string;
-  dash: string | null;
-}
-
-export const EDGE_ORIGIN_META: Record<EdgeOrigin, EdgeOriginMeta> = {
-  manual: { color: 'hsl(var(--ink-2))', label: '手动', dash: null },
-  auto: { color: 'hsl(var(--story-4))', label: '自动检测', dash: '4 3' },
-  ai: { color: 'hsl(var(--story-2))', label: 'AI', dash: '1 3' },
-};
-
 export const EDGE_SELECTED_WIDTH = 2.2;
 export const EDGE_DEFAULT_WIDTH = 1.2;
 export const EDGE_HOVER_WIDTH = 1.8;

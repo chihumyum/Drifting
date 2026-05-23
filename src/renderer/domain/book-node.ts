@@ -146,29 +146,9 @@ export function normalizeBookNode(node: LooseBookNode): BookNode {
   };
 }
 
-export interface BookNodeEdge {
-  id: string;
-  projectId: string;
-  sourceNodeId: string;
-  targetNodeId: string;
-  label: string;
-  // User-defined category — drives StoryGraphView filter chips. null when the
-  // author hasn't tagged it; the chips list just whatever distinct values
-  // currently exist in the data.
-  kind: string | null;
-  weight: number;
-  isDirected: boolean; // Default true if undefined
-  createdAt: string;
-  updatedAt: string;
-  // Freeform Styling & Geometry
-  style?: {
-    stroke?: string;
-    strokeWidth?: number;
-    opacity?: number;
-    strokeDasharray?: string;
-    filter?: string;
-  };
-  controlPointOffset?: { x: number; y: number }; // Offset from the midpoint for curvature
-  sourceAnchor?: { x: number; y: number }; // Relative to node top-left
-  targetAnchor?: { x: number; y: number }; // Relative to node top-left
-}
+// Story-graph edges are no longer a standalone entity. Visual relations
+// between nodes (and any other entity kinds) are stored as polymorphic rows
+// in `entity_reference` — fromKind/toKind carry the endpoint types, `kind`
+// holds the user's free-form relation category, and the renderer derives all
+// geometry from the current node positions. See `EntityReferenceLink` in
+// `store/data-store.ts` for the runtime shape.

@@ -163,42 +163,11 @@ export const NodeContentTable = sqliteTable(
   (t) => [index('idx_node_content_node').on(t.nodeId)],
 );
 
-// Node Edges
-// for story graph view UI persistence
-// Domain: BookNodeEdge
-export const NodeEdgeTable = sqliteTable(
-  'book_node_edge',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    sourceNodeId: text('source_node_id')
-      .notNull()
-      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
-    targetNodeId: text('target_node_id')
-      .notNull()
-      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
-    label: text('label').notNull().default(''),
-    // Free-form user-defined category. StoryGraphView groups edges by `kind`
-    // for its filter chips; null = uncategorized. There is no fixed
-    // vocabulary — authors mint kinds as they need them (e.g. "引用",
-    // "回响", "同人物"); a hash of the string drives the default color.
-    kind: text('kind'),
-    weight: integer('weight').notNull().default(1),
-    isDirected: integer('is_directed', { mode: 'boolean' }).notNull().default(true),
-    styleJson: text('style_json'), // Stores stroke, width, etc.
-    controlPointOffsetJson: text('control_point_offset_json'),
-    sourceAnchorJson: text('source_anchor_json'),
-    targetAnchorJson: text('target_anchor_json'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    index('idx_edge_project_source').on(t.projectId, t.sourceNodeId),
-    index('idx_edge_project_target').on(t.projectId, t.targetNodeId),
-  ],
-);
+// Story-graph edges live in `entity_reference` now — manual whole-to-whole
+// rows with fromKind/toKind = 'node' and the user-defined relation category
+// in `kind`. The legacy book_node_edge table was folded into entity_reference
+// by migration 0021; its visual columns (anchors/control points/style) were
+// never read by the renderer, so they were dropped.
 
 // Book element
 // Domain: BookElement
@@ -302,9 +271,8 @@ export const ElementPatchTable = sqliteTable(
 //   null          | null           | manual whole-to-whole relation (no content)
 //   null          | non-null       | manual whole-to-block relation (rare)
 //
-// origin records who created the reference: 'manual' (user), 'auto' (auto-detect),
-// 'ai' (applied AI suggestion). FK enforcement is skipped on the polymorphic columns;
-// cleanup of orphaned rows is done explicitly when an entity is deleted.
+// FK enforcement is skipped on the polymorphic columns; cleanup of orphaned
+// rows is done explicitly when an entity is deleted.
 export const EntityReferenceTable = sqliteTable(
   'entity_reference',
   {
@@ -313,21 +281,22 @@ export const EntityReferenceTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
 
-    fromKind: text('from_kind').notNull(), // 'node' | 'element' | 'patch'
+    // fromKind ∈ EntityKind (all 7) — memo / material can link OUT.
+    // toKind   ∈ StructuralEntityKind (5) — memo / material are never targets.
+    // See domain/entity-kinds.ts for the canonical vocabulary + guards.
+    fromKind: text('from_kind').notNull(),
     fromId: text('from_id').notNull(),
     fromBlockId: text('from_block_id'),
     fromSpansJson: text('from_spans_json'),
 
-    toKind: text('to_kind').notNull(), // 'node' | 'element' | 'patch'
+    toKind: text('to_kind').notNull(),
     toId: text('to_id').notNull(),
     toBlockId: text('to_block_id'),
 
-    origin: text('origin').notNull().default('manual'), // 'manual' | 'auto' | 'ai'
-    confidence: real('confidence'),
     // Free-form user category for the relation itself (NOT the endpoint type
-    // — that's fromKind/toKind). Mirrors BookNodeEdge.kind: nullable string,
-    // no fixed vocabulary. SuperElementView's manual-create modal feeds
-    // this; auto / ai-origin refs leave it null by default.
+    // — that's fromKind/toKind). Nullable string, no fixed vocabulary; the
+    // StoryGraph and SuperElement views surface it as filter chips and feed
+    // it from their respective manual-create modals.
     kind: text('kind'),
 
     createdAt: text('created_at').notNull(),
@@ -354,7 +323,7 @@ export const ManuscriptCommentTable = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    targetKind: text('target_kind').notNull(), // 'node' | 'element' | 'storyline' | 'category' | 'patch'
+    targetKind: text('target_kind').notNull(), // StructuralEntityKind — see domain/entity-kinds.ts
     targetId: text('target_id').notNull(),
     targetBlockId: text('target_block_id').notNull(),
     anchorJson: text('anchor_json').notNull().default('{}'),

@@ -2,15 +2,11 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
-export type EntityKind =
-  | 'node'
-  | 'element'
-  | 'patch'
-  | 'category'
-  | 'storyline'
-  | 'memo'
-  | 'material';
-export type LinkOrigin = 'manual' | 'auto' | 'ai';
+// Re-export from the canonical vocabulary so callers that already import
+// EntityKind from this extension don't need to be rewired. New code should
+// reach for `../../domain/entity-kinds` directly.
+export type { EntityKind } from '../../domain/entity-kinds';
+import type { EntityKind } from '../../domain/entity-kinds';
 
 export interface EntityLinkRef {
   targetKind: EntityKind;
@@ -90,11 +86,6 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         renderHTML: (attrs) =>
           attrs.targetBlockId ? { 'data-target-block-id': attrs.targetBlockId } : {},
       },
-      origin: {
-        default: 'manual',
-        parseHTML: (el) => (el.getAttribute('data-origin') as LinkOrigin) ?? 'manual',
-        renderHTML: (attrs) => ({ 'data-origin': attrs.origin ?? 'manual' }),
-      },
     };
   },
 
@@ -104,12 +95,11 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
 
   renderHTML({ HTMLAttributes }) {
     const targetKind = HTMLAttributes['data-target-kind'] ?? 'element';
-    const origin = HTMLAttributes['data-origin'] ?? 'manual';
     const deepLink = HTMLAttributes['data-target-block-id'] ? ' entity-link--deep' : '';
     return [
       'span',
       mergeAttributes(this.options.HTMLAttributes ?? {}, HTMLAttributes, {
-        class: `entity-link entity-link--${targetKind} entity-link--${origin}${deepLink}`,
+        class: `entity-link entity-link--${targetKind}${deepLink}`,
         style: 'cursor: pointer;',
       }),
       0,
@@ -125,8 +115,8 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         key: EntityLinkPluginKey,
 
         // Auto-detect entity-name matches (both element names and chapter
-        // titles) in newly-typed text and attach an entityLink mark with
-        // origin='auto'. The picker covers manual / non-name-based mentions.
+        // titles) in newly-typed text and attach an entityLink mark.
+        // The picker covers manual / non-name-based mentions.
         appendTransaction(transactions, _oldState, newState) {
           if (!entityLinkConfig.autoDetectEnabled) return null;
           if (entityLinkConfig.autoDetectTargets.size === 0) return null;
@@ -195,7 +185,6 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
                           targetKind: target.kind,
                           targetId: target.id,
                           targetBlockId: null,
-                          origin: 'auto',
                         }),
                       );
                       modified = true;

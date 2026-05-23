@@ -1,0 +1,95 @@
+/* ============================================================
+   Shared top header for fullscreen "super views" (StoryGraphView,
+   SuperElementView, SuperMemoMaterialView). 44px bar with title +
+   back + left/right slots; left padding clears the macOS traffic
+   lights when present. Children inside the bar inherit no-drag so
+   buttons/inputs stay clickable through the OS drag region.
+   ============================================================ */
+
+.super-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 18px 0 0;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  flex-shrink: 0;
+  gap: 16px;
+  font-family: var(--font-sans);
+  -webkit-app-region: drag;
+}
+
+/* All interactive elements inside the bar default to no-drag so the
+   macOS hiddenInset titleBarStyle doesn't swallow clicks. Wrappers
+   that need to stay no-drag (popovers, dropdowns) can opt in via
+   the .super-view-head__no-drag helper below. */
+.super-view-head button,
+.super-view-head input,
+.super-view-head textarea,
+.super-view-head select,
+.super-view-head a,
+.super-view-head__no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.super-view-head__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.super-view-head__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.super-view-head__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  padding: 3px 8px 3px 4px;
+  border: 0;
+  background: transparent;
+  border-radius: 3px;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.super-view-head__back:hover {
+  color: hsl(var(--ink-1));
+  background: hsl(var(--rule));
+}
+.super-view-head__back-glyph {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.super-view-head__title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: hsl(var(--ink-1));
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+.super-view-head__meta {
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+  margin-left: 10px;
+}

@@ -16,6 +16,7 @@ import { useEntityRelations } from '../../usecase/useEntityRelations';
 import type { Memo, MemoResolution } from '../../domain/memo';
 import type { Material, MaterialKind } from '../../domain/material';
 import type { EntityKind } from '../../lib/extensions/entity-link';
+import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
 import '../../../styles/bottom-timeline.css';
 
@@ -2622,7 +2623,13 @@ export function ComposeMemoDialog({
   const [title, setTitle] = useState('');
   const [asTodo, setAsTodo] = useState(false);
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
-    focused.kind && focused.id ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }] : [],
+    // Pre-fill the new memo / material with the currently-focused entity, but
+    // only when it's a valid relation target (structural). If the user is
+    // looking at a memo / material themselves, skip the pre-fill — those
+    // kinds aren't legal toKinds.
+    focused.kind && focused.id && isStructuralEntityKind(focused.kind)
+      ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }]
+      : [],
   );
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.kind}:${r.id}`)),
@@ -2713,7 +2720,13 @@ export function ComposeMaterialDialog({
   const [resolving, setResolving] = useState(false);
   const titleAutoFilled = useRef(false);
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
-    focused.kind && focused.id ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }] : [],
+    // Pre-fill the new memo / material with the currently-focused entity, but
+    // only when it's a valid relation target (structural). If the user is
+    // looking at a memo / material themselves, skip the pre-fill — those
+    // kinds aren't legal toKinds.
+    focused.kind && focused.id && isStructuralEntityKind(focused.kind)
+      ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }]
+      : [],
   );
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.kind}:${r.id}`)),

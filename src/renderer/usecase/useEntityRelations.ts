@@ -4,8 +4,17 @@ import { useDataStore, type EntityReferenceLink } from '../store/data-store';
 import { createReferenceRepository } from '../sqlite-repo/reference-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import { syncEntityReferenceCreate, syncEntityReferenceDelete } from './sync-helpers';
-import type { EntityKind } from '../lib/extensions/entity-link';
+import {
+  syncEntityReferenceCreate,
+  syncEntityReferenceDelete,
+  syncEntityReferenceUpdate,
+} from './sync-helpers';
+import {
+  isStructuralEntityKind,
+  type EntityKind,
+  type EntityRefSourceKind,
+  type EntityRefTargetKind,
+} from '../domain/entity-kinds';
 
 export interface UseEntityRelationsContext {
   projectId: string;
@@ -51,8 +60,6 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       toKind: row.toKind as EntityKind,
       toId: row.toId,
       toBlockId: row.toBlockId,
-      origin: row.origin as 'manual' | 'auto' | 'ai',
-      confidence: row.confidence,
       kind: row.kind ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -62,13 +69,19 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
 
   const addRelation = useCallback(
     async (
-      fromKind: EntityKind,
+      fromKind: EntityRefSourceKind,
       fromId: string,
-      toKind: EntityKind,
+      toKind: EntityRefTargetKind,
       toId: string,
       options?: { kind?: string | null },
     ) => {
       await ensureDb();
+      if (!isStructuralEntityKind(toKind)) {
+        throw new Error(
+          `Cannot create entity reference: toKind '${toKind}' is not a structural kind ` +
+            `(memo / material can only appear as fromKind).`,
+        );
+      }
       const kind = options?.kind?.trim() || null;
       const state = useDataStore.getState();
       // Don't double-add the SAME manual link with the SAME kind. Different
@@ -96,8 +109,6 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         toKind,
         toId,
         toBlockId: null,
-        origin: 'manual',
-        confidence: null,
         kind,
         createdAt: now,
         updatedAt: now,
@@ -126,8 +137,6 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
             toKind: newRow.toKind,
             toId: newRow.toId,
             toBlockId: newRow.toBlockId,
-            origin: newRow.origin,
-            confidence: newRow.confidence,
             kind: newRow.kind,
           }),
       });
@@ -147,12 +156,7 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
         apply: () => useDataStore.getState().setManualReferences(filtered),
         rollback: () => useDataStore.getState().setManualReferences(prev),
         effect: async () => {
-          await repo.removeManualRelation(
-            existing.fromKind,
-            existing.fromId,
-            existing.toKind,
-            existing.toId,
-          );
+          await repo.removeManualRelation(id);
           return true;
         },
         sync: () => syncEntityReferenceDelete(id, projectId),
@@ -161,8 +165,46 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
     [repo, ensureDb, projectId],
   );
 
+  // Update the free-form relation category on an existing manual link. Used
+  // by EdgeKindManager's rename flow to retag all rows of a given kind at
+  // once. Goes straight through the table (no repo method) since this is
+  // currently the only update surface manual refs have.
+  const updateRelationKind = useCallback(
+    async (id: string, kind: string | null) => {
+      await ensureDb();
+      const state = useDataStore.getState();
+      const existing = state.manualReferences.find((r) => r.id === id);
+      if (!existing) return;
+      const trimmed = typeof kind === 'string' ? kind.trim() || null : null;
+      const prev = state.manualReferences.slice();
+      const now = new Date().toISOString();
+      const next = prev.map((r) =>
+        r.id === id ? { ...r, kind: trimmed, updatedAt: now } : r,
+      );
+      return withOptimisticUpdate({
+        apply: () => useDataStore.getState().setManualReferences(next),
+        rollback: () => useDataStore.getState().setManualReferences(prev),
+        effect: async () => {
+          const { getDb } = await import('../lib/db');
+          const { EntityReferenceTable } = await import('../schema/drizzle');
+          const { eq } = await import('drizzle-orm');
+          await getDb()
+            .update(EntityReferenceTable)
+            .set({ kind: trimmed, updatedAt: now })
+            .where(eq(EntityReferenceTable.id, id));
+          return true;
+        },
+        sync: () =>
+          syncEntityReferenceUpdate(id, projectId, {
+            kind: trimmed,
+          }),
+      });
+    },
+    [ensureDb, projectId],
+  );
+
   return useMemo(
-    () => ({ loadInitial, addRelation, removeRelation }),
-    [loadInitial, addRelation, removeRelation],
+    () => ({ loadInitial, addRelation, removeRelation, updateRelationKind }),
+    [loadInitial, addRelation, removeRelation, updateRelationKind],
   );
 }

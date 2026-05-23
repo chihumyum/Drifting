@@ -1,10 +1,10 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isBlockType } from '../lib/extensions/block-id';
-import type {
-  EntityKind,
-  InlineReferenceDraft,
-  LinkOrigin,
-} from '../sqlite-repo/reference-repo';
+import type { InlineReferenceDraft } from '../sqlite-repo/reference-repo';
+import {
+  isStructuralEntityKind,
+  type InlineMentionKind,
+} from '../domain/entity-kinds';
 
 interface Span {
   from: number;
@@ -19,10 +19,9 @@ interface BlockInfo {
 
 interface ReferenceMetadata {
   fromBlockId: string;
-  toKind: EntityKind;
+  toKind: InlineMentionKind;
   toId: string;
   toBlockId: string | null;
-  origin: LinkOrigin;
 }
 
 interface JsonNode {
@@ -59,11 +58,6 @@ function findContainingBlock(doc: PMNode, pos: number): BlockInfo | null {
 // aggregated into one row; offsets are relative to the containing block's
 // content start so they survive block-internal edits as the block id stays
 // stable.
-//
-// Marks pointing at the same target with different origins are projected as
-// the most "confirmed" origin present (manual > ai > auto). This keeps
-// fingerprinting stable when the auto-detect plugin re-adds a mark next to a
-// user-confirmed one.
 export function projectInlineReferencesFromDoc(doc: PMNode): InlineReferenceDraft[] {
   // key = blockId::targetKind::targetId::targetBlockId
   const spanBuckets = new Map<string, Span[]>();
@@ -157,7 +151,6 @@ function addSpanToBuckets(
   if (!targetKind || !targetId) return;
   const targetBlockId =
     typeof attrs.targetBlockId === 'string' && attrs.targetBlockId ? attrs.targetBlockId : null;
-  const origin = normalizeOrigin(attrs.origin);
 
   const key = `${fromBlockId}::${targetKind}::${targetId}::${targetBlockId ?? ''}`;
 
@@ -171,13 +164,8 @@ function addSpanToBuckets(
       toKind: targetKind,
       toId: targetId,
       toBlockId: targetBlockId,
-      origin,
     });
   }
-
-  // Promote origin if a more-confirmed mark exists for the same key.
-  const meta = metadata.get(key)!;
-  meta.origin = strongerOrigin(meta.origin, origin);
 }
 
 function draftsFromBuckets(
@@ -193,7 +181,6 @@ function draftsFromBuckets(
       toKind: meta.toKind,
       toId: meta.toId,
       toBlockId: meta.toBlockId,
-      origin: meta.origin,
     });
   }
   return drafts;
@@ -205,33 +192,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function normalizeEntityKind(value: unknown): EntityKind | null {
-  if (
-    value === 'node' ||
-    value === 'element' ||
-    value === 'patch' ||
-    value === 'category' ||
-    value === 'storyline'
-  ) {
-    return value;
-  }
-  return null;
-}
-
-function normalizeOrigin(value: unknown): LinkOrigin {
-  return value === 'manual' || value === 'ai' || value === 'auto' ? value : 'auto';
+function normalizeEntityKind(value: unknown): InlineMentionKind | null {
+  // Inline mentions can only point at structural entities (memo / material
+  // are sources of references, not targets of mentions inside body text).
+  return isStructuralEntityKind(value) ? value : null;
 }
 
 function isInlineLeaf(typeName: string): boolean {
   return typeName === 'hardBreak';
-}
-
-const ORIGIN_RANK: Record<LinkOrigin, number> = {
-  manual: 3,
-  ai: 2,
-  auto: 1,
-};
-
-function strongerOrigin(a: LinkOrigin, b: LinkOrigin): LinkOrigin {
-  return ORIGIN_RANK[a] >= ORIGIN_RANK[b] ? a : b;
 }

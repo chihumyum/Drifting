@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
-import type { EntityKind } from '../../lib/extensions/entity-link';
+import type { StructuralEntityKind } from '../../domain/entity-kinds';
 
+// Picker only emits structural-entity targets (memo / material can't be
+// the toKind of a relation — see domain/entity-kinds.ts). Narrowing here
+// propagates the constraint to the addRelation call sites.
 export interface RelationTarget {
-  kind: EntityKind;
+  kind: StructuralEntityKind;
   id: string;
   label: string;
   color?: string;
@@ -113,7 +116,7 @@ export function EntityRelationPicker({
   const selectedChips = useMemo<RelationTarget[]>(() => {
     const out: RelationTarget[] = [];
     selected.forEach((key) => {
-      const [kind, id] = key.split(':') as [EntityKind, string];
+      const [kind, id] = key.split(':') as [StructuralEntityKind, string];
       switch (kind) {
         case 'node': {
           const n = bookNodes.find((x) => x.id === id);

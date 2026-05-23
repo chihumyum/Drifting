@@ -1,9 +1,8 @@
-import type { EntityKind } from '../lib/extensions/entity-link';
-
-export type CommentTargetKind = Extract<
-  EntityKind,
-  'node' | 'element' | 'storyline' | 'category' | 'patch'
->;
+// Manuscript comments anchor to structural-entity blocks only; memo /
+// material aren't comment-able (they don't host body text the user
+// references inline).
+import type { CommentTargetKind } from './entity-kinds';
+export type { CommentTargetKind };
 export type ManuscriptCommentStatus = 'open' | 'resolved' | 'converted';
 export type CommentAuthorKind = 'user' | 'ai' | 'copilot' | 'external';
 export type CommentSource = 'manual' | 'shadow' | 'copilot' | 'api';

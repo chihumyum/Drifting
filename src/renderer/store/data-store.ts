@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { BookNode } from '../domain/book-node';
 import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { Memo } from '../domain/memo';
@@ -18,8 +18,6 @@ export interface EntityReferenceLink {
   toKind: EntityKind;
   toId: string;
   toBlockId: string | null;
-  origin: 'manual' | 'auto' | 'ai';
-  confidence: number | null;
   /** Free-form relation category (NOT endpoint type). Null = uncategorised. */
   kind: string | null;
   createdAt: string;
@@ -46,9 +44,6 @@ interface DataState {
   addBookNode: (node: BookNode) => void;
   updateBookNode: (id: string, updates: Partial<BookNode>) => void;
   removeBookNode: (id: string) => void;
-
-  nodeEdges: BookNodeEdge[];
-  setNodeEdges: (edges: BookNodeEdge[]) => void;
 
   bookElementCategories: BookElementCategory[];
   setBookElementCategories: (categories: BookElementCategory[]) => void;
@@ -193,7 +188,6 @@ export const useDataStore = create<DataState>((set) => ({
     }),
 
   bookNodes: [],
-  nodeEdges: [],
   setBookNodes: (bookNodes) => set({ bookNodes }),
   addBookNode: (bookNode) => set((state) => ({ bookNodes: [...state.bookNodes, bookNode] })),
   updateBookNode: (id, updates) =>
@@ -211,7 +205,6 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeBookNode: (id) =>
     set((state) => ({ bookNodes: state.bookNodes.filter((node) => node.id !== id) })),
-  setNodeEdges: (edges) => set({ nodeEdges: edges }),
 
   bookElementCategories: [],
   setBookElementCategories: (elementCategories) =>

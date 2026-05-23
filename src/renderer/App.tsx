@@ -348,10 +348,10 @@ function Layout() {
 
     initDatabase(userId)
       .then(async () => {
-        // Initialize project-specific data (stores etc)
+        // Initialize project-specific data (stores etc). Story-graph edges
+        // come from entity_reference now and load with relationUsecases.
         await Promise.all([
           nodeUsecases.loadNodes(),
-          nodeUsecases.loadEdges(),
           storylineUsecases.loadStorylines(),
           elementUsecases.loadInitial(),
           categoryUsecases.loadCategories(),

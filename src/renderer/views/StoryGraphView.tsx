@@ -1,13 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { BookNode } from '../domain/book-node';
 import { CHAPTER_ORDER_STRIDE } from '../domain/book-node';
-import { useDataStore } from '../store/data-store';
+import { useDataStore, type EntityReferenceLink } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookNode } from '../usecase/useBookNode';
 import { useStoryline } from '../usecase/useStoryline';
+import { useEntityRelations } from '../usecase/useEntityRelations';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
 import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
@@ -16,19 +17,47 @@ import { GraphContextMenu, type GraphContextMenuState } from '../components/grap
 import { EdgeKindManager } from '../components/graph/EdgeKindManager';
 import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
-import { v7 as uuidv7 } from 'uuid';
+import { SuperViewHeader } from '../components/SuperViewHeader';
 import loglevel from 'loglevel';
 import '../../styles/graph-view.css';
 
 const log = loglevel.getLogger('StoryGraphView');
 log.setLevel(loglevel.levels.WARN);
 
-// Phase 4: StoryGraphView now reads node-to-node relation edges from the
-// `book_node_edge` table and renders them on top of the storyline-track
-// canvas. Edges carry a free-form user-defined `kind` (no fixed vocabulary);
-// the filter chips list whatever distinct kinds exist in the project.
+// Edges between nodes (chapter ↔ chapter, chapter ↔ drift, drift ↔ drift) are
+// persisted as manual rows in `entity_reference` (fromKind/toKind = 'node',
+// fromBlockId IS NULL). Each carries a free-form user-defined `kind` that
+// drives the filter chips; the renderer derives geometry from the current
+// node positions and uses a fixed bezier formula for the path.
 // Edge creation is shift-click-to-pair: shift-click a tile to set it as
 // source, click another tile to open the new-edge dialog.
+
+// View-side projection of a graph edge — chapter↔chapter and chapter↔drift
+// links pulled out of `manualReferences` and pinned to node id endpoints.
+type GraphEdge = {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  kind: string | null;
+};
+
+function toGraphEdges(
+  refs: EntityReferenceLink[],
+  nodeIds: Set<string>,
+): GraphEdge[] {
+  const out: GraphEdge[] = [];
+  for (const ref of refs) {
+    if (ref.fromKind !== 'node' || ref.toKind !== 'node') continue;
+    if (!nodeIds.has(ref.fromId) || !nodeIds.has(ref.toId)) continue;
+    out.push({
+      id: ref.id,
+      sourceNodeId: ref.fromId,
+      targetNodeId: ref.toId,
+      kind: ref.kind ?? null,
+    });
+  }
+  return out;
+}
 
 type StoryGraphViewMode = 'book' | 'narrative';
 
@@ -98,19 +127,21 @@ function colorForKind(kind: string | null): string {
   return KIND_PALETTE[Math.abs(h) % KIND_PALETTE.length];
 }
 
-const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
-
 // Slot width used to compute the live shift when dragging drift cards.
 // Card flex-basis 168 + gap 10. Module-scoped because the cards are
 // fixed-size; if we ever make them responsive we should measure instead.
 const DRIFT_SLOT_WIDTH = 168 + 10;
 
 export function StoryGraphView() {
-  const { bookNodes, storylines, nodeStorylineMapping, nodeEdges } = useDataStore();
+  const { bookNodes, storylines, nodeStorylineMapping, manualReferences } = useDataStore();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
-  const { updateNode, deleteNode, createEdge, deleteEdge, updateEdge } = useBookNode({
+  const { updateNode, deleteNode } = useBookNode({
+    projectId: projectId ?? '',
+    userId: user?.id ?? '',
+  });
+  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
@@ -120,6 +151,33 @@ export function StoryGraphView() {
     userId: user?.id ?? '',
   });
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+
+  // Story-graph edges are the subset of manual entity references that connect
+  // two node rows (chapter or drift); kept as a stable derived array so the
+  // memos and effects below can treat them like the old `nodeEdges` store
+  // slice. Building the id set once also lets us drop rows whose endpoints
+  // were deleted out from under the edge.
+  const nodeEdges = useMemo<GraphEdge[]>(() => {
+    const nodeIds = new Set(bookNodes.map((n) => n.id));
+    return toGraphEdges(manualReferences, nodeIds);
+  }, [manualReferences, bookNodes]);
+
+  // Thin adapters so the shift-click create flow and edge-mgr delete flow
+  // keep their call shape. `addRelation` returns the new EntityReferenceLink;
+  // `removeRelation` takes an id; both are already optimistic-update aware.
+  const createEdge = useCallback(
+    (
+      sourceNodeId: string,
+      targetNodeId: string,
+      kind: string | null,
+    ) => addRelation('node', sourceNodeId, 'node', targetNodeId, { kind }),
+    [addRelation],
+  );
+  const deleteEdge = useCallback((id: string) => removeRelation(id), [removeRelation]);
+  const updateEdgeKind = useCallback(
+    (id: string, kind: string | null) => updateRelationKind(id, kind),
+    [updateRelationKind],
+  );
 
   // Color resolver that prefers user overrides from `useEdgeKindMeta`
   // before falling back to the deterministic palette hash. Both the
@@ -580,7 +638,7 @@ export function StoryGraphView() {
   const visibleEdges = useMemo(() => {
     const halfTile = (GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT) / 2;
     type LaidEdge = {
-      edge: BookNodeEdge;
+      edge: GraphEdge;
       x1: number;
       y1: number;
       x2: number;
@@ -698,6 +756,11 @@ export function StoryGraphView() {
   // panel-viewport coordinates — both are normalized to viewport here.
   const tileRefs = useRef(new Map<string, HTMLDivElement>());
   const driftCardRefs = useRef(new Map<string, HTMLDivElement>());
+  // The drift card row scrolls horizontally inside .drift-panel__hand;
+  // the drift-edge SVG sits in viewport coordinates, so we need to
+  // recompute endpoint geometry whenever the row scrolls (otherwise the
+  // edges visibly lag the cards as you scroll sideways).
+  const driftHandRef = useRef<HTMLDivElement | null>(null);
 
   // Drift card reorder. Reuses bookOrder values: we permute the bookOrders
   // that already belong to the drift set so the resulting integers don't
@@ -847,12 +910,15 @@ export function StoryGraphView() {
     window.addEventListener('resize', onScrollOrResize);
     const canvas = canvasRef.current;
     canvas?.addEventListener('scroll', onScrollOrResize);
+    const driftHand = driftHandRef.current;
+    driftHand?.addEventListener('scroll', onScrollOrResize);
     return () => {
       stopRaf = true;
       cancelAnimationFrame(raf);
       window.clearTimeout(stopTimer);
       window.removeEventListener('resize', onScrollOrResize);
       canvas?.removeEventListener('scroll', onScrollOrResize);
+      driftHand?.removeEventListener('scroll', onScrollOrResize);
     };
   }, [driftPanelMounted, nodeEdges, driftIds, positionedById, hiddenKinds, edgeKindMeta.meta]);
 
@@ -1019,211 +1085,189 @@ export function StoryGraphView() {
 
   return (
     <div className="graph-overlay" data-view={viewMode}>
-      {/* macOS `titleBarStyle: hiddenInset` reserves the top of the window
-          as an OS-managed window-drag zone. The graph-head straddles that
-          zone, so unless we explicitly mark its interactive controls as
-          no-drag, clicks there get swallowed as drag gestures. Mirrors the
-          SettingsModal `set-head` pattern. */}
-      <style>{`
-        .graph-head { -webkit-app-region: drag; }
-        .graph-head__back,
-        .graph-head__view-toggle,
-        .graph-head__view-toggle button,
-        .graph-head__spread-btn,
-        .graph-head__legend,
-        .graph-head__filters,
-        .graph-head__filter,
-        .graph-head__edge-mgr-wrap,
-        .graph-head__edge-mgr-btn,
-        .graph-head__unplaced,
-        .graph-head__unplaced-btn,
-        .graph-head__unplaced-popover,
-        .edge-kind-mgr { -webkit-app-region: no-drag; }
-      `}</style>
-      <div
-        className="graph-head"
-        style={IS_MAC ? { paddingLeft: 86 } : undefined}
-      >
-        <div className="graph-head__left">
-          <button className="graph-head__back" onClick={close} title="返回">
-            <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 16, lineHeight: 1 }}>
-              ‹
-            </span>
-            <span>返回</span>
-          </button>
-          <div className="graph-head__title">
-            叙事结构图
-            <em>{totalsLabel}</em>
-          </div>
-          <div className="graph-head__view-toggle">
-            <button
-              className={viewMode === 'book' ? 'is-active' : ''}
-              onClick={() => setViewMode('book')}
-              title="按阅读顺序排列"
-            >
-              书序
-            </button>
-            <button
-              className={viewMode === 'narrative' ? 'is-active' : ''}
-              onClick={() => setViewMode('narrative')}
-              title="按 in-world 时间排列"
-            >
-              叙事时
-            </button>
-          </div>
-          <button
-            type="button"
-            className="graph-head__spread-btn"
-            disabled={placedNodes.length < 2}
-            onClick={() => {
-              void handleSpread();
-            }}
-            title={
-              placedNodes.length < 2
-                ? '至少两个章节才能打散'
-                : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
-            }
-            aria-label="打散节点"
-          >
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <line x1="3" y1="8" x2="1.5" y2="8" />
-              <line x1="14.5" y1="8" x2="13" y2="8" />
-              <path d="M4 5l-2 3 2 3" />
-              <path d="M12 5l2 3-2 3" />
-              <line x1="7" y1="8" x2="9" y2="8" />
-            </svg>
-            <span>打散</span>
-          </button>
-
-          {/* Unplaced chapters — narrative mode only. Same role as the
-              equivalent control in BottomTimeline: surface chapters
-              that have no narrativeOrder yet so they can be dragged
-              into a track. Renders as a popover anchored to the head
-              button rather than the old below-head drawer. */}
-          {isNarrative && (
-            <div className="graph-head__unplaced" ref={unplacedPopoverRef}>
+      <SuperViewHeader
+        title="叙事结构图"
+        meta={totalsLabel}
+        onBack={close}
+        leftSlot={
+          <>
+            <div className="graph-head__view-toggle">
               <button
-                ref={unplacedBtnRef}
-                type="button"
-                className={`graph-head__unplaced-btn${drawerOpen ? ' is-open' : ''}`}
-                onClick={() => setDrawerOpen((v) => !v)}
-                title="未放置的章节（拖入下方时间轴）"
-                aria-haspopup="menu"
-                aria-expanded={drawerOpen}
+                className={viewMode === 'book' ? 'is-active' : ''}
+                onClick={() => setViewMode('book')}
+                title="按阅读顺序排列"
               >
-                <span>未放置</span>
-                <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
+                书序
               </button>
-              {drawerOpen && (
-                <div className="graph-head__unplaced-popover" role="menu">
-                  {unplacedNodes.length === 0 ? (
-                    <div className="graph-head__unplaced-empty">
-                      所有章节都在叙事时间轴上
-                    </div>
-                  ) : (
-                    unplacedNodes.map((node) => {
-                      const primaryId = primaryStorylineId(node);
-                      const sl = primaryId ? storylineById.get(primaryId) : null;
-                      const color = sl?.color || 'hsl(var(--ink-4))';
-                      return (
-                        <div
-                          key={node.id}
-                          className="graph-head__unplaced-chip"
-                          draggable
-                          onDragStart={(e) => handleChipDragStart(e, node)}
-                          onDragEnd={handleDragEnd}
-                          style={{ ['--chip-color' as string]: color } as React.CSSProperties}
-                          title={node.title || '未命名'}
-                        >
-                          <span className="graph-head__unplaced-chip-dot" />
-                          <span className="graph-head__unplaced-chip-num">
-                            § {String(node.bookOrder).padStart(2, '0')}
-                          </span>
-                          <span className="graph-head__unplaced-chip-title">
-                            {node.title || '未命名'}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right-side legend group. Layout left → right:
-              · hint chip — only when there are no user edges
-              · drift-only kind chips — only when drift panel is open;
-                sit to the LEFT of regular chips, separated by a small
-                whitespace gap (the wrapping container's gap)
-              · regular kind chips — toggleable; visible whenever the
-                kind has at least one storyline-only edge
-              · edge-management button — rightmost; opens a dropdown
-                where users can rename / recolor / delete kinds, and
-                where the storyline-transit legend lives in locked
-                read-only form
-        */}
-        <div className="graph-head__legend">
-          {nodeEdges.length === 0 && (
-            <div className="graph-head__filters">
-              <div
-                className="graph-head__filter is-hint"
-                title="按住 Shift 点击两个节点即可建立关联"
+              <button
+                className={viewMode === 'narrative' ? 'is-active' : ''}
+                onClick={() => setViewMode('narrative')}
+                title="按 in-world 时间排列"
               >
-                Shift + 点击两节点 = 创建关联
-              </div>
+                叙事时
+              </button>
             </div>
-          )}
-          {driftPanelOpen && driftOnlyKinds.length > 0 && (
-            <div className="graph-head__filters">
-              {driftOnlyKinds.map((kind) => renderKindChip(kind))}
-            </div>
-          )}
-          {regularKinds.length > 0 && (
-            <div className="graph-head__filters">
-              {regularKinds.map((kind) => renderKindChip(kind))}
-            </div>
-          )}
-          <div className="graph-head__edge-mgr-wrap">
             <button
-              ref={edgeMgrBtnRef}
               type="button"
-              className={`graph-head__edge-mgr-btn${edgeMgrOpen ? ' is-open' : ''}`}
-              onClick={() => setEdgeMgrOpen((v) => !v)}
-              title="管理关联类型"
-              aria-haspopup="menu"
-              aria-expanded={edgeMgrOpen}
+              className="graph-head__spread-btn"
+              disabled={placedNodes.length < 2}
+              onClick={() => {
+                void handleSpread();
+              }}
+              title={
+                placedNodes.length < 2
+                  ? '至少两个章节才能打散'
+                  : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
+              }
+              aria-label="打散节点"
             >
-              <span aria-hidden>≡</span>
-              <span>类型</span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <line x1="3" y1="8" x2="1.5" y2="8" />
+                <line x1="14.5" y1="8" x2="13" y2="8" />
+                <path d="M4 5l-2 3 2 3" />
+                <path d="M12 5l2 3-2 3" />
+                <line x1="7" y1="8" x2="9" y2="8" />
+              </svg>
+              <span>打散</span>
             </button>
-            <EdgeKindManager
-              open={edgeMgrOpen}
-              onClose={() => setEdgeMgrOpen(false)}
-              anchorRef={edgeMgrBtnRef}
-              kinds={[...regularKinds, ...driftOnlyKinds]}
-              resolveKindColor={resolveKindColor}
-              setKindColor={edgeKindMeta.setColor}
-              clearKindColor={edgeKindMeta.clearColor}
-              reassignMeta={edgeKindMeta.reassign}
-              removeMeta={edgeKindMeta.remove}
-              nodeEdges={nodeEdges}
-              updateEdge={updateEdge}
-              deleteEdge={deleteEdge}
-            />
-          </div>
-        </div>
-      </div>
+
+            {/* Unplaced chapters — narrative mode only. Same role as the
+                equivalent control in BottomTimeline: surface chapters
+                that have no narrativeOrder yet so they can be dragged
+                into a track. Renders as a popover anchored to the head
+                button rather than the old below-head drawer. */}
+            {isNarrative && (
+              <div
+                className="graph-head__unplaced super-view-head__no-drag"
+                ref={unplacedPopoverRef}
+              >
+                <button
+                  ref={unplacedBtnRef}
+                  type="button"
+                  className={`graph-head__unplaced-btn${drawerOpen ? ' is-open' : ''}`}
+                  onClick={() => setDrawerOpen((v) => !v)}
+                  title="未放置的章节（拖入下方时间轴）"
+                  aria-haspopup="menu"
+                  aria-expanded={drawerOpen}
+                >
+                  <span>未放置</span>
+                  <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
+                </button>
+                {drawerOpen && (
+                  <div
+                    className="graph-head__unplaced-popover super-view-head__no-drag"
+                    role="menu"
+                  >
+                    {unplacedNodes.length === 0 ? (
+                      <div className="graph-head__unplaced-empty">
+                        所有章节都在叙事时间轴上
+                      </div>
+                    ) : (
+                      unplacedNodes.map((node) => {
+                        const primaryId = primaryStorylineId(node);
+                        const sl = primaryId ? storylineById.get(primaryId) : null;
+                        const color = sl?.color || 'hsl(var(--ink-4))';
+                        return (
+                          <div
+                            key={node.id}
+                            className="graph-head__unplaced-chip"
+                            draggable
+                            onDragStart={(e) => handleChipDragStart(e, node)}
+                            onDragEnd={handleDragEnd}
+                            style={{ ['--chip-color' as string]: color } as React.CSSProperties}
+                            title={node.title || '未命名'}
+                          >
+                            <span className="graph-head__unplaced-chip-dot" />
+                            <span className="graph-head__unplaced-chip-num">
+                              § {String(node.bookOrder).padStart(2, '0')}
+                            </span>
+                            <span className="graph-head__unplaced-chip-title">
+                              {node.title || '未命名'}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        }
+        rightSlot={
+          // Layout left → right:
+          //   · hint chip — only when there are no user edges
+          //   · drift-only kind chips — only when drift panel is open; sit
+          //     to the LEFT of regular chips, separated by a small
+          //     whitespace gap (the wrapping container's gap)
+          //   · regular kind chips — toggleable; visible whenever the kind
+          //     has at least one storyline-only edge
+          //   · edge-management button — rightmost; opens a dropdown where
+          //     users can rename / recolor / delete kinds, and where the
+          //     storyline-transit legend lives in locked read-only form
+          <>
+            {nodeEdges.length === 0 && (
+              <div className="graph-head__filters">
+                <div
+                  className="graph-head__filter is-hint"
+                  title="按住 Shift 点击两个节点即可建立关联"
+                >
+                  Shift + 点击两节点 = 创建关联
+                </div>
+              </div>
+            )}
+            {driftPanelOpen && driftOnlyKinds.length > 0 && (
+              <div className="graph-head__filters">
+                {driftOnlyKinds.map((kind) => renderKindChip(kind))}
+              </div>
+            )}
+            {regularKinds.length > 0 && (
+              <div className="graph-head__filters">
+                {regularKinds.map((kind) => renderKindChip(kind))}
+              </div>
+            )}
+            <div className="graph-head__edge-mgr-wrap super-view-head__no-drag">
+              <button
+                ref={edgeMgrBtnRef}
+                type="button"
+                className={`graph-head__edge-mgr-btn${edgeMgrOpen ? ' is-open' : ''}`}
+                onClick={() => setEdgeMgrOpen((v) => !v)}
+                title="管理关联类型"
+                aria-haspopup="menu"
+                aria-expanded={edgeMgrOpen}
+              >
+                <span aria-hidden>≡</span>
+                <span>类型</span>
+              </button>
+              <EdgeKindManager
+                open={edgeMgrOpen}
+                onClose={() => setEdgeMgrOpen(false)}
+                anchorRef={edgeMgrBtnRef}
+                kinds={[...regularKinds, ...driftOnlyKinds]}
+                resolveKindColor={resolveKindColor}
+                setKindColor={edgeKindMeta.setColor}
+                clearKindColor={edgeKindMeta.clearColor}
+                reassignMeta={edgeKindMeta.reassign}
+                removeMeta={edgeKindMeta.remove}
+                nodeEdges={manualReferences.filter(
+                  (r) => r.fromKind === 'node' && r.toKind === 'node',
+                )}
+                updateEdgeKind={updateEdgeKind}
+                deleteEdge={deleteEdge}
+              />
+            </div>
+          </>
+        }
+      />
 
       <div className="graph-body">
         <div className="graph-rail">
@@ -1620,6 +1664,7 @@ export function StoryGraphView() {
         onClose={closeDriftPanel}
         closeDisabled={driftPanelClosing}
         panelAriaHidden={!driftPanelOpen || driftPanelClosing}
+        handRef={driftHandRef}
         handDragHandlers={{
           onDragOver: (e) => {
             // Drop in empty space at the ends — per-card handlers cover
@@ -1898,18 +1943,11 @@ export function StoryGraphView() {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     const trimmed = newEdgeKind.trim();
-                    void createEdge({
-                      id: uuidv7(),
-                      projectId: projectId ?? '',
-                      sourceNodeId: newEdgePair.source,
-                      targetNodeId: newEdgePair.target,
-                      label: '',
-                      kind: trimmed || null,
-                      weight: 1,
-                      isDirected: true,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString(),
-                    });
+                    void createEdge(
+                      newEdgePair.source,
+                      newEdgePair.target,
+                      trimmed || null,
+                    );
                     setNewEdgePair(null);
                   }
                 }}
@@ -1958,18 +1996,11 @@ export function StoryGraphView() {
                 className="is-primary"
                 onClick={() => {
                   const trimmed = newEdgeKind.trim();
-                  void createEdge({
-                    id: uuidv7(),
-                    projectId: projectId ?? '',
-                    sourceNodeId: newEdgePair.source,
-                    targetNodeId: newEdgePair.target,
-                    label: '',
-                    kind: trimmed || null,
-                    weight: 1,
-                    isDirected: true,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  });
+                  void createEdge(
+                    newEdgePair.source,
+                    newEdgePair.target,
+                    trimmed || null,
+                  );
                   setNewEdgePair(null);
                 }}
               >

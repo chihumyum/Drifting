@@ -1,9 +1,8 @@
 import { getDb, type DbExecutor } from '../lib/db';
-import { BookNodeTable, NodeEdgeTable, ProjectTable } from '../schema/drizzle';
+import { BookNodeTable, ProjectTable } from '../schema/drizzle';
 import { eq, asc } from 'drizzle-orm';
 import type {
   BookNode,
-  BookNodeEdge,
   ChapterWritingStatus,
   DriftStatus,
 } from '../domain/book-node';
@@ -30,7 +29,6 @@ export interface BookNodeUpdateData {
   writingStatus?: ChapterWritingStatus | DriftStatus;
   updatedAt: string;
 }
-export type BookNodeEdgeUpdateData = Partial<BookNodeEdge>;
 
 export interface BookNodeRepository {
   findById(id: string): Promise<BookNode | null>;
@@ -42,18 +40,6 @@ export interface BookNodeRepository {
     first: { id: string; bookOrder: number },
     second: { id: string; bookOrder: number },
   ): Promise<void>;
-}
-
-export interface BookNodeEdgeRepository {
-  findAll(): Promise<BookNodeEdge[]>;
-  create(input: BookNodeEdge): Promise<BookNodeEdge>;
-  update(id: string, data: BookNodeEdgeUpdateData): Promise<BookNodeEdge | null>;
-  delete(id: string): Promise<boolean>;
-}
-
-export interface BookNodeDataSource {
-  nodeRepo: BookNodeRepository;
-  edgeRepo: BookNodeEdgeRepository;
 }
 
 function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
@@ -86,30 +72,6 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     mainStorylineId: record.mainStorylineId,
     bookOrder: record.bookOrder ?? 0,
     writingStatus: (record.writingStatus ?? 'draft') as ChapterWritingStatus,
-  };
-}
-
-function toBookNodeEdge(record: typeof NodeEdgeTable.$inferSelect): BookNodeEdge {
-  const style = record.styleJson ? JSON.parse(record.styleJson) : undefined;
-  const cp = record.controlPointOffsetJson ? JSON.parse(record.controlPointOffsetJson) : undefined;
-  const sa = record.sourceAnchorJson ? JSON.parse(record.sourceAnchorJson) : undefined;
-  const ta = record.targetAnchorJson ? JSON.parse(record.targetAnchorJson) : undefined;
-
-  return {
-    id: record.id,
-    projectId: record.projectId,
-    sourceNodeId: record.sourceNodeId,
-    targetNodeId: record.targetNodeId,
-    label: record.label,
-    kind: record.kind ?? null,
-    weight: record.weight,
-    isDirected: record.isDirected ?? true,
-    style,
-    controlPointOffset: cp,
-    sourceAnchor: sa,
-    targetAnchor: ta,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
   };
 }
 
@@ -261,71 +223,3 @@ export function createBookNodeSqliteRepository(
   };
 }
 
-export function createBookNodeEdgeSqliteRepository(
-  currentProjectId: string,
-  dbOverride?: DbExecutor,
-): BookNodeEdgeRepository {
-  const dbProvider = () => dbOverride ?? getDb();
-  return {
-    async findAll() {
-      const pid = currentProjectId;
-      const rows = await dbProvider()
-        .select()
-        .from(NodeEdgeTable)
-        .where(eq(NodeEdgeTable.projectId, pid))
-        .orderBy(asc(NodeEdgeTable.createdAt));
-      return rows.map(toBookNodeEdge);
-    },
-
-    async create(input: BookNodeEdge) {
-      if (!input.projectId || input.projectId !== currentProjectId) {
-        throw new Error(
-          `Cannot create edge: projectId mismatch. Expected ${currentProjectId}, got ${input.projectId}`,
-        );
-      }
-
-      const newEdge: typeof NodeEdgeTable.$inferInsert = {
-        id: input.id,
-        projectId: input.projectId,
-        sourceNodeId: input.sourceNodeId,
-        targetNodeId: input.targetNodeId,
-        label: input.label,
-        kind: input.kind,
-        weight: input.weight ?? 1,
-        isDirected: input.isDirected,
-        styleJson: input.style ? JSON.stringify(input.style) : undefined,
-        controlPointOffsetJson: input.controlPointOffset
-          ? JSON.stringify(input.controlPointOffset)
-          : undefined,
-        sourceAnchorJson: input.sourceAnchor ? JSON.stringify(input.sourceAnchor) : undefined,
-        targetAnchorJson: input.targetAnchor ? JSON.stringify(input.targetAnchor) : undefined,
-        createdAt: input.createdAt,
-        updatedAt: input.updatedAt,
-      };
-
-      await dbProvider().insert(NodeEdgeTable).values(newEdge);
-      return toBookNodeEdge(newEdge as any);
-    },
-
-    async update(id: string, updates: BookNodeEdgeUpdateData) {
-      const updateValues: any = {};
-      if (updates.label !== undefined) updateValues.label = updates.label;
-      if (updates.kind !== undefined) updateValues.kind = updates.kind;
-      if (updates.weight !== undefined) updateValues.weight = updates.weight;
-      if (updates.style) updateValues.styleJson = JSON.stringify(updates.style);
-
-      if (Object.keys(updateValues).length > 0) {
-        updateValues.updatedAt = new Date().toISOString();
-        await dbProvider().update(NodeEdgeTable).set(updateValues).where(eq(NodeEdgeTable.id, id));
-      }
-
-      const res = await dbProvider().select().from(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
-      return res[0] ? toBookNodeEdge(res[0]) : null;
-    },
-
-    async delete(id: string) {
-      await dbProvider().delete(NodeEdgeTable).where(eq(NodeEdgeTable.id, id));
-      return true;
-    },
-  };
-}

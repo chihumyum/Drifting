@@ -103,8 +103,6 @@ function getEntityTypeLabel(entityType?: string): string {
     case 'node':
     case 'nodeContent':
       return 'Chapter';
-    case 'nodeEdge':
-      return 'Node edge';
     case 'storyline':
       return 'Storyline';
     case 'nodeStorylineLink':

@@ -32,7 +32,6 @@ import {
   MaterialTable,
   MemoTable,
   NodeContentTable,
-  NodeEdgeTable,
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
@@ -52,7 +51,6 @@ export type EntityType =
   | 'project'
   | 'node'
   | 'nodeContent'
-  | 'nodeEdge'
   | 'storyline'
   | 'nodeStorylineLink'
   | 'element'
@@ -107,7 +105,6 @@ export interface ProjectGraphPayload {
   project: Record<string, unknown>;
   nodes: Record<string, unknown>[];
   nodeContents: Record<string, unknown>[];
-  nodeEdges: Record<string, unknown>[];
   storylines: Record<string, unknown>[];
   nodeStorylineLinks: Record<string, unknown>[];
   elements: Record<string, unknown>[];
@@ -401,19 +398,6 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return null;
 
-    // ---- Node Edge ----
-    case 'nodeEdge':
-      if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/edges`, data: payload };
-      } else if (mutationType === 'update') {
-        return {
-          method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/edges/${entityId}`,
-          data: payload,
-        };
-      }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/edges/${entityId}` };
-
     // ---- Storyline ----
     case 'storyline':
       if (mutationType === 'create') {
@@ -623,7 +607,6 @@ export interface PullResult {
   projects?: unknown[];
   nodes?: unknown[];
   nodeContents?: unknown[];
-  nodeEdges?: unknown[];
   storylines?: unknown[];
   nodeStorylineLinks?: unknown[];
   elements?: unknown[];
@@ -648,7 +631,6 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     project: graph.project,
     nodes: graph.nodes,
     nodeContents: graph.nodeContents,
-    nodeEdges: graph.nodeEdges,
     storylines: graph.storylines,
     nodeStorylineLinks: graph.nodeStorylineLinks,
     elements: graph.elements,
@@ -687,25 +669,6 @@ function numberValue(row: Record<string, unknown>, key: string, fallback = 0): n
 function nullableNumberValue(row: Record<string, unknown>, key: string): number | null {
   const value = row[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function booleanValue(row: Record<string, unknown>, key: string, fallback = false): boolean {
-  const value = row[key];
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
-  if (!value) return undefined;
-  if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
-  if (typeof value !== 'string') return undefined;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function buildStorylineNodeMapping(
@@ -775,26 +738,6 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         writingStatus: stringValue(row, 'writingStatus', 'draft') as ChapterWritingStatus,
       };
     }),
-  );
-  dataStore.setNodeEdges(
-    graph.nodeEdges.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      sourceNodeId: stringValue(row, 'sourceNodeId'),
-      targetNodeId: stringValue(row, 'targetNodeId'),
-      label: stringValue(row, 'label'),
-      kind: row.kind == null ? null : stringValue(row, 'kind'),
-      weight: numberValue(row, 'weight', 1),
-      isDirected: booleanValue(row, 'isDirected', true),
-      style: parseJsonObject(row.styleJson) as any,
-      controlPointOffset: parseJsonObject(row.controlPointOffsetJson) as
-        | { x: number; y: number }
-        | undefined,
-      sourceAnchor: parseJsonObject(row.sourceAnchorJson) as { x: number; y: number } | undefined,
-      targetAnchor: parseJsonObject(row.targetAnchorJson) as { x: number; y: number } | undefined,
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
   );
   dataStore.setStorylineNodeMapping(buildStorylineNodeMapping(nodeStorylineLinks));
   dataStore.setBookElementCategories(
@@ -925,8 +868,6 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         toKind: stringValue(row, 'toKind') as any,
         toId: stringValue(row, 'toId'),
         toBlockId: nullableStringValue(row, 'toBlockId'),
-        origin: (stringValue(row, 'origin', 'manual') || 'manual') as 'manual' | 'auto' | 'ai',
-        confidence: typeof row.confidence === 'number' ? row.confidence : null,
         kind: nullableStringValue(row, 'kind'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
@@ -1159,7 +1100,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     await tx.delete(MaterialTable).where(eq(MaterialTable.projectId, projectId));
     await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
     await tx.delete(ManuscriptCommentTable).where(eq(ManuscriptCommentTable.projectId, projectId));
-    await tx.delete(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
@@ -1247,26 +1187,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(NodeContentTable).values(nodeContents as any[]);
     }
 
-    const nodeEdges = normalizeRows(graph.nodeEdges, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      sourceNodeId: stringValue(row, 'sourceNodeId'),
-      targetNodeId: stringValue(row, 'targetNodeId'),
-      label: stringValue(row, 'label'),
-      kind: row.kind == null ? null : stringValue(row, 'kind'),
-      weight: numberValue(row, 'weight', 1),
-      isDirected: booleanValue(row, 'isDirected', true),
-      styleJson: nullableStringValue(row, 'styleJson'),
-      controlPointOffsetJson: nullableStringValue(row, 'controlPointOffsetJson'),
-      sourceAnchorJson: nullableStringValue(row, 'sourceAnchorJson'),
-      targetAnchorJson: nullableStringValue(row, 'targetAnchorJson'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
-    if (nodeEdges.length > 0) {
-      await tx.insert(NodeEdgeTable).values(nodeEdges as any[]);
-    }
-
     const elements = normalizeRows(graph.elements, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
@@ -1301,8 +1221,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       toKind: stringValue(row, 'toKind'),
       toId: stringValue(row, 'toId'),
       toBlockId: nullableStringValue(row, 'toBlockId'),
-      origin: stringValue(row, 'origin', 'manual'),
-      confidence: typeof row.confidence === 'number' ? row.confidence : null,
       kind: nullableStringValue(row, 'kind'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
@@ -1489,7 +1407,6 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
     const resourceCount =
       response.data.nodes.length +
       response.data.nodeContents.length +
-      response.data.nodeEdges.length +
       response.data.storylines.length +
       response.data.nodeStorylineLinks.length +
       response.data.elements.length +

@@ -6,6 +6,11 @@
    ============================================================ */
 
 .graph-overlay {
+  /* Shared control sizing for the head-bar chips/buttons that live in the
+     SuperViewHeader's slots. Previously scoped under `.graph-head`; moved
+     up here when the wrapper migrated to the shared SuperViewHeader. */
+  --graph-head-control-height: 24px;
+  --graph-head-control-inner-height: calc(var(--graph-head-control-height) - 2px);
   position: fixed;
   top: 0;
   left: 0;
@@ -25,65 +30,12 @@
      Instant mount is fine; ESC/back still close cleanly. */
 }
 
-/* ---------------- Head bar ---------------- */
-.graph-head {
-  --graph-head-control-height: 24px;
-  --graph-head-control-inner-height: calc(var(--graph-head-control-height) - 2px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 44px;
-  padding: 0 18px;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
-  flex-shrink: 0;
-  gap: 16px;
-}
-.graph-head__left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-.graph-head__back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-3));
-  cursor: pointer;
-  padding: 3px 8px 3px 4px;
-  border: 0;
-  background: transparent;
-  border-radius: 3px;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-.graph-head__back:hover {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--rule));
-}
-.graph-head__title {
-  font-family: var(--font-serif);
-  font-size: 17px;
-  font-weight: 500;
-  color: hsl(var(--ink-1));
-  letter-spacing: 0.005em;
-  white-space: nowrap;
-}
-.graph-head__title em {
-  font-family: var(--font-mono);
-  font-style: normal;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: hsl(var(--ink-4));
-  margin-left: 10px;
-}
+/* ---------------- Head-bar chips & controls ----------------
+   The bar's wrapper, title, and back button live in the shared
+   SuperViewHeader component. The rules below style the
+   StoryGraphView-specific controls (view toggle, spread btn,
+   filter chips, edge-mgr button, unplaced popover) that are
+   injected into the header's left/right slots. */
 .graph-head__view-toggle {
   display: inline-flex;
   border: 1px solid hsl(var(--rule));

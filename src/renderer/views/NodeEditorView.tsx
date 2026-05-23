@@ -570,8 +570,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       } else {
         // Element conversion is destructive: we lift the drift's title /
         // summary / content into a brand-new BookElement, then delete the
-        // drift (its NodeEdges cascade away with it — those edges referred
-        // to a node-shaped entity and don't survive the schema change).
+        // drift (its entity_reference rows cascade away with it via the
+        // polymorphic cleanup path — those references were rooted at a
+        // node-shaped entity that no longer exists).
         //
         // The drift's content may not have been hydrated into bookContent
         // yet (e.g. user opened the menu before the content loader ran),

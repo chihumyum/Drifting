@@ -6,6 +6,7 @@ import {
   type EntityKind,
   type EntityReferenceRecord,
 } from '../../sqlite-repo/reference-repo';
+import type { StructuralEntityKind } from '../../domain/entity-kinds';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
@@ -313,7 +314,7 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
     else if (kind === 'storyline') navigateToStoryline(id);
   };
 
-  const handleAddManual = async (otherKind: EntityKind, otherId: string) => {
+  const handleAddManual = async (otherKind: StructuralEntityKind, otherId: string) => {
     try {
       const repo = createReferenceRepository();
       // Convention: panel entity is the from-side of a manual relation it
@@ -337,11 +338,7 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
   const handleRemoveManual = async (rel: ManualRelation) => {
     try {
       const repo = createReferenceRepository();
-      if (rel.direction === 'outgoing') {
-        await repo.removeManualRelation(entityKind, entityId, rel.otherKind, rel.otherId);
-      } else {
-        await repo.removeManualRelation(rel.otherKind, rel.otherId, entityKind, entityId);
-      }
+      await repo.removeManualRelation(rel.id);
       events.emit('references:changed', {
         projectId,
         fromKind: rel.direction === 'outgoing' ? entityKind : rel.otherKind,

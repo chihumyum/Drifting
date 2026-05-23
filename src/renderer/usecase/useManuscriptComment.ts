@@ -294,9 +294,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         toKind: existing.targetKind,
         toId: existing.targetId,
         toBlockId: existing.targetBlockId,
-        origin: 'manual',
-        confidence: null,
-        kind: 'comment',
+        kind: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -357,8 +355,6 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
           toKind: reference.toKind,
           toId: reference.toId,
           toBlockId: reference.toBlockId,
-          origin: reference.origin,
-          confidence: reference.confidence,
           kind: reference.kind,
         });
         syncManuscriptCommentUpdate(existing.id, projectId, {

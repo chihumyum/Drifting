@@ -1,5 +1,5 @@
 import mitt from 'mitt';
-import type { BookNode, BookNodeEdge } from '../domain/book-node';
+import type { BookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { EntityKind } from './extensions/entity-link';
 
@@ -33,8 +33,6 @@ export type AppEvents = {
   'graph:node-created': { node: BookNode };
   'graph:node-updated': { nodeId: string; updates: Partial<BookNode> };
   'graph:node-deleted': { nodeId: string };
-  'graph:edge-created': { edge: BookNodeEdge };
-  'graph:edge-deleted': { edgeId: string };
 
   'editor:saved': { nodeId: string; content: string };
   'editor:block-updated': { blockId: string; content: string };

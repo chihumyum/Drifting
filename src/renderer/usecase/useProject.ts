@@ -29,7 +29,6 @@ import {
   BookNodeTable,
   ElementCategoryTable,
   EntityReferenceTable,
-  NodeEdgeTable,
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
@@ -60,7 +59,6 @@ export interface ProjectStats {
   storylineLinks: number;
   elements: number;
   categories: number;
-  edges: number;
   entityReferences: number;
 }
 
@@ -88,7 +86,6 @@ const EMPTY_PROJECT_STATS: ProjectStats = {
   storylineLinks: 0,
   elements: 0,
   categories: 0,
-  edges: 0,
   entityReferences: 0,
 };
 
@@ -145,7 +142,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
   const db = getDb();
   const [
     nodes,
-    nodeEdges,
     storylines,
     elements,
     elementCategories,
@@ -154,7 +150,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
       .select({ id: BookNodeTable.id, wordCount: BookNodeTable.wordCount })
       .from(BookNodeTable)
       .where(eq(BookNodeTable.projectId, projectId)),
-    db.select({ id: NodeEdgeTable.id }).from(NodeEdgeTable).where(eq(NodeEdgeTable.projectId, projectId)),
     db
       .select({ id: StorylineTable.id })
       .from(StorylineTable)
@@ -195,7 +190,6 @@ async function buildLocalProjectStats(projectId: string): Promise<ProjectStats> 
     storylineLinks: nodeStorylineLinks.length,
     elements: elements.length,
     categories: elementCategories.length,
-    edges: nodeEdges.length,
     entityReferences: entityReferences.length,
   };
 }

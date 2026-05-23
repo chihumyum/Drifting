@@ -8,8 +8,10 @@ import {
 } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
+import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { SuperViewHeader } from '../../components/SuperViewHeader';
 import { useBookMemo } from '../../usecase/useBookMemo';
 import { useBookMaterial } from '../../usecase/useBookMaterial';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
@@ -37,15 +39,11 @@ const DRAWER_DEFAULT_HEIGHT = 260;
 
 const TODO_RAIL_WIDTH = 280;
 
-const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
-// macOS `titleBarStyle: hiddenInset` overlays its traffic lights at ~x=12;
-// leave a draggable strip wide enough that the dots don't collide with the
-// toolbar's leftmost control (matches StoryGraphView's graph-head padding).
-const TRAFFIC_LIGHT_INSET = IS_MAC ? 78 : 0;
-
-const DRAG_REGION: CSSProperties = {
-  WebkitAppRegion: 'drag' as CSSProperties['WebkitAppRegion'],
-};
+// The KindChip / EntityFilterButton popovers used to live in the top
+// toolbar (a drag region), so each interactive control was tagged no-drag
+// to stay clickable on macOS. Now they live inside MaterialMain's section
+// header — outside any drag region — but we keep the spreads in place
+// because they're harmless and reduce churn against the existing markup.
 const NO_DRAG_REGION: CSSProperties = {
   WebkitAppRegion: 'no-drag' as CSSProperties['WebkitAppRegion'],
 };
@@ -70,6 +68,8 @@ const NO_DRAG_REGION: CSSProperties = {
 export function SuperMemoMaterialView() {
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
+  const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
+  const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
   const memos = useDataStore((s) => s.memos);
   const materials = useDataStore((s) => s.materials);
@@ -254,16 +254,32 @@ export function SuperMemoMaterialView() {
         .smm-scroll::-webkit-scrollbar-track { background: transparent; }
       `}</style>
 
-      <Toolbar
-        query={query}
-        onQueryChange={setQuery}
-        hiddenKinds={hiddenKinds}
-        onToggleKind={toggleKindHidden}
-        kindCounts={Object.fromEntries(
-          KIND_ORDER.map((k) => [k, materials.filter((m) => m.kind === k).length]),
-        ) as Record<MaterialKind, number>}
-        entityFilter={entityFilter}
-        onEntityFilterChange={setEntityFilter}
+      {/* Top header — back + title + global search. Material-specific
+          filters (KIND chips, entity-target filter) live inside the
+          MaterialMain section header so the global header stays focused
+          on cross-cutting controls. */}
+      <SuperViewHeader
+        title="备忘 & 材料"
+        meta={`${memos.length} 备忘 · ${materials.length} 材料`}
+        onBack={closeView}
+        rightSlot={
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索标题或正文…"
+            style={{
+              width: 220,
+              fontFamily: 'var(--font-serif)',
+              fontSize: 12.5,
+              padding: '5px 9px',
+              border: '1px solid hsl(var(--rule))',
+              borderRadius: 3,
+              background: 'hsl(var(--paper))',
+              color: 'hsl(var(--ink-1))',
+              outline: 'none',
+            }}
+          />
+        }
       />
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -284,6 +300,12 @@ export function SuperMemoMaterialView() {
           totalVisible={visibleMaterials.length}
           totalMaterials={materials.length}
           hiddenKinds={hiddenKinds}
+          onToggleKind={toggleKindHidden}
+          kindCounts={Object.fromEntries(
+            KIND_ORDER.map((k) => [k, materials.filter((m) => m.kind === k).length]),
+          ) as Record<MaterialKind, number>}
+          entityFilter={entityFilter}
+          onEntityFilterChange={setEntityFilter}
           refsByFrom={refsByFrom}
           editingId={editingId}
           setEditingId={setEditingId}
@@ -368,89 +390,9 @@ export function SuperMemoMaterialView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Toolbar — search · kind chips · entity-target filter. The compose buttons
-// live inside the TodoRail header (memo) and MaterialMain header (material).
-//
-// On macOS the whole toolbar is also the window-drag region (`titleBarStyle:
-// hiddenInset` would otherwise consume click events near the top), so every
-// interactive control inside gets WebkitAppRegion: 'no-drag' so it stays
-// clickable. Left padding clears the traffic-light dots.
-
-function Toolbar({
-  query,
-  onQueryChange,
-  hiddenKinds,
-  onToggleKind,
-  kindCounts,
-  entityFilter,
-  onEntityFilterChange,
-}: {
-  query: string;
-  onQueryChange: (q: string) => void;
-  hiddenKinds: Set<MaterialKind>;
-  onToggleKind: (k: MaterialKind) => void;
-  kindCounts: Record<MaterialKind, number>;
-  entityFilter: FocusedEntity;
-  onEntityFilterChange: (next: FocusedEntity) => void;
-}) {
-  return (
-    <div
-      style={{
-        height: 40,
-        flexShrink: 0,
-        borderBottom: '1px solid hsl(var(--rule))',
-        display: 'flex',
-        alignItems: 'center',
-        padding: `0 14px 0 ${TRAFFIC_LIGHT_INSET + 14}px`,
-        gap: 10,
-        background: 'hsl(var(--paper))',
-        ...DRAG_REGION,
-      }}
-    >
-      <input
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        placeholder="搜索标题或正文…"
-        style={{
-          width: 220,
-          fontFamily: 'var(--font-serif)',
-          fontSize: 12.5,
-          padding: '5px 9px',
-          border: '1px solid hsl(var(--rule))',
-          borderRadius: 3,
-          background: 'hsl(var(--paper))',
-          color: 'hsl(var(--ink-1))',
-          outline: 'none',
-          ...NO_DRAG_REGION,
-        }}
-      />
-
-      <ToolbarDivider />
-
-      <span style={kickerStyle}>KIND</span>
-      <div style={{ display: 'flex', gap: 4, ...NO_DRAG_REGION }}>
-        {KIND_ORDER.map((k) => (
-          <KindChip
-            key={k}
-            active={!hiddenKinds.has(k)}
-            count={kindCounts[k] ?? 0}
-            onClick={() => onToggleKind(k)}
-          >
-            {MATERIAL_KIND_LABEL[k]}
-          </KindChip>
-        ))}
-      </div>
-
-      <ToolbarDivider />
-
-      <EntityFilterButton entityFilter={entityFilter} onChange={onEntityFilterChange} />
-
-      {/* Trailing flex spacer stays draggable — that's the only window-grab
-          area left, since every other control is no-drag. */}
-      <div style={{ flex: 1 }} />
-    </div>
-  );
-}
+// Material filter primitives — KindChip + EntityFilterButton, both used in
+// the MaterialMain section header (previously lived in a top toolbar). The
+// thin vertical divider used between filter groups is shared too.
 
 function ToolbarDivider() {
   return (
@@ -871,6 +813,10 @@ function MaterialMain({
   totalVisible,
   totalMaterials,
   hiddenKinds,
+  onToggleKind,
+  kindCounts,
+  entityFilter,
+  onEntityFilterChange,
   refsByFrom,
   editingId,
   setEditingId,
@@ -885,6 +831,16 @@ function MaterialMain({
   totalVisible: number;
   totalMaterials: number;
   hiddenKinds: Set<MaterialKind>;
+  /** Toggle one kind on/off in the visibility filter. */
+  onToggleKind: (k: MaterialKind) => void;
+  /** Total materials per kind across the project (ignores the kind toggle
+   *  itself, so the count next to each chip stays stable as you toggle). */
+  kindCounts: Record<MaterialKind, number>;
+  /** Entity-target filter — narrows BOTH memos and materials to those
+   *  related to the picked entity. Lives in this header for visual
+   *  proximity to the KIND chips, even though the rail also reacts. */
+  entityFilter: FocusedEntity;
+  onEntityFilterChange: (next: FocusedEntity) => void;
   refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
@@ -910,41 +866,86 @@ function MaterialMain({
         minHeight: 0,
       }}
     >
-      <SectionHeader
-        kicker="MATERIAL"
-        count={totalVisible}
-        action={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                color: 'hsl(var(--ink-4))',
-                letterSpacing: '0.06em',
-              }}
+      {/* Material section header: kicker + count on the left, then KIND
+          chips and entity filter (moved down from the global header), then
+          the new-material action on the right. Taller than the default
+          SectionHeader because it needs to host the filter group inline. */}
+      <div
+        style={{
+          minHeight: 38,
+          flexShrink: 0,
+          padding: '0 14px 0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          borderBottom: '1px solid hsl(var(--rule))',
+          background: 'hsl(var(--paper))',
+        }}
+      >
+        <span style={kickerStyle}>MATERIAL</span>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'hsl(var(--ink-4))',
+          }}
+        >
+          {totalVisible}
+        </span>
+
+        <ToolbarDivider />
+
+        <span style={kickerStyle}>KIND</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {KIND_ORDER.map((k) => (
+            <KindChip
+              key={k}
+              active={!hiddenKinds.has(k)}
+              count={kindCounts[k] ?? 0}
+              onClick={() => onToggleKind(k)}
             >
-              {totalVisible} / {totalMaterials}
-            </span>
-            <button
-              onClick={onCompose}
-              title="新建材料"
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                padding: '3px 10px',
-                border: '1px solid hsl(var(--ink-1))',
-                borderRadius: 3,
-                background: 'hsl(var(--ink-1))',
-                color: 'hsl(var(--paper))',
-                cursor: 'pointer',
-                letterSpacing: '0.08em',
-              }}
-            >
-              ＋ 新建材料
-            </button>
-          </div>
-        }
-      />
+              {MATERIAL_KIND_LABEL[k]}
+            </KindChip>
+          ))}
+        </div>
+
+        <ToolbarDivider />
+
+        <EntityFilterButton
+          entityFilter={entityFilter}
+          onChange={onEntityFilterChange}
+        />
+
+        <div style={{ flex: 1 }} />
+
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            color: 'hsl(var(--ink-4))',
+            letterSpacing: '0.06em',
+          }}
+        >
+          {totalVisible} / {totalMaterials}
+        </span>
+        <button
+          onClick={onCompose}
+          title="新建材料"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            padding: '3px 10px',
+            border: '1px solid hsl(var(--ink-1))',
+            borderRadius: 3,
+            background: 'hsl(var(--ink-1))',
+            color: 'hsl(var(--paper))',
+            cursor: 'pointer',
+            letterSpacing: '0.08em',
+          }}
+        >
+          ＋ 新建材料
+        </button>
+      </div>
 
       <div
         className="smm-scroll"

@@ -64,18 +64,6 @@ export function syncNodeContentUpdate(
   enqueueSync('nodeContent', 'update', nodeId, projectId, payload);
 }
 
-export function syncEdgeCreate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('nodeEdge', 'create', id, projectId, payload);
-}
-
-export function syncEdgeUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('nodeEdge', 'update', id, projectId, payload);
-}
-
-export function syncEdgeDelete(id: string, projectId: string) {
-  enqueueSync('nodeEdge', 'delete', id, projectId);
-}
-
 export function syncStorylineCreate(
   id: string,
   projectId: string,
@@ -186,6 +174,14 @@ export function syncEntityReferenceCreate(
   payload: Record<string, unknown>,
 ) {
   enqueueSync('entityReference', 'create', id, projectId, payload);
+}
+
+export function syncEntityReferenceUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('entityReference', 'update', id, projectId, payload);
 }
 
 export function syncEntityReferenceDelete(id: string, projectId: string) {

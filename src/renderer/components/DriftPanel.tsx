@@ -123,6 +123,13 @@ export interface DriftPanelProps {
     React.HTMLAttributes<HTMLDivElement>,
     'onDragOver' | 'onDrop' | 'onDragEnter' | 'onDragLeave'
   >;
+  /**
+   * Ref to the .drift-panel__hand scroll container. Exposed so parents
+   * that draw absolute-positioned overlays anchored to cards inside
+   * (e.g. StoryGraphView's drift-edge SVG) can attach a scroll listener
+   * and recompute geometry as the user scrolls the row horizontally.
+   */
+  handRef?: React.Ref<HTMLDivElement>;
   /** Card content. Parent renders DriftCards (or whatever) inside. */
   children: ReactNode;
 }
@@ -139,6 +146,7 @@ export function DriftPanel({
   tabLabel = '浮缀',
   panelAriaHidden,
   handDragHandlers,
+  handRef,
   children,
 }: DriftPanelProps) {
   return (
@@ -170,7 +178,7 @@ export function DriftPanel({
               ×
             </button>
             <div className="drift-panel__panel" aria-hidden={panelAriaHidden}>
-              <div className="drift-panel__hand" {...handDragHandlers}>
+              <div className="drift-panel__hand" ref={handRef} {...handDragHandlers}>
                 {children}
               </div>
             </div>

@@ -16,6 +16,7 @@ import { ElementCardPopover, type AnchorRect } from './ElementCardPopover';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { DriftPanel, useDriftPanelAnim } from '../../components/DriftPanel';
 import { NodeCardPopover } from '../../components/graph/NodeCardPopover';
+import { SuperViewHeader } from '../../components/SuperViewHeader';
 
 // Visual cell dimensions for CATEGORY world. Each element card occupies one
 // cell. Categories expand by adding cells along whichever axis the
@@ -97,18 +98,10 @@ const STICKY_PAD_CELLS_X = 3;
 const STICKY_PAD_CELLS_Y = 3;
 
 // Manual EntityReference rows carry a free-form `kind` (the user category
-// they choose at create time). Auto / ai-origin refs leave kind null. Color
-// is hashed from the kind string so two edges of the same kind always look
-// identical across renders; null-kind edges fall back to an origin-tinted
-// neutral. Dash pattern always reflects origin so users can still tell at a
-// glance whether a relation was authored, auto-detected, or AI-suggested.
-type EdgeOrigin = 'manual' | 'auto' | 'ai';
-
-const EDGE_ORIGIN_META: Record<EdgeOrigin, { fallbackColor: string; label: string; dash: string | null }> = {
-  manual: { fallbackColor: 'hsl(var(--ink-2))', label: '手动', dash: null },
-  auto: { fallbackColor: 'hsl(var(--story-4))', label: '自动', dash: '4 3' },
-  ai: { fallbackColor: 'hsl(var(--story-2))', label: 'AI', dash: '1 3' },
-};
+// they choose at create time). Color is hashed from the kind string so two
+// edges of the same kind always look identical across renders; null-kind
+// edges fall back to a neutral tint.
+const UNCATEGORIZED_EDGE_COLOR = 'hsl(var(--ink-2))';
 
 const KIND_PALETTE = [
   'hsl(var(--story-1))',
@@ -119,8 +112,8 @@ const KIND_PALETTE = [
   'hsl(var(--story-6))',
 ];
 /** Stable color per kind string (djb2-ish hash, same shape as StoryGraphView). */
-function colorForKind(kind: string | null, origin: EdgeOrigin): string {
-  if (!kind) return EDGE_ORIGIN_META[origin].fallbackColor;
+function colorForKind(kind: string | null): string {
+  if (!kind) return UNCATEGORIZED_EDGE_COLOR;
   let h = 5381;
   for (let i = 0; i < kind.length; i++) {
     h = ((h << 5) + h) ^ kind.charCodeAt(i);
@@ -1168,7 +1161,6 @@ export function SuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    origin: EdgeOrigin;
     kind: string | null;
     color: string;
     fromName: string;
@@ -1177,7 +1169,6 @@ export function SuperElementView() {
   const worldEdges = useMemo<WorldEdge[]>(() => {
     const out: WorldEdge[] = [];
     for (const ref of manualReferences) {
-      const origin = (ref.origin as EdgeOrigin) ?? 'manual';
       const kind = ref.kind ?? null;
       const filterKey = kind ?? UNCATEGORIZED_KIND;
       if (hiddenKinds.has(filterKey)) continue;
@@ -1216,9 +1207,8 @@ export function SuperElementView() {
         y1: fromPt.y,
         x2: toPt.x,
         y2: toPt.y,
-        origin,
         kind,
-        color: colorForKind(kind, origin),
+        color: colorForKind(kind),
         fromName,
         toName,
       });
@@ -1795,7 +1785,6 @@ export function SuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    origin: EdgeOrigin;
     kind: string | null;
     color: string;
   };
@@ -1820,7 +1809,6 @@ export function SuperElementView() {
     y1: number;
     x2: number;
     y2: number;
-    origin: EdgeOrigin;
     kind: string | null;
     color: string;
     fromName: string;
@@ -1838,7 +1826,6 @@ export function SuperElementView() {
     const recompute = () => {
       const out: DriftEdgeGeom[] = [];
       for (const ref of manualReferences) {
-        const origin = (ref.origin as EdgeOrigin) ?? 'manual';
         const kind = ref.kind ?? null;
         const filterKey = kind ?? UNCATEGORIZED_KIND;
         if (hiddenKinds.has(filterKey)) continue;
@@ -1861,9 +1848,8 @@ export function SuperElementView() {
           y1: r1.top + r1.height / 2,
           x2: r2.left + r2.width / 2,
           y2: r2.top + r2.height / 2,
-          origin,
           kind,
-          color: colorForKind(kind, origin),
+          color: colorForKind(kind),
         });
       }
       setDriftEdgeGeom(out);
@@ -1945,7 +1931,6 @@ export function SuperElementView() {
 
     const out: ViewportEdgeGeom[] = [];
     for (const ref of manualReferences) {
-      const origin = (ref.origin as EdgeOrigin) ?? 'manual';
       const kind = ref.kind ?? null;
       const filterKey = kind ?? UNCATEGORIZED_KIND;
       if (hiddenKinds.has(filterKey)) continue;
@@ -2007,9 +1992,8 @@ export function SuperElementView() {
         y1: fromY,
         x2: toX,
         y2: toY,
-        origin,
         kind,
-        color: colorForKind(kind, origin),
+        color: colorForKind(kind),
         fromName,
         toName,
       });
@@ -2048,236 +2032,169 @@ export function SuperElementView() {
         flexDirection: 'column',
       }}
     >
-      {/* Header — minimal: title + reset + close */}
-      <div
-        style={{
-          height: 44,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 18px',
-          borderBottom: '1px solid hsl(var(--rule))',
-          background: 'hsl(var(--paper-deep))',
-          WebkitAppRegion: 'drag' as React.CSSProperties['WebkitAppRegion'],
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            // Leave room for macOS traffic lights.
-            paddingLeft: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac') ? 60 : 0,
-          }}
-        >
-          <button
-            onClick={close}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              border: '1px solid hsl(var(--rule))',
-              background: 'transparent',
-              color: 'hsl(var(--ink-2))',
-              padding: '3px 10px',
-              borderRadius: 3,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              cursor: 'pointer',
-              WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
-            }}
-            title="返回"
-          >
-            <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>‹</span>
-            返回
-          </button>
-          <div
-            style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: 14,
-              color: 'hsl(var(--ink-1))',
-              letterSpacing: '0.02em',
-            }}
-          >
-            元素全景
-            <em
-              style={{
-                fontStyle: 'italic',
-                fontSize: 11,
-                color: 'hsl(var(--ink-4))',
-                marginLeft: 10,
-              }}
-            >
-              {bookElementCategories.length} 类 · {bookElements.length} 元素
-            </em>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            WebkitAppRegion: 'no-drag' as React.CSSProperties['WebkitAppRegion'],
-          }}
-        >
-          {/* Linking hint — surfaces when a shift-click is mid-flight, so
-              users know they need to click a second target. */}
-          {linkSource && (
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-                color: 'hsl(var(--ink-3))',
-                background: 'hsl(var(--paper))',
-                border: '1px dashed hsl(var(--ink-3))',
-                borderRadius: 3,
-                padding: '3px 8px',
-              }}
-            >
-              选择第二个 {linkSource.kind === 'element' ? '元素 / 章节' : '元素 / 章节'} · ESC 取消
-            </div>
-          )}
-
-          {/* Kind filter chips — one per distinct kind in the project
-              (plus an "未分类" chip when null-kind refs exist). Toggle
-              hides matching edges across both world + drift layers. */}
-          {availableKinds.map((k) => {
-            const isUncat = k === UNCATEGORIZED_KIND;
-            const label = isUncat ? '未分类' : k;
-            // Color: hash of kind for named; ink-4 for uncategorised (mirrors
-            // the default fallback used by edges with null kind + manual origin).
-            const color = isUncat ? 'hsl(var(--ink-4))' : colorForKind(k, 'manual');
-            const visible = !hiddenKinds.has(k);
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() =>
-                  setHiddenKinds((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(k)) next.delete(k);
-                    else next.add(k);
-                    return next;
-                  })
-                }
-                title={visible ? `隐藏「${label}」` : `显示「${label}」`}
+      {/* Header — back + title + filter chips + view-mode toggles. The
+          button visual styles still live in the trailing <style> block
+          so :hover/.is-on can be expressed in real CSS. */}
+      <SuperViewHeader
+        title="元素全景"
+        meta={`${bookElementCategories.length} 类 · ${bookElements.length} 元素`}
+        onBack={close}
+        rightSlot={
+          <>
+            {/* Linking hint — surfaces when a shift-click is mid-flight, so
+                users know they need to click a second target. */}
+            {linkSource && (
+              <div
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  border: `1px solid ${visible ? color : 'hsl(var(--rule))'}`,
-                  background: visible ? 'hsl(var(--paper))' : 'transparent',
-                  color: visible ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
-                  padding: '3px 8px',
-                  borderRadius: 3,
                   fontFamily: 'var(--font-mono)',
                   fontSize: 9.5,
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
-                  cursor: 'pointer',
-                  opacity: visible ? 1 : 0.55,
-                  maxWidth: 140,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  color: 'hsl(var(--ink-3))',
+                  background: 'hsl(var(--paper))',
+                  border: '1px dashed hsl(var(--ink-3))',
+                  borderRadius: 3,
+                  padding: '3px 8px',
                 }}
               >
-                <span
-                  aria-hidden
+                选择第二个 {linkSource.kind === 'element' ? '元素 / 章节' : '元素 / 章节'} · ESC 取消
+              </div>
+            )}
+
+            {/* Kind filter chips — one per distinct kind in the project
+                (plus an "未分类" chip when null-kind refs exist). Toggle
+                hides matching edges across both world + drift layers. */}
+            {availableKinds.map((k) => {
+              const isUncat = k === UNCATEGORIZED_KIND;
+              const label = isUncat ? '未分类' : k;
+              // Color: hash of kind for named; ink-4 for uncategorised (mirrors
+              // the default fallback used by edges with null kind).
+              const color = isUncat ? 'hsl(var(--ink-4))' : colorForKind(k);
+              const visible = !hiddenKinds.has(k);
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() =>
+                    setHiddenKinds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(k)) next.delete(k);
+                      else next.add(k);
+                      return next;
+                    })
+                  }
+                  title={visible ? `隐藏「${label}」` : `显示「${label}」`}
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 1.5,
-                    background: color,
-                    flexShrink: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    border: `1px solid ${visible ? color : 'hsl(var(--rule))'}`,
+                    background: visible ? 'hsl(var(--paper))' : 'transparent',
+                    color: visible ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
+                    padding: '3px 8px',
+                    borderRadius: 3,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9.5,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    cursor: 'pointer',
+                    opacity: visible ? 1 : 0.55,
+                    maxWidth: 140,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
-                />
-                {label}
-              </button>
-            );
-          })}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 1.5,
+                      background: color,
+                      flexShrink: 0,
+                    }}
+                  />
+                  {label}
+                </button>
+              );
+            })}
 
-          <button
-            className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
-            onClick={() => setEdgesViewportOnly((v) => !v)}
-            title={
-              edgesViewportOnly
-                ? '关闭聚焦 — 显示全部关联线'
-                : '打开聚焦 — 只显示当前视口内 element 的关联线'
-            }
-            aria-pressed={edgesViewportOnly}
-          >
-            聚焦 · {edgesViewportOnly ? '开' : '关'}
-          </button>
-          <button
-            className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
-            onClick={() => setBandSticky((v) => !v)}
-            title={
-              bandSticky
-                ? '关闭章节带粘附'
-                : '打开章节带粘附 — 平移时章节带停留在视口边缘,元素从其下穿过'
-            }
-            aria-pressed={bandSticky}
-          >
-            粘带 · {bandSticky ? '开' : '关'}
-          </button>
-          <button
-            className="super-element-reset"
-            onClick={resetView}
-            title="重置画布缩放与平移"
-          >
-            重置
-          </button>
-        </div>
+            <button
+              className={`super-element-toggle${edgesViewportOnly ? ' is-on' : ''}`}
+              onClick={() => setEdgesViewportOnly((v) => !v)}
+              title={
+                edgesViewportOnly
+                  ? '关闭聚焦 — 显示全部关联线'
+                  : '打开聚焦 — 只显示当前视口内 element 的关联线'
+              }
+              aria-pressed={edgesViewportOnly}
+            >
+              聚焦 · {edgesViewportOnly ? '开' : '关'}
+            </button>
+            <button
+              className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
+              onClick={() => setBandSticky((v) => !v)}
+              title={
+                bandSticky
+                  ? '关闭章节带粘附'
+                  : '打开章节带粘附 — 平移时章节带停留在视口边缘,元素从其下穿过'
+              }
+              aria-pressed={bandSticky}
+            >
+              粘带 · {bandSticky ? '开' : '关'}
+            </button>
+            <button
+              className="super-element-reset"
+              onClick={resetView}
+              title="重置画布缩放与平移"
+            >
+              重置
+            </button>
+          </>
+        }
+      />
 
-        {/* macOS drag-region opt-out for interactive controls + reset/close
-            chrome buttons. The button styles live here (instead of inline)
-            so :hover can highlight them — a previous inline-style version
-            shipped without :hover which left the buttons reading "dimmed
-            permanently". */}
-        <style>{`
-          .super-element-overlay button,
-          .super-element-overlay [data-super-card],
-          .super-element-overlay [data-super-edge],
-          .super-element-overlay [data-super-edge-delete],
-          .super-element-overlay [data-super-modal],
-          .super-element-overlay [data-super-drift],
-          .super-element-overlay input,
-          .super-element-overlay textarea { -webkit-app-region: no-drag; }
+      {/* The button visual styles for the header toggles live here so
+          :hover / .is-on can be expressed in real CSS. The .super-view-head
+          rules in the shared stylesheet already mark every button inside
+          as no-drag; the remaining selectors below are for cards / edges /
+          drift overlays elsewhere in this view. */}
+      <style>{`
+        .super-element-overlay [data-super-card],
+        .super-element-overlay [data-super-edge],
+        .super-element-overlay [data-super-edge-delete],
+        .super-element-overlay [data-super-modal],
+        .super-element-overlay [data-super-drift],
+        .super-element-overlay input,
+        .super-element-overlay textarea { -webkit-app-region: no-drag; }
 
-          .super-element-overlay .super-element-reset,
-          .super-element-overlay .super-element-toggle {
-            border: 1px solid hsl(var(--rule));
-            background: transparent;
-            color: hsl(var(--ink-2));
-            border-radius: 3px;
-            cursor: pointer;
-            font-family: var(--font-mono);
-            padding: 3px 10px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            transition: background 120ms, color 120ms, border-color 120ms;
-          }
-          .super-element-overlay .super-element-reset:hover,
-          .super-element-overlay .super-element-toggle:hover {
-            background: hsl(var(--ink-1));
-            color: hsl(var(--paper));
-            border-color: hsl(var(--ink-1));
-          }
-          .super-element-overlay .super-element-toggle.is-on {
-            background: hsl(var(--ink-1));
-            color: hsl(var(--paper));
-            border-color: hsl(var(--ink-1));
-          }
-        `}</style>
-      </div>
+        .super-element-overlay .super-element-reset,
+        .super-element-overlay .super-element-toggle {
+          border: 1px solid hsl(var(--rule));
+          background: transparent;
+          color: hsl(var(--ink-2));
+          border-radius: 3px;
+          cursor: pointer;
+          font-family: var(--font-mono);
+          padding: 3px 10px;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          transition: background 120ms, color 120ms, border-color 120ms;
+        }
+        .super-element-overlay .super-element-reset:hover,
+        .super-element-overlay .super-element-toggle:hover {
+          background: hsl(var(--ink-1));
+          color: hsl(var(--paper));
+          border-color: hsl(var(--ink-1));
+        }
+        .super-element-overlay .super-element-toggle.is-on {
+          background: hsl(var(--ink-1));
+          color: hsl(var(--paper));
+          border-color: hsl(var(--ink-1));
+        }
+      `}</style>
 
       {/* Canvas viewport */}
       <div
@@ -2391,7 +2308,6 @@ export function SuperElementView() {
             }}
           >
             {worldEdges.map((edge) => {
-              const meta = EDGE_ORIGIN_META[edge.origin];
               const selected = selectedEdgeId === edge.id;
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
               const kindLabel = edge.kind ?? '未分类';
@@ -2411,13 +2327,12 @@ export function SuperElementView() {
                       setSelectedEdgeId(edge.id);
                     }}
                   >
-                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}  ·  ${meta.label}`}</title>
+                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
                   </path>
                   <path
                     d={d}
                     stroke={edge.color}
                     strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
-                    strokeDasharray={meta.dash ?? undefined}
                     fill="none"
                     opacity={selected ? 1 : 0.78}
                     style={{ pointerEvents: 'none' }}
@@ -2495,7 +2410,6 @@ export function SuperElementView() {
           >
             <style>{`svg.super-viewport-edges[data-panning='1'] { visibility: hidden; }`}</style>
             {viewportEdgeGeom.map((edge) => {
-              const meta = EDGE_ORIGIN_META[edge.origin];
               const selected = selectedEdgeId === edge.id;
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
               const kindLabel = edge.kind ?? '未分类';
@@ -2512,13 +2426,12 @@ export function SuperElementView() {
                       setSelectedEdgeId(edge.id);
                     }}
                   >
-                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}  ·  ${meta.label}`}</title>
+                    <title>{`${edge.fromName} → ${edge.toName}  ·  ${kindLabel}`}</title>
                   </path>
                   <path
                     d={d}
                     stroke={edge.color}
                     strokeWidth={selected ? EDGE_SELECTED_WIDTH : EDGE_DEFAULT_WIDTH}
-                    strokeDasharray={meta.dash ?? undefined}
                     fill="none"
                     opacity={selected ? 1 : 0.78}
                     style={{ pointerEvents: 'none' }}
@@ -2851,7 +2764,7 @@ export function SuperElementView() {
                               width: 6,
                               height: 6,
                               borderRadius: 1.5,
-                              background: colorForKind(k, 'manual'),
+                              background: colorForKind(k),
                             }}
                           />
                           {k}

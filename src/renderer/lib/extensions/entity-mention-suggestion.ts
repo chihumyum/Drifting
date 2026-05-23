@@ -120,7 +120,6 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
                       targetKind: resolved.kind,
                       targetId: resolved.id,
                       targetBlockId: null,
-                      origin: 'manual',
                     },
                   },
                 ],
