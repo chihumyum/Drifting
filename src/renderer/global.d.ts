@@ -23,6 +23,13 @@ interface ElectronAPI {
     get: (sql: string, params?: any[]) => Promise<any | undefined>;
     close: () => Promise<void>;
   };
+  window?: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<void>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+    setTrafficLightPosition: (position: { x: number; y: number }) => Promise<void>;
+  };
 }
 
 declare global {

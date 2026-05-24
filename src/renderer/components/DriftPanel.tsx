@@ -98,8 +98,6 @@ export function useDriftPanelAnim(): UseDriftPanelAnimResult {
 export interface DriftPanelProps {
   /** Number displayed in the closed-state tab badge. */
   count: number;
-  /** Distance from viewport bottom (typically BottomStatusBar height). */
-  bottomOffset?: number;
   /** Anim state from useDriftPanelAnim. */
   mounted: boolean;
   open: boolean;
@@ -136,7 +134,6 @@ export interface DriftPanelProps {
 
 export function DriftPanel({
   count,
-  bottomOffset = 0,
   mounted,
   open,
   closing,
@@ -150,7 +147,7 @@ export function DriftPanel({
   children,
 }: DriftPanelProps) {
   return (
-    <div className="drift-panel-shell" style={{ bottom: bottomOffset }}>
+    <div className="drift-panel-shell">
       <div
         className={`drift-panel${open ? ' is-open' : ''}${closing ? ' is-closing' : ''}`}
       >

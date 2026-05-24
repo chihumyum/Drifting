@@ -15,9 +15,10 @@
   top: 0;
   left: 0;
   right: 0;
-  /* Leave the always-visible BottomStatusBar (20px tall) exposed below
-     the overlay so users can navigate without first dismissing GraphView. */
-  bottom: 20px;
+  /* Leave the always-visible BottomStatusBar exposed below the overlay so
+     users can navigate without first dismissing GraphView. The var lives
+     in index.css and grows in modern skin to also clear the island gap. */
+  bottom: var(--super-view-bottom-inset);
   z-index: 250;
   background: hsl(var(--paper));
   display: flex;
@@ -487,27 +488,119 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-/* ---------------- Body (rail + canvas) ---------------- */
+/* ---------------- Body (header lane + scroll grid) ----------------
+   The body is a flex column. Book mode prepends the FullBookLane (its
+   own horizontal scroll). Below it, `.graph-scroll` is the single
+   scroll container for everything else — rail labels stick to the
+   left and the narrative axis row sticks to the top, so vertical and
+   horizontal navigation are both a single gesture. Mirrors the layout
+   pattern that BottomTimeline already uses (`.btl__scroll` + sticky
+   `.btl-rail`). */
 .graph-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   min-height: 0;
 }
-.graph-rail {
-  width: 158px;
-  flex-shrink: 0;
-  background: hsl(var(--paper-deep));
-  border-right: 1px solid hsl(var(--rule));
-  overflow-y: auto;
-  scrollbar-width: thin;
+.graph-scroll {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: hsl(var(--page));
+  /* Hide scrollbars on both axes (Firefox + IE/old-Edge + WebKit).
+     Scrolling still works via trackpad / wheel; horizontal scroll via
+     shift+wheel. Matches `.btl__scroll`'s scrollbar-less treatment. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.graph-rail__row {
+.graph-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Narrative-mode time-axis row.
+   Sticky-top so it stays visible while the user scrolls through many
+   lanes. The rail-cell inside is ALSO sticky-left, so it doubles as
+   the spreadsheet-style frozen corner (sticky in both axes). */
+.graph-axis-row {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  z-index: 25;
+  background: hsl(var(--paper));
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.graph-axis-rail-cell {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 14px;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  /* Above .graph-axis-track-cell (its sticky-row sibling) AND above the
+     rail-cell of lane rows below, so the corner always wins. */
+  z-index: 2;
+}
+.graph-axis-track-cell {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ---------------- Lane row (rail + track) ----------------
+   One per storyline. Rail-cell is sticky-left so labels stay aligned
+   with their tracks at every scroll position. Track-cell hosts the
+   reading line (::before) and the lane's tile children. */
+.graph-lane-row {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  position: relative;
+}
+.graph-rail-cell {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
   padding: 0 14px;
+  background: hsl(var(--paper-deep));
+  border-right: 1px solid hsl(var(--rule));
   border-bottom: 1px dotted hsl(var(--rule));
+  /* Above tiles + edges so the sticky rail always covers content
+     scrolling under it. Matches BottomTimeline's `.btl-rail`. */
+  z-index: 20;
+}
+.graph-track-cell {
+  position: relative;
+  flex-shrink: 0;
+  border-bottom: 1px dotted hsl(var(--rule));
+}
+.graph-track-cell::before {
+  /* The hand-drawn-feeling reading-line — colored by storyline via
+     --track-color on the parent .graph-lane-row. */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  background: var(--track-color, hsl(var(--ink-5)));
+  opacity: 0.32;
+  transform: translateY(-50%);
+  z-index: 0;
 }
 .graph-rail__name {
   display: flex;
@@ -532,44 +625,7 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   color: hsl(var(--ink-4));
 }
 
-/* Wraps the FullBookLane (book mode) + canvas. Flex column so the lane
-   sits as an independent-scroll header above the canvas without sharing
-   the canvas's horizontal scroll. */
-.graph-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.graph-canvas {
-  flex: 1;
-  overflow: auto;
-  position: relative;
-  background: hsl(var(--page));
-  /* Hide scrollbars in both axes (Firefox + IE/old-Edge). The proven
-     `.btl__scroll` pattern — height: 0 on the webkit pseudo wasn't enough
-     in Chromium to suppress the horizontal track. Scrolling still works
-     via trackpad / wheel; horizontal scroll via shift+wheel. */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.graph-canvas::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-.graph-tracks {
-  position: relative;
-}
-
-/* ---------------- Time axis ---------------- */
-.graph-axis {
-  position: relative;
-  border-bottom: 1px solid hsl(var(--rule));
-}
+/* ---------------- Time axis sub-parts (kept for axis tick rendering) ---------------- */
 .graph-axis__col {
   position: absolute;
   top: 0;
@@ -603,24 +659,9 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   font-weight: 600;
 }
 
-/* ---------------- Rail axis row (narrative mode) ----------------
-   The rail's axis-aligned slot. In narrative mode it hosts a "+" to
-   add a new TimelinePin, mirroring BottomTimeline's `.btl-axis__rail`.
-   Book mode uses a simple spacer instead (no axis interactions there;
-   FullBookLane provides the equivalent reading-order header). */
-.graph-rail__axis {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px 0 14px;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: hsl(var(--ink-4));
-}
+/* ---------------- Axis "+ add pin" button (narrative mode) ----------------
+   Lives inside `.graph-axis-rail-cell` (the sticky corner). The cell
+   itself owns the flex / typography styling now. */
 .graph-rail__axis-add {
   display: grid;
   place-items: center;
@@ -648,7 +689,7 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 /* ---------------- Time pins (narrative mode) ----------------
    Mirror of `.btl-pin` adapted for graph view's taller axis row.
    The head + label live inside `.graph-axis`; the vertical line
-   (`.graph-pin-line`) is rendered as a sibling inside `.graph-tracks`
+   (`.graph-pin-line`) is rendered as a sibling inside `.graph-scroll`
    so it can span the full canvas height. */
 .graph-pin {
   position: absolute;
@@ -717,11 +758,13 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
    Sits BEHIND tiles (z-index 0) at rest and IN FRONT (z-index 5) while
    the user is dragging the pin, so the prospective drop target is
    easy to see. Drift panel (z-index 260, separate stacking context)
-   sits above this regardless. */
+   sits above this regardless.
+   The height is set inline (= scroll content total) because absolute
+   children of `.graph-scroll` only see its layout/viewport height,
+   not its scrollHeight — `bottom: 0` would clip to the visible region. */
 .graph-pin-line {
   position: absolute;
   top: 0;
-  bottom: 0;
   width: 1px;
   background: hsl(var(--rule));
   pointer-events: none;
@@ -730,25 +773,6 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 .graph-pin-line.is-dragging {
   background: hsl(var(--accent));
   z-index: 5;
-}
-
-/* ---------------- Tracks ---------------- */
-.graph-track {
-  position: relative;
-  border-bottom: 1px dotted hsl(var(--rule));
-}
-.graph-track::before {
-  /* The hand-drawn-feeling reading-line — colored by storyline. */
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1.5px;
-  background: var(--track-color, hsl(var(--ink-5)));
-  opacity: 0.32;
-  transform: translateY(-50%);
-  z-index: 0;
 }
 
 /* ---------------- Tiles ---------------- */
@@ -861,7 +885,7 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   border-width: 2px;
   box-shadow: 0 0 0 1px hsl(var(--accent) / 0.18), 0 4px 12px hsl(var(--ink-1) / 0.12);
 }
-/* Storyline-edge badge lives inside .graph-tracks (scrolls with the
+/* Storyline-edge badge lives inside .graph-scroll (scrolls with the
    canvas). Drift-edge badge uses .is-floating to switch to
    fixed-position viewport coords. */
 .graph-edge-delete {
@@ -923,11 +947,10 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 }
 
 /* When a drag is in flight from the "未放置" drawer, only the node's main
-   storyline accepts a drop — other rows (both their rail labels on the
-   left and their tracks in the canvas) dim so the constraint is visible
-   instead of guessable. Mirrors BottomTimeline's `.btl-row.is-drop-disabled`. */
-.graph-rail__row.is-drop-disabled,
-.graph-track.is-drop-disabled {
+   storyline accepts a drop — the whole lane row dims so the constraint
+   is visible instead of guessable. Mirrors BottomTimeline's
+   `.btl-row.is-drop-disabled`. */
+.graph-lane-row.is-drop-disabled {
   opacity: 0.32;
   filter: saturate(0.6);
   transition: opacity 0.12s, filter 0.12s;
@@ -1323,10 +1346,10 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   position: fixed;
   left: 0;
   right: 0;
-  /* Anchored above the BottomStatusBar (20px) so cards / tab don't get
-     hidden by the status bar. Must stay in sync with .graph-overlay's
-     bottom inset above. */
-  bottom: 20px;
+  /* Anchored above the BottomStatusBar so cards / tab don't get hidden
+     by the status bar. Same var as .graph-overlay so the two stay in
+     sync (modern skin bumps it to clear the island gap). */
+  bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;
   align-items: center;

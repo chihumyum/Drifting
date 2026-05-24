@@ -202,11 +202,19 @@ export function NewEntityButton() {
           alignItems: 'center',
           justifyContent: 'center',
           gap: isCompact ? 0 : 6,
-          padding: isCompact ? '5px 6px' : '5px 10px',
-          borderRadius: 4,
-          border: isModern ? '1px solid transparent' : '1px solid hsl(var(--rule))',
+          padding: isModern
+            ? isCompact
+              ? 0
+              : '4px 12px'
+            : isCompact
+              ? '5px 6px'
+              : '5px 10px',
+          width: isModern && isCompact ? 24 : undefined,
+          height: isModern && isCompact ? 24 : undefined,
+          borderRadius: isModern ? (isCompact ? '50%' : 999) : 4,
+          border: '1px solid hsl(var(--rule))',
           background: 'transparent',
-          color: 'hsl(var(--ink-2))',
+          color: isModern ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
           fontSize: 11.5,
           fontFamily: 'var(--font-mono)',
           letterSpacing: '0.04em',

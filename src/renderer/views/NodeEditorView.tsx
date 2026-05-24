@@ -33,7 +33,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
+import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
@@ -89,6 +89,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const activeProjectId = projectId;
   const activeUserId = userId;
   const promoteCurrentTab = usePromoteCurrentTab(activeProjectId);
+  const canPromoteOnEdit = useCanPromoteOnEdit(nodeId);
   const {
     bookNodes,
     storylines,
@@ -343,7 +344,11 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       outlineJson: string,
       nextWordCount: number,
     ) => {
-      promoteCurrentTab();
+      // Skip promote+save when content matches the loaded baseline — this filters
+      // out phantom onUpdate fires (Yjs initial sync, etc.) that would otherwise
+      // silently promote a preview tab on mount.
+      if (pmJson === bookContent?.contentJson) return;
+      if (canPromoteOnEdit()) promoteCurrentTab();
       try {
         const existing = await getContentByNodeId(targetNodeId);
         if (existing) {
@@ -365,7 +370,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         log.error('[NodeEditor] Failed to update content:', error);
       }
     },
-    [createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged, promoteCurrentTab],
+    [bookContent?.contentJson, canPromoteOnEdit, createContent, getContentByNodeId, updateContentByNodeId, persistWordCountIfChanged, promoteCurrentTab],
   );
 
   // One-shot backfill: legacy nodes whose word_count is still 0 but whose

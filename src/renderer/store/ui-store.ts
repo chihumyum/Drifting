@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -1277,4 +1277,21 @@ export function usePromoteCurrentTab(projectId: string | undefined | null): () =
   return useCallback(() => {
     if (projectId) useUiStore.getState().promoteTab(projectId);
   }, [projectId]);
+}
+
+// Grace period for edit-triggered promotion. Yjs sync, doc rehydration, and
+// other implicit Tiptap onUpdate fires happen right after mount and would
+// otherwise silently promote a preview tab. The gate returns false while
+// inside the grace window so callers can swallow those phantom edits.
+// resetKey should be the entity id the editor is bound to — when it changes
+// (switch chapter / re-mount on tab switch-back) the timer restarts.
+export function useCanPromoteOnEdit(
+  resetKey: string | null | undefined,
+  graceMs = 3000,
+): () => boolean {
+  const openedAtRef = useRef<number>(Date.now());
+  useEffect(() => {
+    openedAtRef.current = Date.now();
+  }, [resetKey]);
+  return useCallback(() => Date.now() - openedAtRef.current >= graceMs, [graceMs]);
 }

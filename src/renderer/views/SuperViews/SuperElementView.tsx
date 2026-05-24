@@ -69,11 +69,6 @@ function cardColStep(widthCells: number): number {
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.0;
 
-// Height of the always-visible BottomStatusBar — see styles/bottom-status-bar.css.
-// The fullscreen overlay leaves this much room at the bottom so the status
-// bar stays visible (and its drift-tab anchors above the bar).
-const BSB_HEIGHT = 20;
-
 // Inner padding inside the chapter band — kept small so storyline rows
 // hug the band's top/bottom borders. The pills themselves carry a 3px
 // inset against their lane edges (see pill `top = row + 3, height = CELL_H - 6`),
@@ -2088,22 +2083,7 @@ export function SuperElementView() {
   ]);
 
   return (
-    <div
-      className="super-element-overlay"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        // Stop short of the BottomStatusBar so it stays visible (and
-        // clickable) underneath the super view.
-        bottom: BSB_HEIGHT,
-        zIndex: 250,
-        background: 'hsl(var(--paper))',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <div className="super-element-overlay">
       {/* Header — back + title + filter chips + view-mode toggles. The
           button visual styles still live in the trailing <style> block
           so :hover/.is-on can be expressed in real CSS. */}
@@ -2268,9 +2248,13 @@ export function SuperElementView() {
         }
       `}</style>
 
-      {/* Canvas viewport */}
+      {/* Canvas viewport. Doubles as the body island in modern skin —
+          .super-view-body picks up the rounded+shadow treatment alongside
+          the header above it. position:absolute child (`worldRef`) is
+          unaffected by the class's `display: flex` since it's out of flow. */}
       <div
         ref={viewportRef}
+        className="super-view-body"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -2925,7 +2909,6 @@ export function SuperElementView() {
       {driftNodes.length > 0 && (
         <DriftPanel
           count={driftNodes.length}
-          bottomOffset={BSB_HEIGHT}
           mounted={driftPanelMounted}
           open={driftPanelOpen}
           closing={driftPanelClosing}
@@ -3083,26 +3066,51 @@ export function SuperElementView() {
         );
       })()}
 
-      {contextMenu?.kind === 'element' && (
-        <EntityCellContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          editorType="element"
-          header={{ title: contextMenu.elementName }}
-          extraGroups={[
-            [{ action: 'startEdgeFrom', label: '从此元素新建关联' }],
-          ]}
-          onAction={(action) => {
-            const eid = contextMenu.elementId;
-            if (action === 'startEdgeFrom') {
-              setLinkSource({ kind: 'element', id: eid });
-              return;
-            }
-            void dispatchEntityAction({ entityType: 'element', id: eid, action });
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {contextMenu?.kind === 'element' && (() => {
+        const el = bookElements.find((e) => e.id === contextMenu.elementId);
+        const category =
+          el?.categoryId != null
+            ? bookElementCategories.find((c) => c.id === el.categoryId) ?? null
+            : null;
+        const tags: Array<{ id: string; name: string; color?: string | null }> = [];
+        if (category) {
+          tags.push({
+            id: `cat-${category.id}`,
+            name: category.name || '未命名分类',
+            color: category.color,
+          });
+        } else if (el && el.categoryId == null) {
+          tags.push({ id: 'cat-none', name: '未分类', color: 'hsl(var(--ink-4))' });
+        }
+        const groupName = el?.groupName?.trim();
+        if (groupName) {
+          tags.push({ id: `grp-${groupName}`, name: groupName, color: 'hsl(var(--ink-4))' });
+        }
+        return (
+          <EntityCellContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            editorType="element"
+            header={{
+              title: contextMenu.elementName,
+              subtitle: el?.summary ?? undefined,
+              tags,
+            }}
+            extraGroups={[
+              [{ action: 'startEdgeFrom', label: '从此元素新建关联' }],
+            ]}
+            onAction={(action) => {
+              const eid = contextMenu.elementId;
+              if (action === 'startEdgeFrom') {
+                setLinkSource({ kind: 'element', id: eid });
+                return;
+              }
+              void dispatchEntityAction({ entityType: 'element', id: eid, action });
+            }}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
       {contextMenu?.kind === 'category' && (
         <EntityCellContextMenu
           x={contextMenu.x}

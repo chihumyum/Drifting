@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, Plus } from 'lucide-react';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
 // Electron 40's V8. The legacy build ships the polyfill.
@@ -419,7 +419,7 @@ function Toolbar({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '8px 12px',
+        padding: '6px 10px 6px 12px',
         borderBottom: '1px solid hsl(var(--rule))',
         gap: 6,
         flexShrink: 0,
@@ -459,18 +459,31 @@ function Toolbar({
           <button
             ref={triggerRef}
             onClick={() => setMenuOpen((v) => !v)}
+            title="新建"
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              padding: '3px 8px',
-              border: '1px solid hsl(var(--rule))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 18,
+              height: 18,
               borderRadius: 3,
+              border: 'none',
               background: 'transparent',
-              color: 'hsl(var(--ink-2))',
+              color: 'hsl(var(--ink-4))',
               cursor: 'pointer',
+              padding: 0,
+              transition: 'background 0.12s, color 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+              e.currentTarget.style.color = 'hsl(var(--ink-1))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'hsl(var(--ink-4))';
             }}
           >
-            ＋
+            <Plus size={12} strokeWidth={1.6} />
           </button>
           {menuOpen && (
             <>
@@ -534,7 +547,7 @@ function FilterPill({
         fontSize: 9.5,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
-        padding: '3px 8px',
+        padding: '1px 8px',
         borderRadius: 12,
         border: `1px solid ${active ? 'hsl(var(--ink-1))' : 'hsl(var(--rule))'}`,
         background: active ? 'hsl(var(--ink-1) / 0.06)' : 'transparent',

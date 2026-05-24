@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, DownloadCloud, Loader2, UploadCloud, X } f
 import { events, type SyncOperationEvent } from '../../lib/events';
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
+import { useSettingsStore } from '../../store/settings-store';
 
 type SyncToast = SyncOperationEvent & {
   expiresAt: number | null;
@@ -131,6 +132,7 @@ function quoteEntityName(entityType: string | undefined, entityName: string, ent
 }
 
 export function SyncStatusHUD() {
+  const syncDebugToasts = useSettingsStore((state) => state.syncDebugToasts);
   const [toasts, setToasts] = useState<SyncToast[]>([]);
   const bookNodes = useDataStore((state) => state.bookNodes);
   const storylines = useDataStore((state) => state.storylines);
@@ -180,6 +182,10 @@ export function SyncStatusHUD() {
   };
 
   useEffect(() => {
+    if (!syncDebugToasts) {
+      setToasts([]);
+      return;
+    }
     const handleSyncOperation = (event: SyncOperationEvent) => {
       setToasts((current) => {
         const nextToast: SyncToast = { ...event, expiresAt: getExpiry(event) };
@@ -207,7 +213,7 @@ export function SyncStatusHUD() {
       events.off('sync:operation', handleSyncOperation);
       window.clearInterval(cleanupTimer);
     };
-  }, []);
+  }, [syncDebugToasts]);
 
   const dismiss = (requestId: string) => {
     setToasts((current) => current.filter((item) => item.requestId !== requestId));

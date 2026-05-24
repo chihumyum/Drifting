@@ -1,25 +1,74 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { sql } from 'drizzle-orm';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { getDb } from '../../lib/db';
+import { NodeContentTable } from '../../schema/drizzle';
+import '../../../styles/search.css';
 
-// Search results only ever surface real user-content entities — the
-// dashboard / all-chapters singletons live in TabEntityType but aren't
-// indexable, so narrow to the searchable subset here.
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+// Pull plain text out of a Tiptap doc JSON. We only care about `text` leaves;
+// block boundaries get joined with newlines so excerpts don't smash adjacent
+// paragraphs together.
+function extractTiptapText(node: unknown): string {
+  if (!node || typeof node !== 'object') return '';
+  const n = node as { type?: string; text?: unknown; content?: unknown };
+  if (n.type === 'text' && typeof n.text === 'string') return n.text;
+  if (Array.isArray(n.content)) {
+    const joiner = n.type === 'doc' || n.type === undefined ? '\n' : '';
+    return (n.content as unknown[]).map(extractTiptapText).join(joiner);
+  }
+  return '';
+}
+
+function safeParse(json: string | null | undefined): unknown {
+  if (!json) return null;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// Escape LIKE wildcards so a query containing % or _ doesn't broaden the match.
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => '\\' + m);
+}
+
+// -----------------------------------------------------------------------------
+// Search shape
+// -----------------------------------------------------------------------------
+
 type SearchableEntityType = 'node' | 'storyline' | 'element' | 'category';
+type Field = 'title' | 'name' | 'summary' | 'body';
+
+interface Occurrence {
+  field: Field;
+  excerpt: string;
+  matchStart: number; // index of the hit within `excerpt`
+  matchLen: number;
+}
+
+interface EntityGroup {
+  entityType: SearchableEntityType;
+  entityId: string;
+  entityTitle: string;
+  occurrences: Occurrence[];
+  // Number of additional matches we found but did not include (per-entity cap).
+  truncated: number;
+}
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface SearchResult {
-  entityType: SearchableEntityType;
-  id: string;
-  title: string;
-  subtitle?: string;
-  match: string; // the field the match was found in
-}
+const MAX_OCCURRENCES_PER_ENTITY = 30;
+const EXCERPT_RADIUS = 28;
 
 const ENTITY_LABEL: Record<SearchableEntityType, string> = {
   node: '章节',
@@ -35,6 +84,80 @@ const ENTITY_ICON: Record<SearchableEntityType, string> = {
   category: '⌘',
 };
 
+const FIELD_LABEL: Record<Field, string> = {
+  title: '标题',
+  name: '名称',
+  summary: '简介',
+  body: '正文',
+};
+
+// Find every occurrence of `q` in `text`, up to `cap` returned. The full count
+// (including those past the cap) is returned in `total` so callers can show a
+// "more …" tail.
+function findOccurrences(
+  text: string,
+  q: string,
+  field: Field,
+  cap: number,
+): { occurrences: Occurrence[]; total: number } {
+  if (!text || !q) return { occurrences: [], total: 0 };
+  const lower = text.toLowerCase();
+  const lq = q.toLowerCase();
+  const occurrences: Occurrence[] = [];
+  let total = 0;
+  let from = 0;
+  while (true) {
+    const i = lower.indexOf(lq, from);
+    if (i < 0) break;
+    total++;
+    if (occurrences.length < cap) {
+      const start = Math.max(0, i - EXCERPT_RADIUS);
+      const end = Math.min(text.length, i + lq.length + EXCERPT_RADIUS);
+      const prefix = start > 0 ? '…' : '';
+      const suffix = end < text.length ? '…' : '';
+      const raw = prefix + text.slice(start, end) + suffix;
+      const excerpt = raw.replace(/\s+/g, ' ').trim();
+      const ms = excerpt.toLowerCase().indexOf(lq);
+      if (ms >= 0) {
+        occurrences.push({ field, excerpt, matchStart: ms, matchLen: q.length });
+      }
+    }
+    from = i + Math.max(1, lq.length);
+  }
+  return { occurrences, total };
+}
+
+// Combine occurrences across an entity's searchable fields, respecting the
+// per-entity cap. Returns null if nothing matched.
+function buildGroup(
+  entityType: SearchableEntityType,
+  entityId: string,
+  entityTitle: string,
+  fields: Array<{ field: Field; text: string }>,
+  q: string,
+): EntityGroup | null {
+  const occurrences: Occurrence[] = [];
+  let total = 0;
+  for (const f of fields) {
+    const cap = Math.max(0, MAX_OCCURRENCES_PER_ENTITY - occurrences.length);
+    const res = findOccurrences(f.text, q, f.field, cap);
+    occurrences.push(...res.occurrences);
+    total += res.total;
+  }
+  if (occurrences.length === 0) return null;
+  return {
+    entityType,
+    entityId,
+    entityTitle,
+    occurrences,
+    truncated: Math.max(0, total - occurrences.length),
+  };
+}
+
+// -----------------------------------------------------------------------------
+// Render helpers
+// -----------------------------------------------------------------------------
+
 function highlight(text: string, query: string): React.ReactNode {
   if (!query) return text;
   const lower = text.toLowerCase();
@@ -44,23 +167,33 @@ function highlight(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark
-        style={{
-          background: 'rgba(184, 153, 104, 0.35)',
-          color: 'inherit',
-          padding: 0,
-        }}
-      >
-        {text.slice(idx, idx + query.length)}
-      </mark>
+      <mark className="gsearch-mark">{text.slice(idx, idx + query.length)}</mark>
       {text.slice(idx + query.length)}
     </>
   );
 }
 
+function renderOccurrence(o: Occurrence): React.ReactNode {
+  const { excerpt, matchStart, matchLen } = o;
+  return (
+    <>
+      {excerpt.slice(0, matchStart)}
+      <mark className="gsearch-mark">
+        {excerpt.slice(matchStart, matchStart + matchLen)}
+      </mark>
+      {excerpt.slice(matchStart + matchLen)}
+    </>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Modal
+// -----------------------------------------------------------------------------
+
 export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [groups, setGroups] = useState<EntityGroup[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { openEntity } = useProjectNavigation();
@@ -69,78 +202,165 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const bookElements = useDataStore((s) => s.bookElements);
   const categories = useDataStore((s) => s.bookElementCategories);
 
+  // Reset state and focus the input each time the modal opens.
   useEffect(() => {
     if (!isOpen) return;
     setQuery('');
     setSelectedIdx(0);
-    // Defer focus so the modal mounts first.
+    setGroups([]);
     const id = window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
   }, [isOpen]);
 
-  const results = useMemo<SearchResult[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const out: SearchResult[] = [];
+  // Search pipeline: debounced async pass that
+  //   1) pre-fetches node body JSON (LIKE-prefiltered to rows that might match),
+  //   2) walks every entity once, gathering all occurrences across all fields,
+  //   3) builds one EntityGroup per matching entity.
+  // No dedupe: a single entity can produce many occurrences; callers see them
+  // all (capped per-entity).
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setGroups([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      const nodeBodies = new Map<string, string>();
+      try {
+        const pat = `%${escapeLike(q)}%`;
+        const patLow = `%${escapeLike(q.toLowerCase())}%`;
+        const rows = await getDb()
+          .select({
+            nodeId: NodeContentTable.nodeId,
+            contentJson: NodeContentTable.contentJson,
+          })
+          .from(NodeContentTable)
+          .where(
+            sql`lower(${NodeContentTable.contentJson}) LIKE ${patLow} ESCAPE '\\' OR ${NodeContentTable.contentJson} LIKE ${pat} ESCAPE '\\'`,
+          );
+        if (cancelled) return;
+        for (const r of rows) {
+          if (r.contentJson) nodeBodies.set(r.nodeId, r.contentJson);
+        }
+      } catch {
+        // DB not initialized — node body search is skipped, metadata still works.
+      }
 
-    for (const n of bookNodes) {
-      const title = n.title || '';
-      const summary = n.summary || '';
-      if (title.toLowerCase().includes(q)) {
-        out.push({ entityType: 'node', id: n.id, title, subtitle: summary, match: 'title' });
-      } else if (summary.toLowerCase().includes(q)) {
-        out.push({ entityType: 'node', id: n.id, title, subtitle: summary, match: 'summary' });
+      const next: EntityGroup[] = [];
+
+      for (const n of bookNodes) {
+        const bodyJson = nodeBodies.get(n.id);
+        const bodyText = bodyJson ? extractTiptapText(safeParse(bodyJson)) : '';
+        const g = buildGroup(
+          'node',
+          n.id,
+          n.title || '(无标题)',
+          [
+            { field: 'title', text: n.title || '' },
+            { field: 'summary', text: n.summary || '' },
+            { field: 'body', text: bodyText },
+          ],
+          q,
+        );
+        if (g) next.push(g);
       }
-    }
-    for (const s of storylines) {
-      const name = s.name || '';
-      const summary = s.summary || '';
-      if (name.toLowerCase().includes(q)) {
-        out.push({ entityType: 'storyline', id: s.id, title: name, subtitle: summary, match: 'name' });
-      } else if (summary.toLowerCase().includes(q)) {
-        out.push({ entityType: 'storyline', id: s.id, title: name, subtitle: summary, match: 'summary' });
+      for (const s of storylines) {
+        const bodyText = extractTiptapText(safeParse(s.contentJson));
+        const g = buildGroup(
+          'storyline',
+          s.id,
+          s.name || '(无标题)',
+          [
+            { field: 'name', text: s.name || '' },
+            { field: 'summary', text: s.summary || '' },
+            { field: 'body', text: bodyText },
+          ],
+          q,
+        );
+        if (g) next.push(g);
       }
-    }
-    for (const e of bookElements) {
-      const name = e.name || '';
-      if (name.toLowerCase().includes(q)) {
-        const cat = categories.find((c) => c.id === e.categoryId);
-        out.push({
-          entityType: 'element',
-          id: e.id,
-          title: name,
-          subtitle: cat ? `分类：${cat.name}` : undefined,
-          match: 'name',
-        });
+      for (const e of bookElements) {
+        const bodyText = extractTiptapText(safeParse(e.contentJson));
+        const g = buildGroup(
+          'element',
+          e.id,
+          e.name || '(无名称)',
+          [
+            { field: 'name', text: e.name || '' },
+            { field: 'summary', text: e.summary || '' },
+            { field: 'body', text: bodyText },
+          ],
+          q,
+        );
+        if (g) next.push(g);
       }
-    }
-    for (const c of categories) {
-      const name = c.name || '';
-      if (name.toLowerCase().includes(q)) {
-        out.push({ entityType: 'category', id: c.id, title: name, match: 'name' });
+      for (const c of categories) {
+        const bodyText = extractTiptapText(safeParse(c.contentJson));
+        const g = buildGroup(
+          'category',
+          c.id,
+          c.name || '(无名称)',
+          [
+            { field: 'name', text: c.name || '' },
+            { field: 'body', text: bodyText },
+          ],
+          q,
+        );
+        if (g) next.push(g);
       }
-    }
-    return out.slice(0, 50);
+
+      if (!cancelled) setGroups(next);
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [query, bookNodes, storylines, bookElements, categories]);
 
   useEffect(() => {
     setSelectedIdx(0);
   }, [query]);
 
-  // Scroll the selected row into view when it changes.
+  // Flatten occurrences for arrow-key navigation. Group headers are decorative
+  // and not part of the cursor sequence.
+  const flatItems = useMemo(() => {
+    const arr: Array<{ groupIdx: number; occIdx: number }> = [];
+    groups.forEach((g, gi) =>
+      g.occurrences.forEach((_, oi) => arr.push({ groupIdx: gi, occIdx: oi })),
+    );
+    return arr;
+  }, [groups]);
+
+  const groupOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let acc = 0;
+    for (const g of groups) {
+      offsets.push(acc);
+      acc += g.occurrences.length;
+    }
+    return offsets;
+  }, [groups]);
+
+  const totalOccurrences = flatItems.length;
+
+  // Scroll the selected occurrence into view as it changes.
   useEffect(() => {
     if (!listRef.current) return;
     const el = listRef.current.querySelector<HTMLElement>(
-      `[data-result-index="${selectedIdx}"]`,
+      `[data-occurrence-index="${selectedIdx}"]`,
     );
     el?.scrollIntoView({ block: 'nearest' });
   }, [selectedIdx]);
 
   if (!isOpen) return null;
 
-  const choose = (result: SearchResult) => {
+  const choose = (group: EntityGroup) => {
     onClose();
-    openEntity({ entityType: result.entityType, id: result.id }, { preview: false });
+    openEntity(
+      { entityType: group.entityType, id: group.entityId },
+      { preview: false },
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -149,179 +369,96 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
       onClose();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (results.length > 0) {
-        setSelectedIdx((prev) => (prev + 1) % results.length);
+      if (totalOccurrences > 0) {
+        setSelectedIdx((prev) => (prev + 1) % totalOccurrences);
       }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (results.length > 0) {
-        setSelectedIdx((prev) => (prev - 1 + results.length) % results.length);
+      if (totalOccurrences > 0) {
+        setSelectedIdx((prev) => (prev - 1 + totalOccurrences) % totalOccurrences);
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const target = results[selectedIdx];
-      if (target) choose(target);
+      const flat = flatItems[selectedIdx];
+      if (!flat) return;
+      const group = groups[flat.groupIdx];
+      if (group) choose(group);
     }
   };
 
+  const hasQuery = query.trim().length > 0;
+  const noResults = hasQuery && groups.length === 0;
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(35, 28, 20, 0.32)',
-        backdropFilter: 'blur(4px)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        paddingTop: 96,
-        zIndex: 10000,
-      }}
-      onClick={onClose}
-      onKeyDown={handleKeyDown}
-    >
-      <div
-        style={{
-          width: 560,
-          maxHeight: '70vh',
-          background: '#fefdfb',
-          borderRadius: 12,
-          border: '1px solid #e8dcc8',
-          boxShadow: '0 24px 64px rgba(90, 74, 58, 0.35)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search input */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '14px 16px',
-            borderBottom: '1px solid #e8dcc8',
-          }}
-        >
-          <Search size={16} color="#8b7355" />
+    <div className="gsearch-overlay" onClick={onClose} onKeyDown={handleKeyDown}>
+      <div className="gsearch-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gsearch-header">
+          <Search size={15} />
           <input
             ref={inputRef}
+            className="gsearch-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索章节、故事线、元素、分类…"
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontSize: 15,
-              background: 'transparent',
-              color: '#2a1a0a',
-            }}
+            placeholder="搜索章节、故事线、元素、分类的标题、简介、正文…"
           />
+          {hasQuery && (
+            <span className="gsearch-stats">
+              {groups.length} 个 · {totalOccurrences} 处
+            </span>
+          )}
           <button
+            type="button"
+            className="gsearch-close-btn"
             onClick={onClose}
             title="关闭 (Esc)"
-            style={{
-              width: 24,
-              height: 24,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: 'none',
-              background: 'transparent',
-              color: '#8b7355',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
 
-        {/* Results */}
         <div
           ref={listRef}
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: query.trim() && results.length === 0 ? '24px' : '8px',
-          }}
+          className={`gsearch-results${noResults || !hasQuery ? ' is-empty-state' : ''}`}
         >
-          {!query.trim() && (
-            <div style={{ padding: 24, color: '#8b7355', fontSize: 13, textAlign: 'center' }}>
-              输入关键字以搜索项目内的所有 entity
-            </div>
+          {!hasQuery && (
+            <div className="gsearch-empty">输入关键字以搜索项目内的所有 entity</div>
           )}
-          {query.trim() && results.length === 0 && (
-            <div style={{ color: '#8b7355', fontSize: 13, textAlign: 'center' }}>
-              没有找到匹配项
-            </div>
-          )}
-          {results.map((r, i) => {
-            const isActive = i === selectedIdx;
-            return (
-              <div
-                key={`${r.entityType}:${r.id}`}
-                data-result-index={i}
-                onMouseEnter={() => setSelectedIdx(i)}
-                onClick={() => choose(r)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: isActive ? '#f5f0e8' : 'transparent',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: 'var(--font-serif), Georgia, serif',
-                    fontStyle: 'italic',
-                    fontSize: 16,
-                    color: '#b89968',
-                    width: 18,
-                    textAlign: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {ENTITY_ICON[r.entityType]}
+          {noResults && <div className="gsearch-empty">没有找到匹配项</div>}
+          {groups.map((g, gi) => (
+            <div key={`${g.entityType}:${g.entityId}`} className="gsearch-group">
+              <div className="gsearch-group-header" onClick={() => choose(g)}>
+                <span className="gsearch-group-icon">{ENTITY_ICON[g.entityType]}</span>
+                <span className="gsearch-group-title">
+                  {highlight(g.entityTitle, query)}
                 </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: '#2a1a0a',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {highlight(r.title || '(无标题)', query)}
-                  </div>
-                  {r.subtitle && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: '#8b7355',
-                        marginTop: 2,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {highlight(r.subtitle, query)}
-                    </div>
-                  )}
-                </div>
-                <span style={{ fontSize: 11, color: '#a89274', flexShrink: 0 }}>
-                  {ENTITY_LABEL[r.entityType]}
+                <span className="gsearch-count">
+                  {g.truncated > 0
+                    ? `${g.occurrences.length}+${g.truncated}`
+                    : g.occurrences.length}
                 </span>
+                <span className="gsearch-kind">{ENTITY_LABEL[g.entityType]}</span>
               </div>
-            );
-          })}
+              {g.occurrences.map((o, oi) => {
+                const flatIdx = groupOffsets[gi] + oi;
+                const active = flatIdx === selectedIdx;
+                return (
+                  <div
+                    key={oi}
+                    data-occurrence-index={flatIdx}
+                    className={`gsearch-row${active ? ' is-active' : ''}`}
+                    onMouseEnter={() => setSelectedIdx(flatIdx)}
+                    onClick={() => choose(g)}
+                  >
+                    <span className="gsearch-field-tag">{FIELD_LABEL[o.field]}</span>
+                    <span className="gsearch-excerpt">{renderOccurrence(o)}</span>
+                  </div>
+                );
+              })}
+              {g.truncated > 0 && (
+                <div className="gsearch-truncated">…还有 {g.truncated} 处未显示</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

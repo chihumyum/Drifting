@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   type EditorType,
   type MenuItem,
@@ -130,7 +131,12 @@ export function EntityCellContextMenu({
     return null;
   }
 
-  return (
+  // Portal to <body> so the menu escapes any ancestor that creates a new
+  // containing block for `position: fixed` (modern skin gives `.app-chrome`
+  // a `backdrop-filter`, which per CSS spec re-anchors fixed descendants to
+  // the chrome instead of the viewport — making the menu drop by the chrome's
+  // viewport offset and clip against `.app-island`'s `overflow: hidden`).
+  return createPortal(
     <div
       ref={menuRef}
       className="editor-bar__menu"
@@ -147,7 +153,7 @@ export function EntityCellContextMenu({
         // instead of stretching to the viewport's right edge.
         right: 'auto',
         bottom: 'auto',
-        zIndex: 1000,
+        zIndex: 10000,
         margin: 0,
       }}
     >
@@ -283,6 +289,7 @@ export function EntityCellContextMenu({
           ))}
         </Fragment>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

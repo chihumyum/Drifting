@@ -354,13 +354,17 @@ export function StoryGraphView() {
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
 
-  // Vertical offset between `.graph-tracks` top and the FIRST row's tile
-  // center origin. The base `AXIS_HEIGHT` puts the tile in the lower half
-  // of its row so the storyline reading-line traces the tile's upper edge
-  // (the book-mode look). In narrative mode the in-canvas time-pin axis
-  // (`.graph-axis`) already consumes AXIS_HEIGHT in flow — without
-  // doubling the offset here, the same formula lands the tile back in the
-  // row's upper half and the reading-line bisects it instead.
+  // Vertical offset from the scroll content's top to a tile's CENTER y,
+  // used only for the SVG edge geometry (tiles themselves are now flow
+  // children of their lane row, positioned via `top: TRACK_HEIGHT −
+  // TILE_HEIGHT`). The formula `tileTopOffset + node.y` happens to yield
+  // the same global tile-center y under both layouts:
+  //   book mode  → 0 (no leading axis) + (rowIdx*TRACK_HEIGHT + 112)
+  //              = AXIS_HEIGHT + node.y         (with tileTopOffset = AXIS_HEIGHT)
+  //   narrative  → AXIS_HEIGHT + (rowIdx*TRACK_HEIGHT + 112)
+  //              = AXIS_HEIGHT*2 + node.y       (with tileTopOffset = AXIS_HEIGHT*2)
+  // Kept as a derived constant so the SVG / delete-badge code reads the
+  // same as it did pre-refactor.
   const tileTopOffset = isNarrative
     ? GRAPH_CONFIG.AXIS_HEIGHT * 2
     : GRAPH_CONFIG.AXIS_HEIGHT;
@@ -815,9 +819,9 @@ export function StoryGraphView() {
   const [dragOver, setDragOver] = useState<{
     order: number;
     storylineId: string | null;
-    // Cursor X in graph-tracks coordinates (already includes
-    // CANVAS_PADDING_X). Drives the drop indicator so it tracks the
-    // cursor / drag ghost rather than the snapped tile-left position.
+    // Cursor X in scroll-content coords (includes RAIL_WIDTH + the
+    // intentional left padding). Drives the drop indicator so it tracks
+    // the cursor / drag ghost rather than the snapped tile-left position.
     indicatorX: number;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -1046,38 +1050,45 @@ export function StoryGraphView() {
     e.dataTransfer.setDragImage(el, rect.width / 2, rect.height / 2);
   };
 
-  // Map a mouse Y (in canvas-content coordinates) to the lane whose row
+  // Map a mouse Y (in scroll-content coordinates) to the lane whose row
   // contains it. Returns null when above the axis or below the last row.
   // Synthetic lane ids (DEFAULT_LANE_ID / UNAFFILIATED_LANE_ID) are valid
   // drop targets and resolve like any other lane.
   const storylineAtY = useCallback(
-    (yInTracks: number): string | null => {
-      const relative = yInTracks - GRAPH_CONFIG.AXIS_HEIGHT;
+    (yInContent: number): string | null => {
+      const offset = isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0;
+      const relative = yInContent - offset;
       if (relative < 0) return null;
       const idx = Math.floor(relative / GRAPH_CONFIG.TRACK_HEIGHT);
       if (idx < 0 || idx >= lanesToRender.length) return null;
       return lanesToRender[idx]?.id ?? null;
     },
-    [lanesToRender],
+    [isNarrative, lanesToRender],
   );
 
   const handleTracksDragOver = (e: React.DragEvent) => {
     if (!draggedNode || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    // Snap on the *center* of the dropped tile rather than its left edge:
-    // the drag ghost is centered on the cursor (see handleTileDragStart),
-    // so centering the drop keeps the ghost, indicator, and final tile
-    // visually aligned.
-    const cursorContentX =
-      e.clientX - rect.left + canvasRef.current.scrollLeft - GRAPH_CONFIG.CANVAS_PADDING_X;
+    const scroll = canvasRef.current;
+    const rect = scroll.getBoundingClientRect();
+    // Cursor X in full scroll-content coords (includes the sticky rail
+    // width on the left). Used directly as the drop-indicator left so
+    // the indicator tracks the cursor.
+    const cursorContentX = e.clientX - rect.left + scroll.scrollLeft;
+    // Subtract RAIL_WIDTH + CANVAS_PADDING_X to get the cursor X within
+    // the track-cell's order grid. Snap on the *center* of the dropped
+    // tile rather than its left edge: the drag ghost is centered on the
+    // cursor, so centering the drop keeps ghost + indicator + final
+    // tile visually aligned.
+    const cursorTrackX =
+      cursorContentX - GRAPH_CONFIG.RAIL_WIDTH - GRAPH_CONFIG.CANVAS_PADDING_X;
     const tileWidth = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
-    const tileLeftContentX = cursorContentX - tileWidth / 2;
+    const tileLeftTrackX = cursorTrackX - tileWidth / 2;
     const order = Math.max(
       orderSpan.min,
-      Math.round(tileLeftContentX / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min,
+      Math.round(tileLeftTrackX / GRAPH_CONFIG.GRID_UNIT) + orderSpan.min,
     );
-    const yInTracks = e.clientY - rect.top + canvasRef.current.scrollTop;
-    const storylineId = storylineAtY(yInTracks);
+    const yInContent = e.clientY - rect.top + scroll.scrollTop;
+    const storylineId = storylineAtY(yInContent);
     if (!canDropOnStoryline(storylineId)) {
       // Drawer drag landed on a non-primary row — implicit reject (don't
       // preventDefault, don't surface a drop indicator).
@@ -1086,9 +1097,7 @@ export function StoryGraphView() {
     }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    // `indicatorX` is the cursor position in graph-tracks coordinates;
-    // also matches where the tile's center will land after drop.
-    setDragOver({ order, storylineId, indicatorX: cursorContentX + GRAPH_CONFIG.CANVAS_PADDING_X });
+    setDragOver({ order, storylineId, indicatorX: cursorContentX });
   };
 
   const handleTracksDrop = async (e: React.DragEvent) => {
@@ -1382,429 +1391,430 @@ export function StoryGraphView() {
       />
 
       <div className="graph-body">
-        <div className="graph-rail">
-          {/* Axis row in the rail. In narrative mode this hosts the
-              add-pin button; in book mode it's just a spacer so the
-              storyline names below align with their respective track
-              centers. */}
-          {isNarrative ? (
+        {/* Book-mode reading-order summary. Sibling of (not inside) the
+            scroll container so its own horizontal scroll stays independent
+            of the storyline tracks — chips are packed in book order, not
+            positioned by it, so scrolling them shouldn't move the rows
+            beneath and vice versa. Matches BottomTimeline's placement. */}
+        {!isNarrative && (
+          <FullBookLane
+            nodes={placedNodes}
+            storylines={storylines}
+            primaryStorylineId={(n) => primaryStorylineId(n)}
+            activeNodeId={null}
+            trackOffsetX={GRAPH_CONFIG.RAIL_WIDTH}
+            onNodeClick={(id) => {
+              const target = positionedNodes.find((n) => n.id === id);
+              const scroll = canvasRef.current;
+              if (!target || !scroll) return;
+              const tileW = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
+              const left =
+                GRAPH_CONFIG.RAIL_WIDTH +
+                target.x +
+                tileW / 2 -
+                scroll.clientWidth / 2;
+              scroll.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+            }}
+            height={GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT}
+            railLabel="阅读"
+          />
+        )}
+
+        {/* Single scroll container for the whole grid (vertical for
+            many storylines, horizontal for many chapters). Rail labels
+            stick to the left via `position: sticky` so they stay aligned
+            with their tracks at all scroll positions. The narrative
+            axis row stickies to the top. No JS sync; no height-spacer
+            hacks — the layout is genuinely one surface. */}
+        <div
+          ref={canvasRef}
+          className="graph-scroll"
+          onDragOver={handleTracksDragOver}
+          onDrop={handleTracksDrop}
+          onContextMenu={(e) => {
+            // Tile/rail handlers stopPropagation, so this only fires
+            // on empty track area. Map cursor → lane and open the
+            // same storyline cmenu the rail uses (synthetic lanes
+            // have no entity behind them, so silently skip).
+            const scroll = canvasRef.current;
+            if (!scroll) return;
+            const rect = scroll.getBoundingClientRect();
+            const yInContent = e.clientY - rect.top + scroll.scrollTop;
+            const sid = storylineAtY(yInContent);
+            if (!sid || sid === DEFAULT_LANE_ID || sid === UNAFFILIATED_LANE_ID) {
+              return;
+            }
+            e.preventDefault();
+            setContextMenu({
+              kind: 'storyline',
+              x: e.clientX + 2,
+              y: e.clientY - 2,
+              storylineId: sid,
+            });
+          }}
+        >
+          {/* Narrative time-axis row — sticky-top.
+              Rail cell is sticky-left + sticky-top (the corner); the
+              track cell carries the draggable pin heads/labels. */}
+          {isNarrative && (
             <div
-              className="graph-rail__axis"
+              className="graph-axis-row"
               style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}
-              title="叙事时间标记：点击 + 添加可拖动的时间 pin"
             >
-              <span className="graph-rail__axis-name">时间</span>
-              <button
-                type="button"
-                className="graph-rail__axis-add"
-                disabled={snapValues.length === 0}
-                title={snapValues.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAddPin();
-                }}
+              <div
+                className="graph-axis-rail-cell"
+                style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
+                title="叙事时间标记：点击 + 添加可拖动的时间 pin"
               >
-                +
-              </button>
+                <span className="graph-rail__axis-name">时间</span>
+                <button
+                  type="button"
+                  className="graph-rail__axis-add"
+                  disabled={snapValues.length === 0}
+                  title={snapValues.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddPin();
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              <div
+                className="graph-axis-track-cell"
+                style={{ width: canvasContentWidth }}
+              >
+                {markers
+                  .filter(
+                    (m) =>
+                      m.narrativeOrder >= orderSpan.min &&
+                      m.narrativeOrder <= orderSpan.max,
+                  )
+                  .map((m) => (
+                    <GraphTimelinePin
+                      key={`pin-${m.id}`}
+                      marker={m}
+                      snapValues={snapValues}
+                      orderToX={orderToX}
+                      pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
+                      isDragging={pinDragXs.has(m.id)}
+                      editOnMount={m.id === newlyAddedPinId}
+                      onChange={(patch) => {
+                        if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
+                        updateMarker(m.id, patch);
+                      }}
+                      onDelete={() => {
+                        if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
+                        deleteMarker(m.id);
+                      }}
+                      onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
+                    />
+                  ))}
+              </div>
             </div>
-          ) : (
-            <div
-              className="graph-rail__axis-spacer"
-              style={{ height: GRAPH_CONFIG.AXIS_HEIGHT, borderBottom: '1px solid hsl(var(--rule))' }}
-            />
           )}
-          {lanesToRender.map((lane) => {
+
+          {/* Vertical pin lines spanning every lane row (narrative only).
+              Absolute children of the scroll container; left is in scroll
+              content coords (so we add RAIL_WIDTH to the track-relative
+              orderToX value). Explicit `height` because absolute children
+              of `.graph-scroll` only see its viewport height, not its
+              scrollHeight — `bottom: 0` alone would clip vertically. */}
+          {isNarrative &&
+            markers.map((m) => {
+              const dragX = pinDragXs.get(m.id);
+              const isDragging = dragX !== undefined;
+              const x = dragX ?? orderToX(m.narrativeOrder);
+              return (
+                <div
+                  key={`pinline-${m.id}`}
+                  className={`graph-pin-line${isDragging ? ' is-dragging' : ''}`}
+                  style={{
+                    left: GRAPH_CONFIG.RAIL_WIDTH + x,
+                    height:
+                      GRAPH_CONFIG.AXIS_HEIGHT +
+                      lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
+                  }}
+                  aria-hidden
+                />
+              );
+            })}
+
+          {/* Lane rows — each is a flex row of [sticky-left rail cell |
+              track cell with tiles]. The vertical scroll naturally moves
+              both halves together because they share the same scroll
+              container. */}
+          {lanesToRender.map((lane, rowIdx) => {
             const laneNodes =
               lane.id === DEFAULT_LANE_ID
                 ? placedNodes
                 : lane.id === UNAFFILIATED_LANE_ID
                   ? unaffiliatedChapters
                   : (sortedNodesByStoryline.get(lane.id) ?? []);
-            const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
+            const tilesInLane = positionedNodes.filter(
+              (n) => n.rowIndex === rowIdx,
+            );
+            const dimmed =
+              !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
             return (
               <div
                 key={lane.id}
-                className={`graph-rail__row${dimmed ? ' is-drop-disabled' : ''}${
+                className={`graph-lane-row${dimmed ? ' is-drop-disabled' : ''}${
                   lane.synthetic ? ' is-synthetic' : ''
                 }`}
-                style={{ height: GRAPH_CONFIG.TRACK_HEIGHT }}
-                onContextMenu={(e) => {
-                  // Synthetic lanes (本书 / 未归属) have no storyline entity
-                  // behind them — no editor actions apply.
-                  if (lane.synthetic) {
-                    e.preventDefault();
-                    return;
-                  }
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setContextMenu({
-                    kind: 'storyline',
-                    x: e.clientX + 2,
-                    y: e.clientY - 2,
-                    storylineId: lane.id,
-                  });
-                }}
-              >
-                <div className="graph-rail__name">
-                  <span
-                    className="graph-rail__name-dot"
-                    style={{ background: lane.color }}
-                  />
-                  <span>{lane.name}</span>
-                </div>
-                <div className="graph-rail__meta">{laneNodes.length} 章</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="graph-content">
-          {/* Book mode: FullBookLane spans the content width and scrolls
-              independently from .graph-canvas below. Narrative mode skips
-              it (the lane is book-order-only per user direction). */}
-          {!isNarrative && (
-            <FullBookLane
-              nodes={placedNodes}
-              storylines={storylines}
-              primaryStorylineId={(n) => primaryStorylineId(n)}
-              activeNodeId={null}
-              trackOffsetX={0}
-              onNodeClick={(id) => {
-                const target = positionedNodes.find((n) => n.id === id);
-                const canvas = canvasRef.current;
-                if (!target || !canvas) return;
-                const tileW = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
-                const left = target.x + tileW / 2 - canvas.clientWidth / 2;
-                canvas.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-              }}
-              height={GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT}
-              railLabel=""
-            />
-          )}
-
-          <div
-            ref={canvasRef}
-            className="graph-canvas"
-            onDragOver={handleTracksDragOver}
-            onDrop={handleTracksDrop}
-            onContextMenu={(e) => {
-              // Tile-level handlers stopPropagation, so this only fires for
-              // right-clicks on empty track area. Map the cursor Y to a
-              // lane → open the same storyline cmenu the rail uses (synthetic
-              // lanes have no entity behind them, so silently skip).
-              const canvas = canvasRef.current;
-              if (!canvas) return;
-              const rect = canvas.getBoundingClientRect();
-              const yInTracks = e.clientY - rect.top + canvas.scrollTop;
-              const sid = storylineAtY(yInTracks);
-              if (!sid || sid === DEFAULT_LANE_ID || sid === UNAFFILIATED_LANE_ID) {
-                return;
-              }
-              e.preventDefault();
-              setContextMenu({
-                kind: 'storyline',
-                x: e.clientX + 2,
-                y: e.clientY - 2,
-                storylineId: sid,
-              });
-            }}
-          >
-            <div
-              className="graph-tracks"
-              style={{ width: Math.max(canvasContentWidth, 100), minWidth: '100%' }}
-            >
-              {/* Time axis — narrative mode only. Book mode uses the
-                  FullBookLane above for the same "what's the axis" role.
-                  In narrative mode the axis row hosts the interactive
-                  TimelinePin heads + labels (draggable, editable). The
-                  vertical lines that span the entire tracks area are
-                  rendered below as siblings, not inside the axis. */}
-              {isNarrative && (
-                <div className="graph-axis" style={{ height: GRAPH_CONFIG.AXIS_HEIGHT }}>
-                  {markers
-                    .filter(
-                      (m) =>
-                        m.narrativeOrder >= orderSpan.min &&
-                        m.narrativeOrder <= orderSpan.max,
-                    )
-                    .map((m) => (
-                      <GraphTimelinePin
-                        key={`pin-${m.id}`}
-                        marker={m}
-                        snapValues={snapValues}
-                        orderToX={orderToX}
-                        pinHeight={GRAPH_CONFIG.AXIS_HEIGHT}
-                        isDragging={pinDragXs.has(m.id)}
-                        editOnMount={m.id === newlyAddedPinId}
-                        onChange={(patch) => {
-                          if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
-                          updateMarker(m.id, patch);
-                        }}
-                        onDelete={() => {
-                          if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
-                          deleteMarker(m.id);
-                        }}
-                        onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
-                      />
-                    ))}
-                </div>
-              )}
-
-              {/* Vertical lines spanning the full tracks area (axis +
-                  every storyline row). One per pin. When the pin is
-                  being dragged the line tracks the cursor's pixel X
-                  rather than the persisted narrativeOrder, so the user
-                  sees the prospective drop position before mouseup. */}
-              {isNarrative &&
-                markers.map((m) => {
-                  const dragX = pinDragXs.get(m.id);
-                  const isDragging = dragX !== undefined;
-                  const left = dragX ?? orderToX(m.narrativeOrder);
-                  return (
-                    <div
-                      key={`pinline-${m.id}`}
-                      className={`graph-pin-line${isDragging ? ' is-dragging' : ''}`}
-                      style={{ left }}
-                      aria-hidden
-                    />
-                  );
-                })}
-
-            {/* One row per lane with the dotted reading-line behind tiles. */}
-            {lanesToRender.map((lane) => {
-              const dimmed = !!draggedNode && draggedFromDrawer && !canDropOnStoryline(lane.id);
-              return (
-                <div
-                  key={lane.id}
-                  className={`graph-track${dimmed ? ' is-drop-disabled' : ''}${
-                    lane.synthetic ? ' is-synthetic' : ''
-                  }`}
-                  style={
-                    {
-                      height: GRAPH_CONFIG.TRACK_HEIGHT,
-                      ['--track-color' as string]: lane.color,
-                    } as React.CSSProperties
-                  }
-                />
-              );
-            })}
-
-            {/* Cross-storyline trails (SVG, behind tiles) */}
-            {(crossLinks.length > 0 || visibleEdges.length > 0) && (
-              <svg
-                className="graph-edges"
-                width={canvasContentWidth}
-                height={GRAPH_CONFIG.AXIS_HEIGHT + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT}
-                style={{ top: 0, left: 0 }}
-              >
-                {/* Cross-storyline transit trails (dashed, behind relation
-                    edges). They visualise multi-storyline membership rather
-                    than authored relations. */}
-                {crossLinks.map((link) => {
-                  const y1 = tileTopOffset + link.fromY;
-                  const y2 = tileTopOffset + link.toY;
-                  const midY = (y1 + y2) / 2;
-                  const d = `M ${link.fromX} ${y1} C ${link.fromX} ${midY}, ${link.toX} ${midY}, ${link.toX} ${y2}`;
-                  return (
-                    <path
-                      key={link.key}
-                      d={d}
-                      stroke={link.color}
-                      strokeWidth="1.4"
-                      strokeDasharray="2 3"
-                      fill="none"
-                      opacity="0.45"
-                    />
-                  );
-                })}
-                {/* User-authored relation edges. Click selects (no
-                    confirm); the floating × badge rendered as a sibling
-                    DOM node handles the actual delete. */}
-                {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
-                  const yy1 = tileTopOffset + y1;
-                  const yy2 = tileTopOffset + y2;
-                  const midY = (yy1 + yy2) / 2;
-                  const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
-                  const selected = isEdgeSelected(edge.id);
-                  return (
-                    <g
-                      key={edge.id}
-                      className={`graph-edge-grp${selected ? ' is-selected' : ''}`}
-                    >
-                      <path
-                        d={d}
-                        stroke="transparent"
-                        strokeWidth="10"
-                        fill="none"
-                        style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedEdgeId(edge.id);
-                        }}
-                      >
-                        <title>{edge.kind ?? '未分类'}</title>
-                      </path>
-                      <path
-                        d={d}
-                        stroke={color}
-                        strokeWidth={selected ? 2.4 : 1.8}
-                        fill="none"
-                        opacity={selected ? 1 : 0.85}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-
-            {/* Floating × badge at the midpoint of the selected
-                storyline edge. Click → delete immediately (no
-                confirm). Lives inside .graph-tracks so it scrolls
-                with the canvas; for drift edges the equivalent badge
-                is rendered at the fixed-position SVG level. */}
-            {selectedEdgeId &&
-              (() => {
-                const sel = visibleEdges.find((v) => v.edge.id === selectedEdgeId);
-                if (!sel) return null;
-                const yy1 = tileTopOffset + sel.y1;
-                const yy2 = tileTopOffset + sel.y2;
-                const midX = (sel.x1 + sel.x2) / 2;
-                const midY = (yy1 + yy2) / 2;
-                return (
-                  <button
-                    type="button"
-                    className="graph-edge-delete"
-                    style={{ left: midX, top: midY }}
-                    title="删除关联"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const id = selectedEdgeId;
-                      setSelectedEdgeId(null);
-                      void deleteEdge(id);
-                    }}
-                    aria-label="删除关联"
-                  >
-                    ×
-                  </button>
-                );
-              })()}
-
-            {/* Drop indicator while dragging — a 2px vertical bar on the
-                row the cursor is over, tinted with that storyline's color.
-                `indicatorX` tracks the cursor (matching the centered drag
-                ghost); the drop math snaps the tile center to the same X,
-                so ghost + indicator + dropped tile all line up. */}
-            {dragOver && draggedNode && dragOver.storylineId && (() => {
-              const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
-              const rowStoryline = storylineById.get(dragOver.storylineId);
-              return (
-                <div
-                  className="graph-drop-indicator"
-                  style={{
-                    left: dragOver.indicatorX,
-                    top: GRAPH_CONFIG.AXIS_HEIGHT + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
+                style={
+                  {
                     height: GRAPH_CONFIG.TRACK_HEIGHT,
-                    background: rowStoryline?.color || 'hsl(var(--accent))',
-                  }}
-                />
-              );
-            })()}
-
-            {/* Tiles */}
-            {positionedNodes.map((node) => {
-              // finished keeps the existing default look here (per user
-              // scope); only draft-ish and discarded get explicit classes.
-              const status = node.writingStatus;
-              const isDiscarded = status === 'discarded';
-              const isDraft = !isDiscarded && status !== 'finished';
-              const color = node.storyline?.color || 'hsl(var(--story-4))';
-              const isLinkSource = linkSource === node.id;
-              return (
+                    ['--track-color' as string]: lane.color,
+                  } as React.CSSProperties
+                }
+              >
                 <div
-                  key={node.id}
-                  ref={(el) => {
-                    if (el) tileRefs.current.set(node.id, el);
-                    else tileRefs.current.delete(node.id);
-                  }}
-                  className={[
-                    'graph-tile',
-                    isDraft ? 'is-draft' : '',
-                    isDiscarded ? 'is-discarded' : '',
-                    isLinkSource ? 'is-link-source' : '',
-                    isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  draggable
-                  onDragStart={(e) => handleTileDragStart(e, node)}
-                  onDragEnd={handleDragEnd}
+                  className="graph-rail-cell"
+                  style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
                   onContextMenu={(e) => {
+                    if (lane.synthetic) {
+                      e.preventDefault();
+                      return;
+                    }
                     e.preventDefault();
                     e.stopPropagation();
                     setContextMenu({
-                      kind: 'node',
+                      kind: 'storyline',
                       x: e.clientX + 2,
                       y: e.clientY - 2,
-                      nodeId: node.id,
-                      nodeTitle: node.title,
-                      nodeSummary: node.summary,
-                      nodeStorylines: node.storylines,
-                      hasNarrativeOrder: typeof node.narrativeOrder === 'number',
-                      mainStorylineId: node.storyline?.id ?? null,
+                      storylineId: lane.id,
                     });
                   }}
-                  onClick={(e) => {
-                    // Shift-click sets/clears the relation source. A subsequent
-                    // plain click on a different tile opens the new-edge
-                    // dialog; click on the same tile clears.
-                    if (e.shiftKey) {
-                      setLinkSource((prev) => (prev === node.id ? null : node.id));
-                      return;
-                    }
-                    if (linkSource && linkSource !== node.id) {
-                      setNewEdgePair({ source: linkSource, target: node.id });
-                      setNewEdgeKind('');
-                      setLinkSource(null);
-                      return;
-                    }
-                    // Snapshot the tile's viewport rect so the popover can
-                    // position itself relative to where the user clicked.
-                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                    setPopover({
-                      nodeId: node.id,
-                      anchor: {
-                        left: rect.left,
-                        top: rect.top,
-                        width: rect.width,
-                        height: rect.height,
-                      },
-                    });
-                  }}
-                  onDoubleClick={() => {
-                    openEntity({ entityType: 'node', id: node.id }, { preview: false });
-                    close();
-                  }}
-                  style={
-                    {
-                      left: node.x,
-                      top: tileTopOffset + node.y - GRAPH_CONFIG.TILE_HEIGHT / 2,
-                      width: GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT,
-                      height: GRAPH_CONFIG.TILE_HEIGHT,
-                      ['--tile-color' as string]: color,
-                    } as React.CSSProperties
-                  }
-                  title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字`}
                 >
-                  <div className="graph-tile__stripe" />
-                  <div className="graph-tile__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
-                  <div className="graph-tile__title">{node.title || '未命名'}</div>
-                  {node.summary && <div className="graph-tile__summary">{node.summary}</div>}
+                  <div className="graph-rail__name">
+                    <span
+                      className="graph-rail__name-dot"
+                      style={{ background: lane.color }}
+                    />
+                    <span>{lane.name}</span>
+                  </div>
+                  <div className="graph-rail__meta">{laneNodes.length} 章</div>
                 </div>
+                <div
+                  className="graph-track-cell"
+                  style={{ width: canvasContentWidth }}
+                >
+                  {tilesInLane.map((node) => {
+                    const status = node.writingStatus;
+                    const isDiscarded = status === 'discarded';
+                    const isDraft = !isDiscarded && status !== 'finished';
+                    const color = node.storyline?.color || 'hsl(var(--story-4))';
+                    const isLinkSource = linkSource === node.id;
+                    return (
+                      <div
+                        key={node.id}
+                        ref={(el) => {
+                          if (el) tileRefs.current.set(node.id, el);
+                          else tileRefs.current.delete(node.id);
+                        }}
+                        className={[
+                          'graph-tile',
+                          isDraft ? 'is-draft' : '',
+                          isDiscarded ? 'is-discarded' : '',
+                          isLinkSource ? 'is-link-source' : '',
+                          isNodeEdgeSelected(node.id) ? 'is-edge-selected' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        draggable
+                        onDragStart={(e) => handleTileDragStart(e, node)}
+                        onDragEnd={handleDragEnd}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({
+                            kind: 'node',
+                            x: e.clientX + 2,
+                            y: e.clientY - 2,
+                            nodeId: node.id,
+                            nodeTitle: node.title,
+                            nodeSummary: node.summary,
+                            nodeStorylines: node.storylines,
+                            hasNarrativeOrder: typeof node.narrativeOrder === 'number',
+                            mainStorylineId: node.storyline?.id ?? null,
+                          });
+                        }}
+                        onClick={(e) => {
+                          if (e.shiftKey) {
+                            setLinkSource((prev) => (prev === node.id ? null : node.id));
+                            return;
+                          }
+                          if (linkSource && linkSource !== node.id) {
+                            setNewEdgePair({ source: linkSource, target: node.id });
+                            setNewEdgeKind('');
+                            setLinkSource(null);
+                            return;
+                          }
+                          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                          setPopover({
+                            nodeId: node.id,
+                            anchor: {
+                              left: rect.left,
+                              top: rect.top,
+                              width: rect.width,
+                              height: rect.height,
+                            },
+                          });
+                        }}
+                        onDoubleClick={() => {
+                          openEntity({ entityType: 'node', id: node.id }, { preview: false });
+                          close();
+                        }}
+                        style={
+                          {
+                            left: node.x,
+                            // Tile sits flush with the bottom of its lane:
+                            // top = TRACK_HEIGHT − TILE_HEIGHT. Leaves the
+                            // upper half empty so the dotted reading line
+                            // at the lane's vertical center traces along
+                            // the tile's upper edge (book-mode look).
+                            top: GRAPH_CONFIG.TRACK_HEIGHT - GRAPH_CONFIG.TILE_HEIGHT,
+                            width: GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT,
+                            height: GRAPH_CONFIG.TILE_HEIGHT,
+                            ['--tile-color' as string]: color,
+                          } as React.CSSProperties
+                        }
+                        title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字`}
+                      >
+                        <div className="graph-tile__stripe" />
+                        <div className="graph-tile__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
+                        <div className="graph-tile__title">{node.title || '未命名'}</div>
+                        {node.summary && <div className="graph-tile__summary">{node.summary}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Cross-storyline trails + user-authored relation edges.
+              Absolute SVG overlay; positioned at left=RAIL_WIDTH so its
+              internal x coords match the track-relative orderToX values
+              (no rail offset needed inside path d). y coords are in
+              scroll-content space — same formula as before, because the
+              global tile-center Y equals tileTopOffset + node.y in both
+              the old and the new layout. */}
+          {(crossLinks.length > 0 || visibleEdges.length > 0) && (
+            <svg
+              className="graph-edges"
+              width={canvasContentWidth}
+              height={
+                (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0) +
+                lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT
+              }
+              style={{ top: 0, left: GRAPH_CONFIG.RAIL_WIDTH }}
+            >
+              {crossLinks.map((link) => {
+                const y1 = tileTopOffset + link.fromY;
+                const y2 = tileTopOffset + link.toY;
+                const midY = (y1 + y2) / 2;
+                const d = `M ${link.fromX} ${y1} C ${link.fromX} ${midY}, ${link.toX} ${midY}, ${link.toX} ${y2}`;
+                return (
+                  <path
+                    key={link.key}
+                    d={d}
+                    stroke={link.color}
+                    strokeWidth="1.4"
+                    strokeDasharray="2 3"
+                    fill="none"
+                    opacity="0.45"
+                  />
+                );
+              })}
+              {visibleEdges.map(({ edge, x1, y1, x2, y2, color }) => {
+                const yy1 = tileTopOffset + y1;
+                const yy2 = tileTopOffset + y2;
+                const midY = (yy1 + yy2) / 2;
+                const d = `M ${x1} ${yy1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${yy2}`;
+                const selected = isEdgeSelected(edge.id);
+                return (
+                  <g
+                    key={edge.id}
+                    className={`graph-edge-grp${selected ? ' is-selected' : ''}`}
+                  >
+                    <path
+                      d={d}
+                      stroke="transparent"
+                      strokeWidth="10"
+                      fill="none"
+                      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedEdgeId(edge.id);
+                      }}
+                    >
+                      <title>{edge.kind ?? '未分类'}</title>
+                    </path>
+                    <path
+                      d={d}
+                      stroke={color}
+                      strokeWidth={selected ? 2.4 : 1.8}
+                      fill="none"
+                      opacity={selected ? 1 : 0.85}
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+
+          {/* Floating × badge at the midpoint of the selected storyline
+              edge. Click → delete immediately. Left is in scroll-content
+              coords, so we add RAIL_WIDTH to the SVG's track-relative
+              midX. */}
+          {selectedEdgeId &&
+            (() => {
+              const sel = visibleEdges.find((v) => v.edge.id === selectedEdgeId);
+              if (!sel) return null;
+              const yy1 = tileTopOffset + sel.y1;
+              const yy2 = tileTopOffset + sel.y2;
+              const midX = (sel.x1 + sel.x2) / 2;
+              const midY = (yy1 + yy2) / 2;
+              return (
+                <button
+                  type="button"
+                  className="graph-edge-delete"
+                  style={{ left: GRAPH_CONFIG.RAIL_WIDTH + midX, top: midY }}
+                  title="删除关联"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const id = selectedEdgeId;
+                    setSelectedEdgeId(null);
+                    void deleteEdge(id);
+                  }}
+                  aria-label="删除关联"
+                >
+                  ×
+                </button>
               );
-            })}
-            </div>
-          </div>
+            })()}
+
+          {/* Drop indicator while dragging — `indicatorX` is already the
+              cursor's full scroll-content x (includes the rail), so it
+              positions directly without an extra offset. */}
+          {dragOver && draggedNode && dragOver.storylineId && (() => {
+            const rowIdx = storylineRowIndex.get(dragOver.storylineId) ?? 0;
+            const rowStoryline = storylineById.get(dragOver.storylineId);
+            return (
+              <div
+                className="graph-drop-indicator"
+                style={{
+                  left: dragOver.indicatorX,
+                  top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0) + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
+                  height: GRAPH_CONFIG.TRACK_HEIGHT,
+                  background: rowStoryline?.color || 'hsl(var(--accent))',
+                }}
+              />
+            );
+          })()}
         </div>
       </div>
 
@@ -1815,7 +1825,6 @@ export function StoryGraphView() {
           through handDragHandlers. */}
       <DriftPanel
         count={driftNodes.length}
-        bottomOffset={20}
         mounted={driftPanelMounted}
         open={driftPanelOpen}
         closing={driftPanelClosing}

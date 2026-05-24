@@ -47,8 +47,6 @@ interface SettingsState {
   setThemeMode: (mode: ThemeMode) => void;
   shadowAffectsTheme: boolean;
   setShadowAffectsTheme: (on: boolean) => void;
-  animationsEnabled: boolean;
-  setAnimationsEnabled: (on: boolean) => void;
   // Classic = literary manuscript palette (oxblood, serif). Modern = Craft /
   // Arc-style: muted blue-gray accent, pastel story colors, sans-serif body,
   // pure-white doc surface. App.tsx pipes this into `data-skin` on <html>;
@@ -132,6 +130,8 @@ interface SettingsState {
   setWifiOnlySync: (on: boolean) => void;
   autoSnapshot: boolean;
   setAutoSnapshot: (on: boolean) => void;
+  syncDebugToasts: boolean;
+  setSyncDebugToasts: (on: boolean) => void;
 
   // 隐私
   improveModelsWithManuscripts: boolean;
@@ -161,8 +161,6 @@ export const useSettingsStore = create<SettingsState>()(
       setThemeMode: (mode) => set({ themeMode: mode }),
       shadowAffectsTheme: true,
       setShadowAffectsTheme: (on) => set({ shadowAffectsTheme: on }),
-      animationsEnabled: true,
-      setAnimationsEnabled: (on) => set({ animationsEnabled: on }),
       appearanceSkin: 'classic',
       setAppearanceSkin: (skin) => set({ appearanceSkin: skin }),
 
@@ -240,6 +238,8 @@ export const useSettingsStore = create<SettingsState>()(
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),
       autoSnapshot: true,
       setAutoSnapshot: (on) => set({ autoSnapshot: on }),
+      syncDebugToasts: false,
+      setSyncDebugToasts: (on) => set({ syncDebugToasts: on }),
 
       improveModelsWithManuscripts: false,
       setImproveModelsWithManuscripts: (on) => set({ improveModelsWithManuscripts: on }),
@@ -251,17 +251,19 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+      version: 5,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
+          animationsEnabled?: boolean;
         };
         let next: Partial<SettingsState> & {
           manuscriptSans?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
+          animationsEnabled?: boolean;
         } = state;
         if (version < 2) {
           // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
@@ -281,6 +283,14 @@ export const useSettingsStore = create<SettingsState>()(
           const { marginNotes: _a, marginNotesByKind: _b, ...rest } = next;
           void _a;
           void _b;
+          next = rest;
+        }
+        if (version < 5) {
+          // animationsEnabled retired — the global on/off was never a useful
+          // dial in practice (per-feature transitions are tuned individually
+          // now). Drop the persisted flag so it doesn't linger forever.
+          const { animationsEnabled: _omit, ...rest } = next;
+          void _omit;
           next = rest;
         }
         return next;

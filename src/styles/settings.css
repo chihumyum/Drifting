@@ -13,14 +13,6 @@
   font-family: var(--font-sans);
   color: hsl(var(--ink-1));
 }
-html[data-no-anim] *,
-html[data-no-anim] *::before,
-html[data-no-anim] *::after {
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
-  transition-duration: 0s !important;
-  transition-delay: 0s !important;
-}
 @keyframes set-in {
   from { opacity: 0; transform: scale(0.992); }
   to   { opacity: 1; transform: scale(1); }
@@ -1119,3 +1111,44 @@ html[data-shadow-mode="on"] .set-rail__item:hover { background: hsl(var(--ink-1)
 /* Misc utility */
 .set-mono { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--ink-3)); letter-spacing: 0.02em; }
 .set-italic { font-family: var(--font-serif); font-style: italic; color: hsl(var(--ink-2)); }
+
+/* ============================================================
+   Modern skin · Floating-islands layout
+   Mirrors index.css's app-root → app-chrome + app-island pattern:
+   the overlay becomes the wallpaper (paper-deep with 6px padding +
+   gap), and head / rail / main become three frosted islands that
+   sit on it. Classic skin keeps the full-bleed paper layout above.
+   ============================================================ */
+html[data-skin='modern'] .set-overlay {
+  padding: 6px;
+  gap: 6px;
+  background: hsl(var(--paper-deep));
+}
+
+html[data-skin='modern'] .set-head {
+  background: var(--chrome-bg);
+  border-bottom: none;
+}
+
+html[data-skin='modern'] .set-body {
+  gap: 6px;
+}
+
+html[data-skin='modern'] .set-rail {
+  background: var(--chrome-bg);
+  border-right: none;
+}
+
+html[data-skin='modern'] .set-main {
+  background: var(--chrome-bg);
+}
+
+/* `.app-island` forces overflow:hidden so the border-radius clips
+   child backgrounds; rail + main both need vertical scrolling
+   though, so restore it at higher specificity. overflow-x stays
+   hidden so the rounded corners still clip horizontally. */
+html[data-skin='modern'] .set-rail.app-island,
+html[data-skin='modern'] .set-main.app-island {
+  overflow-y: auto;
+  overflow-x: hidden;
+}

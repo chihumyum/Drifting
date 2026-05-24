@@ -89,6 +89,13 @@
        does the separating, so this becomes `none`. Components use this var
        instead of hard-coding `1px solid hsl(var(--rule))`. */
     --chrome-divider: 1px solid hsl(var(--rule));
+
+    /* Bottom inset for full-screen super views (StoryGraphView,
+       SuperElementView, SuperMemoMaterialView) so they don't cover the
+       BottomStatusBar. Classic = BSB height alone (20px). Modern adds the
+       6px app-root gap + 6px bottom padding so the overlay aligns with
+       .app-row's bottom edge and the BSB island still reads as detached. */
+    --super-view-bottom-inset: 20px;
   }
 
   /* ─── Modern skin (Craft / Arc-inspired) ─────────────────────────────
@@ -236,16 +243,36 @@
        .app-chrome — topbar, sidebars, status bar (frosted bg via backdrop-filter)
        .app-island — every floating surface (rounded + shadow + clip)
      -------------------------------------------------------------------- */
+  html[data-skin='modern'] {
+    /* BSB (20px) + 6px gap above it + 6px root bottom padding = 32px. Keeps
+       the super-view overlays from covering the BSB island and preserves
+       modern's gap aesthetic between the two surfaces. */
+    --super-view-bottom-inset: 32px;
+  }
   html[data-skin='modern'] .app-root {
     padding: 6px;
     gap: 6px;
     background: hsl(var(--paper-deep));
   }
-  html[data-skin='modern'] .app-row {
-    gap: 6px;
-  }
   html[data-skin='modern'] .app-mid {
     gap: 6px;
+  }
+  /* `.app-row` intentionally has no `gap`: the horizontal spacing between
+     editor and sidebars lives on each sidebar's inside-facing margin
+     instead. When a sidebar fully collapses (width 0, no collapsedContent),
+     `.is-fully-hidden` zeroes that margin so the editor + bottom-timeline
+     column extends to the topbar/BSB right edge — a `gap` on `.app-row`
+     would still apply across the 0-width item and leave a stranded 6px
+     sliver. */
+  html[data-skin='modern'] .sidebar-shell--left {
+    margin-right: 6px;
+  }
+  html[data-skin='modern'] .sidebar-shell--right {
+    margin-left: 6px;
+  }
+  html[data-skin='modern'] .sidebar-shell.is-fully-hidden {
+    margin-left: 0;
+    margin-right: 0;
   }
   html[data-skin='modern'] .app-chrome {
     backdrop-filter: blur(28px) saturate(180%);
@@ -406,6 +433,19 @@
       background 240ms ease,
       color 240ms ease,
       border-color 240ms ease;
+  }
+
+  /* Modern sidebar slide. Outer shell animates `width` between 0 and the
+     last expanded width; inner content is absolute-positioned at fixed
+     width anchored to the outside edge so it actually slides off-screen
+     instead of just narrowing in place. Classic stays instant — the toggle
+     is a layout snap there, no transition. The duration matches the
+     `COLLAPSE_ANIM_MS` constant in components/Sidebar.tsx that keeps
+     children mounted long enough for the outgoing slide to play. */
+  html[data-skin='modern'] .sidebar-shell {
+    transition:
+      width 280ms cubic-bezier(0.32, 0.72, 0, 1),
+      margin 280ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   /* Modern focus glow — soft accent ring on form controls only. The
@@ -771,6 +811,9 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   color: inherit !important;
 }
 
+/* Editor find-in-document highlights live in styles/search.css (token-driven
+   for all four skin variants). */
+
 /* ============================================================
    Tiptap placeholder
    ============================================================ */
@@ -814,7 +857,6 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   position: relative;
   justify-content: center;
   gap: 24px;
-  padding: 0 12px;
 }
 
 .editor-bar {
@@ -1218,17 +1260,17 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
    Editor spread layout — TOC | manuscript | margin comments
    ============================================================ */
 .editor-scroll {
-  flex: 0 1 768px;
+  /* 全宽填充 .editor-body —— 暗色 surface 一直延伸到 editor 区两侧的 chrome
+     边界，正文由内部 .editor__spread 居中。这样滚动条始终贴在最右边的 chrome
+     边缘上，左右没有"白底/暗带不对称"的视觉问题。 */
+  flex: 1;
   min-width: 0;
-  max-width: 768px;
   overflow-y: auto;
   background: hsl(var(--surface));
   position: relative;
   min-height: 0;
   align-self: stretch;
-  /* 两侧各预留一条 gutter，正文居中，不会因滚动条出现/消失而横向位移 */
-  scrollbar-gutter: stable both-edges;
-  scrollbar-width: thin;
+  scrollbar-gutter: stable;
   scrollbar-color: transparent transparent;
 }
 /* 仅在 .is-scrolling 时显示滚动条（由 App Layout 中的全局 scroll 监听器切换） */
@@ -1239,23 +1281,26 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 .editor-scroll::-webkit-scrollbar-track { background: transparent; }
 .editor-scroll::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 4px;
+  border-radius: 0;
   transition: background 0.25s ease;
+}
+html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
 }
 .editor-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background: hsl(var(--rule));
 }
 .editor-scroll.is-scrolling::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
-.editor-scroll--comments {
-  flex-basis: 1032px;
-  max-width: 1032px;
-}
+/* `.editor-scroll--comments` 不再需要单独的宽度 —— `.editor-scroll` 已全宽，
+   评论栏由 `.editor__spread` 内部的 flex 居中容纳 .page + .editor__margin。 */
 .editor__spread {
   display: flex;
   justify-content: center;
   align-items: stretch;
   gap: 24px;
-  padding: 16px 12px 96px;
+  /* padding-left 与 .editor-scroll 右侧的 scrollbar gutter (8px) 对称，
+     让居中正文在视觉上左右等距，而不是相对滚动条之后的内容区居中。 */
+  padding: 16px 0 96px 8px;
   margin: 0 auto;
   position: relative;
 }
@@ -1275,10 +1320,6 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
 }
 @media (max-width: 980px) {
   .editor__margin { display: none !important; }
-  .editor-scroll {
-    flex-basis: 768px;
-    max-width: 768px;
-  }
   .editor__spread { gap: 16px; }
 }
 

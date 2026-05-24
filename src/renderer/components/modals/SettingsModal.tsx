@@ -203,7 +203,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
       `}</style>
       <div className="set-body">
         <SetRail items={filtered} active={active} onSelect={onRail} />
-        <main className="set-main" ref={mainRef}>
+        <main className="set-main app-chrome app-island" ref={mainRef}>
           <AccountPanel registerRef={(el) => (panelRefs.current.account = el ?? undefined)} />
           <SubscriptionPanel
             registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
@@ -242,7 +242,7 @@ function SetHead({
   const isMac = navigator.userAgent.includes('Mac');
   return (
     <div
-      className="set-head"
+      className="set-head app-chrome app-island"
       style={{ paddingLeft: isMac ? 86 : 18 }}
     >
       <div className="set-head__left">
@@ -293,7 +293,7 @@ function SetRail({
   }
 
   return (
-    <nav className="set-rail">
+    <nav className="set-rail app-chrome app-island">
       <div className="set-rail__who">
         <div className="set-rail__who-avatar">{initial}</div>
         <div className="set-rail__who-body">
@@ -1335,8 +1335,8 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const shadowAffectsTheme = useSettingsStore((s) => s.shadowAffectsTheme);
   const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
-  const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
-  const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
+  const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
+  const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
@@ -1351,6 +1351,24 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
         title="书桌的光线，由你决定。"
         sub="挑一个最合眼的明度，Shadow 模式是否进一步偏冷的色调由你决定。"
       />
+
+      <div className="set-sec">
+        <SecHead title="皮肤" hint="SKIN" />
+        <Row
+          label="界面外观"
+          desc="经典手稿，或现代 Craft / Arc 风的浮岛。"
+          control={
+            <Seg
+              value={appearanceSkin}
+              options={[
+                { value: 'classic', label: '经典' },
+                { value: 'modern', label: '现代' },
+              ]}
+              onChange={setAppearanceSkin}
+            />
+          }
+        />
+      </div>
 
       <div className="set-sec">
         <SecHead title="主题" hint="THEME" />
@@ -1392,15 +1410,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
           label="Shadow 模式改变主题色调"
           desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
           control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="界面密度" hint="DENSITY" />
-        <Row
-          label="动效与过渡"
-          desc="墨珠呼吸、标签切换、影模式涌入波。"
-          control={<Toggle on={animationsEnabled} onChange={setAnimationsEnabled} />}
         />
       </div>
     </section>
@@ -2273,7 +2282,14 @@ function SyncSummaryRow() {
 }
 
 function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
-  const { wifiOnlySync, setWifiOnlySync, autoSnapshot, setAutoSnapshot } = useSettingsStore();
+  const {
+    wifiOnlySync,
+    setWifiOnlySync,
+    autoSnapshot,
+    setAutoSnapshot,
+    syncDebugToasts,
+    setSyncDebugToasts,
+  } = useSettingsStore();
   const [activityOpen, setActivityOpen] = useState(false);
 
   if (activityOpen) {
@@ -2326,6 +2342,11 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="本地仓库"
           desc={<span className="set-mono">~/Library/Drifting/vault</span>}
           control={<button className="set-btn">在 Finder 中显示</button>}
+        />
+        <Row
+          label="调试模式 · Toast"
+          desc="开启后，主页右下角会浮出 push / pull 事件的小提示，用于排查同步问题。"
+          control={<Toggle on={syncDebugToasts} onChange={setSyncDebugToasts} />}
         />
       </div>
 

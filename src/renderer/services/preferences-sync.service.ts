@@ -37,7 +37,6 @@ type SyncableSlice = {
   // appearance
   themeMode: unknown;
   shadowAffectsTheme: unknown;
-  animationsEnabled: unknown;
   // editor typography
   bodyFontSize: unknown;
   lineHeight: unknown;
@@ -84,7 +83,6 @@ type SyncableSlice = {
 const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'themeMode',
   'shadowAffectsTheme',
-  'animationsEnabled',
   'bodyFontSize',
   'lineHeight',
   'paragraphIndent',
@@ -203,7 +201,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
   const setterByKey: Record<string, (v: unknown) => void> = {
     themeMode: (v) => store.setThemeMode(v as never),
     shadowAffectsTheme: (v) => store.setShadowAffectsTheme(!!v),
-    animationsEnabled: (v) => store.setAnimationsEnabled(!!v),
     bodyFontSize: (v) => store.setBodyFontSize(Number(v)),
     lineHeight: (v) => store.setLineHeight(v as never),
     paragraphIndent: (v) => store.setParagraphIndent(v as never),

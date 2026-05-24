@@ -116,10 +116,9 @@ const createWindow = () => {
     minHeight: 700,
     title: 'Drifting',
     titleBarStyle: 'hiddenInset',
-    // Modern is the priority mode: topbar inset 6px → vertical center of a
-    // 42-tall topbar is y = 6 + (42-14)/2 = 20. In classic (topbar flush at
-    // y=0) the same y=20 sits slightly below center; acceptable trade-off
-    // since classic isn't the default mode.
+    // Initial position matches the modern skin (default). Renderer flips it
+    // via `window:setTrafficLightPosition` when the skin changes — modern's
+    // 6px app-root padding shifts the topbar down, classic sits flush at y=0.
     trafficLightPosition: { x: 18, y: 20 },
     frame: false,
     webPreferences: {
@@ -244,6 +243,19 @@ ipcMain.handle('window:close', () => {
 ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() ?? false;
 });
+
+// Renderer drives this whenever the appearance skin toggles. Modern adds 6px
+// of padding around .app-root, so the 42-tall topbar starts at y=6 and the
+// 14-tall buttons center at y=20; classic is flush at y=0 so they center at
+// y=14. macOS only — other platforms ignore the call.
+ipcMain.handle(
+  'window:setTrafficLightPosition',
+  (_event, position: { x: number; y: number }) => {
+    if (process.platform !== 'darwin') return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.setWindowButtonPosition(position);
+  },
+);
 
 // OAuth: open system browser for social login, then wait for deep-link callback.
 // We open the /oauth-redirect/:provider endpoint directly in the external browser

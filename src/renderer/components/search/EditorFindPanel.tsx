@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import '../../../styles/search.css';
 
 interface Match {
   from: number;
@@ -27,6 +30,47 @@ function collectMatches(editor: Editor, query: string): Match[] {
   return matches;
 }
 
+// PM plugin that paints all matches as background-coloured decorations and
+// emphasises the current one. We need this because pressing Enter inside the
+// find input keeps focus on the input — the editor itself is not focused, so
+// PM's native selection rendering is invisible. Decorations paint regardless
+// of focus.
+interface HighlightSpec {
+  matches: Match[];
+  currentIndex: number;
+}
+
+const findHighlightKey = new PluginKey<DecorationSet>('editor-find-highlight');
+
+function buildDecorations(doc: any, spec: HighlightSpec): DecorationSet {
+  if (spec.matches.length === 0) return DecorationSet.empty;
+  const decos = spec.matches.map((m, i) =>
+    Decoration.inline(m.from, m.to, {
+      class: i === spec.currentIndex ? 'find-match find-match-current' : 'find-match',
+    }),
+  );
+  return DecorationSet.create(doc, decos);
+}
+
+function createHighlightPlugin() {
+  return new Plugin<DecorationSet>({
+    key: findHighlightKey,
+    state: {
+      init: () => DecorationSet.empty,
+      apply(tr, old) {
+        const meta = tr.getMeta(findHighlightKey) as HighlightSpec | undefined;
+        if (meta) return buildDecorations(tr.doc, meta);
+        return tr.docChanged ? old.map(tr.mapping, tr.doc) : old;
+      },
+    },
+    props: {
+      decorations(state) {
+        return findHighlightKey.getState(state) ?? DecorationSet.empty;
+      },
+    },
+  });
+}
+
 interface EditorFindPanelProps {
   editor: Editor;
   onClose: () => void;
@@ -36,6 +80,18 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
   const [query, setQuery] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Register the highlight plugin on mount, tear down on unmount. Using
+  // editor.registerPlugin / unregisterPlugin keeps this scoped to the find
+  // panel's lifetime — no need to wire the extension into every editor setup
+  // site.
+  useEffect(() => {
+    const plugin = createHighlightPlugin();
+    editor.registerPlugin(plugin);
+    return () => {
+      editor.unregisterPlugin(findHighlightKey);
+    };
+  }, [editor]);
 
   // Focus the input on mount and pre-fill from current selection if any.
   useEffect(() => {
@@ -51,6 +107,35 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
   // Recompute matches whenever the query or doc changes.
   const matches = useMemo(() => collectMatches(editor, query), [editor, query]);
 
+  // Push current matches + index into the plugin so decorations repaint.
+  useEffect(() => {
+    const { tr } = editor.state;
+    tr.setMeta(findHighlightKey, { matches, currentIndex });
+    editor.view.dispatch(tr);
+  }, [editor, matches, currentIndex]);
+
+  // Scroll the DOM element under a given PM position into view. We don't rely
+  // on tiptap's .scrollIntoView() because PM's scrollPosIntoView can pick the
+  // wrong scroll ancestor when the editor lives inside multiple nested
+  // overflow containers (which is the case here — the editor sits inside a
+  // panel that sits inside a tab body). Native scrollIntoView walks up the
+  // overflow chain reliably.
+  const scrollMatchIntoView = useCallback(
+    (from: number) => {
+      try {
+        const at = editor.view.domAtPos(from);
+        const el =
+          at.node.nodeType === Node.ELEMENT_NODE
+            ? (at.node as HTMLElement)
+            : at.node.parentElement;
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } catch {
+        // domAtPos can throw if the doc was mutated between query and jump.
+      }
+    },
+    [editor],
+  );
+
   const jumpTo = useCallback(
     (index: number) => {
       if (matches.length === 0) return;
@@ -60,10 +145,10 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
       editor
         .chain()
         .setTextSelection({ from: match.from, to: match.to })
-        .scrollIntoView()
         .run();
+      scrollMatchIntoView(match.from);
     },
-    [editor, matches],
+    [editor, matches, scrollMatchIntoView],
   );
 
   // Jump to first match on query change.
@@ -82,8 +167,8 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
     editor
       .chain()
       .setTextSelection({ from: m.from, to: m.to })
-      .scrollIntoView()
       .run();
+    scrollMatchIntoView(m.from);
     // Intentionally not depending on editor.state.selection — we only want to
     // re-jump when the query/matches change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,81 +184,51 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
     }
   };
 
+  const noMatches = matches.length === 0;
+
   return (
     <div
-      style={{
-        position: 'fixed',
-        top: 56,
-        right: 24,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '6px 10px',
-        background: '#fefdfb',
-        border: '1px solid #e8dcc8',
-        borderRadius: 8,
-        boxShadow: '0 6px 20px rgba(139, 111, 71, 0.18)',
-        fontSize: 13,
-        color: '#3a2a1a',
-      }}
+      className="editor-find-panel"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <input
         ref={inputRef}
+        className="editor-find-input"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="在当前编辑器中查找…"
-        style={{
-          width: 200,
-          padding: '4px 6px',
-          border: '1px solid #e8dcc8',
-          borderRadius: 4,
-          outline: 'none',
-          fontSize: 13,
-          background: '#fff',
-          color: '#3a2a1a',
-        }}
       />
-      <span style={{ minWidth: 48, textAlign: 'center', color: '#8b7355', fontSize: 12 }}>
-        {matches.length === 0 ? '0/0' : `${currentIndex + 1}/${matches.length}`}
+      <span className="editor-find-stats">
+        {noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
       </span>
       <button
+        type="button"
+        className="editor-find-btn"
         onClick={() => jumpTo(currentIndex - 1)}
-        disabled={matches.length === 0}
+        disabled={noMatches}
         title="上一个 (Shift+Enter)"
-        style={iconButtonStyle(matches.length === 0)}
       >
         <ChevronUp size={14} />
       </button>
       <button
+        type="button"
+        className="editor-find-btn"
         onClick={() => jumpTo(currentIndex + 1)}
-        disabled={matches.length === 0}
+        disabled={noMatches}
         title="下一个 (Enter)"
-        style={iconButtonStyle(matches.length === 0)}
       >
         <ChevronDown size={14} />
       </button>
-      <button onClick={onClose} title="关闭 (Esc)" style={iconButtonStyle(false)}>
+      <button
+        type="button"
+        className="editor-find-btn"
+        onClick={onClose}
+        title="关闭 (Esc)"
+      >
         <X size={14} />
       </button>
     </div>
   );
-}
-
-function iconButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    width: 24,
-    height: 24,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: 'none',
-    background: 'transparent',
-    color: disabled ? '#c4b59a' : '#5a4a3a',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    borderRadius: 4,
-  };
 }

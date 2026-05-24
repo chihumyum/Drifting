@@ -1,6 +1,11 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useUiStore, SidebarType } from '../store/ui-store';
 
+// Modern's open/close slide. Must match the `width` transition duration in
+// index.css `.sidebar-shell` so children stay mounted long enough for the
+// outgoing slide to play out, then unmount cleanly.
+const COLLAPSE_ANIM_MS = 280;
+
 interface SidebarProps {
   sidebarType: SidebarType; // 指定侧边栏类型
   topBar?: ReactNode; // 顶部固定区域（如 LeftSidebarTopBar）
@@ -20,6 +25,20 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
   const setResizingSidebar = useUiStore((state) => state.setResizingSidebar);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Keep children mounted for the duration of the collapse animation so the
+  // panel actually appears to slide out — without this they'd unmount the
+  // moment `isExpanded` flips and modern would just see an empty bar shrink.
+  // Re-expanding mid-collapse cancels the pending unmount via cleanup.
+  const [mountChildren, setMountChildren] = useState(isExpanded);
+  useEffect(() => {
+    if (isExpanded) {
+      setMountChildren(true);
+      return undefined;
+    }
+    const t = setTimeout(() => setMountChildren(false), COLLAPSE_ANIM_MS);
+    return () => clearTimeout(t);
+  }, [isExpanded]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -53,11 +72,38 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
     };
   }, [isResizing, setSidebarWidth, setResizingSidebar, sidebarType]);
 
+  // Two-layer geometry so modern's open/close slide reads as a real slide:
+  //   - outer (`.sidebar-shell`) is the layout-sized box; its `width`
+  //     transitions between 0 and `expandedWidth`.
+  //   - inner (`.sidebar-shell__content`) is absolutely positioned at the
+  //     last known `expandedWidth` and anchored to the OUTSIDE edge (left
+  //     sidebar → right:0; right sidebar → left:0). As the outer shrinks
+  //     from the inside edge inward, the inner stays put and gets clipped
+  //     from the inside, which reads as content sliding off-screen.
+  // Classic skips the transition entirely (see index.css) so the layout
+  // snap behavior is unchanged.
+  const innerAnchorSide = sidebarType === 'left' ? 'right' : 'left';
+  const showCollapsedSlot = !isExpanded && !mountChildren && Boolean(collapsedContent);
+  const outerWidth = isExpanded
+    ? expandedWidth
+    : collapsedContent && showCollapsedSlot
+      ? undefined
+      : 0;
+
+  // When collapsed without any collapsed-content slot the sidebar contributes
+  // 0 visible width. Mark that state so the modern skin can zero out the
+  // inside-facing margin (see `.sidebar-shell.is-fully-hidden` in index.css),
+  // letting the editor + bottom-timeline column align flush with the topbar
+  // and BSB right edges.
+  const isFullyHidden = !isExpanded && !collapsedContent;
+
   return (
     <div
-      className="app-chrome app-island"
+      className={`app-chrome app-island sidebar-shell sidebar-shell--${sidebarType} ${
+        isExpanded ? 'is-expanded' : 'is-collapsed'
+      }${isFullyHidden ? ' is-fully-hidden' : ''}`}
       style={{
-        width: isExpanded ? expandedWidth : collapsedContent ? undefined : 0,
+        width: outerWidth,
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--chrome-bg)',
@@ -69,26 +115,60 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
         // tab tray paint their full-width bg over the rounded top corners
         // and the island shape doesn't show. Cost: resize handle has to
         // live inside the bounds instead of straddling them (see below).
+        // Also load-bearing for the modern slide animation: the inner
+        // fixed-width content is clipped here as the outer shrinks.
         overflow: 'hidden',
+        // Suppress the width transition during a drag-resize, otherwise the
+        // outer lags behind the cursor and the resize feels rubbery.
+        transition: isResizing ? 'none' : undefined,
       }}
     >
-      {/* 顶部固定区域 */}
-      {topBar && <div style={{ flexShrink: 0 }}>{topBar}</div>}
-
-      {/* 可插拔的内容区域 */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          flexDirection: 'column',
-          overflow: 'visible',
-          position: 'relative',
-          display: 'flex',
-        }}
-      >
-        {/* 内容区域 - 根据展开状态显示 */}
-        {isExpanded ? children : collapsedContent}
-      </div>
+      {showCollapsedSlot ? (
+        <>
+          {/* Collapsed-state inline slot — only used when caller passes
+              `collapsedContent` and the slide-out has finished. */}
+          {topBar && <div style={{ flexShrink: 0 }}>{topBar}</div>}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              flexDirection: 'column',
+              overflow: 'visible',
+              position: 'relative',
+              display: 'flex',
+            }}
+          >
+            {collapsedContent}
+          </div>
+        </>
+      ) : (
+        <div
+          className="sidebar-shell__content"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            [innerAnchorSide]: 0,
+            width: expandedWidth,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {topBar && <div style={{ flexShrink: 0 }}>{topBar}</div>}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              flexDirection: 'column',
+              overflow: 'visible',
+              position: 'relative',
+              display: 'flex',
+            }}
+          >
+            {mountChildren ? children : null}
+          </div>
+        </div>
+      )}
 
       {isExpanded && (
         <div

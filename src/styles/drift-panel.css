@@ -12,6 +12,10 @@
   position: fixed;
   left: 0;
   right: 0;
+  /* Anchor above the BottomStatusBar — same var as the super-view
+     overlays so the panel sits flush with the overlay's bottom edge in
+     both classic (20px) and modern (32px, clears the island gap). */
+  bottom: var(--super-view-bottom-inset);
   display: flex;
   flex-direction: column;
   align-items: center;

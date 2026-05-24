@@ -22,7 +22,7 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
-import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
+import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 
@@ -51,6 +51,7 @@ export function StorylineEditorView({
   if (!user) throw new Error('No user in auth store');
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
+  const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
   const { storylines, bookNodes, storylineNodeMapping, manuscriptComments } = useDataStore();
   const { navigateToStoryline, navigateToHome, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
@@ -183,13 +184,14 @@ export function StorylineEditorView({
   const handlePersist = useCallback(
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!storylineId) return;
-      promoteCurrentTab();
+      if (pmJson === currentStoryline?.contentJson) return;
+      if (canPromoteOnEdit()) promoteCurrentTab();
       void storylineUsecases.updateStoryline({
         id: storylineId,
         contentJson: pmJson,
       });
     },
-    [storylineId, storylineUsecases, promoteCurrentTab],
+    [storylineId, currentStoryline?.contentJson, canPromoteOnEdit, storylineUsecases, promoteCurrentTab],
   );
   const { editor, outline } = useEntityEditor({
     sourceKind: 'storyline',

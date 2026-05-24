@@ -11,9 +11,9 @@ export interface GraphTimelinePinProps {
   marker: TimelineMarker;
   // Integer narrativeOrders the drag snaps to (one per chapter slot).
   snapValues: number[];
-  // narrativeOrder → canvas-content pixel X (already includes the
-  // canvas padding; the parent layers the pin inside .graph-tracks so
-  // we use canvas-content coords directly).
+  // narrativeOrder → track-relative pixel X (already includes the
+  // CANVAS_PADDING_X; the parent layers the pin inside
+  // .graph-axis-track-cell so we use track-relative coords directly).
   orderToX: (order: number) => number;
   pinHeight: number;
   isDragging: boolean;

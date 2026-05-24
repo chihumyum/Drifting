@@ -49,7 +49,7 @@ export function useEntityCellAction() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
-  const { removeElement, updateElement } = useBookElement({
+  const { removeElement } = useBookElement({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -118,19 +118,11 @@ export function useEntityCellAction() {
             return;
           }
           if (action === 'groupPicker') {
-            // groupName is a free-form label (no separate entity), so a
-            // plain prompt suffices — keeps the action self-contained and
-            // identical from every surface (left panel, super-element card,
-            // editor top bar). Empty string clears the group.
-            const next = window.prompt(
-              '分组名称（留空 = 不分组）',
-              element.groupName ?? '',
-            );
-            if (next == null) return;
-            const trimmed = next.trim();
-            const nextGroup = trimmed === '' ? null : trimmed;
-            if (nextGroup === (element.groupName ?? null)) return;
-            await updateElement(id, { groupName: nextGroup });
+            // Group modal lives in ElementEditorView (Electron has no
+            // window.prompt). Queue + open the element tab so the view
+            // pops the same modal it would on its own three-dot menu.
+            enqueueEntityAction(entityType, id, action);
+            openEntity({ entityType: 'element', id }, { preview: false });
             return;
           }
           return;

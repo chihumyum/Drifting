@@ -33,7 +33,6 @@ import type { EntityKind } from '../../lib/extensions/entity-link';
 
 const KIND_ORDER: MaterialKind[] = ['image', 'pdf', 'url', 'text'];
 
-const BSB_HEIGHT = 20;
 const DRAWER_HEADER_HEIGHT = 28;
 const DRAWER_MIN_HEIGHT = 120;
 const DRAWER_DEFAULT_HEIGHT = 260;
@@ -247,7 +246,7 @@ export function SuperMemoMaterialView() {
   const focusedEntity: FocusedEntity = entityFilter;
 
   return (
-    <div style={overlayStyle}>
+    <div className="super-mm-overlay">
       <style>{`
         .smm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
         .smm-scroll::-webkit-scrollbar-thumb { background: hsl(var(--rule)); border-radius: 4px; }
@@ -282,54 +281,60 @@ export function SuperMemoMaterialView() {
         }
       />
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <TodoRail
-          todoMemos={todoMemos}
-          noteMemos={noteMemos}
-          refsByFrom={refsByFrom}
+      {/* Body island — wraps the rail/main split AND the bottom drawer so
+          they read as one card in modern skin (header is the sibling island
+          above; BSB is the global island below). In classic the wrapper is
+          just an invisible flex column. */}
+      <div className="super-view-body">
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <TodoRail
+            todoMemos={todoMemos}
+            noteMemos={noteMemos}
+            refsByFrom={refsByFrom}
+            editingId={editingId}
+            setEditingId={setEditingId}
+            memoUsecases={memoUsecases}
+            relationUsecases={relationUsecases}
+            entityRelations={entityRelations}
+            onCompose={() => setComposeOpen('memo')}
+          />
+
+          <MaterialMain
+            materialsByKind={materialsByKind}
+            totalVisible={visibleMaterials.length}
+            totalMaterials={materials.length}
+            hiddenKinds={hiddenKinds}
+            onToggleKind={toggleKindHidden}
+            kindCounts={Object.fromEntries(
+              KIND_ORDER.map((k) => [k, materials.filter((m) => m.kind === k).length]),
+            ) as Record<MaterialKind, number>}
+            entityFilter={entityFilter}
+            onEntityFilterChange={setEntityFilter}
+            refsByFrom={refsByFrom}
+            editingId={editingId}
+            setEditingId={setEditingId}
+            materialUsecases={materialUsecases}
+            relationUsecases={relationUsecases}
+            removeRelation={removeRelation}
+            openMaterialInApp={openMaterialInApp}
+            openMaterialInSystem={openMaterialInSystem}
+            onCompose={() => setComposeOpen('material')}
+          />
+        </div>
+
+        <BottomDrawer
+          orphans={orphanMaterials}
+          resolvedMemos={resolvedMemos}
           editingId={editingId}
           setEditingId={setEditingId}
           memoUsecases={memoUsecases}
-          relationUsecases={relationUsecases}
-          entityRelations={entityRelations}
-          onCompose={() => setComposeOpen('memo')}
-        />
-
-        <MaterialMain
-          materialsByKind={materialsByKind}
-          totalVisible={visibleMaterials.length}
-          totalMaterials={materials.length}
-          hiddenKinds={hiddenKinds}
-          onToggleKind={toggleKindHidden}
-          kindCounts={Object.fromEntries(
-            KIND_ORDER.map((k) => [k, materials.filter((m) => m.kind === k).length]),
-          ) as Record<MaterialKind, number>}
-          entityFilter={entityFilter}
-          onEntityFilterChange={setEntityFilter}
-          refsByFrom={refsByFrom}
-          editingId={editingId}
-          setEditingId={setEditingId}
           materialUsecases={materialUsecases}
           relationUsecases={relationUsecases}
           removeRelation={removeRelation}
           openMaterialInApp={openMaterialInApp}
           openMaterialInSystem={openMaterialInSystem}
-          onCompose={() => setComposeOpen('material')}
         />
       </div>
-
-      <BottomDrawer
-        orphans={orphanMaterials}
-        resolvedMemos={resolvedMemos}
-        editingId={editingId}
-        setEditingId={setEditingId}
-        memoUsecases={memoUsecases}
-        materialUsecases={materialUsecases}
-        relationUsecases={relationUsecases}
-        removeRelation={removeRelation}
-        openMaterialInApp={openMaterialInApp}
-        openMaterialInSystem={openMaterialInSystem}
-      />
 
       {composeOpen === 'memo' && (
         <ComposeMemoDialog
@@ -1465,19 +1470,3 @@ function ResolvedMemoRow({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Outer overlay shell — full-screen above the BottomStatusBar, same chrome
-// as StoryGraphView / SuperElementView (z 250, leaves BSB exposed).
-
-const overlayStyle: CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: BSB_HEIGHT,
-  zIndex: 250,
-  background: 'hsl(var(--paper))',
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 0,
-};

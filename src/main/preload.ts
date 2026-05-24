@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+    setTrafficLightPosition: (position: { x: number; y: number }) =>
+      ipcRenderer.invoke('window:setTrafficLightPosition', position),
   },
 
   // Database operations
@@ -101,6 +103,7 @@ export interface ElectronAPI {
     toggleMaximize: () => Promise<void>;
     close: () => Promise<void>;
     isMaximized: () => Promise<boolean>;
+    setTrafficLightPosition: (position: { x: number; y: number }) => Promise<void>;
   };
   db: {
     init: (dbName: string) => Promise<void>;

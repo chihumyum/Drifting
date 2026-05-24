@@ -24,7 +24,7 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
-import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
+import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
 const log = loglevel.getLogger('ElementEditorView');
@@ -39,6 +39,7 @@ export function ElementEditorView({
   const projectId = params.projectId;
   const elementId = elementIdOverride ?? params.elementId;
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
+  const canPromoteOnEdit = useCanPromoteOnEdit(elementId);
   const userId = useAuthStore((state) => state.user?.id);
   const { bookElements, bookElementCategories, manuscriptComments } = useDataStore();
 
@@ -59,6 +60,8 @@ export function ElementEditorView({
   const [summaryValue, setSummaryValue] = useState(curElement?.summary || '');
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [groupNameInput, setGroupNameInput] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
   const [marginNotes, setMarginNotes] = useEntityMarginNotes('element', elementId);
@@ -132,10 +135,10 @@ export function ElementEditorView({
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!elementId) return;
       if (pmJson === curElement?.contentJson) return;
-      promoteCurrentTab();
+      if (canPromoteOnEdit()) promoteCurrentTab();
       void updateElement(elementId, { contentJson: pmJson });
     },
-    [elementId, curElement?.contentJson, updateElement, promoteCurrentTab],
+    [elementId, curElement?.contentJson, canPromoteOnEdit, updateElement, promoteCurrentTab],
   );
 
   const { editor, outline } = useEntityEditor({
@@ -201,6 +204,44 @@ export function ElementEditorView({
     setEditingCategory(false);
   };
 
+  const applyGroup = async (nextGroup: string | null) => {
+    setShowGroupModal(false);
+    if (!elementId || !curElement) return;
+    if (nextGroup === (curElement.groupName ?? null)) return;
+    try {
+      await updateElement(elementId, { groupName: nextGroup });
+    } catch (error) {
+      log.error('Failed to update group:', error);
+      alert('Failed to update group. Please try again.');
+    }
+  };
+
+  const handleSaveGroup = () => {
+    const trimmed = groupNameInput.trim();
+    void applyGroup(trimmed === '' ? null : trimmed);
+  };
+
+  // All distinct groupNames currently used by elements in this element's
+  // category — drives the combobox list in the group modal.
+  const groupOptions = useMemo(() => {
+    if (!curElement) return [];
+    const categoryId = curElement.categoryId;
+    const names = new Set<string>();
+    bookElements.forEach((el) => {
+      if (el.categoryId !== categoryId) return;
+      if (!el.groupName) return;
+      names.add(el.groupName);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [bookElements, curElement]);
+  const groupQuery = groupNameInput.trim();
+  const filteredGroups = useMemo(() => {
+    if (!groupQuery) return groupOptions;
+    const q = groupQuery.toLowerCase();
+    return groupOptions.filter((g) => g.toLowerCase().includes(q));
+  }, [groupOptions, groupQuery]);
+  const groupQueryIsExisting = groupQuery !== '' && groupOptions.includes(groupQuery);
+
   const handleContextAction = useCallback(
     async (action: string) => {
       if (!elementId || !curElement) return;
@@ -217,23 +258,8 @@ export function ElementEditorView({
       } else if (action === 'categoryPicker') {
         setEditingCategory(true);
       } else if (action === 'groupPicker') {
-        // groupName is a free-form label — a plain prompt keeps the UX
-        // identical here and from every other element cmenu surface.
-        // Empty input clears the group.
-        const next = window.prompt(
-          '分组名称（留空 = 不分组）',
-          curElement.groupName ?? '',
-        );
-        if (next == null) return;
-        const trimmed = next.trim();
-        const nextGroup = trimmed === '' ? null : trimmed;
-        if (nextGroup === (curElement.groupName ?? null)) return;
-        try {
-          await updateElement(elementId, { groupName: nextGroup });
-        } catch (error) {
-          log.error('Failed to update group:', error);
-          alert('Failed to update group. Please try again.');
-        }
+        setGroupNameInput('');
+        setShowGroupModal(true);
       }
     },
     [elementId, curElement, elementUsecases, navigateToHome, updateElement],
@@ -506,6 +532,153 @@ export function ElementEditorView({
               ))}
               <option value="__new__">+ New Category</option>
             </select>
+          </div>
+        </div>
+      )}
+
+      {showGroupModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(28, 24, 19, 0.32)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowGroupModal(false)}
+        >
+          <div
+            style={{
+              background: 'hsl(var(--page))',
+              border: '1px solid hsl(var(--rule-strong))',
+              borderRadius: 8,
+              padding: 20,
+              minWidth: 360,
+              maxWidth: 420,
+              boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
+              分组 · {currentCategory?.name ?? '未分类'}
+            </h3>
+            <input
+              type="text"
+              value={groupNameInput}
+              onChange={(e) => setGroupNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveGroup();
+                }
+                if (e.key === 'Escape') setShowGroupModal(false);
+              }}
+              placeholder="搜索或新建分组…（留空 = 不分组）"
+              autoFocus
+              style={{
+                width: '100%',
+                fontSize: 14,
+                border: '1px solid hsl(var(--rule-strong))',
+                borderRadius: 4,
+                padding: '8px 12px',
+                outline: 'none',
+                marginBottom: 12,
+                background: 'hsl(var(--surface))',
+              }}
+            />
+            <div
+              style={{
+                maxHeight: 240,
+                overflowY: 'auto',
+                border: '1px solid hsl(var(--rule))',
+                borderRadius: 4,
+                background: 'hsl(var(--surface))',
+                marginBottom: 12,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => void applyGroup(null)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 12px',
+                  background: curElement.groupName == null ? 'hsl(var(--accent) / 0.12)' : 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid hsl(var(--rule))',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: 'hsl(var(--ink-3))',
+                  fontStyle: 'italic',
+                }}
+              >
+                （不分组）
+              </button>
+              {filteredGroups.length === 0 && groupQuery === '' && (
+                <div style={{ padding: '12px', fontSize: 13, color: 'hsl(var(--ink-4))' }}>
+                  此类目下还没有分组。
+                </div>
+              )}
+              {filteredGroups.map((name) => {
+                const isCurrent = name === curElement.groupName;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => void applyGroup(name)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      background: isCurrent ? 'hsl(var(--accent) / 0.12)' : 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid hsl(var(--rule))',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                    }}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+              {groupQuery !== '' && !groupQueryIsExisting && (
+                <button
+                  type="button"
+                  onClick={() => void applyGroup(groupQuery)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    color: 'hsl(var(--accent))',
+                  }}
+                >
+                  ＋ 新建分组「{groupQuery}」
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowGroupModal(false)}
+                className="mgr-toolbar__btn"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

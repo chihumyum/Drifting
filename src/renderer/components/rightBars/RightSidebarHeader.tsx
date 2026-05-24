@@ -70,13 +70,9 @@ export function RightSidebarHeader({
       <div
         style={{
           display: 'flex',
-          // Center the pill wrapper so it sits with breathing room (smaller
-          // than the 34-tall header) instead of bleeding into the outer
-          // island border. Both skins use the pill now; classic just skips
-          // the sliding indicator.
           alignItems: 'center',
-          height: 34,
-          padding: '0 6px 0 8px',
+          height: 35,
+          padding: '0 8px',
           gap: 4,
           borderBottom: '1px solid hsl(var(--rule))',
           flexShrink: 0,

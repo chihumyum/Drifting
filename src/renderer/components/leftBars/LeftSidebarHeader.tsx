@@ -45,7 +45,7 @@ export function LeftSidebarHeader() {
       ref={rootRef}
       style={{
         display: 'flex',
-        height: 40,
+        height: 35,
         width: '100%',
         borderBottom: '1px solid hsl(var(--rule))',
         alignItems: 'center',

@@ -224,7 +224,6 @@ function Layout() {
   const setUiTheme = useUiStore((state) => state.setTheme);
   const shadowMode = useUiStore((state) => state.shadowMode);
   const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
-  const animationsEnabled = useSettingsStore((state) => state.animationsEnabled);
   const appearanceSkin = useSettingsStore((state) => state.appearanceSkin);
 
   useEffect(() => {
@@ -257,21 +256,19 @@ function Layout() {
     }
   }, [shadowMode, shadowAffectsTheme]);
 
-  // Animations master switch: setting an attribute lets CSS short-circuit
-  // transitions/keyframes without touching every site.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (animationsEnabled) root.removeAttribute('data-no-anim');
-    else root.setAttribute('data-no-anim', 'on');
-  }, [animationsEnabled]);
-
   // Appearance skin: 'classic' (default literary) or 'modern' (Craft / Arc-
   // style). Sets `data-skin` on <html>; index.css remaps the token block
   // (palette, ink scale, font stacks, accent) under the modern selector.
   // No per-page JS branching — components keep reading the same CSS vars.
+  //
+  // Also flips the macOS traffic-light dots to track the topbar position:
+  // modern's 6px app-root padding pushes the 42-tall topbar down so dots
+  // center at y=20; classic is flush so dots center at y=14.
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-skin', appearanceSkin);
+    const y = appearanceSkin === 'modern' ? 20 : 14;
+    void window.electronAPI?.window?.setTrafficLightPosition?.({ x: 18, y });
   }, [appearanceSkin]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks

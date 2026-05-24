@@ -21,7 +21,7 @@ import {
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
-import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
+import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
@@ -47,6 +47,7 @@ export function CategoryEditorView({
   const projectId = params.projectId;
   const categoryId = categoryIdOverride ?? params.categoryId;
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
+  const canPromoteOnEdit = useCanPromoteOnEdit(categoryId);
   const userId = useAuthStore((state) => state.user?.id);
   if (!projectId) throw new Error('Project ID is required');
   if (!userId) throw new Error('User must be authenticated');
@@ -177,10 +178,10 @@ export function CategoryEditorView({
     (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!curCategory) return;
       if (pmJson === curCategory.contentJson) return;
-      promoteCurrentTab();
+      if (canPromoteOnEdit()) promoteCurrentTab();
       void categoryUsecases.updateCategory(curCategory.id, { contentJson: pmJson });
     },
-    [curCategory, categoryUsecases, promoteCurrentTab],
+    [curCategory, canPromoteOnEdit, categoryUsecases, promoteCurrentTab],
   );
   const { editor, outline } = useEntityEditor({
     sourceKind: 'category',
