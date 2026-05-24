@@ -162,7 +162,12 @@ export function ChapterEditor({
         // Build a minimal schema with the same node set as the editor — only
         // nodes matter for seeding; mark/extension configs that affect parsing
         // are noise here.
-        const schema = getSchema([StarterKit, Underline, Link, TextAlign] as never);
+        const schema = getSchema([
+          StarterKit.configure({ underline: false, link: false }),
+          Underline,
+          Link,
+          TextAlign,
+        ] as never);
         const json = JSON.parse(content);
         const seeded = prosemirrorJSONToYDoc(schema, json, 'default');
         const update = Y.encodeStateAsUpdate(seeded);
@@ -187,6 +192,9 @@ export function ChapterEditor({
     },
     seedFromLegacy: userId ? seedFromLegacy : undefined,
   });
+
+  // TODO: remove later.
+  useEffect(() => { (window as any).__ydoc = ydoc; }, [ydoc]);
 
   const { editor, outline } = useEntityEditor({
     sourceKind: 'node',

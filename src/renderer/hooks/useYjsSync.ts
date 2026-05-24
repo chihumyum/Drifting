@@ -126,17 +126,16 @@ export function useYjsSync({
     if (!isReady) return;
     if (!onMaterializeRef.current) return;
 
-    const flush = () => {
+    const flush = async () => {
       const cb = onMaterializeRef.current;
       if (!cb) return;
       try {
-        // We assume the body lives on a default XmlFragment named 'default' —
-        // the same one TipTap's Collaboration extension binds to. If the doc
-        // is using a different shape, the caller should serialize from
-        // outside and pass the result; we still want a coarse signal here.
-        const fragment = ydoc.getXmlFragment('default');
-        const json = fragment.toJSON();
-        cb(typeof json === 'string' ? json : JSON.stringify(json));
+        // Y.XmlFragment.toJSON() returns an XML string ("<paragraph>...</paragraph>")
+        // not TipTap-shaped JSON. Use y-prosemirror's converter so the cached
+        // contentJson is consumable by parseContentJson on next load.
+        const { yDocToProsemirrorJSON } = await import('y-prosemirror');
+        const json = yDocToProsemirrorJSON(ydoc, 'default');
+        cb(JSON.stringify(json));
       } catch (err) {
         log.warn('[useYjsSync] materialize failed:', err);
       }

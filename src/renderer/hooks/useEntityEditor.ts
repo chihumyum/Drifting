@@ -581,6 +581,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       editorClass,
       minHeight,
       saveSelection,
+      // Rebuild the editor when ydoc flips between undefined and a real
+      // instance — useYjsDoc starts with isReady=false (no ydoc passed yet)
+      // and the caller flips to the real Y.Doc once load completes. Without
+      // this dep the Collaboration extension would never attach.
+      ydoc,
     ],
   );
 

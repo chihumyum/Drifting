@@ -90,6 +90,18 @@ export async function updateCursor(
     .where(eq(yjsSyncCursor.docId, docId));
 }
 
+/**
+ * Drop the cursor for a doc. Forces the next pull to re-fetch from
+ * `sinceSeq = 0` and the next push to re-scan all local updates. Used by
+ * the load path when it finds no local Yjs state — without this reset,
+ * a wiped sqlite + persisted cursor produces a "stuck empty ydoc"
+ * deadlock: pull thinks everything is consumed, push thinks everything
+ * is shipped, but the doc is actually empty.
+ */
+export async function resetCursor(docId: string): Promise<void> {
+  await getDb().delete(yjsSyncCursor).where(eq(yjsSyncCursor.docId, docId));
+}
+
 // ───── Encoding helpers ─────
 
 export function uint8ToBase64(bytes: Uint8Array): string {
@@ -133,8 +145,13 @@ export async function pushUpdates(
       docId,
       projectId,
       deviceId,
+      // clientUpdateId includes the row's createdAt timestamp so that the
+      // unique key `(doc_id, client_update_id)` on the server doesn't collide
+      // across local-sqlite resets. Older format `${docId}:${deviceId}:${id}`
+      // collided if yjs_updates was wiped and ids restarted from 1 — server
+      // dedupped silently, client cursor advanced anyway, data was lost.
       updates: batch.map((u) => ({
-        clientUpdateId: `${docId}:${deviceId}:${u.id}`,
+        clientUpdateId: `${docId}:${deviceId}:${u.createdAt}:${u.id}`,
         data: uint8ToBase64(u.updateBlob),
       })),
     };
@@ -164,6 +181,19 @@ export async function pushUpdates(
 
       const lastLocalId = batch[batch.length - 1].id;
       const serverSeqs = Array.isArray(res.data.serverSeqs) ? res.data.serverSeqs : [];
+      // Defence: if the server accepted at least one update from the batch
+      // OR returned an empty batch (all were already deduped through retry),
+      // advance the cursor. Logging the discrepancy helps catch cases like
+      // the historical clientUpdateId-collision bug (different rows producing
+      // the same clientUpdateId, server silently dropping them, cursor
+      // advancing past data that never landed).
+      if (serverSeqs.length < batch.length) {
+        log.warn(
+          `[push] ${docId}: server accepted ${serverSeqs.length}/${batch.length} updates ` +
+            `(${batch.length - serverSeqs.length} deduped). Advancing cursor anyway — ` +
+            `likely safe if these were retries; if not, the missing rows are lost.`,
+        );
+      }
       await updateCursor(docId, { lastPushedLocalId: lastLocalId });
       emitSyncOperation({
         requestId,
@@ -269,13 +299,15 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
     let skippedCount = 0;
 
     for (const u of updates) {
-      // Skip self-originated updates (already in local DB)
-      if (u.deviceId === deviceId) {
-        maxSeq = Math.max(maxSeq, u.serverSeq);
-        skippedCount += 1;
-        continue;
-      }
-
+      // Apply unconditionally. The historical "skip when u.deviceId === me"
+      // optimization assumed local sqlite still has the rows I pushed, so
+      // re-applying them on pull is wasted work. That assumption breaks the
+      // recovery case: if local sqlite is wiped but cursor.lastServerSeq is
+      // preserved (or just trailing my push), every pulled update has my
+      // own deviceId, gets skipped, and ydoc stays empty forever.
+      //
+      // Y.applyUpdate is idempotent so re-applying our own ops costs only a
+      // few extra CPU cycles per pull. Keep the codepath simple.
       const blob = base64ToUint8(u.data);
       Y.applyUpdate(ydoc, blob, 'remote');
       maxSeq = Math.max(maxSeq, u.serverSeq);

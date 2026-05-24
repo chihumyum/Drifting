@@ -126,8 +126,14 @@ function registerCleanup(): void {
   if (cleanupRegistered) return;
   cleanupRegistered = true;
 
-  app.on('before-quit', () => {
-    closeDatabase('before-quit');
+  // `will-quit` instead of `before-quit`: main.ts's before-quit handler calls
+  // event.preventDefault() and gives the renderer a 2s window to drain its
+  // in-flight DB writes (active editor save, sync queue flush). If we closed
+  // the DB on before-quit, those drains would all fail with "Database not
+  // initialized". will-quit fires AFTER main.ts's deferred app.quit() resolves,
+  // so the renderer has finished its flush by then.
+  app.on('will-quit', () => {
+    closeDatabase('will-quit');
   });
 }
 

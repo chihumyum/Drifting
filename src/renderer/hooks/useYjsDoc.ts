@@ -3,6 +3,7 @@ import loglevel from 'loglevel';
 import * as Y from 'yjs';
 import { initDatabase } from '../lib/db';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
+import { resetCursor } from '../services/yjs-sync.service';
 
 const log = loglevel.getLogger('useYjsDoc');
 log.setLevel(loglevel.levels.WARN);
@@ -71,16 +72,25 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
 
         const hadAnything = Boolean(snapshot) || updates.length > 0;
 
-        // Legacy seed: only when there's no local Yjs state at all. The first
-        // such doc on a given device pulls the pre-Yjs JSON from SQLite (e.g.
-        // nodeContent.contentJson), packs it into ydoc, and snapshots so the
-        // next load skips the seed.
-        if (!hadAnything && seedRef.current) {
-          await seedRef.current((mutator) => {
-            ydoc.transact(() => mutator(ydoc), 'seed');
-          });
-          const fullState = Y.encodeStateAsUpdate(ydoc);
-          await repo.upsertSnapshot(docId, fullState);
+        if (!hadAnything) {
+          // No local Yjs state for this doc — either fresh install, fresh
+          // device, or a wiped DB. Drop the sync cursor so the next pull
+          // re-fetches the full update log from the server. Without this
+          // reset, `cursor.lastServerSeq` left over from a previous session
+          // would make pull think everything is already consumed.
+          await resetCursor(docId);
+
+          // Legacy seed (pre-Yjs JSON in nodeContent.contentJson) — only
+          // when the doc truly has nothing on the server side either; the
+          // pull that fires shortly after will overwrite any seed result if
+          // the server has real state.
+          if (seedRef.current) {
+            await seedRef.current((mutator) => {
+              ydoc.transact(() => mutator(ydoc), 'seed');
+            });
+            const fullState = Y.encodeStateAsUpdate(ydoc);
+            await repo.upsertSnapshot(docId, fullState);
+          }
         }
 
         if (cancelled) return;
@@ -112,11 +122,25 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
     };
 
     const handleUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === 'load' || origin === 'remote') return;
+      // 'load' is the replay-from-sqlite path; skip entirely so we don't
+      // re-persist what we just loaded.
+      if (origin === 'load') return;
+
+      // Local edits (no origin / undefined origin) need to be appended to
+      // yjs_updates so the push path can ship them. Remote / seed / restore
+      // updates already exist on the server side or are bootstrapping —
+      // they must NOT be appended (push would echo them back) but they DO
+      // need to participate in snapshotting so the in-memory ydoc state
+      // survives an Electron restart. Without this, the cursor.lastServerSeq
+      // advances past these updates, but the local replay path has nothing
+      // to play back, and the next pull is a no-op → ydoc starts empty.
+      const isLocalEdit = origin !== 'remote' && origin !== 'seed' && origin !== 'restore';
       const updateCopy = new Uint8Array(update);
 
       enqueueWrite(async () => {
-        await repo.appendUpdate(docId, updateCopy);
+        if (isLocalEdit) {
+          await repo.appendUpdate(docId, updateCopy);
+        }
         localUpdatesSinceSnapshotRef.current += 1;
 
         if (localUpdatesSinceSnapshotRef.current >= SNAPSHOT_EVERY_UPDATES) {
