@@ -1337,8 +1337,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
   const setAnimationsEnabled = useSettingsStore((s) => s.setAnimationsEnabled);
-  const manuscriptSans = useSettingsStore((s) => s.manuscriptSans);
-  const setManuscriptSans = useSettingsStore((s) => s.setManuscriptSans);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
     { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
@@ -1394,12 +1392,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
           label="Shadow 模式改变主题色调"
           desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
           control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
-        />
-
-        <Row
-          label="正文使用无衬线字体"
-          desc="把正文、章节页面与其他衬线（书面体）一律切到无衬线。UI 本身已是无衬线，开关不会影响它。"
-          control={<Toggle on={manuscriptSans} onChange={setManuscriptSans} />}
         />
       </div>
 

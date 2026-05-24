@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type AppearanceSkin = 'classic' | 'modern';
 export type FocusLineMode = 'off' | 'paragraph' | 'line' | 'sentence';
 export type ParagraphIndent = 'none' | 'one' | 'two';
 export type LineHeight = 1.5 | 1.65 | 1.72 | 1.8 | 2.0;
@@ -48,13 +49,12 @@ interface SettingsState {
   setShadowAffectsTheme: (on: boolean) => void;
   animationsEnabled: boolean;
   setAnimationsEnabled: (on: boolean) => void;
-  // When on, anything that draws from the literary serif stack (manuscript
-  // body, page titles, dashboard glyphs, etc.) collapses into the sans
-  // stack — gives the whole app a uniform sans look. UI surfaces that
-  // already use sans aren't affected. App.tsx pipes this into a
-  // `--font-serif` override on <html>.
-  manuscriptSans: boolean;
-  setManuscriptSans: (on: boolean) => void;
+  // Classic = literary manuscript palette (oxblood, serif). Modern = Craft /
+  // Arc-style: muted blue-gray accent, pastel story colors, sans-serif body,
+  // pure-white doc surface. App.tsx pipes this into `data-skin` on <html>;
+  // index.css remaps tokens accordingly. No per-page JS branching.
+  appearanceSkin: AppearanceSkin;
+  setAppearanceSkin: (skin: AppearanceSkin) => void;
 
   // 编辑器
   bodyFontSize: number;
@@ -165,8 +165,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowAffectsTheme: (on) => set({ shadowAffectsTheme: on }),
       animationsEnabled: true,
       setAnimationsEnabled: (on) => set({ animationsEnabled: on }),
-      manuscriptSans: false,
-      setManuscriptSans: (on) => set({ manuscriptSans: on }),
+      appearanceSkin: 'classic',
+      setAppearanceSkin: (skin) => set({ appearanceSkin: skin }),
 
       bodyFontSize: 17,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),
@@ -255,13 +255,26 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
       migrate: (persistedState, version) => {
-        const state = persistedState as Partial<SettingsState>;
+        const state = persistedState as Partial<SettingsState> & { manuscriptSans?: boolean };
+        let next: Partial<SettingsState> = state;
         if (version < 1) {
-          return { ...state, marginNotes: false };
+          next = { ...next, marginNotes: false };
         }
-        return state;
+        if (version < 2) {
+          // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
+          // remaps --font-serif to the sans stack). Users who had it on get
+          // upgraded to the full modern palette; the alternative (silently
+          // dropping the preference) feels worse.
+          const wasSans = (state as { manuscriptSans?: boolean }).manuscriptSans === true;
+          const { manuscriptSans: _omit, ...rest } = next as Partial<SettingsState> & {
+            manuscriptSans?: boolean;
+          };
+          void _omit;
+          next = { ...rest, appearanceSkin: wasSans ? 'modern' : 'classic' };
+        }
+        return next;
       },
     },
   ),

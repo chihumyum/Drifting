@@ -10,6 +10,7 @@ import {
   BookOpenText,
   CircleDot,
   HelpCircle,
+  Palette,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
@@ -37,6 +38,8 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
+  const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
@@ -144,6 +147,37 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
         </div>
 
         <MenuGroup>
+          <MenuItem
+            icon={<Palette size={13} />}
+            label="外观"
+            tail={
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'flex',
+                  marginLeft: 'auto',
+                  background: 'hsl(var(--paper-deep))',
+                  borderRadius: 3,
+                  padding: 1,
+                }}
+              >
+                <ThemeSwitchBtn
+                  active={appearanceSkin === 'classic'}
+                  onClick={() => setAppearanceSkin('classic')}
+                  title="经典 · 文学手稿风"
+                >
+                  经典
+                </ThemeSwitchBtn>
+                <ThemeSwitchBtn
+                  active={appearanceSkin === 'modern'}
+                  onClick={() => setAppearanceSkin('modern')}
+                  title="现代 · Craft / Arc 风（Preview）"
+                >
+                  现代
+                </ThemeSwitchBtn>
+              </div>
+            }
+          />
           <MenuItem
             icon={
               themeMode === 'light' ? (

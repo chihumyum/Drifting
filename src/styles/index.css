@@ -78,12 +78,115 @@
     --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
   }
 
-  /* `Settings → Appearance → 正文使用无衬线` collapses the serif stack into
-     the sans stack. Affects every surface that draws from `--font-serif`
-     (editor body, page titles, dashboard literary glyphs, …). UI surfaces
-     that already use `--font-sans` aren't touched. */
-  html[data-manuscript-sans='on'] {
+  /* ─── Modern skin (Craft / Arc-inspired) ─────────────────────────────
+     Set by App.tsx via `data-skin` on <html>. Pure token remap — no
+     component-level overrides here yet. Components keep reading the same
+     CSS vars, so no per-page JS branching is needed; new pages get both
+     palettes for free as long as they don't hardcode colors/fonts.
+
+     Aesthetic: pure-white doc area, warm-neutral chrome, muted blue-gray
+     accent, pastel storyline colors. Body collapses to sans (subsumes the
+     old `manuscriptSans` setting).
+     -------------------------------------------------------------------- */
+  html[data-skin='modern'] {
+    /* Paper / surface — quieter, more neutral than classic */
+    --paper:                 30 8%  96.5%;
+    --paper-deep:            30 6%  92%;
+    --surface:               0  0%  100%;
+    --page:                  0  0%  100%;
+    --background:            0  0%  100%;
+    --card:                  0  0%  100%;
+    --popover:               0  0%  100%;
+    --secondary:             30 6%  92%;
+    --muted:                 30 6%  94%;
+
+    /* Ink scale — faintly warm near-black */
+    --ink-1:                 30 6%  12%;
+    --ink-2:                 30 4%  26%;
+    --ink-3:                 30 3%  48%;
+    --ink-4:                 30 3%  64%;
+    --ink-5:                 30 4%  84%;
+    --foreground:            30 6%  12%;
+    --card-foreground:       30 6%  12%;
+    --popover-foreground:    30 6%  12%;
+    --primary:               30 6%  12%;
+    --primary-foreground:    0  0%  100%;
+    --secondary-foreground:  30 4%  26%;
+    --muted-foreground:      30 3%  48%;
+
+    --rule:                  30 6%  92%;
+    --rule-strong:           30 6%  84%;
+    --border:                30 6%  92%;
+    --input:                 30 6%  92%;
+
+    /* Accent — muted blue-gray, very low saturation */
+    --accent:                218 22% 52%;
+    --accent-foreground:     0   0%  100%;
+    --ring:                  218 22% 52%;
+    --accent-border:         30  6%  88%;
+
+    /* Storyline palette — Craft-style pastels (62-72% L band keeps them
+       quiet). Element aliases (--el-person etc.) inherit automatically
+       since they're declared as `var(--story-N)` in :root. */
+    --story-1:               252 62% 72%;   /* lavender    — person */
+    --story-2:               208 70% 66%;   /* sky blue    — period */
+    --story-3:               148 38% 60%;   /* mint green  — place  */
+    --story-4:               45  82% 66%;   /* soft yellow — item   */
+    --story-5:               282 50% 72%;   /* violet      — lex    */
+    --story-6:               182 42% 58%;   /* teal        — extra  */
+
+    /* Body / titles / dashboard glyphs collapse to sans. */
     --font-serif: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+  }
+
+  /* Modern + dark: cold neutral gray (≈220° hue), independent of classic's
+     warm-brown ink mode. v3 mockup didn't ship a dark+modern reference, so
+     these values are my best read of the Craft / Linear / GitHub-dark
+     vocabulary — adjust to taste once you see it in motion. */
+  html.dark[data-skin='modern'] {
+    --paper:                 220 6%  11%;
+    --paper-deep:            220 7%  8%;
+    --surface:               220 6%  14%;
+    --page:                  220 6%  14%;
+    --background:            220 6%  11%;
+    --card:                  220 6%  14%;
+    --popover:               220 6%  16%;
+    --secondary:             220 6%  18%;
+    --muted:                 220 5%  20%;
+
+    --ink-1:                 220 8%  93%;
+    --ink-2:                 220 6%  82%;
+    --ink-3:                 220 5%  62%;
+    --ink-4:                 220 4%  48%;
+    --ink-5:                 220 5%  28%;
+    --foreground:            220 8%  93%;
+    --card-foreground:       220 8%  93%;
+    --popover-foreground:    220 8%  93%;
+    --primary:               220 8%  93%;
+    --primary-foreground:    220 6%  11%;
+    --secondary-foreground:  220 6%  82%;
+    --muted-foreground:      220 5%  62%;
+
+    --rule:                  220 6%  22%;
+    --rule-strong:           220 6%  30%;
+    --border:                220 6%  22%;
+    --input:                 220 6%  22%;
+
+    /* Accent stays the same muted blue-gray, lifted slightly for dark
+       contrast. */
+    --accent:                218 35% 65%;
+    --accent-foreground:     220 6%  11%;
+    --ring:                  218 35% 65%;
+    --accent-border:         220 6%  26%;
+
+    /* Pastels lifted slightly so they read on dark surfaces without going
+       neon. Same hues as light modern. */
+    --story-1:               252 50% 74%;
+    --story-2:               208 58% 68%;
+    --story-3:               148 34% 62%;
+    --story-4:               45  68% 68%;
+    --story-5:               282 44% 74%;
+    --story-6:               182 38% 60%;
   }
 
   .dark {

@@ -225,7 +225,7 @@ function Layout() {
   const shadowMode = useUiStore((state) => state.shadowMode);
   const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
   const animationsEnabled = useSettingsStore((state) => state.animationsEnabled);
-  const manuscriptSans = useSettingsStore((state) => state.manuscriptSans);
+  const appearanceSkin = useSettingsStore((state) => state.appearanceSkin);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -265,16 +265,14 @@ function Layout() {
     else root.setAttribute('data-no-anim', 'on');
   }, [animationsEnabled]);
 
-  // Manuscript-sans master switch: redefines the serif CSS var on <html>
-  // to point at the sans stack. Every literary surface that reads
-  // `var(--font-serif)` (editor body, page titles, dashboard glyphs, …)
-  // flips automatically. UI surfaces that already use `--font-sans`
-  // aren't affected. See index.css.
+  // Appearance skin: 'classic' (default literary) or 'modern' (Craft / Arc-
+  // style). Sets `data-skin` on <html>; index.css remaps the token block
+  // (palette, ink scale, font stacks, accent) under the modern selector.
+  // No per-page JS branching — components keep reading the same CSS vars.
   useEffect(() => {
     const root = document.documentElement;
-    if (manuscriptSans) root.setAttribute('data-manuscript-sans', 'on');
-    else root.removeAttribute('data-manuscript-sans');
-  }, [manuscriptSans]);
+    root.setAttribute('data-skin', appearanceSkin);
+  }, [appearanceSkin]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
