@@ -280,6 +280,7 @@ export function ChapterPanel() {
         {selected && (
           <span
             aria-hidden
+            className="cell-accent-stripe"
             style={{
               position: 'absolute',
               left: 0,

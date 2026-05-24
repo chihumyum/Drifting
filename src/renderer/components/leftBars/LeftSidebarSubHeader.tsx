@@ -16,7 +16,10 @@ const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
 
 // 容器宽度低于此值时隐藏左侧 meta 统计文本，把空间让给右侧操作按钮。
-const META_HIDE_WIDTH = 220;
+// 之前是 220，导致默认 280 宽度的侧栏看起来正常，但稍微缩窄一点 meta 就消失。
+// 实测 meta 本身只占 ~80px，右侧 4 个 26px 图标占 ~110px，总共 ~200。降到 180
+// 给狭窄场景留点余量；真正窄到 < 180 才放弃 meta。
+const META_HIDE_WIDTH = 180;
 
 export function LeftSidebarSubHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);

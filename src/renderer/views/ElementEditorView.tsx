@@ -273,7 +273,6 @@ export function ElementEditorView({
 
   const currentCategory = bookElementCategories.find((cat) => cat.id === curElement.categoryId);
   const categoryColor = currentCategory?.color || 'hsl(var(--accent))';
-  const elementShortId = curElement.id.slice(0, 6);
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -334,7 +333,6 @@ export function ElementEditorView({
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
           onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
-          footLeft={`e.${elementShortId}`}
           emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
@@ -345,7 +343,6 @@ export function ElementEditorView({
               {currentCategory && (
                 <span className="page__folio-line page__folio-line--accent">{currentCategory.name}</span>
               )}
-              <span className="page__folio-line">e.{elementShortId}</span>
             </div>
 
             <section id="el-overview">
@@ -358,9 +355,7 @@ export function ElementEditorView({
                 <div className="elem-hero__main">
                   <div className="elem-hero__kicker">
                     <span className="elem-hero__kicker-dot" style={{ background: categoryColor }} />
-                    <span>◆ {(currentCategory?.name || 'ELEMENT').toUpperCase()}</span>
-                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                    <span>e.{elementShortId}</span>
+                    <span>{(currentCategory?.name || 'ELEMENT').toUpperCase()}</span>
                   </div>
 
                   <input

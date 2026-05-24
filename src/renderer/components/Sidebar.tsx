@@ -55,15 +55,21 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
   return (
     <div
+      className="app-chrome app-island"
       style={{
         width: isExpanded ? expandedWidth : collapsedContent ? undefined : 0,
         display: 'flex',
         flexDirection: 'column',
-        background: 'hsl(var(--paper))',
-        borderRight: sidebarType === 'left' ? '1px solid hsl(var(--rule))' : 'none',
-        borderLeft: sidebarType === 'right' ? '1px solid hsl(var(--rule))' : 'none',
+        background: 'var(--chrome-bg)',
+        borderRight: sidebarType === 'left' ? 'var(--chrome-divider)' : 'none',
+        borderLeft: sidebarType === 'right' ? 'var(--chrome-divider)' : 'none',
         position: 'relative',
-        overflow: 'visible',
+        // `hidden` (not `visible`) so border-radius actually clips child bg
+        // — without this the right sidebar's panel header / left sidebar's
+        // tab tray paint their full-width bg over the rounded top corners
+        // and the island shape doesn't show. Cost: resize handle has to
+        // live inside the bounds instead of straddling them (see below).
+        overflow: 'hidden',
       }}
     >
       {/* 顶部固定区域 */}
@@ -93,8 +99,14 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
           style={{
             position: 'absolute',
             top: 0,
-            right: sidebarType === 'left' ? -3 : 'auto',
-            left: sidebarType === 'right' ? -3 : 'auto',
+            // Sit flush against the inside edge (not straddling -3..+3 like
+            // before). Required because the root now has `overflow: hidden`
+            // for border-radius clipping, which would otherwise crop the
+            // straddling handle to a 3px sliver. The 6px gap around each
+            // sidebar in modern still provides plenty of cursor area, and
+            // classic loses nothing visible (handle was transparent).
+            right: sidebarType === 'left' ? 0 : 'auto',
+            left: sidebarType === 'right' ? 0 : 'auto',
             width: 6,
             height: '100%',
             cursor: 'col-resize',

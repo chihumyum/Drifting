@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useDataStore } from '../../../store/data-store';
 import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
+import { useSlidingIndicator } from '../../../hooks/useSlidingIndicator';
 import {
   useUiStore,
   useProjectTabs,
@@ -52,7 +53,11 @@ const TAB_FLOOR_WIDTH = 56;
 const TAB_MIN_WIDTH = 120;
 // Max: per-tab cap so a runaway title doesn't dominate the bar in Phase A.
 const TAB_MAX_WIDTH = 320;
-const TAB_GAP = 2;
+// 0 (not just small): any positive gap between tabs is a window-drag region
+// (MainTopBar's center is WebkitAppRegion:'drag', and tabs opt out individually
+// via 'no-drag'). A 2px gap was enough for the cursor to land in the seam,
+// drag the window, and swallow horizontal scroll wheel events.
+const TAB_GAP = 0;
 const CONTAINER_PADDING_X = 20;
 // A split slot carries two sub-labels and reads as ~1.6 leaf tabs wide.
 const SPLIT_WEIGHT = 1.6;
@@ -141,7 +146,15 @@ export function TopTimeline() {
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
   const primaryStorylineByNode = useDataStore((s) => s.primaryStorylineByNode);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Reuse the indicator hook's ref as the container ref — the hook needs
+  // the same DOM node for its ResizeObserver, and we don't want two refs
+  // racing for the same element. The indicator slides under whichever tab
+  // carries `.app-tab.is-active` (we already set that via inline className).
+  const [containerRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
+    activeTabKey,
+    '.app-tab.is-active',
+    [openTabs.length],
+  );
   const [containerWidth, setContainerWidth] = useState(0);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -515,8 +528,13 @@ export function TopTimeline() {
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         WebkitOverflowScrolling: 'touch',
+        // Modern: parent of `.tab-indicator` needs relative positioning so
+        // the absolutely-positioned indicator measures against this strip.
+        // No-op for classic since `.tab-indicator` is `display:none`.
+        position: 'relative',
       }}
     >
+      <div className="tab-indicator" style={indicatorStyle} />
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
@@ -646,6 +664,7 @@ function LeafTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
+      className={`app-tab${isActive ? ' is-active' : ''}`}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
@@ -760,6 +779,7 @@ function LeafTabSlot({
         onMouseDown={(event) => event.stopPropagation()}
         aria-label="Close tab"
         title="Close tab"
+        className="app-tab__close"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -835,6 +855,7 @@ function SplitTabSlot({
       role="tab"
       aria-selected={isActive}
       data-tab-key={tabKey(tab)}
+      className={`app-tab app-tab--split${isActive ? ' is-active' : ''}`}
       draggable
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
@@ -892,6 +913,7 @@ function SplitTabSlot({
       />
       <div
         aria-hidden
+        className="app-tab__split-divider"
         style={{
           width: 1,
           alignSelf: 'stretch',
@@ -967,7 +989,11 @@ function SplitSubLabel({
         color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
         fontWeight: isFocused ? 500 : 400,
         fontStyle: isPreview ? 'italic' : 'normal',
-        background: isFocused ? 'hsl(var(--accent) / 0.06)' : 'transparent',
+        // Sub-tab keeps transparent bg. The parent SplitTabSlot already
+        // paints its tone-selected bg when the split is active, and the
+        // focused side is signalled by `color` + `fontWeight` — an extra
+        // accent tint here just reads as visual clutter.
+        background: 'transparent',
         transition: 'background 0.15s, color 0.15s',
       }}
     >
@@ -1013,6 +1039,7 @@ function SplitSubLabel({
         onMouseDown={(event) => event.stopPropagation()}
         aria-label="Close pane"
         title="Close pane"
+        className="app-tab__close"
         style={{
           display: 'flex',
           alignItems: 'center',

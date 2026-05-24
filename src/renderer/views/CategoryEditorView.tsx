@@ -268,7 +268,6 @@ export function CategoryEditorView({
   }
 
   const categoryColor = curCategory.color || 'hsl(var(--accent))';
-  const categoryShortId = curCategory.id.slice(0, 6);
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -324,7 +323,6 @@ export function CategoryEditorView({
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
           onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
-          footLeft={`c.${categoryShortId}`}
           footRight={`${cEls.length} 元素`}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
@@ -335,7 +333,6 @@ export function CategoryEditorView({
               <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
                 {curCategory.name}
               </span>
-              <span className="page__folio-line">c.{categoryShortId}</span>
               <span className="page__folio-line">{cEls.length} 元素</span>
             </div>
 
@@ -351,9 +348,7 @@ export function CategoryEditorView({
                 <div className="elem-hero__main">
                   <div className="elem-hero__kicker">
                     <span className="elem-hero__kicker-dot" style={{ background: categoryColor }} />
-                    <span>◆ CATEGORY</span>
-                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                    <span>c.{categoryShortId}</span>
+                    <span>CATEGORY</span>
                   </div>
 
                   <input

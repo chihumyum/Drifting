@@ -116,7 +116,11 @@ const createWindow = () => {
     minHeight: 700,
     title: 'Drifting',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 12, y: 12 },
+    // Modern is the priority mode: topbar inset 6px → vertical center of a
+    // 42-tall topbar is y = 6 + (42-14)/2 = 20. In classic (topbar flush at
+    // y=0) the same y=20 sits slightly below center; acceptable trade-off
+    // since classic isn't the default mode.
+    trafficLightPosition: { x: 18, y: 20 },
     frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

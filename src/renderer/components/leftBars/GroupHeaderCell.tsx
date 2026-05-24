@@ -65,7 +65,15 @@ export function GroupHeaderCell({
               position: 'sticky',
               top: 0,
               zIndex: 4,
-              background: 'hsl(var(--paper))',
+              // Use the same chrome-bg as the surrounding sidebar so the
+              // sticky header reads as part of the panel surface in both
+              // skins. Classic resolves this to solid paper; modern resolves
+              // to paper @ 0.55 — matching the surrounding element cells
+              // (which are transparent over the same chrome-bg). The
+              // backdrop blur keeps occlusion when rows scroll underneath.
+              background: 'var(--chrome-bg)',
+              backdropFilter: 'blur(12px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(12px) saturate(180%)',
             }
           : {}),
       }}

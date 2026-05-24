@@ -1,13 +1,26 @@
 import { Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useBookNode } from '../../../usecase/useBookNode';
 import { useBookElement } from '../../../usecase/useBookElement';
 import { useElementCategory } from '../../../usecase/useElementCategory';
 import { useDataStore } from '../../../store/data-store';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
+import { useProjectTabs } from '../../../store/ui-store';
+import { useSettingsStore } from '../../../store/settings-store';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../../../store/auth';
 import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../../domain/book-node';
+
+// Per-tab default width used by TopTimeline (TAB_MIN_WIDTH, the "still
+// readable" threshold). When openTabs.length * this + chrome overhead exceeds
+// the topbar width, the tab row is "filled at default width" and we drop the
+// label so tabs keep their breathing room.
+const TAB_DEFAULT_WIDTH = 120;
+// Topbar chrome: left section (140) + right section (80) + MainTopBar
+// horizontal padding (24) + room for the labeled button itself + a small
+// buffer so the threshold trips before the tab row visibly cramps.
+const TOPBAR_CHROME_OVERHEAD = 140 + 80 + 24 + 110 + 26;
 
 const log = loglevel.getLogger('NewEntityButton');
 log.setLevel(loglevel.levels.ERROR);
@@ -45,6 +58,8 @@ export function NewEntityButton() {
   });
   const { bookNodes, bookElements, bookElementCategories, primaryStorylineByNode } =
     useDataStore();
+  const { openTabs } = useProjectTabs(projectId);
+  const isModern = useSettingsStore((s) => s.appearanceSkin === 'modern');
   const decodedCategoryId = categoryId ? safeDecodeURIComponent(categoryId) : undefined;
   const isElementContext = Boolean(elementId || categoryId);
   // Drift editor context = currently routed to a node whose kind is 'drift'.
@@ -52,7 +67,26 @@ export function NewEntityButton() {
   // drift tab has its own dedicated create button via the sub-header.
   const focusedNode = nodeId ? bookNodes.find((n) => n.id === nodeId) ?? null : null;
   const isDriftContext = focusedNode != null && isDrift(focusedNode);
-  const buttonLabel = isElementContext ? 'E' : isDriftContext ? 'D' : 'C';
+  const buttonLabel = isElementContext ? 'element' : isDriftContext ? 'drift' : 'chapter';
+
+  // Compact when the tab row, at its readable default width, would exceed the
+  // space the topbar can give it alongside a labeled create button. Measuring
+  // .app-chrome (the AppTopbar root) instead of our own slot keeps the signal
+  // invariant under our own mode switch — otherwise toggling compact would
+  // free up room and oscillate back to full.
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    const el = document.querySelector('.app-chrome') as HTMLElement | null;
+    if (!el) return;
+    const compute = () => {
+      const threshold = openTabs.length * TAB_DEFAULT_WIDTH + TOPBAR_CHROME_OVERHEAD;
+      setIsCompact(el.clientWidth < threshold);
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [openTabs.length]);
 
   const handleCreateChapter = async () => {
     try {
@@ -160,40 +194,49 @@ export function NewEntityButton() {
   return (
     <button
       onClick={handleClick}
+      aria-label={`新建 ${buttonLabel}`}
+      title={`新建 ${buttonLabel}`}
       style={
         {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 6,
-          padding: '5px 10px',
+          gap: isCompact ? 0 : 6,
+          padding: isCompact ? '5px 6px' : '5px 10px',
           borderRadius: 4,
-          border: '1px solid hsl(var(--rule))',
+          border: isModern ? '1px solid transparent' : '1px solid hsl(var(--rule))',
           background: 'transparent',
           color: 'hsl(var(--ink-2))',
           fontSize: 11.5,
           fontFamily: 'var(--font-mono)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
+          letterSpacing: '0.04em',
           fontWeight: 500,
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           WebkitAppRegion: 'no-drag',
         } as React.CSSProperties
       }
-      onMouseEnter={(event) => {
-        event.currentTarget.style.background = 'hsl(var(--ink-1))';
-        event.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
-        event.currentTarget.style.color = 'hsl(var(--paper))';
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.background = 'transparent';
-        event.currentTarget.style.borderColor = 'hsl(var(--rule))';
-        event.currentTarget.style.color = 'hsl(var(--ink-2))';
-      }}
+      onMouseEnter={
+        isModern
+          ? undefined
+          : (event) => {
+              event.currentTarget.style.background = 'hsl(var(--ink-1))';
+              event.currentTarget.style.borderColor = 'hsl(var(--ink-1))';
+              event.currentTarget.style.color = 'hsl(var(--paper))';
+            }
+      }
+      onMouseLeave={
+        isModern
+          ? undefined
+          : (event) => {
+              event.currentTarget.style.background = 'transparent';
+              event.currentTarget.style.borderColor = 'hsl(var(--rule))';
+              event.currentTarget.style.color = 'hsl(var(--ink-2))';
+            }
+      }
     >
       <Plus size={13} strokeWidth={1.8} />
-      <span>{buttonLabel}</span>
+      {!isCompact && <span>{buttonLabel}</span>}
     </button>
   );
 }

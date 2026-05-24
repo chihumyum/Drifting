@@ -233,6 +233,7 @@ export function MemoMaterialPanel({ focused }: Props) {
       />
 
       <div
+        className="scroll-no-bar"
         style={{
           flex: 1,
           minHeight: 0,
@@ -915,7 +916,6 @@ export function MemoCard({
   const [draft, setDraft] = useState(memo.title);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const isTodo = memo.resolution === 'unresolved';
-  const accent = isTodo ? 'hsl(var(--story-2))' : 'hsl(var(--story-5))';
 
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
@@ -942,7 +942,6 @@ export function MemoCard({
           padding: '7px 10px',
           borderRadius: 4,
           border: '1px solid hsl(var(--rule))',
-          borderLeft: `2px solid ${accent}`,
           background: 'hsl(var(--surface))',
           position: 'relative',
           maxHeight: 300,
@@ -1197,7 +1196,6 @@ export function MaterialCard({
           padding: '8px 10px',
           borderRadius: 4,
           border: '1px solid hsl(var(--rule))',
-          borderLeft: `2px solid ${accent}`,
           background: 'hsl(var(--surface))',
           maxHeight: isTextExpanded ? 'none' : 320,
           overflow: isTextExpanded ? 'visible' : 'hidden',
@@ -2502,6 +2500,7 @@ function ResolvedArchive({
       </button>
       {expanded && (
         <div
+          className="scroll-no-bar"
           style={{
             flex: 1,
             minHeight: 0,

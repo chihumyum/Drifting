@@ -159,29 +159,6 @@ export function RightSidebarPanels() {
         background: 'hsl(var(--paper))',
       }}
     >
-      {activeRightPanel === 'shadow' && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 12px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            color: 'hsl(var(--accent))',
-            background: 'hsl(var(--accent) / 0.06)',
-            borderBottom: '1px solid hsl(var(--accent) / 0.18)',
-          }}
-        >
-          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 12 }}>
-            ◐
-          </span>
-          <span>GLOBAL · 不限本章 · SHADOW 跨章节</span>
-        </div>
-      )}
-
       <RightSidebarHeader
         shadowReviewCount={shadowReviewCount}
         kicker={headerKicker}

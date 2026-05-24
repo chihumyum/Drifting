@@ -76,6 +76,19 @@
     --font-serif:  'Newsreader', 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', Georgia, serif;
     --font-sans:   'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
     --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Surface used by chrome elements (sidebars, topbar, status bar). Opaque
+       in classic — visually identical to the previous hard-coded paper bg.
+       Modern overrides this to a semi-transparent paper and pairs it with
+       backdrop-filter (see `.app-chrome` rule below) for the frosted look.
+       Components opt in by reading this var instead of `hsl(var(--paper))`. */
+    --chrome-bg: hsl(var(--paper));
+
+    /* Divider drawn between flush-stacked chrome surfaces in classic. In
+       modern the chrome detaches into floating islands and the gap itself
+       does the separating, so this becomes `none`. Components use this var
+       instead of hard-coding `1px solid hsl(var(--rule))`. */
+    --chrome-divider: 1px solid hsl(var(--rule));
   }
 
   /* ─── Modern skin (Craft / Arc-inspired) ─────────────────────────────
@@ -137,6 +150,19 @@
 
     /* Body / titles / dashboard glyphs collapse to sans. */
     --font-serif: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+    /* Modern routes the mono stack to sans too — every chrome label that
+       reads `var(--font-mono)` (kicker badges, breadcrumbs, status bar,
+       word-count chips, panel titles) becomes the unified sans face. */
+    --font-mono: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+
+    /* Frosted chrome — semi-transparent paper that picks up whatever's
+       behind via backdrop-filter (see `.app-chrome` rule). Opacity tuned
+       for the floating-islands layout: body wallpaper (paper-deep) shows
+       through enough that the transparency is actually visible. */
+    --chrome-bg: hsl(var(--paper) / 0.55);
+
+    /* Modern's gap between chrome panels replaces the classic 1px divider. */
+    --chrome-divider: none;
   }
 
   /* Modern + dark: cold neutral gray (≈220° hue), independent of classic's
@@ -187,6 +213,211 @@
     --story-4:               45  68% 68%;
     --story-5:               282 44% 74%;
     --story-6:               182 38% 60%;
+
+    /* Dark needs more opacity than light to keep text readable, but still
+       transparent enough that the wallpaper shows through the gaps. */
+    --chrome-bg: hsl(var(--paper) / 0.65);
+
+    --chrome-divider: none;
+  }
+
+  /* ─── Floating-islands layout (modern only) ───────────────────────────
+     Every visible surface — topbar, sidebars, editor, bottom timeline,
+     status bar — becomes its own floating island with gaps and rounded
+     corners. The body wallpaper (paper-deep) shows through all the gaps,
+     and the chrome surfaces are frosted (semi-transparent + backdrop
+     blur) so content visible through their gap edges gets a soft tint.
+
+     Class roles:
+       .app-root   — outermost flex column (padding + vertical gap + wallpaper)
+       .app-row    — horizontal flex row (horizontal gap between left/main/right)
+       .app-mid    — middle column inside .app-row (vertical gap between
+                     editor card and bottom-timeline card)
+       .app-chrome — topbar, sidebars, status bar (frosted bg via backdrop-filter)
+       .app-island — every floating surface (rounded + shadow + clip)
+     -------------------------------------------------------------------- */
+  html[data-skin='modern'] .app-root {
+    padding: 6px;
+    gap: 6px;
+    background: hsl(var(--paper-deep));
+  }
+  html[data-skin='modern'] .app-row {
+    gap: 6px;
+  }
+  html[data-skin='modern'] .app-mid {
+    gap: 6px;
+  }
+  html[data-skin='modern'] .app-chrome {
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+  }
+  html[data-skin='modern'] .app-island {
+    border-radius: 8px;
+    /* Clip child backgrounds (panel headers, tab strips, .btl bg) to the
+       rounded shape. Resize handles sit at right:0/left:0 inside the
+       bounds so they don't get clipped. */
+    overflow: hidden;
+    box-shadow:
+      0 1px 2px hsl(var(--ink-1) / 0.06),
+      0 1px 4px hsl(var(--ink-1) / 0.04);
+  }
+
+  /* `.bsb` declares its own opaque paper-deep bg + a border-top at rule
+     specificity (0,1,0). Modern reroutes the bg through chrome-bg so it
+     reads as frosted, and drops the border-top since the gap above
+     replaces the divider. */
+  html[data-skin='modern'] .bsb.app-chrome {
+    background: var(--chrome-bg);
+    border-top: none;
+  }
+
+  /* LeftSidebarHeader pill — in modern, round the top corners to match
+     the island shape so the tab tray reads as part of the rounded panel
+     top instead of a separate inset pill. */
+  html[data-skin='modern'] .leftbar-tab-tray {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+
+  /* BottomTimeline — `.btl` hard-codes `background: hsl(var(--paper-deep))`
+     which in modern matches the body wallpaper exactly, so the timeline
+     card is indistinguishable from the gap. Surface (pure white in light
+     modern, slightly lifted gray in dark modern) gives it the same kind
+     of contrast the other cards (editor, sidebars) get. */
+  html[data-skin='modern'] .btl {
+    background: hsl(var(--surface));
+  }
+
+  /* ─── Sliding active-tab indicator ────────────────────────────────────
+     Reusable across TopTimeline + left/right sidebar panel switchers.
+     One absolute element per container slides between active positions
+     via transform/width transitions driven by `useSlidingIndicator`.
+
+     `.tab-indicator` paints the visual pill. Default 5px top/bottom inset
+     is tuned for the 42-tall TopTimeline strip; pill-wrapper contexts
+     (`.leftbar-tab-tray`, `.rightbar-tab-tray`) override to 2px so the
+     indicator hugs the wrapper's own padding inset.
+
+     Only modern shows the indicator. Classic hides it and falls back to
+     each component's inline-styled active state (colored underline for
+     TopTimeline tabs, static surface bg for panel switcher buttons).
+     -------------------------------------------------------------------- */
+  .tab-indicator {
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 0;
+    width: 0;
+    border-radius: 6px;
+    background: hsl(var(--surface));
+    box-shadow:
+      0 0 0 1px hsl(var(--rule) / 0.55),
+      0 1px 2px hsl(var(--ink-1) / 0.05);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition:
+      transform 320ms cubic-bezier(0.34, 1.1, 0.64, 1),
+      width 320ms cubic-bezier(0.34, 1.1, 0.64, 1),
+      opacity 200ms ease;
+    display: none;
+  }
+  .leftbar-tab-tray .tab-indicator,
+  .rightbar-tab-tray .tab-indicator {
+    top: 2px;
+    bottom: 2px;
+  }
+  html[data-skin='modern'] .tab-indicator {
+    display: block;
+  }
+
+  /* Modern tabs / pill buttons: the indicator carries the active visual,
+     so the active element itself must not paint its own bg / shadow /
+     underline. Inactive hover stays neutral — colored hover that classic
+     uses (from inline JS handlers) is suppressed. */
+  html[data-skin='modern'] .app-tab {
+    position: relative;
+    z-index: 1;
+  }
+  html[data-skin='modern'] .app-tab.is-active {
+    background: transparent !important;
+    border-bottom-color: transparent !important;
+    box-shadow: none !important;
+  }
+  html[data-skin='modern'] .app-tab:hover {
+    background: transparent !important;
+  }
+
+  /* Panel switcher pill buttons (left + right sidebar). Classic paints its
+     own static surface bg on active. Modern lets the sliding indicator
+     paint the active state by suppressing the button's bg + shadow. */
+  html[data-skin='modern'] .app-panel-tab.is-active {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Left sidebar cell selection accent stripe (2px vertical bar) — design's
+     modern drops the stripe and relies on the bg tint alone for selection.
+     Classic keeps the stripe (matches design's `.v3-cell.is-selected`
+     `border-left-color: accent`). */
+  html[data-skin='modern'] .cell-accent-stripe {
+    display: none;
+  }
+
+  /* TopTimeline-only pill tweaks. Scoped to `.top-timeline-container` so
+     the sidebar panel switchers — which reuse the same `.tab-indicator` —
+     keep their softer 6px rounding. */
+
+  /* Sliding active-tab indicator: full half-circle ends → reads as a
+     horizontal medicine pill. */
+  html[data-skin='modern'] .top-timeline-container .tab-indicator {
+    border-radius: 999px;
+  }
+
+  /* Tab close (×) button: circular hover bg, matching the pill vocabulary
+     of the surrounding strip. Classic keeps the existing 3px rounding. */
+  html[data-skin='modern'] .app-tab__close {
+    border-radius: 50% !important;
+  }
+
+  /* Split tab in modern: drop the bracket borders (left/right) since the
+     sliding pill already brackets the whole slot, but KEEP the middle
+     divider as the only cue that this is a fused pair vs a single tab.
+     Tighten its vertical inset so it sits comfortably inside the active
+     pill (pill is inset 5px top/bottom = 32 tall in a 42 strip; divider
+     at 8px margin = 26 tall, ~3px breathing room each side). */
+  html[data-skin='modern'] .app-tab--split {
+    border-left: none !important;
+    border-right: none !important;
+  }
+  html[data-skin='modern'] .app-tab__split-divider {
+    margin-top: 8px !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Skin crossfade — soft 240ms transition on chrome surfaces and body so
+     toggling 经典 ↔ 现代 feels intentional rather than abrupt. Scoped to
+     known chrome to avoid bleeding into editor / animation paths. */
+  body,
+  .app-chrome,
+  .bsb {
+    transition:
+      background-color 240ms ease,
+      background 240ms ease,
+      color 240ms ease,
+      border-color 240ms ease;
+  }
+
+  /* Modern focus glow — soft accent ring on form controls only. The
+     editor body is contenteditable but ringing the whole prosemirror area
+     when the user clicks in is awful, so contenteditable is intentionally
+     excluded. Classic unchanged. */
+  html[data-skin='modern'] input:focus-visible,
+  html[data-skin='modern'] textarea:focus-visible,
+  html[data-skin='modern'] select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px hsl(var(--accent) / 0.22);
+    border-color: hsl(var(--accent) / 0.55);
   }
 
   .dark {
@@ -397,6 +628,10 @@
 ::-webkit-scrollbar-track   { background: transparent; }
 ::-webkit-scrollbar-thumb   { background: hsl(var(--rule)); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
+
+/* 静默滚动条：保留滚动能力但完全隐藏滚动条视觉 */
+.scroll-no-bar { scrollbar-width: none; }
+.scroll-no-bar::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 /* ============================================================
    Selection / utilities

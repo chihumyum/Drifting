@@ -1,5 +1,6 @@
-import { MoreHorizontal } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
+import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 
 type RightPanelId = 'fragments' | 'stats' | 'shadow';
 
@@ -28,6 +29,30 @@ export function RightSidebarHeader({
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
   const shadowMode = useUiStore((state) => state.shadowMode);
+  // Sliding pill — same pattern as the left sidebar. Classic hides the
+  // indicator via CSS and each pill button paints its own static surface
+  // bg on active.
+  const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
+    activeRightPanel,
+    '.app-panel-tab.is-active',
+    [shadowMode],
+  );
+  // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
+  // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
+  // - compactLabels：宽度真的很挤时，备忘与材料→MM、Stats→SS
+  // 默认 sidebar 280 → tray ≈ 266，此时 shadow 折叠 glyph，其他 tab 文本仍完整。
+  const [trayWidth, setTrayWidth] = useState(Number.POSITIVE_INFINITY);
+  useEffect(() => {
+    const node = trayRef.current;
+    if (!node) return;
+    const update = () => setTrayWidth(node.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [trayRef]);
+  const shadowGlyphOnly = shadowMode && trayWidth < 300;
+  const compactLabels = trayWidth < 135;
 
   return (
     <>
@@ -45,7 +70,11 @@ export function RightSidebarHeader({
       <div
         style={{
           display: 'flex',
-          alignItems: 'stretch',
+          // Center the pill wrapper so it sits with breathing room (smaller
+          // than the 34-tall header) instead of bleeding into the outer
+          // island border. Both skins use the pill now; classic just skips
+          // the sliding indicator.
+          alignItems: 'center',
           height: 34,
           padding: '0 6px 0 8px',
           gap: 4,
@@ -53,7 +82,21 @@ export function RightSidebarHeader({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'stretch', flex: 1, minWidth: 0, gap: 2 }}>
+        <div
+          ref={trayRef}
+          className="rightbar-tab-tray"
+          style={{
+            display: 'flex',
+            flex: 1,
+            minWidth: 0,
+            gap: 0,
+            background: 'hsl(var(--paper-deep))',
+            borderRadius: 4,
+            padding: 2,
+            position: 'relative',
+          }}
+        >
+          <div className="tab-indicator" style={indicatorStyle} />
           <RightPanelTab
             id="fragments"
             active={activeRightPanel === 'fragments'}
@@ -68,7 +111,7 @@ export function RightSidebarHeader({
                 } as React.CSSProperties
               }
             >
-              备忘与材料
+              {compactLabels ? 'MM' : '备忘与材料'}
             </span>
           </RightPanelTab>
           <RightPanelTab
@@ -76,7 +119,7 @@ export function RightSidebarHeader({
             active={activeRightPanel === 'stats'}
             onClick={() => setActiveRightPanel('stats')}
           >
-            <span>Stats</span>
+            <span>{compactLabels ? 'SS' : 'Stats'}</span>
           </RightPanelTab>
           {shadowMode && (
             <RightPanelTab
@@ -99,40 +142,12 @@ export function RightSidebarHeader({
               >
                 ◐
               </span>
-              <span>Shadow</span>
-              <span style={{ color: 'hsl(var(--ink-4))', fontSize: 9.5 }}>{shadowReviewCount}</span>
+              {!shadowGlyphOnly && <span>Shadow</span>}
+              {!shadowGlyphOnly && (
+                <span style={{ color: 'hsl(var(--ink-4))', fontSize: 9.5 }}>{shadowReviewCount}</span>
+              )}
             </RightPanelTab>
           )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-          <button
-            title="更多"
-            style={
-              {
-                width: 26,
-                height: 26,
-                alignSelf: 'center',
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: 3,
-                color: 'hsl(var(--ink-4))',
-                cursor: 'pointer',
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-              } as React.CSSProperties
-            }
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-              e.currentTarget.style.color = 'hsl(var(--ink-1))';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'hsl(var(--ink-4))';
-            }}
-          >
-            <MoreHorizontal size={14} strokeWidth={1.7} />
-          </button>
         </div>
       </div>
 
@@ -193,25 +208,35 @@ function RightPanelTab({
 }) {
   const baseColor = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))';
   const activeColor = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-1))';
-  const underline = accent ? 'hsl(var(--accent))' : 'hsl(var(--ink-1))';
+  // Always pill (both skins). Classic paints its own surface bg on active;
+  // modern's CSS overrides that to transparent so the sliding indicator
+  // shows through (see index.css `html[data-skin='modern'] .app-panel-tab
+  // .is-active`).
   return (
     <div
       onClick={onClick}
+      className={`app-panel-tab${active ? ' is-active' : ''}`}
       style={{
+        position: 'relative',
+        zIndex: 1,
         display: 'inline-flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: 6,
-        padding: '0 9px',
+        flex: 1,
+        minWidth: 0,
+        padding: '4px 8px',
         fontFamily: 'var(--font-mono)',
         fontSize: 10,
         textTransform: 'uppercase',
         letterSpacing: '0.12em',
         color: active ? activeColor : baseColor,
+        background: active ? 'hsl(var(--surface))' : 'transparent',
         cursor: 'pointer',
-        position: 'relative',
         whiteSpace: 'nowrap',
-        borderBottom: active ? `1.5px solid ${underline}` : '1.5px solid transparent',
-        marginBottom: -1,
+        borderRadius: 3,
+        boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
+        transition: 'background 0.15s, color 0.15s',
         ...extraStyle,
       }}
       onMouseEnter={(e) => {

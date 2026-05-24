@@ -234,6 +234,26 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     return idx >= 0 ? idx + 1 : 0;
   }, [nodeId, sameStorylineNodes]);
 
+  // Nodes shown in the title-level breadcrumb dropdown:
+  // - drift node → all drift nodes (so users can jump between drifts)
+  // - chapter in a storyline → chapters in that storyline (current behavior)
+  // - chapter without a storyline → all chapters without a storyline
+  const breadcrumbSiblingNodes = useMemo<BookNode[]>(() => {
+    if (!curNode) return [];
+    if (isDrift(curNode)) {
+      return bookNodes.filter(isDrift);
+    }
+    if (mainStoryline) {
+      return sameStorylineNodes;
+    }
+    return bookNodes
+      .filter(isChapter)
+      .filter((n) => !primaryStorylineByNode[n.id])
+      .sort((a, b) => a.bookOrder - b.bookOrder);
+  }, [bookNodes, curNode, mainStoryline, primaryStorylineByNode, sameStorylineNodes]);
+
+  const isDriftNode = curNode ? isDrift(curNode) : false;
+
   // load content when node changes
   useEffect(() => {
     if (!nodeId) {
@@ -601,49 +621,54 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 {currentStorylines.length > 1 && (
                   <>
                     <span className="editor-bar__sep">·</span>
-                    <span>{currentStorylines.length} threads</span>
+                    <span>{currentStorylines.length} storylines</span>
                   </>
                 )}
               </>
             }
           >
-            <EditorCrumb
-              dotColor={storylineColor}
-              dropdown={
-                <>
-                  {storylines.length === 0 ? (
-                    <div className="crumb-dropdown__empty">No storylines yet</div>
-                  ) : (
-                    storylines.map((s) => {
-                      const isActive = s.id === mainStoryline?.id;
-                      return (
-                        <div
-                          key={s.id}
-                          className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
-                          onClick={() => navigateToStoryline(s.id)}
-                        >
-                          <span
-                            className="crumb-dropdown__dot"
-                            style={{ background: s.color || '#8A2A1E' }}
-                          />
-                          <span>{s.name}</span>
-                        </div>
-                      );
-                    })
-                  )}
-                </>
-              }
-            >
-              <span>{mainStoryline?.name ?? 'No storyline'}</span>
-            </EditorCrumb>
+            {!isDriftNode && (
+              <EditorCrumb
+                dotColor={storylineColor}
+                dropdown={
+                  <>
+                    {storylines.length === 0 ? (
+                      <div className="crumb-dropdown__empty">No storylines yet</div>
+                    ) : (
+                      storylines.map((s) => {
+                        const isActive = s.id === mainStoryline?.id;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                            onClick={() => navigateToStoryline(s.id)}
+                          >
+                            <span
+                              className="crumb-dropdown__dot"
+                              style={{ background: s.color || '#8A2A1E' }}
+                            />
+                            <span>{s.name}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </>
+                }
+              >
+                <span>{mainStoryline?.name ?? 'No storyline'}</span>
+              </EditorCrumb>
+            )}
 
             <EditorCrumb
               dropdown={
-                sameStorylineNodes.length === 0 ? (
-                  <div className="crumb-dropdown__empty">No chapters in this storyline</div>
+                breadcrumbSiblingNodes.length === 0 ? (
+                  <div className="crumb-dropdown__empty">
+                    {isDriftNode ? 'No drifts yet' : 'No chapters'}
+                  </div>
                 ) : (
-                  sameStorylineNodes.map((n, idx) => {
+                  breadcrumbSiblingNodes.map((n, idx) => {
                     const isActive = n.id === nodeId;
+                    const showNum = isChapter(n) && Boolean(mainStoryline);
                     return (
                       <div
                         key={n.id}
@@ -652,7 +677,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                           if (!isActive) navigateToNode(n.id);
                         }}
                       >
-                        <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
+                        {showNum && (
+                          <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
+                        )}
                         <span>{n.title || 'Untitled'}</span>
                       </div>
                     );
@@ -682,18 +709,20 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
               <article className="page">
-                <div className="page__folio" aria-hidden="true">
-                  <span className="page__folio-line">Chapter</span>
-                  <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
-                  {mainStoryline && (
-                    <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
-                      {mainStoryline.name}
-                    </span>
-                  )}
-                  <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
-                </div>
+                {!isDriftNode && (
+                  <div className="page__folio" aria-hidden="true">
+                    <span className="page__folio-line">Chapter</span>
+                    <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
+                    {mainStoryline && (
+                      <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
+                        {mainStoryline.name}
+                      </span>
+                    )}
+                    <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                  </div>
+                )}
 
-                {mainStoryline && (
+                {!isDriftNode && mainStoryline && (
                   <div className="page__chapter-mark">— {mainStoryline.name} —</div>
                 )}
 

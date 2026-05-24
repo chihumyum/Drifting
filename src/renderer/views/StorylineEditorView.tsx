@@ -284,7 +284,6 @@ export function StorylineEditorView({
   }
 
   const storylineColor = currentStoryline.color || 'hsl(var(--accent))';
-  const storylineShortId = currentStoryline.id.slice(0, 6);
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -346,7 +345,6 @@ export function StorylineEditorView({
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
           onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
-          footLeft={`s.${storylineShortId}`}
           footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
@@ -357,7 +355,6 @@ export function StorylineEditorView({
               <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
                 {currentStoryline.name}
               </span>
-              <span className="page__folio-line">s.{storylineShortId}</span>
               <span className="page__folio-line">{sNodes.length} 章</span>
               <span className="page__folio-line">{(totalWc / 1000).toFixed(1)}k 字</span>
             </div>
@@ -374,9 +371,7 @@ export function StorylineEditorView({
                 <div className="elem-hero__main">
                   <div className="elem-hero__kicker">
                     <span className="elem-hero__kicker-dot" style={{ background: storylineColor }} />
-                    <span>§ STORYLINE</span>
-                    <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                    <span>s.{storylineShortId}</span>
+                    <span>STORYLINE</span>
                   </div>
 
                   <input

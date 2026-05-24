@@ -1,4 +1,3 @@
-import { useUiStore } from '../store/ui-store';
 import { LeftSidebarTopBar } from '../components/topBars/LeftSidebarTopBar';
 import { MainTopBar } from '../components/topBars/MainTopBar';
 import { RightSidebarTopBar } from '../components/topBars/RightSidebarTopBar';
@@ -10,30 +9,33 @@ interface AppTopbarProps {
 }
 
 export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
-  const leftState = useUiStore((s) => s.sidebars.left);
-  const rightState = useUiStore((s) => s.sidebars.right);
-
-  const resizingSidebar = useUiStore((s) => s.resizingSidebar);
-
-  // Calculate widths
-  // Collapsed left section just hosts the two buttons hugging the traffic lights:
+  // Topbar side sections always size to the minimum needed for their content,
+  // regardless of whether the sidebars below them are open or wide. Earlier
+  // the side sections matched the sidebar widths "for alignment", but with
+  // a wide sidebar that wasted ~200px per side that could have been tabs.
+  // Now the tabs take all remaining width and the side sections hug their
+  // controls — search + toggle on the left, toggle + avatar on the right.
   // paddingLeft 78 (traffic lights) + search 26 + gap 2 + toggle 26 + paddingRight 8 = 140
-  const LEFT_COLLAPSED_WIDTH = 140;
-  // Collapsed right section must fit the sidebar-toggle button (26px) and the
-  // always-visible user avatar (26px), plus paddings + gap (~22px).
-  const RIGHT_COLLAPSED_WIDTH = 80;
-
-  const leftWidth = leftState.isOpen ? leftState.width : LEFT_COLLAPSED_WIDTH;
-  const rightWidth = rightState.isOpen ? rightState.width : RIGHT_COLLAPSED_WIDTH;
+  const leftWidth = 140;
+  // paddingLeft 6 + toggle 26 + gap 6 + spacer ~8 + avatar 26 + paddingRight 8 = 80
+  const rightWidth = 80;
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: 42, overflow: 'hidden' }}>
+    <div
+      className="app-chrome app-island"
+      style={{
+        display: 'flex',
+        width: '100%',
+        height: 42,
+        overflow: 'hidden',
+        background: 'var(--chrome-bg)',
+      }}
+    >
       {/* Left Section */}
       <div
         style={{
           width: leftWidth,
-          transition: resizingSidebar === 'left' ? 'none' : 'width 0.2s',
-          borderRight: '1px solid hsl(var(--rule))',
+          borderRight: 'var(--chrome-divider)',
           flexShrink: 0,
           overflow: 'hidden',
         }}
@@ -52,8 +54,7 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
       <div
         style={{
           width: rightWidth,
-          transition: resizingSidebar === 'right' ? 'none' : 'width 0.2s',
-          borderLeft: '1px solid hsl(var(--rule))',
+          borderLeft: 'var(--chrome-divider)',
           flexShrink: 0,
         }}
       >

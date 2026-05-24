@@ -3,11 +3,14 @@ import { useUiStore } from '../../store/ui-store';
 import { useDataStore } from '../../store/data-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { useStoryline } from '../../usecase/useStoryline';
 
 // 三个带标签的 tab 平分整条 header 宽度所需的最小值。低于此值切到 glyph-only。
-// 每个 tab 标签态约 56px，三个就是 168，加一点余量避免临界抖动。
-const FULL_TABS_MIN_WIDTH = 180;
+// 实测：每个 tab 需要 glyph(13) + gap(6) + label(~28) + padding(20) ≈ 67px，
+// 三个就是 ~200。加点余量到 220，避免在边界宽度上 CJK 字符按字断行（哪怕加了
+// white-space:nowrap 也只是阻止换行，宽度不够时字会被裁），统一走 glyph-only。
+const FULL_TABS_MIN_WIDTH = 220;
 
 // Hover-out grace period for the chapter tab dropdown — gives the user a
 // moment to slide from the tab onto the menu without it vanishing.
@@ -19,6 +22,13 @@ export function LeftSidebarHeader() {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
+  // Sliding pill that animates between the three panel buttons in modern.
+  // Classic keeps the indicator hidden via CSS — each button paints its
+  // own static surface bg on active instead.
+  const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
+    activeLeftPanel,
+    '.app-panel-tab.is-active',
+  );
 
   useLayoutEffect(() => {
     const el = rootRef.current;
@@ -49,6 +59,8 @@ export function LeftSidebarHeader() {
       }}
     >
       <div
+        ref={trayRef}
+        className="leftbar-tab-tray"
         style={{
           display: 'flex',
           flex: 1,
@@ -57,8 +69,10 @@ export function LeftSidebarHeader() {
           background: 'hsl(var(--paper-deep))',
           borderRadius: 4,
           padding: 2,
+          position: 'relative',
         }}
       >
+        <div className="tab-indicator" style={indicatorStyle} />
         <ChapterPanelTab
           compact={compact}
           isActive={activeLeftPanel === 'nodes'}
@@ -329,17 +343,32 @@ function PanelTabButton({
   isActive: boolean;
   onClick: () => void;
 }) {
+  // Always pill (both skins). Classic: button paints its own surface bg on
+  // active — static, no animation. Modern: sliding indicator (sibling of
+  // these buttons) carries the active visual; modern CSS overrides the
+  // active button's bg/shadow to transparent so the indicator shows
+  // through. See index.css `.tab-indicator` + `html[data-skin='modern']
+  // .app-panel-tab.is-active`.
   return (
     <button
       onClick={onClick}
       title={compact ? label : undefined}
+      className={`app-panel-tab${isActive ? ' is-active' : ''}`}
       style={{
+        position: 'relative',
+        zIndex: 1,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: compact ? 0 : 6,
         flex: 1,
         minWidth: 0,
+        // Fix compact-vs-non-compact height drift: the glyph carries
+        // lineHeight:1 while the label inherits ~1.4, so a glyph-only button
+        // is ~3px shorter than a glyph+label button. Pin a min-height so
+        // the pill wrapper doesn't visibly shrink when the sidebar gets
+        // narrow enough to trigger compact mode.
+        minHeight: 24,
         background: isActive ? 'hsl(var(--surface))' : 'transparent',
         color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
         padding: compact ? '4px 8px' : '4px 10px',
@@ -353,6 +382,7 @@ function PanelTabButton({
         boxShadow: isActive ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
         transition: 'background 0.15s, color 0.15s',
         textAlign: 'center',
+        whiteSpace: 'nowrap',
       }}
       onMouseEnter={(e) => {
         if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-1))';

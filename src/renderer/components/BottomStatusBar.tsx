@@ -44,7 +44,7 @@ export function BottomStatusBar() {
   };
 
   return (
-    <div className="bsb">
+    <div className="bsb app-chrome app-island">
       <button
         type="button"
         className="bsb__seg bsb__nav"

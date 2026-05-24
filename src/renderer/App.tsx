@@ -741,6 +741,7 @@ function Layout() {
   return (
     // 1. 最外层容器：占满屏幕，垂直排列 (中间内容 + 底部时间轴)
     <div
+      className="app-root"
       style={{
         height: '100vh',
         width: '100vw',
@@ -755,7 +756,7 @@ function Layout() {
       {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
       <AppTopbar hideNewEntityButton={isProjectDashboardHome} />
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="app-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Sidebar */}
         {/* 侧边栏不需要设高度，因为它在 flex 容器里会自动撑满高度 */}
         <Sidebar sidebarType="left">
@@ -782,38 +783,43 @@ function Layout() {
           </div>
         </Sidebar>
 
-        {/* Main Content Area */}
-        {/* flex: 1 让它自动填满侧边栏右侧的剩余宽度 */}
+        {/* Middle column — transparent container so the editor card and
+            timeline card can float as separate islands in modern. Bg moves
+            into the editor card so classic looks identical (it was solid
+            paper/surface before; same area still fills with the same color,
+            just on the inner div). */}
         <main
+          className="app-mid"
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
             minWidth: 0, // 关键：防止 flex 子元素被宽内容撑爆
-            background: isEditorRoute ? 'hsl(var(--page))' : 'hsl(var(--surface))',
           }}
         >
-          {/* Scrollable Content */}
-          {/* In single-pane mode EditorMainArea renders <Outlet /> internally,
-              so the matched route's view component still scrolls inside this
-              container. In split mode it renders two panes directly and
-              suppresses the Outlet — each pane's view scrolls independently
-              within its half of the editor surface. */}
+          {/* Editor card. In single-pane mode EditorMainArea renders
+              <Outlet /> internally, so the matched route's view component
+              still scrolls inside this container. In split mode it renders
+              two panes directly and suppresses the Outlet — each pane's
+              view scrolls independently within its half of the editor
+              surface. */}
           <div
+            className="app-island"
             style={{
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
               position: 'relative',
+              background: isEditorRoute ? 'hsl(var(--page))' : 'hsl(var(--surface))',
             }}
           >
             <EditorMainArea />
           </div>
-          {/* 底部时间轴：嵌入中间栏底部，左右栏延伸至最底。
-              状态栏 toggle 隐藏整条时间轴；不再保留旧的「色带」薄态。 */}
+          {/* 底部时间轴 — separate floating card in modern; flush sibling
+              in classic. `.btl` carries its own bg so no wrapper bg needed. */}
           {!bottomTimelineHidden && (
-            <div style={{ flexShrink: 0, zIndex: 10 }}>
+            <div className="app-island" style={{ flexShrink: 0, zIndex: 10 }}>
               <BottomTimeline />
             </div>
           )}
