@@ -503,6 +503,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // Collaboration must come AFTER StarterKit so it can swap the doc
         // contents. The default fragment name 'default' matches the one the
         // double-write hook in useYjsSync serializes from.
+        // @tiptap/extension-collaboration (v3.19+) ships its own
+        // collab-aware undo/redo: registers y-prosemirror's yUndoPlugin +
+        // Mod-z / Mod-y / Shift-Mod-z keymaps. So when ydoc is set we both
+        // (a) disable StarterKit's `undoRedo` above (it would race the Yjs
+        // binding) and (b) NOT add a second yUndoPlugin — Collaboration's
+        // built-in one is the only one we want. The Y.UndoManager is scoped
+        // to the local ySyncPlugin origin, so Cmd+Z only reverts this user's
+        // edits, never a peer's.
         ...(ydoc ? [Collaboration.configure({ document: ydoc, field: 'default' })] : []),
         BlockId,
         // These callbacks are registered with ProseMirror and execute later,
