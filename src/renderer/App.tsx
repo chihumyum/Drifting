@@ -334,6 +334,36 @@ function Layout() {
     startSyncObserver();
   }, []);
 
+  // Auto-hide editor scrollbar: show only while actively scrolling, fade
+  // back out after idle. Listens at document capture (scroll doesn't bubble)
+  // and tags any `.editor-scroll` element with `.is-scrolling` plus a small
+  // distance threshold so jitter doesn't flicker the bar.
+  useEffect(() => {
+    const SHOW_THRESHOLD = 200; // px of cumulative travel before showing
+    const IDLE_MS = 1000;
+    const state = new WeakMap<HTMLElement, { lastTop: number; travel: number; timer: ReturnType<typeof setTimeout> | null }>();
+    const onScroll = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target || !(target instanceof HTMLElement)) return;
+      if (!target.classList?.contains('editor-scroll')) return;
+      let s = state.get(target);
+      if (!s) {
+        s = { lastTop: target.scrollTop, travel: 0, timer: null };
+        state.set(target, s);
+      }
+      s.travel += Math.abs(target.scrollTop - s.lastTop);
+      s.lastTop = target.scrollTop;
+      if (s.travel >= SHOW_THRESHOLD) target.classList.add('is-scrolling');
+      if (s.timer) clearTimeout(s.timer);
+      s.timer = setTimeout(() => {
+        target.classList.remove('is-scrolling');
+        s!.travel = 0;
+      }, IDLE_MS);
+    };
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, []);
+
   useEffect(() => {
     // Initialize theme
     initAccentColor();

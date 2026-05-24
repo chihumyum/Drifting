@@ -815,8 +815,6 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   margin: 0 auto;
   padding: 48px 48px 80px;
   background: hsl(var(--page));
-  border-left: 1px solid hsl(var(--rule));
-  border-right: 1px solid hsl(var(--rule));
   min-height: calc(100vh - 220px);
   overflow: visible;
 }
@@ -993,7 +991,26 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   position: relative;
   min-height: 0;
   align-self: stretch;
+  /* 两侧各预留一条 gutter，正文居中，不会因滚动条出现/消失而横向位移 */
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
+/* 仅在 .is-scrolling 时显示滚动条（由 App Layout 中的全局 scroll 监听器切换） */
+.editor-scroll.is-scrolling {
+  scrollbar-color: hsl(var(--rule)) transparent;
+}
+.editor-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.editor-scroll::-webkit-scrollbar-track { background: transparent; }
+.editor-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+  transition: background 0.25s ease;
+}
+.editor-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background: hsl(var(--rule));
+}
+.editor-scroll.is-scrolling::-webkit-scrollbar-thumb:hover { background: hsl(var(--ink-4)); }
 .editor-scroll--comments {
   flex-basis: 1032px;
   max-width: 1032px;
