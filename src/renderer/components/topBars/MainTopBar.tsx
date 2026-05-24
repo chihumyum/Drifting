@@ -39,7 +39,10 @@ export function MainTopBar({ children, leftContent, rightContent }: MainTopBarPr
         {leftContent}
       </div>
 
-      {/* Center content */}
+      {/* Center content — kept as a drag region so the empty space beside
+          the tab strip can move the window. Tab slots inside TopTimeline
+          opt out individually via their own WebkitAppRegion:'no-drag',
+          so clicks / drag-reorder on tabs keep working. */}
       <div
         style={{
           pointerEvents: 'auto',
@@ -48,7 +51,7 @@ export function MainTopBar({ children, leftContent, rightContent }: MainTopBarPr
           justifyContent: 'flex-start',
           minWidth: 0,
           overflow: 'hidden',
-          WebkitAppRegion: 'no-drag',
+          WebkitAppRegion: 'drag',
         }}
       >
         {children}

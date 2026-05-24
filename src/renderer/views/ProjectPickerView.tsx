@@ -6,6 +6,22 @@ import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
+// macOS hiddenInset titleBarStyle reserves the top-left corner for the
+// traffic-light dots; this view doesn't render an AppTopbar, so we paint
+// our own invisible drag strip across the top edge of the page. Height
+// covers the system title-bar inset plus a little slack so users can grab
+// anywhere up there to move the window. The page content starts at y=48
+// (.pp__inner top padding), so nothing interactive sits underneath.
+const WINDOW_DRAG_STRIP_STYLE: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 36,
+  zIndex: 200,
+  WebkitAppRegion: 'drag',
+};
+
 const log = loglevel.getLogger('ProjectPickerView');
 log.setLevel(loglevel.levels.DEBUG);
 
@@ -276,6 +292,7 @@ export function ProjectPickerView() {
   if (loading) {
     return (
       <div className="pp">
+        <div style={WINDOW_DRAG_STRIP_STYLE} aria-hidden />
         <div className="pp__inner">
           <div className="pp-empty">Loading projects…</div>
         </div>
@@ -288,6 +305,7 @@ export function ProjectPickerView() {
 
   return (
     <div className="pp">
+      <div style={WINDOW_DRAG_STRIP_STYLE} aria-hidden />
       <div className="pp__inner">
 
         {/* ─── Header ─── */}
