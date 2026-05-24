@@ -15,6 +15,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
+import { useFeatureAccessStore } from '../../lib/feature-access';
+
+const PLAN_LABEL: Record<string, string> = {
+  free: 'FREE',
+  pro: 'PRO',
+  studio: 'STUDIO',
+};
 
 interface UserMenuProps {
   triggerRef: React.RefObject<HTMLElement | null>;
@@ -24,6 +31,7 @@ interface UserMenuProps {
 
 export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
   const user = useAuthStore((s) => s.user);
+  const plan = useFeatureAccessStore((s) => s.plan);
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
@@ -130,7 +138,7 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
                 marginTop: 2,
               }}
             >
-              {user?.email ? 'PRO · BETA' : 'LOCAL'}
+              {user?.email ? `${PLAN_LABEL[plan] ?? plan.toUpperCase()} · BETA` : 'LOCAL'}
             </span>
           </div>
         </div>

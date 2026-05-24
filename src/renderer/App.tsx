@@ -110,6 +110,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     checkSession().finally(() => setIsChecking(false));
   }, [checkSession]);
 
+  // Hydrate the cached subscription plan once the user is known. Drives the
+  // trash gate, the rail badge, the user menu label. Refires on userId
+  // change so plan resets when switching accounts.
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+    void import('./lib/feature-access').then((m) => m.refreshFeatureAccess());
+  }, [isAuthenticated, userId]);
+
   if (isChecking) {
     return (
       <div

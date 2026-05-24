@@ -30,6 +30,8 @@ import {
 } from '../../store/settings-store';
 import { useAuthStore } from '../../store/auth';
 import { authClient } from '../../lib/auth-client';
+import { TrashPanel } from '../TrashPanel';
+import { refreshFeatureAccess, useFeatureAccessStore } from '../../lib/feature-access';
 import {
   SHORTCUT_ACTIONS,
   useShortcutsStore,
@@ -48,6 +50,7 @@ type RailId =
   | 'account'
   | 'subscription'
   | 'usage'
+  | 'trash'
   | 'appearance'
   | 'editor'
   | 'language'
@@ -67,10 +70,13 @@ interface RailDef {
   badge?: { text: string; tone?: 'accent' | 'warn' };
 }
 
-const RAIL: RailDef[] = [
+// Static rail definition. The subscription row's badge is filled in at
+// render time from the actual cached plan — see SetRail.
+const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
   { id: 'account', group: '我的账户', glyph: '◌', label: '账号' },
-  { id: 'subscription', group: '我的账户', glyph: '¶', label: '订阅', badge: { text: 'PRO' } },
-  { id: 'usage', group: '我的账户', glyph: '◐', label: 'Shadow 用量', badge: { text: '68%', tone: 'warn' } },
+  { id: 'subscription', group: '我的账户', glyph: '¶', label: '订阅' },
+  { id: 'usage', group: '我的账户', glyph: '◐', label: 'Shadow 用量' },
+  { id: 'trash', group: '我的账户', glyph: '⌫', label: '回收站' },
   { id: 'appearance', group: '偏好', glyph: '☀', label: '外观' },
   { id: 'editor', group: '偏好', glyph: '§', label: '编辑器' },
   { id: 'language', group: '偏好', glyph: '文', label: '语言' },
@@ -87,6 +93,7 @@ const RAIL_IDS = new Set<RailId>([
   'account',
   'subscription',
   'usage',
+  'trash',
   'appearance',
   'editor',
   'language',
@@ -99,11 +106,26 @@ const RAIL_IDS = new Set<RailId>([
   'about',
 ]);
 
+// Compute the rail with dynamic badges — the subscription line shows the
+// real cached plan instead of a hardcoded "PRO".
+function useRail(): RailDef[] {
+  const plan = useFeatureAccessStore((s) => s.plan);
+  return useMemo<RailDef[]>(() => {
+    return RAIL_BASE.map((r) => {
+      if (r.id === 'subscription') {
+        return { ...r, badge: { text: plan.toUpperCase() } };
+      }
+      return r;
+    });
+  }, [plan]);
+}
+
 export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalProps) {
   const [active, setActive] = useState<RailId>('account');
   const [query, setQuery] = useState('');
   const mainRef = useRef<HTMLDivElement | null>(null);
   const panelRefs = useRef<Partial<Record<RailId, HTMLElement>>>({});
+  const RAIL = useRail();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -132,7 +154,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
     };
     main.addEventListener('scroll', onScroll, { passive: true });
     return () => main.removeEventListener('scroll', onScroll);
-  }, [isOpen]);
+  }, [isOpen, RAIL]);
 
   // Deep-link: when an external trigger opens the modal with a target rail
   // id, jump there. Refs are populated after panels mount, so wait one
@@ -164,7 +186,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
     const q = query.trim().toLowerCase();
     if (!q) return RAIL;
     return RAIL.filter((r) => r.label.toLowerCase().includes(q) || r.id.includes(q));
-  }, [query]);
+  }, [query, RAIL]);
 
   if (!isOpen) return null;
 
@@ -185,6 +207,7 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
             registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
           />
           <UsagePanel registerRef={(el) => (panelRefs.current.usage = el ?? undefined)} />
+          <TrashRailPanel registerRef={(el) => (panelRefs.current.trash = el ?? undefined)} />
           <AppearancePanel
             registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)}
           />
@@ -878,18 +901,39 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
+  const [switching, setSwitching] = useState<'free' | 'pro' | 'studio' | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       const s = await subscriptionService.getStatus();
       setStatus(s);
+      // Keep the global feature-access cache in lockstep so the trash gate
+      // (and rail badge) react immediately to a plan change made from this
+      // panel.
+      await refreshFeatureAccess();
     } catch {
       setStatus(null);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // DEV plan switch — bypasses Stripe. Removes when payment ships.
+  const switchPlan = useCallback(
+    async (plan: 'free' | 'pro' | 'studio') => {
+      setSwitching(plan);
+      try {
+        await subscriptionService.setPlan(plan);
+        await reload();
+      } catch (err) {
+        console.error('[set-plan] failed', err);
+      } finally {
+        setSwitching(null);
+      }
+    },
+    [reload],
+  );
 
   useEffect(() => {
     void reload();
@@ -946,8 +990,9 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
               '无 Shadow Agent',
               '无 BYOK',
             ]}
-            ctaLabel={plan === 'free' ? '当前方案' : '降级'}
+            ctaLabel={plan === 'free' ? '当前方案' : switching === 'free' ? '切换中…' : '降级'}
             current={plan === 'free'}
+            onClick={plan === 'free' ? undefined : () => switchPlan('free')}
           />
           <PlanCard
             kicker={plan === 'pro' ? '当前 · CURRENT' : '主流推荐'}
@@ -960,29 +1005,35 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
               '自带模型 BYOK',
               '版本历史 90 天',
             ]}
-            ctaLabel={plan === 'pro' ? '管理付款' : '升级'}
+            ctaLabel={plan === 'pro' ? '当前方案' : switching === 'pro' ? '切换中…' : '升级'}
             current={plan === 'pro'}
-            primary={plan !== 'pro' && configured}
-            onClick={async () => {
-              if (!configured) return;
-              if (plan === 'pro') await subscriptionService.openCustomerPortal();
-              else await subscriptionService.openCheckout('pro');
-            }}
+            primary={plan !== 'pro'}
+            onClick={plan === 'pro' ? undefined : () => switchPlan('pro')}
           />
           <PlanCard
             kicker={plan === 'studio' ? '当前 · CURRENT' : '专业作家'}
             name="Studio"
             price="¥168"
             features={['Shadow Agent · 不限', '协作者 · 5 席位', '版本历史 1 年', '优先稳定通道']}
-            ctaLabel={plan === 'studio' ? '管理付款' : '升级'}
+            ctaLabel={plan === 'studio' ? '当前方案' : switching === 'studio' ? '切换中…' : '升级'}
             current={plan === 'studio'}
-            primary={plan !== 'studio' && configured}
-            onClick={async () => {
-              if (!configured) return;
-              if (plan === 'studio') await subscriptionService.openCustomerPortal();
-              else await subscriptionService.openCheckout('studio');
-            }}
+            primary={plan !== 'studio'}
+            onClick={plan === 'studio' ? undefined : () => switchPlan('studio')}
           />
+        </div>
+        <div
+          style={{
+            marginTop: 18,
+            padding: '10px 14px',
+            background: 'hsl(var(--paper-deep))',
+            border: '1px dashed hsl(var(--rule))',
+            borderRadius: 5,
+            fontSize: 11,
+            color: 'hsl(var(--ink-4))',
+            lineHeight: 1.6,
+          }}
+        >
+          <b>DEV</b> · 当前未接入支付。点击直接切换订阅等级，立即生效。Stripe 接通后此面板会改回 Checkout 流程。
         </div>
       </section>
     );
@@ -1144,6 +1195,19 @@ function PlanCard({
         </button>
       </div>
     </div>
+  );
+}
+
+function TrashRailPanel({ registerRef }: { registerRef: RegisterRef }) {
+  return (
+    <section className="set-panel" ref={registerRef} id="trash">
+      <PanelHead
+        kicker="回收站 · TRASH"
+        title="软删除的内容。"
+        sub="30 天后自动彻底删除。Pro/Studio 专享 — Free 账号删除即永久删除。"
+      />
+      <TrashPanel />
+    </section>
   );
 }
 

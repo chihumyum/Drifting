@@ -61,4 +61,12 @@ export const subscriptionService = {
     );
     return data;
   },
+
+  // DEV / prototype path — bypasses Stripe and stamps the subscription row
+  // directly. The real upgrade flow goes through openCheckout. Once payment
+  // is wired up this should be removed (or hidden behind an env flag) so
+  // users can't grant themselves Pro for free.
+  async setPlan(plan: 'free' | 'pro' | 'studio'): Promise<void> {
+    await apiClient.post('/api/subscription/set-plan', { plan });
+  },
 };
