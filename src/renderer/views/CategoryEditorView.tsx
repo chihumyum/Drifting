@@ -14,7 +14,12 @@ import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
+import {
+  useEntityEditor,
+  type EditorCommentRequest,
+  type EditorPersistDerived,
+} from '../hooks/useEntityEditor';
+import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -160,14 +165,20 @@ export function CategoryEditorView({
     [curCategory, categoryUsecases, promoteCurrentTab],
   );
 
-  // Scratch body (descriptionJson) — TipTap editor for category notes.
+  const { ydoc } = useEntityYjsDoc({
+    kind: 'category',
+    entityId: curCategory?.id ?? '',
+    projectId,
+    legacyContent: curCategory?.contentJson ?? null,
+  });
+
+  // Scratch body (contentJson) — TipTap editor for category notes.
   const handlePersist = useCallback(
-    (ed: Editor) => {
+    (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!curCategory) return;
-      const contentJson = JSON.stringify(ed.getJSON());
-      if (contentJson === curCategory.descriptionJson) return;
+      if (pmJson === curCategory.contentJson) return;
       promoteCurrentTab();
-      void categoryUsecases.updateCategory(curCategory.id, { descriptionJson: contentJson });
+      void categoryUsecases.updateCategory(curCategory.id, { contentJson: pmJson });
     },
     [curCategory, categoryUsecases, promoteCurrentTab],
   );
@@ -175,7 +186,8 @@ export function CategoryEditorView({
     sourceKind: 'category',
     sourceId: curCategory?.id ?? '',
     projectId,
-    content: curCategory?.descriptionJson ?? null,
+    content: curCategory?.contentJson ?? null,
+    ydoc,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
     onAddCommentRequest: handleAddCommentRequest,

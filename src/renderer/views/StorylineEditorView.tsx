@@ -15,7 +15,12 @@ import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { isChapter } from '../domain/book-node';
-import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
+import {
+  useEntityEditor,
+  type EditorCommentRequest,
+  type EditorPersistDerived,
+} from '../hooks/useEntityEditor';
+import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import loglevel from 'loglevel';
@@ -167,14 +172,21 @@ export function StorylineEditorView({
     [storylineId, currentStoryline?.nodeContentTemplateJson, storylineUsecases, promoteCurrentTab],
   );
 
-  // Scratch body (descriptionJson) — TipTap editor for free-form notes.
+  const { ydoc } = useEntityYjsDoc({
+    kind: 'storyline',
+    entityId: currentStoryline?.id ?? '',
+    projectId,
+    legacyContent: currentStoryline?.contentJson ?? null,
+  });
+
+  // Scratch body (contentJson) — TipTap editor for free-form notes.
   const handlePersist = useCallback(
-    (ed: Editor) => {
+    (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!storylineId) return;
       promoteCurrentTab();
       void storylineUsecases.updateStoryline({
         id: storylineId,
-        descriptionJson: JSON.stringify(ed.getJSON()),
+        contentJson: pmJson,
       });
     },
     [storylineId, storylineUsecases, promoteCurrentTab],
@@ -183,7 +195,8 @@ export function StorylineEditorView({
     sourceKind: 'storyline',
     sourceId: currentStoryline?.id ?? '',
     projectId,
-    content: currentStoryline?.descriptionJson ?? null,
+    content: currentStoryline?.contentJson ?? null,
+    ydoc,
     onPersist: handlePersist,
     placeholder: '札记 · scratch——本线的速记、浮缀、风格备忘…',
     onAddCommentRequest: handleAddCommentRequest,

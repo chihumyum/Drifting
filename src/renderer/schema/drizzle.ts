@@ -53,7 +53,7 @@ export const ElementCategoryTable = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    descriptionJson: text('description_json').default('{}'),
+    contentJson: text('content_json').default('{}'),
     elementTemplateJson: text('element_template_json').default('{}'),
     // KV template seeded into every new element of this category (e.g.
     // 别名 / 出生地 / 阵营). Same JSON array shape as Project.kvJson — see
@@ -69,6 +69,11 @@ export const ElementCategoryTable = sqliteTable(
     deletedAt: text('deleted_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
+    // Renamed from `description_json` in migration 0029. Storyline + element
+    // category each have one body editor; the column carried the wrong noun
+    // for what it stored. New name aligns with element.content_json and
+    // node_content.content_json. project.description_json is unrelated and
+    // kept as-is.
   },
   (t) => [
     index('idx_element_category_project').on(t.projectId),
@@ -97,7 +102,7 @@ export const StorylineTable = sqliteTable('storylines', {
   color: text('color').notNull(),
   summary: text('summary').notNull().default(''),
   orderKey: integer('order_key').notNull(),
-  descriptionJson: text('description_json').notNull().default('{}'),
+  contentJson: text('content_json').notNull().default('{}'),
   kvJson: text('kv_json').notNull().default('[]'),
   nodeContentTemplateJson: text('node_content_template_json').notNull().default('{}'),
   deletedAt: text('deleted_at'),

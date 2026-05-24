@@ -17,7 +17,12 @@ import { PatchesSection } from '../components/editor/PatchesSection';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
-import { useEntityEditor, type EditorCommentRequest } from '../hooks/useEntityEditor';
+import {
+  useEntityEditor,
+  type EditorCommentRequest,
+  type EditorPersistDerived,
+} from '../hooks/useEntityEditor';
+import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
@@ -116,13 +121,19 @@ export function ElementEditorView({
     setSummaryValue(curElement?.summary || '');
   }
 
+  const { ydoc } = useEntityYjsDoc({
+    kind: 'element',
+    entityId: curElement?.id ?? '',
+    projectId: projectId ?? '',
+    legacyContent: curElement?.contentJson ?? null,
+  });
+
   const handlePersist = useCallback(
-    (ed: Editor) => {
+    (_ed: Editor, { pmJson }: EditorPersistDerived) => {
       if (!elementId) return;
-      const contentJson = JSON.stringify(ed.getJSON());
-      if (contentJson === curElement?.contentJson) return;
+      if (pmJson === curElement?.contentJson) return;
       promoteCurrentTab();
-      void updateElement(elementId, { contentJson });
+      void updateElement(elementId, { contentJson: pmJson });
     },
     [elementId, curElement?.contentJson, updateElement, promoteCurrentTab],
   );
@@ -132,6 +143,7 @@ export function ElementEditorView({
     sourceId: curElement?.id ?? '',
     projectId: projectId ?? '',
     content: curElement?.contentJson ?? null,
+    ydoc,
     onPersist: handlePersist,
     placeholder: '记 · 传——写此元素的来历、形貌、心性…',
     onAddCommentRequest: handleAddCommentRequest,

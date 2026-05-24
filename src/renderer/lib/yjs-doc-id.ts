@@ -3,8 +3,8 @@
 //   chapter / drift     → `node-content:<nodeId>`   (both share the body field
 //                          on the underlying BookNode.NodeContent row)
 //   element             → `element:<elementId>`
-//   storyline           → `storyline:<storylineId>` (body = descriptionJson)
-//   element category    → `category:<categoryId>`   (body = descriptionJson)
+//   storyline           → `storyline:<storylineId>` (body = contentJson)
+//   element category    → `category:<categoryId>`   (body = contentJson)
 //
 // The legacy hardcoded prefix `node-content:` was the only one supported
 // before this file existed. The format is preserved so existing rows in the

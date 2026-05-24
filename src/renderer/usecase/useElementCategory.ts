@@ -22,14 +22,14 @@ log.setLevel(loglevel.levels.WARN);
 
 export type CreateElementCategoryInput = {
   name?: string;
-  descriptionJson?: string;
+  contentJson?: string;
   elementTemplateJson?: string;
   elementTemplateKvJson?: string;
 };
 
 export interface UpdateElementCategoryInput {
   name?: string;
-  descriptionJson?: string;
+  contentJson?: string;
   elementTemplateJson?: string;
   elementTemplateKvJson?: string;
   color?: string;
@@ -83,7 +83,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         id: uuidv7(),
         projectId: activeProjectId,
         name: resolved.name?.trim() || 'New Category',
-        descriptionJson: resolved.descriptionJson ?? '{}',
+        contentJson: resolved.contentJson ?? '{}',
         elementTemplateJson: resolved.elementTemplateJson ?? '{}',
         elementTemplateKvJson: resolved.elementTemplateKvJson ?? '[]',
         color: randomColor(),
@@ -107,7 +107,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
           syncCategoryCreate(created.id, activeProjectId, {
             id: created.id,
             name: created.name,
-            descriptionJson: created.descriptionJson,
+            contentJson: created.contentJson,
             elementTemplateJson: created.elementTemplateJson,
             elementTemplateKvJson: created.elementTemplateKvJson,
             color: created.color,
@@ -155,7 +155,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       const updated: BookElementCategory = {
         ...existing,
         name: updates.name ?? existing.name,
-        descriptionJson: updates.descriptionJson ?? existing.descriptionJson,
+        contentJson: updates.contentJson ?? existing.contentJson,
         elementTemplateJson: updates.elementTemplateJson ?? existing.elementTemplateJson,
         elementTemplateKvJson:
           updates.elementTemplateKvJson ?? existing.elementTemplateKvJson,
@@ -172,7 +172,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         effect: async () => {
           const persisted = await repo.update(categoryId, {
             name: updated.name,
-            descriptionJson: updated.descriptionJson,
+            contentJson: updated.contentJson,
             elementTemplateJson: updated.elementTemplateJson,
             elementTemplateKvJson: updated.elementTemplateKvJson,
             color: updated.color,
@@ -192,7 +192,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         sync: (persisted) =>
           syncCategoryUpdate(categoryId, activeProjectId, {
             name: persisted.name,
-            descriptionJson: persisted.descriptionJson,
+            contentJson: persisted.contentJson,
             elementTemplateJson: persisted.elementTemplateJson,
             elementTemplateKvJson: persisted.elementTemplateKvJson,
             color: persisted.color,

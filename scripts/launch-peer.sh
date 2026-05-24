@@ -34,14 +34,11 @@ if [ ! -f .vite/build/main.js ]; then
   exit 1
 fi
 
-# Explicitly override DRIFTING_DB_DIR so .env.local doesn't drag the peer
-# into the same sqlite directory as the main instance. Also clear API_BASE_URL
-# in case it points at something we don't want — but we DO want both peers to
-# hit the same backend, so leave VITE_API_BASE_URL alone.
+# Override DRIFTING_DB_DIR. We explicitly UNSET first so any value from
+# parent shell / .env / global rc files can't sneak through. Then set fresh.
+unset DRIFTING_DB_DIR
 export DRIFTING_DB_DIR="$PEER_DB_DIR"
 
-# The single-instance lock is scoped to userData dir, so passing
-# --user-data-dir to a different path lets a second Electron start alongside.
 ELECTRON_BIN="./node_modules/.bin/electron"
 if [ ! -x "$ELECTRON_BIN" ]; then
   echo "ERROR: electron not found at $ELECTRON_BIN"
@@ -49,9 +46,13 @@ if [ ! -x "$ELECTRON_BIN" ]; then
 fi
 
 echo "Launching peer Electron"
-echo "  userData : $PEER_USERDATA"
-echo "  sqlite   : $PEER_DB_DIR"
+echo "  userData         : $PEER_USERDATA"
+echo "  DRIFTING_DB_DIR  : $DRIFTING_DB_DIR"
+echo "  electron binary  : $ELECTRON_BIN"
 echo "  (Ctrl+C here to quit the peer; main instance keeps running)"
 echo ""
 
-exec "$ELECTRON_BIN" .vite/build/main.js --user-data-dir="$PEER_USERDATA"
+# `env -i` would nuke too much. Instead leave parent env mostly intact but
+# pass DRIFTING_DB_DIR explicitly via `env`. The exec inherits the export
+# anyway; this is belt-and-suspenders.
+exec env DRIFTING_DB_DIR="$PEER_DB_DIR" "$ELECTRON_BIN" .vite/build/main.js --user-data-dir="$PEER_USERDATA"

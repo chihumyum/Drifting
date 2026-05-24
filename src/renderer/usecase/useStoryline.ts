@@ -45,7 +45,7 @@ export type UpdateStorylineInput = {
   color?: string;
   summary?: string;
   orderKey?: number;
-  descriptionJson?: string;
+  contentJson?: string;
   kvJson?: string;
   nodeContentTemplateJson?: string;
 };
@@ -174,7 +174,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         color: input.color ?? randomColor(),
         summary: input.summary ?? '',
         orderKey,
-        descriptionJson: DEFAULT_TIPTAP_DOC_JSON,
+        contentJson: DEFAULT_TIPTAP_DOC_JSON,
         kvJson: seededKvJson,
         nodeContentTemplateJson: '{}',
         createdAt: now,
@@ -235,7 +235,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             color: storyline.color,
             summary: storyline.summary,
             orderKey: storyline.orderKey,
-            descriptionJson: storyline.descriptionJson,
+            contentJson: storyline.contentJson,
             kvJson: storyline.kvJson,
             nodeContentTemplateJson: storyline.nodeContentTemplateJson,
           });
@@ -287,7 +287,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
         color: input.color ?? existing.color,
         summary: input.summary ?? existing.summary,
         orderKey: input.orderKey ?? existing.orderKey,
-        descriptionJson: input.descriptionJson ?? existing.descriptionJson,
+        contentJson: input.contentJson ?? existing.contentJson,
         kvJson: input.kvJson ?? existing.kvJson,
         nodeContentTemplateJson:
           input.nodeContentTemplateJson ?? existing.nodeContentTemplateJson,
@@ -303,7 +303,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             color: updated.color,
             summary: updated.summary,
             orderKey: updated.orderKey,
-            descriptionJson: updated.descriptionJson,
+            contentJson: updated.contentJson,
             kvJson: updated.kvJson,
             nodeContentTemplateJson: updated.nodeContentTemplateJson,
             updatedAt: updated.updatedAt,
@@ -318,7 +318,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
             color: storyline.color,
             summary: storyline.summary,
             orderKey: storyline.orderKey,
-            descriptionJson: storyline.descriptionJson,
+            contentJson: storyline.contentJson,
             kvJson: storyline.kvJson,
             nodeContentTemplateJson: storyline.nodeContentTemplateJson,
           }),

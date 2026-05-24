@@ -79,14 +79,14 @@ async function loadReferenceSourceDocs(projectId: string): Promise<ReferenceSour
     db
       .select({
         id: ElementCategoryTable.id,
-        contentJson: ElementCategoryTable.descriptionJson,
+        contentJson: ElementCategoryTable.contentJson,
       })
       .from(ElementCategoryTable)
       .where(eq(ElementCategoryTable.projectId, projectId)),
     db
       .select({
         id: StorylineTable.id,
-        contentJson: StorylineTable.descriptionJson,
+        contentJson: StorylineTable.contentJson,
       })
       .from(StorylineTable)
       .where(eq(StorylineTable.projectId, projectId)),

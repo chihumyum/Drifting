@@ -13,7 +13,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
-import { extractOutline, type OutlineItem } from '../lib/outline';
+import { extractOutline, serializeOutline, type OutlineItem } from '../lib/outline';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import {
   EntityLink,
@@ -144,6 +144,17 @@ function openCommentContextMenu(
   setTimeout(() => document.addEventListener('mousedown', close, true), 0);
 }
 
+/**
+ * Pre-computed data passed to onPersist alongside the editor instance. The
+ * heavy work (JSON serialize, outline parse) is done once inside the hook so
+ * each callsite doesn't redundantly re-walk the doc.
+ */
+export interface EditorPersistDerived {
+  pmJson: string;
+  outline: OutlineItem[];
+  outlineJson: string;
+}
+
 export interface UseEntityEditorConfig {
   // What this editor is editing — drives projection direction and self-exclusion.
   sourceKind: EntityKind;
@@ -161,9 +172,12 @@ export interface UseEntityEditorConfig {
   // word-count / outline derivation continues to work.
   ydoc?: Y.Doc;
 
-  // Fired after every persistable edit. Receives the Editor instance so the
-  // caller can derive whatever they need (pmJson, outline, wordCount, etc.).
-  onPersist: (editor: Editor) => void;
+  // Fired after every persistable edit. Receives the editor plus pre-computed
+  // derived data (pmJson string, parsed outline, serialized outlineJson) so
+  // callers don't redundantly re-walk the doc. Callers add entity-specific
+  // extras (e.g. wordCount for chapters) and forward to their own persist
+  // helpers.
+  onPersist: (editor: Editor, derived: EditorPersistDerived) => void;
 
   // Optional slash menu items beyond the defaults. The `导出 Markdown` item
   // is provided automatically unless `enableMarkdownExport: false`.
@@ -400,12 +414,17 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   }, []);
 
   // Persistence wrapper: runs projection + outline refresh + caller's onPersist.
+  // pmJson / outline are computed once here and handed to onPersist so callers
+  // don't redo the walk. Caller adds entity-specific extras (e.g. wordCount).
   // All gated by the (editor, sourceId) token to avoid initial-load round-trips.
   const persistEditorContent = useCallback(
     (editor: Editor) => {
       projectReferences(editor);
       recomputeOutline(editor);
-      onPersistRef.current(editor);
+      const pmJson = JSON.stringify(editor.getJSON());
+      const outline = extractOutline(pmJson);
+      const outlineJson = serializeOutline(outline);
+      onPersistRef.current(editor, { pmJson, outline, outlineJson });
     },
     [onPersistRef, projectReferences, recomputeOutline],
   );

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
-import { extractOutline, serializeOutline, type OutlineItem } from '../../lib/outline';
+import type { OutlineItem } from '../../lib/outline';
 import { type EntityLinkRef } from '../../lib/extensions/entity-link';
 import { isBlockType } from '../../lib/extensions/block-id';
-import { useEntityEditor, type EditorCommentRequest } from '../../hooks/useEntityEditor';
-import { useYjsSync } from '../../hooks/useYjsSync';
-import { makeDocId } from '../../lib/yjs-doc-id';
-import { syncNodeContentUpdate } from '../../usecase/sync-helpers';
-import { useAuthStore } from '../../store/auth';
+import {
+  useEntityEditor,
+  type EditorCommentRequest,
+  type EditorPersistDerived,
+} from '../../hooks/useEntityEditor';
+import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
@@ -126,82 +127,35 @@ export function ChapterEditor({
     [nodeId],
   );
 
-  // Persist chapter content: derive outline + word count from the doc and
-  // forward to the parent's onContentUpdate. Reference projection is owned
-  // by the hook.
+  // Yjs binding — all Yjs concerns (docId, seed, sync, snapshot) live in
+  // useEntityYjsDoc. Editor views don't talk to useYjsSync directly.
+  const { ydoc } = useEntityYjsDoc({
+    kind: 'node-content',
+    entityId: nodeId,
+    projectId,
+    legacyContent: content,
+  });
+
+  // TODO: remove later — exposes ydoc to DevTools for manual inspection.
+  useEffect(() => { (window as any).__ydoc = ydoc; }, [ydoc]);
+
+  // Persist chapter content. pmJson + outline come pre-derived from
+  // useEntityEditor; chapter only adds wordCount, which is its only
+  // entity-specific materialized field.
   const handlePersist = useCallback(
-    (ed: Editor) => {
-      const json = ed.getJSON();
-      const pmJson = JSON.stringify(json);
-      const outline = extractOutline(pmJson);
-      const outlineJson = serializeOutline(outline);
+    (ed: Editor, { pmJson, outlineJson }: EditorPersistDerived) => {
       const wordCount = countWords(ed.getText());
       onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
     },
     [nodeId, onContentUpdate],
   );
 
-  // Yjs sync for the chapter body. The Y.Doc is the source of truth; the
-  // legacy `content` prop seeds it on first load (when there are no local
-  // updates / snapshot for this docId yet) and is otherwise ignored.
-  const userId = useAuthStore((s) => s.user?.id);
-  const seedFromLegacy = useCallback(
-    async (apply: (mutator: (ydoc: import('yjs').Doc) => void) => void) => {
-      if (!content || content === '{}') return;
-      try {
-        const [{ getSchema }, { prosemirrorJSONToYDoc }, Y, StarterKit, Underline, Link, TextAlign] =
-          await Promise.all([
-            import('@tiptap/core'),
-            import('y-prosemirror'),
-            import('yjs'),
-            import('@tiptap/starter-kit').then((m) => m.default),
-            import('@tiptap/extension-underline').then((m) => m.default),
-            import('@tiptap/extension-link').then((m) => m.default),
-            import('@tiptap/extension-text-align').then((m) => m.default),
-          ]);
-        // Build a minimal schema with the same node set as the editor — only
-        // nodes matter for seeding; mark/extension configs that affect parsing
-        // are noise here.
-        const schema = getSchema([
-          StarterKit.configure({ underline: false, link: false }),
-          Underline,
-          Link,
-          TextAlign,
-        ] as never);
-        const json = JSON.parse(content);
-        const seeded = prosemirrorJSONToYDoc(schema, json, 'default');
-        const update = Y.encodeStateAsUpdate(seeded);
-        apply((targetDoc) => {
-          Y.applyUpdate(targetDoc, update);
-        });
-      } catch (err) {
-        log.warn('[ChapterEditor] legacy seed failed:', err);
-      }
-    },
-    [content],
-  );
-
-  const { ydoc, isReady: ydocReady } = useYjsSync({
-    docId: makeDocId('node-content', nodeId),
-    userId: userId ?? '',
-    projectId,
-    onMaterialize: (contentJson) => {
-      // PG materialized cache. Server never reconstructs Y.Doc — this row is
-      // the LWW preview consumed by list views and search.
-      syncNodeContentUpdate(nodeId, projectId, { contentJson });
-    },
-    seedFromLegacy: userId ? seedFromLegacy : undefined,
-  });
-
-  // TODO: remove later.
-  useEffect(() => { (window as any).__ydoc = ydoc; }, [ydoc]);
-
   const { editor, outline } = useEntityEditor({
     sourceKind: 'node',
     sourceId: nodeId,
     projectId,
     content,
-    ydoc: userId && ydocReady ? ydoc : undefined,
+    ydoc,
     onPersist: handlePersist,
     onEntityClick,
     autoFocus,

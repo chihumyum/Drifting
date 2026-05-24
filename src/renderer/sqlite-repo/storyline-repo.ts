@@ -29,7 +29,7 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
     color: record.color,
     summary: record.summary,
     orderKey: record.orderKey,
-    descriptionJson: record.descriptionJson,
+    contentJson: record.contentJson,
     kvJson: record.kvJson ?? '[]',
     nodeContentTemplateJson: record.nodeContentTemplateJson ?? '{}',
     createdAt: record.createdAt,
@@ -58,7 +58,7 @@ export function createStorylineRepository(
       color: input.color,
       summary: input.summary ?? '',
       orderKey: input.orderKey,
-      descriptionJson: input.descriptionJson ?? '{}',
+      contentJson: input.contentJson ?? '{}',
       kvJson: input.kvJson ?? '[]',
       nodeContentTemplateJson: input.nodeContentTemplateJson ?? '{}',
       createdAt: input.createdAt,
@@ -133,7 +133,7 @@ export function createStorylineRepository(
     if (input.color !== undefined) updateValues.color = input.color;
     if (input.summary !== undefined) updateValues.summary = input.summary;
     if (input.orderKey !== undefined) updateValues.orderKey = input.orderKey;
-    if (input.descriptionJson !== undefined) updateValues.descriptionJson = input.descriptionJson;
+    if (input.contentJson !== undefined) updateValues.contentJson = input.contentJson;
     if (input.kvJson !== undefined) updateValues.kvJson = input.kvJson;
     if (input.nodeContentTemplateJson !== undefined)
       updateValues.nodeContentTemplateJson = input.nodeContentTemplateJson;

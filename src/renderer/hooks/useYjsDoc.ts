@@ -3,7 +3,8 @@ import loglevel from 'loglevel';
 import * as Y from 'yjs';
 import { initDatabase } from '../lib/db';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
-import { resetCursor } from '../services/yjs-sync.service';
+import { resetCursor, pullUpdates } from '../services/yjs-sync.service';
+import { isSyncEnabled } from '../lib/config';
 
 const log = loglevel.getLogger('useYjsDoc');
 log.setLevel(loglevel.levels.WARN);
@@ -75,19 +76,47 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
         if (!hadAnything) {
           // No local Yjs state for this doc — either fresh install, fresh
           // device, or a wiped DB. Drop the sync cursor so the next pull
-          // re-fetches the full update log from the server. Without this
-          // reset, `cursor.lastServerSeq` left over from a previous session
-          // would make pull think everything is already consumed.
+          // re-fetches the full update log from the server.
           await resetCursor(docId);
 
-          // Legacy seed (pre-Yjs JSON in nodeContent.contentJson) — only
-          // when the doc truly has nothing on the server side either; the
-          // pull that fires shortly after will overwrite any seed result if
-          // the server has real state.
-          if (seedRef.current) {
+          // Try the server FIRST before falling back to seed. The seed turns
+          // the legacy node_content.contentJson into Yjs ops with a fresh
+          // random clientID — if the server already has its own ops for this
+          // doc (created by another device's Yjs path), seeding produces
+          // duplicates because Yjs treats the two clientID streams as
+          // independent insertions of the same content.
+          //
+          // If pull brings any ops, we trust those and skip seed. If pull
+          // returns empty (or errors), we fall back to seed for the legacy
+          // migration case (pre-Yjs content that exists only in PG).
+          if (isSyncEnabled()) {
+            try {
+              await pullUpdates(docId, ydoc, repo);
+            } catch (err) {
+              log.warn(`[useYjsDoc] initial pull failed for ${docId}:`, err);
+            }
+            if (cancelled) return;
+          }
+
+          if (seedRef.current && ydoc.getXmlFragment('default').length === 0) {
             await seedRef.current((mutator) => {
-              ydoc.transact(() => mutator(ydoc), 'seed');
+              ydoc.transact(() => {
+                // Idempotency guard. Two concurrent load runs (StrictMode
+                // double-mount, rapid dep changes) can each pass !hadAnything
+                // because the first's snapshot hasn't landed yet. Each call
+                // to mutator runs prosemirrorJSONToYDoc with a fresh random
+                // clientID, so re-applying produces a SECOND independent set
+                // of Yjs ops representing the same content. The editor then
+                // renders N copies of the seed paragraph.
+                //
+                // Inside transact, the fragment.length check + mutator call
+                // are atomic at the JS level: a second transact() can't
+                // interleave between the check and the apply.
+                if (ydoc.getXmlFragment('default').length > 0) return;
+                mutator(ydoc);
+              }, 'seed');
             });
+            if (cancelled) return;
             const fullState = Y.encodeStateAsUpdate(ydoc);
             await repo.upsertSnapshot(docId, fullState);
           }

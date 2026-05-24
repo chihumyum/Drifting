@@ -33,7 +33,7 @@ function toStoryline(record: typeof StorylineTable.$inferSelect): Storyline {
     color: record.color,
     summary: record.summary,
     orderKey: record.orderKey,
-    descriptionJson: record.descriptionJson,
+    contentJson: record.contentJson,
     kvJson: record.kvJson ?? '[]',
     nodeContentTemplateJson: record.nodeContentTemplateJson ?? '{}',
     createdAt: record.createdAt,

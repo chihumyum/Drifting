@@ -209,7 +209,7 @@ function makeSyntheticStoryline(id: string, name: string, color: string): Storyl
     color,
     summary: '',
     orderKey: 0,
-    descriptionJson: '{}',
+    contentJson: '{}',
     kvJson: '[]',
     nodeContentTemplateJson: '{}',
     createdAt: '',

@@ -47,7 +47,7 @@ export function createElementCategoryRepository(
     const newCategory: typeof ElementCategoryTable.$inferInsert = {
       ...category,
       name: normalizeCategoryName(category.name),
-      descriptionJson: category.descriptionJson ?? '{}',
+      contentJson: category.contentJson ?? '{}',
       elementTemplateJson: category.elementTemplateJson ?? '{}',
       elementTemplateKvJson: category.elementTemplateKvJson ?? '[]',
       color: category.color ?? DEFAULT_CATEGORY_COLOR,
@@ -102,8 +102,8 @@ export function createElementCategoryRepository(
     };
     if (updates.name !== undefined) updateValues.name = updates.name;
     if (updates.color !== undefined) updateValues.color = updates.color;
-    if (updates.descriptionJson !== undefined)
-      updateValues.descriptionJson = updates.descriptionJson;
+    if (updates.contentJson !== undefined)
+      updateValues.contentJson = updates.contentJson;
     if (updates.elementTemplateJson !== undefined)
       updateValues.elementTemplateJson = updates.elementTemplateJson;
     if (updates.elementTemplateKvJson !== undefined)
