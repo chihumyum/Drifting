@@ -420,17 +420,6 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
-  // 2FA
-  const [tfaOpen, setTfaOpen] = useState(false);
-  const [tfaSecret, setTfaSecret] = useState<{ totpURI: string; backupCodes: string[] } | null>(null);
-  const [tfaCode, setTfaCode] = useState('');
-  const [tfaPassword, setTfaPassword] = useState('');
-  const [tfaBusy, setTfaBusy] = useState(false);
-  const [tfaError, setTfaError] = useState<string | null>(null);
-  // Optimistic: assume off until we hear otherwise. The user object from
-  // better-auth carries `twoFactorEnabled` once the plugin is wired up.
-  const tfaEnabled = (user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled ?? false;
-
   // Email verification (OTP). Only relevant when user.emailVerified === false.
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyCode, setVerifyCode] = useState('');
@@ -497,45 +486,6 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
       setPwError(err instanceof Error ? err.message : String(err));
     } finally {
       setPwBusy(false);
-    }
-  };
-
-  const handleEnableTfa = async () => {
-    setTfaBusy(true);
-    setTfaError(null);
-    try {
-      const data = await accountService.enableTwoFactor(tfaPassword);
-      setTfaSecret(data);
-    } catch (err) {
-      setTfaError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTfaBusy(false);
-    }
-  };
-
-  const handleVerifyTfa = async () => {
-    setTfaBusy(true);
-    setTfaError(null);
-    try {
-      await accountService.verifyTwoFactor(tfaCode.trim());
-      setTfaOpen(false);
-      setTfaSecret(null);
-      setTfaCode('');
-      setTfaPassword('');
-    } catch (err) {
-      setTfaError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTfaBusy(false);
-    }
-  };
-
-  const handleDisableTfa = async () => {
-    const pw = window.prompt('请输入登录密码以关闭两步验证');
-    if (!pw) return;
-    try {
-      await accountService.disableTwoFactor(pw);
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -811,100 +761,6 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
           </div>
         )}
 
-        <Row
-          label="两步验证"
-          desc="使用 Authenticator App 接收一次性验证码。"
-          control={
-            tfaEnabled ? (
-              <>
-                <span className="set-mono" style={{ color: 'hsl(var(--accent))' }}>已启用 · TOTP</span>
-                <button className="set-btn set-btn--danger" onClick={handleDisableTfa}>关闭</button>
-              </>
-            ) : (
-              <>
-                <span className="set-mono" style={{ color: 'hsl(var(--ink-4))' }}>未启用</span>
-                <button className="set-btn" onClick={() => setTfaOpen((v) => !v)}>设置</button>
-              </>
-            )
-          }
-        />
-        {tfaOpen && !tfaEnabled && (
-          <div
-            style={{
-              gridColumn: '1 / -1',
-              padding: '12px 16px',
-              background: 'hsl(var(--paper-deep))',
-              borderRadius: 5,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              marginBottom: 12,
-            }}
-          >
-            {!tfaSecret ? (
-              <>
-                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  输入当前密码以生成 TOTP 密钥。
-                </div>
-                <input
-                  className="set-input"
-                  type="password"
-                  placeholder="登录密码"
-                  value={tfaPassword}
-                  onChange={(e) => setTfaPassword(e.target.value)}
-                />
-                {tfaError && (
-                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{tfaError}</div>
-                )}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    className="set-btn set-btn--primary"
-                    onClick={handleEnableTfa}
-                    disabled={tfaBusy || tfaPassword.length === 0}
-                  >
-                    生成
-                  </button>
-                  <button className="set-btn" onClick={() => setTfaOpen(false)}>取消</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  在 Authenticator App 中扫码或粘贴密钥，然后输入 6 位验证码。
-                </div>
-                <code style={{ fontSize: 11, wordBreak: 'break-all' }}>{tfaSecret.totpURI}</code>
-                <details>
-                  <summary style={{ cursor: 'pointer', fontSize: 12 }}>查看备份码（妥善保存）</summary>
-                  <ul style={{ fontFamily: 'var(--font-mono)', fontSize: 11, columns: 2 }}>
-                    {tfaSecret.backupCodes.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                </details>
-                <input
-                  className="set-input set-input--mono"
-                  placeholder="6 位验证码"
-                  value={tfaCode}
-                  onChange={(e) => setTfaCode(e.target.value)}
-                  maxLength={6}
-                />
-                {tfaError && (
-                  <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{tfaError}</div>
-                )}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    className="set-btn set-btn--primary"
-                    onClick={handleVerifyTfa}
-                    disabled={tfaBusy || tfaCode.length !== 6}
-                  >
-                    验证并启用
-                  </button>
-                  <button className="set-btn" onClick={() => setTfaOpen(false)}>取消</button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="set-sec">
@@ -943,6 +799,22 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             </div>
           ))
         )}
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="退出登录" hint="SIGN OUT" />
+        <Row
+          label="登出本机账号"
+          desc="结束当前设备会话；本地稿件保留，下次回来重新登录即可。"
+          control={
+            <button
+              className="set-btn set-btn--primary"
+              onClick={handleLogout}
+            >
+              退出登录
+            </button>
+          }
+        />
       </div>
 
       <div className="set-danger">

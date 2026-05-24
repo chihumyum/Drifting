@@ -10,7 +10,6 @@ import {
   BookOpenText,
   CircleDot,
   HelpCircle,
-  LogOut,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
@@ -25,7 +24,6 @@ interface UserMenuProps {
 
 export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
   // sticks; the resolver in App.tsx then writes back to ui-store.theme.
@@ -67,16 +65,6 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
 
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'Local';
   const initial = displayName.charAt(0).toUpperCase();
-
-  const handleSignOut = async () => {
-    onClose();
-    try {
-      await logout();
-      navigate('/login');
-    } catch {
-      // logout failures are surfaced in console by the store; just close menu
-    }
-  };
 
   return createPortal(
     <>
@@ -237,14 +225,6 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
 
         <MenuGroup last>
           <MenuItem icon={<HelpCircle size={13} />} label="帮助 · 反馈" />
-          <MenuItem
-            icon={<LogOut size={13} />}
-            label="退出"
-            muted
-            onClick={() => {
-              void handleSignOut();
-            }}
-          />
         </MenuGroup>
       </div>
     </>,
@@ -323,11 +303,10 @@ interface MenuItemProps {
   label: string;
   meta?: string;
   tail?: React.ReactNode;
-  muted?: boolean;
   onClick?: () => void;
 }
 
-function MenuItem({ icon, label, meta, tail, muted, onClick }: MenuItemProps) {
+function MenuItem({ icon, label, meta, tail, onClick }: MenuItemProps) {
   return (
     <div
       onClick={onClick}
@@ -337,7 +316,7 @@ function MenuItem({ icon, label, meta, tail, muted, onClick }: MenuItemProps) {
         gap: 10,
         padding: '7px 10px',
         fontSize: 12.5,
-        color: muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))',
+        color: 'hsl(var(--ink-2))',
         cursor: onClick ? 'pointer' : 'default',
         borderRadius: 3,
         transition: 'background 0.12s ease, color 0.12s ease',
@@ -348,7 +327,7 @@ function MenuItem({ icon, label, meta, tail, muted, onClick }: MenuItemProps) {
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = muted ? 'hsl(var(--ink-3))' : 'hsl(var(--ink-2))';
+        e.currentTarget.style.color = 'hsl(var(--ink-2))';
       }}
     >
       <span

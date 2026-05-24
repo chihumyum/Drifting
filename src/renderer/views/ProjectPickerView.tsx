@@ -124,12 +124,14 @@ interface ProjectFormState {
 export function ProjectPickerView() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const {
     loadProjectSummaries,
     createProject,
     updateProject,
     deleteProject,
   } = useProject({ userId: user?.id ?? '' });
+  const [signingOut, setSigningOut] = useState(false);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,6 +245,18 @@ export function ProjectPickerView() {
     }
   }, [editing, busy, updateProject, fetchProjects]);
 
+  const handleSignOut = useCallback(async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } catch (e) {
+      log.error('Failed to sign out:', e);
+      setSigningOut(false);
+    }
+  }, [signingOut, logout, navigate]);
+
   const handleDelete = useCallback(async () => {
     if (!confirmDelete || busy) return;
     setBusy(true);
@@ -298,6 +312,14 @@ export function ProjectPickerView() {
               </div>
               <div className="pp-head__user-avatar">{userInitial}</div>
             </div>
+            <button
+              type="button"
+              className="pp-head__signout"
+              onClick={handleSignOut}
+              disabled={signingOut}
+            >
+              {signingOut ? '登出中…' : '登出账号 · SIGN OUT'}
+            </button>
           </aside>
         </header>
 

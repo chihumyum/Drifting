@@ -7,7 +7,7 @@ import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
 import '../../styles/signin.css';
 
-type Mode = 'signin' | 'signup' | 'forgot' | 'otp' | 'twoFactor';
+type Mode = 'signin' | 'signup' | 'forgot' | 'otp' | 'verifyAfterSignup';
 
 interface SocialProvider {
   key: string;
@@ -53,7 +53,6 @@ interface LoginPageProps {
 
 export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
   const navigate = useNavigate();
-  const register = useAuthStore((state) => state.register);
   const adoptSession = useAuthStore((state) => state.adoptSession);
   const checkSession = useAuthStore((state) => state.checkSession);
 
@@ -72,8 +71,6 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
     setError(null);
   };
 
-  // After email+password signin succeeds but 2FA is required, the login()
-  // path throws a sentinel string and we switch to the twoFactor mode.
   const completeAfterSignIn = async () => {
     try {
       await adoptSession();
@@ -127,20 +124,27 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
       if (mode === 'signin') {
         const result = await authClient.signIn.email({ email, password });
         if (result.error) {
+          // Server returns this when emailVerified=false (requireEmailVerification
+          // is on). Drive the user through the OTP gate instead of just throwing.
+          const code = (result.error as { code?: string; status?: number }).code ?? '';
+          const status = (result.error as { status?: number }).status;
+          if (code === 'EMAIL_NOT_VERIFIED' || status === 403) {
+            setMode('verifyAfterSignup');
+            return;
+          }
           throw new Error(result.error.message || '登录失败');
-        }
-        // twoFactorRedirect is set by the twoFactor plugin when 2FA is enabled
-        // on this account. Pause here and hand off to the TwoFactorForm.
-        const data = result.data as { twoFactorRedirect?: boolean } | null;
-        if (data?.twoFactorRedirect) {
-          setMode('twoFactor');
-          return;
         }
         await adoptSession();
         navigate('/');
       } else {
-        await register(email, password, name);
-        navigate('/');
+        // Signup. With requireEmailVerification=true the server creates the
+        // user without an active session. We keep the (email, password) in
+        // state so the post-verify step can sign in cleanly.
+        const result = await authClient.signUp.email({ email, password, name });
+        if (result.error) {
+          throw new Error(result.error.message || '注册失败');
+        }
+        setMode('verifyAfterSignup');
       }
     } catch (err) {
       const fallback = mode === 'signin' ? '登录失败，请检查邮箱和密码' : '注册失败，请稍后重试';
@@ -242,12 +246,14 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
         {mode === 'otp' ? (
           <OtpForm
+            initialEmail={email}
             onCancel={() => switchMode('signin')}
             onSuccess={completeAfterSignIn}
-            onRequireTwoFactor={() => setMode('twoFactor')}
           />
-        ) : mode === 'twoFactor' ? (
-          <TwoFactorForm
+        ) : mode === 'verifyAfterSignup' ? (
+          <VerifyAfterSignupForm
+            email={email}
+            password={password}
             onCancel={() => switchMode('signin')}
             onSuccess={completeAfterSignIn}
           />
@@ -468,16 +474,16 @@ const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
 };
 
 const OtpForm = ({
+  initialEmail,
   onCancel,
   onSuccess,
-  onRequireTwoFactor,
 }: {
+  initialEmail?: string;
   onCancel: () => void;
   onSuccess: () => void | Promise<void>;
-  onRequireTwoFactor: () => void;
 }) => {
   const [stage, setStage] = useState<'enter-email' | 'enter-code'>('enter-email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail ?? '');
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -504,11 +510,6 @@ const OtpForm = ({
     try {
       const res = await authClient.signIn.emailOtp({ email, otp });
       if (res.error) throw new Error(res.error.message || '验证失败');
-      const data = res.data as { twoFactorRedirect?: boolean } | null;
-      if (data?.twoFactorRedirect) {
-        onRequireTwoFactor();
-        return;
-      }
       await onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : '验证失败');
@@ -587,30 +588,63 @@ const OtpForm = ({
   );
 };
 
-const TwoFactorForm = ({
+// Post-signup (or signin-blocked-by-unverified) gate. Auto-sends an
+// email-verification OTP on mount; on submit it verifies the OTP then signs
+// the user in with the password they just typed.
+const VerifyAfterSignupForm = ({
+  email,
+  password,
   onCancel,
   onSuccess,
 }: {
+  email: string;
+  password: string;
   onCancel: () => void;
   onSuccess: () => void | Promise<void>;
 }) => {
-  const [code, setCode] = useState('');
-  const [useBackup, setUseBackup] = useState(false);
+  const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sentOnce, setSentOnce] = useState(false);
+
+  const sendOtp = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await authClient.emailOtp.sendVerificationOtp({
+        email,
+        type: 'email-verification',
+      });
+      if (res.error) throw new Error(res.error.message || '发送失败');
+      setSentOnce(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送验证码失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Fire-and-forget on mount. If the user navigates away (cancel) and comes
+  // back via the same email later, the resend button covers the recovery.
+  useEffect(() => {
+    if (!email) return;
+    void sendOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const res = useBackup
-        ? await authClient.twoFactor.verifyBackupCode({ code })
-        : await authClient.twoFactor.verifyTotp({ code });
-      if (res.error) throw new Error(res.error.message || '验证失败');
+      const verify = await authClient.emailOtp.verifyEmail({ email, otp });
+      if (verify.error) throw new Error(verify.error.message || '验证失败');
+      // Email is verified — now we can actually sign in with the password.
+      const signIn = await authClient.signIn.email({ email, password });
+      if (signIn.error) throw new Error(signIn.error.message || '登录失败');
       await onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '验证码不正确');
+      setError(err instanceof Error ? err.message : '验证失败');
     } finally {
       setBusy(false);
     }
@@ -620,47 +654,43 @@ const TwoFactorForm = ({
     <form className="si-form" onSubmit={submit}>
       <div className="si-kicker">
         <span className="si-kicker-dot"></span>
-        <span>2FA · 两步验证</span>
+        <span>VERIFY · 验证邮箱</span>
       </div>
       <h2 className="si-form__title">
-        <em>验证码</em>确认
+        <em>确认</em>邮箱
       </h2>
       <p className="si-form__sub">
-        {useBackup
-          ? '输入一个未使用的备用码（8 位字符）。'
-          : '打开 Authenticator App，输入当前显示的 6 位验证码。'}
+        {sentOnce
+          ? `已寄到 ${email}。请在 10 分钟内输入 6 位验证码。`
+          : `正在向 ${email} 发送验证码…`}
       </p>
 
       {error && <div className="si-error">{error}</div>}
 
       <div className="si-field">
-        <span className="si-field__k">
-          {useBackup ? '备用码 · BACKUP CODE' : '验证码 · CODE'}
-        </span>
+        <span className="si-field__k">验证码 · CODE</span>
         <input
           className="si-field__input set-input--mono"
-          inputMode={useBackup ? 'text' : 'numeric'}
-          pattern={useBackup ? undefined : '[0-9]{6}'}
-          maxLength={useBackup ? 16 : 6}
-          placeholder={useBackup ? 'xxxx-xxxx' : '6 位数字'}
-          value={code}
-          onChange={(e) => setCode(useBackup ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6))}
+          inputMode="numeric"
+          pattern="[0-9]{6}"
+          maxLength={6}
+          placeholder="6 位数字"
+          value={otp}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
           disabled={busy}
           autoFocus
           required
         />
       </div>
 
-      <button type="submit" className="si-submit" disabled={busy}>
-        <span className="si-submit__cn">{busy ? '验证中…' : '验证'}</span>
+      <button type="submit" className="si-submit" disabled={busy || otp.length !== 6}>
+        <span className="si-submit__cn">{busy ? '验证中…' : '验证并进入'}</span>
         <span>VERIFY</span>
         <span className="si-submit__arrow">→</span>
       </button>
 
       <div className="si-foot-right">
-        <a onClick={() => { setUseBackup((v) => !v); setCode(''); setError(null); }}>
-          {useBackup ? '改用 Authenticator →' : '用备用码 →'}
-        </a>
+        <a onClick={() => void sendOtp()}>重新发送 →</a>
         <span style={{ margin: '0 8px' }}>·</span>
         <a onClick={onCancel}>← 回到登录</a>
       </div>

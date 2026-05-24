@@ -38,33 +38,6 @@ export const accountService = {
     if (result.error) throw new Error(result.error.message ?? 'Change password failed');
   },
 
-  // ----- 2FA -----
-  //
-  // Enable flow:
-  //   1. enable() returns a TOTP secret + QR URL
-  //   2. user scans, enters a one-time code
-  //   3. verify() confirms; flag flips on the user row.
-  // Disable flow requires the current password and (if active) a TOTP code.
-
-  async enableTwoFactor(password: string): Promise<{ totpURI: string; backupCodes: string[] }> {
-    const result = await authClient.twoFactor.enable({ password });
-    if (result.error) throw new Error(result.error.message ?? 'Enable 2FA failed');
-    return {
-      totpURI: result.data?.totpURI ?? '',
-      backupCodes: result.data?.backupCodes ?? [],
-    };
-  },
-
-  async verifyTwoFactor(code: string): Promise<void> {
-    const result = await authClient.twoFactor.verifyTotp({ code });
-    if (result.error) throw new Error(result.error.message ?? 'Verify TOTP failed');
-  },
-
-  async disableTwoFactor(password: string): Promise<void> {
-    const result = await authClient.twoFactor.disable({ password });
-    if (result.error) throw new Error(result.error.message ?? 'Disable 2FA failed');
-  },
-
   // ----- session list -----
 
   async listSessions(): Promise<

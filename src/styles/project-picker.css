@@ -110,6 +110,28 @@
   color: hsl(var(--accent));
   margin-top: 1px;
 }
+.pp-head__signout {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 14px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+.pp-head__signout:hover {
+  color: hsl(var(--ink-1));
+  border-color: hsl(var(--ink-3));
+  background: hsl(var(--surface));
+}
+.pp-head__signout:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
 
 /* ─── Toolbar ─── */
 .pp-toolbar {
