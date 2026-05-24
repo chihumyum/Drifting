@@ -23,6 +23,7 @@ import {
   type EditorPersistDerived,
 } from '../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
+import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 
@@ -60,8 +61,7 @@ export function ElementEditorView({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
-  const marginNotes = useSettingsStore((state) => state.marginNotes);
-  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const [marginNotes, setMarginNotes] = useEntityMarginNotes('element', elementId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(

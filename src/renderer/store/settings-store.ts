@@ -71,8 +71,6 @@ interface SettingsState {
   setEntityHighlight: (on: boolean) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
-  marginNotes: boolean;
-  setMarginNotes: (on: boolean) => void;
   autosave: boolean;
   setAutosave: (on: boolean) => void;
 
@@ -182,8 +180,6 @@ export const useSettingsStore = create<SettingsState>()(
       setEntityHighlight: (on) => set({ entityHighlight: on }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
-      marginNotes: false,
-      setMarginNotes: (on) => set({ marginNotes: on }),
       autosave: true,
       setAutosave: (on) => set({ autosave: on }),
 
@@ -255,24 +251,37 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 4,
       migrate: (persistedState, version) => {
-        const state = persistedState as Partial<SettingsState> & { manuscriptSans?: boolean };
-        let next: Partial<SettingsState> = state;
-        if (version < 1) {
-          next = { ...next, marginNotes: false };
-        }
+        const state = persistedState as Partial<SettingsState> & {
+          manuscriptSans?: boolean;
+          marginNotes?: boolean;
+          marginNotesByKind?: unknown;
+        };
+        let next: Partial<SettingsState> & {
+          manuscriptSans?: boolean;
+          marginNotes?: boolean;
+          marginNotesByKind?: unknown;
+        } = state;
         if (version < 2) {
           // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
           // remaps --font-serif to the sans stack). Users who had it on get
           // upgraded to the full modern palette; the alternative (silently
           // dropping the preference) feels worse.
           const wasSans = (state as { manuscriptSans?: boolean }).manuscriptSans === true;
-          const { manuscriptSans: _omit, ...rest } = next as Partial<SettingsState> & {
-            manuscriptSans?: boolean;
-          };
+          const { manuscriptSans: _omit, ...rest } = next;
           void _omit;
           next = { ...rest, appearanceSkin: wasSans ? 'modern' : 'classic' };
+        }
+        if (version < 4) {
+          // The margin-notes toggle moved out of global settings entirely —
+          // each entity editor now persists its own toggle under a separate
+          // localStorage key (see lib/entity-margin-notes.ts). Drop both the
+          // old global flag and the short-lived per-kind shape.
+          const { marginNotes: _a, marginNotesByKind: _b, ...rest } = next;
+          void _a;
+          void _b;
+          next = rest;
         }
         return next;
       },

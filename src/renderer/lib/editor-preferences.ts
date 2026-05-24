@@ -17,7 +17,6 @@ export interface EditorPreferences {
   focusLine: FocusLineMode;
   entityHighlight: boolean;
   entityLinkInteractive: boolean;
-  marginNotes: boolean;
 }
 
 const INDENT_EM: Record<ParagraphIndent, string> = {
@@ -35,5 +34,4 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.setAttribute('data-focus-line', prefs.focusLine);
   root.setAttribute('data-entity-highlight', prefs.entityHighlight ? 'on' : 'off');
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
-  root.setAttribute('data-margin-notes', prefs.marginNotes ? 'on' : 'off');
 }

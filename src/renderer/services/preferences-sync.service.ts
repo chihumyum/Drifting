@@ -46,7 +46,6 @@ type SyncableSlice = {
   focusLine: unknown;
   entityHighlight: unknown;
   entityLinkInteractive: unknown;
-  marginNotes: unknown;
   autosave: unknown;
   autoElementLinkEnabled: unknown;
   // language
@@ -93,7 +92,6 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'focusLine',
   'entityHighlight',
   'entityLinkInteractive',
-  'marginNotes',
   'autosave',
   'autoElementLinkEnabled',
   'uiLocale',
@@ -213,7 +211,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     focusLine: (v) => store.setFocusLine(v as never),
     entityHighlight: (v) => store.setEntityHighlight(!!v),
     entityLinkInteractive: (v) => store.setEntityLinkInteractive(!!v),
-    marginNotes: (v) => store.setMarginNotes(!!v),
     autosave: (v) => store.setAutosave(!!v),
     autoElementLinkEnabled: (v) => store.setAutoElementLinkEnabled(!!v),
     uiLocale: (v) => store.setUiLocale(v as never),

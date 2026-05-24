@@ -37,6 +37,7 @@ import { usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import type { EditorCommentRequest } from '../hooks/useEntityEditor';
+import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 
 const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 function toRoman(n: number): string {
@@ -104,8 +105,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
-  const marginNotes = useSettingsStore((state) => state.marginNotes);
-  const setMarginNotes = useSettingsStore((state) => state.setMarginNotes);
+  const [marginNotes, setMarginNotes] = useEntityMarginNotes('node', nodeId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
   const toggleEntityLinkInteractive = useCallback(

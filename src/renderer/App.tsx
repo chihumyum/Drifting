@@ -307,7 +307,6 @@ function Layout() {
   const focusLine = useSettingsStore((s) => s.focusLine);
   const entityHighlight = useSettingsStore((s) => s.entityHighlight);
   const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
-  const marginNotes = useSettingsStore((s) => s.marginNotes);
   useEffect(() => {
     applyEditorPreferences({
       bodyFontSize,
@@ -317,7 +316,6 @@ function Layout() {
       focusLine,
       entityHighlight,
       entityLinkInteractive,
-      marginNotes,
     });
   }, [
     bodyFontSize,
@@ -327,7 +325,6 @@ function Layout() {
     focusLine,
     entityHighlight,
     entityLinkInteractive,
-    marginNotes,
   ]);
 
   useEffect(() => {

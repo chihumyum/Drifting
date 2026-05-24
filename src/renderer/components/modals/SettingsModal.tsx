@@ -1421,8 +1421,6 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
     setFocusLine,
     entityHighlight,
     setEntityHighlight,
-    marginNotes,
-    setMarginNotes,
     autosave,
     setAutosave,
     autoElementLinkEnabled,
@@ -1525,11 +1523,6 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="自动元素链接"
           desc="输入时自动识别已存在的元素名称（如人物、地点），并链接到对应页面。"
           control={<Toggle on={autoElementLinkEnabled} onChange={setAutoElementLinkEnabled} />}
-        />
-        <Row
-          label="边注栏"
-          desc="在手稿右侧显示批注卡片。"
-          control={<Toggle on={marginNotes} onChange={setMarginNotes} />}
         />
         <Row
           label="自动保存"
