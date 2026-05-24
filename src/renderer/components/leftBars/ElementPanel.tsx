@@ -392,7 +392,10 @@ export function ElementPanel() {
 
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
-    const categoryColor = getCategoryColor(categoryId);
+    // The virtual "未分类" bucket isn't a real category — getCategoryColor
+    // would log a not-found warning and return a flickering random color.
+    const categoryColor =
+      categoryId === UNCATEGORIZED_ID ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId);
 
     return (
       <div

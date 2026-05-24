@@ -815,19 +815,32 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       updatedAt: dateText(row.updatedAt),
     })),
   );
+  // Same orphan-detach guard as the SQLite hydrate below — elements whose
+  // categoryId doesn't appear in the returned categories list fall into the
+  // "未分类" bucket instead of leaving a dangling reference.
+  const knownCategoryIdsForStore = new Set<string>();
+  for (const row of graph.elementCategories) {
+    const id = stringValue(row, 'id');
+    if (id) knownCategoryIdsForStore.add(id);
+  }
   dataStore.setBookElements(
-    graph.elements.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      categoryId: stringValue(row, 'categoryId'),
-      name: stringValue(row, 'name'),
-      summary: stringValue(row, 'summary'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      kvJson: stringValue(row, 'kvJson', '[]'),
-      groupName: nullableStringValue(row, 'groupName'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
+    graph.elements.map((row) => {
+      const rawCategoryId = nullableStringValue(row, 'categoryId');
+      const categoryId =
+        rawCategoryId && knownCategoryIdsForStore.has(rawCategoryId) ? rawCategoryId : null;
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        categoryId,
+        name: stringValue(row, 'name'),
+        summary: stringValue(row, 'summary'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        kvJson: stringValue(row, 'kvJson', '[]'),
+        groupName: nullableStringValue(row, 'groupName'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    }),
   );
   dataStore.setMemos(
     graph.memos.map((row) => ({
@@ -1226,18 +1239,33 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       await tx.insert(NodeContentTable).values(nodeContents as any[]);
     }
 
-    const elements = normalizeRows(graph.elements, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      categoryId: stringValue(row, 'categoryId'),
-      name: stringValue(row, 'name'),
-      summary: stringValue(row, 'summary'),
-      contentJson: stringValue(row, 'contentJson', '{}'),
-      kvJson: stringValue(row, 'kvJson', '[]'),
-      groupName: nullableStringValue(row, 'groupName'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    }));
+    // Build a set of category ids that actually live in this hydrate batch.
+    // Any element whose categoryId doesn't appear here is an orphan — either
+    // because the parent was soft-deleted before the server-side detach
+    // landed, or because the row is just stale. Detach to NULL ("未分类")
+    // rather than blowing up the whole pull with a FK constraint error.
+    const knownCategoryIds = new Set<string>();
+    for (const row of graph.elementCategories) {
+      const id = stringValue(row, 'id');
+      if (id) knownCategoryIds.add(id);
+    }
+    const elements = normalizeRows(graph.elements, (row) => {
+      const rawCategoryId = nullableStringValue(row, 'categoryId');
+      const categoryId =
+        rawCategoryId && knownCategoryIds.has(rawCategoryId) ? rawCategoryId : null;
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        categoryId,
+        name: stringValue(row, 'name'),
+        summary: stringValue(row, 'summary'),
+        contentJson: stringValue(row, 'contentJson', '{}'),
+        kvJson: stringValue(row, 'kvJson', '[]'),
+        groupName: nullableStringValue(row, 'groupName'),
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    });
     if (elements.length > 0) {
       await tx.insert(BookElementTable).values(elements as any[]);
     }
