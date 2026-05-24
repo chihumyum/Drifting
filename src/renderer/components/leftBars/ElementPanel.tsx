@@ -708,7 +708,10 @@ export function ElementPanel() {
             />
             {categoryIds.map((categoryId) => {
               const active = categoryId === activeCategoryId;
-              const color = getCategoryColor(categoryId);
+              const color =
+                categoryId === UNCATEGORIZED_ID
+                  ? UNCATEGORIZED_COLOR
+                  : getCategoryColor(categoryId);
               return (
                 <button
                   key={categoryId}
