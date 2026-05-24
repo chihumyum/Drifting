@@ -156,23 +156,25 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
     return () => main.removeEventListener('scroll', onScroll);
   }, [isOpen, RAIL]);
 
-  // Deep-link: when an external trigger opens the modal with a target rail
-  // id, jump there. Refs are populated after panels mount, so wait one
-  // microtask before scrolling. We use `instant` here — the deep-link
-  // shouldn't pretend to be a user scroll.
+  // On open: jump to either the deep-link target or the previously active
+  // rail. The component stays mounted while closed, so `active` survives —
+  // but `<main>`'s scrollTop resets to 0, which otherwise leaves the rail
+  // highlight and content out of sync.
   useEffect(() => {
     if (!isOpen) return;
-    if (!initialRailId || !RAIL_IDS.has(initialRailId as RailId)) return;
-    const railId = initialRailId as RailId;
-    setActive(railId);
+    const hasDeepLink = !!initialRailId && RAIL_IDS.has(initialRailId as RailId);
+    const target = hasDeepLink ? (initialRailId as RailId) : active;
+    if (hasDeepLink) setActive(target);
     const apply = () => {
-      const el = panelRefs.current[railId];
+      const el = panelRefs.current[target];
       const main = mainRef.current;
       if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
     };
-    // requestAnimationFrame to wait for the first layout pass after open.
     const raf = requestAnimationFrame(apply);
     return () => cancelAnimationFrame(raf);
+    // `active` intentionally omitted — we only want the value at open time,
+    // not a re-scroll on every scroll-spy update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialRailId]);
 
   const onRail = useCallback((id: RailId) => {

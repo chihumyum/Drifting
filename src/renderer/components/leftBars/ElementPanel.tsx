@@ -20,6 +20,13 @@ log.setLevel(loglevel.levels.ERROR);
 // 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
 const DATE_HIDE_WIDTH = 200;
 
+// Sentinel categoryId for elements whose categoryId is NULL — i.e. they
+// belong to no category. Surfaced as a virtual "未分类" group rendered at
+// the tail of the list. Used inside the panel only; never persisted.
+const UNCATEGORIZED_ID = '__uncategorized__';
+const UNCATEGORIZED_LABEL = '未分类';
+const UNCATEGORIZED_COLOR = 'hsl(var(--ink-4))';
+
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
@@ -246,9 +253,17 @@ export function ElementPanel() {
 
   const getCategoryLabel = useCallback(
     (categoryId: string) => {
+      if (categoryId === UNCATEGORIZED_ID) return UNCATEGORIZED_LABEL;
       return categoryById.get(categoryId)?.name ?? categoryId;
     },
     [categoryById],
+  );
+
+  // Are there any elements with no category? Drives whether we render the
+  // virtual "未分类" group at the tail.
+  const hasUncategorized = useMemo(
+    () => bookElements.some((el) => !el.categoryId),
+    [bookElements],
   );
 
   const categoryIds = useMemo(() => {
@@ -273,8 +288,11 @@ export function ElementPanel() {
       return labelA.localeCompare(labelB);
     });
 
+    // "未分类" always renders last so real categories stay on top.
+    if (hasUncategorized) result.push(UNCATEGORIZED_ID);
+
     return result;
-  }, [bookElementCategories, bookElements, getCategoryLabel]);
+  }, [bookElementCategories, bookElements, getCategoryLabel, hasUncategorized]);
 
   // Lower bound for the resize gesture = natural one-row footer height.
   // Prefer measuring directly when footerHeight is null (the footer is at its
@@ -312,7 +330,11 @@ export function ElementPanel() {
     });
 
     bookElements.forEach((element) => {
-      const categoryId = element.categoryId || 'others';
+      // Null categoryId (post-trash refactor: detached from a deleted
+      // category) goes into the virtual UNCATEGORIZED_ID bucket. Any
+      // remaining string id that isn't in categoryIds (orphan from a stale
+      // row, very rare) gets its own bucket so it's at least visible.
+      const categoryId = element.categoryId ? element.categoryId : UNCATEGORIZED_ID;
       if (!grouped[categoryId]) {
         grouped[categoryId] = [];
       }
@@ -518,7 +540,9 @@ export function ElementPanel() {
             paddingRight: 6,
           }}
         >
-          {categoryIds.map((categoryId) => (
+          {categoryIds.map((categoryId) => {
+            const isUncategorized = categoryId === UNCATEGORIZED_ID;
+            return (
             <div
               key={categoryId}
               ref={(el) => {
@@ -531,23 +555,41 @@ export function ElementPanel() {
               <GroupHeaderCell
                 name={getCategoryLabel(categoryId)}
                 count={(elementsByCategory[categoryId] ?? []).length}
-                color={getCategoryColor(categoryId)}
+                color={isUncategorized ? UNCATEGORIZED_COLOR : getCategoryColor(categoryId)}
                 collapsed={collapsedCategoryIds.has(categoryId)}
                 onToggleCollapsed={() => toggleCategoryCollapsed(categoryId)}
-                onClick={() => openEntity({ entityType: 'category', id: categoryId })}
-                onDoubleClick={() => promoteCurrentTab()}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setContextMenu({
-                    x: event.clientX,
-                    y: event.clientY,
-                    entityType: 'category',
-                    id: categoryId,
-                  });
-                }}
-                addButtonTitle="New element in this category"
-                onAdd={() => void handleCreateElement(categoryId)}
+                onClick={
+                  // The "未分类" bucket isn't a real category — there's no
+                  // editor page to open. Click is a no-op except for the
+                  // toggle handled by the disclosure caret.
+                  isUncategorized
+                    ? undefined
+                    : () => openEntity({ entityType: 'category', id: categoryId })
+                }
+                onDoubleClick={isUncategorized ? undefined : () => promoteCurrentTab()}
+                onContextMenu={
+                  isUncategorized
+                    ? undefined
+                    : (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setContextMenu({
+                          x: event.clientX,
+                          y: event.clientY,
+                          entityType: 'category',
+                          id: categoryId,
+                        });
+                      }
+                }
+                addButtonTitle={
+                  isUncategorized ? undefined : 'New element in this category'
+                }
+                // Creating a new element in "未分类" means categoryId=null;
+                // we don't surface that affordance — users should pick a real
+                // category. Setting onAdd to undefined hides the + button.
+                onAdd={
+                  isUncategorized ? undefined : () => void handleCreateElement(categoryId)
+                }
                 sticky
               />
 
@@ -605,7 +647,8 @@ export function ElementPanel() {
                   });
                 })()}
             </div>
-          ))}
+            );
+          })}
 
           {!hasElements && (
             <div

@@ -216,25 +216,44 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
         prevCategories = freshCategories.slice();
         existing = freshCategories.find((cat) => cat.id === categoryId);
       }
-      // Close any tab pointing at this category. Children (elements) are NOT
-      // cascade-deleted any more — the FK is ON DELETE SET NULL (migration
-      // 0028), so elements detach into the "未分类" bucket and their tabs
-      // stay open.
+      // Close any tab pointing at this category. Children (elements) detach
+      // to the "未分类" bucket (categoryId → null) — see the repo's
+      // softDelete/delete for the SQLite-side update.
       const uiStore = useUiStore.getState();
       uiStore.closeTabsForEntity(activeProjectId, { entityType: 'category', id: categoryId });
 
+      // Snapshot bookElements so we can both update the in-memory store
+      // alongside the SQLite update AND roll it back if the repo call fails.
+      const dataStore = useDataStore.getState();
+      const prevElements = dataStore.bookElements.slice();
+      const detachedElements = prevElements.map((el) =>
+        el.categoryId === categoryId ? { ...el, categoryId: null } : el,
+      );
+
       if (canUseFeature('trash')) {
         return withOptimisticUpdate({
-          apply: () => removeCategoryState(categoryId),
-          rollback: () => setCategoriesState(prevCategories),
+          apply: () => {
+            removeCategoryState(categoryId);
+            dataStore.setBookElements(detachedElements);
+          },
+          rollback: () => {
+            setCategoriesState(prevCategories);
+            dataStore.setBookElements(prevElements);
+          },
           effect: () => repo.softDelete(categoryId),
           sync: () => syncCategorySoftDelete(categoryId, activeProjectId),
         });
       }
 
       return withOptimisticUpdate({
-        apply: () => removeCategoryState(categoryId),
-        rollback: () => setCategoriesState(prevCategories),
+        apply: () => {
+          removeCategoryState(categoryId);
+          dataStore.setBookElements(detachedElements);
+        },
+        rollback: () => {
+          setCategoriesState(prevCategories);
+          dataStore.setBookElements(prevElements);
+        },
         effect: () => repo.delete(categoryId),
         sync: () => syncCategoryDelete(categoryId, activeProjectId),
       });

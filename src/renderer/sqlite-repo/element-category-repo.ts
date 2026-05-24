@@ -1,5 +1,5 @@
 import { getDb, type DbExecutor } from '../lib/db';
-import { ElementCategoryTable } from '../schema/drizzle';
+import { ElementCategoryTable, BookElementTable } from '../schema/drizzle';
 import { eq, asc, and, isNull, isNotNull } from 'drizzle-orm';
 import type { BookElementCategory } from '../domain/book-element';
 import Loglevel from 'loglevel';
@@ -160,14 +160,31 @@ export function createElementCategoryRepository(
   };
 
   const deleteCategory = async (id: string): Promise<void> => {
-    // No more reserved-category guard or last-category guard. element rows
-    // pointing at this category get their categoryId set to NULL by the FK
-    // (ON DELETE SET NULL) — they fall into the "未分类" bucket.
+    // FK ON DELETE SET NULL is declared in the schema, but SQLite enforces
+    // foreign keys only when PRAGMA foreign_keys=ON is set at connection
+    // time — which this app does NOT do. So we manually null out child
+    // categoryIds first, then drop the category row. Without this, deleted
+    // categories leave elements with dangling categoryIds and the UI
+    // logs "Category <id> not found" warnings.
+    const now = new Date().toISOString();
+    await dbProvider()
+      .update(BookElementTable)
+      .set({ categoryId: null, updatedAt: now })
+      .where(eq(BookElementTable.categoryId, id));
     await dbProvider().delete(ElementCategoryTable).where(eq(ElementCategoryTable.id, id));
   };
 
   const softDeleteCategory = async (id: string): Promise<void> => {
+    // FK ON DELETE SET NULL on book_element.category_id only fires on real
+    // DELETE, not on soft-delete (we only flip deletedAt). Manually null the
+    // child elements' categoryId so they fall into the "未分类" bucket; the
+    // (filtered) categories list no longer shows the deleted row, so a
+    // dangling FK there shows up as "Category <id> not found" in the UI.
     const now = new Date().toISOString();
+    await dbProvider()
+      .update(BookElementTable)
+      .set({ categoryId: null, updatedAt: now })
+      .where(eq(BookElementTable.categoryId, id));
     await dbProvider()
       .update(ElementCategoryTable)
       .set({ deletedAt: now, updatedAt: now })
