@@ -22,6 +22,8 @@ export function getBookSchema(): Schema {
   cached = getSchema([
     StarterKit.configure({
       codeBlock: { HTMLAttributes: { class: 'code-block' } },
+      underline: false,
+      link: false,
     }),
     Underline,
     Link.configure({ openOnClick: false, autolink: true }),

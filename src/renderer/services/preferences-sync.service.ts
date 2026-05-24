@@ -286,7 +286,9 @@ export async function startPreferencesSync(): Promise<void> {
 
   try {
     const since = readCursor();
-    const url = since ? `/preferences?since=${encodeURIComponent(since)}` : '/api/preferences';
+    const url = since
+      ? `/api/preferences?since=${encodeURIComponent(since)}`
+      : '/api/preferences';
     const { data } = await apiClient.get<{ entries: PreferenceEntry[] }>(url);
     applyServerEntries(data.entries);
     const latest = data.entries.reduce(
