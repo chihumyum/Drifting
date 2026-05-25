@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useDataStore } from '../../../store/data-store';
@@ -150,18 +150,61 @@ export function TopTimeline() {
   // the same DOM node for its ResizeObserver, and we don't want two refs
   // racing for the same element. The indicator slides under whichever tab
   // carries `.app-tab.is-active` (we already set that via inline className).
+  //
+  // Pass `openTabs` (not just `.length`) so a reorder re-fires the measure
+  // pass: after dropping a dragged tab, the active tab's DOM position may
+  // have changed even though the count and the active key didn't, and the
+  // pill needs to slide to the new spot.
   const [containerRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
     activeTabKey,
     '.app-tab.is-active',
-    [openTabs.length],
+    [openTabs],
   );
   const [containerWidth, setContainerWidth] = useState(0);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
+  // Where the dragged tab would land if dropped right now. `side` is which
+  // half of the hovered tab the cursor is on — drop becomes "insert at
+  // index" (before) or "insert at index+1" (after) in the *original* tabs
+  // array. The pre-removal indices are translated to a `reorderTabs` arg
+  // at drop time (see handleDrop).
+  const [dropTarget, setDropTarget] = useState<{
+    index: number;
+    side: 'before' | 'after';
+  } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     items: TabMenuItem[];
   } | null>(null);
+
+  // Drop guard. After a drag ends, the DOM mutates (reorder) under a
+  // stationary cursor and the browser synthesizes a `mouseenter` on
+  // whichever element is now at the cursor's screen position — typically
+  // the tab that just slid into the dragged tab's old slot. That synthetic
+  // event would flip the new occupant's `hovered` state to true (and in
+  // modern, the `:hover` CSS override doesn't engage for synthetic enter,
+  // so the inline `hoverBackground` paints through). Ignoring `mouseenter`
+  // for a short window after the drop suppresses this — the next real
+  // cursor movement re-applies hover correctly. Using a ref so changing
+  // the deadline doesn't re-render every tab.
+  const dropGuardUntilRef = useRef(0);
+  const armDropGuard = useCallback(() => {
+    dropGuardUntilRef.current = performance.now() + 150;
+  }, []);
+
+  // Translate a (hovered-index, side) drop target into the toIndex that
+  // `reorderTabs` expects (insertion index in the post-removal array).
+  // Returns null when the drop is a no-op (would put the tab back where it
+  // started).
+  const computeReorderTarget = useCallback(
+    (from: number, target: { index: number; side: 'before' | 'after' }) => {
+      const insertion = target.side === 'before' ? target.index : target.index + 1;
+      // After removing `from`, indices > from shift left by one.
+      const adjusted = from < insertion ? insertion - 1 : insertion;
+      return adjusted === from ? null : adjusted;
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -287,6 +330,41 @@ export function TopTimeline() {
       Math.max(TAB_FLOOR_WIDTH * weights[i], Math.floor(w * scale)),
     );
   }, [openTabs, lookups, containerWidth]);
+
+  // Modern skin only: a single sliding-pill drop indicator that lives in
+  // the container (sibling of the active-tab pill) and translates between
+  // drop positions. Mirrors `.tab-indicator`'s animation vocabulary so the
+  // drop hint reads as part of the same motion language as the active pill.
+  // The classic skin keeps its per-tab hard line (rendered inside each
+  // slot) — modern hides those via CSS.
+  //
+  // Why DOM measurement inside useMemo: by the time `dropTarget` flips from
+  // null → set, the tab DOM is already committed (drag was already in
+  // progress, layout is stable), and offsetLeft/offsetWidth are cheap
+  // synchronous reads. Re-runs are gated on `tabWidths` so a resize-driven
+  // re-layout re-measures the indicator's anchor too.
+  const dropIndicatorStyle = useMemo<React.CSSProperties>(() => {
+    const hidden: React.CSSProperties = { opacity: 0 };
+    if (!dropTarget || dragFromIndex === null) return hidden;
+    if (computeReorderTarget(dragFromIndex, dropTarget) === null) return hidden;
+    const container = containerRef.current;
+    if (!container) return hidden;
+    const targetTab = openTabs[dropTarget.index];
+    if (!targetTab) return hidden;
+    const tabEl = container.querySelector(
+      `[data-tab-key="${CSS.escape(tabKey(targetTab))}"]`,
+    ) as HTMLElement | null;
+    if (!tabEl) return hidden;
+    const PILL_WIDTH = 3;
+    const x =
+      dropTarget.side === 'before'
+        ? tabEl.offsetLeft - PILL_WIDTH / 2
+        : tabEl.offsetLeft + tabEl.offsetWidth - PILL_WIDTH / 2;
+    return {
+      transform: `translateX(${x}px)`,
+      opacity: 1,
+    };
+  }, [dropTarget, dragFromIndex, openTabs, tabWidths, computeReorderTarget]);
 
   // When the active tab changes (or the layout shifts enough to push it out of
   // view), scroll the bar so the active tab is fully visible. Without this,
@@ -535,11 +613,66 @@ export function TopTimeline() {
       }}
     >
       <div className="tab-indicator" style={indicatorStyle} />
+      <div className="tab-drop-indicator" style={dropIndicatorStyle} aria-hidden />
       {openTabs.map((tab, index) => {
         const key = tabKey(tab);
         const isActive = key === activeTabKey;
         const isDragging = dragFromIndex === index;
         const width = tabWidths[index] ?? TAB_MIN_WIDTH;
+        // Show the indicator only when the drop would actually move the
+        // tab — drops on the source's own boundaries (or any position
+        // that `reorderTabs` would treat as a no-op) get no indicator,
+        // which carves out a natural ~1-tab dead zone around the source.
+        const dropIndicator =
+          dropTarget &&
+          dropTarget.index === index &&
+          dragFromIndex !== null &&
+          computeReorderTarget(dragFromIndex, dropTarget) !== null
+            ? dropTarget.side
+            : null;
+        const onDragOverSlot = (event: React.DragEvent<HTMLDivElement>) => {
+          if (dragFromIndex === null) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          const rect = event.currentTarget.getBoundingClientRect();
+          const isRightHalf = event.clientX >= rect.left + rect.width / 2;
+          // Normalize seam targeting so the boundary between tab i and
+          // tab i+1 has exactly one visual position: "right half of i" is
+          // rewritten as "before tab i+1". Without this, the indicator
+          // jumps by ~2px as the cursor crosses the seam (each tab paints
+          // its own edge inside its own box). Last tab keeps `after` so
+          // the user can drop past the end.
+          const targetIndex =
+            isRightHalf && index + 1 < openTabs.length ? index + 1 : index;
+          const side: 'before' | 'after' =
+            isRightHalf && targetIndex === index ? 'after' : 'before';
+          setDropTarget((prev) =>
+            prev && prev.index === targetIndex && prev.side === side
+              ? prev
+              : { index: targetIndex, side },
+          );
+        };
+        const onDropSlot = (event: React.DragEvent<HTMLDivElement>) => {
+          event.preventDefault();
+          if (projectId && dragFromIndex !== null && dropTarget !== null) {
+            const to = computeReorderTarget(dragFromIndex, dropTarget);
+            if (to !== null) reorderTabs(projectId, dragFromIndex, to);
+          }
+          armDropGuard();
+          setDragFromIndex(null);
+          setDropTarget(null);
+        };
+        // Fires on the drag source when the drag ends — success or cancel.
+        // Must clear `dropTarget` too, otherwise the indicator lingers after
+        // a cancelled drop (drop fired outside the bar). Also arm the drop
+        // guard for cancelled drags, since the source returning to its
+        // slot can still synthesize a mouseenter on whatever ends up under
+        // the cursor.
+        const onDragEndSlot = () => {
+          armDropGuard();
+          setDragFromIndex(null);
+          setDropTarget(null);
+        };
 
         if (tab.kind === 'leaf') {
           return (
@@ -554,8 +687,11 @@ export function TopTimeline() {
               color={lookups.colorOfLeaf(tab)}
               isDrift={lookups.isDriftLeaf(tab)}
               setDragFromIndex={setDragFromIndex}
-              dragFromIndex={dragFromIndex}
-              reorder={(from, to) => projectId && reorderTabs(projectId, from, to)}
+              dropIndicator={dropIndicator}
+              onDragOverSlot={onDragOverSlot}
+              onDropSlot={onDropSlot}
+              onDragEndSlot={onDragEndSlot}
+              dropGuardUntilRef={dropGuardUntilRef}
               onSelect={() => handleSelectTab(tab)}
               onPromote={() => handlePromote(tab)}
               onClose={() => handleCloseTab(tab)}
@@ -581,8 +717,10 @@ export function TopTimeline() {
             leftIsDrift={lookups.isDriftLeaf(tab.left)}
             rightIsDrift={lookups.isDriftLeaf(tab.right)}
             setDragFromIndex={setDragFromIndex}
-            dragFromIndex={dragFromIndex}
-            reorder={(from, to) => projectId && reorderTabs(projectId, from, to)}
+            dropIndicator={dropIndicator}
+            onDragOverSlot={onDragOverSlot}
+            onDropSlot={onDropSlot}
+            onDragEndSlot={onDragEndSlot}
             onSelectSide={(side) => {
               if (!projectId) return;
               // Always activate the split first (no-op when it's already
@@ -622,6 +760,31 @@ export function TopTimeline() {
   );
 }
 
+// Per-tab drop indicator — the *classic* skin's visual. A hard 2px line at
+// the leading or trailing edge of the tab the cursor is over. Modern hides
+// this via CSS (`.app-tab__drop-indicator`) and uses the container-level
+// sliding pill instead so the motion matches the active-pill animation.
+function DropIndicator({ side }: { side: 'before' | 'after' }) {
+  return (
+    <div
+      aria-hidden
+      className="app-tab__drop-indicator"
+      style={{
+        position: 'absolute',
+        top: 4,
+        bottom: 4,
+        left: side === 'before' ? 0 : 'auto',
+        right: side === 'after' ? 0 : 'auto',
+        width: 2,
+        background: 'hsl(var(--ink-1))',
+        borderRadius: 1,
+        pointerEvents: 'none',
+        zIndex: 2,
+      }}
+    />
+  );
+}
+
 interface LeafSlotProps {
   tab: LeafTab;
   index: number;
@@ -632,8 +795,11 @@ interface LeafSlotProps {
   color: string | undefined;
   isDrift: boolean;
   setDragFromIndex: (idx: number | null) => void;
-  dragFromIndex: number | null;
-  reorder: (from: number, to: number) => void;
+  dropIndicator: 'before' | 'after' | null;
+  onDragOverSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDropSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragEndSlot: () => void;
+  dropGuardUntilRef: React.RefObject<number>;
   onSelect: () => void;
   onPromote: () => void;
   onClose: () => void;
@@ -650,8 +816,11 @@ function LeafTabSlot({
   color,
   isDrift,
   setDragFromIndex,
-  dragFromIndex,
-  reorder,
+  dropIndicator,
+  onDragOverSlot,
+  onDropSlot,
+  onDragEndSlot,
+  dropGuardUntilRef,
   onSelect,
   onPromote,
   onClose,
@@ -659,6 +828,19 @@ function LeafTabSlot({
 }: LeafSlotProps) {
   const tone = getSubtleTabTone(color);
   const accent = color || 'hsl(var(--ink-3))';
+  // Hover state is React-controlled (not a direct DOM `.style.background`
+  // mutation) so the background is fully reconciled on every render and
+  // can't survive a drag. The previous implementation set
+  // `event.currentTarget.style.background = tone.hoverBackground` from
+  // `onMouseEnter`, then relied on `onMouseLeave` to clear it — but during
+  // an HTML5 drag, mouse events are suppressed, so a tab hovered just
+  // before the drag started kept its `hoverBackground` inline. React's
+  // diff against the unchanged `style.background: 'transparent'` prop
+  // never rewrote the DOM, and the leaked value persisted across the
+  // reorder (visible in modern as soon as the cursor moved off, since
+  // `.app-tab:hover { background: transparent !important }` only masks it
+  // while the cursor is still on the tab).
+  const [hovered, setHovered] = useState(false);
   return (
     <div
       role="tab"
@@ -673,21 +855,28 @@ function LeafTabSlot({
         // being dragged from the bar" (separate from text/plain so we don't
         // confuse it with other text drags).
         event.dataTransfer.setData('application/x-drifting-tab', tabKey(tab));
+        // Force the drag image to be the tab itself, anchored at the cursor's
+        // grab point. Without this, Chromium on macOS falls back to the
+        // `text/plain` data as the drag chip (label-only), making it look
+        // like the tab isn't moving.
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.dataTransfer.setDragImage(
+          event.currentTarget,
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+        );
+        // Pre-emptively clear hover state — `mouseleave` won't fire during
+        // the drag, so without this the source tab would re-appear at its
+        // drop position still wearing its pre-drag hover bg.
+        setHovered(false);
         setDragFromIndex(index);
       }}
-      onDragOver={(event) => {
-        if (dragFromIndex === null) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
+      onDragOver={onDragOverSlot}
+      onDrop={onDropSlot}
+      onDragEnd={() => {
+        setHovered(false);
+        onDragEndSlot();
       }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (dragFromIndex !== null && dragFromIndex !== index) {
-          reorder(dragFromIndex, index);
-        }
-        setDragFromIndex(null);
-      }}
-      onDragEnd={() => setDragFromIndex(null)}
       onClick={onSelect}
       onDoubleClick={onPromote}
       onContextMenu={(event) => {
@@ -700,12 +889,15 @@ function LeafTabSlot({
           onClose();
         }
       }}
-      onMouseEnter={(event) => {
-        if (!isActive) (event.currentTarget as HTMLElement).style.background = tone.hoverBackground;
+      onMouseEnter={() => {
+        // Suppress synthetic mouseenter fired by the browser when the DOM
+        // reorders under a stationary cursor — that's the tab sliding into
+        // a vacated slot, not the user actually mousing onto it. A real
+        // movement fires a second mouseenter after the guard expires.
+        if (performance.now() < dropGuardUntilRef.current) return;
+        setHovered(true);
       }}
-      onMouseLeave={(event) => {
-        if (!isActive) (event.currentTarget as HTMLElement).style.background = 'transparent';
-      }}
+      onMouseLeave={() => setHovered(false)}
       style={
         {
           flexShrink: 0,
@@ -716,7 +908,11 @@ function LeafTabSlot({
           paddingRight: 6,
           width,
           minWidth: TAB_FLOOR_WIDTH,
-          background: isActive ? tone.selectedBackground : 'transparent',
+          background: isActive
+            ? tone.selectedBackground
+            : hovered
+              ? tone.hoverBackground
+              : 'transparent',
           opacity: isDragging ? 0.5 : 1,
           cursor: 'pointer',
           transition: 'background 0.18s ease, opacity 0.15s ease',
@@ -726,6 +922,9 @@ function LeafTabSlot({
           fontWeight: isActive ? 500 : 400,
           fontStyle: tab.isPreview ? 'italic' : 'normal',
           borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent',
+          // Needed so the drop indicator (absolute child below) measures
+          // against the tab's own box.
+          position: 'relative',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
           WebkitAppRegion: 'no-drag',
@@ -734,6 +933,7 @@ function LeafTabSlot({
         } as React.CSSProperties
       }
     >
+      {dropIndicator && <DropIndicator side={dropIndicator} />}
       <span
         aria-hidden
         style={{
@@ -823,8 +1023,10 @@ interface SplitSlotProps {
   leftIsDrift: boolean;
   rightIsDrift: boolean;
   setDragFromIndex: (idx: number | null) => void;
-  dragFromIndex: number | null;
-  reorder: (from: number, to: number) => void;
+  dropIndicator: 'before' | 'after' | null;
+  onDragOverSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDropSlot: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragEndSlot: () => void;
   onSelectSide: (side: 'left' | 'right') => void;
   onCloseSide: (side: 'left' | 'right') => void;
   onContextMenu: (x: number, y: number, side: 'left' | 'right') => void;
@@ -843,8 +1045,10 @@ function SplitTabSlot({
   leftIsDrift,
   rightIsDrift,
   setDragFromIndex,
-  dragFromIndex,
-  reorder,
+  dropIndicator,
+  onDragOverSlot,
+  onDropSlot,
+  onDragEndSlot,
   onSelectSide,
   onCloseSide,
   onContextMenu,
@@ -861,21 +1065,17 @@ function SplitTabSlot({
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', tabKey(tab));
         event.dataTransfer.setData('application/x-drifting-tab', tabKey(tab));
+        const rect = event.currentTarget.getBoundingClientRect();
+        event.dataTransfer.setDragImage(
+          event.currentTarget,
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+        );
         setDragFromIndex(index);
       }}
-      onDragOver={(event) => {
-        if (dragFromIndex === null) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (dragFromIndex !== null && dragFromIndex !== index) {
-          reorder(dragFromIndex, index);
-        }
-        setDragFromIndex(null);
-      }}
-      onDragEnd={() => setDragFromIndex(null)}
+      onDragOver={onDragOverSlot}
+      onDrop={onDropSlot}
+      onDragEnd={onDragEndSlot}
       style={{
         flexShrink: 0,
         display: 'flex',
@@ -894,12 +1094,14 @@ function SplitTabSlot({
           ? `2px solid ${leftColor || rightColor || 'hsl(var(--ink-3))'}`
           : '1px solid hsl(var(--rule))',
         borderRadius: 0,
+        position: 'relative',
         overflow: 'hidden',
         height: '100%',
         WebkitAppRegion: 'no-drag',
         userSelect: 'none',
       }}
     >
+      {dropIndicator && <DropIndicator side={dropIndicator} />}
       <SplitSubLabel
         entityType={tab.left.entityType}
         label={leftLabel}

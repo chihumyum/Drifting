@@ -401,6 +401,50 @@
     border-radius: 999px;
   }
 
+  /* ─── Drag-and-drop drop indicator ────────────────────────────────────
+     Two implementations, one per skin:
+
+       Classic — per-tab `.app-tab__drop-indicator` (rendered as a child of
+       the hovered tab slot). A hard 2px line at the leading or trailing
+       edge. Already styled inline; we just leave it visible.
+
+       Modern — a single `.tab-drop-indicator` sibling of the active-tab
+       pill that *slides* between drop positions via translateX. Matches
+       the active pill's easing so a drag reads as the same motion
+       language as a click-activation, just slimmer and softer-toned.
+     -------------------------------------------------------------------- */
+
+  /* Default (classic): hide the modern sliding pill. */
+  .tab-drop-indicator {
+    display: none;
+  }
+
+  /* Modern: show the sliding pill, hide the classic per-tab line. */
+  html[data-skin='modern'] .app-tab__drop-indicator {
+    display: none;
+  }
+  html[data-skin='modern'] .top-timeline-container .tab-drop-indicator {
+    display: block;
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    left: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: hsl(var(--ink-3) / 0.85);
+    pointer-events: none;
+    z-index: 2;
+    /* No transition: on drop, `dropTarget` clears and the inline
+       `transform` is dropped from the style, so the CSS default (0) takes
+       over. With a transform transition active, that produced a visible
+       slide from the drop position back to the container's left edge
+       ("the indicator rushes back to the drag origin"). Snapping the
+       indicator removes the artifact — between drop targets during a
+       drag, the jump is small enough that the lack of slide reads as
+       crisp rather than choppy. */
+    will-change: transform, opacity;
+  }
+
   /* Tab close (×) button: circular hover bg, matching the pill vocabulary
      of the surrounding strip. Classic keeps the existing 3px rounding. */
   html[data-skin='modern'] .app-tab__close {
