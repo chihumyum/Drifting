@@ -32,18 +32,32 @@ export function DriftPanel() {
   const { nodeUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
+  const sortMode = useUiStore((s) => s.driftSortMode);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
 
   // Split drift nodes by DriftStatus. Anything that isn't explicitly
   // 'resting' falls into the active list — that includes 'drifting' plus
-  // legacy values like 'draft' from pre-migration rows. Sorted by recency.
+  // legacy values like 'draft' from pre-migration rows. Sort key is driven
+  // by the SortMenu in the sub-header; createdAt is the default since
+  // updatedAt gets bumped by wordCount sync and other materialized-field
+  // writes on open (which would reorder the list just from clicking around).
   const { driftingNodes, restingNodes } = useMemo(() => {
-    const drift = bookNodes
-      .filter(isDrift)
-      .slice()
-      .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
+    const cmp = (a: BookNode, b: BookNode) => {
+      if (sortMode === 'title') {
+        return (a.title || '').localeCompare(b.title || '', undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      }
+      const key = sortMode === 'updatedAt' ? 'updatedAt' : 'createdAt';
+      const av = a[key];
+      const bv = b[key];
+      if (av === bv) return 0;
+      return bv > av ? 1 : -1;
+    };
+    const drift = bookNodes.filter(isDrift).slice().sort(cmp);
     const resting: BookNode[] = [];
     const drifting: BookNode[] = [];
     for (const node of drift) {
@@ -51,7 +65,7 @@ export function DriftPanel() {
       else drifting.push(node);
     }
     return { driftingNodes: drifting, restingNodes: resting };
-  }, [bookNodes]);
+  }, [bookNodes, sortMode]);
 
   // Resting drawer state — collapsed by default. Height is the expanded
   // total (header + body); collapsed shows just the header strip.

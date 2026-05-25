@@ -42,6 +42,7 @@ export function ElementPanel() {
   const { elementUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
+  const sortMode = useUiStore((s) => s.elementSortMode);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -281,10 +282,25 @@ export function ElementPanel() {
 
     const result = Array.from(ids);
     result.sort((a, b) => {
+      // 'others' is a legacy convention sink — keep it adjacent to 未分类 at
+      // the tail regardless of the active sort mode.
       const labelA = getCategoryLabel(a);
       const labelB = getCategoryLabel(b);
       if (labelA === 'others') return 1;
       if (labelB === 'others') return -1;
+
+      if (sortMode === 'createdAt') {
+        const ca = categoryById.get(a)?.createdAt;
+        const cb = categoryById.get(b)?.createdAt;
+        // Categories synthesised purely from element rows (no real category
+        // record) have no createdAt — sink them to the bottom of the real
+        // categories so the list head stays stable.
+        if (!ca && !cb) return labelA.localeCompare(labelB);
+        if (!ca) return 1;
+        if (!cb) return -1;
+        if (ca === cb) return 0;
+        return cb > ca ? 1 : -1; // desc — newest first
+      }
       return labelA.localeCompare(labelB);
     });
 
@@ -292,7 +308,7 @@ export function ElementPanel() {
     if (hasUncategorized) result.push(UNCATEGORIZED_ID);
 
     return result;
-  }, [bookElementCategories, bookElements, getCategoryLabel, hasUncategorized]);
+  }, [bookElementCategories, bookElements, getCategoryLabel, hasUncategorized, sortMode, categoryById]);
 
   // Lower bound for the resize gesture = natural one-row footer height.
   // Prefer measuring directly when footerHeight is null (the footer is at its
@@ -346,11 +362,21 @@ export function ElementPanel() {
 
   // Secondary grouping inside a category. Elements with the same groupName
   // are clumped together; null groupName goes into the "ungrouped" bucket and
-  // is rendered last with no header. Named groups are sorted alphabetically.
-  // Within a group we preserve the parent ordering (updatedAt desc, from
-  // bookElements load).
+  // is rendered last with no header. Named groups are always sorted
+  // alphabetically by groupName — groupName has no createdAt, so the active
+  // sort mode only controls element-level order *within* each group.
   const groupedByCategory = useMemo(() => {
     const out: Record<string, { groupName: string | null; items: BookElement[] }[]> = {};
+    const elementCmp = (a: BookElement, b: BookElement) => {
+      if (sortMode === 'createdAt') {
+        if (a.createdAt === b.createdAt) return 0;
+        return b.createdAt > a.createdAt ? 1 : -1; // desc
+      }
+      return (a.name || '').localeCompare(b.name || '', undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    };
     categoryIds.forEach((categoryId) => {
       const items = elementsByCategory[categoryId] ?? [];
       const buckets = new Map<string | null, BookElement[]>();
@@ -360,6 +386,7 @@ export function ElementPanel() {
         arr.push(el);
         buckets.set(key, arr);
       });
+      buckets.forEach((arr) => arr.sort(elementCmp));
       const named: { groupName: string; items: BookElement[] }[] = [];
       let ungrouped: BookElement[] = [];
       buckets.forEach((arr, key) => {
@@ -376,7 +403,7 @@ export function ElementPanel() {
       ];
     });
     return out;
-  }, [categoryIds, elementsByCategory]);
+  }, [categoryIds, elementsByCategory, sortMode]);
 
   const handleCreateElement = useCallback(
     async (categoryId: string) => {

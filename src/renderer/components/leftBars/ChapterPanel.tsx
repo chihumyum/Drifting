@@ -39,6 +39,8 @@ export function ChapterPanel() {
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStore();
   const { nodeUi } = useUiStore();
   const persistedViewMode = useUiStore((s) => s.chapterPanelViewMode);
+  const globalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
+  const storylineInnerSortMode = useUiStore((s) => s.chapterStorylineInnerSortMode);
   // 0-storyline mode collapses to a single book-order view. Forcing it here
   // (rather than mutating the persisted setting) keeps the user's preference
   // intact for when they later add storylines.
@@ -97,25 +99,55 @@ export function ChapterPanel() {
   );
   const nodeById = useMemo(() => new Map(bookNodes.map((n) => [n.id, n])), [bookNodes]);
 
+  // Comparator factory shared by global + storyline-inner sorting. Modes
+  // common to both: bookOrder / narrativeOrder. Global view additionally
+  // exposes createdAt / updatedAt. Null narrativeOrder sinks to the end so
+  // partially-ordered books stay readable while the user wires up the rest.
+  const buildChapterComparator = useCallback(
+    (
+      mode:
+        | 'bookOrder'
+        | 'narrativeOrder'
+        | 'createdAt'
+        | 'updatedAt',
+    ) => {
+      return (a: BookNode, b: BookNode) => {
+        if (!isChapter(a) || !isChapter(b)) return 0;
+        if (mode === 'bookOrder') return a.bookOrder - b.bookOrder;
+        if (mode === 'narrativeOrder') {
+          const av = a.narrativeOrder;
+          const bv = b.narrativeOrder;
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          return av - bv;
+        }
+        const av = a[mode];
+        const bv = b[mode];
+        if (av === bv) return 0;
+        return bv > av ? 1 : -1; // desc for createdAt/updatedAt
+      };
+    },
+    [],
+  );
+
   const sortedNodesGlobal = useMemo(
     () =>
-      bookNodes
-        .filter(isChapter)
-        .slice()
-        .sort((a, b) => a.bookOrder - b.bookOrder),
-    [bookNodes],
+      bookNodes.filter(isChapter).slice().sort(buildChapterComparator(globalSortMode)),
+    [bookNodes, globalSortMode, buildChapterComparator],
   );
 
   // Chapters in this project with no primary storyline — surfaced as the
-  // "未归属" footer in storyline-grouping mode. Sorted by bookOrder so the
-  // footer feels like the same reading axis the storyline groups use.
+  // "未归属" footer in storyline-grouping mode. Follows the storyline-inner
+  // sort mode so the bucket feels like a sibling of the storyline lists
+  // above it.
   const unaffiliatedChapters = useMemo(
     () =>
       bookNodes
         .filter(isChapter)
         .filter((n) => (primaryStorylineByNode[n.id] ?? null) == null)
-        .sort((a, b) => a.bookOrder - b.bookOrder),
-    [bookNodes, primaryStorylineByNode],
+        .sort(buildChapterComparator(storylineInnerSortMode)),
+    [bookNodes, primaryStorylineByNode, storylineInnerSortMode, buildChapterComparator],
   );
   // Expanded state survives an empty bucket — the placeholder hint serves as
   // the content. (Auto-collapsing here caused a flash: click → expand → effect
@@ -186,16 +218,17 @@ export function ChapterPanel() {
 
   const nodesByStoryline = useMemo(() => {
     const grouped: Record<string, BookNode[]> = {};
+    const cmp = buildChapterComparator(storylineInnerSortMode);
     storylines.forEach((s) => {
       const ids = storylineNodeMapping[s.id] ?? [];
       grouped[s.id] = ids
         .map((id) => nodeById.get(id))
         .filter((n): n is BookNode => Boolean(n))
         .filter(isChapter)
-        .sort((a, b) => a.bookOrder - b.bookOrder);
+        .sort(cmp);
     });
     return grouped;
-  }, [storylines, storylineNodeMapping, nodeById]);
+  }, [storylines, storylineNodeMapping, nodeById, storylineInnerSortMode, buildChapterComparator]);
 
   const handleCreateNode = useCallback(
     async (preferredStorylineId: string | null) => {

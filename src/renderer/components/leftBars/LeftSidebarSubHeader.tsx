@@ -1,16 +1,23 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, ListFilter, Plus } from 'lucide-react';
+import { Minus, ArrowDownUp, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
 import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
+import type {
+  DriftSortMode,
+  ChapterGlobalSortMode,
+  ChapterStorylineInnerSortMode,
+  ElementSortMode,
+} from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import { SortMenu, type SortMenuOption } from './SortMenu';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -135,6 +142,75 @@ export function LeftSidebarSubHeader() {
     events.emit('left-sidebar:collapse-all');
   }, []);
 
+  // Sort menu — anchored to the ArrowDownUp button. The set of options
+  // depends on which panel is currently active (and, for chapters, whether
+  // the layout is storyline-grouped). One menu instance is rendered per
+  // panel kind so the SortMenu's typed value/onChange line up with the
+  // matching ui-store field; only the active panel's instance opens.
+  const sortBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+
+  const driftSortMode = useUiStore((s) => s.driftSortMode);
+  const setDriftSortMode = useUiStore((s) => s.setDriftSortMode);
+  const chapterGlobalSortMode = useUiStore((s) => s.chapterGlobalSortMode);
+  const setChapterGlobalSortMode = useUiStore((s) => s.setChapterGlobalSortMode);
+  const chapterStorylineInnerSortMode = useUiStore(
+    (s) => s.chapterStorylineInnerSortMode,
+  );
+  const setChapterStorylineInnerSortMode = useUiStore(
+    (s) => s.setChapterStorylineInnerSortMode,
+  );
+  const elementSortMode = useUiStore((s) => s.elementSortMode);
+  const setElementSortMode = useUiStore((s) => s.setElementSortMode);
+
+  const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
+    () => [
+      { value: 'createdAt', label: '按创建时间' },
+      { value: 'updatedAt', label: '按更新时间' },
+      { value: 'title', label: '按标题字母' },
+    ],
+    [],
+  );
+  const chapterGlobalSortOptions = useMemo<SortMenuOption<ChapterGlobalSortMode>[]>(
+    () => [
+      { value: 'bookOrder', label: '按阅读顺序' },
+      { value: 'narrativeOrder', label: '按叙事顺序' },
+      { value: 'createdAt', label: '按创建时间' },
+      { value: 'updatedAt', label: '按更新时间' },
+    ],
+    [],
+  );
+  const chapterStorylineInnerSortOptions = useMemo<
+    SortMenuOption<ChapterStorylineInnerSortMode>[]
+  >(
+    () => [
+      { value: 'bookOrder', label: '按阅读顺序' },
+      { value: 'narrativeOrder', label: '按叙事顺序' },
+    ],
+    [],
+  );
+  const elementSortOptions = useMemo<SortMenuOption<ElementSortMode>[]>(
+    () => [
+      { value: 'alphabet', label: '按字母顺序' },
+      { value: 'createdAt', label: '按创建时间' },
+    ],
+    [],
+  );
+
+  // Chapter panel splits into two menus depending on layout — global view
+  // gets the four-option set; storyline view's menu controls the inner sort
+  // (storylines themselves stay in their natural order, per design).
+  const chapterIsStoryline =
+    activeLeftPanel === 'nodes' && nodesViewMode === 'storyline' && storylines.length > 0;
+  const sortMenuTitle =
+    activeLeftPanel === 'drift'
+      ? '排序浮缀'
+      : activeLeftPanel === 'elements'
+        ? '排序元素'
+        : chapterIsStoryline
+          ? '排序故事线内章节'
+          : '排序章节';
+
   // Chapter-panel view mode is no longer controlled here — it lives on a
   // hover dropdown attached to the 章节 tab itself (see LeftSidebarHeader).
   // The subheader keeps the value around so it can hide unrelated chrome
@@ -252,15 +328,64 @@ export function LeftSidebarSubHeader() {
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>
         )}
-        <SubIconBtn title="排序（待接入）" disabled>
+        <SubIconBtn
+          title="排序"
+          onClick={() => setSortMenuOpen((v) => !v)}
+          buttonRef={sortBtnRef}
+        >
           <ArrowDownUp size={11} strokeWidth={1.6} />
-        </SubIconBtn>
-        <SubIconBtn title="筛选（待接入）" disabled>
-          <ListFilter size={11} strokeWidth={1.6} />
         </SubIconBtn>
         {renderSecondaryCreate()}
         {renderPrimaryCreate()}
       </div>
+
+      {/* One SortMenu instance per panel kind — keeps each menu's typed
+          value/onChange aligned with the matching ui-store field. Only the
+          active panel's instance is rendered open at a time. */}
+      {activeLeftPanel === 'drift' && (
+        <SortMenu<DriftSortMode>
+          triggerRef={sortBtnRef}
+          open={sortMenuOpen}
+          onClose={() => setSortMenuOpen(false)}
+          options={driftSortOptions}
+          value={driftSortMode}
+          onChange={setDriftSortMode}
+          title={sortMenuTitle}
+        />
+      )}
+      {activeLeftPanel === 'nodes' && !chapterIsStoryline && (
+        <SortMenu<ChapterGlobalSortMode>
+          triggerRef={sortBtnRef}
+          open={sortMenuOpen}
+          onClose={() => setSortMenuOpen(false)}
+          options={chapterGlobalSortOptions}
+          value={chapterGlobalSortMode}
+          onChange={setChapterGlobalSortMode}
+          title={sortMenuTitle}
+        />
+      )}
+      {activeLeftPanel === 'nodes' && chapterIsStoryline && (
+        <SortMenu<ChapterStorylineInnerSortMode>
+          triggerRef={sortBtnRef}
+          open={sortMenuOpen}
+          onClose={() => setSortMenuOpen(false)}
+          options={chapterStorylineInnerSortOptions}
+          value={chapterStorylineInnerSortMode}
+          onChange={setChapterStorylineInnerSortMode}
+          title={sortMenuTitle}
+        />
+      )}
+      {activeLeftPanel === 'elements' && (
+        <SortMenu<ElementSortMode>
+          triggerRef={sortBtnRef}
+          open={sortMenuOpen}
+          onClose={() => setSortMenuOpen(false)}
+          options={elementSortOptions}
+          value={elementSortMode}
+          onChange={setElementSortMode}
+          title={sortMenuTitle}
+        />
+      )}
     </div>
   );
 }
@@ -271,15 +396,18 @@ function SubIconBtn({
   children,
   accent,
   disabled,
+  buttonRef,
 }: {
   title: string;
   onClick?: () => void;
   children: React.ReactNode;
   accent?: boolean;
   disabled?: boolean;
+  buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <button
+      ref={buttonRef}
       title={title}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}

@@ -4,6 +4,19 @@ import { persist } from 'zustand/middleware';
 
 export type SidebarType = 'left' | 'right';
 
+// Sort modes for the three left panels. The SortMenu in the sub-header
+// drives these — each panel reads its own value and applies it inside its
+// useMemo'd sort step. Direction is baked into each mode (createdAt /
+// updatedAt → desc; title / alphabet → asc; bookOrder / narrativeOrder → asc).
+export type DriftSortMode = 'createdAt' | 'updatedAt' | 'title';
+export type ChapterGlobalSortMode =
+  | 'bookOrder'
+  | 'narrativeOrder'
+  | 'createdAt'
+  | 'updatedAt';
+export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
+export type ElementSortMode = 'alphabet' | 'createdAt';
+
 export type TabEntityType =
   | 'node'
   | 'storyline'
@@ -226,6 +239,19 @@ interface UiState {
    */
   chapterPanelViewMode: 'global' | 'storyline';
   setChapterPanelViewMode: (mode: 'global' | 'storyline') => void;
+
+  // Left-panel sort modes — selected from the SortMenu attached to the
+  // sub-header. Each panel has its own preference; ChapterPanel splits global
+  // vs. storyline-inner since the available modes differ between layouts.
+  driftSortMode: DriftSortMode;
+  setDriftSortMode: (mode: DriftSortMode) => void;
+  chapterGlobalSortMode: ChapterGlobalSortMode;
+  setChapterGlobalSortMode: (mode: ChapterGlobalSortMode) => void;
+  chapterStorylineInnerSortMode: ChapterStorylineInnerSortMode;
+  setChapterStorylineInnerSortMode: (mode: ChapterStorylineInnerSortMode) => void;
+  elementSortMode: ElementSortMode;
+  setElementSortMode: (mode: ElementSortMode) => void;
+
   activeRightPanel: 'fragments' | 'stats' | 'shadow';
   setActiveRightPanel: (panel: 'fragments' | 'stats' | 'shadow') => void;
 
@@ -524,6 +550,16 @@ export const useUiStore = create<UiState>()(
       },
       chapterPanelViewMode: 'storyline',
       setChapterPanelViewMode: (mode) => set({ chapterPanelViewMode: mode }),
+
+      driftSortMode: 'createdAt',
+      setDriftSortMode: (mode) => set({ driftSortMode: mode }),
+      chapterGlobalSortMode: 'bookOrder',
+      setChapterGlobalSortMode: (mode) => set({ chapterGlobalSortMode: mode }),
+      chapterStorylineInnerSortMode: 'bookOrder',
+      setChapterStorylineInnerSortMode: (mode) =>
+        set({ chapterStorylineInnerSortMode: mode }),
+      elementSortMode: 'alphabet',
+      setElementSortMode: (mode) => set({ elementSortMode: mode }),
       activeRightPanel: 'fragments',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
 
@@ -1197,6 +1233,10 @@ export const useUiStore = create<UiState>()(
         elementCategoryFooterHeight: state.elementCategoryFooterHeight,
         chapterUnaffiliatedFooterHeight: state.chapterUnaffiliatedFooterHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,
+        driftSortMode: state.driftSortMode,
+        chapterGlobalSortMode: state.chapterGlobalSortMode,
+        chapterStorylineInnerSortMode: state.chapterStorylineInnerSortMode,
+        elementSortMode: state.elementSortMode,
       }),
       // v1 → v2 migration adds the `kind` discriminator to every tab so the
       // store can tell leaf tabs from split tabs. v1 only had flat Tab[]
