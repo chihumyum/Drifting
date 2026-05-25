@@ -11,12 +11,16 @@ import {
   CircleDot,
   HelpCircle,
   Palette,
+  LogOut,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/auth';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
 import { useFeatureAccessStore } from '../../lib/feature-access';
+import loglevel from 'loglevel';
+
+const log = loglevel.getLogger('UserMenu');
 
 const PLAN_LABEL: Record<string, string> = {
   free: 'FREE',
@@ -28,10 +32,16 @@ interface UserMenuProps {
   triggerRef: React.RefObject<HTMLElement | null>;
   open: boolean;
   onClose: () => void;
+  // 'project' = default in-app menu (with 设定/导入/切换项目/键盘快捷键).
+  // 'shelf'   = bookshelf menu: only the project-agnostic items (外观/主题/
+  //             Shadow 用量/帮助) plus Logout. No settings-page entry — the
+  //             bookshelf has nowhere meaningful to deep-link a rail into.
+  scope?: 'project' | 'shelf';
 }
 
-export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
+export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const plan = useFeatureAccessStore((s) => s.plan);
   // Read the persisted mode (light/dark/system) — NOT the resolved ui-store
   // theme. The menu has to drive themeMode so that "跟随系统" actually
@@ -43,6 +53,20 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await logout();
+      onClose();
+      navigate('/login');
+    } catch (e) {
+      log.error('Failed to sign out:', e);
+      setSigningOut(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -224,50 +248,69 @@ export function UserMenu({ triggerRef, open, onClose }: UserMenuProps) {
               </div>
             }
           />
-          <MenuItem
-            icon={<Settings size={13} />}
-            label="设定"
-            meta="⌘,"
-            onClick={() => {
-              events.emit('settings:open', {});
-              onClose();
-            }}
-          />
-          <MenuItem
-            icon={<Keyboard size={13} />}
-            label="键盘快捷键"
-            meta="⌘K ⌘/"
-            onClick={() => {
-              events.emit('settings:open', { railId: 'keys' });
-              onClose();
-            }}
-          />
+          {scope === 'project' && (
+            <>
+              <MenuItem
+                icon={<Settings size={13} />}
+                label="设定"
+                meta="⌘,"
+                onClick={() => {
+                  events.emit('settings:open', {});
+                  onClose();
+                }}
+              />
+              <MenuItem
+                icon={<Keyboard size={13} />}
+                label="键盘快捷键"
+                meta="⌘K ⌘/"
+                onClick={() => {
+                  events.emit('settings:open', { railId: 'keys' });
+                  onClose();
+                }}
+              />
+            </>
+          )}
         </MenuGroup>
 
         <MenuGroup>
-          <MenuItem
-            icon={<Upload size={13} />}
-            label="导入"
-            meta="MD · DOCX · TXT"
-            onClick={() => {
-              events.emit('import:open');
-              onClose();
-            }}
-          />
-          <MenuItem
-            icon={<BookOpenText size={13} />}
-            label="书架 · 切换项目"
-            onClick={() => {
-              navigate('/');
-              onClose();
-            }}
-          />
+          {scope === 'project' && (
+            <>
+              <MenuItem
+                icon={<Upload size={13} />}
+                label="导入"
+                meta="MD · DOCX · TXT"
+                onClick={() => {
+                  events.emit('import:open');
+                  onClose();
+                }}
+              />
+              <MenuItem
+                icon={<BookOpenText size={13} />}
+                label="书架 · 切换项目"
+                onClick={() => {
+                  navigate('/');
+                  onClose();
+                }}
+              />
+            </>
+          )}
           <MenuItem icon={<CircleDot size={13} />} label="Shadow 用量" meta="12 / 50 任务" />
         </MenuGroup>
 
-        <MenuGroup last>
+        <MenuGroup last={scope === 'project'}>
           <MenuItem icon={<HelpCircle size={13} />} label="帮助 · 反馈" />
         </MenuGroup>
+
+        {scope === 'shelf' && (
+          <MenuGroup last>
+            <MenuItem
+              icon={<LogOut size={13} />}
+              label={signingOut ? '登出中…' : '登出账号'}
+              meta="SIGN OUT"
+              onClick={signingOut ? undefined : handleSignOut}
+            />
+          </MenuGroup>
+        )}
       </div>
     </>,
     document.body,

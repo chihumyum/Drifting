@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
 import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
+import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
@@ -140,14 +141,14 @@ interface ProjectFormState {
 export function ProjectPickerView() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
   const {
     loadProjectSummaries,
     createProject,
     updateProject,
     deleteProject,
   } = useProject({ userId: user?.id ?? '' });
-  const [signingOut, setSigningOut] = useState(false);
+  const avatarRef = useRef<HTMLButtonElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,18 +262,6 @@ export function ProjectPickerView() {
     }
   }, [editing, busy, updateProject, fetchProjects]);
 
-  const handleSignOut = useCallback(async () => {
-    if (signingOut) return;
-    setSigningOut(true);
-    try {
-      await logout();
-      navigate('/login');
-    } catch (e) {
-      log.error('Failed to sign out:', e);
-      setSigningOut(false);
-    }
-  }, [signingOut, logout, navigate]);
-
   const handleDelete = useCallback(async () => {
     if (!confirmDelete || busy) return;
     setBusy(true);
@@ -328,16 +317,21 @@ export function ProjectPickerView() {
                 </div>
                 <div className="pp-head__user-name-plan">DRIFTING · WORKSPACE</div>
               </div>
-              <div className="pp-head__user-avatar">{userInitial}</div>
+              <UserAvatar
+                forwardRef={avatarRef}
+                initial={userInitial}
+                size={36}
+                fontSize={16}
+                title="账户菜单"
+                onClick={() => setMenuOpen((v) => !v)}
+              />
             </div>
-            <button
-              type="button"
-              className="pp-head__signout"
-              onClick={handleSignOut}
-              disabled={signingOut}
-            >
-              {signingOut ? '登出中…' : '登出账号 · SIGN OUT'}
-            </button>
+            <UserMenu
+              triggerRef={avatarRef}
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              scope="shelf"
+            />
           </aside>
         </header>
 
