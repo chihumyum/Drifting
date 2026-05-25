@@ -218,35 +218,12 @@ function Layout() {
     setDbReady(false);
   }, [projectId, userId]);
 
-  // Theme: resolve 'light' | 'dark' | 'system' to the actual mode, then
-  // mirror to ui-store.theme so existing read sites stay correct.
-  const themeMode = useSettingsStore((state) => state.themeMode);
-  const setUiTheme = useUiStore((state) => state.setTheme);
-  const shadowMode = useUiStore((state) => state.shadowMode);
-  const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
-  const appearanceSkin = useSettingsStore((state) => state.appearanceSkin);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const apply = (mode: 'light' | 'dark') => {
-      if (mode === 'dark') root.classList.add('dark');
-      else root.classList.remove('dark');
-      setUiTheme(mode);
-    };
-    if (themeMode === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      apply(mq.matches ? 'dark' : 'light');
-      const handler = (e: MediaQueryListEvent) => apply(e.matches ? 'dark' : 'light');
-      mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
-    }
-    apply(themeMode);
-    return undefined;
-  }, [themeMode, setUiTheme]);
-
   // Shadow mode shifts the full palette via token overrides in index.css.
   // When the user disables `shadowAffectsTheme`, we leave the html attribute
   // off so palette stays put — only the right panel still picks up shadow.
+  // Lives in Layout (not App) because shadow state is project-scoped.
+  const shadowMode = useUiStore((state) => state.shadowMode);
+  const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
   useEffect(() => {
     const root = document.documentElement;
     if (shadowMode && shadowAffectsTheme) {
@@ -255,21 +232,6 @@ function Layout() {
       root.removeAttribute('data-shadow-mode');
     }
   }, [shadowMode, shadowAffectsTheme]);
-
-  // Appearance skin: 'classic' (default literary) or 'modern' (Craft / Arc-
-  // style). Sets `data-skin` on <html>; index.css remaps the token block
-  // (palette, ink scale, font stacks, accent) under the modern selector.
-  // No per-page JS branching — components keep reading the same CSS vars.
-  //
-  // Also flips the macOS traffic-light dots to track the topbar position:
-  // modern's 6px app-root padding pushes the 42-tall topbar down so dots
-  // center at y=20; classic is flush so dots center at y=14.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('data-skin', appearanceSkin);
-    const y = appearanceSkin === 'modern' ? 20 : 14;
-    void window.electronAPI?.window?.setTrafficLightPosition?.({ x: 18, y });
-  }, [appearanceSkin]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only
@@ -878,9 +840,51 @@ function Layout() {
 import { ProjectPickerView } from './views/ProjectPickerView';
 import { ProjectDashboard } from './views/ProjectDashboard';
 
+// Mirror themeMode → <html class="dark"> and appearanceSkin → <html data-skin>
+// from the topmost component, not inside Layout. The bookshelf route renders
+// outside Layout, and we still want light/dark + classic/modern to toggle
+// there. Side effects only — no render output.
+function AppearanceEffects() {
+  const themeMode = useSettingsStore((state) => state.themeMode);
+  const appearanceSkin = useSettingsStore((state) => state.appearanceSkin);
+  const setUiTheme = useUiStore((state) => state.setTheme);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = (mode: 'light' | 'dark') => {
+      if (mode === 'dark') root.classList.add('dark');
+      else root.classList.remove('dark');
+      setUiTheme(mode);
+    };
+    if (themeMode === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      apply(mq.matches ? 'dark' : 'light');
+      const handler = (e: MediaQueryListEvent) => apply(e.matches ? 'dark' : 'light');
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+    apply(themeMode);
+    return undefined;
+  }, [themeMode, setUiTheme]);
+
+  // Also flips the macOS traffic-light dots to track the topbar position:
+  // modern's 6px app-root padding pushes the 42-tall topbar down so dots
+  // center at y=20; classic is flush so dots center at y=14.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-skin', appearanceSkin);
+    const y = appearanceSkin === 'modern' ? 20 : 14;
+    void window.electronAPI?.window?.setTrafficLightPosition?.({ x: 18, y });
+  }, [appearanceSkin]);
+
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
+    <>
+      <AppearanceEffects />
+      <Routes>
       {/* 公开路由 */}
       <Route
         path="/login"
@@ -973,5 +977,6 @@ export default function App() {
         />
       </Route>
     </Routes>
+    </>
   );
 }
