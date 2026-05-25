@@ -256,6 +256,12 @@ export function BottomTimeline() {
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
   const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
+  // Anchor coords for the unplaced popover. We render the popover with
+  // position: fixed so it escapes the modern-skin `.app-island { overflow:
+  // hidden }` that otherwise clips it against the editor island above.
+  const [unplacedAnchor, setUnplacedAnchor] = useState<{ left: number; bottom: number } | null>(
+    null,
+  );
   // Unaffiliated lane (chapters with no primary storyline) visibility is
   // persisted in ui-store so the toggle decision sticks across sessions —
   // users who keep the lane open shouldn't have to re-toggle it every time
@@ -440,6 +446,23 @@ export function BottomTimeline() {
   const unplacedBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!unplacedPopoverOpen) unplacedBtnRef.current?.blur();
+  }, [unplacedPopoverOpen]);
+  // Sync the fixed-position anchor to the button's viewport rect whenever the
+  // popover is open. Recompute on resize so the popover follows the button if
+  // the user reshapes the window while it's open.
+  useEffect(() => {
+    if (!unplacedPopoverOpen) {
+      setUnplacedAnchor(null);
+      return;
+    }
+    const compute = () => {
+      const rect = unplacedBtnRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setUnplacedAnchor({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
   }, [unplacedPopoverOpen]);
   useEffect(() => {
     if (!unplacedPopoverOpen) return;
@@ -1210,8 +1233,15 @@ export function BottomTimeline() {
                 <span className="btl__unplaced-count">{unplacedNodes.length}</span>
                 <span className="btl__unplaced-arrow">▾</span>
               </button>
-              {unplacedPopoverOpen && (
-                <div className="btl__unplaced-popover">
+              {unplacedPopoverOpen && unplacedAnchor && (
+                <div
+                  className="btl__unplaced-popover"
+                  style={{
+                    position: 'fixed',
+                    left: unplacedAnchor.left,
+                    bottom: unplacedAnchor.bottom,
+                  }}
+                >
                   {unplacedNodes.length === 0 ? (
                     <div className="btl__unplaced-empty">所有章节都在叙事时间轴上</div>
                   ) : (

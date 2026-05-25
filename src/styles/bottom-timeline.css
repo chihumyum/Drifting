@@ -207,14 +207,12 @@
   color: hsl(var(--ink-4));
 }
 .btl__unplaced-popover {
-  position: absolute;
-  /* Expand UPWARD: the timeline lives at the bottom of the screen, so
-     popping down means immediately falling out of the head bar into the
-     scroll area (or off-screen if the dock is short). Anchoring to the
-     bottom of the button lets the popover use the editor area above. */
-  bottom: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
+  /* Anchored via inline `position: fixed` + computed left/bottom from JS.
+     Fixed positioning is required so the popover escapes the modern-skin
+     `.app-island { overflow: hidden }` clip that would otherwise cut it off
+     against the editor island above. Z-index matches `.btl-cmenu` so it sits
+     above any other floating overlay in the editor surface. */
+  z-index: 1000;
   min-width: 240px;
   max-width: 360px;
   max-height: 320px;
