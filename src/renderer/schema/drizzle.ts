@@ -212,6 +212,13 @@ export const BookElementTable = sqliteTable('element', {
   // elementTemplateKvJson; once seeded, the element owns its copy. JSON
   // array, same shape as Project.kvJson — see domain/kv.ts.
   kvJson: text('kv_json').notNull().default('[]'),
+  // Alternate names this entity is referred to by ("Lady Mira", "M.",
+  // "the heir"). Stored as JSON-encoded string[]. Drives auto-linking and
+  // copilot context: aliases participate in mention detection, dedup, and
+  // patch attribution the same way `name` does. Uniqueness across name +
+  // aliases is enforced in the app layer (useBookElement), not by SQL —
+  // see migration 0030.
+  aliasesJson: text('aliases_json').notNull().default('[]'),
   groupName: text('group_name'),
   deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),

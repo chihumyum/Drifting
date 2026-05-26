@@ -260,15 +260,27 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const bookElements = useDataStore((state) => state.bookElements);
   const bookNodes = useDataStore((state) => state.bookNodes);
 
-  // Auto-detect: every element name and every chapter title, minus self.
-  // Built fresh whenever the entity lists change so plugin config sync below
-  // picks up the new map.
+  // Auto-detect: every element name + alias, and every chapter title, minus
+  // self. Built fresh whenever the entity lists change so plugin config
+  // sync below picks up the new map. Aliases register as additional keys
+  // pointing at the SAME element id — so "Lady Mira" and "Mira" both
+  // auto-link to Mira.
+  //
+  // Map key conflicts (alias colliding with another entity's name): last
+  // write wins. App-layer uniqueness enforcement in useBookElement
+  // (ElementNameConflictError) prevents this for elements, so a real
+  // conflict here can only arise between an element name/alias and a
+  // chapter title — accepted for now (chapter wins because chapters are
+  // registered after elements below).
   const autoDetectTargets = useMemo(() => {
     const map = new Map<string, AutoDetectTarget>();
     bookElements.forEach((el) => {
       if (sourceKind === 'element' && el.id === sourceId) return;
-      if (!el.name) return;
-      map.set(el.name, { kind: 'element', id: el.id });
+      const target = { kind: 'element' as const, id: el.id };
+      if (el.name) map.set(el.name, target);
+      for (const alias of el.aliases) {
+        if (alias) map.set(alias, target);
+      }
     });
     bookNodes.forEach((n) => {
       if (sourceKind === 'node' && n.id === sourceId) return;

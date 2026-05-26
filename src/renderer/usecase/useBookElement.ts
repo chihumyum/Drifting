@@ -2,7 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import { useUiStore } from '../store/ui-store';
-import type { BookElement } from '../domain/book-element';
+import {
+  ElementNameConflictError,
+  encodeAliases,
+  findElementNameConflict,
+  type BookElement,
+} from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
@@ -20,6 +25,8 @@ export interface CreateBookElementInput {
   // Optional initial name; when omitted the element is created as "New Element"
   // and renamed by the user via the editor.
   name?: string;
+  /** Optional initial aliases. Each must be unique across the project. */
+  aliases?: string[];
 }
 export type UpdateElementUsecaseInput = Partial<
   Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>
@@ -82,14 +89,38 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // and stamp it onto the new element. Existing elements stay untouched
       // when the template later changes.
       const seededKvJson = category?.elementTemplateKvJson?.trim() || '[]';
+
+      const resolvedName = input.name?.trim() || 'New Element';
+      const resolvedAliases = (input.aliases ?? [])
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0);
+
+      // Uniqueness check: name + every alias must not collide with any
+      // existing element's name or aliases in this project. Throws
+      // ElementNameConflictError so the caller can surface the offender
+      // (CommentRail's CopilotSuggestionCard already shows error.message
+      // inline; PatchTargetModal currently swallows — both will benefit).
+      const conflict = findElementNameConflict(
+        [resolvedName, ...resolvedAliases],
+        prev,
+        activeProjectId,
+      );
+      if (conflict) {
+        throw new ElementNameConflictError(
+          conflict.conflictingName,
+          conflict.conflictingElement,
+        );
+      }
+
       const newElement: BookElement = {
         id: uuidv7(),
         projectId: activeProjectId,
         categoryId: input.categoryId,
-        name: input.name?.trim() || 'New Element',
+        name: resolvedName,
         summary: '',
         contentJson: seededContentJson,
         kvJson: seededKvJson,
+        aliases: resolvedAliases,
         groupName: null,
         createdAt: now,
         updatedAt: now,
@@ -112,6 +143,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             summary: persisted.summary,
             contentJson: persisted.contentJson,
             kvJson: persisted.kvJson,
+            aliasesJson: encodeAliases(persisted.aliases),
             groupName: persisted.groupName,
           }),
       });
@@ -129,13 +161,37 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         throw new Error(`Element with id ${id} not found`);
       }
 
+      const nextName = (updates.name ?? existing.name).trim() || existing.name;
+      const nextAliases = updates.aliases
+        ? updates.aliases.map((a) => a.trim()).filter((a) => a.length > 0)
+        : existing.aliases;
+
+      // If name or aliases changed, re-run the uniqueness check. Skip when
+      // neither field is in the updates payload (saves a scan on every
+      // content/summary tweak).
+      if (updates.name !== undefined || updates.aliases !== undefined) {
+        const conflict = findElementNameConflict(
+          [nextName, ...nextAliases],
+          elements,
+          activeProjectId,
+          id, // exclude self — renaming an element to its own name isn't a conflict
+        );
+        if (conflict) {
+          throw new ElementNameConflictError(
+            conflict.conflictingName,
+            conflict.conflictingElement,
+          );
+        }
+      }
+
       const updatedElement: BookElement = {
         ...existing,
         categoryId: updates.categoryId ?? existing.categoryId,
-        name: updates.name ?? existing.name,
+        name: nextName,
         contentJson: updates.contentJson ?? existing.contentJson,
         kvJson: updates.kvJson ?? existing.kvJson,
         summary: updates.summary ?? existing.summary,
+        aliases: nextAliases,
         groupName: updates.groupName !== undefined ? updates.groupName : existing.groupName,
         updatedAt: now.toISOString(),
       };
@@ -150,6 +206,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             summary: updatedElement.summary,
             contentJson: updatedElement.contentJson,
             kvJson: updatedElement.kvJson,
+            aliases: updatedElement.aliases,
             groupName: updatedElement.groupName,
             updatedAt: updatedElement.updatedAt,
           });
@@ -169,6 +226,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             summary: persisted.summary,
             contentJson: persisted.contentJson,
             kvJson: persisted.kvJson,
+            aliasesJson: encodeAliases(persisted.aliases),
             groupName: persisted.groupName,
           }),
       });

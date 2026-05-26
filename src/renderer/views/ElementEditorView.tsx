@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
+import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
@@ -177,7 +178,54 @@ export function ElementEditorView({
     const next = nameValue.trim();
     if (!next || next === curElement?.name) return;
     promoteCurrentTab();
-    await updateElement(elementId, { name: next });
+    try {
+      await updateElement(elementId, { name: next });
+    } catch (err) {
+      if (err instanceof ElementNameConflictError) {
+        alert(
+          `无法重命名："${next}" 已被元素「${err.conflictingElement.name}」使用（名字或别名冲突）。`,
+        );
+        setNameValue(curElement?.name ?? '');
+        return;
+      }
+      throw err;
+    }
+  };
+
+  // Aliases editor — chip list + inline draft input. Conflict surfacing
+  // mirrors commitName: ElementNameConflictError → alert + abort.
+  const [aliasDraft, setAliasDraft] = useState('');
+  const writeAliases = async (next: string[]) => {
+    if (!elementId) return;
+    promoteCurrentTab();
+    try {
+      await updateElement(elementId, { aliases: next });
+    } catch (err) {
+      if (err instanceof ElementNameConflictError) {
+        alert(
+          `无法添加别名："${err.conflictingName}" 已被元素「${err.conflictingElement.name}」使用。`,
+        );
+        return;
+      }
+      throw err;
+    }
+  };
+  const addAlias = async () => {
+    const trimmed = aliasDraft.trim();
+    setAliasDraft('');
+    if (!trimmed || !curElement) return;
+    // Idempotent local check — don't bother round-tripping if it's already in
+    // this element's own list (the project-wide uniqueness check would not
+    // catch self-overlap because we exclude self in the conflict scan).
+    if (curElement.aliases.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) {
+      return;
+    }
+    await writeAliases([...curElement.aliases, trimmed]);
+  };
+  const removeAlias = async (idx: number) => {
+    if (!curElement) return;
+    const next = curElement.aliases.filter((_, i) => i !== idx);
+    await writeAliases(next);
   };
   const commitSummary = async () => {
     if (!elementId) return;
@@ -402,6 +450,86 @@ export function ElementEditorView({
                     }}
                     placeholder="Untitled Element"
                   />
+
+                  {/* Aliases chip-list. Inline-styled for now; promote to
+                      a proper class in styles/index.css once the visual
+                      treatment stabilizes. The styling is intentionally
+                      muted — aliases are metadata, not titles. */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      marginTop: 4,
+                      marginBottom: 8,
+                      alignItems: 'center',
+                    }}
+                  >
+                    {curElement.aliases.map((alias, idx) => (
+                      <span
+                        key={`${alias}-${idx}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: 'hsl(var(--surface-elev, var(--surface)))',
+                          border: '1px solid hsl(var(--rule))',
+                          fontFamily: 'var(--font-serif)',
+                          fontStyle: 'italic',
+                          fontSize: 12,
+                          color: 'hsl(var(--ink-2))',
+                        }}
+                      >
+                        {alias}
+                        <button
+                          type="button"
+                          onClick={() => void removeAlias(idx)}
+                          title="移除别名"
+                          style={{
+                            background: 'transparent',
+                            border: 0,
+                            padding: 0,
+                            color: 'hsl(var(--ink-4))',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            lineHeight: 1,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={aliasDraft}
+                      onChange={(e) => setAliasDraft(e.target.value)}
+                      onBlur={() => void addAlias()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void addAlias();
+                        }
+                        if (e.key === 'Escape') {
+                          setAliasDraft('');
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder={curElement.aliases.length === 0 ? '+ 添加别名' : '+ 别名'}
+                      style={{
+                        background: 'transparent',
+                        border: 0,
+                        outline: 0,
+                        padding: '2px 4px',
+                        fontFamily: 'var(--font-serif)',
+                        fontStyle: 'italic',
+                        fontSize: 12,
+                        color: 'hsl(var(--ink-3))',
+                        minWidth: 80,
+                      }}
+                    />
+                  </div>
 
                   <textarea
                     className="elem-hero__summary"

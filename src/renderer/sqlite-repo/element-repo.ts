@@ -1,7 +1,7 @@
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookElementTable } from '../schema/drizzle';
 import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
-import type { BookElement } from '../domain/book-element';
+import { decodeAliases, encodeAliases, type BookElement } from '../domain/book-element';
 
 export type ElementCreateData = BookElement;
 export type ElementUpdateData = Partial<
@@ -29,6 +29,7 @@ function toDomain(record: typeof BookElementTable.$inferSelect): BookElement {
     summary: record.summary,
     contentJson: record.contentJson,
     kvJson: record.kvJson ?? '[]',
+    aliases: decodeAliases(record.aliasesJson),
     groupName: record.groupName,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -96,6 +97,7 @@ export function createBookElementSqliteRepository(
       summary: input.summary,
       contentJson: input.contentJson,
       kvJson: input.kvJson ?? '[]',
+      aliasesJson: encodeAliases(input.aliases),
       groupName: input.groupName,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
@@ -119,6 +121,7 @@ export function createBookElementSqliteRepository(
     if (data.summary !== undefined) updateValues.summary = data.summary;
     if (data.contentJson !== undefined) updateValues.contentJson = data.contentJson;
     if (data.kvJson !== undefined) updateValues.kvJson = data.kvJson;
+    if (data.aliases !== undefined) updateValues.aliasesJson = encodeAliases(data.aliases);
     if (data.groupName !== undefined) updateValues.groupName = data.groupName;
 
     await dbProvider()

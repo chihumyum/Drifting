@@ -40,6 +40,7 @@ import {
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
+import { decodeAliases } from '../domain/book-element';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import loglevel from 'loglevel';
 
@@ -836,6 +837,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         summary: stringValue(row, 'summary'),
         contentJson: stringValue(row, 'contentJson', '{}'),
         kvJson: stringValue(row, 'kvJson', '[]'),
+        aliases: decodeAliases(stringValue(row, 'aliasesJson', '[]')),
         groupName: nullableStringValue(row, 'groupName'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
@@ -1274,6 +1276,10 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         summary: stringValue(row, 'summary'),
         contentJson: stringValue(row, 'contentJson', '{}'),
         kvJson: stringValue(row, 'kvJson', '[]'),
+        // Server may not yet send aliasesJson — default to '[]' so the
+        // not-null column constraint is satisfied. Server-side migration
+        // will follow this client one; pre-migration server omits the field.
+        aliasesJson: stringValue(row, 'aliasesJson', '[]'),
         groupName: nullableStringValue(row, 'groupName'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
