@@ -1019,6 +1019,19 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       .from(EntityRelationTable)
       .where(eq(EntityRelationTable.projectId, projectId));
 
+    // Same treatment for element_patch rows. Patches don't have a single-row
+    // sync helper yet (see usecase/sync-helpers.ts — no syncElementPatch*),
+    // so any patch created locally exists ONLY on this device. Without this
+    // snapshot, the BookElement wipe below would cascade-delete every
+    // local-only patch and the post-wipe entityPatches insert (sourced from
+    // the server graph) would not bring them back — they'd vanish silently.
+    // We restore them after the canonical insert, gated on elementId still
+    // existing (so the FK is valid).
+    const localPatches = await tx
+      .select()
+      .from(ElementPatchTable)
+      .where(eq(ElementPatchTable.projectId, projectId));
+
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
       .from(BookNodeTable)
@@ -1356,6 +1369,26 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     })).filter((row) => row.id && row.elementId);
     if (entityPatches.length > 0) {
       await tx.insert(ElementPatchTable).values(entityPatches as any[]);
+    }
+
+    // Restore local-only patches that the server didn't send back. Gated on
+    // (a) the patch's elementId still existing post-hydrate (FK validity)
+    // and (b) the patch id not already inserted from the server payload
+    // (server is canonical when there's a collision). Same defensive pattern
+    // as localEntityRelations above. Goes away once patches get a real sync
+    // helper — see TODO in elementPatchCapability.accept().
+    if (localPatches.length > 0) {
+      const survivingElementIds = new Set(elements.map((e) => e.id));
+      const serverPatchIds = new Set(entityPatches.map((p) => p.id));
+      const patchesToRestore = localPatches.filter(
+        (p) => survivingElementIds.has(p.elementId) && !serverPatchIds.has(p.id),
+      );
+      if (patchesToRestore.length > 0) {
+        await tx
+          .insert(ElementPatchTable)
+          .values(patchesToRestore as any[])
+          .onConflictDoNothing();
+      }
     }
 
     const memos = normalizeRows(graph.memos, (row) => ({
