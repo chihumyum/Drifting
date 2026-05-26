@@ -6,7 +6,10 @@ import { Buffer } from 'buffer';
 import '../styles/index.css';
 import '../styles/settings.css';
 import './lib/i18n';
+import { installAIDevConsole } from './lib/ai';
 import App from './App';
+
+installAIDevConsole();
 
 if (!(globalThis as { Buffer?: typeof Buffer }).Buffer) {
   (globalThis as { Buffer?: typeof Buffer }).Buffer = Buffer;
