@@ -25,6 +25,11 @@ interface Props {
    *  - `toggle`: whole chip removes the relation. Used inside compose
    *    dialogs where navigating away would dismiss the dialog. */
   selectedChipMode?: 'navigate' | 'toggle';
+  /** Optional controlled open state. When provided, the parent owns the
+   *  open/closed state of the picker panel — used by the side-panel cards
+   *  so the context menu can open it externally. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -40,13 +45,21 @@ export function EntityRelationPicker({
   onAdd,
   onRemove,
   selectedChipMode = 'navigate',
+  open: controlledOpen,
+  onOpenChange,
 }: Props) {
   const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
     useDataStore();
   const { navigateToNode, navigateToElement, navigateToStoryline, navigateToCategory } =
     useProjectNavigation();
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   // Click on the selected-chip body should jump to the linked entity. Click
   // on the ×/+ icon (handled inside Chip) still removes the relation. The
@@ -178,7 +191,7 @@ export function EntityRelationPicker({
           ),
         )}
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen(!open)}
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 9.5,

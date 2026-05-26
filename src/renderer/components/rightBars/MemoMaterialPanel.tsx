@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronUp, Plus } from 'lucide-react';
+import { ChevronUp, Link2, Link2Off, Plus } from 'lucide-react';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
 // Electron 40's V8. The legacy build ships the polyfill.
@@ -129,6 +129,7 @@ export function MemoMaterialPanel({ focused }: Props) {
   const relationUsecases = useEntityRelations({ projectId, userId });
 
   const [filter, setFilter] = useState<ViewFilter>('all');
+  const [showRelations, setShowRelations] = useState(true);
   const [composeOpen, setComposeOpen] = useState<null | 'memo' | 'material'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
@@ -230,6 +231,8 @@ export function MemoMaterialPanel({ focused }: Props) {
         onCompose={setComposeOpen}
         memoTotal={memos.length}
         materialTotal={materials.length}
+        showRelations={showRelations}
+        onToggleShowRelations={() => setShowRelations((v) => !v)}
       />
 
       <div
@@ -260,6 +263,7 @@ export function MemoMaterialPanel({ focused }: Props) {
             memo={m}
             relations={refsByFrom.get(`memo:${m.id}`) ?? []}
             editing={editingId === m.id}
+            showRelations={showRelations}
             onSetEditing={(on) => setEditingId(on ? m.id : null)}
             onSetResolution={(r) => memoUsecases.setMemoResolution(m.id, r)}
             onUpdate={(updates) => memoUsecases.updateMemo(m.id, updates)}
@@ -284,6 +288,7 @@ export function MemoMaterialPanel({ focused }: Props) {
             material={mat}
             relations={refsByFrom.get(`material:${mat.id}`) ?? []}
             editing={editingId === mat.id}
+            showRelations={showRelations}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
             onOpenInSystem={() => openMaterialInSystem(mat)}
             onOpenInApp={() => openMaterialInApp(mat)}
@@ -384,6 +389,8 @@ function Toolbar({
   onCompose,
   memoTotal,
   materialTotal,
+  showRelations,
+  onToggleShowRelations,
 }: {
   filter: ViewFilter;
   onFilterChange: (f: ViewFilter) => void;
@@ -391,6 +398,8 @@ function Toolbar({
   onCompose: (k: 'memo' | 'material') => void;
   memoTotal: number;
   materialTotal: number;
+  showRelations: boolean;
+  onToggleShowRelations: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -455,6 +464,37 @@ function Toolbar({
         }}
       >
         <span>{memoTotal} memo · {materialTotal} 材料</span>
+        <button
+          onClick={onToggleShowRelations}
+          title={showRelations ? '隐藏关联' : '显示关联'}
+          aria-pressed={showRelations}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 18,
+            height: 18,
+            borderRadius: 3,
+            border: 'none',
+            background: 'transparent',
+            color: showRelations ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-4))',
+            cursor: 'pointer',
+            padding: 0,
+            transition: 'background 0.12s, color 0.12s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          {showRelations ? (
+            <Link2 size={12} strokeWidth={1.6} />
+          ) : (
+            <Link2Off size={12} strokeWidth={1.6} />
+          )}
+        </button>
         <div style={{ position: 'relative' }}>
           <button
             ref={triggerRef}
@@ -599,7 +639,7 @@ function ComposeMenuItem({
 // ─────────────────────────────────────────────────────────────────────────────
 // Memo context menu
 
-type MemoContextMenuAction = 'markTodo' | 'markNoAction' | 'markResolved' | 'delete';
+type MemoContextMenuAction = 'addRelation' | 'markTodo' | 'markNoAction' | 'markResolved' | 'delete';
 
 function memoResolutionLabel(resolution: MemoResolution): string {
   if (resolution === 'unresolved') return 'TODO';
@@ -637,16 +677,20 @@ function MemoContextMenuItem({
 
 function MemoContextMenu({
   memo,
+  relationCount,
   x,
   y,
   onSetResolution,
+  onAddRelation,
   onDelete,
   onClose,
 }: {
   memo: Memo;
+  relationCount: number;
   x: number;
   y: number;
   onSetResolution: (r: MemoResolution) => void;
+  onAddRelation: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -693,6 +737,7 @@ function MemoContextMenu({
   }, [onClose]);
 
   const handleAction = (action: MemoContextMenuAction) => {
+    if (action === 'addRelation') onAddRelation();
     if (action === 'markTodo') onSetResolution('unresolved');
     if (action === 'markNoAction') onSetResolution('no_action');
     if (action === 'markResolved') onSetResolution('resolved');
@@ -712,6 +757,18 @@ function MemoContextMenu({
       <div className="btl-cmenu__head">
         <div className="btl-cmenu__title">{memo.title || '无标题'}</div>
         <div className="btl-cmenu__summary">当前状态：{memoResolutionLabel(memo.resolution)}</div>
+        <div className="btl-cmenu__summary">
+          {relationCount > 0 ? `已关联 ${relationCount} 项` : '未关联'}
+        </div>
+      </div>
+
+      <div className="btl-cmenu__group">
+        <MemoContextMenuItem
+          glyph="＋"
+          label="关联…"
+          action="addRelation"
+          onAction={handleAction}
+        />
       </div>
 
       <div className="btl-cmenu__group">
@@ -766,7 +823,7 @@ function MemoContextMenu({
 // ─────────────────────────────────────────────────────────────────────────────
 // Material context menu
 
-type MaterialContextMenuAction = 'openInSystem' | 'delete';
+type MaterialContextMenuAction = 'addRelation' | 'openInSystem' | 'delete';
 
 function MaterialContextMenuItem({
   glyph,
@@ -798,16 +855,20 @@ function MaterialContextMenuItem({
 
 function MaterialContextMenu({
   material,
+  relationCount,
   x,
   y,
   onOpenInSystem,
+  onAddRelation,
   onDelete,
   onClose,
 }: {
   material: Material;
+  relationCount: number;
   x: number;
   y: number;
   onOpenInSystem: () => void;
+  onAddRelation: () => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
@@ -857,6 +918,7 @@ function MaterialContextMenu({
   }, [onClose]);
 
   const handleAction = (action: MaterialContextMenuAction) => {
+    if (action === 'addRelation') onAddRelation();
     if (action === 'openInSystem') onOpenInSystem();
     if (action === 'delete') onDelete();
     onClose();
@@ -874,6 +936,18 @@ function MaterialContextMenu({
       <div className="btl-cmenu__head">
         <div className="btl-cmenu__title">{material.title || subtitle || '无标题'}</div>
         <div className="btl-cmenu__summary">类型：{kindLabel}</div>
+        <div className="btl-cmenu__summary">
+          {relationCount > 0 ? `已关联 ${relationCount} 项` : '未关联'}
+        </div>
+      </div>
+
+      <div className="btl-cmenu__group">
+        <MaterialContextMenuItem
+          glyph="＋"
+          label="关联…"
+          action="addRelation"
+          onAction={handleAction}
+        />
       </div>
 
       {!isTextSnippet && (
@@ -908,6 +982,7 @@ export function MemoCard({
   memo,
   relations,
   editing,
+  showRelations = true,
   onSetEditing,
   onSetResolution,
   onUpdate,
@@ -918,6 +993,9 @@ export function MemoCard({
   memo: Memo;
   relations: { id: string; toKind: EntityKind; toId: string }[];
   editing: boolean;
+  /** When false, hide the relation chips/picker entirely even if relations
+   *  exist. Controlled from the panel toolbar's link toggle. */
+  showRelations?: boolean;
   onSetEditing: (on: boolean) => void;
   onSetResolution: (r: MemoResolution) => void;
   onUpdate: (updates: Partial<Memo>) => void;
@@ -928,12 +1006,18 @@ export function MemoCard({
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(memo.title);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const isTodo = memo.resolution === 'unresolved';
 
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
   );
+  // Picker is mounted when: user explicitly opened it from the context menu,
+  // OR relations exist AND the panel-wide toggle is on. Collapsing the toggle
+  // hides existing relations on every card; opening via context menu still
+  // works even when collapsed (lasts until the user closes the picker).
+  const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -1104,20 +1188,26 @@ export function MemoCard({
           </div>
         )}
 
-        <div style={{ marginTop: 4, flexShrink: 0 }}>
-          <EntityRelationPicker
-            selected={selectedSet}
-            onAdd={onAddRelation}
-            onRemove={onRemoveRelation}
-          />
-        </div>
+        {showPicker && (
+          <div style={{ marginTop: 4, flexShrink: 0 }}>
+            <EntityRelationPicker
+              selected={selectedSet}
+              onAdd={onAddRelation}
+              onRemove={onRemoveRelation}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+            />
+          </div>
+        )}
       </div>
       {contextMenu && (
         <MemoContextMenu
           memo={memo}
+          relationCount={relations.length}
           x={contextMenu.x}
           y={contextMenu.y}
           onSetResolution={onSetResolution}
+          onAddRelation={() => setPickerOpen(true)}
           onDelete={onDelete}
           onClose={closeContextMenu}
         />
@@ -1133,6 +1223,7 @@ export function MaterialCard({
   material,
   relations,
   editing,
+  showRelations = true,
   onSetEditing,
   onOpenInSystem,
   onOpenInApp,
@@ -1145,6 +1236,9 @@ export function MaterialCard({
   material: Material;
   relations: { id: string; toKind: EntityKind; toId: string }[];
   editing: boolean;
+  /** When false, hide the relation chips/picker entirely even if relations
+   *  exist. Controlled from the panel toolbar's link toggle. */
+  showRelations?: boolean;
   onSetEditing: (on: boolean) => void;
   onOpenInSystem: () => void;
   onOpenInApp: () => void;
@@ -1159,12 +1253,18 @@ export function MaterialCard({
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [imageExpanded, setImageExpanded] = useState(defaultExpanded);
   const [textExpanded, setTextExpanded] = useState(defaultExpanded);
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
   );
+  // Picker is mounted when: user explicitly opened it from the context menu,
+  // OR relations exist AND the panel-wide toggle is on. Collapsing the toggle
+  // hides existing relations on every card; opening via context menu still
+  // works even when collapsed (lasts until the user closes the picker).
+  const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
   const accent = 'hsl(var(--story-4))';
   const kindLabel = MATERIAL_KIND_LABEL[material.kind] ?? material.kind;
   const subtitle = materialSubtitle(material);
@@ -1521,20 +1621,26 @@ export function MaterialCard({
           </div>
         )}
 
-        <div style={{ marginTop: 6, flexShrink: 0 }}>
-          <EntityRelationPicker
-            selected={selectedSet}
-            onAdd={onAddRelation}
-            onRemove={onRemoveRelation}
-          />
-        </div>
+        {showPicker && (
+          <div style={{ marginTop: 6, flexShrink: 0 }}>
+            <EntityRelationPicker
+              selected={selectedSet}
+              onAdd={onAddRelation}
+              onRemove={onRemoveRelation}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+            />
+          </div>
+        )}
       </div>
       {contextMenu && (
         <MaterialContextMenu
           material={material}
+          relationCount={relations.length}
           x={contextMenu.x}
           y={contextMenu.y}
           onOpenInSystem={onOpenInSystem}
+          onAddRelation={() => setPickerOpen(true)}
           onDelete={onDelete}
           onClose={closeContextMenu}
         />
