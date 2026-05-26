@@ -2270,17 +2270,22 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    Element patches — sidecar annotations to an element. Shares the
    refs-section header and adopts a folded index-card visual.
    ============================================================ */
+/* Flat patch entry: no card border, body is the visual main; head row
+   carries toggle + (small) title + (small) source anchor + delete. Visual
+   separation between patches is a subtle bottom rule, not a box. */
 .patch-card {
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 3px;
-  background: hsl(var(--surface));
-  margin-bottom: 8px;
-  transition: border-color 0.12s;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid hsl(var(--rule));
 }
-.patch-card:hover { border-color: hsl(var(--ink-4)); }
+.patch-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
 .patch-card__head {
   display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px 7px 6px;
+  padding: 4px 0 6px;
 }
 .patch-card__toggle {
   background: transparent; border: 0; padding: 0;
@@ -2288,7 +2293,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   font-size: 11px;
   color: hsl(var(--ink-4));
   cursor: pointer;
-  width: 16px; text-align: center;
+  width: 14px; text-align: center;
 }
 .patch-card__toggle:hover { color: hsl(var(--accent)); }
 .patch-card__title {
@@ -2296,25 +2301,30 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: transparent; border: 0; outline: 0;
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 14px;
-  color: hsl(var(--ink-1));
+  /* Smaller + dimmer than body so it reads as a label, not a heading. */
+  font-size: 12.5px;
+  color: hsl(var(--ink-3));
   padding: 0;
 }
 .patch-card__title::placeholder {
-  color: hsl(var(--ink-4));
+  color: hsl(var(--ink-5));
   font-style: italic;
 }
-.patch-card__scope {
+.patch-card__anchor-link,
+.patch-card__anchor-empty {
   flex-shrink: 0;
+  background: transparent; border: 0; padding: 0;
   font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.05em;
   color: hsl(var(--ink-4));
-  padding: 2px 6px;
-  border: 1px solid hsl(var(--rule));
-  border-radius: 2px;
+  cursor: pointer;
 }
+.patch-card__anchor-empty {
+  cursor: default;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-link:hover { color: hsl(var(--accent)); }
 .patch-card__delete {
   background: transparent; border: 0; padding: 0 2px;
   font-family: var(--font-mono);
@@ -2326,52 +2336,20 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .patch-card:hover .patch-card__delete { opacity: 1; }
 .patch-card__delete:hover { color: hsl(var(--accent)); }
-.patch-card__anchor {
-  display: flex; align-items: center; gap: 6px;
-  padding: 0 12px 7px 22px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.06em;
-  color: hsl(var(--ink-4));
-}
-.patch-card__anchor-label {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 9px;
-}
-.patch-card__anchor-link {
-  background: transparent; border: 0; padding: 0;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 12px;
-  color: hsl(var(--ink-2));
-  cursor: pointer;
-  text-decoration: none;
-  border-bottom: 1px dotted hsl(var(--ink-4));
-}
-.patch-card__anchor-link:hover {
-  color: hsl(var(--accent));
-  border-bottom-color: hsl(var(--accent));
-}
-.patch-card__anchor-empty {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 12px;
-  color: hsl(var(--ink-4));
-}
 .patch-card__body {
-  border-top: 1px dotted hsl(var(--rule));
-  padding: 10px 14px 12px;
+  padding: 2px 0 4px 22px; /* Indent body slightly to align under title */
 }
 .patch-card__body .ProseMirror {
   outline: none;
-  min-height: 80px;
+  min-height: 1.6em;
   font-family: var(--font-serif);
-  font-size: 14px;
-  line-height: 1.65;
+  /* Body is the primary read-target — bigger than title + anchor combined. */
+  font-size: 15px;
+  line-height: 1.7;
   color: hsl(var(--ink-1));
 }
 .patch-card__body .ProseMirror p { margin: 0 0 0.6em; }
+.patch-card__body .ProseMirror p:last-child { margin-bottom: 0; }
 
 /* ============================================================
    Color picker — swatch row used in storyline / category hero

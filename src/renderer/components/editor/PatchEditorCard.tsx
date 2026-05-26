@@ -24,7 +24,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const { navigateToNode } = useProjectNavigation();
 
   const [titleValue, setTitleValue] = useState(patch.title ?? '');
-  const [collapsed, setCollapsed] = useState(true);
+  // Default expanded so the patch body (the actual content) is the visual
+  // anchor. Toggle remains for users who want to collapse long bodies.
+  const [collapsed, setCollapsed] = useState(false);
   const patchRepoRef = useRef(createElementPatchRepository());
   const mentionRepoRef = useRef(createInlineMentionRepository());
 
@@ -86,6 +88,23 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         >
           {collapsed ? '▸' : '▾'}
         </button>
+        {/* Anchor sits left of the title — chapter + 段 read together
+            naturally ("from chapter X, paragraph"). Title is now the
+            flex-grow center; delete still pins right. */}
+        {patch.sourceNodeId ? (
+          <button
+            type="button"
+            onClick={() => patch.sourceNodeId && navigateToNode(patch.sourceNodeId)}
+            className="patch-card__anchor-link"
+            title={`来自 ${anchorLabel}`}
+          >
+            {anchorLabel}
+          </button>
+        ) : (
+          <span className="patch-card__anchor-empty" title={anchorLabel}>
+            {anchorLabel}
+          </span>
+        )}
         <input
           type="text"
           value={titleValue}
@@ -94,9 +113,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           placeholder="补丁标题（可选）"
           className="patch-card__title"
         />
-        <span className="patch-card__scope">
-          {patch.sourceBlockId ? '块级' : patch.sourceNodeId ? '章级' : '游离'}
-        </span>
         <button
           type="button"
           onClick={handleDelete}
@@ -105,20 +121,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         >
           ×
         </button>
-      </div>
-      <div className="patch-card__anchor">
-        <span className="patch-card__anchor-label">来自</span>
-        {patch.sourceNodeId ? (
-          <button
-            type="button"
-            onClick={() => patch.sourceNodeId && navigateToNode(patch.sourceNodeId)}
-            className="patch-card__anchor-link"
-          >
-            {anchorLabel}
-          </button>
-        ) : (
-          <span className="patch-card__anchor-empty">{anchorLabel}</span>
-        )}
       </div>
       {!collapsed && (
         <div className="patch-card__body">
