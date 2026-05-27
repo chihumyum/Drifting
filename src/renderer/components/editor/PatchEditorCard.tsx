@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
@@ -85,11 +85,12 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     }
   }, [patch.id, projectId, onDelete]);
 
-  // Source-chapter picker: opens a dropdown listing every chapter in the
-  // project plus an "unaffiliated" option. Changing the chapter resets
-  // sourceBlockId to null — block ids are chapter-scoped, so keeping the
-  // old block id under a new chapter would point nowhere.
+  // Source-chapter picker: a floating popover anchored under the head row.
+  // Listed in reading order (bookOrder), plus an explicit detach option.
+  // Changing the chapter resets sourceBlockId to null — block ids are
+  // chapter-scoped, keeping the old id under a new chapter would dangle.
   const [anchorEditing, setAnchorEditing] = useState(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const bookNodes = useDataStore((s) => s.bookNodes);
   const chapterOptions = useMemo(
     () =>
@@ -99,6 +100,26 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0)),
     [bookNodes, projectId],
   );
+
+  // Dismiss the popover on outside click or Escape. Mousedown (not click)
+  // catches dismissal before the click reaches anything underneath, so a
+  // click on a different patch's anchor edit opens that one cleanly.
+  useEffect(() => {
+    if (!anchorEditing) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const pop = popoverRef.current;
+      if (pop && !pop.contains(e.target as Node)) setAnchorEditing(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAnchorEditing(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [anchorEditing]);
 
   const handleChangeAnchor = useCallback(
     async (nextNodeId: string | null) => {
@@ -155,34 +176,68 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             {anchorLabel}
           </span>
         )}
-        {anchorEditing ? (
-          <select
-            autoFocus
-            value={patch.sourceNodeId ?? ''}
-            onChange={(e) => void handleChangeAnchor(e.target.value || null)}
-            onBlur={() => setAnchorEditing(false)}
-            className="patch-card__anchor-link"
-            style={{ background: 'transparent', border: 0, outline: 0, cursor: 'pointer' }}
-          >
-            <option value="">（无章节归属）</option>
-            {chapterOptions.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.title || '(未命名章节)'}
-              </option>
-            ))}
-          </select>
-        ) : (
+        <div className="patch-card__anchor-edit-slot" ref={popoverRef}>
           <button
             type="button"
-            onClick={() => setAnchorEditing(true)}
-            className="patch-card__anchor-link"
+            onClick={() => setAnchorEditing((v) => !v)}
+            className="patch-card__anchor-edit"
             title="改章节归属"
-            style={{ padding: '0 4px' }}
             aria-label="编辑来源章节"
+            aria-expanded={anchorEditing}
           >
             ✎
           </button>
-        )}
+          {anchorEditing && (
+            <div className="patch-card__anchor-pop" role="listbox">
+              <div className="patch-card__anchor-pop-kicker">归属到</div>
+              <div className="patch-card__anchor-pop-list">
+                {chapterOptions.length === 0 && (
+                  <div className="patch-card__anchor-pop-empty">本项目还没有章节</div>
+                )}
+                {chapterOptions.map((n) => {
+                  const current = n.id === patch.sourceNodeId;
+                  return (
+                    <button
+                      key={n.id}
+                      type="button"
+                      role="option"
+                      aria-selected={current}
+                      className={
+                        'patch-card__anchor-pop-item' +
+                        (current ? ' patch-card__anchor-pop-item--current' : '')
+                      }
+                      onClick={() => void handleChangeAnchor(n.id)}
+                    >
+                      <span className="patch-card__anchor-pop-mark">{current ? '✓' : ''}</span>
+                      <span className="patch-card__anchor-pop-title">
+                        {n.title || '(未命名章节)'}
+                      </span>
+                      {current && patch.sourceBlockId && (
+                        <span className="patch-card__anchor-pop-tail">块级</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="patch-card__anchor-pop-sep" />
+              <button
+                type="button"
+                role="option"
+                aria-selected={!patch.sourceNodeId}
+                className={
+                  'patch-card__anchor-pop-item patch-card__anchor-pop-item--detach' +
+                  (!patch.sourceNodeId ? ' patch-card__anchor-pop-item--current' : '')
+                }
+                onClick={() => void handleChangeAnchor(null)}
+              >
+                <span className="patch-card__anchor-pop-mark">
+                  {!patch.sourceNodeId ? '✓' : ''}
+                </span>
+                <span className="patch-card__anchor-pop-title">无章节归属</span>
+              </button>
+            </div>
+          )}
+        </div>
         <input
           type="text"
           value={titleValue}

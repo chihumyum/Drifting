@@ -2336,6 +2336,131 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .patch-card:hover .patch-card__delete { opacity: 1; }
 .patch-card__delete:hover { color: hsl(var(--accent)); }
+/* Anchor-edit ✎ trigger + popover. Inline-stacked relative wrapper so
+   the popover anchors to the trigger without needing a portal. */
+.patch-card__anchor-edit-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.patch-card__anchor-edit {
+  background: transparent;
+  border: 0;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-5));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.patch-card:hover .patch-card__anchor-edit { opacity: 1; }
+.patch-card__anchor-edit:hover,
+.patch-card__anchor-edit[aria-expanded='true'] {
+  color: hsl(var(--accent));
+  opacity: 1;
+}
+.patch-card__anchor-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: -8px;
+  z-index: 30;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 6px;
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 4px;
+  box-shadow: 0 6px 24px hsl(var(--ink-1) / 0.08);
+  /* Open animation — keep subtle to match the rest of the rail */
+  animation: patch-card-pop-in 0.14s ease-out;
+}
+@keyframes patch-card-pop-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.patch-card__anchor-pop-kicker {
+  padding: 0 12px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-pop-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+.patch-card__anchor-pop-empty {
+  padding: 6px 12px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--ink-5));
+}
+.patch-card__anchor-pop-sep {
+  height: 0;
+  margin: 4px 8px;
+  border-top: 1px dotted hsl(var(--rule));
+}
+.patch-card__anchor-pop-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 12px;
+  background: transparent;
+  border: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s;
+}
+.patch-card__anchor-pop-item:hover {
+  background: hsl(var(--ink-1) / 0.04);
+  color: hsl(var(--ink-1));
+}
+.patch-card__anchor-pop-item--current {
+  color: hsl(var(--ink-1));
+}
+.patch-card__anchor-pop-item--detach {
+  color: hsl(var(--ink-4));
+}
+.patch-card__anchor-pop-item--detach.patch-card__anchor-pop-item--current {
+  color: hsl(var(--ink-2));
+}
+.patch-card__anchor-pop-mark {
+  flex-shrink: 0;
+  width: 10px;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 11px;
+  color: hsl(var(--accent));
+}
+.patch-card__anchor-pop-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.patch-card__anchor-pop-tail {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-5));
+}
+
 .patch-card__body {
   padding: 2px 0 4px 22px; /* Indent body slightly to align under title */
 }
