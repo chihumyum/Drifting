@@ -70,10 +70,31 @@ export function buildBaseBlockContext(
 
   if (editedBlocks.length === 0) return null;
 
+  // Collect entityLink mark targets inside the edited blocks. Single pass
+  // per block; only marks whose targetKind === 'element' count (chapter /
+  // drift / storyline mentions exist on the mark too but element-patch
+  // doesn't care about them).
+  const mentionedElementIds = new Set<string>();
+  for (const c of collected) {
+    c.node.descendants((child) => {
+      if (!child.isText) return undefined;
+      for (const mark of child.marks) {
+        if (mark.type.name !== 'entityLink') continue;
+        const targetKind = mark.attrs?.targetKind;
+        const targetId = mark.attrs?.targetId;
+        if (targetKind === 'element' && typeof targetId === 'string' && targetId) {
+          mentionedElementIds.add(targetId);
+        }
+      }
+      return undefined;
+    });
+  }
+
   return {
     chapterId: input.chapterId,
     editedBlocks,
     priorSections: input.priorSections ?? [],
+    mentionedElementIds: [...mentionedElementIds],
   };
 }
 

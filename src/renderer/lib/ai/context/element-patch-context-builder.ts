@@ -51,16 +51,30 @@ export function buildElementPatchContext(
   if (input.baseContext.editedBlocks.length === 0) return null;
   return {
     editedBlocks: input.baseContext.editedBlocks,
-    candidateElements: gatherProjectElements(input.projectId),
+    // Only entities the user has actually linked inside the edited blocks
+    // make it into the candidate list. Without this filter the prompt was
+    // receiving every element in the project — token cost grew with the
+    // entity catalog regardless of relevance, and the model had to wade
+    // through unrelated rows to find the one it should patch. Trade-off:
+    // a state change about an unlinked name won't be caught here (the
+    // entity-candidate capability will surface that name first; once
+    // linked, the next debounce sees it).
+    candidateElements: gatherMentionedElements(input.projectId, input.baseContext.mentionedElementIds),
     pendingPatchKeys: gatherPendingPatchKeys(input.projectId),
   };
 }
 
-function gatherProjectElements(projectId: string): ElementProfile[] {
+function gatherMentionedElements(
+  projectId: string,
+  mentionedIds: string[],
+): ElementProfile[] {
+  if (mentionedIds.length === 0) return [];
+  const wanted = new Set(mentionedIds);
   const all = useDataStore.getState().bookElements;
   const out: ElementProfile[] = [];
   for (const el of all) {
     if (el.projectId !== projectId) continue;
+    if (!wanted.has(el.id)) continue;
     out.push({
       id: el.id,
       name: el.name.trim(),

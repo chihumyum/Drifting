@@ -50,6 +50,19 @@ export interface BaseBlockContext {
   chapterId: string;
   editedBlocks: BlockSnippet[];
   priorSections: PriorSectionSnippet[];
+  /**
+   * Element ids referenced by entityLink marks inside `editedBlocks` (target
+   * kind = 'element'). Built once during baseContext assembly so capabilities
+   * that operate on existing entities (element-patch) can scope down their
+   * candidate list to "actually mentioned in this batch" instead of dumping
+   * the whole project entity list into the prompt.
+   *
+   * Mention detection is strictly mark-based — same source of truth EntityLink
+   * uses everywhere else. Aliases linked to the same element id surface here
+   * naturally. Plain text mentions without a mark are NOT counted (they're
+   * entity-candidate's territory, not element-patch's).
+   */
+  mentionedElementIds: string[];
 }
 
 /**
