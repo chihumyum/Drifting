@@ -40,6 +40,8 @@ import {
 import { copilotRuntime } from '../lib/copilot/runtime';
 import { useCopilotSessionStore } from '../lib/copilot/session-store';
 import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
+import { gatherPriorSections } from '../lib/copilot/prior-sections';
+import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
 import { useManuscriptComment } from '../usecase/useManuscriptComment';
 import { useSettingsStore } from '../store/settings-store';
 import { events } from '../lib/events';
@@ -101,10 +103,19 @@ export function useCopilot({
         return;
       }
 
+      // Hash-validate rolling summaries for this chapter before they reach
+      // the prompt. Stale ones get evicted as a side-effect (see prior-sections.ts).
+      const { sections: priorSections } = await gatherPriorSections({
+        editor,
+        chapterId: nodeId,
+        dirtyBlockIds: dirty,
+      });
+
       const baseContext = buildBaseBlockContext({
         editor,
         chapterId: nodeId,
         dirtyBlockIds: dirty,
+        priorSections,
       });
       if (!baseContext) {
         // Every dirty block was empty / deleted. Drain so they don't pile
@@ -193,6 +204,17 @@ export function useCopilot({
         // Aborts already short-circuited above.
         if (!anyFailed) {
           useCopilotSessionStore.getState().drainDirty(nodeId, consumedBlockIds);
+
+          // Fire-and-forget summary call for the just-scanned block batch.
+          // Doesn't block user-visible suggestion persistence; failures are
+          // silent (next debounce will re-summarize).
+          void produceBlockSectionSummary({
+            projectId,
+            chapterId: nodeId,
+            blockIds: consumedBlockIds,
+            editor,
+            signal: controller.signal,
+          });
         }
 
         if (persistedAny) {

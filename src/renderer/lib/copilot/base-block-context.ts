@@ -23,6 +23,13 @@ export interface BuildBaseBlockContextInput {
   chapterId: string;
   /** Block ids the dirty queue says were edited this session. */
   dirtyBlockIds: Iterable<string>;
+  /**
+   * Hash-validated rolling section summaries for this chapter, gathered
+   * by the caller (see lib/copilot/prior-sections.ts). Optional — when
+   * omitted the prompt sees an empty list, which is correct for boot /
+   * dev-console contexts that don't have section caching.
+   */
+  priorSections?: PriorSectionSnippet[];
 }
 
 export function buildBaseBlockContext(
@@ -63,14 +70,10 @@ export function buildBaseBlockContext(
 
   if (editedBlocks.length === 0) return null;
 
-  // PR C fills this with hash-validated rolling summaries; PR B leaves it
-  // empty so capabilities can ship against the final shape today.
-  const priorSections: PriorSectionSnippet[] = [];
-
   return {
     chapterId: input.chapterId,
     editedBlocks,
-    priorSections,
+    priorSections: input.priorSections ?? [],
   };
 }
 

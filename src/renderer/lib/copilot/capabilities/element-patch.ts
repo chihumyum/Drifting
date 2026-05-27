@@ -78,6 +78,8 @@ export const elementPatchCapability: CopilotCapability = {
       .filter(Boolean)
       .join('\n\n');
 
+    const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
+
     const client = await ctx.runtime.getClient();
     const { patches } = await callStructured(
       client,
@@ -86,6 +88,7 @@ export const elementPatchCapability: CopilotCapability = {
         recentText,
         candidateElements: context.candidateElements,
         pendingPatchKeys: context.pendingPatchKeys,
+        priorSectionSummaries,
       },
       { signal: ctx.signal },
     );

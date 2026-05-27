@@ -62,6 +62,15 @@ export const elementPatchPrompt = definePrompt({
         'Identifiers of patches already pending in the margin (format: ' +
         '"<elementId>::<short-title-snippet>"). Do not re-propose these.',
     }),
+    priorSectionSummaries: Type.Array(Type.String(), {
+      description:
+        'Rolling 1-2-sentence summaries of earlier passages in the same ' +
+        'chapter, oldest first. Treat as already-established history — do ' +
+        'NOT propose patches for state changes ALREADY described here ' +
+        '(would be reaffirmation, which is explicitly forbidden). DO use ' +
+        'them to disambiguate coreference and judge whether a change is ' +
+        'genuinely new vs. a continuation.',
+    }),
   }),
 
   output: Type.Object({
@@ -126,7 +135,13 @@ export const elementPatchPrompt = definePrompt({
           })
           .join('\n')
       : '  (no entities defined in this project — nothing to patch)';
+    const priorSectionLines = input.priorSectionSummaries.length
+      ? input.priorSectionSummaries.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')
+      : '  (none — this chapter has no earlier summaries yet)';
     return [
+      `Earlier in this chapter (oldest first; established history — do NOT ` +
+        `re-propose patches for changes covered here):\n${priorSectionLines}`,
+      '',
       `Recently-edited text (scan for entity state changes):\n${input.recentText}`,
       '',
       `Project entities (id :: name — summary):`,
