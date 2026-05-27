@@ -26,13 +26,12 @@ export const entityCandidatePrompt = definePrompt({
     'a paragraph that are not yet in the project entity list.',
 
   input: Type.Object({
-    focusText: Type.String({
-      description: 'The paragraph to scan for new entity mentions.',
-    }),
-    surroundingText: Type.String({
+    recentText: Type.String({
       description:
-        'Text from neighboring paragraphs, joined newline-separated. Provides ' +
-        'context to disambiguate proper nouns from common words.',
+        'The text the user has recently edited, concatenated newline-separated ' +
+        'in document order. May span multiple paragraphs the user touched ' +
+        'between Copilot debounces. Scan ALL of it for new entity mentions — ' +
+        'not just the last paragraph.',
     }),
     knownNames: Type.Array(Type.String(), {
       description:
@@ -69,7 +68,7 @@ export const entityCandidatePrompt = definePrompt({
         }),
         evidenceText: Type.String({
           description:
-            'A short verbatim excerpt from the focus text containing the name ' +
+            'A short verbatim excerpt from recentText containing the name ' +
             '(<= 120 chars). Used to highlight the chip anchor in the UI.',
         }),
         confidence: Type.Number({
@@ -91,25 +90,23 @@ export const entityCandidatePrompt = definePrompt({
 
   buildSystem: () =>
     'You are an entity-extraction assistant for fiction writers. Your job is ' +
-    'to scan a paragraph and find named entities (people, places, things, ' +
-    'organizations) that the writer has just introduced but has not yet ' +
-    'registered in their project entity list.\n\n' +
+    'to scan a passage of recently-written text and find named entities ' +
+    '(people, places, things, organizations) that the writer has just ' +
+    'introduced but has not yet registered in their project entity list.\n\n' +
     'STRICT rules:\n' +
-    '  1. Only propose proper nouns that appear in the focus text.\n' +
+    '  1. Only propose proper nouns that appear in recentText.\n' +
     '  2. Never propose a name that matches knownNames or rejectedNames ' +
     'case-insensitively.\n' +
     '  3. Common words capitalized for stylistic reasons (e.g. sentence-start ' +
     'words, abstract nouns like "Hope") are NOT entities — skip them.\n' +
     '  4. Pronouns ("he", "she", "they") are NOT entities.\n' +
-    '  5. If the focus text contains no new entities, return an empty array.\n' +
+    '  5. If recentText contains no new entities, return an empty array.\n' +
     '  6. Be conservative — false positives are more annoying than false ' +
     'negatives.',
 
   buildUserMessage: (input) => {
-    const ctx = input.surroundingText.trim();
     return [
-      ctx ? `Narrative context (surrounding paragraphs):\n${ctx}\n` : '',
-      `Focus paragraph to scan:\n${input.focusText}`,
+      `Recently-edited text (scan all of it):\n${input.recentText}`,
       '',
       `Names already known (do NOT propose): ${
         input.knownNames.length ? input.knownNames.join(', ') : '(none)'

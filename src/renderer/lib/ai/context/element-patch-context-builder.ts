@@ -1,20 +1,18 @@
 /**
- * ElementPatchContextBuilder — assembles inputs for element-patch detection.
+ * ElementPatchContextBuilder — feature-specific augmentation for the
+ * element-patch capability. Consumes the framework's BaseBlockContext
+ * (edited blocks + prior sections) and adds:
+ *   - all non-deleted elements in the project (id + name + aliases + summary)
+ *   - pending-patch dedup keys from open copilot suggestion comments
  *
- * Symmetric to EntityCandidateContextBuilder but reads richer entity data
- * (id + name + summary) instead of just names, because the element-patch
- * prompt must (a) reference entities by id (no inventing) and (b) avoid
- * proposing patches that just reaffirm what's already in the summary.
- *
- * Pending-patch dedup uses the open copilot suggestion comments — same
- * mechanism the entity-candidate capability uses, with a different key
- * (elementId + short title prefix instead of normalized name).
+ * Reads richer entity data than entity-candidate (id + name + aliases +
+ * summary instead of just names) because the element-patch prompt must
+ * (a) reference entities by id (no inventing) and (b) avoid proposing
+ * patches that just reaffirm what's already in the summary.
  */
-import type { Editor } from '@tiptap/core';
-import { extractBlockContext } from './selectors/block-context';
 import { useDataStore } from '../../../store/data-store';
 import { decodeCopilotMetadata } from '../../../domain/copilot-suggestion';
-import type { BlockSnippet } from './types';
+import type { BaseBlockContext, BlockSnippet } from './types';
 
 export interface ElementProfile {
   id: string;
@@ -30,8 +28,8 @@ export interface ElementProfile {
 }
 
 export interface ElementPatchContext {
-  focusBlock: BlockSnippet;
-  surroundingBlocks: BlockSnippet[];
+  /** Recently-edited blocks (ordered by document position). */
+  editedBlocks: BlockSnippet[];
   /** All non-deleted elements in the project. */
   candidateElements: ElementProfile[];
   /**
@@ -43,25 +41,16 @@ export interface ElementPatchContext {
 }
 
 export interface BuildElementPatchContextInput {
-  editor: Editor;
+  baseContext: BaseBlockContext;
   projectId: string;
-  focusBlockId: string;
-  before?: number;
-  after?: number;
 }
 
 export function buildElementPatchContext(
   input: BuildElementPatchContextInput,
 ): ElementPatchContext | null {
-  const blocks = extractBlockContext(input.editor, input.focusBlockId, {
-    before: input.before,
-    after: input.after,
-  });
-  if (!blocks || !blocks.focus.text) return null;
-
+  if (input.baseContext.editedBlocks.length === 0) return null;
   return {
-    focusBlock: blocks.focus,
-    surroundingBlocks: blocks.surrounding,
+    editedBlocks: input.baseContext.editedBlocks,
     candidateElements: gatherProjectElements(input.projectId),
     pendingPatchKeys: gatherPendingPatchKeys(input.projectId),
   };

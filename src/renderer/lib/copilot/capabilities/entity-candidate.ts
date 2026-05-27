@@ -37,6 +37,7 @@ import type {
   CapabilityDetectResult,
   CopilotCapability,
 } from '../capability';
+import { findEvidenceBlock } from '../evidence-anchor';
 
 const PROMPT_ID = 'entity-candidate';
 const PROMPT_VERSION = 1;
@@ -60,23 +61,25 @@ export const entityCandidateCapability: CopilotCapability = {
 
   async detect(ctx: CapabilityDetectContext): Promise<CapabilityDetectResult[]> {
     const context = buildEntityCandidateContext({
-      editor: ctx.editor,
+      baseContext: ctx.baseContext,
       projectId: ctx.projectId,
-      focusBlockId: ctx.focusBlockId,
     });
     if (!context) return [];
+
+    // editedBlocks is already in document order (BaseBlockContext guarantees
+    // it); concatenate to a single recentText so the prompt schema stays
+    // simple. Anchor-resolution below relies on the underlying block list.
+    const recentText = context.editedBlocks
+      .map((b) => b.text)
+      .filter(Boolean)
+      .join('\n\n');
 
     const client = await ctx.runtime.getClient();
     const { candidates } = await callStructured(
       client,
       entityCandidatePrompt,
       {
-        focusText: context.focusBlock.text,
-        surroundingText: [...context.surroundingBlocks]
-          .sort((a, b) => a.offset - b.offset)
-          .map((b) => b.text)
-          .filter(Boolean)
-          .join('\n\n'),
+        recentText,
         knownNames: context.knownElementNames,
         availableCategories: context.availableCategories,
         rejectedNames: context.rejectedNames,
@@ -134,6 +137,11 @@ export const entityCandidateCapability: CopilotCapability = {
       results.push({
         metadata,
         anchorJson: JSON.stringify({ selectedText: c.evidenceText }),
+        // Anchor the suggestion to the block whose text contains the
+        // evidence. Falls back to the first edited block (the runner's
+        // default) when the model paraphrases evidence enough that no
+        // block matches verbatim.
+        overrideTargetBlockId: findEvidenceBlock(context.editedBlocks, c.evidenceText),
       });
     }
     return results;

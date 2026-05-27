@@ -33,6 +33,7 @@ import {
   type CapabilityDetectResult,
 } from '../copilot/capability';
 import { copilotRuntime } from '../copilot/runtime';
+import { buildBaseBlockContext } from '../copilot/base-block-context';
 
 export interface DriftingAIDevConsole {
   setKey(apiKey: string): Promise<boolean>;
@@ -129,19 +130,30 @@ export function installAIDevConsole(): void {
           );
         }
 
+        // Single-block ad-hoc base context. Dev console doesn't have a
+        // chapterId at hand — pass a synthetic '__dev__' id; only the
+        // capability's prompt input cares about the block text, never the
+        // chapter id (until PR C wires prior sections, and even then dev
+        // console can skip them).
+        const baseContext = buildBaseBlockContext({
+          editor,
+          chapterId: '__dev__',
+          dirtyBlockIds: [blockId],
+        });
+        if (!baseContext) {
+          throw new Error(`Block ${blockId} not found or empty.`);
+        }
+
         const controller = new AbortController();
         const all: CapabilityDetectResult[] = [];
         for (const cap of caps) {
-          // Dev-console doesn't have nodeId at hand; pass empty string —
-          // capabilities that need it should already operate off editor+blockId
-          // for detect (targetId is only used by the runner for persistence).
           const results = await cap.detect({
             runtime: copilotRuntime,
             editor,
             projectId,
             targetKind: 'node',
             targetId: '',
-            focusBlockId: blockId,
+            baseContext,
             signal: controller.signal,
           });
           all.push(...results);

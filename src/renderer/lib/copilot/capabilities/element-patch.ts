@@ -42,6 +42,7 @@ import type {
   CapabilityDetectResult,
   CopilotCapability,
 } from '../capability';
+import { findEvidenceBlock } from '../evidence-anchor';
 
 const PROMPT_ID = 'element-patch';
 const PROMPT_VERSION = 1;
@@ -61,26 +62,28 @@ export const elementPatchCapability: CopilotCapability = {
 
   async detect(ctx: CapabilityDetectContext): Promise<CapabilityDetectResult[]> {
     const context = buildElementPatchContext({
-      editor: ctx.editor,
+      baseContext: ctx.baseContext,
       projectId: ctx.projectId,
-      focusBlockId: ctx.focusBlockId,
     });
     if (!context) return [];
     // Cheap early exit: nothing to patch against in a project with no
     // elements yet (would just burn tokens for an empty array response).
     if (context.candidateElements.length === 0) return [];
 
+    // editedBlocks is already ordered by document position (BaseBlockContext
+    // guarantees it). Concatenate to a single recentText so the prompt
+    // schema stays simple; anchor mapping below uses the block list.
+    const recentText = context.editedBlocks
+      .map((b) => b.text)
+      .filter(Boolean)
+      .join('\n\n');
+
     const client = await ctx.runtime.getClient();
     const { patches } = await callStructured(
       client,
       elementPatchPrompt,
       {
-        focusText: context.focusBlock.text,
-        surroundingText: [...context.surroundingBlocks]
-          .sort((a, b) => a.offset - b.offset)
-          .map((b) => b.text)
-          .filter(Boolean)
-          .join('\n\n'),
+        recentText,
         candidateElements: context.candidateElements,
         pendingPatchKeys: context.pendingPatchKeys,
       },
@@ -164,6 +167,10 @@ export const elementPatchCapability: CopilotCapability = {
       out.push({
         metadata,
         anchorJson: JSON.stringify({ selectedText: p.evidenceText }),
+        // Anchor each patch to the block whose text contains its evidence.
+        // Falls back to the first edited block (the runner's default) when
+        // the model paraphrases enough that no block matches verbatim.
+        overrideTargetBlockId: findEvidenceBlock(context.editedBlocks, p.evidenceText),
       });
     }
     return out;

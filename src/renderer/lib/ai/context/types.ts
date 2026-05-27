@@ -19,13 +19,47 @@ export interface BlockSnippet {
 }
 
 /**
- * Context for entity-candidate detection at a specific block.
+ * Pointer to a previously-summarized contiguous block range used as
+ * recent-context for the model. Built from `block_section` rows whose
+ * blockSignature still matches the current prose (stale rows are dropped
+ * by the base-context builder before they reach the prompt).
+ */
+export interface PriorSectionSnippet {
+  /** Block ids the summary covers, in document order. Diagnostic only. */
+  blockIds: string[];
+  /** Summary text — the part that actually goes into the prompt. */
+  summary: string;
+}
+
+/**
+ * Capability-agnostic block context built once per debounce fire and passed
+ * to every capability's detect() call. Includes:
+ *  - editedBlocks: the dirty-queue blocks the user has touched since the
+ *    last successful scan, ordered by document position so the model sees
+ *    them as a coherent recent edit narrative
+ *  - chapterId: which chapter these blocks live in (capabilities need this
+ *    for chapter-scoped lookups — element-patch anchors, prior sections)
+ *  - priorSections: hash-validated rolling summaries (filled in PR C; empty
+ *    array in PR B — present in the type so capability code can land first)
+ *
+ * Capabilities still own their domain-specific augmentation (candidate
+ * elements, known names, pending dedup keys) — this shape only carries
+ * what every block-driven capability needs.
+ */
+export interface BaseBlockContext {
+  chapterId: string;
+  editedBlocks: BlockSnippet[];
+  priorSections: PriorSectionSnippet[];
+}
+
+/**
+ * Context for entity-candidate detection across the dirty-block batch.
+ * editedBlocks is the same list the framework's BaseBlockContext carries —
+ * passed through so the capability has one object to thread into its prompt.
  */
 export interface EntityCandidateContext {
-  /** The block the user just paused on — Copilot scans this for new entities. */
-  focusBlock: BlockSnippet;
-  /** Surrounding blocks for narrative context, ordered front-to-back. */
-  surroundingBlocks: BlockSnippet[];
+  /** Recently-edited blocks (ordered by document position). */
+  editedBlocks: BlockSnippet[];
   /** All known element names in the current project, normalized. For dedup. */
   knownElementNames: string[];
   /**

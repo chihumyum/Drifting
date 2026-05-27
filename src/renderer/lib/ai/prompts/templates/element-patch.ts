@@ -29,13 +29,13 @@ export const elementPatchPrompt = definePrompt({
     'chapter-anchored patch addenda.',
 
   input: Type.Object({
-    focusText: Type.String({
-      description: 'The paragraph to scan for entity state changes.',
-    }),
-    surroundingText: Type.String({
+    recentText: Type.String({
       description:
-        'Neighboring paragraph context, joined newline-separated. Helps the ' +
-        'model understand WHO is changing and the immediate cause.',
+        'The text the user has recently edited, concatenated newline-separated ' +
+        'in document order. May span multiple paragraphs the user touched ' +
+        'between Copilot debounces. Scan for entity state changes across the ' +
+        'whole passage; nearby blocks form coreference / cause context for ' +
+        'each other.',
     }),
     candidateElements: Type.Array(
       Type.Object({
@@ -83,7 +83,7 @@ export const elementPatchPrompt = definePrompt({
         }),
         evidenceText: Type.String({
           description:
-            'Short verbatim excerpt from the focus text grounding the patch ' +
+            'Short verbatim excerpt from recentText grounding the patch ' +
             '(<= 160 chars). Used to highlight the chip anchor.',
         }),
         confidence: Type.Number({
@@ -117,7 +117,6 @@ export const elementPatchPrompt = definePrompt({
     '  6. If no state changes are present, return an empty array.',
 
   buildUserMessage: (input) => {
-    const ctx = input.surroundingText.trim();
     const elementsList = input.candidateElements.length
       ? input.candidateElements
           .map((e) => {
@@ -128,8 +127,7 @@ export const elementPatchPrompt = definePrompt({
           .join('\n')
       : '  (no entities defined in this project — nothing to patch)';
     return [
-      ctx ? `Narrative context (surrounding paragraphs):\n${ctx}\n` : '',
-      `Focus paragraph:\n${input.focusText}`,
+      `Recently-edited text (scan for entity state changes):\n${input.recentText}`,
       '',
       `Project entities (id :: name — summary):`,
       elementsList,

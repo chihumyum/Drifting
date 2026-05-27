@@ -32,6 +32,7 @@ import type {
   ManuscriptComment,
 } from '../../domain/manuscript-comment';
 import type { LLMClient } from '../ai/client/llm-client';
+import type { BaseBlockContext } from '../ai/context/types';
 
 /**
  * Input to createElement — minimal shape capabilities need. Mirrors
@@ -87,9 +88,15 @@ export interface CapabilityDetectContext {
   /** What the editor's content belongs to — passed straight to createCopilotSuggestion. */
   targetKind: CommentTargetKind;
   targetId: string;
-  /** The block id at the cursor (for editor-block-debounced trigger). */
-  focusBlockId: string;
-  /** Cancelled when the same block triggers again or the editor unmounts. */
+  /**
+   * Shared block context for this debounce — edited blocks + (PR C) prior
+   * section summaries. Capabilities consume this directly instead of
+   * re-extracting from the editor; framework-level concerns (which blocks
+   * the user touched, which rolling summaries are still valid) stay out of
+   * capability code.
+   */
+  baseContext: BaseBlockContext;
+  /** Cancelled when the chapter triggers again or the editor unmounts. */
   signal: AbortSignal;
 }
 
