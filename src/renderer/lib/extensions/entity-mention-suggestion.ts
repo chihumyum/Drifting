@@ -14,13 +14,23 @@ export interface MentionableEntity {
   kind: EntityKind; // 'node' | 'element'
   id: string;
   name: string;
+  // Optional aliases — only elements carry these today, but typed at this
+  // level so the picker can match against them uniformly. The picker expands
+  // each alias into its own row so the user can pick the exact form they
+  // want inserted (mirrors inline auto-detect, which also marks aliases).
+  aliases?: string[];
 }
 
 // Variants returned by the items() function so the keyboard handler and the
 // render layer can react uniformly. `create-element` is a virtual item that
 // resolves into a fresh element at command time.
+//
+// `displayText` is what gets inserted into the document — for an alias row
+// it's the alias string, not the canonical name. Keeps the picker consistent
+// with inline auto-detect (which preserves whatever surface form the user
+// typed).
 export type MentionPickerItem =
-  | { variant: 'entity'; entity: MentionableEntity }
+  | { variant: 'entity'; entity: MentionableEntity; displayText: string }
   | { variant: 'create-element'; name: string };
 
 export interface EntityMentionSuggestionOptions {
@@ -62,23 +72,42 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
         items: ({ query }) => {
           const entities = extension.options.getEntities();
           const q = query.trim().toLowerCase();
+          // Expand each entity into one row per surface form (name + each
+          // alias). Filtering then runs against the surface form itself, so
+          // typing an alias surfaces just that alias row — and the inserted
+          // text matches what the user actually searched for.
+          type Candidate = { displayText: string; entity: MentionableEntity };
+          const candidates: Candidate[] = [];
+          for (const entity of entities) {
+            if (entity.name) candidates.push({ displayText: entity.name, entity });
+            for (const alias of entity.aliases ?? []) {
+              if (alias) candidates.push({ displayText: alias, entity });
+            }
+          }
           const filtered = q
-            ? entities.filter((e) => e.name.toLowerCase().includes(q))
-            : entities;
+            ? candidates.filter((c) => c.displayText.toLowerCase().includes(q))
+            : candidates;
           const sorted = filtered.slice().sort((a, b) => {
             // Elements first, then nodes — element mentions are the dominant
             // case during chapter writing.
-            if (a.kind !== b.kind) return a.kind === 'element' ? -1 : 1;
-            return a.name.localeCompare(b.name);
+            if (a.entity.kind !== b.entity.kind) {
+              return a.entity.kind === 'element' ? -1 : 1;
+            }
+            return a.displayText.localeCompare(b.displayText);
           });
           const items: MentionPickerItem[] = sorted
             .slice(0, MAX_RESULTS)
-            .map((entity) => ({ variant: 'entity', entity }));
-          if (
-            q &&
-            extension.options.onCreateElement &&
-            !entities.some((e) => e.kind === 'element' && e.name.toLowerCase() === q)
-          ) {
+            .map((c) => ({ variant: 'entity', entity: c.entity, displayText: c.displayText }));
+          // Suppress the "+ create element" affordance if the query already
+          // matches an existing element's name OR any of its aliases — the
+          // user almost certainly meant the existing one.
+          const matchesExistingElement = entities.some(
+            (e) =>
+              e.kind === 'element' &&
+              (e.name.toLowerCase() === q ||
+                (e.aliases ?? []).some((a) => a.toLowerCase() === q)),
+          );
+          if (q && extension.options.onCreateElement && !matchesExistingElement) {
             items.push({ variant: 'create-element', name: query.trim() });
           }
           return items;
@@ -90,7 +119,14 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             | null = null;
 
           if (item.variant === 'entity') {
-            resolved = item.entity;
+            // Use the picked surface form (alias or canonical name) as the
+            // inserted text — matches what the user searched for and stays
+            // consistent with inline auto-detect's alias handling.
+            resolved = {
+              kind: item.entity.kind,
+              id: item.entity.id,
+              name: item.displayText,
+            };
           } else if (item.variant === 'create-element' && extension.options.onCreateElement) {
             const created = await extension.options.onCreateElement(item.name);
             if (created) {
@@ -142,7 +178,7 @@ export const EntityMentionSuggestion = Extension.create<EntityMentionSuggestionO
             }
             return {
               tag: item.entity.kind === 'element' ? '元素' : '章节',
-              text: item.entity.name,
+              text: item.displayText,
             };
           };
 

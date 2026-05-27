@@ -3,7 +3,6 @@ import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
 import { Node as PMNode } from '@tiptap/pm/model';
-import type { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -101,17 +100,6 @@ function isCommentTargetKind(kind: EntityKind): kind is CommentTargetKind {
 
 function removeCommentContextMenu(): void {
   document.querySelectorAll(`.${COMMENT_CONTEXT_MENU_CLASS}`).forEach((node) => node.remove());
-}
-
-function findSelectionBlockId(state: EditorState): string | null {
-  const resolved = state.doc.resolve(state.selection.from);
-  for (let depth = resolved.depth; depth >= 0; depth--) {
-    const node = resolved.node(depth);
-    if (!isBlockType(node.type.name)) continue;
-    const id = node.attrs?.id as string | null | undefined;
-    if (id) return id;
-  }
-  return null;
 }
 
 function openCommentContextMenu(
@@ -296,7 +284,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     const { sourceKind: currentSourceKind, sourceId: currentSourceId } = sourceRef.current;
     const elements: MentionableEntity[] = state.bookElements
       .filter((el) => !(currentSourceKind === 'element' && el.id === currentSourceId))
-      .map((el) => ({ kind: 'element', id: el.id, name: el.name }));
+      .map((el) => ({ kind: 'element', id: el.id, name: el.name, aliases: el.aliases }));
     const nodes: MentionableEntity[] = state.bookNodes
       .filter((n) => !(currentSourceKind === 'node' && n.id === currentSourceId))
       .map((n) => ({ kind: 'node', id: n.id, name: n.title }));
@@ -564,8 +552,44 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               .textBetween(selection.from, selection.to, '\n')
               .trim();
             if (!selectedText) return false;
-            const targetBlockId = findSelectionBlockId(view.state);
-            if (!targetBlockId) return false;
+
+            // Resolve the enclosing block once, so we can grab both its id
+            // and its plain-text snapshot in a single walk. The snapshot
+            // lets the card render the selection in context AND survives
+            // the block being edited or deleted (see CommentRail orphan
+            // handling).
+            const resolved = view.state.doc.resolve(selection.from);
+            let blockId: string | null = null;
+            let blockText = '';
+            let blockStartInDoc = 0;
+            for (let depth = resolved.depth; depth >= 0; depth--) {
+              const node = resolved.node(depth);
+              if (!isBlockType(node.type.name)) continue;
+              const id = node.attrs?.id as string | null | undefined;
+              if (!id) continue;
+              blockId = id;
+              blockText = node.textContent;
+              blockStartInDoc = resolved.before(depth) + 1;
+              break;
+            }
+            if (!blockId) return false;
+
+            // Map doc-relative selection offsets into blockText-relative ones.
+            // Direct subtraction works for plain prose; inline atoms (entity
+            // links etc.) can shift positions, so we sanity-check against
+            // the actual slice and fall back to indexOf if it doesn't match.
+            let blockSelectionFrom = selection.from - blockStartInDoc;
+            let blockSelectionTo = selection.to - blockStartInDoc;
+            if (blockText.slice(blockSelectionFrom, blockSelectionTo) !== selectedText) {
+              const idx = blockText.indexOf(selectedText);
+              if (idx >= 0) {
+                blockSelectionFrom = idx;
+                blockSelectionTo = idx + selectedText.length;
+              } else {
+                blockSelectionFrom = -1;
+                blockSelectionTo = -1;
+              }
+            }
 
             event.preventDefault();
             event.stopPropagation();
@@ -573,13 +597,16 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               projectId: source.projectId,
               sourceKind: source.sourceKind,
               sourceId: source.sourceId,
-              targetBlockId,
+              targetBlockId: blockId,
               selectedText,
               anchorJson: JSON.stringify({
                 selectedText,
                 selectionFrom: selection.from,
                 selectionTo: selection.to,
                 createdAt: new Date().toISOString(),
+                blockText,
+                blockSelectionFrom,
+                blockSelectionTo,
               }),
               clientX: event.clientX,
               clientY: event.clientY,

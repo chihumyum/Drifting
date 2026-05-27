@@ -10,36 +10,39 @@
  * acceptance work directly while the user is typing in the editor.
  */
 import { useCallback, useMemo, useState, type CSSProperties } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, Minimize2, X } from 'lucide-react';
 import type { ManuscriptComment } from '../../domain/manuscript-comment';
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import { getCopilotCapabilityForMetadataKind } from '../../lib/copilot/capability';
 
 interface CopilotSuggestionCardProps {
   comment: ManuscriptComment;
-  /** Pixel top within the rail container. Ignored in floating variant. */
-  top?: number;
-  /** 'rail' = absolute in margin rail; 'floating' = inside a chip popover. */
-  variant?: 'rail' | 'floating';
+  /** Absolute positioning style (top or bottom) within the rail. */
+  style?: CSSProperties;
   /** Tab/Esc currently routes here. Accept button shows a glow pulse. */
   isActive: boolean;
   /** Active window expired. Mouse still works; keyboard does not route here. */
   isStale: boolean;
+  /** Target block was deleted. Card shows a "原文已删除" tag instead of evidence. */
+  isOrphan?: boolean;
   onAccept: () => Promise<unknown>;
   onReject: () => Promise<unknown>;
-  /** Render an X in the header (used by the floating popover variant). */
-  onClose?: () => void;
+  /** Opens the snapshot modal. Only meaningful when isOrphan is true. */
+  onShowSnapshot?: () => void;
+  /** Collapses this card to a chip in the rail. */
+  onCollapse?: () => void;
 }
 
 export function CopilotSuggestionCard({
   comment,
-  top,
-  variant = 'rail',
+  style,
   isActive,
   isStale,
+  isOrphan = false,
   onAccept,
   onReject,
-  onClose,
+  onShowSnapshot,
+  onCollapse,
 }: CopilotSuggestionCardProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,32 +84,20 @@ export function CopilotSuggestionCard({
   }, [busy, onReject]);
 
   const baseClasses = ['mnote', 'mnote--copilot'];
-  if (variant === 'floating') baseClasses.push('mnote--floating');
   if (isStale) baseClasses.push('mnote--stale');
-
-  const style: CSSProperties | undefined = variant === 'rail' ? { top } : undefined;
+  if (isOrphan) baseClasses.push('mnote--orphan');
 
   // Graceful fallback when capability isn't registered (e.g. user has a
   // stale copilot comment for a feature we no longer ship).
   if (!metadata || !capability) {
     return (
       <div className={baseClasses.join(' ')} style={style}>
-        {variant === 'rail' && <div className="mnote__leader" aria-hidden="true" />}
+        {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
             <span className="mnote__head-glyph">⚠</span>
             <span>COPILOT (unknown)</span>
           </span>
-          {onClose && (
-            <button
-              type="button"
-              className="mnote__icon-btn"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <X size={12} />
-            </button>
-          )}
         </div>
         <div className="mnote__title">Unknown capability — safe to dismiss.</div>
         <div className="mnote__actions">
@@ -129,27 +120,41 @@ export function CopilotSuggestionCard({
 
   return (
     <div className={baseClasses.join(' ')} style={style}>
-      {variant === 'rail' && <div className="mnote__leader" aria-hidden="true" />}
+      {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
       <div className="mnote__head">
         <span className="mnote__head-l">
           <span className="mnote__head-glyph">✦</span>
           <span>COPILOT</span>
         </span>
-        {onClose ? (
-          <button
-            type="button"
-            className="mnote__icon-btn"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={12} />
-          </button>
-        ) : (
-          subtitle && <span className="mnote__head-conf">{subtitle}</span>
-        )}
+        <span className="mnote__head-r">
+          {subtitle && <span className="mnote__head-conf">{subtitle}</span>}
+          {onCollapse && (
+            <button
+              type="button"
+              className="mnote__icon-btn"
+              onClick={onCollapse}
+              aria-label="折叠"
+              title="折叠为 chip"
+            >
+              <Minimize2 size={11} />
+            </button>
+          )}
+        </span>
       </div>
       <div className="mnote__title">{title}</div>
-      {evidence && <div className="mnote__quote">{evidence}</div>}
+      {isOrphan ? (
+        <button
+          type="button"
+          className="mnote__tag"
+          onClick={() => onShowSnapshot?.()}
+          disabled={!onShowSnapshot}
+          title={onShowSnapshot ? '查看原文快照' : '无原文快照'}
+        >
+          原文已删除
+        </button>
+      ) : (
+        evidence && <div className="mnote__quote">{evidence}</div>
+      )}
       {error && (
         <div className="mnote__quote" style={{ color: 'var(--accent-warn, #c33)' }}>
           {error}

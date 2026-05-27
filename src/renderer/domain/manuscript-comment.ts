@@ -62,6 +62,22 @@ export interface CommentAnchorPayload {
   selectionFrom?: number;
   selectionTo?: number;
   createdAt?: string;
+  // v2 (additive, optional): a snapshot of the entire source block's plain
+  // text at comment-creation time, plus the selection offsets within that
+  // snapshot. Lets the card render the selected fragment in context — and
+  // survives the block being edited or deleted entirely. Older anchors
+  // lack these fields; renderers fall back to selectedText only.
+  blockText?: string;
+  blockSelectionFrom?: number;
+  blockSelectionTo?: number;
+}
+
+export interface CommentBlockSnapshot {
+  blockText: string;
+  /** Offset within blockText where the selection starts, or -1 if unknown. */
+  from: number;
+  /** Offset within blockText where the selection ends, or -1 if unknown. */
+  to: number;
 }
 
 export function createPlainCommentDoc(text: string): string {
@@ -111,5 +127,21 @@ export function getSelectedTextFromAnchor(anchorJson: string | null | undefined)
     return typeof parsed.selectedText === 'string' ? parsed.selectedText : '';
   } catch {
     return '';
+  }
+}
+
+export function getBlockSnapshotFromAnchor(
+  anchorJson: string | null | undefined,
+): CommentBlockSnapshot | null {
+  if (!anchorJson) return null;
+  try {
+    const parsed = JSON.parse(anchorJson) as CommentAnchorPayload;
+    if (typeof parsed.blockText !== 'string') return null;
+    const from =
+      typeof parsed.blockSelectionFrom === 'number' ? parsed.blockSelectionFrom : -1;
+    const to = typeof parsed.blockSelectionTo === 'number' ? parsed.blockSelectionTo : -1;
+    return { blockText: parsed.blockText, from, to };
+  } catch {
+    return null;
   }
 }

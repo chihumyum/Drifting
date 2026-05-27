@@ -1354,26 +1354,31 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   min-width: 0;
   max-width: 720px;
 }
+/* Comment rail — anchored to the right edge of .editor-body, mirrors the
+   EditorOutlinePanel pattern on the left. Absolute positioning means the
+   manuscript never reflows when the rail opens.
+   The rail container is transparent + pointer-events:none so the user can
+   click/select manuscript text underneath the rail's empty regions. Only
+   the actual cards/chips re-enable pointer events. */
 .editor__margin {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   width: 240px;
-  flex: 0 0 240px;
-  position: relative;
-  align-self: stretch;
-  padding: 28px 0;
-  min-height: 600px;
+  padding: 28px 14px 12px 12px;
+  z-index: 6;
+  background: transparent;
+  pointer-events: none;
+  animation: editor-margin-fade-in 0.16s ease;
 }
-/* Chip variant — when the scroll area can't host the full rail, CommentRail
-   switches to a narrow column of chips along the page's right edge. Each
-   chip expands into a floating popover that overlays the manuscript, so no
-   comment is hidden by lack of margin space. */
-.editor__margin--chip {
-  width: 32px;
-  flex: 0 0 32px;
-  min-height: 200px;
-  padding: 28px 0;
+.editor__margin .mnote,
+.editor__margin .comment-chip {
+  pointer-events: auto;
 }
-.editor__spread:has(.editor__margin--chip) {
-  gap: 6px;
+@keyframes editor-margin-fade-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .mnote {
@@ -1422,6 +1427,21 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.mnote__head-r {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mnote__head-r .mnote__icon-btn {
+  width: 16px;
+  height: 16px;
+  border: none;
+  color: hsl(var(--ink-4));
+}
+.mnote__head-r .mnote__icon-btn:hover {
+  color: hsl(var(--accent));
+  border: none;
 }
 .mnote__head-glyph {
   font-family: var(--font-serif);
@@ -1546,12 +1566,15 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 /* ============================================================
-   Chip + popover (collapsed comment rail)
+   Per-comment chip (collapsed card)
    ============================================================ */
+/* When the user minimizes a card it renders as this tiny pill in place
+   of the full card, at the same y position. Click to expand back. Lives
+   on the right edge of the rail so multiple chips line up neatly without
+   competing for horizontal space with expanded cards. */
 .comment-chip {
   position: absolute;
-  right: 0;
-  top: 0;
+  right: 8px;
   width: 22px;
   height: 22px;
   display: inline-flex;
@@ -1563,26 +1586,23 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--surface));
   color: hsl(var(--ink-3));
   cursor: pointer;
-  z-index: 5;
+  z-index: 2;
   transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .comment-chip:hover {
   background: hsl(var(--accent) / 0.10);
   color: hsl(var(--accent));
   border-color: hsl(var(--accent));
+  z-index: 6;
 }
 .comment-chip--copilot {
   border-color: hsl(var(--accent));
   color: hsl(var(--accent));
 }
 .comment-chip--resolved,
-.comment-chip--stale {
+.comment-chip--stale,
+.comment-chip--orphan {
   opacity: 0.55;
-}
-.comment-chip--open {
-  background: hsl(var(--accent) / 0.15);
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent));
 }
 .comment-chip--active {
   animation: comment-chip-pulse 1.4s ease-in-out infinite;
@@ -1591,32 +1611,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   0%, 100% { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.40), 0 0 8px hsl(var(--accent) / 0.45); }
   50%      { box-shadow: 0 0 0 3px hsl(var(--accent) / 0.65), 0 0 18px hsl(var(--accent) / 0.70); }
 }
-
-/* Floating popover that anchors to a chip. Extends left from the rail to
-   overlay the manuscript so even on narrow viewports the comment is
-   readable. Multiple popovers may coexist; the user dismisses each via X. */
-.comment-popover {
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 0;
-  width: 260px;
-  z-index: 20;
-  filter: drop-shadow(0 12px 28px hsl(var(--ink-1) / 0.25));
-}
-.comment-popover--composer {
-  z-index: 25;
-}
-
-/* mnote inside a popover sheds its absolute positioning so the popover
-   wrapper owns the placement. Also drops the leader line (no page edge to
-   point at when floating over content). */
-.mnote--floating {
-  position: static !important;
-  left: auto;
-  right: auto;
-  top: auto;
-}
-.mnote--floating .mnote__leader { display: none; }
 
 /* ============================================================
    Copilot active / stale states
@@ -1641,6 +1635,102 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 @keyframes mnote-btn-glow {
   0%, 100% { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.40), 0 0 10px hsl(var(--accent) / 0.45); }
   50%      { box-shadow: 0 0 0 3px hsl(var(--accent) / 0.70), 0 0 22px hsl(var(--accent) / 0.75); }
+}
+
+/* ============================================================
+   Block snapshot quote + orphan handling
+   ============================================================ */
+/* Selected fragment inside the quoted snapshot — bold + accent tint, so the
+   reader's eye lands on the part that was actually commented on, even with
+   ±60 chars of surrounding context. */
+.mnote__quote-hit {
+  font-weight: 700;
+  background: hsl(var(--accent) / 0.18);
+  color: hsl(var(--ink));
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Small pill replacing the quote when the source block was deleted. Clicks
+   open the snapshot modal so the user can recover context. */
+.mnote__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 2px;
+  background: transparent;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  align-self: flex-start;
+}
+.mnote__tag:hover:not(:disabled) {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+.mnote__tag:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Orphan card — slightly muted, no left-border accent, no leader line.
+   Bottom-stacked positioning is set inline by CommentRail. */
+.mnote--orphan {
+  border-left-color: hsl(var(--ink-5));
+  background: hsl(var(--ink-5) / 0.04);
+}
+.mnote--orphan .mnote__title {
+  color: hsl(var(--ink-2));
+}
+
+/* ============================================================
+   Snapshot inspection modal
+   ============================================================ */
+.snapshot-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: hsl(var(--ink-1) / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.snapshot-modal {
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 60px -20px hsl(var(--ink-1) / 0.45);
+}
+.snapshot-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: hsl(var(--ink-4));
+}
+.snapshot-modal__body {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.6;
+  color: hsl(var(--ink));
+  white-space: pre-wrap;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 .editor-comment-menu {
   position: fixed;

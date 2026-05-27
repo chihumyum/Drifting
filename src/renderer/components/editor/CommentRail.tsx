@@ -1,10 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ListTodo, MessageSquare, MessageSquarePlus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Check, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
   createPlainCommentDoc,
   extractTextFromCommentBody,
+  getBlockSnapshotFromAnchor,
   getSelectedTextFromAnchor,
+  type CommentBlockSnapshot,
   type CommentTargetKind,
   type ManuscriptComment,
 } from '../../domain/manuscript-comment';
@@ -30,15 +32,15 @@ interface CommentRailProps {
   onPendingRequestChange: (request: EditorCommentRequest | null) => void;
 }
 
-// Switch to chip mode when the scroll area can't comfortably host the rail
-// alongside the page (max-width 720) + 240 rail + ~32 gap/padding.
-const CHIP_MODE_THRESHOLD = 720 + 240 + 32;
-
 // How long a fresh copilot comment is keyboard-targetable. After this it goes
 // stale: Tab/Esc no longer routes here (so a Tab burst can't accidentally
 // accept an old suggestion when a new one arrives), but mouse-click still
 // works and the card remains visible.
 const COPILOT_ACTIVE_MS = 5000;
+
+// Context window around the selection in the in-card quote. The full block
+// snapshot is preserved in anchorJson — the modal shows it untrimmed.
+const QUOTE_CONTEXT_PAD = 60;
 
 function blockSelector(blockId: string): string {
   return `[data-block-id="${CSS.escape(blockId)}"]`;
@@ -46,6 +48,83 @@ function blockSelector(blockId: string): string {
 
 function commentSort(a: ManuscriptComment, b: ManuscriptComment): number {
   return a.createdAt.localeCompare(b.createdAt);
+}
+
+/** Quote excerpt: ±PAD chars around the selected hit, hit bolded + tinted. */
+function renderQuoteExcerpt(snapshot: CommentBlockSnapshot): ReactNode {
+  const { blockText, from, to } = snapshot;
+  if (from < 0 || to <= from || to > blockText.length) {
+    // Snapshot exists but offsets aren't usable — fall back to plain text.
+    return blockText;
+  }
+  const start = Math.max(0, from - QUOTE_CONTEXT_PAD);
+  const end = Math.min(blockText.length, to + QUOTE_CONTEXT_PAD);
+  return (
+    <>
+      {start > 0 ? '…' : null}
+      {blockText.slice(start, from)}
+      <mark className="mnote__quote-hit">{blockText.slice(from, to)}</mark>
+      {blockText.slice(to, end)}
+      {end < blockText.length ? '…' : null}
+    </>
+  );
+}
+
+/** Full block text with the hit highlighted — for the snapshot modal. */
+function renderQuoteFull(snapshot: CommentBlockSnapshot): ReactNode {
+  const { blockText, from, to } = snapshot;
+  if (from < 0 || to <= from || to > blockText.length) {
+    return blockText;
+  }
+  return (
+    <>
+      {blockText.slice(0, from)}
+      <mark className="mnote__quote-hit">{blockText.slice(from, to)}</mark>
+      {blockText.slice(to)}
+    </>
+  );
+}
+
+interface SnapshotModalProps {
+  snapshot: CommentBlockSnapshot;
+  onClose: () => void;
+}
+
+function SnapshotModal({ snapshot, onClose }: SnapshotModalProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  return (
+    <div className="snapshot-modal__overlay" onClick={onClose} role="presentation">
+      <div
+        className="snapshot-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Source block snapshot"
+      >
+        <div className="snapshot-modal__head">
+          <span>原文快照 · 已删除</span>
+          <button
+            type="button"
+            className="mnote__icon-btn"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <div className="snapshot-modal__body">{renderQuoteFull(snapshot)}</div>
+      </div>
+    </div>
+  );
 }
 
 export function CommentRail({
@@ -66,6 +145,8 @@ export function CommentRail({
   const marginRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [positions, setPositions] = useState<Record<string, number>>({});
+  const [orphanIds, setOrphanIds] = useState<Set<string>>(new Set());
+  const [snapshotForId, setSnapshotForId] = useState<string | null>(null);
   const [pendingTop, setPendingTop] = useState(28);
   const [draft, setDraft] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -76,11 +157,26 @@ export function CommentRail({
   const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
   const timersRef = useRef<Map<string, number>>(new Map());
 
-  // Chip-mode state — when the scroll area gets too narrow, the rail collapses
-  // to a column of chips at the right edge of the page. Chips expand into
-  // floating popovers on click. Multiple popovers may be open at once.
-  const [chipMode, setChipMode] = useState(false);
-  const [openPopovers, setOpenPopovers] = useState<Set<string>>(new Set());
+  // Per-comment chip state — when the user collapses a card, it renders
+  // as a small chip at the same y position. Click to expand. Default is
+  // expanded (card). Session-local; not persisted.
+  const [chipIds, setChipIds] = useState<Set<string>>(new Set());
+  const collapseToChip = useCallback((id: string) => {
+    setChipIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+  const expandToCard = useCallback((id: string) => {
+    setChipIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const visibleComments = useMemo(
     () =>
@@ -104,55 +200,73 @@ export function CommentRail({
       ? pendingRequest
       : null;
 
-  // ─── chip-mode detection ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!scrollEl) return;
-    const check = () => setChipMode(scrollEl.clientWidth < CHIP_MODE_THRESHOLD);
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(scrollEl);
-    return () => observer.disconnect();
-  }, [scrollEl]);
-
-  // ─── per-block position computation ───────────────────────────────────
+  // ─── per-block position computation + orphan detection ───────────────
+  // Anchored cards sit at the exact y of their target block (no collision
+  // stacking) — so as the user scrolls, cards track their blocks 1:1 and
+  // simply go off-screen with them. Cards on adjacent blocks may overlap;
+  // hover z-index surfaces whichever one the user reaches for.
+  //
+  // Orphans (target block deleted) anchor to the TOP of the manuscript
+  // (.page) — they scroll with content like anchored cards, but stack in
+  // a column above where the first real block would land. Scroll to top
+  // of the chapter to see them.
   const recomputePositions = useCallback(() => {
     const margin = marginRef.current;
     if (!scrollEl || !margin) return;
     const marginRect = margin.getBoundingClientRect();
-    const rawEntries = visibleComments.map((comment) => {
-      const block = scrollEl.querySelector(blockSelector(comment.targetBlockId)) as HTMLElement | null;
-      const blockRect = block?.getBoundingClientRect();
-      const top = blockRect ? blockRect.top - marginRect.top - 4 : 28;
-      return [comment.id, Math.max(0, top)] as const;
+
+    const anchored: Array<{ id: string; top: number }> = [];
+    const orphans: string[] = [];
+    visibleComments.forEach((comment) => {
+      const block = scrollEl.querySelector(
+        blockSelector(comment.targetBlockId),
+      ) as HTMLElement | null;
+      if (!block) {
+        orphans.push(comment.id);
+        return;
+      }
+      const blockRect = block.getBoundingClientRect();
+      // No clamp to 0 — when block scrolls above viewport, the card follows
+      // (negative top means off-screen up).
+      anchored.push({ id: comment.id, top: blockRect.top - marginRect.top - 4 });
     });
-    rawEntries.sort((a, b) => a[1] - b[1]);
+
+    // Orphan anchor point: top of .page (the manuscript container). Falls
+    // back to a small fixed offset if the page hasn't mounted yet.
+    const page = scrollEl.querySelector('.page') as HTMLElement | null;
+    const pageRect = page?.getBoundingClientRect();
+    const orphanBase = pageRect ? pageRect.top - marginRect.top - 4 : 4;
 
     const next: Record<string, number> = {};
-    if (chipMode) {
-      // Chip mode: keep chips anchored to their block top — no collision
-      // resolution needed because chips are tiny. Overlapping chips at the
-      // same line just stack visually; users rarely have many on one block.
-      rawEntries.forEach(([id, top]) => {
-        next[id] = top;
-      });
-    } else {
-      // Rail mode: stack cards downward with a 12px min gap (~116px card
-      // height + 12 = 128 stride).
-      let cursor = -128;
-      rawEntries.forEach(([id, top]) => {
-        const stacked = Math.max(top, cursor + 12);
-        next[id] = stacked;
-        cursor = stacked + 116;
-      });
-    }
+    // Orphans first — chronological order, stacked downward from the
+    // manuscript top with a ~108px stride. They scroll with the page.
+    let oCursor = orphanBase;
+    orphans.forEach((id) => {
+      next[id] = oCursor;
+      oCursor += 108;
+    });
+    // Anchored cards — exact block-relative position, no collision logic.
+    anchored.forEach(({ id, top }) => {
+      next[id] = top;
+    });
+
     setPositions(next);
+    setOrphanIds((prev) => {
+      const nextSet = new Set(orphans);
+      // Avoid resetting reference if contents are identical (keeps render
+      // dependencies stable).
+      if (prev.size === nextSet.size && orphans.every((id) => prev.has(id))) {
+        return prev;
+      }
+      return nextSet;
+    });
 
     if (relevantPending) {
       const block = scrollEl.querySelector(blockSelector(relevantPending.targetBlockId)) as HTMLElement | null;
       const blockRect = block?.getBoundingClientRect();
       setPendingTop(Math.max(0, blockRect ? blockRect.top - marginRect.top - 4 : 28));
     }
-  }, [scrollEl, visibleComments, relevantPending, chipMode]);
+  }, [scrollEl, visibleComments, relevantPending]);
 
   useEffect(() => {
     recomputePositions();
@@ -204,11 +318,27 @@ export function CommentRail({
     };
   }, [scrollEl, visibleComments]);
 
-  // ─── composer focus on open ───────────────────────────────────────────
+  // ─── composer initial position (sync, pre-paint) ─────────────────────
+  // Computed in a layout effect so the composer's first paint already has
+  // the correct pendingTop — avoids the brief flash at the rail's top edge
+  // before recomputePositions catches up. preventScroll on focus stops the
+  // browser from auto-scrolling the editor if our textarea is momentarily
+  // off-screen during this transition.
+  useLayoutEffect(() => {
+    if (!relevantPending || !scrollEl || !marginRef.current) return;
+    const marginRect = marginRef.current.getBoundingClientRect();
+    const block = scrollEl.querySelector(
+      blockSelector(relevantPending.targetBlockId),
+    ) as HTMLElement | null;
+    if (!block) return;
+    const blockRect = block.getBoundingClientRect();
+    setPendingTop(Math.max(0, blockRect.top - marginRect.top - 4));
+  }, [relevantPending, scrollEl]);
+
   useEffect(() => {
     setDraft('');
     if (relevantPending) {
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
     }
   }, [relevantPending]);
 
@@ -364,58 +494,6 @@ export function CommentRail({
     clearActivation,
   ]);
 
-  // ─── popover open/close ───────────────────────────────────────────────
-  const togglePopover = useCallback((id: string) => {
-    setOpenPopovers((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const closePopover = useCallback((id: string) => {
-    setOpenPopovers((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
-  // Auto-open the popover for any newly-active copilot comment while in chip
-  // mode, so the user actually sees the suggestion without first clicking
-  // the chip. Stays open after going stale until the user closes it.
-  useEffect(() => {
-    if (!chipMode) return;
-    if (activeIds.size === 0) return;
-    setOpenPopovers((prev) => {
-      let next = prev;
-      activeIds.forEach((id) => {
-        if (!next.has(id)) {
-          if (next === prev) next = new Set(prev);
-          next.add(id);
-        }
-      });
-      return next;
-    });
-  }, [chipMode, activeIds]);
-
-  // Drop popover state for comments that have been removed.
-  useEffect(() => {
-    const currentIds = new Set(visibleComments.map((c) => c.id));
-    setOpenPopovers((prev) => {
-      let next = prev;
-      prev.forEach((id) => {
-        if (!currentIds.has(id)) {
-          if (next === prev) next = new Set(prev);
-          next.delete(id);
-        }
-      });
-      return next;
-    });
-  }, [visibleComments]);
-
   // ─── handlers ─────────────────────────────────────────────────────────
   const handleCreate = async () => {
     if (!relevantPending) return;
@@ -445,63 +523,78 @@ export function CommentRail({
   };
 
   // ─── card renderers ───────────────────────────────────────────────────
-  const renderCopilotCard = (
-    comment: ManuscriptComment,
-    variant: 'rail' | 'floating',
-  ) => (
-    <CopilotSuggestionCard
-      comment={comment}
-      top={variant === 'rail' ? positions[comment.id] ?? 28 : undefined}
-      variant={variant}
-      isActive={activeIds.has(comment.id)}
-      isStale={!activeIds.has(comment.id) && seenIds.has(comment.id)}
-      onAccept={() => {
-        clearActivation(comment.id);
-        return acceptCopilotComment(comment);
-      }}
-      onReject={() => {
-        clearActivation(comment.id);
-        return rejectCopilotComment(comment.id);
-      }}
-      onClose={variant === 'floating' ? () => closePopover(comment.id) : undefined}
-    />
-  );
+  const renderCopilotCard = (comment: ManuscriptComment) => {
+    const isOrphan = orphanIds.has(comment.id);
+    const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
+    return (
+      <CopilotSuggestionCard
+        comment={comment}
+        style={{ top: positions[comment.id] ?? 28 }}
+        isActive={activeIds.has(comment.id)}
+        isStale={!activeIds.has(comment.id) && seenIds.has(comment.id)}
+        isOrphan={isOrphan}
+        onAccept={() => {
+          clearActivation(comment.id);
+          return acceptCopilotComment(comment);
+        }}
+        onReject={() => {
+          clearActivation(comment.id);
+          return rejectCopilotComment(comment.id);
+        }}
+        onShowSnapshot={isOrphan && snapshot ? () => setSnapshotForId(comment.id) : undefined}
+        onCollapse={() => collapseToChip(comment.id)}
+      />
+    );
+  };
 
-  const renderManualCard = (
-    comment: ManuscriptComment,
-    variant: 'rail' | 'floating',
-  ) => {
-    const quote = getSelectedTextFromAnchor(comment.anchorJson);
+  const renderManualCard = (comment: ManuscriptComment) => {
+    const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
+    const fallbackQuote = snapshot ? '' : getSelectedTextFromAnchor(comment.anchorJson);
     const body = extractTextFromCommentBody(comment.bodyJson);
     const isResolved = comment.status === 'resolved';
+    const isOrphan = orphanIds.has(comment.id);
     const busy = busyId === comment.id;
     const classes = ['mnote', 'mnote--manual'];
     if (isResolved) classes.push('mnote--resolved');
-    if (variant === 'floating') classes.push('mnote--floating');
-    const style = variant === 'rail' ? { top: positions[comment.id] ?? 28 } : undefined;
+    if (isOrphan) classes.push('mnote--orphan');
+    const style = { top: positions[comment.id] ?? 28 };
     return (
       <div className={classes.join(' ')} style={style}>
-        {variant === 'rail' && <div className="mnote__leader" aria-hidden="true" />}
+        {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
             <span className="mnote__head-glyph">§</span>
             <span>{comment.authorKind === 'user' ? 'COMMENT' : comment.authorKind}</span>
           </span>
-          {variant === 'floating' ? (
+          <span className="mnote__head-r">
+            <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
             <button
               type="button"
               className="mnote__icon-btn"
-              onClick={() => closePopover(comment.id)}
-              aria-label="Close"
+              onClick={() => collapseToChip(comment.id)}
+              aria-label="折叠"
+              title="折叠为 chip"
             >
-              <X size={12} />
+              <Minimize2 size={11} />
             </button>
-          ) : (
-            <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
-          )}
+          </span>
         </div>
         <div className="mnote__title">{body || '空批注'}</div>
-        {quote && <div className="mnote__quote">{quote}</div>}
+        {isOrphan ? (
+          <button
+            type="button"
+            className="mnote__tag"
+            onClick={() => snapshot && setSnapshotForId(comment.id)}
+            disabled={!snapshot}
+            title={snapshot ? '查看原文快照' : '无原文快照'}
+          >
+            原文已删除
+          </button>
+        ) : snapshot ? (
+          <div className="mnote__quote">{renderQuoteExcerpt(snapshot)}</div>
+        ) : (
+          fallbackQuote && <div className="mnote__quote">{fallbackQuote}</div>
+        )}
         <div className="mnote__actions">
           {isResolved ? (
             <button
@@ -547,19 +640,41 @@ export function CommentRail({
     );
   };
 
-  const renderCard = (comment: ManuscriptComment, variant: 'rail' | 'floating') =>
-    comment.source === 'copilot'
-      ? renderCopilotCard(comment, variant)
-      : renderManualCard(comment, variant);
-
-  const renderComposer = (variant: 'rail' | 'floating') => {
-    if (!relevantPending) return null;
-    const classes = ['mnote', 'mnote--composer'];
-    if (variant === 'floating') classes.push('mnote--floating');
-    const style = variant === 'rail' ? { top: pendingTop } : undefined;
+  const renderChip = (comment: ManuscriptComment) => {
+    const isCopilot = comment.source === 'copilot';
+    const isActive = activeIds.has(comment.id);
+    const isStale = !isActive && seenIds.has(comment.id);
+    const isOrphan = orphanIds.has(comment.id);
+    const classes = ['comment-chip'];
+    if (isCopilot) classes.push('comment-chip--copilot');
+    if (comment.status === 'resolved') classes.push('comment-chip--resolved');
+    if (isActive) classes.push('comment-chip--active');
+    if (isStale) classes.push('comment-chip--stale');
+    if (isOrphan) classes.push('comment-chip--orphan');
     return (
-      <div className={classes.join(' ')} style={style}>
-        {variant === 'rail' && <div className="mnote__leader" aria-hidden="true" />}
+      <button
+        type="button"
+        className={classes.join(' ')}
+        style={{ top: positions[comment.id] ?? 28 }}
+        onClick={() => expandToCard(comment.id)}
+        aria-label={isCopilot ? 'Copilot suggestion' : 'Comment'}
+        title="展开"
+      >
+        {isCopilot ? <Sparkles size={11} /> : <MessageSquare size={11} />}
+      </button>
+    );
+  };
+
+  const renderCard = (comment: ManuscriptComment) => {
+    if (chipIds.has(comment.id)) return renderChip(comment);
+    return comment.source === 'copilot' ? renderCopilotCard(comment) : renderManualCard(comment);
+  };
+
+  const renderComposer = () => {
+    if (!relevantPending) return null;
+    return (
+      <div className="mnote mnote--composer" style={{ top: pendingTop }}>
+        <div className="mnote__leader" aria-hidden="true" />
         <div className="mnote__head">
           <span className="mnote__head-l">
             <MessageSquarePlus size={11} />
@@ -611,62 +726,29 @@ export function CommentRail({
     );
   };
 
-  // ─── chip mode render ────────────────────────────────────────────────
-  if (chipMode) {
-    return (
+  const snapshotComment =
+    snapshotForId !== null
+      ? visibleComments.find((c) => c.id === snapshotForId) ?? null
+      : null;
+  const snapshotPayload = snapshotComment
+    ? getBlockSnapshotFromAnchor(snapshotComment.anchorJson)
+    : null;
+
+  return (
+    <>
       <aside
         ref={marginRef}
-        className="editor__margin editor__margin--chip"
+        className="editor__margin"
         aria-label="Manuscript comments"
       >
-        {visibleComments.map((comment) => {
-          const top = positions[comment.id] ?? 28;
-          const isOpen = openPopovers.has(comment.id);
-          const isActive = activeIds.has(comment.id);
-          const isStale = !isActive && seenIds.has(comment.id);
-          const chipClasses = ['comment-chip'];
-          if (comment.source === 'copilot') chipClasses.push('comment-chip--copilot');
-          if (comment.status === 'resolved') chipClasses.push('comment-chip--resolved');
-          if (isActive) chipClasses.push('comment-chip--active');
-          if (isStale) chipClasses.push('comment-chip--stale');
-          if (isOpen) chipClasses.push('comment-chip--open');
-          return (
-            <Fragment key={comment.id}>
-              <button
-                type="button"
-                className={chipClasses.join(' ')}
-                style={{ top }}
-                onClick={() => togglePopover(comment.id)}
-                aria-label={comment.source === 'copilot' ? 'Copilot suggestion' : 'Comment'}
-                aria-expanded={isOpen}
-              >
-                {comment.source === 'copilot' ? <Sparkles size={11} /> : <MessageSquare size={11} />}
-              </button>
-              {isOpen && (
-                <div className="comment-popover" style={{ top }} role="dialog">
-                  {renderCard(comment, 'floating')}
-                </div>
-              )}
-            </Fragment>
-          );
-        })}
-
-        {relevantPending && (
-          <div className="comment-popover comment-popover--composer" style={{ top: pendingTop }} role="dialog">
-            {renderComposer('floating')}
-          </div>
-        )}
+        {visibleComments.map((comment) => (
+          <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
+        ))}
+        {renderComposer()}
       </aside>
-    );
-  }
-
-  // ─── rail mode render (default) ──────────────────────────────────────
-  return (
-    <aside className="editor__margin" ref={marginRef} aria-label="Manuscript comments">
-      {visibleComments.map((comment) => (
-        <Fragment key={comment.id}>{renderCard(comment, 'rail')}</Fragment>
-      ))}
-      {renderComposer('rail')}
-    </aside>
+      {snapshotPayload && (
+        <SnapshotModal snapshot={snapshotPayload} onClose={() => setSnapshotForId(null)} />
+      )}
+    </>
   );
 }

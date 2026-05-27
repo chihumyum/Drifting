@@ -713,64 +713,68 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
-              <article className="page">
-                {!isDriftNode && (
-                  <div className="page__folio" aria-hidden="true">
-                    <span className="page__folio-line">Chapter</span>
-                    <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
-                    {mainStoryline && (
-                      <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
-                        {mainStoryline.name}
-                      </span>
-                    )}
-                    <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
-                  </div>
-                )}
+                <article className="page">
+                  {!isDriftNode && (
+                    <div className="page__folio" aria-hidden="true">
+                      <span className="page__folio-line">Chapter</span>
+                      <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
+                      {mainStoryline && (
+                        <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
+                          {mainStoryline.name}
+                        </span>
+                      )}
+                      <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                    </div>
+                  )}
 
-                {!isDriftNode && mainStoryline && (
-                  <div className="page__chapter-mark">— {mainStoryline.name} —</div>
-                )}
+                  {!isDriftNode && mainStoryline && (
+                    <div className="page__chapter-mark">— {mainStoryline.name} —</div>
+                  )}
 
-                <ChapterEditor
-                  key={nodeId}
-                  ref={editorRef}
-                  nodeId={nodeId}
-                  projectId={activeProjectId}
-                  content={bookContent?.contentJson ?? null}
-                  title={curNode.title}
-                  summary={curNode.summary || ''}
-                  onContentUpdate={handleContentUpdate}
-                  onTitleUpdate={handleTitleUpdate}
-                  onSummaryUpdate={handleSummaryUpdate}
-                  onEntityClick={handleEntityClick}
-                  onOutlineChange={setOutline}
-                  onAddCommentRequest={handleAddCommentRequest}
-                  showTitle={true}
-                  showSummary={true}
-                  editableTitle={true}
-                  editableSummary={true}
-                  autoFocus={false}
-                  minHeight="400px"
-                  selectionKey={editorTabSelectionKey(activeProjectId, {
-                    entityType: 'node',
-                    id: nodeId,
-                  })}
-                />
+                  <ChapterEditor
+                    key={nodeId}
+                    ref={editorRef}
+                    nodeId={nodeId}
+                    projectId={activeProjectId}
+                    content={bookContent?.contentJson ?? null}
+                    title={curNode.title}
+                    summary={curNode.summary || ''}
+                    onContentUpdate={handleContentUpdate}
+                    onTitleUpdate={handleTitleUpdate}
+                    onSummaryUpdate={handleSummaryUpdate}
+                    onEntityClick={handleEntityClick}
+                    onOutlineChange={setOutline}
+                    onAddCommentRequest={handleAddCommentRequest}
+                    showTitle={true}
+                    showSummary={true}
+                    editableTitle={true}
+                    editableSummary={true}
+                    autoFocus={false}
+                    minHeight="400px"
+                    selectionKey={editorTabSelectionKey(activeProjectId, {
+                      entityType: 'node',
+                      id: nodeId,
+                    })}
+                  />
 
-                <div className="page__ornament" aria-hidden="true">⁂</div>
-              </article>
-              {marginNotes && (
-                <CommentRail
-                  projectId={activeProjectId}
-                  targetKind="node"
-                  targetId={nodeId ?? ''}
-                  scrollEl={scrollEl}
-                  pendingRequest={pendingComment}
-                  onPendingRequestChange={setPendingComment}
-                />
-              )}
+                  <div className="page__ornament" aria-hidden="true">⁂</div>
+                </article>
               </div>
             </div>
+            {/* Comment rail lives OUTSIDE .editor-scroll so it can be absolutely
+                positioned against .editor-body without participating in flex
+                layout — mirrors the EditorOutlinePanel pattern on the left.
+                Page stays centered regardless of whether the rail is open. */}
+            {marginNotes && (
+              <CommentRail
+                projectId={activeProjectId}
+                targetKind="node"
+                targetId={nodeId ?? ''}
+                scrollEl={scrollEl}
+                pendingRequest={pendingComment}
+                onPendingRequestChange={setPendingComment}
+              />
+            )}
           </div>
         </>
       )}
