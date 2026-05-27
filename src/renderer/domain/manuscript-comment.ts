@@ -7,7 +7,18 @@ export type ManuscriptCommentStatus = 'open' | 'resolved' | 'converted';
 export type CommentAuthorKind = 'user' | 'ai' | 'copilot' | 'external';
 export type CommentSource = 'manual' | 'shadow' | 'copilot' | 'api';
 export type CommentPriority = 'low' | 'med' | 'high';
-export type CommentActionKind = 'convert_to_memo';
+// Comment action log entries. New kinds are additive — `kind` is an
+// unconstrained text column at the DB level (see CommentActionTable in
+// schema/drizzle.ts), so extending this union does not require migration.
+//   - convert_to_memo:  user manually converted a comment to a memo/TODO
+//   - accept_suggestion: user accepted a Copilot proposal (status -> 'converted',
+//     resultJson carries the created Element id / patch result / etc.)
+//   - reject_suggestion: user dismissed a Copilot proposal as incorrect; row
+//     stays around as the dedup source ("don't suggest this name again")
+export type CommentActionKind =
+  | 'convert_to_memo'
+  | 'accept_suggestion'
+  | 'reject_suggestion';
 export type CommentActionStatus = 'pending' | 'applied' | 'failed';
 
 export interface ManuscriptComment {

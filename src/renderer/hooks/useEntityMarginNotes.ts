@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { CommentTargetKind } from '../domain/manuscript-comment';
+import { events } from '../lib/events';
 
 const STORAGE_PREFIX = 'editor:margin-notes:';
 
@@ -46,6 +47,20 @@ export function useEntityMarginNotes(
     },
     [kind, entityId],
   );
+
+  // Listen for Copilot suggesting on this exact (kind, id) — auto-open the
+  // rail so the user actually sees what was created. Respects the toggle
+  // immediately afterwards; if user re-closes, a future copilot persist
+  // will re-open. Cheap heuristic: nudging is preferred to silent writes.
+  useEffect(() => {
+    if (!entityId) return;
+    const handler = (payload: { targetKind: string; targetId: string }) => {
+      if (payload.targetKind !== kind || payload.targetId !== entityId) return;
+      update(true);
+    };
+    events.on('copilot:suggestion-persisted', handler);
+    return () => events.off('copilot:suggestion-persisted', handler);
+  }, [kind, entityId, update]);
 
   return [value, update];
 }

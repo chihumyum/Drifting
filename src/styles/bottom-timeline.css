@@ -335,7 +335,10 @@
   align-items: stretch;
   flex: 1;
   gap: 0;
-  min-height: 0;
+  /* Floor that keeps the node title (one line, ~14px line-box + 6px content
+     padding + 8px clip top/bottom inset + 1px row border) from getting
+     vertically clipped when many storylines compress the rows-area. */
+  min-height: 30px;
 }
 .btl-row + .btl-row {
   border-top: 1px solid hsl(var(--rule) / 0.5);

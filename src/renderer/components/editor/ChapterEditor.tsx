@@ -13,6 +13,7 @@ import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
+import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -338,6 +339,9 @@ export function ChapterEditor({
         anchor={patchAnchor}
         onClose={() => setPatchAnchor(null)}
       />
+
+      {/* Headless mount — runs entity-candidate detection on debounced edits */}
+      <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
     </div>
   );
 }

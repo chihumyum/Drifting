@@ -11,6 +11,11 @@ import type {
   CommentTargetKind,
   ManuscriptComment,
 } from '../domain/manuscript-comment';
+import {
+  encodeCopilotMetadata,
+  type AcceptCopilotResult,
+  type CopilotSuggestionMetadata,
+} from '../domain/copilot-suggestion';
 import type { Memo } from '../domain/memo';
 import { createMemoSqliteRepository } from '../sqlite-repo/memo-repo';
 import {
@@ -45,6 +50,26 @@ export interface CreateManuscriptCommentInput {
   source?: CommentSource;
   priority?: CommentPriority | null;
   metadataJson?: string | null;
+}
+
+/**
+ * Copilot-flavored variant of CreateManuscriptCommentInput. Hard-codes
+ * authorKind/source/authorName to the copilot defaults, requires structured
+ * metadata, and auto-builds bodyJson from the metadata if the caller doesn't
+ * supply one. Kept separate from CreateManuscriptCommentInput so type-level
+ * mistakes (e.g. forgetting to set source: 'copilot') become impossible.
+ */
+export interface CreateCopilotSuggestionInput {
+  targetKind: CommentTargetKind;
+  targetId: string;
+  targetBlockId: string;
+  /** Encoded CommentAnchorPayload — typically built around the evidence span. */
+  anchorJson: string;
+  /** Typed copilot metadata; serialized into the comment's metadataJson. */
+  metadata: CopilotSuggestionMetadata;
+  /** Optional human-readable body. Auto-generated from metadata if omitted. */
+  bodyJson?: string;
+  priority?: CommentPriority | null;
 }
 
 function commentSyncPayload(comment: ManuscriptComment): Record<string, unknown> {
@@ -373,6 +398,157 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
     [ensureDb, projectId, userId],
   );
 
+  const createCopilotSuggestion = useCallback(
+    async (input: CreateCopilotSuggestionInput) => {
+      await ensureDb();
+      const prev = useDataStore.getState().manuscriptComments.slice();
+      const now = new Date().toISOString();
+      const comment: ManuscriptComment = {
+        id: uuidv7(),
+        projectId,
+        targetKind: input.targetKind,
+        targetId: input.targetId,
+        targetBlockId: input.targetBlockId,
+        anchorJson: input.anchorJson,
+        authorKind: 'copilot',
+        authorId: null,
+        authorName: 'Copilot',
+        bodyJson: input.bodyJson ?? buildCopilotBody(input.metadata),
+        status: 'open',
+        priority: input.priority ?? null,
+        source: 'copilot',
+        metadataJson: encodeCopilotMetadata(input.metadata),
+        resolvedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      return withOptimisticUpdate({
+        apply: () => useDataStore.getState().setManuscriptComments([...prev, comment]),
+        rollback: () => useDataStore.getState().setManuscriptComments(prev),
+        effect: () => commentRepo.create(comment),
+        sync: (persisted) =>
+          syncManuscriptCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
+      });
+    },
+    [ensureDb, projectId, commentRepo],
+  );
+
+  // Shared backbone for accept/reject: append an action row, mark the
+  // comment 'converted' so it disappears from CommentRail's open list, but
+  // keep the row around as audit + dedup memory (queryable via
+  // comment_action.kind='reject_suggestion'). Status='converted' is reused
+  // rather than introducing a new terminal status — the action.kind already
+  // carries the semantic, and UI filtering already excludes 'converted'.
+  const recordSuggestionTerminal = useCallback(
+    async (
+      commentId: string,
+      actionKind: 'accept_suggestion' | 'reject_suggestion',
+      payload: Record<string, unknown>,
+      result: Record<string, unknown> | null,
+      label: string,
+    ): Promise<CommentAction> => {
+      await ensureDb();
+      const state = useDataStore.getState();
+      const commentsBefore = state.manuscriptComments.slice();
+      const actionsBefore = state.commentActions.slice();
+      const existing = commentsBefore.find((c) => c.id === commentId);
+      if (!existing) throw new Error(`Comment with id ${commentId} not found`);
+      if (existing.source !== 'copilot') {
+        throw new Error(`Comment ${commentId} is not a copilot suggestion (source=${existing.source})`);
+      }
+      if (existing.status !== 'open') {
+        throw new Error(`Comment ${commentId} already terminal (status=${existing.status})`);
+      }
+
+      const now = new Date().toISOString();
+      const action: CommentAction = {
+        id: uuidv7(),
+        projectId,
+        commentId,
+        kind: actionKind,
+        label,
+        payloadJson: JSON.stringify(payload),
+        status: 'applied',
+        resultJson: result ? JSON.stringify(result) : null,
+        createdByKind: 'user',
+        createdById: userId,
+        createdAt: now,
+        updatedAt: now,
+        appliedAt: now,
+      };
+      const updatedComment: ManuscriptComment = {
+        ...existing,
+        status: 'converted',
+        resolvedAt: now,
+        updatedAt: now,
+      };
+
+      try {
+        const store = useDataStore.getState();
+        store.setCommentActions([...actionsBefore, action]);
+        store.setManuscriptComments(
+          commentsBefore.map((c) => (c.id === commentId ? updatedComment : c)),
+        );
+
+        await getDb().transaction(async (tx) => {
+          const txCommentRepo = createManuscriptCommentRepository(projectId, tx);
+          const txActionRepo = createCommentActionRepository(projectId, tx);
+          await txCommentRepo.update(commentId, {
+            status: updatedComment.status,
+            resolvedAt: updatedComment.resolvedAt,
+            updatedAt: updatedComment.updatedAt,
+          });
+          await txActionRepo.create(action);
+        });
+
+        syncManuscriptCommentUpdate(commentId, projectId, {
+          status: updatedComment.status,
+          resolvedAt: updatedComment.resolvedAt,
+        });
+        syncCommentActionCreate(action.id, projectId, actionSyncPayload(action));
+
+        return action;
+      } catch (error) {
+        const store = useDataStore.getState();
+        store.setManuscriptComments(commentsBefore);
+        store.setCommentActions(actionsBefore);
+        throw error;
+      }
+    },
+    [ensureDb, projectId, userId],
+  );
+
+  const acceptCopilotSuggestion = useCallback(
+    async (commentId: string, result: AcceptCopilotResult) => {
+      const existing = useDataStore.getState().manuscriptComments.find((c) => c.id === commentId);
+      const payload = existing?.metadataJson ? JSON.parse(existing.metadataJson) : {};
+      return recordSuggestionTerminal(
+        commentId,
+        'accept_suggestion',
+        payload as Record<string, unknown>,
+        result as unknown as Record<string, unknown>,
+        'Accept copilot suggestion',
+      );
+    },
+    [recordSuggestionTerminal],
+  );
+
+  const rejectCopilotSuggestion = useCallback(
+    async (commentId: string, reason?: string) => {
+      const existing = useDataStore.getState().manuscriptComments.find((c) => c.id === commentId);
+      const payload = existing?.metadataJson ? JSON.parse(existing.metadataJson) : {};
+      return recordSuggestionTerminal(
+        commentId,
+        'reject_suggestion',
+        payload as Record<string, unknown>,
+        reason ? { reason } : null,
+        'Reject copilot suggestion',
+      );
+    },
+    [recordSuggestionTerminal],
+  );
+
   return useMemo(
     () => ({
       loadInitial,
@@ -381,7 +557,40 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       reopenComment,
       deleteComment,
       convertToMemo,
+      createCopilotSuggestion,
+      acceptCopilotSuggestion,
+      rejectCopilotSuggestion,
     }),
-    [loadInitial, createComment, resolveComment, reopenComment, deleteComment, convertToMemo],
+    [
+      loadInitial,
+      createComment,
+      resolveComment,
+      reopenComment,
+      deleteComment,
+      convertToMemo,
+      createCopilotSuggestion,
+      acceptCopilotSuggestion,
+      rejectCopilotSuggestion,
+    ],
   );
+}
+
+/**
+ * Auto-generate a human-readable body for a copilot suggestion comment when
+ * the caller doesn't supply one. PR 5 will likely have CommentRail render
+ * from `metadataJson` directly and ignore this body for copilot rows, but a
+ * sensible default keeps the existing CommentRail working out of the box.
+ */
+function buildCopilotBody(meta: CopilotSuggestionMetadata): string {
+  switch (meta.kind) {
+    case 'entity-candidate': {
+      const pct = Math.round(meta.confidence * 100);
+      return createPlainCommentDoc(
+        `Possible new ${meta.suggestedCategoryHint}: "${meta.suggestedName}" (${pct}% confident)`,
+      );
+    }
+    default:
+      // Exhaustiveness check — future metadata kinds must add a case.
+      return createPlainCommentDoc('Copilot suggestion');
+  }
 }

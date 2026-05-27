@@ -11,6 +11,17 @@ interface ImportMetaEnv {
   readonly VITE_GEMINI_API_KEY?: string;
   readonly VITE_ANTHROPIC_API_KEY?: string;
   readonly VITE_OPENAI_API_KEY?: string;
+  readonly VITE_DEEPSEEK_AI_API_KEY?: string;
+  readonly VITE_DEEPSEEK_API_KEY?: string;
+  /**
+   * DeepSeek thinking-mode toggle. Set to "enabled" / "1" / "true" / "on"
+   * to turn on thinking mode for the DeepSeek provider. Default OFF —
+   * thinking mode is incompatible with forced tool_choice, which all
+   * callStructured-based capabilities rely on.
+   */
+  readonly VITE_DEEPSEEK_THINKING?: string;
+  /** Optional reasoning effort when thinking is enabled: 'high' | 'max'. Default 'high'. */
+  readonly VITE_DEEPSEEK_REASONING_EFFORT?: string;
 }
 
 interface ImportMeta {

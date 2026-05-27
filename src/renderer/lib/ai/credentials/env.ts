@@ -47,5 +47,7 @@ function envNames(provider: BYOKProvider): string[] {
       return ['VITE_ANTHROPIC_API_KEY'];
     case 'openai':
       return ['VITE_OPENAI_API_KEY'];
+    case 'deepseek':
+      return ['VITE_DEEPSEEK_AI_API_KEY', 'VITE_DEEPSEEK_API_KEY'];
   }
 }

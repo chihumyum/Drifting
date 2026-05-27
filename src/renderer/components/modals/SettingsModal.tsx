@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
+import { getCopilotCapability } from '../../lib/copilot/capability';
 import { events } from '../../lib/events';
 import { SyncActivityPanel } from '../sync/SyncActivityPanel';
 import { useSyncObserver } from '../../services/sync-observer.service';
@@ -2078,6 +2079,20 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 }
 
+const COPILOT_DEBOUNCE_MIN_SEC = 3;
+const COPILOT_DEBOUNCE_MAX_SEC = 30;
+
+/** Clamp slider input to the supported range. Defends against URL/dev
+ *  console mutations that might push the stored ms outside [3s, 30s]. */
+function clampDebounceMs(ms: number): number {
+  const seconds = Math.round(ms / 1000);
+  const clamped = Math.min(
+    COPILOT_DEBOUNCE_MAX_SEC,
+    Math.max(COPILOT_DEBOUNCE_MIN_SEC, seconds),
+  );
+  return clamped * 1000;
+}
+
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const {
     copilotEnabled,
@@ -2086,6 +2101,8 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
     setCopilotMode,
     copilotTasks,
     toggleCopilotTask,
+    copilotDebounceMs,
+    setCopilotDebounceMs,
   } = useSettingsStore();
 
   return (
@@ -2102,6 +2119,46 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="启用 Copilot"
           desc="关闭后所有自动化任务都不会启动。"
           control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
+        />
+        <Row
+          label="触发节奏"
+          desc={`停笔 ${Math.round(copilotDebounceMs / 1000)} 秒后 Copilot 才出手。值越小越响应、越费 token；值越大越克制。`}
+          stack
+          control={
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                width: '100%',
+                minWidth: 220,
+              }}
+            >
+              <input
+                type="range"
+                min={COPILOT_DEBOUNCE_MIN_SEC}
+                max={COPILOT_DEBOUNCE_MAX_SEC}
+                step={1}
+                value={Math.round(copilotDebounceMs / 1000)}
+                onChange={(e) =>
+                  setCopilotDebounceMs(clampDebounceMs(parseInt(e.target.value, 10) * 1000))
+                }
+                style={{ flex: 1, accentColor: 'hsl(var(--accent))' }}
+              />
+              <span
+                className="set-input--mono"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  minWidth: 32,
+                  textAlign: 'right',
+                  color: 'hsl(var(--ink-2))',
+                }}
+              >
+                {Math.round(copilotDebounceMs / 1000)}s
+              </span>
+            </div>
+          }
         />
       </div>
 
@@ -2135,15 +2192,25 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
         <div className="set-tasks">
           {COPILOT_TASKS.map((t) => {
             const on = copilotTasks.includes(t.id);
+            // Whether a capability is actually registered for this task id —
+            // tasks without a registered capability are roadmap placeholders
+            // (the toggle persists user intent but nothing runs yet).
+            const wired = Boolean(getCopilotCapability(t.id));
             return (
               <button
                 key={t.id}
                 className={'set-task' + (on ? ' set-task--on' : '')}
                 onClick={() => toggleCopilotTask(t.id as CopilotTaskId)}
-                title={t.desc}
+                title={wired ? t.desc : `${t.desc}（尚未上线）`}
+                style={wired ? undefined : { opacity: 0.6 }}
               >
                 <span className="set-task__check">{on ? '✓' : ''}</span>
                 <span>{t.label}</span>
+                {!wired && (
+                  <span style={{ marginLeft: 6, fontSize: '0.7em', opacity: 0.7 }}>
+                    · 未上线
+                  </span>
+                )}
               </button>
             );
           })}

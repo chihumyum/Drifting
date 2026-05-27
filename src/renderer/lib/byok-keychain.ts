@@ -8,7 +8,7 @@
  * extending the union; old ids stay valid (keychain entries are by string).
  */
 
-export type BYOKProvider = 'anthropic' | 'openai' | 'google';
+export type BYOKProvider = 'anthropic' | 'openai' | 'google' | 'deepseek';
 
 function keyOf(provider: BYOKProvider): string {
   return `byok.${provider}`;

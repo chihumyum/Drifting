@@ -20,3 +20,24 @@ export { ChainCredentialsProvider } from './credentials/chain';
 export { definePrompt, type PromptDef } from './prompts/define-prompt';
 export { callStructured, type CallStructuredOptions } from './call-structured';
 export { installAIDevConsole } from './dev-console';
+
+// L4 Context layer — for feature code that wants to assemble prompts itself.
+export type { BlockSnippet, EntityCandidateContext } from './context/types';
+export {
+  buildEntityCandidateContext,
+  type BuildEntityCandidateContextInput,
+} from './context/entity-candidate-context-builder';
+export {
+  extractBlockContext,
+  getBlockIdAtCursor,
+  type BlockContextResult,
+  type ExtractBlockContextOptions,
+} from './context/selectors/block-context';
+export {
+  getKnownElementNames,
+  getAvailableCategoryNames,
+  getRejectedSuggestionNames,
+} from './context/selectors/elements';
+
+// Prompts — re-exported so feature code can pass them to callStructured.
+export { entityCandidatePrompt } from './prompts/templates/entity-candidate';

@@ -20,6 +20,7 @@ export type CopilotTaskId =
   | 'continuityCheck'
   | 'timelineAlign'
   | 'entityExtract'
+  | 'elementPatch'
   | 'autoLink'
   | 'polish'
   | 'research';
@@ -28,6 +29,7 @@ export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[]
   { id: 'continuityCheck', label: '人物一致性核查', desc: '识别人物在不同章节的设定冲突' },
   { id: 'timelineAlign', label: '时间线对齐', desc: '对齐章节与时间线锚点' },
   { id: 'entityExtract', label: '实体抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
+  { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
   { id: 'autoLink', label: '自动链接', desc: '把正文里出现的实体自动挂载到元素页面' },
   { id: 'polish', label: '语言润色', desc: '挑出生硬或重复的句式作为批注' },
   { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
@@ -124,6 +126,14 @@ interface SettingsState {
   copilotTasks: CopilotTaskId[];
   toggleCopilotTask: (id: CopilotTaskId) => void;
   setCopilotTasks: (ids: CopilotTaskId[]) => void;
+  /**
+   * Milliseconds between the user's last keystroke and Copilot firing
+   * detection. Lower = more responsive but more token spend; higher =
+   * more patient, fewer LLM calls. Read by useCopilot at every effect
+   * setup so changes apply on next editor mount / settings re-render.
+   */
+  copilotDebounceMs: number;
+  setCopilotDebounceMs: (ms: number) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -225,7 +235,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotEnabled: (on) => set({ copilotEnabled: on }),
       copilotMode: 'cloud',
       setCopilotMode: (m) => set({ copilotMode: m }),
-      copilotTasks: ['continuityCheck', 'entityExtract', 'autoLink'],
+      copilotTasks: ['continuityCheck', 'entityExtract', 'elementPatch', 'autoLink'],
       toggleCopilotTask: (id) =>
         set((state) => ({
           copilotTasks: state.copilotTasks.includes(id)
@@ -233,6 +243,8 @@ export const useSettingsStore = create<SettingsState>()(
             : [...state.copilotTasks, id],
         })),
       setCopilotTasks: (ids) => set({ copilotTasks: ids }),
+      copilotDebounceMs: 3000,
+      setCopilotDebounceMs: (ms) => set({ copilotDebounceMs: ms }),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),

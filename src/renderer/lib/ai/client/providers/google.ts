@@ -69,12 +69,20 @@ export class GoogleAIStudioProvider implements LLMProvider {
     }
 
     try {
+      // Pass abortSignal into the SDK so an upstream cancel actually aborts
+      // the underlying HTTP request (and we stop being billed for tokens).
+      // The earlier raceAbort wrapper only rejected our promise; the SDK
+      // kept its fetch running and we paid in full. With abortSignal on
+      // the request, the SDK propagates to fetch and the request is killed.
+      const requestConfig = signal ? { ...config, abortSignal: signal } : config;
       const completionPromise = this.client.models.generateContent({
         model,
         contents,
-        config,
+        config: requestConfig,
       });
 
+      // raceAbort still resolves the wrapper promise immediately on abort
+      // even if the SDK swallowed the signal differently — belt + suspenders.
       const response = signal
         ? await raceAbort(completionPromise, signal)
         : await completionPromise;

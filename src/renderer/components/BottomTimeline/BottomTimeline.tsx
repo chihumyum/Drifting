@@ -45,7 +45,7 @@ const TIMELINE_CONFIG = {
   // Fixed tile width in grid units. Tiles no longer carry an `end`, so all
   // tiles occupy the same horizontal span.
   NODE_DEFAULT_WIDTH: 4,
-  NODE_MIN_HEIGHT: 18,
+  NODE_MIN_HEIGHT: 30,
   STORYLINE_GAP: 2,
   RAIL_WIDTH: 148,
   HEAD_HEIGHT: 30,
@@ -255,6 +255,15 @@ export function BottomTimeline() {
 
   const [viewMode, setViewMode] = useState<TimelineView>(readPersistedView);
   const [isResizingHeight, setIsResizingHeight] = useState(false);
+  // Offset from the mouse cursor to the timeline's top edge at the moment the
+  // resize drag started. Preserved across the drag so the grabbed point stays
+  // glued to the cursor instead of snapping the top edge onto the mouse y.
+  const resizeGrabOffsetRef = useRef(0);
+  // The timeline's bottom (in viewport coords) at mousedown. The dock isn't
+  // flush with the viewport edge — `BottomStatusBar` sits below it — so we
+  // can't compute height from `window.innerHeight`. The bottom is fixed
+  // during the drag (only the top edge moves), so capturing once is enough.
+  const resizeBottomYRef = useRef(0);
   const [unplacedPopoverOpen, setUnplacedPopoverOpen] = useState(false);
   // Anchor coords for the unplaced popover. We render the popover with
   // position: fixed so it escapes the modern-skin `.app-island { overflow:
@@ -323,15 +332,17 @@ export function BottomTimeline() {
     let lastValue: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const windowHeight = window.innerHeight;
       const minHeight =
         TIMELINE_CONFIG.HEAD_HEIGHT +
         TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT +
         Math.max(storylines.length, 1) *
           (TIMELINE_CONFIG.NODE_MIN_HEIGHT + TIMELINE_CONFIG.STORYLINE_GAP);
+      // height = (bottom edge) − (new top edge), where the new top edge is
+      // `e.clientY − grabOffset` so the originally-grabbed pixel stays under
+      // the cursor.
       const next = Math.max(
         Math.max(minHeight, TIMELINE_CONFIG.MIN_HEIGHT),
-        windowHeight - e.clientY,
+        resizeBottomYRef.current - e.clientY + resizeGrabOffsetRef.current,
       );
       lastValue = next;
       setCustomHeight(next);
@@ -1200,12 +1211,31 @@ export function BottomTimeline() {
           </div>
           {/* 未归属 toggle — only meaningful when there are storylines AND
               chapters with no primary. Click reveals the 未归属 lane in the
-              timeline; click again hides it. Hidden by default per UX spec. */}
+              timeline; click again hides it. Hidden by default per UX spec.
+              Also resizes the dock by one row so existing tracks keep their
+              current height instead of being squeezed/expanded to absorb the
+              new lane. */}
           {storylines.length > 0 && (
             <button
               type="button"
               className={`btl__unaffiliated-toggle${unaffiliatedVisible ? ' is-active' : ''}`}
-              onClick={() => setUnaffiliatedVisible(!unaffiliatedVisible)}
+              onClick={() => {
+                const next = !unaffiliatedVisible;
+                // rowHeight reflects the CURRENT (pre-toggle) per-row slice,
+                // so opening adds exactly one of those slices to the total
+                // and closing reclaims the slice the lane was occupying —
+                // either way, the remaining tracks keep their size.
+                const delta = rowHeight > 0 ? (next ? rowHeight : -rowHeight) : 0;
+                if (delta !== 0) {
+                  const base = customHeight ?? TIMELINE_CONFIG.DEFAULT_HEIGHT;
+                  const adjusted = Math.max(TIMELINE_CONFIG.MIN_HEIGHT, base + delta);
+                  setCustomHeight(adjusted);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem(TIMELINE_HEIGHT_STORAGE_KEY, adjusted.toString());
+                  }
+                }
+                setUnaffiliatedVisible(next);
+              }}
               title={unaffiliatedVisible ? '隐藏未归属轨道' : '显示未归属轨道'}
             >
               {unaffiliatedVisible ? (
@@ -1362,6 +1392,15 @@ export function BottomTimeline() {
         onMouseDown={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          // Cursor lands somewhere within the 4px-tall handle (which itself
+          // sits flush with the timeline's top border). Capture how far below
+          // the top edge the grab happened so handleMouseMove can subtract it
+          // and keep the grabbed point glued to the cursor. Also pin the
+          // dock's bottom in viewport coords — `BottomStatusBar` sits below
+          // it, so `window.innerHeight` is not the right anchor.
+          const rect = timelineRef.current?.getBoundingClientRect();
+          resizeGrabOffsetRef.current = rect ? e.clientY - rect.top : 0;
+          resizeBottomYRef.current = rect ? rect.bottom : window.innerHeight;
           setIsResizingHeight(true);
         }}
       />

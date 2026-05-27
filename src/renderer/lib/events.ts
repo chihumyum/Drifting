@@ -82,6 +82,15 @@ export type AppEvents = {
   'left-sidebar:collapse-all': void;
 
   'nodes:changed': void;
+
+  // Copilot persisted a suggestion against the given (kind, id) target.
+  // Consumed by useEntityMarginNotes to auto-open the comment rail when
+  // copilot writes — otherwise suggestions land in a hidden margin and
+  // the user has no signal.
+  'copilot:suggestion-persisted': {
+    targetKind: 'node' | 'element' | 'patch' | 'category' | 'storyline';
+    targetId: string;
+  };
 };
 
 export const eventBus = mitt<AppEvents>();
