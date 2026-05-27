@@ -57,6 +57,7 @@ export type EntityType =
   | 'nodeStorylineLink'
   | 'element'
   | 'elementCategory'
+  | 'elementPatch'
   | 'memo'
   | 'material'
   | 'entityRelation'
@@ -511,6 +512,19 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         };
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/categories/${entityId}` };
+
+    // ---- Element Patch ----
+    case 'elementPatch':
+      if (mutationType === 'create') {
+        return { method: 'POST', endpoint: `/api/projects/${projectId}/patches`, data: payload };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/patches/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/patches/${entityId}` };
 
     // ---- Memo ----
     case 'memo':

@@ -4,6 +4,7 @@ import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useAuthStore } from '../../store/auth';
 import { createElementPatchRepository } from '../../sqlite-repo/element-patch-repo';
+import { syncElementPatchCreate } from '../../usecase/sync-helpers';
 
 const log = loglevel.getLogger('PatchTargetModal');
 log.setLevel(loglevel.levels.ERROR);
@@ -66,6 +67,18 @@ export function PatchTargetModal({
         elementId,
         sourceNodeId: anchor.sourceNodeId,
         sourceBlockId: anchor.sourceBlockId,
+      });
+      // Push to server — without this the patch would survive locally but
+      // get cascade-deleted on the next full hydrate (see sync fix
+      // 43db040). enqueue is fire-and-forget; the sync queue handles retry.
+      syncElementPatchCreate(created.id, projectId, {
+        id: created.id,
+        elementId: created.elementId,
+        sourceNodeId: created.sourceNodeId,
+        sourceBlockId: created.sourceBlockId,
+        title: created.title,
+        contentJson: created.contentJson,
+        orderKey: created.orderKey,
       });
       onCreated?.(created.id, elementId);
       onClose();

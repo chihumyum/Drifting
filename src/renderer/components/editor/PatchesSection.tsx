@@ -4,6 +4,7 @@ import {
   createElementPatchRepository,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
+import { syncElementPatchCreate } from '../../usecase/sync-helpers';
 import { PatchEditorCard } from './PatchEditorCard';
 
 const log = loglevel.getLogger('PatchesSection');
@@ -41,7 +42,16 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   const handleAddFloating = useCallback(async () => {
     try {
       const repo = createElementPatchRepository();
-      await repo.create({ projectId, elementId });
+      const created = await repo.create({ projectId, elementId });
+      syncElementPatchCreate(created.id, projectId, {
+        id: created.id,
+        elementId: created.elementId,
+        sourceNodeId: created.sourceNodeId,
+        sourceBlockId: created.sourceBlockId,
+        title: created.title,
+        contentJson: created.contentJson,
+        orderKey: created.orderKey,
+      });
       void reload();
     } catch (error) {
       log.error('Failed to create floating patch:', error);

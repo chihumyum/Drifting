@@ -34,6 +34,7 @@ import {
 } from '../../../domain/copilot-suggestion';
 import { createPlainCommentDoc } from '../../../domain/manuscript-comment';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
+import { syncElementPatchCreate } from '../../../usecase/sync-helpers';
 import { useDataStore } from '../../../store/data-store';
 import type {
   CapabilityAcceptContext,
@@ -196,6 +197,19 @@ export const elementPatchCapability: CopilotCapability = {
       sourceBlockId: ctx.comment.targetBlockId,
       title: meta.patchTitle,
       contentJson: createPlainCommentDoc(meta.patchBody),
+    });
+
+    // Enqueue server sync — without this the patch lives only on this
+    // device and other devices never see it (the sync hydrate fix in
+    // 43db040 prevents local loss but doesn't add upload).
+    syncElementPatchCreate(created.id, ctx.projectId, {
+      id: created.id,
+      elementId: created.elementId,
+      sourceNodeId: created.sourceNodeId,
+      sourceBlockId: created.sourceBlockId,
+      title: created.title,
+      contentJson: created.contentJson,
+      orderKey: created.orderKey,
     });
 
     log.info('[copilot:element-patch] created patch', {

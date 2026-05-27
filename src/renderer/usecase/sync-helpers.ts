@@ -184,6 +184,33 @@ export function syncCategoryRestore(id: string, projectId: string) {
   enqueueSync('elementCategory', 'restore', id, projectId);
 }
 
+// ---- Element Patch ----
+// Patches were originally local-only; these helpers + matching server
+// routes (added 2026-05) finally close the multi-device sync loop.
+// All client write sites for patches must call these alongside the repo
+// write — see PatchTargetModal, PatchesSection, PatchEditorCard, and
+// the elementPatch Copilot capability.
+
+export function syncElementPatchCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('elementPatch', 'create', id, projectId, payload);
+}
+
+export function syncElementPatchUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('elementPatch', 'update', id, projectId, payload);
+}
+
+export function syncElementPatchDelete(id: string, projectId: string) {
+  enqueueSync('elementPatch', 'delete', id, projectId);
+}
+
 export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {
   enqueueSync('memo', 'create', id, projectId, payload);
 }

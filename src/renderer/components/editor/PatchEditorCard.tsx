@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
@@ -9,6 +9,11 @@ import {
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
+import { useDataStore } from '../../store/data-store';
+import {
+  syncElementPatchDelete,
+  syncElementPatchUpdate,
+} from '../../usecase/sync-helpers';
 
 const log = loglevel.getLogger('PatchEditorCard');
 log.setLevel(loglevel.levels.ERROR);
@@ -31,16 +36,20 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const mentionRepoRef = useRef(createInlineMentionRepository());
 
   // Persist patch content on every editor update. Reference projection is
-  // handled inside useEntityEditor; we just write the doc back to the row.
+  // handled inside useEntityEditor; we just write the doc back to the row
+  // (local sqlite) and enqueue the same payload to the server sync queue.
   const handlePersist = useCallback(
     (editor: Editor) => {
       const contentJson = JSON.stringify(editor.getJSON());
       void patchRepoRef.current
         .update(patch.id, { contentJson })
-        .then(() => onChange?.())
+        .then(() => {
+          syncElementPatchUpdate(patch.id, projectId, { contentJson });
+          onChange?.();
+        })
         .catch((error) => log.error('Failed to save patch content:', error));
     },
-    [patch.id, onChange],
+    [patch.id, projectId, onChange],
   );
 
   const { editor } = useEntityEditor({
@@ -55,23 +64,62 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const handleSaveTitle = useCallback(async () => {
     if ((patch.title ?? '') === titleValue) return;
     try {
-      await patchRepoRef.current.update(patch.id, { title: titleValue || null });
+      const nextTitle = titleValue || null;
+      await patchRepoRef.current.update(patch.id, { title: nextTitle });
+      syncElementPatchUpdate(patch.id, projectId, { title: nextTitle });
       onChange?.();
     } catch (error) {
       log.error('Failed to save patch title:', error);
     }
-  }, [patch.id, patch.title, titleValue, onChange]);
+  }, [patch.id, patch.title, titleValue, projectId, onChange]);
 
   const handleDelete = useCallback(async () => {
     try {
       await patchRepoRef.current.delete(patch.id);
+      syncElementPatchDelete(patch.id, projectId);
       // Also clear any inline mentions emitted from this patch.
       await mentionRepoRef.current.deleteAllForSource('patch', patch.id);
       onDelete?.();
     } catch (error) {
       log.error('Failed to delete patch:', error);
     }
-  }, [patch.id, onDelete]);
+  }, [patch.id, projectId, onDelete]);
+
+  // Source-chapter picker: opens a dropdown listing every chapter in the
+  // project plus an "unaffiliated" option. Changing the chapter resets
+  // sourceBlockId to null — block ids are chapter-scoped, so keeping the
+  // old block id under a new chapter would point nowhere.
+  const [anchorEditing, setAnchorEditing] = useState(false);
+  const bookNodes = useDataStore((s) => s.bookNodes);
+  const chapterOptions = useMemo(
+    () =>
+      bookNodes
+        .filter((n) => n.projectId === projectId && n.kind === 'chapter')
+        .slice()
+        .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0)),
+    [bookNodes, projectId],
+  );
+
+  const handleChangeAnchor = useCallback(
+    async (nextNodeId: string | null) => {
+      setAnchorEditing(false);
+      if (nextNodeId === patch.sourceNodeId) return;
+      try {
+        await patchRepoRef.current.update(patch.id, {
+          sourceNodeId: nextNodeId,
+          sourceBlockId: null,
+        });
+        syncElementPatchUpdate(patch.id, projectId, {
+          sourceNodeId: nextNodeId,
+          sourceBlockId: null,
+        });
+        onChange?.();
+      } catch (error) {
+        log.error('Failed to change patch anchor:', error);
+      }
+    },
+    [patch.id, patch.sourceNodeId, projectId, onChange],
+  );
 
   const anchorLabel = patch.sourceBlockId
     ? `${patch.sourceNodeTitle ?? '(已删除章节)'} · 段`
@@ -89,14 +137,16 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           {collapsed ? '▸' : '▾'}
         </button>
         {/* Anchor sits left of the title — chapter + 段 read together
-            naturally ("from chapter X, paragraph"). Title is now the
-            flex-grow center; delete still pins right. */}
+            naturally ("from chapter X, paragraph"). Click to navigate.
+            The native <select> next to it lets the user re-anchor to a
+            different chapter (or detach to floating). Block-id is reset
+            when chapter changes — see handleChangeAnchor. */}
         {patch.sourceNodeId ? (
           <button
             type="button"
             onClick={() => patch.sourceNodeId && navigateToNode(patch.sourceNodeId)}
             className="patch-card__anchor-link"
-            title={`来自 ${anchorLabel}`}
+            title={`来自 ${anchorLabel} · 点击跳转`}
           >
             {anchorLabel}
           </button>
@@ -104,6 +154,34 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           <span className="patch-card__anchor-empty" title={anchorLabel}>
             {anchorLabel}
           </span>
+        )}
+        {anchorEditing ? (
+          <select
+            autoFocus
+            value={patch.sourceNodeId ?? ''}
+            onChange={(e) => void handleChangeAnchor(e.target.value || null)}
+            onBlur={() => setAnchorEditing(false)}
+            className="patch-card__anchor-link"
+            style={{ background: 'transparent', border: 0, outline: 0, cursor: 'pointer' }}
+          >
+            <option value="">（无章节归属）</option>
+            {chapterOptions.map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.title || '(未命名章节)'}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAnchorEditing(true)}
+            className="patch-card__anchor-link"
+            title="改章节归属"
+            style={{ padding: '0 4px' }}
+            aria-label="编辑来源章节"
+          >
+            ✎
+          </button>
         )}
         <input
           type="text"
