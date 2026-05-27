@@ -41,6 +41,7 @@ import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { decodeAliases } from '../domain/book-element';
+import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import loglevel from 'loglevel';
 
@@ -650,6 +651,23 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
       durationMs: nowMs() - startedAt,
     });
   } catch (error) {
+    // Self-heal "orphan local row" case: a PATCH/DELETE on a row the server
+    // doesn't know about (404) usually means the matching CREATE never
+    // shipped — typically a row created before the entity got its single-
+    // row sync helpers wired up. Look up the local row and POST it; the
+    // current mutation can then be treated as succeeded because the
+    // freshly-POSTed CREATE already carries the latest snapshot.
+    if (isMissingRemoteError(error) && m.mutationType === 'update') {
+      const recovered = await tryRecoverMissingRemote(m);
+      if (recovered) {
+        emitSyncOperation({
+          ...eventBase,
+          state: 'succeeded',
+          durationMs: nowMs() - startedAt,
+        });
+        return;
+      }
+    }
     emitSyncOperation({
       ...eventBase,
       state: 'failed',
@@ -658,6 +676,58 @@ async function pushSingleMutation(m: SyncMutation): Promise<void> {
     });
     throw error;
   }
+}
+
+function isMissingRemoteError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } } | null | undefined)?.response?.status;
+  return status === 404;
+}
+
+/**
+ * Best-effort recovery for a local row whose remote counterpart returned
+ * 404. Loads the row from the local repo and POSTs it as a fresh CREATE.
+ * Returns true if recovery succeeded (caller treats original mutation as
+ * done); false if the row can't be recovered (caller propagates the 404).
+ *
+ * Entity-type-specific because the local-row → create-payload shape is
+ * known per entity. Add new branches here as more entities adopt the
+ * single-row sync model.
+ */
+async function tryRecoverMissingRemote(m: SyncMutation): Promise<boolean> {
+  if (m.entityType === 'elementPatch') {
+    try {
+      const repo = createElementPatchRepository();
+      const row = await repo.findById(m.entityId);
+      if (!row) return false; // gone locally too; nothing to recover
+      const createReq = resolveMutationRequest({
+        ...m,
+        mutationType: 'create',
+        payload: {
+          id: row.id,
+          elementId: row.elementId,
+          sourceNodeId: row.sourceNodeId,
+          sourceBlockId: row.sourceBlockId,
+          title: row.title,
+          contentJson: row.contentJson,
+          orderKey: row.orderKey,
+        },
+      });
+      if (!createReq) return false;
+      await apiClient.request({
+        method: createReq.method,
+        url: createReq.endpoint,
+        data: createReq.data,
+      });
+      log.info(
+        `[sync] recovered orphan elementPatch ${m.entityId} via POST (was 404 on PATCH)`,
+      );
+      return true;
+    } catch (err) {
+      log.warn(`[sync] elementPatch recovery POST failed for ${m.entityId}:`, err);
+      return false;
+    }
+  }
+  return false;
 }
 
 // ==================== Pull ====================
