@@ -21,6 +21,7 @@ import { getDb } from '../lib/db';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import {
+  BlockSectionTable,
   BookElementTable,
   BookNodeTable,
   CommentActionTable,
@@ -41,7 +42,10 @@ import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { decodeAliases } from '../domain/book-element';
+import { decodeBlockIds } from '../domain/block-section';
+import type { BlockSectionSource } from '../domain/block-section';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
+import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo';
 import { rebuildProjectInlineReferenceIndex } from './reference-index.service';
 import loglevel from 'loglevel';
 
@@ -59,6 +63,7 @@ export type EntityType =
   | 'element'
   | 'elementCategory'
   | 'elementPatch'
+  | 'blockSection'
   | 'memo'
   | 'material'
   | 'entityRelation'
@@ -119,6 +124,7 @@ export interface ProjectGraphPayload {
   entityRelations: Record<string, unknown>[];
   inlineMentions: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
+  blockSections: Record<string, unknown>[];
   memos: Record<string, unknown>[];
   materials: Record<string, unknown>[];
   manuscriptComments: Record<string, unknown>[];
@@ -527,6 +533,26 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/patches/${entityId}` };
 
+    // ---- Block Section ----
+    case 'blockSection':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/block-sections`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/block-sections/${entityId}`,
+          data: payload,
+        };
+      }
+      return {
+        method: 'DELETE',
+        endpoint: `/api/projects/${projectId}/block-sections/${entityId}`,
+      };
+
     // ---- Memo ----
     case 'memo':
       if (mutationType === 'create') {
@@ -727,6 +753,38 @@ async function tryRecoverMissingRemote(m: SyncMutation): Promise<boolean> {
       return false;
     }
   }
+  if (m.entityType === 'blockSection') {
+    try {
+      const repo = createBlockSectionRepository();
+      const row = await repo.findById(m.entityId);
+      if (!row) return false;
+      const createReq = resolveMutationRequest({
+        ...m,
+        mutationType: 'create',
+        payload: {
+          id: row.id,
+          chapterId: row.chapterId,
+          blockIdsJson: JSON.stringify(row.blockIds),
+          blockSignature: row.blockSignature,
+          summary: row.summary,
+          source: row.source,
+        },
+      });
+      if (!createReq) return false;
+      await apiClient.request({
+        method: createReq.method,
+        url: createReq.endpoint,
+        data: createReq.data,
+      });
+      log.info(
+        `[sync] recovered orphan blockSection ${m.entityId} via POST (was 404 on PATCH)`,
+      );
+      return true;
+    } catch (err) {
+      log.warn(`[sync] blockSection recovery POST failed for ${m.entityId}:`, err);
+      return false;
+    }
+  }
   return false;
 }
 
@@ -745,6 +803,7 @@ export interface PullResult {
   entityRelations?: unknown[];
   inlineMentions?: unknown[];
   entityPatches?: unknown[];
+  blockSections?: unknown[];
   memos?: unknown[];
   materials?: unknown[];
   manuscriptComments?: unknown[];
@@ -770,6 +829,7 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     entityRelations: graph.entityRelations,
     inlineMentions: graph.inlineMentions,
     entityPatches: graph.entityPatches,
+    blockSections: graph.blockSections,
     memos: graph.memos,
     materials: graph.materials,
     manuscriptComments: graph.manuscriptComments,
@@ -991,6 +1051,20 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       updatedAt: dateText(row.updatedAt),
     })),
   );
+  dataStore.setBlockSections(
+    (graph.blockSections ?? []).map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      chapterId: stringValue(row, 'chapterId'),
+      blockIds: decodeBlockIds(stringValue(row, 'blockIdsJson', '[]')),
+      blockSignature: stringValue(row, 'blockSignature'),
+      summary: stringValue(row, 'summary'),
+      source: (stringValue(row, 'source', 'copilot-rolling') ||
+        'copilot-rolling') as BlockSectionSource,
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
   dataStore.setCommentActions(
     graph.commentActions.map((row) => ({
       id: stringValue(row, 'id'),
@@ -1117,6 +1191,16 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       .select()
       .from(ElementPatchTable)
       .where(eq(ElementPatchTable.projectId, projectId));
+
+    // BlockSection follows the same preserve-on-hydrate pattern as
+    // ElementPatch. Server is rolling out the table progressively, and
+    // signature-invalidation logic lives on the client — losing a local row
+    // costs a re-summarize call but the section itself shouldn't disappear
+    // just because the server hasn't shipped this entity yet.
+    const localBlockSections = await tx
+      .select()
+      .from(BlockSectionTable)
+      .where(eq(BlockSectionTable.projectId, projectId));
 
     const oldNodes = await tx
       .select({ id: BookNodeTable.id })
@@ -1481,6 +1565,37 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       }
     }
 
+    // Block sections — cascade-deleted when BookNode was wiped above.
+    // Insert server-canonical rows first, then restore any local-only ones
+    // pinned to surviving chapters (same defensive pattern as patches).
+    const serverBlockSections = normalizeRows(graph.blockSections ?? [], (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      chapterId: stringValue(row, 'chapterId'),
+      blockIdsJson: stringValue(row, 'blockIdsJson', '[]'),
+      blockSignature: stringValue(row, 'blockSignature'),
+      summary: stringValue(row, 'summary'),
+      source: stringValue(row, 'source', 'copilot-rolling') || 'copilot-rolling',
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.chapterId);
+    if (serverBlockSections.length > 0) {
+      await tx.insert(BlockSectionTable).values(serverBlockSections as any[]);
+    }
+    if (localBlockSections.length > 0) {
+      const survivingChapterIds = new Set(nodes.map((n) => n.id));
+      const serverSectionIds = new Set(serverBlockSections.map((s) => s.id));
+      const sectionsToRestore = localBlockSections.filter(
+        (s) => survivingChapterIds.has(s.chapterId) && !serverSectionIds.has(s.id),
+      );
+      if (sectionsToRestore.length > 0) {
+        await tx
+          .insert(BlockSectionTable)
+          .values(sectionsToRestore as any[])
+          .onConflictDoNothing();
+      }
+    }
+
     const memos = normalizeRows(graph.memos, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
@@ -1620,6 +1735,7 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.entityRelations.length +
       response.data.inlineMentions.length +
       response.data.entityPatches.length +
+      (response.data.blockSections?.length ?? 0) +
       response.data.memos.length +
       response.data.materials.length +
       response.data.manuscriptComments.length +

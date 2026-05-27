@@ -304,6 +304,49 @@ export const ElementPatchTable = sqliteTable(
   ],
 );
 
+// Block Section
+// Per-chapter rolling summary of a contiguous range of blocks ("blocks 15-27:
+// tavern fight escalates into Bjorn's challenge"). Produced as a side-effect
+// of a Copilot debounce run (whichever capabilities consume the dirty block
+// batch trigger one summary call afterwards), and consumed by later debounces
+// to give the model recent-context without re-feeding raw prose.
+//
+// Validity is tracked by `blockSignature` — a stable hash of the section's
+// blockIds + the current text of each block at write time. Read paths
+// recompute the signature and discard the row when it doesn't match (the
+// prose has changed since the summary was written).
+//
+// Multiple producers eventually: 'copilot-rolling' is the current source;
+// future 'reverse-outline' / 'manual' will join. blockIdsJson is JSON-encoded
+// ordered string[] for the same reason aliasesJson is — SQLite can't index
+// inside an array, and we don't need it to.
+export const BlockSectionTable = sqliteTable(
+  'block_section',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    // Chapter this section belongs to. Cascade on chapter delete — a summary
+    // without its chapter is meaningless.
+    chapterId: text('chapter_id')
+      .notNull()
+      .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
+    blockIdsJson: text('block_ids_json').notNull(),
+    blockSignature: text('block_signature').notNull(),
+    summary: text('summary').notNull().default(''),
+    // 'copilot-rolling' | 'reverse-outline' | 'manual'. Stored as text so a
+    // new producer can land without a migration.
+    source: text('source').notNull().default('copilot-rolling'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_block_section_project').on(t.projectId),
+    index('idx_block_section_chapter').on(t.chapterId),
+  ],
+);
+
 // Entity Relation
 // User-curated directed link between two entities. Source of truth for cross-
 // entity associations the user explicitly asserts: memo→node, material→element,

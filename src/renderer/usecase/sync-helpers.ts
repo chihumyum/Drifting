@@ -211,6 +211,32 @@ export function syncElementPatchDelete(id: string, projectId: string) {
   enqueueSync('elementPatch', 'delete', id, projectId);
 }
 
+// ---- Block Section ----
+// Rolling block-range summaries produced as a side-effect of Copilot
+// debounce runs. Sync semantics match elementPatch — local write first,
+// outbox push, server hydrate restores anything the server didn't echo
+// back (defensive against partial server rollout).
+
+export function syncBlockSectionCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('blockSection', 'create', id, projectId, payload);
+}
+
+export function syncBlockSectionUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('blockSection', 'update', id, projectId, payload);
+}
+
+export function syncBlockSectionDelete(id: string, projectId: string) {
+  enqueueSync('blockSection', 'delete', id, projectId);
+}
+
 export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {
   enqueueSync('memo', 'create', id, projectId, payload);
 }

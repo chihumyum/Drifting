@@ -6,6 +6,7 @@ import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { Memo } from '../domain/memo';
 import type { Material } from '../domain/material';
 import type { CommentAction, ManuscriptComment } from '../domain/manuscript-comment';
+import type { BlockSection } from '../domain/block-section';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
 // User-curated cross-entity link. Mirrors the `entity_relation` table row.
@@ -100,6 +101,18 @@ interface DataState {
   setEntityRelations: (relations: EntityRelationLink[]) => void;
   addEntityRelation: (relation: EntityRelationLink) => void;
   removeEntityRelation: (id: string) => void;
+
+  /**
+   * Rolling block-range summaries, produced by Copilot debounce runs and
+   * consumed by later runs as recent-context (PR B/C). Mirrored here so
+   * prompt builders can grab them cheaply without round-tripping SQLite
+   * on every keystroke.
+   */
+  blockSections: BlockSection[];
+  setBlockSections: (sections: BlockSection[]) => void;
+  addBlockSection: (section: BlockSection) => void;
+  updateBlockSection: (id: string, updates: Partial<BlockSection>) => void;
+  removeBlockSection: (id: string) => void;
 }
 
 function deriveNodeStorylineMapping(
@@ -308,5 +321,18 @@ export const useDataStore = create<DataState>((set) => ({
   removeEntityRelation: (id) =>
     set((state) => ({
       entityRelations: state.entityRelations.filter((r) => r.id !== id),
+    })),
+
+  blockSections: [],
+  setBlockSections: (blockSections) => set({ blockSections }),
+  addBlockSection: (section) =>
+    set((state) => ({ blockSections: [...state.blockSections, section] })),
+  updateBlockSection: (id, updates) =>
+    set((state) => ({
+      blockSections: state.blockSections.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+    })),
+  removeBlockSection: (id) =>
+    set((state) => ({
+      blockSections: state.blockSections.filter((s) => s.id !== id),
     })),
 }));
