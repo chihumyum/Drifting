@@ -131,6 +131,19 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
           const tr = newState.tr;
           let modified = false;
 
+          // Widest registered name — used to expand the search window so a
+          // multi-transaction insert (e.g. CJK IME inserts "米拉" + "·" +
+          // "蓝" as three separate transactions, each with a 1-2 char
+          // modified range) still finds the full name. Without padding, no
+          // single transaction's modified range fits the whole name and the
+          // mark is never added; only a wholesale doc reload (which is one
+          // big transaction) recovers it — that's why refresh "fixes" it.
+          let maxNameLength = 0;
+          entityLinkConfig.autoDetectTargets.forEach((_target, name) => {
+            if (name.length > maxNameLength) maxNameLength = name.length;
+          });
+          const searchPadding = Math.max(0, maxNameLength - 1);
+
           transactions.forEach((transaction) => {
             if (!transaction.docChanged) return;
 
@@ -155,17 +168,27 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
                   const rangeEnd = Math.min(nodeEnd, to);
                   if (rangeStart >= rangeEnd) return;
 
-                  const relevantText = text.substring(
-                    rangeStart - nodeStart,
-                    rangeEnd - nodeStart,
+                  // Expand the substring we scan by `searchPadding` chars on
+                  // each side, clamped to the text node's own bounds. This
+                  // lets the regex catch names that straddle the modified
+                  // range (because the user just inserted a middle char).
+                  // The dedup check below (`existing` mark scan) prevents
+                  // re-marking text that's already linked, so re-scanning
+                  // unchanged neighbors is safe.
+                  const searchStartRel = Math.max(0, rangeStart - nodeStart - searchPadding);
+                  const searchEndRel = Math.min(
+                    text.length,
+                    rangeEnd - nodeStart + searchPadding,
                   );
+                  const searchAbsStart = nodeStart + searchStartRel;
+                  const relevantText = text.substring(searchStartRel, searchEndRel);
 
                   entityLinkConfig.autoDetectTargets.forEach((target, name) => {
                     if (!name) return;
                     const regex = new RegExp(escapeRegExp(name), 'g');
                     let match: RegExpExecArray | null;
                     while ((match = regex.exec(relevantText)) !== null) {
-                      const matchStart = rangeStart + match.index;
+                      const matchStart = searchAbsStart + match.index;
                       const matchEnd = matchStart + name.length;
 
                       // Skip if this position already carries an entityLink
