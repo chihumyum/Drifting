@@ -134,6 +134,24 @@ interface SettingsState {
    */
   copilotDebounceMs: number;
   setCopilotDebounceMs: (ms: number) => void;
+  /**
+   * Master switch for the rolling-summary side-output. When true, Copilot
+   * accumulates uncovered-block count across capability fires and triggers
+   * a block-section summary once `copilotSummarySectionSize` distinct
+   * blocks are uncovered. When false: no summaries are generated, no
+   * priorSections context is sent to prompts — saves token cost at the
+   * expense of element-patch / entity-candidate quality.
+   */
+  copilotGenerateSummaries: boolean;
+  setCopilotGenerateSummaries: (on: boolean) => void;
+  /**
+   * How many distinct uncovered blocks must accumulate before any
+   * capability's fire triggers a new summary. Larger = fewer summary
+   * calls (cheaper) + bigger context per call. Default 8 covers ~half
+   * a typical scene.
+   */
+  copilotSummarySectionSize: number;
+  setCopilotSummarySectionSize: (n: number) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -245,6 +263,10 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotTasks: (ids) => set({ copilotTasks: ids }),
       copilotDebounceMs: 3000,
       setCopilotDebounceMs: (ms) => set({ copilotDebounceMs: ms }),
+      copilotGenerateSummaries: true,
+      setCopilotGenerateSummaries: (on) => set({ copilotGenerateSummaries: on }),
+      copilotSummarySectionSize: 8,
+      setCopilotSummarySectionSize: (n) => set({ copilotSummarySectionSize: n }),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),

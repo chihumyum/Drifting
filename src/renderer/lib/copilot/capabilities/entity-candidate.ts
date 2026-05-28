@@ -66,10 +66,10 @@ export const entityCandidateCapability: CopilotCapability = {
     });
     if (!context) return [];
 
-    // editedBlocks is already in document order (BaseBlockContext guarantees
+    // uncoveredBlocks is already in document order (coverage-map guarantees
     // it); concatenate to a single recentText so the prompt schema stays
     // simple. Anchor-resolution below relies on the underlying block list.
-    const recentText = context.editedBlocks
+    const recentText = context.uncoveredBlocks
       .map((b) => b.text)
       .filter(Boolean)
       .join('\n\n');
@@ -141,10 +141,10 @@ export const entityCandidateCapability: CopilotCapability = {
         metadata,
         anchorJson: JSON.stringify({ selectedText: c.evidenceText }),
         // Anchor the suggestion to the block whose text contains the
-        // evidence. Falls back to the first edited block (the runner's
+        // evidence. Falls back to the first uncovered block (the runner's
         // default) when the model paraphrases evidence enough that no
         // block matches verbatim.
-        overrideTargetBlockId: findEvidenceBlock(context.editedBlocks, c.evidenceText),
+        overrideTargetBlockId: findEvidenceBlock(context.uncoveredBlocks, c.evidenceText),
       });
     }
     return results;

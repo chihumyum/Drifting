@@ -1,29 +1,25 @@
 /**
- * useCopilot — generic capability runner.
+ * useCopilot — generic capability runner (coverage-map model, post PR D-1).
  *
- * Trigger model (changed in PR B):
- *   - Every text-changing transaction marks the cursor's block as dirty in
- *     the per-chapter session store. Multi-block edits (paste, IME) that
- *     happen between debounces are NOT lost — each touched block is in the
- *     dirty set when the timer fires.
- *   - The debounce timer fires `runDetection` for the chapter. It builds a
- *     shared base context (dirty blocks → ordered BlockSnippet[]) once and
- *     hands it to every enabled capability.
- *   - On success: drain the dirty set for the blocks that were just scanned.
- *     On abort/cancel: keep them dirty (the next fire will retry).
+ * Trigger model:
+ *   - On every text-changing transaction, reset a debounce timer.
+ *   - When the timer fires, compute the chapter's coverage map ONCE
+ *     (uncoveredBlocks + priorSections), then run every enabled capability
+ *     against that snapshot in parallel.
+ *   - Each capability has its own fingerprint of "what I last ran against"
+ *     — if the coverage map hasn't changed since last fire, the capability
+ *     skips the LLM call. Avoids wasting tokens when caps fire at staggered
+ *     intervals and the user hasn't actually changed anything since.
+ *   - When accumulated uncovered blocks ≥ threshold AND no summary is
+ *     already in flight, fire-and-forget a block_section summary call.
+ *     That summary on completion shrinks the uncovered set, naturally
+ *     compressing context for the next fire.
  *
- * Concurrency:
- *   - Per-chapter AbortController. A fresh debounce while a previous run is
- *     in flight cancels every in-flight capability call atomically.
- *   - Per-block text fingerprint: an 'update' event that doesn't actually
- *     change the block's text (mark-only transactions like entityLink
- *     stamping) won't mark dirty. This was already in the old hook; ported
- *     to the dirty-queue model so we don't burn LLM calls on no-ops.
- *
- * Settings:
- *   - `copilotEnabled` (master) must be true.
- *   - `copilotTasks` (capability id allow-list): if non-empty, only those
- *     capabilities run; if empty, all registered capabilities run (default-on).
+ * What was REMOVED in PR D-1 vs the previous implementation:
+ *   - session-store / dirty queue tracking (state lives in block_section + editor)
+ *   - markDirty / drainDirty / per-block fingerprint Map
+ *   - "fire summary after all caps succeed" coupling
+ *   - per-block readBlockText fingerprint to gate dirty marking
  */
 import { useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -31,16 +27,13 @@ import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('copilot:run');
 log.setLevel(loglevel.levels.INFO);
-import { getBlockIdAtCursor } from '../lib/ai';
 import { AIError } from '../lib/ai/types';
 import {
   capabilitiesForTrigger,
   type CopilotCapability,
 } from '../lib/copilot/capability';
 import { copilotRuntime } from '../lib/copilot/runtime';
-import { useCopilotSessionStore } from '../lib/copilot/session-store';
 import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
-import { gatherPriorSections } from '../lib/copilot/prior-sections';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
 import { useManuscriptComment } from '../usecase/useManuscriptComment';
 import { useSettingsStore } from '../store/settings-store';
@@ -62,17 +55,21 @@ export function useCopilot({
 }: UseCopilotInput): void {
   const { createCopilotSuggestion } = useManuscriptComment({ projectId, userId });
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
-  // Debounce: read from settings so the user can tune Copilot's eagerness
-  // via the CopilotPanel preset Seg.
   const debounceMs = useSettingsStore((s) => s.copilotDebounceMs);
+  const summariesEnabled = useSettingsStore((s) => s.copilotGenerateSummaries);
+  const summarySectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
   const enabledTaskKey = useSettingsStore(
     (s) => (s.copilotTasks ?? []).slice().sort().join('|'),
   );
 
-  // Per-block text fingerprint. Prevents mark-only transactions (entityLink
-  // stamping etc.) from looking like real edits to the dirty queue.
-  const lastBlockTextRef = useRef<Map<string, string>>(new Map());
+  // Per-capability fingerprint: hash of (uncoveredBlock ids + their texts)
+  // at the time the cap last ran. If the next fire computes the same
+  // fingerprint, skip the cap entirely — nothing has changed for it.
+  const lastFingerprintRef = useRef<Record<string, string>>({});
   const inFlightRef = useRef<AbortController | null>(null);
+  // Chapter-level lock so two near-simultaneous cap fires don't both kick
+  // a summary call. Per-mount → naturally tied to chapter session.
+  const summaryInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!copilotEnabled) return;
@@ -81,14 +78,10 @@ export function useCopilot({
     const isEnabled = (cap: CopilotCapability): boolean =>
       enabledIds.size === 0 || enabledIds.has(cap.id);
 
-    const session = useCopilotSessionStore.getState();
-    session.touchChapter(nodeId);
-
     log.info(
-      `[useCopilot] mount  nodeId=${nodeId} debounceMs=${debounceMs} enabledTasks=[${enabledTaskKey}]`,
+      `[useCopilot] mount nodeId=${nodeId} debounceMs=${debounceMs} summariesEnabled=${summariesEnabled} sectionSize=${summarySectionSize} enabledTasks=[${enabledTaskKey}]`,
     );
 
-    const lastBlockText = lastBlockTextRef.current;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let updateCount = 0;
     let fireCount = 0;
@@ -97,31 +90,9 @@ export function useCopilot({
       fireCount += 1;
       const localFireId = fireCount;
 
-      const dirty = useCopilotSessionStore.getState().getDirty(nodeId);
-      if (dirty.size === 0) {
-        log.debug(`[useCopilot] fire #${localFireId} skip (no dirty blocks)`);
-        return;
-      }
-
-      // Hash-validate rolling summaries for this chapter before they reach
-      // the prompt. Stale ones get evicted as a side-effect (see prior-sections.ts).
-      const { sections: priorSections } = await gatherPriorSections({
-        editor,
-        chapterId: nodeId,
-        dirtyBlockIds: dirty,
-      });
-
-      const baseContext = buildBaseBlockContext({
-        editor,
-        chapterId: nodeId,
-        dirtyBlockIds: dirty,
-        priorSections,
-      });
+      const baseContext = await buildBaseBlockContext({ editor, chapterId: nodeId });
       if (!baseContext) {
-        // Every dirty block was empty / deleted. Drain so they don't pile
-        // up forever and skip this fire.
-        useCopilotSessionStore.getState().drainDirty(nodeId, dirty);
-        log.debug(`[useCopilot] fire #${localFireId} skip (no usable dirty blocks)`);
+        log.debug(`[useCopilot] fire #${localFireId} skip (coverage map empty)`);
         return;
       }
 
@@ -131,23 +102,29 @@ export function useCopilot({
         return;
       }
 
-      // Snapshot of which dirty blocks this run is responsible for; only
-      // these get drained on success. Late-arriving dirt (transactions that
-      // fire while detect is in flight) stays in the queue for the next run.
-      const consumedBlockIds = baseContext.editedBlocks.map((b) => b.blockId);
+      // Fingerprint over uncovered ids + texts. Cheap; two caps both
+      // computing this on the same snapshot agree.
+      const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
 
-      log.info(
-        `[useCopilot] fire #${localFireId} dispatch chapter=${nodeId.slice(0, 8)} blocks=${consumedBlockIds.length} caps=[${capabilities.map((c) => c.id).join(',')}]`,
-      );
-
-      // One controller for the chapter — fresh trigger kills the previous run.
+      // Cancel any previous run. One controller per chapter mount is enough
+      // — late firings of the same cap would just want to clobber anyway.
       inFlightRef.current?.abort();
       const controller = new AbortController();
       inFlightRef.current = controller;
 
+      log.info(
+        `[useCopilot] fire #${localFireId} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length} caps=[${capabilities.map((c) => c.id).join(',')}]`,
+      );
+
       try {
         const perCapability = await Promise.all(
           capabilities.map(async (cap) => {
+            // Per-cap fingerprint skip — saves a full LLM call when nothing
+            // has changed since this cap last ran.
+            if (lastFingerprintRef.current[cap.id] === fingerprint) {
+              log.debug(`[useCopilot] cap=${cap.id} skip (fingerprint unchanged)`);
+              return { cap, results: [] } as const;
+            }
             try {
               const results = await cap.detect({
                 runtime: copilotRuntime,
@@ -158,32 +135,28 @@ export function useCopilot({
                 baseContext,
                 signal: controller.signal,
               });
-              return { cap, results };
+              lastFingerprintRef.current[cap.id] = fingerprint;
+              return { cap, results } as const;
             } catch (err) {
               if (err instanceof AIError && err.kind === 'aborted') {
-                return { cap, results: [], aborted: true } as const;
+                return { cap, results: [] } as const;
               }
               if (err instanceof AIError && err.kind === 'auth') {
                 return { cap, results: [] } as const;
               }
               log.warn(`[copilot] capability "${cap.id}" detect failed`, err);
-              return { cap, results: [], failed: true } as const;
+              return { cap, results: [] } as const;
             }
           }),
         );
 
         if (controller.signal.aborted) return;
 
-        // Default anchor when a capability doesn't override: the first
-        // edited block. Capabilities that map a suggestion's evidence to a
-        // specific block should set `overrideTargetBlockId` themselves.
-        const defaultAnchorBlockId = consumedBlockIds[0]!;
+        const defaultAnchorBlockId = baseContext.uncoveredBlocks[0]!.blockId;
 
         let persistedAny = false;
-        let anyFailed = false;
-        for (const entry of perCapability) {
-          if ('failed' in entry && entry.failed) anyFailed = true;
-          for (const result of entry.results) {
+        for (const { cap, results } of perCapability) {
+          for (const result of results) {
             try {
               await createCopilotSuggestion({
                 targetKind: 'node',
@@ -194,33 +167,37 @@ export function useCopilot({
               });
               persistedAny = true;
             } catch (err) {
-              log.warn(`[copilot] persist "${entry.cap.id}" suggestion failed`, err);
+              log.warn(`[copilot] persist "${cap.id}" suggestion failed`, err);
             }
           }
-        }
-
-        // Drain dirty for the blocks we consumed — only when no capability
-        // failed. Partial failure keeps them dirty so the next run retries.
-        // Aborts already short-circuited above.
-        if (!anyFailed) {
-          useCopilotSessionStore.getState().drainDirty(nodeId, consumedBlockIds);
-
-          // Fire-and-forget summary call for the just-scanned block batch.
-          // Doesn't block user-visible suggestion persistence; failures are
-          // silent (next debounce will re-summarize).
-          void produceBlockSectionSummary({
-            projectId,
-            chapterId: nodeId,
-            blockIds: consumedBlockIds,
-            editor,
-            signal: controller.signal,
-          });
         }
 
         if (persistedAny) {
           events.emit('copilot:suggestion-persisted', {
             targetKind: 'node',
             targetId: nodeId,
+          });
+        }
+
+        // Threshold-triggered summary. Decoupled from any specific cap —
+        // first fire to see uncovered ≥ threshold AND no summary in flight
+        // wins. Uses cap controller's signal so aborting the whole run
+        // (chapter-switch) cancels the in-flight summary too.
+        if (
+          summariesEnabled &&
+          baseContext.uncoveredBlocks.length >= summarySectionSize &&
+          !summaryInFlightRef.current
+        ) {
+          summaryInFlightRef.current = true;
+          const blockIds = baseContext.uncoveredBlocks.map((b) => b.blockId);
+          void produceBlockSectionSummary({
+            projectId,
+            chapterId: nodeId,
+            blockIds,
+            editor,
+            signal: controller.signal,
+          }).finally(() => {
+            summaryInFlightRef.current = false;
           });
         }
       } finally {
@@ -232,18 +209,6 @@ export function useCopilot({
 
     const onEditorUpdate = (): void => {
       updateCount += 1;
-      // Mark the cursor's block dirty if its text actually changed since the
-      // last time we observed it. Mark-only transactions (entityLink mark
-      // stamping etc.) skip this branch and don't trigger Copilot.
-      const blockId = getBlockIdAtCursor(editor);
-      if (blockId) {
-        const text = readBlockText(editor, blockId);
-        if (text && lastBlockText.get(blockId) !== text) {
-          lastBlockText.set(blockId, text);
-          useCopilotSessionStore.getState().markDirty(nodeId, blockId);
-        }
-      }
-
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         void runDetection();
@@ -254,33 +219,43 @@ export function useCopilot({
 
     return () => {
       log.info(
-        `[useCopilot] cleanup  nodeId=${nodeId} totalUpdates=${updateCount} totalFires=${fireCount}`,
+        `[useCopilot] cleanup nodeId=${nodeId} totalUpdates=${updateCount} totalFires=${fireCount}`,
       );
       editor.off('update', onEditorUpdate);
       if (debounceTimer) clearTimeout(debounceTimer);
       inFlightRef.current?.abort();
       inFlightRef.current = null;
-      lastBlockText.clear();
-      // Dirty queue intentionally NOT cleared — the user navigating away
-      // from a chapter shouldn't drop work the next visit could scan.
+      // Clear fingerprints so a re-mount on the same chapter doesn't get
+      // confused by state from a previous editor instance with stale block ids.
+      lastFingerprintRef.current = {};
+      summaryInFlightRef.current = false;
     };
-  }, [editor, copilotEnabled, enabledTaskKey, projectId, nodeId, debounceMs, createCopilotSuggestion]);
+  }, [
+    editor,
+    copilotEnabled,
+    enabledTaskKey,
+    projectId,
+    nodeId,
+    debounceMs,
+    summariesEnabled,
+    summarySectionSize,
+    createCopilotSuggestion,
+  ]);
 }
 
 /**
- * Pull the plain-text content of the named block out of the editor doc.
- * Used for fingerprinting only; capabilities read text from baseContext.
+ * Cheap hash of (uncoveredBlock ids + their text). djb2 over each block's
+ * id+text concatenated. Two fires on the same coverage state produce the
+ * same string; any block change or addition produces a different one.
  */
-function readBlockText(editor: Editor, blockId: string): string {
-  let found = '';
-  editor.state.doc.descendants((node) => {
-    if (found) return false;
-    const id = node.attrs?.id as string | null | undefined;
-    if (id === blockId) {
-      found = node.textContent.replace(/\s+/g, ' ').trim();
-      return false;
+function computeUncoveredFingerprint(blocks: { blockId: string; text: string }[]): string {
+  let h = 5381;
+  for (const b of blocks) {
+    const s = b.blockId + '' + b.text;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h) ^ s.charCodeAt(i);
+      h |= 0;
     }
-    return undefined;
-  });
-  return found;
+  }
+  return (h >>> 0).toString(36);
 }

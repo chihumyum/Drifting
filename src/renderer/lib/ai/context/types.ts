@@ -48,19 +48,29 @@ export interface PriorSectionSnippet {
  */
 export interface BaseBlockContext {
   chapterId: string;
-  editedBlocks: BlockSnippet[];
+  /**
+   * Blocks the user has touched but that aren't yet covered by a valid
+   * rolling summary. These show up in capability prompts as the "recent
+   * raw prose" to scan. Renamed from `editedBlocks` in PR D-1 — semantics
+   * are now coverage-map-driven, not dirty-queue-driven: an old block
+   * that was never summarized counts as uncovered too, not just freshly-
+   * edited ones.
+   */
+  uncoveredBlocks: BlockSnippet[];
+  /**
+   * Hash-validated rolling summaries for this chapter. Each section's
+   * blockIds list reflects only blocks still matching the stored per-block
+   * hash — blocks whose text changed since the section was written are
+   * excluded here and re-surface in `uncoveredBlocks` instead.
+   */
   priorSections: PriorSectionSnippet[];
   /**
-   * Element ids referenced by entityLink marks inside `editedBlocks` (target
-   * kind = 'element'). Built once during baseContext assembly so capabilities
-   * that operate on existing entities (element-patch) can scope down their
-   * candidate list to "actually mentioned in this batch" instead of dumping
-   * the whole project entity list into the prompt.
-   *
-   * Mention detection is strictly mark-based — same source of truth EntityLink
-   * uses everywhere else. Aliases linked to the same element id surface here
-   * naturally. Plain text mentions without a mark are NOT counted (they're
-   * entity-candidate's territory, not element-patch's).
+   * Element ids referenced by entityLink marks inside `uncoveredBlocks`
+   * (target kind = 'element'). Lets capabilities that operate on existing
+   * entities (element-patch) scope their candidate list to "actually
+   * mentioned in this batch" instead of dumping the whole project entity
+   * list. Strictly mark-based; aliases linked to the same element id
+   * surface here naturally.
    */
   mentionedElementIds: string[];
 }
@@ -71,8 +81,8 @@ export interface BaseBlockContext {
  * passed through so the capability has one object to thread into its prompt.
  */
 export interface EntityCandidateContext {
-  /** Recently-edited blocks (ordered by document position). */
-  editedBlocks: BlockSnippet[];
+  /** Uncovered (raw, not-yet-summarized) blocks in document order. */
+  uncoveredBlocks: BlockSnippet[];
   /** All known element names in the current project, normalized. For dedup. */
   knownElementNames: string[];
   /**

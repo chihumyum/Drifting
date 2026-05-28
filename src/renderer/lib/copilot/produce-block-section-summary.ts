@@ -1,16 +1,15 @@
 /**
- * Side-effect runner: after a successful debounce, fire a cheap summary
- * call against the just-scanned blocks and persist the result as a
- * `block_section` row.
+ * Produce a block_section row from a set of uncovered blocks.
  *
- * Caller (useCopilot) calls this fire-and-forget — it must not block the
- * user-visible suggestion persistence, and failures here are non-fatal
- * (the next debounce will re-summarize on its own).
+ * Called by useCopilot when accumulated uncovered blocks cross the size
+ * threshold (settings.copilotSummarySectionSize). Decoupled from any
+ * specific capability — any cap fire can trigger this, controlled by a
+ * single chapter-level in-flight lock to prevent concurrent producers.
  *
- * Hash invariant: blockSignature is computed from the SAME blockIds list
- * and the SAME getBlockText callback used at this moment. Read paths
- * (lib/copilot/prior-sections.ts) recompute against the editor's current
- * state and drop rows whose signature no longer matches.
+ * Per-block hashes (PR D-1): every covered block's text gets hashed at
+ * write time. The coverage-map reader uses these per-block hashes to
+ * decide which blocks of a section have stayed valid vs which have been
+ * edited since.
  */
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
@@ -18,11 +17,11 @@ import loglevel from 'loglevel';
 import { callStructured } from '../ai/call-structured';
 import { blockSectionSummaryPrompt } from '../ai/prompts/templates/block-section-summary';
 import { isBlockType } from '../extensions/block-id';
-import { computeBlockSignature } from './block-signature';
+import { computeBlockHashes } from './block-signature';
 import { copilotRuntime } from './runtime';
 import type { CopilotRuntime } from './capability';
 import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
-import { encodeBlockIds } from '../../domain/block-section';
+import { encodeBlockHashes, encodeBlockIds } from '../../domain/block-section';
 import { useDataStore } from '../../store/data-store';
 import { syncBlockSectionCreate } from '../../usecase/sync-helpers';
 
@@ -31,9 +30,9 @@ const log = loglevel.getLogger('copilot:block-section-summary');
 export interface ProduceBlockSectionSummaryInput {
   projectId: string;
   chapterId: string;
-  /** Block ids the debounce just scanned, in document order. */
+  /** Block ids to summarize, in document order. */
   blockIds: string[];
-  /** Editor reference — used to read current text per block for signing. */
+  /** Editor reference — used to read current text per block. */
   editor: Editor;
   /** Optional override; defaults to the shared copilot runtime. */
   runtime?: CopilotRuntime;
@@ -45,9 +44,9 @@ export async function produceBlockSectionSummary(
 ): Promise<void> {
   if (input.blockIds.length === 0) return;
 
-  // Snapshot current block texts. The same snapshot is used for both the
-  // LLM input and the signature, so the row we write is always consistent
-  // with itself (no race between text-read and signature-compute).
+  // Snapshot current block texts. Same snapshot drives both the LLM input
+  // and the stored per-block hashes — no race between text-read and hash-
+  // compute.
   const textsById = collectBlockTexts(input.editor, input.blockIds);
   const orderedBlockIds = input.blockIds.filter((id) => textsById.has(id));
   if (orderedBlockIds.length === 0) return;
@@ -58,7 +57,7 @@ export async function produceBlockSectionSummary(
     .join('\n\n');
   if (!recentText) return;
 
-  const signature = computeBlockSignature(orderedBlockIds, (id) => textsById.get(id) ?? '');
+  const blockHashes = computeBlockHashes(orderedBlockIds, (id) => textsById.get(id) ?? '');
 
   let summaryText: string;
   try {
@@ -87,22 +86,20 @@ export async function produceBlockSectionSummary(
     projectId: input.projectId,
     chapterId: input.chapterId,
     blockIds: orderedBlockIds,
-    blockSignature: signature,
+    blockHashes,
     summary: summaryText,
     source: 'copilot-rolling',
   });
 
-  // Mirror into the data-store so the next debounce's prior-section
-  // gathering sees this row without re-querying SQLite.
+  // Mirror into the data-store so the next coverage-map pass sees this row.
   useDataStore.getState().addBlockSection(created);
 
-  // Push to server — same sync model as elementPatch. Recovery on 404 is
-  // wired in entity-sync.service via the blockSection branch.
+  // Push to server — recovery on 404 lives in entity-sync.service.
   syncBlockSectionCreate(created.id, created.projectId, {
     id: created.id,
     chapterId: created.chapterId,
     blockIdsJson: encodeBlockIds(created.blockIds),
-    blockSignature: created.blockSignature,
+    blockHashesJson: encodeBlockHashes(created.blockHashes),
     summary: created.summary,
     source: created.source,
   });

@@ -3,7 +3,9 @@ import { and, asc, eq } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { BlockSectionTable } from '../schema/drizzle';
 import {
+  decodeBlockHashes,
   decodeBlockIds,
+  encodeBlockHashes,
   encodeBlockIds,
   type BlockSection,
   type BlockSectionSource,
@@ -15,13 +17,13 @@ export interface CreateBlockSectionInput {
   projectId: string;
   chapterId: string;
   blockIds: string[];
-  blockSignature: string;
+  blockHashes: Record<string, string>;
   summary: string;
   source?: BlockSectionSource;
 }
 
 export type UpdateBlockSectionInput = Partial<
-  Pick<BlockSection, 'blockIds' | 'blockSignature' | 'summary' | 'source'>
+  Pick<BlockSection, 'blockIds' | 'blockHashes' | 'summary' | 'source'>
 >;
 
 export interface BlockSectionRepository {
@@ -39,7 +41,7 @@ function toDomain(row: typeof BlockSectionTable.$inferSelect): BlockSection {
     projectId: row.projectId,
     chapterId: row.chapterId,
     blockIds: decodeBlockIds(row.blockIdsJson),
-    blockSignature: row.blockSignature,
+    blockHashes: decodeBlockHashes(row.blockHashesJson),
     summary: row.summary,
     source: (row.source as BlockSectionSource) ?? 'copilot-rolling',
     createdAt: row.createdAt,
@@ -56,7 +58,7 @@ export function createBlockSectionRepository(): BlockSectionRepository {
       projectId: input.projectId,
       chapterId: input.chapterId,
       blockIdsJson: encodeBlockIds(input.blockIds),
-      blockSignature: input.blockSignature,
+      blockHashesJson: encodeBlockHashes(input.blockHashes),
       summary: input.summary,
       source: input.source ?? 'copilot-rolling',
       createdAt: now,
@@ -74,7 +76,9 @@ export function createBlockSectionRepository(): BlockSectionRepository {
     const now = new Date().toISOString();
     const setValues: Record<string, unknown> = { updatedAt: now };
     if (updates.blockIds !== undefined) setValues.blockIdsJson = encodeBlockIds(updates.blockIds);
-    if (updates.blockSignature !== undefined) setValues.blockSignature = updates.blockSignature;
+    if (updates.blockHashes !== undefined) {
+      setValues.blockHashesJson = encodeBlockHashes(updates.blockHashes);
+    }
     if (updates.summary !== undefined) setValues.summary = updates.summary;
     if (updates.source !== undefined) setValues.source = updates.source;
 

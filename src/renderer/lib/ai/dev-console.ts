@@ -206,18 +206,21 @@ export function installAIDevConsole(): void {
           );
         }
 
-        // Single-block ad-hoc base context. Dev console doesn't have a
-        // chapterId at hand — pass a synthetic '__dev__' id; only the
-        // capability's prompt input cares about the block text, never the
-        // chapter id (until PR C wires prior sections, and even then dev
-        // console can skip them).
-        const baseContext = buildBaseBlockContext({
+        // Dev console doesn't track which chapter the active editor is in.
+        // Use a synthetic chapterId so coverage-map finds zero existing
+        // sections (priorSections will be empty) — capabilities still see
+        // every non-empty block in the editor as "uncovered" and scan them.
+        // For real chapter-context behavior, drive Copilot via the actual
+        // editor mount, not this dev surface.
+        const baseContext = await buildBaseBlockContext({
           editor,
           chapterId: '__dev__',
-          dirtyBlockIds: [blockId],
         });
         if (!baseContext) {
-          throw new Error(`Block ${blockId} not found or empty.`);
+          throw new Error(
+            `Coverage map produced no uncovered blocks — editor is empty? ` +
+              `(blockId hint was ${blockId.slice(0, 8)}.)`,
+          );
         }
 
         const controller = new AbortController();

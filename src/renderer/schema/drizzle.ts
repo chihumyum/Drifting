@@ -340,7 +340,14 @@ export const BlockSectionTable = sqliteTable(
       .notNull()
       .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
     blockIdsJson: text('block_ids_json').notNull(),
-    blockSignature: text('block_signature').notNull(),
+    // Per-block content fingerprints stored at write time. JSON object
+    // shaped { [blockId]: textHash }. On read, the coverage map recomputes
+    // each block's current hash and compares — blocks whose hash changed
+    // become "uncovered" individually, but the section's summary is still
+    // valid for the unchanged blocks. Replaces the old single-section
+    // `block_signature` column (migration 0032 / server 0031). This is what
+    // makes mid-chapter edits not invalidate the whole section.
+    blockHashesJson: text('block_hashes_json').notNull().default('{}'),
     summary: text('summary').notNull().default(''),
     // 'copilot-rolling' | 'reverse-outline' | 'manual'. Stored as text so a
     // new producer can land without a migration.

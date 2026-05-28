@@ -28,8 +28,8 @@ export interface ElementProfile {
 }
 
 export interface ElementPatchContext {
-  /** Recently-edited blocks (ordered by document position). */
-  editedBlocks: BlockSnippet[];
+  /** Uncovered (raw, not-yet-summarized) blocks in document order. */
+  uncoveredBlocks: BlockSnippet[];
   /** All non-deleted elements in the project. */
   candidateElements: ElementProfile[];
   /**
@@ -48,9 +48,9 @@ export interface BuildElementPatchContextInput {
 export function buildElementPatchContext(
   input: BuildElementPatchContextInput,
 ): ElementPatchContext | null {
-  if (input.baseContext.editedBlocks.length === 0) return null;
+  if (input.baseContext.uncoveredBlocks.length === 0) return null;
   return {
-    editedBlocks: input.baseContext.editedBlocks,
+    uncoveredBlocks: input.baseContext.uncoveredBlocks,
     // Only entities the user has actually linked inside the edited blocks
     // make it into the candidate list. Without this filter the prompt was
     // receiving every element in the project — token cost grew with the

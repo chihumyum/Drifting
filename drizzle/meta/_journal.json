@@ -232,6 +232,13 @@
       "when": 1781700000000,
       "tag": "0032_element_patch_source_block_text",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1781800000000,
+      "tag": "0033_block_section_hashes",
+      "breakpoints": true
     }
   ]
 }

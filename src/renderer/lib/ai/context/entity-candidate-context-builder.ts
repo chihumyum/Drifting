@@ -26,9 +26,9 @@ export interface BuildEntityCandidateContextInput {
 export function buildEntityCandidateContext(
   input: BuildEntityCandidateContextInput,
 ): EntityCandidateContext | null {
-  if (input.baseContext.editedBlocks.length === 0) return null;
+  if (input.baseContext.uncoveredBlocks.length === 0) return null;
   return {
-    editedBlocks: input.baseContext.editedBlocks,
+    uncoveredBlocks: input.baseContext.uncoveredBlocks,
     knownElementNames: getKnownElementNames(input.projectId),
     availableCategories: getAvailableCategoryNames(input.projectId),
     rejectedNames: getRejectedSuggestionNames(input.projectId),

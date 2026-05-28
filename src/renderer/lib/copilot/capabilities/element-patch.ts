@@ -70,10 +70,10 @@ export const elementPatchCapability: CopilotCapability = {
     // elements yet (would just burn tokens for an empty array response).
     if (context.candidateElements.length === 0) return [];
 
-    // editedBlocks is already ordered by document position (BaseBlockContext
+    // uncoveredBlocks is already ordered by document position (coverage-map
     // guarantees it). Concatenate to a single recentText so the prompt
     // schema stays simple; anchor mapping below uses the block list.
-    const recentText = context.editedBlocks
+    const recentText = context.uncoveredBlocks
       .map((b) => b.text)
       .filter(Boolean)
       .join('\n\n');
@@ -157,13 +157,13 @@ export const elementPatchCapability: CopilotCapability = {
 
       // Resolve the anchor block once, then look up its text for the
       // snapshot. When the model paraphrased the evidence enough that no
-      // edited block matches verbatim, fall back to the first edited block
-      // (same fallback the runner would apply) so the snapshot points at
-      // the same block as the anchor.
-      const matchedBlockId = findEvidenceBlock(context.editedBlocks, p.evidenceText);
-      const anchorBlockId = matchedBlockId ?? context.editedBlocks[0]?.blockId;
+      // uncovered block matches verbatim, fall back to the first uncovered
+      // block (same fallback the runner would apply) so the snapshot points
+      // at the same block as the anchor.
+      const matchedBlockId = findEvidenceBlock(context.uncoveredBlocks, p.evidenceText);
+      const anchorBlockId = matchedBlockId ?? context.uncoveredBlocks[0]?.blockId;
       const anchorBlockText =
-        context.editedBlocks.find((b) => b.blockId === anchorBlockId)?.text ?? '';
+        context.uncoveredBlocks.find((b) => b.blockId === anchorBlockId)?.text ?? '';
 
       const metadata: ElementPatchMetadata = {
         kind: 'element-patch',

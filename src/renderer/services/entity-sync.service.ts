@@ -42,7 +42,7 @@ import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { decodeAliases } from '../domain/book-element';
-import { decodeBlockIds } from '../domain/block-section';
+import { decodeBlockHashes, decodeBlockIds } from '../domain/block-section';
 import type { BlockSectionSource } from '../domain/block-section';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
 import { createBlockSectionRepository } from '../sqlite-repo/block-section-repo';
@@ -766,7 +766,7 @@ async function tryRecoverMissingRemote(m: SyncMutation): Promise<boolean> {
           id: row.id,
           chapterId: row.chapterId,
           blockIdsJson: JSON.stringify(row.blockIds),
-          blockSignature: row.blockSignature,
+          blockHashesJson: JSON.stringify(row.blockHashes),
           summary: row.summary,
           source: row.source,
         },
@@ -1058,7 +1058,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       projectId: stringValue(row, 'projectId'),
       chapterId: stringValue(row, 'chapterId'),
       blockIds: decodeBlockIds(stringValue(row, 'blockIdsJson', '[]')),
-      blockSignature: stringValue(row, 'blockSignature'),
+      blockHashes: decodeBlockHashes(stringValue(row, 'blockHashesJson', '{}')),
       summary: stringValue(row, 'summary'),
       source: (stringValue(row, 'source', 'copilot-rolling') ||
         'copilot-rolling') as BlockSectionSource,
@@ -1575,7 +1575,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       projectId: stringValue(row, 'projectId'),
       chapterId: stringValue(row, 'chapterId'),
       blockIdsJson: stringValue(row, 'blockIdsJson', '[]'),
-      blockSignature: stringValue(row, 'blockSignature'),
+      blockHashesJson: stringValue(row, 'blockHashesJson', '{}'),
       summary: stringValue(row, 'summary'),
       source: stringValue(row, 'source', 'copilot-rolling') || 'copilot-rolling',
       createdAt: dateText(row.createdAt),
