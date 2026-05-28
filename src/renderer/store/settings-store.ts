@@ -35,6 +35,36 @@ export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[]
   { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
 ];
 
+/**
+ * Per-task configuration. `debounceMs` undefined = inherit the capability's
+ * `defaultDebounceMs` declaration; explicit number = user override. Future
+ * advanced knobs (confidence threshold, model, max suggestions) will live
+ * alongside these — see CopilotCapability.configSchema for the declaration
+ * side and PR D-2 settings UI for the surface.
+ */
+export interface CopilotTaskConfig {
+  enabled: boolean;
+  debounceMs?: number;
+}
+
+/** Initial value for a newly-encountered task id. */
+function defaultTaskConfig(enabled: boolean): CopilotTaskConfig {
+  return { enabled };
+}
+
+/** All known task ids with their first-run defaults. */
+function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
+  const out = {} as Record<CopilotTaskId, CopilotTaskConfig>;
+  for (const t of COPILOT_TASKS) {
+    // entityExtract / elementPatch are the two wired capabilities — default
+    // on so a fresh install actually does something. The placeholders stay
+    // off until their capabilities ship.
+    const on = t.id === 'entityExtract' || t.id === 'elementPatch' || t.id === 'autoLink' || t.id === 'continuityCheck';
+    out[t.id] = defaultTaskConfig(on);
+  }
+  return out;
+}
+
 interface SettingsState {
   // 编辑器既有偏好
   autoElementLinkEnabled: boolean;
@@ -123,17 +153,17 @@ interface SettingsState {
   setCopilotEnabled: (on: boolean) => void;
   copilotMode: CopilotMode;
   setCopilotMode: (m: CopilotMode) => void;
-  copilotTasks: CopilotTaskId[];
-  toggleCopilotTask: (id: CopilotTaskId) => void;
-  setCopilotTasks: (ids: CopilotTaskId[]) => void;
   /**
-   * Milliseconds between the user's last keystroke and Copilot firing
-   * detection. Lower = more responsive but more token spend; higher =
-   * more patient, fewer LLM calls. Read by useCopilot at every effect
-   * setup so changes apply on next editor mount / settings re-render.
+   * Per-task configuration map. Each task carries its own enabled flag
+   * and an optional debounceMs override (undefined = fall back to the
+   * capability's `defaultDebounceMs`). Replaces the legacy
+   * `copilotTasks: CopilotTaskId[]` + global `copilotDebounceMs` pair
+   * with a richer shape that PR D-2 can extend (model, threshold, etc).
    */
-  copilotDebounceMs: number;
-  setCopilotDebounceMs: (ms: number) => void;
+  copilotTaskConfigs: Record<CopilotTaskId, CopilotTaskConfig>;
+  setCopilotTaskEnabled: (id: CopilotTaskId, on: boolean) => void;
+  setCopilotTaskDebounceMs: (id: CopilotTaskId, ms: number | undefined) => void;
+  setCopilotTaskConfig: (id: CopilotTaskId, patch: Partial<CopilotTaskConfig>) => void;
   /**
    * Master switch for the rolling-summary side-output. When true, Copilot
    * accumulates uncovered-block count across capability fires and triggers
@@ -253,16 +283,28 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotEnabled: (on) => set({ copilotEnabled: on }),
       copilotMode: 'cloud',
       setCopilotMode: (m) => set({ copilotMode: m }),
-      copilotTasks: ['continuityCheck', 'entityExtract', 'elementPatch', 'autoLink'],
-      toggleCopilotTask: (id) =>
+      copilotTaskConfigs: buildInitialTaskConfigs(),
+      setCopilotTaskEnabled: (id, on) =>
         set((state) => ({
-          copilotTasks: state.copilotTasks.includes(id)
-            ? state.copilotTasks.filter((t) => t !== id)
-            : [...state.copilotTasks, id],
+          copilotTaskConfigs: {
+            ...state.copilotTaskConfigs,
+            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), enabled: on },
+          },
         })),
-      setCopilotTasks: (ids) => set({ copilotTasks: ids }),
-      copilotDebounceMs: 3000,
-      setCopilotDebounceMs: (ms) => set({ copilotDebounceMs: ms }),
+      setCopilotTaskDebounceMs: (id, ms) =>
+        set((state) => ({
+          copilotTaskConfigs: {
+            ...state.copilotTaskConfigs,
+            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), debounceMs: ms },
+          },
+        })),
+      setCopilotTaskConfig: (id, patch) =>
+        set((state) => ({
+          copilotTaskConfigs: {
+            ...state.copilotTaskConfigs,
+            [id]: { ...(state.copilotTaskConfigs[id] ?? defaultTaskConfig(false)), ...patch },
+          },
+        })),
       copilotGenerateSummaries: true,
       setCopilotGenerateSummaries: (on) => set({ copilotGenerateSummaries: on }),
       copilotSummarySectionSize: 8,
@@ -285,19 +327,23 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
+          copilotTasks?: CopilotTaskId[];
+          copilotDebounceMs?: number;
         };
         let next: Partial<SettingsState> & {
           manuscriptSans?: boolean;
           marginNotes?: boolean;
           marginNotesByKind?: unknown;
           animationsEnabled?: boolean;
+          copilotTasks?: CopilotTaskId[];
+          copilotDebounceMs?: number;
         } = state;
         if (version < 2) {
           // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
@@ -326,6 +372,38 @@ export const useSettingsStore = create<SettingsState>()(
           const { animationsEnabled: _omit, ...rest } = next;
           void _omit;
           next = rest;
+        }
+        if (version < 6) {
+          // copilotTasks (string[] allow-list) + copilotDebounceMs (single
+          // global) folded into copilotTaskConfigs (per-task enabled +
+          // optional debounceMs). Migration preserves each user's prior
+          // choices: enabled = was in the allow-list; debounceMs = old
+          // global if non-default, else undefined (capability default).
+          const oldTasks = (next.copilotTasks ?? []) as CopilotTaskId[];
+          const oldGlobalDebounce = next.copilotDebounceMs;
+          const configs = buildInitialTaskConfigs();
+          // If user had an explicit allow-list, respect it (overrides initial
+          // defaults). Empty list = nothing was on → set everything off.
+          if (oldTasks.length > 0) {
+            for (const id of Object.keys(configs) as CopilotTaskId[]) {
+              configs[id] = { ...configs[id], enabled: oldTasks.includes(id) };
+            }
+          }
+          // Apply old global debounce only to currently-wired caps. The placeholders
+          // would otherwise carry a debounce setting they can't act on.
+          if (typeof oldGlobalDebounce === 'number' && oldGlobalDebounce > 0) {
+            for (const id of ['entityExtract', 'elementPatch'] as CopilotTaskId[]) {
+              configs[id] = { ...configs[id], debounceMs: oldGlobalDebounce };
+            }
+          }
+          const {
+            copilotTasks: _omitTasks,
+            copilotDebounceMs: _omitDebounce,
+            ...rest
+          } = next;
+          void _omitTasks;
+          void _omitDebounce;
+          next = { ...rest, copilotTaskConfigs: configs };
         }
         return next;
       },

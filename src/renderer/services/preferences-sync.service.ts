@@ -71,7 +71,9 @@ type SyncableSlice = {
   // copilot tasks
   copilotEnabled: unknown;
   copilotMode: unknown;
-  copilotTasks: unknown;
+  copilotTaskConfigs: unknown;
+  copilotGenerateSummaries: unknown;
+  copilotSummarySectionSize: unknown;
   // sync / privacy
   wifiOnlySync: unknown;
   autoSnapshot: unknown;
@@ -112,7 +114,9 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'shadowSystemPrompt',
   'copilotEnabled',
   'copilotMode',
-  'copilotTasks',
+  'copilotTaskConfigs',
+  'copilotGenerateSummaries',
+  'copilotSummarySectionSize',
   'wifiOnlySync',
   'autoSnapshot',
   'improveModelsWithManuscripts',
@@ -230,7 +234,28 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     shadowSystemPrompt: (v) => store.setShadowSystemPrompt(String(v)),
     copilotEnabled: (v) => store.setCopilotEnabled(!!v),
     copilotMode: (v) => store.setCopilotMode(v as never),
-    copilotTasks: (v) => store.setCopilotTasks(Array.isArray(v) ? (v as CopilotTaskId[]) : []),
+    copilotTaskConfigs: (v) => {
+      // Apply each known task's incoming config via setCopilotTaskConfig so
+      // unknown keys (old clients, malformed payloads) get filtered safely.
+      if (!v || typeof v !== 'object') return;
+      const incoming = v as Record<string, { enabled?: unknown; debounceMs?: unknown }>;
+      for (const [id, cfg] of Object.entries(incoming)) {
+        if (!cfg || typeof cfg !== 'object') continue;
+        const patch: { enabled?: boolean; debounceMs?: number } = {};
+        if (typeof cfg.enabled === 'boolean') patch.enabled = cfg.enabled;
+        if (typeof cfg.debounceMs === 'number' && cfg.debounceMs >= 250) {
+          patch.debounceMs = cfg.debounceMs;
+        }
+        if (Object.keys(patch).length > 0) {
+          store.setCopilotTaskConfig(id as CopilotTaskId, patch);
+        }
+      }
+    },
+    copilotGenerateSummaries: (v) => store.setCopilotGenerateSummaries(!!v),
+    copilotSummarySectionSize: (v) => {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) store.setCopilotSummarySectionSize(Math.floor(n));
+    },
     wifiOnlySync: (v) => store.setWifiOnlySync(!!v),
     autoSnapshot: (v) => store.setAutoSnapshot(!!v),
     improveModelsWithManuscripts: (v) => store.setImproveModelsWithManuscripts(!!v),

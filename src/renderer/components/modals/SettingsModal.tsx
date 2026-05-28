@@ -2079,86 +2079,130 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 }
 
-const COPILOT_DEBOUNCE_MIN_SEC = 3;
-const COPILOT_DEBOUNCE_MAX_SEC = 30;
+const COPILOT_DEBOUNCE_MIN_SEC = 1;
+const COPILOT_DEBOUNCE_MAX_SEC = 60;
+const COPILOT_SECTION_SIZE_MIN = 3;
+const COPILOT_SECTION_SIZE_MAX = 30;
 
-/** Clamp slider input to the supported range. Defends against URL/dev
- *  console mutations that might push the stored ms outside [3s, 30s]. */
-function clampDebounceMs(ms: number): number {
-  const seconds = Math.round(ms / 1000);
-  const clamped = Math.min(
+function clampDebounceSec(sec: number): number {
+  return Math.min(
     COPILOT_DEBOUNCE_MAX_SEC,
-    Math.max(COPILOT_DEBOUNCE_MIN_SEC, seconds),
+    Math.max(COPILOT_DEBOUNCE_MIN_SEC, Math.round(sec)),
   );
-  return clamped * 1000;
+}
+
+/**
+ * Per-task config row. Shows the task's name, a wired/not-wired indicator,
+ * its enable toggle, and (if wired) a debounce slider. The slider value
+ * defaults to the capability's `defaultDebounceMs` until the user overrides.
+ */
+function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string; desc: string }) {
+  const cfg = useSettingsStore((s) => s.copilotTaskConfigs[taskId]);
+  const setEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
+  const setDebounceMs = useSettingsStore((s) => s.setCopilotTaskDebounceMs);
+
+  const cap = getCopilotCapability(taskId);
+  const wired = Boolean(cap);
+  const enabled = cfg?.enabled ?? false;
+  const effectiveMs = cfg?.debounceMs ?? cap?.defaultDebounceMs ?? 5000;
+  const effectiveSec = Math.round(effectiveMs / 1000);
+  const isOverride = cfg?.debounceMs !== undefined;
+
+  return (
+    <div
+      style={{
+        padding: '14px 0',
+        borderTop: '1px solid hsl(var(--rule) / 0.5)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <strong style={{ fontSize: 14 }}>{label}</strong>
+            {!wired && (
+              <span style={{ fontSize: 11, color: 'hsl(var(--ink-3))', padding: '1px 6px', borderRadius: 4, background: 'hsl(var(--rule) / 0.3)' }}>
+                未上线
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: 'hsl(var(--ink-2))', marginTop: 4 }}>{desc}</div>
+        </div>
+        <Toggle
+          on={enabled}
+          onChange={(on) => setEnabled(taskId, on)}
+        />
+      </div>
+
+      {wired && enabled && (
+        <div style={{ marginTop: 12, paddingLeft: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 12, color: 'hsl(var(--ink-3))', marginBottom: 4 }}>
+            <span>触发节奏</span>
+            <span>
+              停笔
+              <span style={{ fontFamily: 'var(--font-mono)', margin: '0 4px', color: 'hsl(var(--ink-1))' }}>
+                {effectiveSec}s
+              </span>
+              后触发
+              {isOverride && (
+                <button
+                  onClick={() => setDebounceMs(taskId, undefined)}
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 11,
+                    color: 'hsl(var(--accent))',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  title="恢复该 task 的内置默认值"
+                >
+                  重置默认
+                </button>
+              )}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={COPILOT_DEBOUNCE_MIN_SEC}
+            max={COPILOT_DEBOUNCE_MAX_SEC}
+            step={1}
+            value={effectiveSec}
+            onChange={(e) =>
+              setDebounceMs(taskId, clampDebounceSec(parseInt(e.target.value, 10)) * 1000)
+            }
+            style={{ width: '100%', accentColor: 'hsl(var(--accent))' }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
-  const {
-    copilotEnabled,
-    setCopilotEnabled,
-    copilotMode,
-    setCopilotMode,
-    copilotTasks,
-    toggleCopilotTask,
-    copilotDebounceMs,
-    setCopilotDebounceMs,
-  } = useSettingsStore();
+  const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
+  const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
+  const copilotMode = useSettingsStore((s) => s.copilotMode);
+  const setCopilotMode = useSettingsStore((s) => s.setCopilotMode);
+  const generateSummaries = useSettingsStore((s) => s.copilotGenerateSummaries);
+  const setGenerateSummaries = useSettingsStore((s) => s.setCopilotGenerateSummaries);
+  const sectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
+  const setSectionSize = useSettingsStore((s) => s.setCopilotSummarySectionSize);
 
   return (
     <section className="set-panel" ref={registerRef} id="copilot">
       <PanelHead
         kicker="COPILOT · 任务"
         title="把琐事交给一个安静的副手。"
-        sub="Copilot 只跑你勾选的轻量任务——检查、抽取、对齐。它不会替你写正文。"
+        sub="每个任务独立配置——什么时候触发、要不要开。它不会替你写正文。"
       />
 
       <div className="set-sec">
         <SecHead title="开关" hint="ENABLE" />
         <Row
           label="启用 Copilot"
-          desc="关闭后所有自动化任务都不会启动。"
+          desc="总开关，关闭后下面所有 task 都不会启动。"
           control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
-        />
-        <Row
-          label="触发节奏"
-          desc={`停笔 ${Math.round(copilotDebounceMs / 1000)} 秒后 Copilot 才出手。值越小越响应、越费 token；值越大越克制。`}
-          stack
-          control={
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                minWidth: 220,
-              }}
-            >
-              <input
-                type="range"
-                min={COPILOT_DEBOUNCE_MIN_SEC}
-                max={COPILOT_DEBOUNCE_MAX_SEC}
-                step={1}
-                value={Math.round(copilotDebounceMs / 1000)}
-                onChange={(e) =>
-                  setCopilotDebounceMs(clampDebounceMs(parseInt(e.target.value, 10) * 1000))
-                }
-                style={{ flex: 1, accentColor: 'hsl(var(--accent))' }}
-              />
-              <span
-                className="set-input--mono"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 12,
-                  minWidth: 32,
-                  textAlign: 'right',
-                  color: 'hsl(var(--ink-2))',
-                }}
-              >
-                {Math.round(copilotDebounceMs / 1000)}s
-              </span>
-            </div>
-          }
         />
       </div>
 
@@ -2185,36 +2229,53 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="任务列表" hint="TASKS" />
-        <p className="set-row__desc" style={{ margin: '-4px 0 12px' }}>
-          勾选你愿意让 Copilot 自动跑的轻量任务。任何时候都可以一键关掉。
+        <SecHead title="段落概要" hint="SUMMARY" />
+        <Row
+          label="生成段落概要"
+          desc="任何 task 触发后，若未被概要的 block 累积到阈值，会发一次概要调用。概要会作为后续 task 的上下文，提升 patch 召回；关闭则不生成、不注入。"
+          control={<Toggle on={generateSummaries} onChange={setGenerateSummaries} />}
+        />
+        {generateSummaries && (
+          <Row
+            label="概要阈值"
+            desc={`攒够 ${sectionSize} 个未概要的 block 后再生成一段。值越大越省 token；值越小概要越频繁。`}
+            stack
+            control={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 220 }}>
+                <input
+                  type="range"
+                  min={COPILOT_SECTION_SIZE_MIN}
+                  max={COPILOT_SECTION_SIZE_MAX}
+                  step={1}
+                  value={sectionSize}
+                  onChange={(e) => setSectionSize(parseInt(e.target.value, 10))}
+                  style={{ flex: 1, accentColor: 'hsl(var(--accent))' }}
+                />
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 12,
+                    minWidth: 32,
+                    textAlign: 'right',
+                    color: 'hsl(var(--ink-2))',
+                  }}
+                >
+                  {sectionSize} 块
+                </span>
+              </div>
+            }
+          />
+        )}
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="任务" hint="TASKS" />
+        <p className="set-row__desc" style={{ margin: '-4px 0 0' }}>
+          每个 task 都能独立开关和调触发节奏。低 debounce 适合轻量识别（如实体抽取），高 debounce 适合重型分析（如 patch 提议）。
         </p>
-        <div className="set-tasks">
-          {COPILOT_TASKS.map((t) => {
-            const on = copilotTasks.includes(t.id);
-            // Whether a capability is actually registered for this task id —
-            // tasks without a registered capability are roadmap placeholders
-            // (the toggle persists user intent but nothing runs yet).
-            const wired = Boolean(getCopilotCapability(t.id));
-            return (
-              <button
-                key={t.id}
-                className={'set-task' + (on ? ' set-task--on' : '')}
-                onClick={() => toggleCopilotTask(t.id as CopilotTaskId)}
-                title={wired ? t.desc : `${t.desc}（尚未上线）`}
-                style={wired ? undefined : { opacity: 0.6 }}
-              >
-                <span className="set-task__check">{on ? '✓' : ''}</span>
-                <span>{t.label}</span>
-                {!wired && (
-                  <span style={{ marginLeft: 6, fontSize: '0.7em', opacity: 0.7 }}>
-                    · 未上线
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {COPILOT_TASKS.map((t) => (
+          <CopilotTaskRow key={t.id} taskId={t.id} label={t.label} desc={t.desc} />
+        ))}
       </div>
     </section>
   );

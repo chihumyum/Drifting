@@ -165,6 +165,15 @@ export interface CopilotCapability {
   description: string;
   /** What event surface fires this capability. */
   trigger: CopilotTrigger;
+  /**
+   * Default debounce in ms when the user hasn't overridden in settings.
+   * Capabilities tune their own default based on cost / cadence — cheap
+   * frequent capabilities (entity-candidate) want low values; heavy
+   * reflection capabilities (element-patch) want high values. Settings UI
+   * uses this as the initial slider value and as the "reset to default"
+   * target.
+   */
+  defaultDebounceMs: number;
 
   /**
    * Run detection. Return zero or more suggestions to persist. Honor `signal`

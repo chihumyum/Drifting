@@ -59,6 +59,10 @@ export const elementPatchCapability: CopilotCapability = {
     'Detect state changes about existing entities in your prose and propose ' +
     'chapter-anchored patch notes.',
   trigger: 'editor-block-debounced',
+  // Heavier prompt (full mentioned-element list + summaries) and the user
+  // benefits less from instant feedback — patches accrue and get reviewed
+  // in batches. 12s defers cost without losing recency.
+  defaultDebounceMs: 12000,
 
   async detect(ctx: CapabilityDetectContext): Promise<CapabilityDetectResult[]> {
     const context = buildElementPatchContext({

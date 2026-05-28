@@ -1,25 +1,24 @@
 /**
- * useCopilot — generic capability runner (coverage-map model, post PR D-1).
+ * useCopilot — generic capability runner (coverage-map + per-task debounce).
  *
  * Trigger model:
- *   - On every text-changing transaction, reset a debounce timer.
- *   - When the timer fires, compute the chapter's coverage map ONCE
- *     (uncoveredBlocks + priorSections), then run every enabled capability
- *     against that snapshot in parallel.
- *   - Each capability has its own fingerprint of "what I last ran against"
- *     — if the coverage map hasn't changed since last fire, the capability
- *     skips the LLM call. Avoids wasting tokens when caps fire at staggered
- *     intervals and the user hasn't actually changed anything since.
+ *   - On every text-changing transaction, RESET each enabled capability's
+ *     own debounce timer. Different caps can have different debounces
+ *     (entity-candidate ~3s; element-patch ~12s) — each runs on its own
+ *     cadence, no shared global timer.
+ *   - When a cap's timer fires, compute the chapter's coverage map
+ *     (uncoveredBlocks + priorSections) once, fingerprint, and run that
+ *     ONE cap. Multiple caps firing close together share the coverage
+ *     read where possible via the data-store cache; the heavy work is
+ *     the LLM call itself.
  *   - When accumulated uncovered blocks ≥ threshold AND no summary is
  *     already in flight, fire-and-forget a block_section summary call.
- *     That summary on completion shrinks the uncovered set, naturally
- *     compressing context for the next fire.
+ *     The summary is producer-agnostic: any cap fire can trigger it.
  *
- * What was REMOVED in PR D-1 vs the previous implementation:
- *   - session-store / dirty queue tracking (state lives in block_section + editor)
- *   - markDirty / drainDirty / per-block fingerprint Map
- *   - "fire summary after all caps succeed" coupling
- *   - per-block readBlockText fingerprint to gate dirty marking
+ * The per-task debounce is the reason PR D-2 split out from D-1 — D-1
+ * removed the dirty queue, D-2 splits the debounce. Both rely on the
+ * coverage-map model so capability state stays single-tier (a fingerprint
+ * string per cap, vs. the old per-cap dirty Set).
  */
 import { useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -36,7 +35,7 @@ import { copilotRuntime } from '../lib/copilot/runtime';
 import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
 import { useManuscriptComment } from '../usecase/useManuscriptComment';
-import { useSettingsStore } from '../store/settings-store';
+import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { events } from '../lib/events';
 
 export interface UseCopilotInput {
@@ -55,120 +54,104 @@ export function useCopilot({
 }: UseCopilotInput): void {
   const { createCopilotSuggestion } = useManuscriptComment({ projectId, userId });
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
-  const debounceMs = useSettingsStore((s) => s.copilotDebounceMs);
   const summariesEnabled = useSettingsStore((s) => s.copilotGenerateSummaries);
   const summarySectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
-  const enabledTaskKey = useSettingsStore(
-    (s) => (s.copilotTasks ?? []).slice().sort().join('|'),
-  );
+  const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
+  // Stable string key over the configs map so useEffect can re-bind when a
+  // single cap's enabled flag or debounce changes. JSON serialise once per
+  // settings change — cheap and bullet-proof against Zustand identity
+  // gotchas.
+  const taskConfigsKey = JSON.stringify(taskConfigs);
 
-  // Per-capability fingerprint: hash of (uncoveredBlock ids + their texts)
-  // at the time the cap last ran. If the next fire computes the same
-  // fingerprint, skip the cap entirely — nothing has changed for it.
+  // Per-capability fingerprint of the coverage state last seen.
   const lastFingerprintRef = useRef<Record<string, string>>({});
-  const inFlightRef = useRef<AbortController | null>(null);
-  // Chapter-level lock so two near-simultaneous cap fires don't both kick
-  // a summary call. Per-mount → naturally tied to chapter session.
+  // Per-capability in-flight controller. Lets us abort one cap without
+  // blasting the others.
+  const inFlightByCapRef = useRef<Record<string, AbortController | null>>({});
+  // Per-chapter lock: at most one summary call in flight at a time.
   const summaryInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!copilotEnabled) return;
 
-    const enabledIds = new Set(enabledTaskKey ? enabledTaskKey.split('|') : []);
-    const isEnabled = (cap: CopilotCapability): boolean =>
-      enabledIds.size === 0 || enabledIds.has(cap.id);
+    const allCaps = capabilitiesForTrigger('editor-block-debounced');
+    const enabledCaps = allCaps.filter((c) => taskConfigs[c.id as CopilotTaskId]?.enabled);
+
+    if (enabledCaps.length === 0) {
+      log.info(`[useCopilot] mount nodeId=${nodeId} no enabled caps — idle`);
+      return;
+    }
 
     log.info(
-      `[useCopilot] mount nodeId=${nodeId} debounceMs=${debounceMs} summariesEnabled=${summariesEnabled} sectionSize=${summarySectionSize} enabledTasks=[${enabledTaskKey}]`,
+      `[useCopilot] mount nodeId=${nodeId} caps=[${enabledCaps.map((c) => `${c.id}@${effectiveDebounceMs(c, taskConfigs)}ms`).join(',')}] summaries=${summariesEnabled} sectionSize=${summarySectionSize}`,
     );
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // Per-cap timer. Map of capId → Timeout (or null when cleared).
+    const timers: Record<string, ReturnType<typeof setTimeout> | null> = {};
     let updateCount = 0;
     let fireCount = 0;
 
-    const runDetection = async (): Promise<void> => {
+    const runFor = async (cap: CopilotCapability): Promise<void> => {
       fireCount += 1;
       const localFireId = fireCount;
 
       const baseContext = await buildBaseBlockContext({ editor, chapterId: nodeId });
       if (!baseContext) {
-        log.debug(`[useCopilot] fire #${localFireId} skip (coverage map empty)`);
+        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (coverage empty)`);
         return;
       }
 
-      const capabilities = capabilitiesForTrigger('editor-block-debounced').filter(isEnabled);
-      if (capabilities.length === 0) {
-        log.debug(`[useCopilot] fire #${localFireId} skip (no enabled capabilities)`);
-        return;
-      }
-
-      // Fingerprint over uncovered ids + texts. Cheap; two caps both
-      // computing this on the same snapshot agree.
       const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
+      if (lastFingerprintRef.current[cap.id] === fingerprint) {
+        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (fingerprint unchanged)`);
+        return;
+      }
 
-      // Cancel any previous run. One controller per chapter mount is enough
-      // — late firings of the same cap would just want to clobber anyway.
-      inFlightRef.current?.abort();
+      // Abort any previous in-flight call for THIS cap only.
+      inFlightByCapRef.current[cap.id]?.abort();
       const controller = new AbortController();
-      inFlightRef.current = controller;
+      inFlightByCapRef.current[cap.id] = controller;
 
       log.info(
-        `[useCopilot] fire #${localFireId} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length} caps=[${capabilities.map((c) => c.id).join(',')}]`,
+        `[useCopilot] cap=${cap.id} fire #${localFireId} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
       );
 
       try {
-        const perCapability = await Promise.all(
-          capabilities.map(async (cap) => {
-            // Per-cap fingerprint skip — saves a full LLM call when nothing
-            // has changed since this cap last ran.
-            if (lastFingerprintRef.current[cap.id] === fingerprint) {
-              log.debug(`[useCopilot] cap=${cap.id} skip (fingerprint unchanged)`);
-              return { cap, results: [] } as const;
-            }
-            try {
-              const results = await cap.detect({
-                runtime: copilotRuntime,
-                editor,
-                projectId,
-                targetKind: 'node',
-                targetId: nodeId,
-                baseContext,
-                signal: controller.signal,
-              });
-              lastFingerprintRef.current[cap.id] = fingerprint;
-              return { cap, results } as const;
-            } catch (err) {
-              if (err instanceof AIError && err.kind === 'aborted') {
-                return { cap, results: [] } as const;
-              }
-              if (err instanceof AIError && err.kind === 'auth') {
-                return { cap, results: [] } as const;
-              }
-              log.warn(`[copilot] capability "${cap.id}" detect failed`, err);
-              return { cap, results: [] } as const;
-            }
-          }),
-        );
+        let results: Awaited<ReturnType<typeof cap.detect>> = [];
+        try {
+          results = await cap.detect({
+            runtime: copilotRuntime,
+            editor,
+            projectId,
+            targetKind: 'node',
+            targetId: nodeId,
+            baseContext,
+            signal: controller.signal,
+          });
+          lastFingerprintRef.current[cap.id] = fingerprint;
+        } catch (err) {
+          if (err instanceof AIError && err.kind === 'aborted') return;
+          if (err instanceof AIError && err.kind === 'auth') return;
+          log.warn(`[copilot] capability "${cap.id}" detect failed`, err);
+          return;
+        }
 
         if (controller.signal.aborted) return;
 
         const defaultAnchorBlockId = baseContext.uncoveredBlocks[0]!.blockId;
-
         let persistedAny = false;
-        for (const { cap, results } of perCapability) {
-          for (const result of results) {
-            try {
-              await createCopilotSuggestion({
-                targetKind: 'node',
-                targetId: nodeId,
-                targetBlockId: result.overrideTargetBlockId ?? defaultAnchorBlockId,
-                anchorJson: result.anchorJson,
-                metadata: result.metadata,
-              });
-              persistedAny = true;
-            } catch (err) {
-              log.warn(`[copilot] persist "${cap.id}" suggestion failed`, err);
-            }
+        for (const result of results) {
+          try {
+            await createCopilotSuggestion({
+              targetKind: 'node',
+              targetId: nodeId,
+              targetBlockId: result.overrideTargetBlockId ?? defaultAnchorBlockId,
+              anchorJson: result.anchorJson,
+              metadata: result.metadata,
+            });
+            persistedAny = true;
+          } catch (err) {
+            log.warn(`[copilot] persist "${cap.id}" suggestion failed`, err);
           }
         }
 
@@ -179,10 +162,10 @@ export function useCopilot({
           });
         }
 
-        // Threshold-triggered summary. Decoupled from any specific cap —
-        // first fire to see uncovered ≥ threshold AND no summary in flight
-        // wins. Uses cap controller's signal so aborting the whole run
-        // (chapter-switch) cancels the in-flight summary too.
+        // Threshold-triggered summary, decoupled from any specific cap.
+        // First fire to see uncovered ≥ threshold wins the lock; others
+        // skip until completion. The summary call's signal is the cap's
+        // controller — chapter teardown aborts in-flight summaries too.
         if (
           summariesEnabled &&
           baseContext.uncoveredBlocks.length >= summarySectionSize &&
@@ -201,18 +184,25 @@ export function useCopilot({
           });
         }
       } finally {
-        if (inFlightRef.current === controller) {
-          inFlightRef.current = null;
+        if (inFlightByCapRef.current[cap.id] === controller) {
+          inFlightByCapRef.current[cap.id] = null;
         }
       }
     };
 
     const onEditorUpdate = (): void => {
       updateCount += 1;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        void runDetection();
-      }, debounceMs);
+      // Reset every enabled cap's timer. Each fires independently after
+      // its own debounce — entity-candidate at 3s, element-patch at 12s,
+      // etc. No shared timer, no cross-cap coupling.
+      for (const cap of enabledCaps) {
+        const existing = timers[cap.id];
+        if (existing) clearTimeout(existing);
+        const debounceMs = effectiveDebounceMs(cap, taskConfigs);
+        timers[cap.id] = setTimeout(() => {
+          void runFor(cap);
+        }, debounceMs);
+      }
     };
 
     editor.on('update', onEditorUpdate);
@@ -222,25 +212,42 @@ export function useCopilot({
         `[useCopilot] cleanup nodeId=${nodeId} totalUpdates=${updateCount} totalFires=${fireCount}`,
       );
       editor.off('update', onEditorUpdate);
-      if (debounceTimer) clearTimeout(debounceTimer);
-      inFlightRef.current?.abort();
-      inFlightRef.current = null;
-      // Clear fingerprints so a re-mount on the same chapter doesn't get
-      // confused by state from a previous editor instance with stale block ids.
+      for (const t of Object.values(timers)) {
+        if (t) clearTimeout(t);
+      }
+      for (const c of Object.values(inFlightByCapRef.current)) {
+        c?.abort();
+      }
+      inFlightByCapRef.current = {};
       lastFingerprintRef.current = {};
       summaryInFlightRef.current = false;
     };
   }, [
     editor,
     copilotEnabled,
-    enabledTaskKey,
+    taskConfigsKey,
     projectId,
     nodeId,
-    debounceMs,
     summariesEnabled,
     summarySectionSize,
     createCopilotSuggestion,
+    // taskConfigs included only via taskConfigsKey above (stable JSON identity).
+    taskConfigs,
   ]);
+}
+
+/**
+ * Resolve a capability's effective debounce: user override if set, else the
+ * capability's declared default. Floor at 250ms so a malformed setting
+ * doesn't melt the CPU with a near-zero-debounce write loop.
+ */
+function effectiveDebounceMs(
+  cap: CopilotCapability,
+  configs: ReturnType<typeof useSettingsStore.getState>['copilotTaskConfigs'],
+): number {
+  const cfg = configs[cap.id as CopilotTaskId];
+  const ms = cfg?.debounceMs ?? cap.defaultDebounceMs;
+  return Math.max(250, ms);
 }
 
 /**
@@ -251,7 +258,7 @@ export function useCopilot({
 function computeUncoveredFingerprint(blocks: { blockId: string; text: string }[]): string {
   let h = 5381;
   for (const b of blocks) {
-    const s = b.blockId + '' + b.text;
+    const s = b.blockId + '' + b.text;
     for (let i = 0; i < s.length; i++) {
       h = ((h << 5) + h) ^ s.charCodeAt(i);
       h |= 0;

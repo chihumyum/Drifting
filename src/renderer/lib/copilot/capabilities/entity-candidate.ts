@@ -58,6 +58,9 @@ export const entityCandidateCapability: CopilotCapability = {
     'As you write, detect new characters, locations, and items and suggest ' +
     'adding them to your project entity list.',
   trigger: 'editor-block-debounced',
+  // Cheap, frequent — small prompt, narrow output, fires on every short
+  // pause. 3s feels responsive without burning tokens on every keystroke.
+  defaultDebounceMs: 3000,
 
   async detect(ctx: CapabilityDetectContext): Promise<CapabilityDetectResult[]> {
     const context = buildEntityCandidateContext({
