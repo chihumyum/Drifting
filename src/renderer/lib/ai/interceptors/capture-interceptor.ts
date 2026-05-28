@@ -1,7 +1,8 @@
 /**
  * CaptureInterceptor — records every AI request/response into the in-memory
  * ring buffer (request-log.ts) and, optionally, persists each entry as a
- * Markdown file under userData/ai-log/ via the main-process IPC bridge.
+ * Markdown file under `<repo>/ai-log/` (or `userData/ai-log/` in packaged
+ * builds; see main/ai-log-ipc.ts) via the main-process IPC bridge.
  *
  * The file write is best-effort: failures get logged to console but never
  * surface to feature code. This interceptor is observer-class (after /

@@ -4,9 +4,15 @@
  * gets logged; the main process just persists the markdown body and exposes
  * the resulting directory in Finder/Explorer for the user.
  *
- * Files land under `app.getPath('userData')/ai-log/`. One markdown file per
- * request, named `${ISO_TIMESTAMP}_${promptId}_${shortId}.md` so a plain ls
- * sorts chronologically.
+ * Files land inside the repo at `<package-cwd>/ai-log/` — much easier to
+ * open from VSCode than the buried Electron userData path. Production
+ * builds run from inside an app bundle where `process.cwd()` isn't writable,
+ * so we fall back to `app.getPath('userData')/ai-log/` there. The renderer-
+ * side CaptureInterceptor only registers in DEV builds, so in practice
+ * only the repo path is exercised.
+ *
+ * One markdown file per request, named `${ISO_TIMESTAMP}_${promptId}_${shortId}.md`
+ * so a plain `ls` sorts chronologically.
  */
 import { app, ipcMain, shell } from 'electron';
 import fs from 'node:fs';
@@ -15,6 +21,12 @@ import path from 'node:path';
 const AI_LOG_DIRNAME = 'ai-log';
 
 function logDir(): string {
+  // In dev (electron-forge start), cwd ===  — drop logs next
+  // to the source so they show up in the VSCode tree. Packaged builds have
+  // no writable cwd; route to userData instead.
+  if (!app.isPackaged) {
+    return path.join(process.cwd(), AI_LOG_DIRNAME);
+  }
   return path.join(app.getPath('userData'), AI_LOG_DIRNAME);
 }
 
