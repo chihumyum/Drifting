@@ -52,6 +52,15 @@ export const entityCandidatePrompt = definePrompt({
         'Names the user has explicitly rejected before (lowercased). Never ' +
         'propose these — the user has already said no.',
     }),
+    priorSectionSummaries: Type.Array(Type.String(), {
+      description:
+        'Rolling 1-2-sentence summaries of earlier passages in the same ' +
+        'chapter, oldest first. Use them to anchor world / setting / tone ' +
+        '(fantasy vs. modern, names of factions and places already in play) ' +
+        'so common nouns specific to this setting are not flagged as new ' +
+        'entities. Names appearing in these summaries are NOT automatically ' +
+        'safe — still cross-check against knownNames before proposing.',
+    }),
   }),
 
   output: Type.Object({
@@ -105,7 +114,13 @@ export const entityCandidatePrompt = definePrompt({
     'negatives.',
 
   buildUserMessage: (input) => {
+    const priorSectionLines = input.priorSectionSummaries.length
+      ? input.priorSectionSummaries.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')
+      : '  (none — this chapter has no earlier summaries yet)';
     return [
+      `Earlier in this chapter (oldest first; use for setting / tone / ` +
+        `existing-cast context):\n${priorSectionLines}`,
+      '',
       `Recently-edited text (scan all of it):\n${input.recentText}`,
       '',
       `Names already known (do NOT propose): ${

@@ -74,6 +74,8 @@ export const entityCandidateCapability: CopilotCapability = {
       .filter(Boolean)
       .join('\n\n');
 
+    const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
+
     const client = await ctx.runtime.getClient();
     const { candidates } = await callStructured(
       client,
@@ -83,6 +85,7 @@ export const entityCandidateCapability: CopilotCapability = {
         knownNames: context.knownElementNames,
         availableCategories: context.availableCategories,
         rejectedNames: context.rejectedNames,
+        priorSectionSummaries,
       },
       { signal: ctx.signal },
     );
