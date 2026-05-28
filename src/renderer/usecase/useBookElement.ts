@@ -27,6 +27,12 @@ export interface CreateBookElementInput {
   name?: string;
   /** Optional initial aliases. Each must be unique across the project. */
   aliases?: string[];
+  /**
+   * Optional initial summary text. Used by element-candidate accept to seed
+   * the element page with the model's brief description. Empty / omitted
+   * means the element starts with no summary (user fills in later).
+   */
+  summary?: string;
 }
 export type UpdateElementUsecaseInput = Partial<
   Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>
@@ -117,7 +123,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         projectId: activeProjectId,
         categoryId: input.categoryId,
         name: resolvedName,
-        summary: '',
+        summary: input.summary?.trim() || '',
         contentJson: seededContentJson,
         kvJson: seededKvJson,
         aliases: resolvedAliases,

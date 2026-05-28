@@ -22,11 +22,11 @@ export { callStructured, type CallStructuredOptions } from './call-structured';
 export { installAIDevConsole } from './dev-console';
 
 // L4 Context layer — for feature code that wants to assemble prompts itself.
-export type { BlockSnippet, EntityCandidateContext } from './context/types';
+export type { BlockSnippet, ElementCandidateContext } from './context/types';
 export {
-  buildEntityCandidateContext,
-  type BuildEntityCandidateContextInput,
-} from './context/entity-candidate-context-builder';
+  buildElementCandidateContext,
+  type BuildElementCandidateContextInput,
+} from './context/element-candidate-context-builder';
 export {
   extractBlockContext,
   getBlockIdAtCursor,
@@ -40,4 +40,4 @@ export {
 } from './context/selectors/elements';
 
 // Prompts — re-exported so feature code can pass them to callStructured.
-export { entityCandidatePrompt } from './prompts/templates/entity-candidate';
+export { elementCandidatePrompt } from './prompts/templates/element-candidate';

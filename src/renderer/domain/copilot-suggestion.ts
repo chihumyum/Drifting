@@ -14,11 +14,18 @@
  */
 
 /**
- * Entity-candidate proposal — Copilot detected a probable new character /
- * location / item / etc. that isn't yet in the project's element list.
+ * Element-candidate proposal — Copilot detected a probable new character /
+ * location / item / etc. that isn't yet in the project's BookElement list.
+ *
+ * Renamed from `EntityCandidateMetadata` (kind: 'entity-candidate') — the
+ * old name conflated Drifting's domain "entity" (the union of node /
+ * storyline / element / memo / material) with the specific case this
+ * capability handles, which is BookElement. Legacy persisted comments
+ * still carry the old kind value; `decodeCopilotMetadata` normalises them
+ * on read so the rest of the codebase only sees the new kind.
  */
-export interface EntityCandidateMetadata {
-  kind: 'entity-candidate';
+export interface ElementCandidateMetadata {
+  kind: 'element-candidate';
 
   /** The proper noun the model proposes adding. */
   suggestedName: string;
@@ -26,9 +33,17 @@ export interface EntityCandidateMetadata {
   /**
    * Hint for which element category to use on accept. Final category may be
    * decided by the accept handler if this hint doesn't match the project's
-   * actual category set (refined in PR 2 when the prompt is wired).
+   * actual category set.
    */
   suggestedCategoryHint: string;
+
+  /**
+   * 1-2 sentence sketch the model wrote based ONLY on what recentText
+   * revealed about the new element — role, identifying traits, relationship.
+   * Empty string when the text just mentioned the name in passing without
+   * giving anything to summarize. Persisted to `element.summary` on accept.
+   */
+  initialDescription?: string;
 
   /** Excerpt from the paragraph that triggered the suggestion. */
   evidenceText: string;
@@ -84,7 +99,7 @@ export interface ElementPatchMetadata {
   model: string;
 }
 
-export type CopilotSuggestionMetadata = EntityCandidateMetadata | ElementPatchMetadata;
+export type CopilotSuggestionMetadata = ElementCandidateMetadata | ElementPatchMetadata;
 
 export function encodeCopilotMetadata(meta: CopilotSuggestionMetadata): string {
   return JSON.stringify(meta);
@@ -95,14 +110,18 @@ export function decodeCopilotMetadata(
 ): CopilotSuggestionMetadata | null {
   if (!json) return null;
   try {
-    const parsed = JSON.parse(json) as CopilotSuggestionMetadata;
-    // Light validation — only check the discriminator. Full structural
-    // validation is the caller's job (e.g. via the same TypeBox schema the
-    // prompt uses).
-    if (parsed && typeof parsed === 'object' && typeof parsed.kind === 'string') {
-      return parsed;
+    const parsed = JSON.parse(json) as { kind?: unknown } & Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.kind !== 'string') {
+      return null;
     }
-    return null;
+    // Backward-compat: pre-rename metadata persisted kind === 'entity-candidate'.
+    // Normalise on read so the rest of the codebase only handles the new
+    // discriminator. Storage is left untouched; if the user accepts/rejects
+    // the comment downstream code rewrites the metadata with the new kind.
+    if (parsed.kind === 'entity-candidate') {
+      parsed.kind = 'element-candidate';
+    }
+    return parsed as unknown as CopilotSuggestionMetadata;
   } catch {
     return null;
   }
@@ -112,8 +131,8 @@ export function decodeCopilotMetadata(
  * Result payload stored on `comment_action.resultJson` when a copilot
  * suggestion is accepted. Discriminated to match the source metadata kind.
  */
-export interface AcceptEntityCandidateResult {
-  kind: 'entity-candidate';
+export interface AcceptElementCandidateResult {
+  kind: 'element-candidate';
   /** ID of the BookElement created by the accept handler. */
   createdElementId: string;
 }
@@ -126,4 +145,4 @@ export interface AcceptElementPatchResult {
   elementId: string;
 }
 
-export type AcceptCopilotResult = AcceptEntityCandidateResult | AcceptElementPatchResult;
+export type AcceptCopilotResult = AcceptElementCandidateResult | AcceptElementPatchResult;

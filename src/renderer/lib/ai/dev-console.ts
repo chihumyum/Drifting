@@ -59,7 +59,7 @@ export interface DriftingAIDevConsole {
     location?: { city: string; country: string };
   }>;
   /**
-   * Copilot dev surface. `detectAtCursor()` runs entity-candidate detection
+   * Copilot dev surface. `detectAtCursor()` runs element-candidate detection
    * on the cursor's current block and prints the filtered candidates WITHOUT
    * persisting — useful for inspecting prompt quality without spamming the
    * margin rail.

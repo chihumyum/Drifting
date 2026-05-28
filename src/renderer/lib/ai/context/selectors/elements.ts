@@ -1,6 +1,6 @@
 /**
  * Element-name selector — reads in-memory bookElements / categories / actions
- * from the data store. Used for dedup in entity-candidate detection (Copilot
+ * from the data store. Used for dedup in element-candidate detection (Copilot
  * must not propose names that already exist, nor names the user has rejected
  * before) and to give the prompt a list of legal element categories.
  *
@@ -8,7 +8,6 @@
  * callable from services and dev-console without a component context.
  */
 import { useDataStore } from '../../../../store/data-store';
-import type { EntityCandidateMetadata } from '../../../../domain/copilot-suggestion';
 
 /**
  * Every name an element answers to in the given project — canonical name
@@ -61,9 +60,15 @@ export function getRejectedSuggestionNames(projectId: string): string[] {
     if (action.projectId !== projectId) continue;
     if (action.kind !== 'reject_suggestion') continue;
     try {
-      const payload = JSON.parse(action.payloadJson) as Partial<EntityCandidateMetadata>;
+      const payload = JSON.parse(action.payloadJson) as {
+        kind?: unknown;
+        suggestedName?: unknown;
+      };
+      // Accept both the current 'element-candidate' kind and the legacy
+      // 'entity-candidate' kind so rejections persisted before PR E still
+      // count. New rejections always write the new kind.
       if (
-        payload?.kind === 'entity-candidate' &&
+        (payload?.kind === 'element-candidate' || payload?.kind === 'entity-candidate') &&
         typeof payload.suggestedName === 'string'
       ) {
         const normalized = payload.suggestedName.trim().toLowerCase();

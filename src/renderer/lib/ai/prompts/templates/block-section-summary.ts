@@ -22,7 +22,7 @@ export const blockSectionSummaryPrompt = definePrompt({
   model: 'gemini-3.5-flash',
   description:
     'Patch-aware summary of a fiction passage. Used as recent-context for ' +
-    'element-patch, entity-candidate, and other Copilot capabilities.',
+    'element-patch, element-candidate, and other Copilot capabilities.',
 
   input: Type.Object({
     recentText: Type.String({

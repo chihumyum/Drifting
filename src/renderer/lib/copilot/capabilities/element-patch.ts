@@ -5,7 +5,7 @@
  * proposes them as chapter-anchored patches. Accept persists a row to
  * element_patch with the cursor's chapter/block as the anchor.
  *
- * Differs from entity-candidate in two important ways the framework had to
+ * Differs from element-candidate in two important ways the framework had to
  * accommodate:
  *
  *   1. It MODIFIES an existing entity (creates a side-row on it) rather

@@ -1,7 +1,7 @@
 /**
  * Block-context selector — given an active Tiptap editor and a block id,
  * extract the focus block's text plus N surrounding blocks. Used by the
- * entity-candidate context builder to feed the model just enough narrative
+ * element-candidate context builder to feed the model just enough narrative
  * context to disambiguate "is this a proper noun or a common word?".
  *
  * Walks the ProseMirror document directly (not the JSON), which is faster

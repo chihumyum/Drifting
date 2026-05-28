@@ -1,41 +1,51 @@
 /**
- * Entity candidate detection prompt — given a focus paragraph and its
- * surrounding narrative, the model returns zero or more proper nouns that
- * look like entities the user hasn't yet created (new characters, locations,
- * items, etc.).
+ * Element candidate detection prompt — scan recently-written text and find
+ * proper nouns that look like new BookElements (characters, locations,
+ * items, organizations) the user has not yet registered.
+ *
+ * Naming note: this was `entity-candidate` before PR E. The capability
+ * targets BookElement specifically; "entity" in Drifting's vocabulary is
+ * the broader 7-way union (node / storyline / element / memo / material /
+ * drift / category). Renamed for accuracy.
  *
  * Design notes:
  *  - The model is told the existing element name set so it doesn't propose
  *    duplicates. We additionally filter post-response (defense in depth).
  *  - It's told the project's actual category names so suggestions land in a
- *    real bucket (PR 5 accept flow uses the hint to pick categoryId).
+ *    real bucket.
  *  - It's told the user's previously-rejected names — Copilot must respect
- *    "no I already said no to that".
- *  - Confidence is bounded [0, 1]; we'll filter low-confidence ones in the
- *    service layer.
+ *    "no I already said no to that". This is the primary defense against
+ *    repeatedly proposing alias-like sub-names (e.g. "杰克" when the user
+ *    already has "杰克·汤姆斯"); first rejection ends it forever.
+ *  - `initialDescription` is a 1-2 sentence sketch the model writes ONLY
+ *    from what recentText reveals. Persisted as element.summary on accept
+ *    so a fresh element page already has some content. Empty if nothing in
+ *    the text gives the model anything to say beyond the name.
+ *  - Confidence is bounded [0, 1]; the capability post-filters below a
+ *    threshold to keep low-signal noise out of the margin.
  */
 import { Type } from '@sinclair/typebox';
 import { definePrompt } from '../define-prompt';
 
-export const entityCandidatePrompt = definePrompt({
-  id: 'entity-candidate',
-  version: 1,
+export const elementCandidatePrompt = definePrompt({
+  id: 'element-candidate',
+  version: 2,
   model: 'gemini-3.5-flash',
   description:
-    'Detect new fictional entities (characters/locations/items) mentioned in ' +
-    'a paragraph that are not yet in the project entity list.',
+    'Detect new fictional elements (characters/locations/items) mentioned in ' +
+    'recently-edited text that are not yet in the project element list.',
 
   input: Type.Object({
     recentText: Type.String({
       description:
         'The text the user has recently edited, concatenated newline-separated ' +
         'in document order. May span multiple paragraphs the user touched ' +
-        'between Copilot debounces. Scan ALL of it for new entity mentions — ' +
+        'between Copilot debounces. Scan ALL of it for new element mentions — ' +
         'not just the last paragraph.',
     }),
     knownNames: Type.Array(Type.String(), {
       description:
-        'Names and aliases already in the project entity list (lowercased). ' +
+        'Names and aliases already in the project element list (lowercased). ' +
         'Do not propose any name whose lowercased form matches an entry here ' +
         '— that includes alias matches (e.g. if "Lady Mira" is here, do not ' +
         'propose "Mira" as new either).',
@@ -58,7 +68,7 @@ export const entityCandidatePrompt = definePrompt({
         'chapter, oldest first. Use them to anchor world / setting / tone ' +
         '(fantasy vs. modern, names of factions and places already in play) ' +
         'so common nouns specific to this setting are not flagged as new ' +
-        'entities. Names appearing in these summaries are NOT automatically ' +
+        'elements. Names appearing in these summaries are NOT automatically ' +
         'safe — still cross-check against knownNames before proposing.',
     }),
   }),
@@ -68,12 +78,22 @@ export const entityCandidatePrompt = definePrompt({
       Type.Object({
         name: Type.String({
           description:
-            'The proper noun exactly as it appears in the focus text ' +
+            'The proper noun exactly as it appears in recentText ' +
             '(preserve capitalization and punctuation).',
         }),
         suggestedCategoryHint: Type.String({
           description:
             'Best-fit category from availableCategories, or a sensible fallback.',
+        }),
+        initialDescription: Type.String({
+          description:
+            'A 1-2 sentence sketch of this element drawn STRICTLY from what ' +
+            'recentText says. Examples: "First appears in the tavern scene as ' +
+            'a mercenary hired by Bjorn." / "A border town between the ' +
+            'kingdom and the wastes; Mira passes through here in chapter 4." ' +
+            'NEVER invent details the text does not state. If the text only ' +
+            'names the element without saying anything else about them, ' +
+            'return an EMPTY string.',
         }),
         evidenceText: Type.String({
           description:
@@ -84,34 +104,37 @@ export const entityCandidatePrompt = definePrompt({
           minimum: 0,
           maximum: 1,
           description:
-            'How confident you are this is a new entity (1 = definitely; 0.5 ' +
+            'How confident you are this is a new element (1 = definitely; 0.5 ' +
             '= ambiguous, could be a common word or a fleeting reference; ' +
             'below 0.3 = probably skip).',
         }),
       }),
       {
         description:
-          'Zero or more candidate entities. Return an empty array if the ' +
-          'focus text contains no new proper-noun entities.',
+          'Zero or more candidate elements. Return an empty array if the ' +
+          'recent text contains no new proper-noun elements.',
       },
     ),
   }),
 
   buildSystem: () =>
-    'You are an entity-extraction assistant for fiction writers. Your job is ' +
-    'to scan a passage of recently-written text and find named entities ' +
+    'You are an element-extraction assistant for fiction writers. Your job is ' +
+    'to scan a passage of recently-written text and find named elements ' +
     '(people, places, things, organizations) that the writer has just ' +
-    'introduced but has not yet registered in their project entity list.\n\n' +
+    'introduced but has not yet registered in their project element list.\n\n' +
     'STRICT rules:\n' +
     '  1. Only propose proper nouns that appear in recentText.\n' +
     '  2. Never propose a name that matches knownNames or rejectedNames ' +
     'case-insensitively.\n' +
     '  3. Common words capitalized for stylistic reasons (e.g. sentence-start ' +
-    'words, abstract nouns like "Hope") are NOT entities — skip them.\n' +
-    '  4. Pronouns ("he", "she", "they") are NOT entities.\n' +
-    '  5. If recentText contains no new entities, return an empty array.\n' +
+    'words, abstract nouns like "Hope") are NOT elements — skip them.\n' +
+    '  4. Pronouns ("he", "she", "they") are NOT elements.\n' +
+    '  5. If recentText contains no new elements, return an empty array.\n' +
     '  6. Be conservative — false positives are more annoying than false ' +
-    'negatives.',
+    'negatives.\n' +
+    '  7. For initialDescription: ONLY use information explicitly stated in ' +
+    'recentText. If the text reveals nothing beyond the name, return the ' +
+    'empty string — DO NOT INVENT background, age, role, or appearance.',
 
   buildUserMessage: (input) => {
     const priorSectionLines = input.priorSectionSummaries.length

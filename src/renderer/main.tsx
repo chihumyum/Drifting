@@ -8,13 +8,13 @@ import '../styles/settings.css';
 import './lib/i18n';
 import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';
-import { entityCandidateCapability } from './lib/copilot/capabilities/entity-candidate';
+import { elementCandidateCapability } from './lib/copilot/capabilities/element-candidate';
 import { elementPatchCapability } from './lib/copilot/capabilities/element-patch';
 import App from './App';
 
 // Register Copilot capabilities once at app boot. Order doesn't matter —
 // the runner reads them via capabilitiesForTrigger(...) on each fire.
-registerCopilotCapability(entityCandidateCapability);
+registerCopilotCapability(elementCandidateCapability);
 registerCopilotCapability(elementPatchCapability);
 
 installAIDevConsole();

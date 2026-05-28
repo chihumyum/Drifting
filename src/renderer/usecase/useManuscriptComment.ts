@@ -583,7 +583,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
  */
 function buildCopilotBody(meta: CopilotSuggestionMetadata): string {
   switch (meta.kind) {
-    case 'entity-candidate': {
+    case 'element-candidate': {
       const pct = Math.round(meta.confidence * 100);
       return createPlainCommentDoc(
         `Possible new ${meta.suggestedCategoryHint}: "${meta.suggestedName}" (${pct}% confident)`,

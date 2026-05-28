@@ -1,6 +1,6 @@
 /**
  * CopilotCapability — the framework boundary that lets each Copilot feature
- * (entity-candidate detection, element-patch proposals, inline-rewrite, …)
+ * (element-candidate detection, element-patch proposals, inline-rewrite, …)
  * plug in without touching the runner, the comment integration, the
  * settings UI, or the suggestion lifecycle code.
  *
@@ -44,6 +44,12 @@ import type { BaseBlockContext } from '../ai/context/types';
 export interface CreateElementInput {
   categoryId: string;
   name: string;
+  /**
+   * Optional initial summary. Element-candidate uses this to seed the new
+   * element with the model's brief description; future capabilities can
+   * leave it empty.
+   */
+  summary?: string;
 }
 
 /**
@@ -157,7 +163,7 @@ export interface CopilotCapability {
   /**
    * Discriminator on `metadata.kind` — used by CommentRail to look up
    * which capability owns a copilot comment. Decoupled from `id` because
-   * settings ids ('entityExtract') and metadata kinds ('entity-candidate')
+   * settings ids ('elementExtract') and metadata kinds ('element-candidate')
    * carry different responsibilities and may evolve independently.
    */
   metadataKind: string;
@@ -168,7 +174,7 @@ export interface CopilotCapability {
   /**
    * Default debounce in ms when the user hasn't overridden in settings.
    * Capabilities tune their own default based on cost / cadence — cheap
-   * frequent capabilities (entity-candidate) want low values; heavy
+   * frequent capabilities (element-candidate) want low values; heavy
    * reflection capabilities (element-patch) want high values. Settings UI
    * uses this as the initial slider value and as the "reset to default"
    * target.

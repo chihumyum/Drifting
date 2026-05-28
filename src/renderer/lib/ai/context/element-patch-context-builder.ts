@@ -5,7 +5,7 @@
  *   - all non-deleted elements in the project (id + name + aliases + summary)
  *   - pending-patch dedup keys from open copilot suggestion comments
  *
- * Reads richer entity data than entity-candidate (id + name + aliases +
+ * Reads richer entity data than element-candidate (id + name + aliases +
  * summary instead of just names) because the element-patch prompt must
  * (a) reference entities by id (no inventing) and (b) avoid proposing
  * patches that just reaffirm what's already in the summary.
@@ -57,7 +57,7 @@ export function buildElementPatchContext(
     // entity catalog regardless of relevance, and the model had to wade
     // through unrelated rows to find the one it should patch. Trade-off:
     // a state change about an unlinked name won't be caught here (the
-    // entity-candidate capability will surface that name first; once
+    // element-candidate capability will surface that name first; once
     // linked, the next debounce sees it).
     candidateElements: gatherMentionedElements(input.projectId, input.baseContext.mentionedElementIds),
     pendingPatchKeys: gatherPendingPatchKeys(input.projectId),

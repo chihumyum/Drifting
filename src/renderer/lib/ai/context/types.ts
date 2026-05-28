@@ -76,11 +76,15 @@ export interface BaseBlockContext {
 }
 
 /**
- * Context for entity-candidate detection across the dirty-block batch.
- * editedBlocks is the same list the framework's BaseBlockContext carries —
- * passed through so the capability has one object to thread into its prompt.
+ * Context for element-candidate detection. uncoveredBlocks is the same list
+ * the framework's BaseBlockContext carries — passed through so the capability
+ * has one object to thread into its prompt.
+ *
+ * Renamed from `EntityCandidateContext` in PR E for vocabulary accuracy:
+ * this is specifically about BookElement candidates, not the broader
+ * Drifting "entity" union.
  */
-export interface EntityCandidateContext {
+export interface ElementCandidateContext {
   /** Uncovered (raw, not-yet-summarized) blocks in document order. */
   uncoveredBlocks: BlockSnippet[];
   /** All known element names in the current project, normalized. For dedup. */

@@ -19,7 +19,7 @@ export type ShadowVoice = 'restrained' | 'direct' | 'sharp';
 export type CopilotTaskId =
   | 'continuityCheck'
   | 'timelineAlign'
-  | 'entityExtract'
+  | 'elementExtract'
   | 'elementPatch'
   | 'autoLink'
   | 'polish'
@@ -28,9 +28,9 @@ export type CopilotTaskId =
 export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
   { id: 'continuityCheck', label: '人物一致性核查', desc: '识别人物在不同章节的设定冲突' },
   { id: 'timelineAlign', label: '时间线对齐', desc: '对齐章节与时间线锚点' },
-  { id: 'entityExtract', label: '实体抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
+  { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
   { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
-  { id: 'autoLink', label: '自动链接', desc: '把正文里出现的实体自动挂载到元素页面' },
+  { id: 'autoLink', label: '自动链接', desc: '把正文里出现的元素自动挂载到元素页面' },
   { id: 'polish', label: '语言润色', desc: '挑出生硬或重复的句式作为批注' },
   { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
 ];
@@ -56,10 +56,10 @@ function defaultTaskConfig(enabled: boolean): CopilotTaskConfig {
 function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
   const out = {} as Record<CopilotTaskId, CopilotTaskConfig>;
   for (const t of COPILOT_TASKS) {
-    // entityExtract / elementPatch are the two wired capabilities — default
+    // elementExtract / elementPatch are the two wired capabilities — default
     // on so a fresh install actually does something. The placeholders stay
     // off until their capabilities ship.
-    const on = t.id === 'entityExtract' || t.id === 'elementPatch' || t.id === 'autoLink' || t.id === 'continuityCheck';
+    const on = t.id === 'elementExtract' || t.id === 'elementPatch' || t.id === 'autoLink' || t.id === 'continuityCheck';
     out[t.id] = defaultTaskConfig(on);
   }
   return out;
@@ -170,7 +170,7 @@ interface SettingsState {
    * a block-section summary once `copilotSummarySectionSize` distinct
    * blocks are uncovered. When false: no summaries are generated, no
    * priorSections context is sent to prompts — saves token cost at the
-   * expense of element-patch / entity-candidate quality.
+   * expense of element-patch / element-candidate quality.
    */
   copilotGenerateSummaries: boolean;
   setCopilotGenerateSummaries: (on: boolean) => void;
@@ -327,7 +327,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 7,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -379,11 +379,15 @@ export const useSettingsStore = create<SettingsState>()(
           // optional debounceMs). Migration preserves each user's prior
           // choices: enabled = was in the allow-list; debounceMs = old
           // global if non-default, else undefined (capability default).
-          const oldTasks = (next.copilotTasks ?? []) as CopilotTaskId[];
+          const oldTasks = (next.copilotTasks ?? []) as string[];
           const oldGlobalDebounce = next.copilotDebounceMs;
           const configs = buildInitialTaskConfigs();
           // If user had an explicit allow-list, respect it (overrides initial
           // defaults). Empty list = nothing was on → set everything off.
+          // Note: 'entityExtract' was the old name for what is now
+          // 'elementExtract' (PR E rename), but at v5 it was still the old
+          // name in storage. The v7 migration below handles the key rename;
+          // this v6 step preserves it as-is.
           if (oldTasks.length > 0) {
             for (const id of Object.keys(configs) as CopilotTaskId[]) {
               configs[id] = { ...configs[id], enabled: oldTasks.includes(id) };
@@ -392,7 +396,7 @@ export const useSettingsStore = create<SettingsState>()(
           // Apply old global debounce only to currently-wired caps. The placeholders
           // would otherwise carry a debounce setting they can't act on.
           if (typeof oldGlobalDebounce === 'number' && oldGlobalDebounce > 0) {
-            for (const id of ['entityExtract', 'elementPatch'] as CopilotTaskId[]) {
+            for (const id of ['elementExtract', 'elementPatch'] as CopilotTaskId[]) {
               configs[id] = { ...configs[id], debounceMs: oldGlobalDebounce };
             }
           }
@@ -404,6 +408,19 @@ export const useSettingsStore = create<SettingsState>()(
           void _omitTasks;
           void _omitDebounce;
           next = { ...rest, copilotTaskConfigs: configs };
+        }
+        if (version < 7) {
+          // PR E: 'entityExtract' task id renamed to 'elementExtract' (it
+          // was always BookElement-targeted; the old "entity" name conflated
+          // it with Drifting's broader entity union). Move the config under
+          // the new key, then drop the old one if both somehow co-exist
+          // (new key wins — it's what current code reads).
+          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<string, CopilotTaskConfig>;
+          if (configs.entityExtract && !configs.elementExtract) {
+            configs.elementExtract = configs.entityExtract;
+          }
+          delete configs.entityExtract;
+          next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
         }
         return next;
       },

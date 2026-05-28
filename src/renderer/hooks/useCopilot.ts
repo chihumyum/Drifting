@@ -4,7 +4,7 @@
  * Trigger model:
  *   - On every text-changing transaction, RESET each enabled capability's
  *     own debounce timer. Different caps can have different debounces
- *     (entity-candidate ~3s; element-patch ~12s) — each runs on its own
+ *     (element-candidate ~3s; element-patch ~12s) — each runs on its own
  *     cadence, no shared global timer.
  *   - When a cap's timer fires, compute the chapter's coverage map
  *     (uncoveredBlocks + priorSections) once, fingerprint, and run that
@@ -193,7 +193,7 @@ export function useCopilot({
     const onEditorUpdate = (): void => {
       updateCount += 1;
       // Reset every enabled cap's timer. Each fires independently after
-      // its own debounce — entity-candidate at 3s, element-patch at 12s,
+      // its own debounce — element-candidate at 3s, element-patch at 12s,
       // etc. No shared timer, no cross-cap coupling.
       for (const cap of enabledCaps) {
         const existing = timers[cap.id];

@@ -340,7 +340,7 @@ export function ChapterEditor({
         onClose={() => setPatchAnchor(null)}
       />
 
-      {/* Headless mount — runs entity-candidate detection on debounced edits */}
+      {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
       <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
     </div>
   );
