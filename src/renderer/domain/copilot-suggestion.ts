@@ -67,6 +67,15 @@ export interface ElementPatchMetadata {
   /** Short verbatim excerpt from the focus block that triggered the patch. */
   evidenceText: string;
 
+  /**
+   * Full plain-text of the block the evidence was anchored to. Captured at
+   * detect time so the accept path can persist it as an audit snapshot —
+   * surfaced in the patch UI when the original block has since been
+   * deleted from the chapter. Optional because legacy suggestions
+   * predating this field won't have it.
+   */
+  sourceBlockText?: string;
+
   /** Model self-reported confidence [0, 1]. */
   confidence: number;
 

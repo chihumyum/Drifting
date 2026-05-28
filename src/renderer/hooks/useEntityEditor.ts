@@ -149,6 +149,13 @@ export interface UseEntityEditorConfig {
   sourceId: string;
   projectId: string;
 
+  // Optional element this content lives under (patches on element X pass
+  // X.id here). Used to extend self-exclusion past sourceKind/sourceId so
+  // a patch on Mira doesn't auto-link its own "Mira" / alias mentions
+  // back to Mira's element page. Apply to both the auto-detect map and
+  // the @-picker.
+  parentElementId?: string;
+
   // Initial document JSON string from the persisted row. Null = empty doc.
   // Ignored when `ydoc` is provided — Collaboration extension owns content.
   content: string | null;
@@ -218,6 +225,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     sourceKind,
     sourceId,
     projectId,
+    parentElementId,
     content,
     ydoc,
     onPersist,
@@ -232,7 +240,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     onAddCommentRequest,
   } = config;
 
-  const sourceRef = useLatestRef({ projectId, sourceKind, sourceId });
+  const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
   const onPersistRef = useLatestRef(onPersist);
   const slashExtraItemsRef = useLatestRef(slashExtraItems);
   const enableMarkdownExportRef = useLatestRef(enableMarkdownExport);
@@ -263,7 +271,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const autoDetectTargets = useMemo(() => {
     const map = new Map<string, AutoDetectTarget>();
     bookElements.forEach((el) => {
+      // Skip the element being edited (direct self), and also skip the
+      // element this content lives under (a patch on Mira shouldn't
+      // auto-link "Mira" back to Mira). Excluding the whole iteration
+      // drops both `name` and every alias for that element in one shot.
       if (sourceKind === 'element' && el.id === sourceId) return;
+      if (parentElementId && el.id === parentElementId) return;
       const target = { kind: 'element' as const, id: el.id };
       if (el.name) map.set(el.name, target);
       for (const alias of el.aliases) {
@@ -276,14 +289,22 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       map.set(n.title, { kind: 'node', id: n.id });
     });
     return map;
-  }, [bookElements, bookNodes, sourceKind, sourceId]);
+  }, [bookElements, bookNodes, sourceKind, sourceId, parentElementId]);
 
   // @-picker source: pulled live from the store so the popover stays in sync.
   const getMentionableEntities = useCallback((): MentionableEntity[] => {
     const state = useDataStore.getState();
-    const { sourceKind: currentSourceKind, sourceId: currentSourceId } = sourceRef.current;
+    const {
+      sourceKind: currentSourceKind,
+      sourceId: currentSourceId,
+      parentElementId: currentParentElementId,
+    } = sourceRef.current;
     const elements: MentionableEntity[] = state.bookElements
-      .filter((el) => !(currentSourceKind === 'element' && el.id === currentSourceId))
+      .filter(
+        (el) =>
+          !(currentSourceKind === 'element' && el.id === currentSourceId) &&
+          !(currentParentElementId && el.id === currentParentElementId),
+      )
       .map((el) => ({ kind: 'element', id: el.id, name: el.name, aliases: el.aliases }));
     const nodes: MentionableEntity[] = state.bookNodes
       .filter((n) => !(currentSourceKind === 'node' && n.id === currentSourceId))

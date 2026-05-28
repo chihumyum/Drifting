@@ -48,6 +48,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         elementId: created.elementId,
         sourceNodeId: created.sourceNodeId,
         sourceBlockId: created.sourceBlockId,
+        sourceBlockText: created.sourceBlockText,
         title: created.title,
         contentJson: created.contentJson,
         orderKey: created.orderKey,

@@ -6,7 +6,9 @@ import {
   createElementPatchRepository,
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
+import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
+import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
 import { useDataStore } from '../../store/data-store';
@@ -55,6 +57,10 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const { editor } = useEntityEditor({
     sourceKind: 'patch',
     sourceId: patch.id,
+    // Patch belongs to this element — exclude its name + aliases from
+    // both auto-detect and the @-picker so the patch doesn't self-link
+    // back to its owner.
+    parentElementId: patch.elementId,
     projectId,
     content: patch.contentJson,
     onPersist: handlePersist,
@@ -142,12 +148,93 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     [patch.id, patch.sourceNodeId, projectId, onChange],
   );
 
+  // Whether the patch's sourceBlock still exists in the source chapter.
+  // null = unknown / not applicable (no sourceBlockId, or check in flight).
+  // true / false drive the anchor label + snapshot panel below.
+  //
+  // We read the chapter's content_json once per (nodeId, blockId) pair and
+  // walk it for a node carrying matching attrs.id. BlockId extension
+  // serializes the id under `attrs.id` (see block-id.ts). Synchronous walk
+  // is fine here — chapter docs are at most a few hundred blocks.
+  const [blockExists, setBlockExists] = useState<boolean | null>(null);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+
+  useEffect(() => {
+    if (!patch.sourceNodeId || !patch.sourceBlockId) {
+      // No source to check against. Render branches below already gate on
+      // patch.sourceBlockId so blockExists' stale value is inert here —
+      // skip the reset rather than sync-setState in the effect.
+      return;
+    }
+    let cancelled = false;
+    const wantedId = patch.sourceBlockId;
+    void createBookContentRepository()
+      .findByNodeId(patch.sourceNodeId)
+      .then((content) => {
+        if (cancelled) return;
+        if (!content) {
+          setBlockExists(false);
+          return;
+        }
+        try {
+          const doc = JSON.parse(content.contentJson);
+          setBlockExists(docContainsBlockId(doc, wantedId));
+        } catch {
+          // Malformed JSON — treat as "unknown" so the UI keeps the legacy
+          // label and doesn't falsely claim the block is deleted.
+          setBlockExists(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBlockExists(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [patch.sourceNodeId, patch.sourceBlockId]);
+
+  const hasSnapshot = !!patch.sourceBlockText && patch.sourceBlockText.trim().length > 0;
+  const sourceMissing = !!patch.sourceBlockId && blockExists === false;
+
   const anchorLabel = patch.sourceBlockId
-    ? `${patch.sourceNodeTitle ?? '(已删除章节)'} · 段`
+    ? sourceMissing
+      ? `${patch.sourceNodeTitle ?? '(已删除章节)'} · 原段已删除`
+      : `${patch.sourceNodeTitle ?? '(已删除章节)'} · 段`
     : (patch.sourceNodeTitle ?? '无章节归属');
 
+  // Anchor-click behavior forks three ways:
+  //   - original block deleted (+ snapshot exists) → toggle the snapshot
+  //     panel inline rather than navigating to nothing
+  //   - block-level patch with a live sourceBlockId → open the chapter
+  //     tab AND scroll to that specific block (editor mounts async, so
+  //     scrollToBlockWhenReady waits for the DOM)
+  //   - chapter-level patch (no sourceBlockId) → open the chapter tab
+  const handleAnchorClick = useCallback(() => {
+    if (sourceMissing && hasSnapshot) {
+      setSnapshotOpen((v) => !v);
+      return;
+    }
+    if (!patch.sourceNodeId) return;
+    navigateToNode(patch.sourceNodeId);
+    if (patch.sourceBlockId) {
+      scrollToBlockWhenReady(patch.sourceNodeId, patch.sourceBlockId);
+    }
+  }, [
+    sourceMissing,
+    hasSnapshot,
+    patch.sourceNodeId,
+    patch.sourceBlockId,
+    navigateToNode,
+  ]);
+
+  const anchorTitle = sourceMissing
+    ? hasSnapshot
+      ? `${anchorLabel} · 点击查看原文快照`
+      : anchorLabel
+    : `来自 ${anchorLabel} · 点击跳转`;
+
   return (
-    <div className="patch-card">
+    <div className={`patch-card${sourceMissing ? ' patch-card--source-missing' : ''}`}>
       <div className="patch-card__head">
         <button
           type="button"
@@ -158,17 +245,25 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           {collapsed ? '▸' : '▾'}
         </button>
         {/* Anchor sits left of the title — chapter + 段 read together
-            naturally ("from chapter X, paragraph"). Click to navigate.
-            The native <select> next to it lets the user re-anchor to a
-            different chapter (or detach to floating). Block-id is reset
-            when chapter changes — see handleChangeAnchor. */}
+            naturally ("from chapter X, paragraph"). Click semantics fork
+            on whether the original block still exists (see handleAnchorClick).
+            The ✎ next to it re-anchors to a different chapter. */}
         {patch.sourceNodeId ? (
           <button
             type="button"
-            onClick={() => patch.sourceNodeId && navigateToNode(patch.sourceNodeId)}
-            className="patch-card__anchor-link"
-            title={`来自 ${anchorLabel} · 点击跳转`}
+            onClick={handleAnchorClick}
+            className={
+              'patch-card__anchor-link' +
+              (sourceMissing ? ' patch-card__anchor-link--missing' : '')
+            }
+            title={anchorTitle}
+            aria-expanded={sourceMissing && hasSnapshot ? snapshotOpen : undefined}
           >
+            {sourceMissing && hasSnapshot && (
+              <span className="patch-card__anchor-disclosure" aria-hidden>
+                {snapshotOpen ? '▾' : '▸'}
+              </span>
+            )}
             {anchorLabel}
           </button>
         ) : (
@@ -255,6 +350,11 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           ×
         </button>
       </div>
+      {!collapsed && sourceMissing && hasSnapshot && snapshotOpen && (
+        <div className="patch-card__snapshot">
+          <pre className="patch-card__snapshot-body">{patch.sourceBlockText}</pre>
+        </div>
+      )}
       {!collapsed && (
         <div className="patch-card__body">
           <EditorContent editor={editor} />
@@ -262,4 +362,23 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       )}
     </div>
   );
+}
+
+// Walks a TipTap doc JSON tree looking for a block-level node whose
+// `attrs.id` matches `blockId`. Returns true on first hit. Cheap iterative
+// DFS — chapter docs are bounded by user input size.
+function docContainsBlockId(doc: unknown, blockId: string): boolean {
+  if (!doc || typeof doc !== 'object') return false;
+  const stack: unknown[] = [doc];
+  while (stack.length > 0) {
+    const node = stack.pop() as Record<string, unknown> | null;
+    if (!node || typeof node !== 'object') continue;
+    const attrs = node.attrs as Record<string, unknown> | undefined;
+    if (attrs && attrs.id === blockId) return true;
+    const content = node.content;
+    if (Array.isArray(content)) {
+      for (const child of content) stack.push(child);
+    }
+  }
+  return false;
 }

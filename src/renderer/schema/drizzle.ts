@@ -288,6 +288,13 @@ export const ElementPatchTable = sqliteTable(
       onDelete: 'set null',
     }),
     sourceBlockId: text('source_block_id'),
+    // Snapshot of the sourceBlock's plain text at the moment the patch was
+    // accepted. Surfaced in the UI when the original block has since been
+    // deleted from the chapter, so the user can still read what the patch
+    // was based on. Nullable because rows created before this column
+    // existed have no snapshot, and patches manually authored from the
+    // chapter sidebar (no Copilot pipeline) don't carry one either.
+    sourceBlockText: text('source_block_text'),
 
     title: text('title'),
     contentJson: text('content_json').notNull().default('{}'),

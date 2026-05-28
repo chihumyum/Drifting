@@ -2658,6 +2658,47 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--ink-5));
 }
 
+.patch-card__anchor-link--missing {
+  color: hsl(var(--ink-4));
+  font-style: italic;
+}
+.patch-card__anchor-disclosure {
+  display: inline-block;
+  width: 10px;
+  margin-right: 2px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
+}
+.patch-card__snapshot {
+  margin: 4px 0 6px 22px;
+  border-left: 2px solid hsl(var(--ink-5) / 0.4);
+  padding: 2px 0 2px 8px;
+}
+.patch-card__snapshot-body {
+  margin: 0;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.03);
+  border-radius: 3px;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1.55;
+  color: hsl(var(--ink-3));
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+/* Original block is gone — strike through the patch body so the reader
+   sees at a glance that this patch's anchoring prose is no longer in the
+   manuscript. Title stays normal so the patch remains scannable. */
+.patch-card--source-missing .patch-card__body,
+.patch-card--source-missing .patch-card__body .ProseMirror {
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--ink-5) / 0.6);
+  color: hsl(var(--ink-4));
+}
+
 .patch-card__body {
   padding: 2px 0 4px 22px; /* Indent body slightly to align under title */
 }

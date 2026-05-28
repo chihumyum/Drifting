@@ -9,6 +9,9 @@ export interface ElementPatch {
   elementId: string;
   sourceNodeId: string | null;
   sourceBlockId: string | null;
+  // Plain-text snapshot of the sourceBlock at accept time. NULL when the
+  // patch wasn't produced by Copilot or predates the column.
+  sourceBlockText: string | null;
   title: string | null;
   contentJson: string;
   orderKey: number;
@@ -26,6 +29,7 @@ export interface CreatePatchInput {
   elementId: string;
   sourceNodeId?: string | null;
   sourceBlockId?: string | null;
+  sourceBlockText?: string | null;
   title?: string | null;
   contentJson?: string;
 }
@@ -54,6 +58,7 @@ function toDomain(row: typeof ElementPatchTable.$inferSelect): ElementPatch {
     elementId: row.elementId,
     sourceNodeId: row.sourceNodeId,
     sourceBlockId: row.sourceBlockId,
+    sourceBlockText: row.sourceBlockText,
     title: row.title,
     contentJson: row.contentJson,
     orderKey: row.orderKey,
@@ -72,6 +77,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
       elementId: input.elementId,
       sourceNodeId: input.sourceNodeId ?? null,
       sourceBlockId: input.sourceBlockId ?? null,
+      sourceBlockText: input.sourceBlockText ?? null,
       title: input.title ?? null,
       contentJson: input.contentJson ?? '{}',
       orderKey: 0,
@@ -125,6 +131,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
         elementId: ElementPatchTable.elementId,
         sourceNodeId: ElementPatchTable.sourceNodeId,
         sourceBlockId: ElementPatchTable.sourceBlockId,
+        sourceBlockText: ElementPatchTable.sourceBlockText,
         title: ElementPatchTable.title,
         contentJson: ElementPatchTable.contentJson,
         orderKey: ElementPatchTable.orderKey,
@@ -147,6 +154,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
       elementId: row.elementId,
       sourceNodeId: row.sourceNodeId,
       sourceBlockId: row.sourceBlockId,
+      sourceBlockText: row.sourceBlockText,
       title: row.title,
       contentJson: row.contentJson,
       orderKey: row.orderKey,

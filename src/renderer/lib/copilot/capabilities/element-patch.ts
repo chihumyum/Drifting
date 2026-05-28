@@ -155,6 +155,16 @@ export const elementPatchCapability: CopilotCapability = {
       }
       pendingSet.add(key); // in-batch dedup
 
+      // Resolve the anchor block once, then look up its text for the
+      // snapshot. When the model paraphrased the evidence enough that no
+      // edited block matches verbatim, fall back to the first edited block
+      // (same fallback the runner would apply) so the snapshot points at
+      // the same block as the anchor.
+      const matchedBlockId = findEvidenceBlock(context.editedBlocks, p.evidenceText);
+      const anchorBlockId = matchedBlockId ?? context.editedBlocks[0]?.blockId;
+      const anchorBlockText =
+        context.editedBlocks.find((b) => b.blockId === anchorBlockId)?.text ?? '';
+
       const metadata: ElementPatchMetadata = {
         kind: 'element-patch',
         elementId: p.elementId,
@@ -162,6 +172,7 @@ export const elementPatchCapability: CopilotCapability = {
         patchTitle: p.patchTitle,
         patchBody: p.patchBody,
         evidenceText: p.evidenceText,
+        sourceBlockText: anchorBlockText,
         confidence: p.confidence,
         promptId: PROMPT_ID,
         promptVersion: PROMPT_VERSION,
@@ -170,10 +181,7 @@ export const elementPatchCapability: CopilotCapability = {
       out.push({
         metadata,
         anchorJson: JSON.stringify({ selectedText: p.evidenceText }),
-        // Anchor each patch to the block whose text contains its evidence.
-        // Falls back to the first edited block (the runner's default) when
-        // the model paraphrases enough that no block matches verbatim.
-        overrideTargetBlockId: findEvidenceBlock(context.editedBlocks, p.evidenceText),
+        overrideTargetBlockId: anchorBlockId,
       });
     }
     return out;
@@ -205,6 +213,10 @@ export const elementPatchCapability: CopilotCapability = {
       // The comment anchor IS the chapter + block where Copilot saw the change.
       sourceNodeId: ctx.comment.targetKind === 'node' ? ctx.comment.targetId : null,
       sourceBlockId: ctx.comment.targetBlockId,
+      // Audit snapshot — frozen at detect time. UI surfaces this when the
+      // original block has since been deleted. Legacy suggestions predating
+      // the metadata field land here as null.
+      sourceBlockText: meta.sourceBlockText ?? null,
       title: meta.patchTitle,
       contentJson: createPlainCommentDoc(meta.patchBody),
     });
@@ -217,6 +229,7 @@ export const elementPatchCapability: CopilotCapability = {
       elementId: created.elementId,
       sourceNodeId: created.sourceNodeId,
       sourceBlockId: created.sourceBlockId,
+      sourceBlockText: created.sourceBlockText,
       title: created.title,
       contentJson: created.contentJson,
       orderKey: created.orderKey,
