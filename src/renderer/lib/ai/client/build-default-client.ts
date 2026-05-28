@@ -17,6 +17,7 @@ import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
 import { ChainCredentialsProvider } from '../credentials/chain';
 import { LoggingInterceptor } from '../interceptors/logging-interceptor';
+import { CaptureInterceptor } from '../interceptors/capture-interceptor';
 import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
 
@@ -37,7 +38,15 @@ export async function buildDefaultLLMClient(
   // they set their key, and current rate limits are friendlier than the
   // Gemini free tier. Fall back to Google otherwise.
   const provider = await pickProvider(credentials);
-  return new LLMClient(provider).use(new LoggingInterceptor(options.logTag ?? 'ai'));
+  const client = new LLMClient(provider).use(new LoggingInterceptor(options.logTag ?? 'ai'));
+  // Dev-only request/response capture: console one-liner via LoggingInterceptor
+  // stays; CaptureInterceptor builds the full Markdown trace + writes files
+  // to userData/ai-log/. Production builds skip the capture interceptor to
+  // avoid disk writes per user request.
+  if (import.meta.env.DEV) {
+    client.use(new CaptureInterceptor({ writeFiles: true }));
+  }
+  return client;
 }
 
 async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMProvider> {

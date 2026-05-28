@@ -78,6 +78,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       >,
   },
 
+  // AI request log — markdown file per request, written to userData/ai-log/.
+  // Renderer formats the body; main only writes + opens the directory.
+  aiLog: {
+    write: (filename: string, content: string) =>
+      ipcRenderer.invoke('ai-log:write', { filename, content }) as Promise<
+        { ok: true; filePath: string } | { ok: false; error: string }
+      >,
+    openDir: () => ipcRenderer.invoke('ai-log:openDir') as Promise<string>,
+    getDir: () => ipcRenderer.invoke('ai-log:getDir') as Promise<string>,
+  },
+
   // OAuth: open system browser for social login
   auth: {
     openOAuthBrowser: (provider: string) => ipcRenderer.invoke('auth:oauth-open-browser', provider),
@@ -117,6 +128,14 @@ export interface ElectronAPI {
     onOAuthCallback: (
       callback: (data: { token: string | null; error: string | null }) => void,
     ) => () => void;
+  };
+  aiLog: {
+    write: (
+      filename: string,
+      content: string,
+    ) => Promise<{ ok: true; filePath: string } | { ok: false; error: string }>;
+    openDir: () => Promise<string>;
+    getDir: () => Promise<string>;
   };
   keychain: {
     get: (key: string) => Promise<string | null>;

@@ -34,6 +34,13 @@ import {
 } from '../copilot/capability';
 import { copilotRuntime } from '../copilot/runtime';
 import { buildBaseBlockContext } from '../copilot/base-block-context';
+import {
+  clearLogBuffer,
+  getLogEntryById,
+  getRecentLogEntries,
+  type AIRequestLogEntry,
+} from './log/request-log';
+import { filenameForEntry, formatEntryAsMarkdown } from './log/markdown-format';
 
 export interface DriftingAIDevConsole {
   setKey(apiKey: string): Promise<boolean>;
@@ -62,6 +69,29 @@ export interface DriftingAIDevConsole {
     detectAtBlock(blockId: string, capabilityId?: string): Promise<CapabilityDetectResult[]>;
     /** List registered capability ids. */
     list(): string[];
+  };
+  /**
+   * AI request/response log. Browse the ring buffer from DevTools and open
+   * the markdown-files directory in Finder. Capture is enabled only in DEV
+   * builds (see build-default-client.ts).
+   */
+  log: {
+    /** Latest N entries, newest first. Default 20. */
+    recent(limit?: number): AIRequestLogEntry[];
+    /** Most recent entry shorthand. */
+    last(): AIRequestLogEntry | undefined;
+    /** Look up by request id (shown as `Request ID` in the markdown files). */
+    byId(id: string): AIRequestLogEntry | undefined;
+    /** Print a single entry to console with `\n` expanded for easy reading. */
+    print(idOrEntry?: string | AIRequestLogEntry): void;
+    /** Dump the latest entry's markdown to the clipboard. */
+    copyLastMarkdown(): Promise<void>;
+    /** Open the userData/ai-log/ directory in Finder / Explorer. */
+    openDir(): Promise<string>;
+    /** Print the path of the log directory. */
+    dir(): Promise<string>;
+    /** Wipe the in-memory ring buffer. Files on disk are not touched. */
+    clear(): void;
   };
 }
 
@@ -99,6 +129,52 @@ export function installAIDevConsole(): void {
           'Yang is a 28-year-old software engineer living in Seattle, USA. ' +
             'She enjoys rock climbing, photography, and reading sci-fi novels.',
       });
+    },
+    log: {
+      recent: (limit = 20) => getRecentLogEntries(limit),
+      last: () => getRecentLogEntries(1)[0],
+      byId: (id) => getLogEntryById(id),
+      print: (idOrEntry) => {
+        const entry =
+          typeof idOrEntry === 'string'
+            ? getLogEntryById(idOrEntry)
+            : (idOrEntry ?? getRecentLogEntries(1)[0]);
+        if (!entry) {
+          console.info('[ai-log] no entry');
+          return;
+        }
+        // Re-emit as a Markdown string. console.log expands real newlines,
+        // so the user gets a properly-wrapped read in DevTools too.
+        console.log(formatEntryAsMarkdown(entry));
+      },
+      copyLastMarkdown: async () => {
+        const entry = getRecentLogEntries(1)[0];
+        if (!entry) {
+          console.info('[ai-log] no entry to copy');
+          return;
+        }
+        const md = formatEntryAsMarkdown(entry);
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(md);
+          console.info(`[ai-log] copied ${filenameForEntry(entry)} to clipboard`);
+        } else {
+          console.warn('[ai-log] clipboard API unavailable; logging instead');
+          console.log(md);
+        }
+      },
+      openDir: async () => {
+        const api = window.electronAPI?.aiLog;
+        if (!api) throw new Error('aiLog IPC not available (non-Electron env?)');
+        return api.openDir();
+      },
+      dir: async () => {
+        const api = window.electronAPI?.aiLog;
+        if (!api) throw new Error('aiLog IPC not available (non-Electron env?)');
+        const path = await api.getDir();
+        console.info(`[ai-log] ${path}`);
+        return path;
+      },
+      clear: () => clearLogBuffer(),
     },
     copilot: {
       list: () => capabilitiesForTrigger('editor-block-debounced').map((c) => c.id),
@@ -171,6 +247,8 @@ export function installAIDevConsole(): void {
   console.info(
     `[ai] Dev console ready (key source: ${source}). Try:\n` +
       `  await window.__driftingAI.hello('Yang')\n` +
-      `  await window.__driftingAI.copilot.detectAtCursor()`,
+      `  await window.__driftingAI.copilot.detectAtCursor()\n` +
+      `  window.__driftingAI.log.print()       // last request as markdown\n` +
+      `  await window.__driftingAI.log.openDir()  // open ai-log/ in Finder`,
   );
 }
