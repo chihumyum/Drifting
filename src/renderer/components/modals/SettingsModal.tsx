@@ -2194,6 +2194,8 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
+  const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
+  const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
   const setCopilotInDrift = useSettingsStore((s) => s.setCopilotInDrift);
   const copilotMode = useSettingsStore((s) => s.copilotMode);
@@ -2215,8 +2217,19 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
         <SecHead title="开关" hint="ENABLE" />
         <Row
           label="启用 Copilot"
-          desc="总开关，关闭后下面所有 task 都不会启动。"
+          desc="总开关。关闭后 Copilot 不再自动运行；⌘I / 右键手动触发始终可用。"
           control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
+        />
+        <Row
+          label="自动触发"
+          desc="编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⌘I / 右键）时运行。"
+          control={
+            <Toggle
+              on={autoTrigger}
+              onChange={setAutoTrigger}
+              disabled={!copilotEnabled}
+            />
+          }
         />
         <Row
           label="在 drift 节点中启用"

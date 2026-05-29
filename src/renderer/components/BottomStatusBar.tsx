@@ -7,6 +7,7 @@ import {
   AllRefsIcon,
   StoryGraphViewIcon,
 } from './BottomStatusBarIcons';
+import { CopilotBottomMenu } from './copilot/CopilotBottomMenu';
 import '../../styles/bottom-status-bar.css';
 
 // BottomStatusBar — always-visible compact footer. Hosts the project-global
@@ -101,6 +102,7 @@ export function BottomStatusBar() {
       </button>
 
       <div className="bsb__spacer" />
+      <CopilotBottomMenu />
       <button
         type="button"
         className={`bsb__seg bsb__shadow${shadowMode ? ' is-active' : ''}`}
