@@ -62,6 +62,15 @@ export const elementPatchPrompt = definePrompt({
         'Identifiers of patches already pending in the margin (format: ' +
         '"<elementId>::<short-title-snippet>"). Do not re-propose these.',
     }),
+    userInstruction: Type.Optional(
+      Type.String({
+        description:
+          'Optional free-text steer the author typed when manually running ' +
+          'this task (e.g. "重点看主角的心理变化"). Empty/absent on automatic ' +
+          'runs. When present, bias toward it — but never break the STRICT ' +
+          'rules below to satisfy it.',
+      }),
+    ),
     priorSectionSummaries: Type.Array(Type.String(), {
       description:
         'Rolling 1-2-sentence summaries of earlier passages in the same ' +
@@ -138,7 +147,9 @@ export const elementPatchPrompt = definePrompt({
     const priorSectionLines = input.priorSectionSummaries.length
       ? input.priorSectionSummaries.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')
       : '  (none — this chapter has no earlier summaries yet)';
+    const steer = input.userInstruction?.trim();
     return [
+      steer ? `Author's steer for this run (honor within the rules): ${steer}` : '',
       `Earlier in this chapter (oldest first; established history — do NOT ` +
         `re-propose patches for changes covered here):\n${priorSectionLines}`,
       '',

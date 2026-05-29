@@ -14,6 +14,7 @@ import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
 import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
+import { CopilotInlinePopover } from '../copilot/CopilotInlinePopover';
 const log = loglevel.getLogger('ChapterEditor');
 log.setLevel(log.levels.WARN);
 // log.setLevel(loglevel.levels.DEBUG);
@@ -163,6 +164,7 @@ export function ChapterEditor({
     minHeight,
     selectionKey,
     onAddCommentRequest,
+    enableInlineCopilot: true,
     slashExtraItems: [
       {
         id: 'patch',
@@ -342,6 +344,10 @@ export function ChapterEditor({
 
       {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
       <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
+
+      {/* Cmd+I inline-Copilot popover (input box + capability menu). Renders
+          only when its nodeId matches the active invocation. */}
+      <CopilotInlinePopover editor={editor} nodeId={nodeId} />
     </div>
   );
 }

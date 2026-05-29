@@ -91,6 +91,15 @@ export type AppEvents = {
     targetKind: 'node' | 'element' | 'patch' | 'category' | 'storyline';
     targetId: string;
   };
+
+  // User explicitly asked Copilot to run a capability NOW (Cmd+I / copilot
+  // menu), bypassing the per-capability debounce and dedup gate. Consumed by
+  // the useCopilot instance whose chapter (nodeId) matches — it forces a
+  // fire even if the capability's per-task toggle is off, and even when
+  // automatic Copilot is disabled (manual is never gated by those switches).
+  // `instruction` is the optional free-text steer the user typed in the
+  // popover; it's threaded into the capability's prompt.
+  'copilot:manual-run': { nodeId: string; capId: string; instruction?: string };
 };
 
 export const eventBus = mitt<AppEvents>();

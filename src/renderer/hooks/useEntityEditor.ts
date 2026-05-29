@@ -29,8 +29,10 @@ import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-me
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
 import { exportDocToMarkdown } from '../services/markdown-export.service';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
+import type { EditorView } from '@tiptap/pm/view';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
+import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
 import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
@@ -105,6 +107,7 @@ function removeCommentContextMenu(): void {
 function openCommentContextMenu(
   request: EditorCommentRequest,
   onAddCommentRequest: (request: EditorCommentRequest) => void,
+  onCopilot?: () => void,
 ): void {
   removeCommentContextMenu();
   const menu = document.createElement('div');
@@ -112,15 +115,22 @@ function openCommentContextMenu(
   menu.style.left = `${request.clientX}px`;
   menu.style.top = `${request.clientY}px`;
 
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = '添加批注';
-  button.addEventListener('mousedown', (event) => event.preventDefault());
-  button.addEventListener('click', () => {
-    removeCommentContextMenu();
-    onAddCommentRequest(request);
-  });
-  menu.appendChild(button);
+  const addButton = (label: string, onClick: () => void): void => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('mousedown', (event) => event.preventDefault());
+    button.addEventListener('click', () => {
+      removeCommentContextMenu();
+      onClick();
+    });
+    menu.appendChild(button);
+  };
+
+  addButton('添加批注', () => onAddCommentRequest(request));
+  // Same entry point as ⌘I — run Copilot on the selection (chapter editors).
+  if (onCopilot) addButton('Copilot 修改', onCopilot);
+
   document.body.appendChild(menu);
 
   const close = (event: MouseEvent) => {
@@ -130,6 +140,68 @@ function openCommentContextMenu(
     }
   };
   setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+}
+
+/**
+ * Resolve the inline-Copilot invocation context from the current editor
+ * selection. With a non-empty selection the target IS the selection; with a
+ * bare caret it's the enclosing block (so ⌘I works mid-typing). Gathers the
+ * enclosing block text + adjacent blocks as local model context. Returns null
+ * only if the caret isn't inside any id-bearing block.
+ */
+function buildInlineCopilotCtx(
+  view: EditorView,
+  projectId: string,
+  nodeId: string,
+  coords: { clientX: number; clientY: number },
+): CopilotInlineCtx | null {
+  const { selection, doc } = view.state;
+  const resolved = doc.resolve(selection.from);
+
+  let blockText = '';
+  let blockStart = 0;
+  let blockEnd = 0;
+  let found = false;
+  for (let depth = resolved.depth; depth >= 0; depth--) {
+    const node = resolved.node(depth);
+    if (!isBlockType(node.type.name)) continue;
+    blockText = node.textContent;
+    blockStart = resolved.before(depth) + 1;
+    blockEnd = blockStart + node.content.size;
+    found = true;
+    break;
+  }
+  if (!found) return null;
+
+  // Nearby context: previous + next top-level block (cheap, local).
+  const topIndex = resolved.index(0);
+  const nearby: string[] = [];
+  if (topIndex - 1 >= 0) {
+    const t = doc.child(topIndex - 1).textContent.trim();
+    if (t) nearby.push(t);
+  }
+  if (topIndex + 1 < doc.childCount) {
+    const t = doc.child(topIndex + 1).textContent.trim();
+    if (t) nearby.push(t);
+  }
+
+  const selText = selection.empty
+    ? ''
+    : doc.textBetween(selection.from, selection.to, '\n').trim();
+  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
+
+  return {
+    nodeId,
+    projectId,
+    mode,
+    from: mode === 'selection' ? selection.from : blockStart,
+    to: mode === 'selection' ? selection.to : blockEnd,
+    selectedText: mode === 'selection' ? selText : blockText,
+    blockContext: blockText,
+    nearbyContext: nearby.join('\n\n'),
+    clientX: coords.clientX,
+    clientY: coords.clientY,
+  };
 }
 
 /**
@@ -195,6 +267,11 @@ export interface UseEntityEditorConfig {
   // Optional Word-style comment creation entry. The hook only detects the
   // selected block and selected text; persistence/UI lives above it.
   onAddCommentRequest?: (request: EditorCommentRequest) => void;
+
+  // Enable the Cmd+I inline-Copilot popover for this editor. Only chapter
+  // editors set this (Copilot is chapter-scoped); the popover itself is
+  // mounted by the caller (ChapterEditor) and keys off the same nodeId.
+  enableInlineCopilot?: boolean;
 }
 
 export interface UseEntityEditorResult {
@@ -238,6 +315,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     minHeight,
     selectionKey,
     onAddCommentRequest,
+    enableInlineCopilot = false,
   } = config;
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
@@ -247,6 +325,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onEntityClickRef = useLatestRef(onEntityClick);
   const selectionKeyRef = useLatestRef(selectionKey ?? null);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
+  const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -559,6 +638,30 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           style: minHeight ? `min-height: ${minHeight}` : '',
           spellcheck: 'false',
         },
+        handleKeyDown: (view, event) => {
+          // Cmd/Ctrl+I → inline Copilot popover. Only for editors that opted
+          // in (chapter editors). NOT gated by the Copilot master switch —
+          // manual triggers are user-initiated and always available. Works
+          // with or without a selection (no selection → current block).
+          if (event.key !== 'i' && event.key !== 'I') return false;
+          if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+            return false;
+          }
+          if (!enableInlineCopilotRef.current) return false;
+          const source = sourceRef.current;
+          if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
+            return false;
+          }
+          const c = view.coordsAtPos(view.state.selection.from);
+          const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+            clientX: c.left,
+            clientY: c.bottom,
+          });
+          if (!ctx) return false;
+          event.preventDefault();
+          useCopilotInlineStore.getState().open(ctx);
+          return true;
+        },
         handleDOMEvents: {
           contextmenu: (view, event) => {
             const handler = onAddCommentRequestRef.current;
@@ -632,7 +735,19 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               clientX: event.clientX,
               clientY: event.clientY,
             };
-            openCommentContextMenu(request, handler);
+            // Chapter editors also offer "Copilot 修改" — same entry as ⌘I,
+            // run on the selection. Build the inline ctx from the live view.
+            const onCopilot =
+              enableInlineCopilotRef.current && source.sourceKind === 'node'
+                ? () => {
+                    const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+                      clientX: event.clientX,
+                      clientY: event.clientY,
+                    });
+                    if (ctx) useCopilotInlineStore.getState().open(ctx);
+                  }
+                : undefined;
+            openCommentContextMenu(request, handler, onCopilot);
             return true;
           },
         },

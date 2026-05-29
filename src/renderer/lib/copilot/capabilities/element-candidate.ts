@@ -91,6 +91,7 @@ export const elementCandidateCapability: CopilotCapability = {
         knownNames: context.knownElementNames,
         availableCategories: context.availableCategories,
         rejectedNames: context.rejectedNames,
+        userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
       { signal: ctx.signal },

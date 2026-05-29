@@ -3165,3 +3165,10 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .kv-editor[data-variant='template'] .kv-editor__key {
   color: hsl(var(--ink-2));
 }
+
+/* Cmd+I inline-copilot popover spinner */
+@keyframes copilot-inline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

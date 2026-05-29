@@ -92,6 +92,7 @@ export const elementPatchCapability: CopilotCapability = {
         recentText,
         candidateElements: context.candidateElements,
         pendingPatchKeys: context.pendingPatchKeys,
+        userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
       { signal: ctx.signal },
