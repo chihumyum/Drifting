@@ -28,9 +28,9 @@ import type {
   CopilotSuggestionMetadata,
 } from '../../domain/copilot-suggestion';
 import type {
+  Comment,
   CommentTargetKind,
-  ManuscriptComment,
-} from '../../domain/manuscript-comment';
+} from '../../domain/comment';
 import type { LLMClient } from '../ai/client/llm-client';
 import type { BaseBlockContext } from '../ai/context/types';
 
@@ -131,7 +131,7 @@ export interface CapabilityAcceptContext {
   runtime: CopilotRuntime;
   /** Side-effect services the capability may use (createElement, …). */
   services: CopilotServices;
-  comment: ManuscriptComment;
+  comment: Comment;
   metadata: CopilotSuggestionMetadata;
   projectId: string;
   userId: string;

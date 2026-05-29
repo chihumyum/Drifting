@@ -43,7 +43,7 @@ import {
   restoreEditorSelectionSnapshot,
   saveEditorSelectionSnapshot,
 } from '../lib/editor-selection-memory';
-import type { CommentTargetKind } from '../domain/manuscript-comment';
+import type { CommentTargetKind } from '../domain/comment';
 
 const log = loglevel.getLogger('useEntityEditor');
 log.setLevel(loglevel.levels.WARN);

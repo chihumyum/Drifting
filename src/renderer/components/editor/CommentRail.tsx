@@ -6,10 +6,10 @@ import {
   extractTextFromCommentBody,
   getBlockSnapshotFromAnchor,
   getSelectedTextFromAnchor,
+  type Comment,
   type CommentBlockSnapshot,
   type CommentTargetKind,
-  type ManuscriptComment,
-} from '../../domain/manuscript-comment';
+} from '../../domain/comment';
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import {
   getCopilotCapabilityForMetadataKind,
@@ -20,7 +20,7 @@ import { getActiveEditor } from '../../lib/active-editor';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
-import { useManuscriptComment } from '../../usecase/useManuscriptComment';
+import { useComment } from '../../usecase/useComment';
 import { CopilotSuggestionCard } from '../copilot/CopilotSuggestionCard';
 
 interface CommentRailProps {
@@ -46,7 +46,7 @@ function blockSelector(blockId: string): string {
   return `[data-block-id="${CSS.escape(blockId)}"]`;
 }
 
-function commentSort(a: ManuscriptComment, b: ManuscriptComment): number {
+function commentSort(a: Comment, b: Comment): number {
   return a.createdAt.localeCompare(b.createdAt);
 }
 
@@ -137,17 +137,15 @@ export function CommentRail({
 }: CommentRailProps) {
   const userId = useAuthStore((state) => state.user?.id);
   const effectiveUserId = userId ?? 'local';
-  const comments = useDataStore((state) => state.manuscriptComments);
-  const commentUsecases = useManuscriptComment({ projectId, userId: effectiveUserId });
+  const comments = useDataStore((state) => state.comments);
+  const commentUsecases = useComment({ projectId, userId: effectiveUserId });
   const { createElement } = useBookElement({ projectId, userId: effectiveUserId });
   const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
 
   const marginRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [positions, setPositions] = useState<Record<string, number>>({});
   const [orphanIds, setOrphanIds] = useState<Set<string>>(new Set());
   const [snapshotForId, setSnapshotForId] = useState<string | null>(null);
-  const [pendingTop, setPendingTop] = useState(28);
   const [draft, setDraft] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -182,10 +180,11 @@ export function CommentRail({
     () =>
       comments
         .filter(
-          (comment) =>
+          (comment): comment is Comment & { targetBlockId: string } =>
             comment.projectId === projectId &&
             comment.targetKind === targetKind &&
             comment.targetId === targetId &&
+            comment.targetBlockId !== null &&
             comment.status !== 'converted',
         )
         .sort(commentSort),
@@ -210,7 +209,7 @@ export function CommentRail({
   // (.page) — they scroll with content like anchored cards, but stack in
   // a column above where the first real block would land. Scroll to top
   // of the chapter to see them.
-  const recomputePositions = useCallback(() => {
+  const applyPositions = useCallback(() => {
     const margin = marginRef.current;
     if (!scrollEl || !margin) return;
     const marginRect = margin.getBoundingClientRect();
@@ -250,44 +249,63 @@ export function CommentRail({
       next[id] = top;
     });
 
-    setPositions(next);
+    // Write `top` straight to each card's DOM node rather than through React
+    // state. The manuscript scrolls on the compositor and is painted the same
+    // frame the scroll fires; routing positions through setState + reconcile
+    // landed them a frame (or more) later, so cards visibly trailed the text.
+    // A direct write in the scroll handler lands in that same frame.
+    margin.querySelectorAll<HTMLElement>('[data-comment-id]').forEach((node) => {
+      const id = node.dataset.commentId;
+      if (id && next[id] != null) node.style.top = `${next[id]}px`;
+    });
+
+    if (relevantPending) {
+      const block = scrollEl.querySelector(
+        blockSelector(relevantPending.targetBlockId),
+      ) as HTMLElement | null;
+      const blockRect = block?.getBoundingClientRect();
+      const composerTop = Math.max(0, blockRect ? blockRect.top - marginRect.top - 4 : 28);
+      const composer = margin.querySelector<HTMLElement>('[data-comment-composer]');
+      if (composer) composer.style.top = `${composerTop}px`;
+    }
+
+    // Orphan membership is structural (drives the card's render branch +
+    // classes), so it stays in React state — but only flips a re-render when
+    // the set actually changes, never on a plain scroll.
     setOrphanIds((prev) => {
       const nextSet = new Set(orphans);
-      // Avoid resetting reference if contents are identical (keeps render
-      // dependencies stable).
       if (prev.size === nextSet.size && orphans.every((id) => prev.has(id))) {
         return prev;
       }
       return nextSet;
     });
-
-    if (relevantPending) {
-      const block = scrollEl.querySelector(blockSelector(relevantPending.targetBlockId)) as HTMLElement | null;
-      const blockRect = block?.getBoundingClientRect();
-      setPendingTop(Math.max(0, blockRect ? blockRect.top - marginRect.top - 4 : 28));
-    }
   }, [scrollEl, visibleComments, relevantPending]);
 
+  // Initial + structural positioning. A layout effect runs before paint, so a
+  // freshly mounted card (or one toggled card↔chip) never paints at its CSS
+  // fallback top first. relevantPending + visibleComments are baked into
+  // applyPositions, so its identity change re-runs this; chipIds is explicit.
+  useLayoutEffect(() => {
+    applyPositions();
+  }, [applyPositions, chipIds]);
+
+  // Keep cards pinned to their blocks during scroll / resize. The scroll
+  // handler writes synchronously (no rAF) so card tops update in the same
+  // frame as the native content scroll — that's what kills the trailing lag.
   useEffect(() => {
-    recomputePositions();
     if (!scrollEl) return undefined;
-    let frame = 0;
-    const schedule = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(recomputePositions);
-    };
-    scrollEl.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    const observer = new ResizeObserver(schedule);
+    const onScroll = () => applyPositions();
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    const observer = new ResizeObserver(onScroll);
     observer.observe(scrollEl);
     if (marginRef.current) observer.observe(marginRef.current);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
-      scrollEl.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
+      scrollEl.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
       observer.disconnect();
     };
-  }, [scrollEl, recomputePositions]);
+  }, [scrollEl, applyPositions]);
 
   // ─── anchor-highlight class application ───────────────────────────────
   useEffect(() => {
@@ -318,23 +336,11 @@ export function CommentRail({
     };
   }, [scrollEl, visibleComments]);
 
-  // ─── composer initial position (sync, pre-paint) ─────────────────────
-  // Computed in a layout effect so the composer's first paint already has
-  // the correct pendingTop — avoids the brief flash at the rail's top edge
-  // before recomputePositions catches up. preventScroll on focus stops the
-  // browser from auto-scrolling the editor if our textarea is momentarily
-  // off-screen during this transition.
-  useLayoutEffect(() => {
-    if (!relevantPending || !scrollEl || !marginRef.current) return;
-    const marginRect = marginRef.current.getBoundingClientRect();
-    const block = scrollEl.querySelector(
-      blockSelector(relevantPending.targetBlockId),
-    ) as HTMLElement | null;
-    if (!block) return;
-    const blockRect = block.getBoundingClientRect();
-    setPendingTop(Math.max(0, blockRect.top - marginRect.top - 4));
-  }, [relevantPending, scrollEl]);
-
+  // ─── composer focus ──────────────────────────────────────────────────
+  // The composer's initial position is handled by applyPositions in the
+  // layout effect above (pre-paint, no flash). preventScroll on focus stops
+  // the browser from auto-scrolling the editor if the textarea is momentarily
+  // off-screen during that transition.
   useEffect(() => {
     setDraft('');
     if (relevantPending) {
@@ -414,7 +420,7 @@ export function CommentRail({
 
   // ─── accept / reject helpers (shared by mouse + keyboard) ─────────────
   const acceptCopilotComment = useCallback(
-    async (comment: ManuscriptComment) => {
+    async (comment: Comment) => {
       const metadata = decodeCopilotMetadata(comment.metadataJson);
       const capability = metadata ? getCopilotCapabilityForMetadataKind(metadata.kind) : null;
       if (!metadata || !capability) return;
@@ -523,13 +529,12 @@ export function CommentRail({
   };
 
   // ─── card renderers ───────────────────────────────────────────────────
-  const renderCopilotCard = (comment: ManuscriptComment) => {
+  const renderCopilotCard = (comment: Comment) => {
     const isOrphan = orphanIds.has(comment.id);
     const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
     return (
       <CopilotSuggestionCard
         comment={comment}
-        style={{ top: positions[comment.id] ?? 28 }}
         isActive={activeIds.has(comment.id)}
         isStale={!activeIds.has(comment.id) && seenIds.has(comment.id)}
         isOrphan={isOrphan}
@@ -547,24 +552,25 @@ export function CommentRail({
     );
   };
 
-  const renderManualCard = (comment: ManuscriptComment) => {
+  const renderManualCard = (comment: Comment) => {
     const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
     const fallbackQuote = snapshot ? '' : getSelectedTextFromAnchor(comment.anchorJson);
     const body = extractTextFromCommentBody(comment.bodyJson);
     const isResolved = comment.status === 'resolved';
     const isOrphan = orphanIds.has(comment.id);
+    const isTodo = comment.kind === 'todo';
     const busy = busyId === comment.id;
     const classes = ['mnote', 'mnote--manual'];
     if (isResolved) classes.push('mnote--resolved');
     if (isOrphan) classes.push('mnote--orphan');
-    const style = { top: positions[comment.id] ?? 28 };
+    if (isTodo) classes.push('mnote--todo');
     return (
-      <div className={classes.join(' ')} style={style}>
+      <div className={classes.join(' ')} data-comment-id={comment.id}>
         {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
-            <span className="mnote__head-glyph">§</span>
-            <span>{comment.authorKind === 'user' ? 'COMMENT' : comment.authorKind}</span>
+            <span className="mnote__head-glyph">{isTodo ? '☐' : '§'}</span>
+            <span>{isTodo ? 'TODO' : comment.authorKind === 'user' ? 'COMMENT' : comment.authorKind}</span>
           </span>
           <span className="mnote__head-r">
             <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
@@ -617,15 +623,27 @@ export function CommentRail({
               <span>解决</span>
             </button>
           )}
-          <button
-            type="button"
-            className="mnote__btn mnote__btn--primary"
-            disabled={busy}
-            onClick={() => void runAction(comment.id, () => commentUsecases.convertToMemo(comment.id))}
-          >
-            <ListTodo size={12} />
-            <span>转 TODO</span>
-          </button>
+          {isTodo ? (
+            <button
+              type="button"
+              className="mnote__btn mnote__btn--ghost"
+              disabled={busy}
+              title="降为批注"
+              onClick={() => void runAction(comment.id, () => commentUsecases.revertToNote(comment.id))}
+            >
+              <ListTodo size={12} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="mnote__btn mnote__btn--primary"
+              disabled={busy}
+              onClick={() => void runAction(comment.id, () => commentUsecases.convertToTodo(comment.id))}
+            >
+              <ListTodo size={12} />
+              <span>转 TODO</span>
+            </button>
+          )}
           <button
             type="button"
             className="mnote__btn"
@@ -640,7 +658,7 @@ export function CommentRail({
     );
   };
 
-  const renderChip = (comment: ManuscriptComment) => {
+  const renderChip = (comment: Comment) => {
     const isCopilot = comment.source === 'copilot';
     const isActive = activeIds.has(comment.id);
     const isStale = !isActive && seenIds.has(comment.id);
@@ -655,7 +673,7 @@ export function CommentRail({
       <button
         type="button"
         className={classes.join(' ')}
-        style={{ top: positions[comment.id] ?? 28 }}
+        data-comment-id={comment.id}
         onClick={() => expandToCard(comment.id)}
         aria-label={isCopilot ? 'Copilot suggestion' : 'Comment'}
         title="展开"
@@ -665,7 +683,7 @@ export function CommentRail({
     );
   };
 
-  const renderCard = (comment: ManuscriptComment) => {
+  const renderCard = (comment: Comment) => {
     if (chipIds.has(comment.id)) return renderChip(comment);
     return comment.source === 'copilot' ? renderCopilotCard(comment) : renderManualCard(comment);
   };
@@ -673,7 +691,7 @@ export function CommentRail({
   const renderComposer = () => {
     if (!relevantPending) return null;
     return (
-      <div className="mnote mnote--composer" style={{ top: pendingTop }}>
+      <div className="mnote mnote--composer" data-comment-composer>
         <div className="mnote__leader" aria-hidden="true" />
         <div className="mnote__head">
           <span className="mnote__head-l">

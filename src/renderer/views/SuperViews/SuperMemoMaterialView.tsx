@@ -13,25 +13,26 @@ import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { SuperViewHeader } from '../../components/SuperViewHeader';
-import { useBookMemo } from '../../usecase/useBookMemo';
-import { useBookMaterial } from '../../usecase/useBookMaterial';
+import { useComment } from '../../usecase/useComment';
+import { useLibraryItem } from '../../usecase/useLibraryItem';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import {
-  MemoCard,
-  MaterialCard,
-  ComposeMemoDialog,
-  ComposeMaterialDialog,
-  MaterialFullscreenPreview,
+  LibraryItemCard,
+  ComposeLibraryItemDialog,
+  ComposeTodoDialog,
+  LibraryItemFullscreenPreview,
   TextSnippetPopover,
-  MATERIAL_KIND_LABEL,
+  TodoCard,
+  LIBRARY_ITEM_KIND_LABEL,
   type FocusedEntity,
 } from '../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../components/rightBars/EntityRelationPicker';
-import type { Material, MaterialKind } from '../../domain/material';
-import type { Memo } from '../../domain/memo';
+import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/comment';
+import type { Comment } from '../../domain/comment';
+import type { LibraryItem, LibraryItemKind } from '../../domain/library-item';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
-const KIND_ORDER: MaterialKind[] = ['image', 'pdf', 'url', 'text'];
+const KIND_ORDER: LibraryItemKind[] = ['image', 'pdf', 'url', 'text'];
 
 const DRAWER_HEADER_HEIGHT = 28;
 const DRAWER_MIN_HEIGHT = 120;
@@ -41,7 +42,7 @@ const TODO_RAIL_WIDTH = 280;
 
 // The KindChip / EntityFilterButton popovers used to live in the top
 // toolbar (a drag region), so each interactive control was tagged no-drag
-// to stay clickable on macOS. Now they live inside MaterialMain's section
+// to stay clickable on macOS. Now they live inside LibraryItemMain's section
 // header — outside any drag region — but we keep the spreads in place
 // because they're harmless and reduce churn against the existing markup.
 const NO_DRAG_REGION: CSSProperties = {
@@ -49,14 +50,14 @@ const NO_DRAG_REGION: CSSProperties = {
 };
 
 /**
- * Global Memo & Material workbench — the project-wide counterpart to the
+ * Global TODO & Library workbench — the project-wide counterpart to the
  * per-entity MemoMaterialPanel in the right sidebar.
  *
  * Layout (full-screen above BottomStatusBar, same shell as StoryGraphView /
  * SuperElementView — no header bar, close via the BSB toggle):
  *  ┌── toolbar (search · kind chips · entity filter · +) ─┐
  *  ├──────────┬────────────────────────────────────────────┤
- *  │ TODO 板  │  Material 网格 (按 kind 分组)              │
+ *  │ TODO 板  │  LibraryItem 网格 (按 kind 分组)              │
  *  │ + 笔记   │                                            │
  *  ├──────────┴────────────────────────────────────────────┤
  *  │  ▾ 待整理 (orphan) · 已解决 (archive)                  │
@@ -71,20 +72,20 @@ export function SuperMemoMaterialView() {
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const closeView = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
 
-  const memos = useDataStore((s) => s.memos);
-  const materials = useDataStore((s) => s.materials);
+  const comments = useDataStore((s) => s.comments);
+  const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
 
-  const memoUsecases = useBookMemo({ projectId, userId });
-  const materialUsecases = useBookMaterial({ projectId, userId });
+  const commentUsecases = useComment({ projectId, userId });
+  const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
 
   const [query, setQuery] = useState('');
-  const [hiddenKinds, setHiddenKinds] = useState<Set<MaterialKind>>(() => new Set());
+  const [hiddenKinds, setHiddenKinds] = useState<Set<LibraryItemKind>>(() => new Set());
   const [entityFilter, setEntityFilter] = useState<FocusedEntity>({ kind: null, id: null });
-  const [composeOpen, setComposeOpen] = useState<null | 'memo' | 'material'>(null);
+  const [composeOpen, setComposeOpen] = useState<null | 'todo' | 'library_item'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [previewMaterialId, setPreviewMaterialId] = useState<string | null>(null);
+  const [previewLibraryItemId, setPreviewLibraryItemId] = useState<string | null>(null);
   const [textPopoverId, setTextPopoverId] = useState<string | null>(null);
 
   // ESC is intentionally NOT wired to close the super view — matches
@@ -115,88 +116,81 @@ export function SuperMemoMaterialView() {
   );
 
   const matchesQuery = useCallback(
-    (title: string | null | undefined, body: string | null | undefined) => {
+    (...fields: (string | null | undefined)[]) => {
       const q = query.trim().toLowerCase();
       if (!q) return true;
-      return (
-        (title ?? '').toLowerCase().includes(q) || (body ?? '').toLowerCase().includes(q)
-      );
+      return fields.some((f) => (f ?? '').toLowerCase().includes(q));
     },
     [query],
   );
 
-  const todoMemos = useMemo(
+  // TODOs replaced the old memo three-state machine: every TODO is a comment
+  // with kind='todo'; status is just open vs. resolved. The pre-consolidation
+  // 'no_action' bucket (notes without a checkbox) is gone — free-form notes
+  // now live in library_item with kind='text'.
+  const openTodos = useMemo(
     () =>
-      memos.filter(
-        (m) =>
-          m.resolution === 'unresolved' &&
-          isRelatedToEntity('memo', m.id) &&
-          matchesQuery(m.title, m.bodyJson),
+      comments.filter(
+        (c) =>
+          c.kind === 'todo' &&
+          c.status === 'open' &&
+          isRelatedToEntity('comment', c.id) &&
+          matchesQuery(extractTextFromCommentBody(c.bodyJson)),
       ),
-    [memos, isRelatedToEntity, matchesQuery],
+    [comments, isRelatedToEntity, matchesQuery],
   );
 
-  const noteMemos = useMemo(
+  const resolvedTodos = useMemo(
     () =>
-      memos.filter(
-        (m) =>
-          m.resolution === 'no_action' &&
-          isRelatedToEntity('memo', m.id) &&
-          matchesQuery(m.title, m.bodyJson),
-      ),
-    [memos, isRelatedToEntity, matchesQuery],
-  );
-
-  const resolvedMemos = useMemo(
-    () =>
-      memos
+      comments
         .filter(
-          (m) =>
-            m.resolution === 'resolved' &&
-            isRelatedToEntity('memo', m.id) &&
-            matchesQuery(m.title, m.bodyJson),
+          (c) =>
+            c.kind === 'todo' &&
+            c.status !== 'open' &&
+            isRelatedToEntity('comment', c.id) &&
+            matchesQuery(extractTextFromCommentBody(c.bodyJson)),
         )
         .sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? '')),
-    [memos, isRelatedToEntity, matchesQuery],
+    [comments, isRelatedToEntity, matchesQuery],
   );
 
-  const visibleMaterials = useMemo(
+  const visibleLibraryItems = useMemo(
     () =>
-      materials.filter(
-        (mat) => isRelatedToEntity('material', mat.id) && matchesQuery(mat.title, mat.bodyJson),
+      libraryItems.filter(
+        (mat) => isRelatedToEntity('library_item', mat.id) && matchesQuery(mat.title, mat.bodyJson),
       ),
-    [materials, isRelatedToEntity, matchesQuery],
+    [libraryItems, isRelatedToEntity, matchesQuery],
   );
 
-  const materialsByKind = useMemo(() => {
-    const map = new Map<MaterialKind, Material[]>();
+  const libraryItemsByKind = useMemo(() => {
+    const map = new Map<LibraryItemKind, LibraryItem[]>();
     KIND_ORDER.forEach((k) => map.set(k, []));
-    visibleMaterials.forEach((m) => {
+    visibleLibraryItems.forEach((m) => {
       if (hiddenKinds.has(m.kind)) return;
       map.get(m.kind)?.push(m);
     });
     return map;
-  }, [visibleMaterials, hiddenKinds]);
+  }, [visibleLibraryItems, hiddenKinds]);
 
-  const orphanMaterials = useMemo(
+  const orphanLibraryItems = useMemo(
     () =>
-      visibleMaterials.filter((m) => {
-        const refs = refsByFrom.get(`material:${m.id}`) ?? [];
+      visibleLibraryItems.filter((m) => {
+        const refs = refsByFrom.get(`library_item:${m.id}`) ?? [];
         return refs.length === 0;
       }),
-    [visibleMaterials, refsByFrom],
+    [visibleLibraryItems, refsByFrom],
   );
 
-  const previewMaterial = useMemo(
-    () => materials.find((m) => m.id === previewMaterialId) ?? null,
-    [materials, previewMaterialId],
+  const previewLibraryItem = useMemo(
+    () => libraryItems.find((m) => m.id === previewLibraryItemId) ?? null,
+    [libraryItems, previewLibraryItemId],
   );
-  const textPopoverMaterial = useMemo(
-    () => materials.find((m) => m.id === textPopoverId) ?? null,
-    [materials, textPopoverId],
+  const textPopoverLibraryItem = useMemo(
+    () => libraryItems.find((m) => m.id === textPopoverId) ?? null,
+    [libraryItems, textPopoverId],
   );
 
-  const openMaterialInSystem = useCallback(async (m: Material) => {
+  const openLibraryItemInSystem = useCallback(async (m: LibraryItem) => {
     if (m.kind === 'text') return;
     if (m.kind === 'url') {
       await window.electronAPI.material.openExternal(m.uri);
@@ -208,19 +202,19 @@ export function SuperMemoMaterialView() {
     if (!res.ok) alert(`无法打开文件：${res.error}`);
   }, []);
 
-  const openMaterialInApp = useCallback((m: Material) => {
+  const openLibraryItemInApp = useCallback((m: LibraryItem) => {
     if (m.kind === 'url') {
-      void openMaterialInSystem(m);
+      void openLibraryItemInSystem(m);
       return;
     }
     if (m.kind === 'text') {
       setTextPopoverId(m.id);
       return;
     }
-    setPreviewMaterialId(m.id);
-  }, [openMaterialInSystem]);
+    setPreviewLibraryItemId(m.id);
+  }, [openLibraryItemInSystem]);
 
-  const toggleKindHidden = useCallback((kind: MaterialKind) => {
+  const toggleKindHidden = useCallback((kind: LibraryItemKind) => {
     setHiddenKinds((prev) => {
       const next = new Set(prev);
       if (next.has(kind)) next.delete(kind);
@@ -253,13 +247,13 @@ export function SuperMemoMaterialView() {
         .smm-scroll::-webkit-scrollbar-track { background: transparent; }
       `}</style>
 
-      {/* Top header — back + title + global search. Material-specific
+      {/* Top header — back + title + global search. LibraryItem-specific
           filters (KIND chips, entity-target filter) live inside the
-          MaterialMain section header so the global header stays focused
+          LibraryItemMain section header so the global header stays focused
           on cross-cutting controls. */}
       <SuperViewHeader
-        title="备忘 & 材料"
-        meta={`${memos.length} 备忘 · ${materials.length} 材料`}
+        title="TODO & 素材库"
+        meta={`${comments.filter((c) => c.kind === 'todo').length} TODO · ${libraryItems.length} 素材`}
         onBack={closeView}
         rightSlot={
           <input
@@ -288,105 +282,103 @@ export function SuperMemoMaterialView() {
       <div className="super-view-body">
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <TodoRail
-            todoMemos={todoMemos}
-            noteMemos={noteMemos}
-            refsByFrom={refsByFrom}
-            editingId={editingId}
-            setEditingId={setEditingId}
-            memoUsecases={memoUsecases}
+            openTodos={openTodos}
+            commentUsecases={commentUsecases}
             relationUsecases={relationUsecases}
             entityRelations={entityRelations}
-            onCompose={() => setComposeOpen('memo')}
+            onCompose={() => setComposeOpen('todo')}
           />
 
-          <MaterialMain
-            materialsByKind={materialsByKind}
-            totalVisible={visibleMaterials.length}
-            totalMaterials={materials.length}
+          <LibraryItemMain
+            libraryItemsByKind={libraryItemsByKind}
+            totalVisible={visibleLibraryItems.length}
+            totalLibraryItems={libraryItems.length}
             hiddenKinds={hiddenKinds}
             onToggleKind={toggleKindHidden}
             kindCounts={Object.fromEntries(
-              KIND_ORDER.map((k) => [k, materials.filter((m) => m.kind === k).length]),
-            ) as Record<MaterialKind, number>}
+              KIND_ORDER.map((k) => [k, libraryItems.filter((m) => m.kind === k).length]),
+            ) as Record<LibraryItemKind, number>}
             entityFilter={entityFilter}
             onEntityFilterChange={setEntityFilter}
             refsByFrom={refsByFrom}
             editingId={editingId}
             setEditingId={setEditingId}
-            materialUsecases={materialUsecases}
+            libraryItemUsecases={libraryItemUsecases}
             relationUsecases={relationUsecases}
             removeRelation={removeRelation}
-            openMaterialInApp={openMaterialInApp}
-            openMaterialInSystem={openMaterialInSystem}
-            onCompose={() => setComposeOpen('material')}
+            openLibraryItemInApp={openLibraryItemInApp}
+            openLibraryItemInSystem={openLibraryItemInSystem}
+            onCompose={() => setComposeOpen('library_item')}
           />
         </div>
 
         <BottomDrawer
-          orphans={orphanMaterials}
-          resolvedMemos={resolvedMemos}
+          orphans={orphanLibraryItems}
+          resolvedTodos={resolvedTodos}
           editingId={editingId}
           setEditingId={setEditingId}
-          memoUsecases={memoUsecases}
-          materialUsecases={materialUsecases}
+          commentUsecases={commentUsecases}
+          libraryItemUsecases={libraryItemUsecases}
           relationUsecases={relationUsecases}
           removeRelation={removeRelation}
-          openMaterialInApp={openMaterialInApp}
-          openMaterialInSystem={openMaterialInSystem}
+          openLibraryItemInApp={openLibraryItemInApp}
+          openLibraryItemInSystem={openLibraryItemInSystem}
         />
       </div>
 
-      {composeOpen === 'memo' && (
-        <ComposeMemoDialog
+      {composeOpen === 'todo' && (
+        <ComposeTodoDialog
           focused={focusedEntity}
           onCancel={() => setComposeOpen(null)}
-          onCreate={async (title, asTodo, relations) => {
-            const memo = await memoUsecases.createMemo({
-              title,
-              resolution: asTodo ? 'unresolved' : 'no_action',
+          onCreate={async (body, relations) => {
+            const created = await commentUsecases.createComment({
+              kind: 'todo',
+              bodyJson: createPlainCommentDoc(body),
             });
             await Promise.all(
-              relations.map((t) => relationUsecases.addRelation('memo', memo.id, t.kind, t.id)),
+              relations.map((t) =>
+                relationUsecases.addRelation('comment', created.id, t.kind, t.id),
+              ),
             );
             setComposeOpen(null);
           }}
         />
       )}
 
-      {composeOpen === 'material' && (
-        <ComposeMaterialDialog
+      {composeOpen === 'library_item' && (
+        <ComposeLibraryItemDialog
           focused={focusedEntity}
           onCancel={() => setComposeOpen(null)}
           onCreate={async (input, relations) => {
-            const mat = await materialUsecases.createMaterial(input);
+            const mat = await libraryItemUsecases.createLibraryItem(input);
             await Promise.all(
-              relations.map((t) => relationUsecases.addRelation('material', mat.id, t.kind, t.id)),
+              relations.map((t) => relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)),
             );
             setComposeOpen(null);
           }}
         />
       )}
 
-      {previewMaterial && (
-        <MaterialFullscreenPreview
-          key={previewMaterial.id}
-          material={previewMaterial}
-          onClose={() => setPreviewMaterialId(null)}
-          onUpdate={(updates) => materialUsecases.updateMaterial(previewMaterial.id, updates)}
+      {previewLibraryItem && (
+        <LibraryItemFullscreenPreview
+          key={previewLibraryItem.id}
+          material={previewLibraryItem}
+          onClose={() => setPreviewLibraryItemId(null)}
+          onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(previewLibraryItem.id, updates)}
         />
       )}
 
-      {textPopoverMaterial && (
+      {textPopoverLibraryItem && (
         <TextSnippetPopover
-          key={textPopoverMaterial.id}
-          material={textPopoverMaterial}
+          key={textPopoverLibraryItem.id}
+          material={textPopoverLibraryItem}
           onClose={() => setTextPopoverId(null)}
           onExpand={() => {
             setTextPopoverId(null);
-            setPreviewMaterialId(textPopoverMaterial.id);
+            setPreviewLibraryItemId(textPopoverLibraryItem.id);
           }}
           onUpdate={(updates) =>
-            materialUsecases.updateMaterial(textPopoverMaterial.id, updates)
+            libraryItemUsecases.updateLibraryItem(textPopoverLibraryItem.id, updates)
           }
         />
       )}
@@ -395,8 +387,8 @@ export function SuperMemoMaterialView() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Material filter primitives — KindChip + EntityFilterButton, both used in
-// the MaterialMain section header (previously lived in a top toolbar). The
+// LibraryItem filter primitives — KindChip + EntityFilterButton, both used in
+// the LibraryItemMain section header (previously lived in a top toolbar). The
 // thin vertical divider used between filter groups is shared too.
 
 function ToolbarDivider() {
@@ -613,22 +605,14 @@ function EntityFilterButton({
 // TodoRail — left column. TODOs on top (action surface), pure notes below.
 
 function TodoRail({
-  todoMemos,
-  noteMemos,
-  refsByFrom,
-  editingId,
-  setEditingId,
-  memoUsecases,
+  openTodos,
+  commentUsecases,
   relationUsecases,
   entityRelations,
   onCompose,
 }: {
-  todoMemos: Memo[];
-  noteMemos: Memo[];
-  refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
-  editingId: string | null;
-  setEditingId: (id: string | null) => void;
-  memoUsecases: ReturnType<typeof useBookMemo>;
+  openTodos: Comment[];
+  commentUsecases: ReturnType<typeof useComment>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
   entityRelations: Array<{
     id: string;
@@ -639,29 +623,31 @@ function TodoRail({
   }>;
   onCompose: () => void;
 }) {
-  const renderMemo = (memo: Memo) => (
-    <MemoCard
-      key={memo.id}
-      memo={memo}
-      relations={refsByFrom.get(`memo:${memo.id}`) ?? []}
-      editing={editingId === memo.id}
-      onSetEditing={(on) => setEditingId(on ? memo.id : null)}
-      onSetResolution={(r) => memoUsecases.setMemoResolution(memo.id, r)}
-      onUpdate={(updates) => memoUsecases.updateMemo(memo.id, updates)}
-      onDelete={() => memoUsecases.removeMemo(memo.id)}
-      onAddRelation={(t) => relationUsecases.addRelation('memo', memo.id, t.kind, t.id)}
-      onRemoveRelation={(t) => {
-        const ref = entityRelations.find(
-          (r) =>
-            r.fromKind === 'memo' &&
-            r.fromId === memo.id &&
-            r.toKind === t.kind &&
-            r.toId === t.id,
-        );
-        if (ref) relationUsecases.removeRelation(ref.id);
-      }}
-    />
-  );
+  const renderTodo = (todo: Comment) => {
+    const relations = entityRelations
+      .filter((r) => r.fromKind === 'comment' && r.fromId === todo.id)
+      .map((r) => ({ id: r.id, toKind: r.toKind, toId: r.toId }));
+    return (
+      <TodoCard
+        key={todo.id}
+        todo={todo}
+        relations={relations}
+        onResolve={() => commentUsecases.resolveComment(todo.id)}
+        onDelete={() => commentUsecases.deleteComment(todo.id)}
+        onAddRelation={(t) => relationUsecases.addRelation('comment', todo.id, t.kind, t.id)}
+        onRemoveRelation={(t) => {
+          const ref = entityRelations.find(
+            (r) =>
+              r.fromKind === 'comment' &&
+              r.fromId === todo.id &&
+              r.toKind === t.kind &&
+              r.toId === t.id,
+          );
+          if (ref) relationUsecases.removeRelation(ref.id);
+        }}
+      />
+    );
+  };
 
   return (
     <div
@@ -677,10 +663,10 @@ function TodoRail({
     >
       <SectionHeader
         kicker="TODO"
-        count={todoMemos.length}
-        accent={todoMemos.length > 0 ? 'hsl(var(--story-2))' : undefined}
+        count={openTodos.length}
+        accent={openTodos.length > 0 ? 'hsl(var(--story-2))' : undefined}
         action={
-          <button onClick={onCompose} style={ghostBtnStyle} title="新建备忘">
+          <button onClick={onCompose} style={ghostBtnStyle} title="新建 TODO">
             ＋
           </button>
         }
@@ -697,36 +683,10 @@ function TodoRail({
           gap: 6,
         }}
       >
-        {todoMemos.length === 0 && (
-          <RailEmpty hint="点击 ＋ 新建待办，或在任意备忘卡上按 ○ 升格" />
+        {openTodos.length === 0 && (
+          <RailEmpty hint="点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO" />
         )}
-        {todoMemos.map(renderMemo)}
-
-        {noteMemos.length > 0 && (
-          <div
-            style={{
-              marginTop: 14,
-              paddingTop: 10,
-              borderTop: '1px dashed hsl(var(--rule))',
-            }}
-          >
-            <div
-              style={{
-                ...kickerStyle,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 6,
-              }}
-            >
-              <span>纯笔记</span>
-              <span style={{ color: 'hsl(var(--ink-4))' }}>{noteMemos.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {noteMemos.map(renderMemo)}
-            </div>
-          </div>
-        )}
+        {openTodos.map(renderTodo)}
       </div>
     </div>
   );
@@ -809,12 +769,12 @@ function RailEmpty({ hint }: { hint: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MaterialMain — center column, grid grouped by kind.
+// LibraryItemMain — center column, grid grouped by kind.
 
-function MaterialMain({
-  materialsByKind,
+function LibraryItemMain({
+  libraryItemsByKind,
   totalVisible,
-  totalMaterials,
+  totalLibraryItems,
   hiddenKinds,
   onToggleKind,
   kindCounts,
@@ -823,23 +783,23 @@ function MaterialMain({
   refsByFrom,
   editingId,
   setEditingId,
-  materialUsecases,
+  libraryItemUsecases,
   relationUsecases,
   removeRelation,
-  openMaterialInApp,
-  openMaterialInSystem,
+  openLibraryItemInApp,
+  openLibraryItemInSystem,
   onCompose,
 }: {
-  materialsByKind: Map<MaterialKind, Material[]>;
+  libraryItemsByKind: Map<LibraryItemKind, LibraryItem[]>;
   totalVisible: number;
-  totalMaterials: number;
-  hiddenKinds: Set<MaterialKind>;
+  totalLibraryItems: number;
+  hiddenKinds: Set<LibraryItemKind>;
   /** Toggle one kind on/off in the visibility filter. */
-  onToggleKind: (k: MaterialKind) => void;
-  /** Total materials per kind across the project (ignores the kind toggle
+  onToggleKind: (k: LibraryItemKind) => void;
+  /** Total libraryItems per kind across the project (ignores the kind toggle
    *  itself, so the count next to each chip stays stable as you toggle). */
-  kindCounts: Record<MaterialKind, number>;
-  /** Entity-target filter — narrows BOTH memos and materials to those
+  kindCounts: Record<LibraryItemKind, number>;
+  /** Entity-target filter — narrows BOTH memos and libraryItems to those
    *  related to the picked entity. Lives in this header for visual
    *  proximity to the KIND chips, even though the rail also reacts. */
   entityFilter: FocusedEntity;
@@ -847,7 +807,7 @@ function MaterialMain({
   refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
-  materialUsecases: ReturnType<typeof useBookMaterial>;
+  libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
   removeRelation: (
     fromKind: EntityKind,
@@ -855,8 +815,8 @@ function MaterialMain({
     toKind: EntityKind,
     toId: string,
   ) => void;
-  openMaterialInApp: (m: Material) => void;
-  openMaterialInSystem: (m: Material) => Promise<void>;
+  openLibraryItemInApp: (m: LibraryItem) => void;
+  openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
   onCompose: () => void;
 }) {
   return (
@@ -869,7 +829,7 @@ function MaterialMain({
         minHeight: 0,
       }}
     >
-      {/* Material section header: kicker + count on the left, then KIND
+      {/* LibraryItem section header: kicker + count on the left, then KIND
           chips and entity filter (moved down from the global header), then
           the new-material action on the right. Taller than the default
           SectionHeader because it needs to host the filter group inline. */}
@@ -907,7 +867,7 @@ function MaterialMain({
               count={kindCounts[k] ?? 0}
               onClick={() => onToggleKind(k)}
             >
-              {MATERIAL_KIND_LABEL[k]}
+              {LIBRARY_ITEM_KIND_LABEL[k]}
             </KindChip>
           ))}
         </div>
@@ -929,7 +889,7 @@ function MaterialMain({
             letterSpacing: '0.06em',
           }}
         >
-          {totalVisible} / {totalMaterials}
+          {totalVisible} / {totalLibraryItems}
         </span>
         <button
           onClick={onCompose}
@@ -970,7 +930,7 @@ function MaterialMain({
               color: 'hsl(var(--ink-3))',
             }}
           >
-            {totalMaterials === 0 ? (
+            {totalLibraryItems === 0 ? (
               <>
                 <div>项目里还没有材料。</div>
                 <button
@@ -998,7 +958,7 @@ function MaterialMain({
         )}
 
         {KIND_ORDER.map((kind) => {
-          const items = materialsByKind.get(kind) ?? [];
+          const items = libraryItemsByKind.get(kind) ?? [];
           if (hiddenKinds.has(kind)) return null;
           if (items.length === 0) return null;
           return (
@@ -1009,11 +969,11 @@ function MaterialMain({
               refsByFrom={refsByFrom}
               editingId={editingId}
               setEditingId={setEditingId}
-              materialUsecases={materialUsecases}
+              libraryItemUsecases={libraryItemUsecases}
               relationUsecases={relationUsecases}
               removeRelation={removeRelation}
-              openMaterialInApp={openMaterialInApp}
-              openMaterialInSystem={openMaterialInSystem}
+              openLibraryItemInApp={openLibraryItemInApp}
+              openLibraryItemInSystem={openLibraryItemInSystem}
             />
           );
         })}
@@ -1028,18 +988,18 @@ function KindGroup({
   refsByFrom,
   editingId,
   setEditingId,
-  materialUsecases,
+  libraryItemUsecases,
   relationUsecases,
   removeRelation,
-  openMaterialInApp,
-  openMaterialInSystem,
+  openLibraryItemInApp,
+  openLibraryItemInSystem,
 }: {
-  kind: MaterialKind;
-  items: Material[];
+  kind: LibraryItemKind;
+  items: LibraryItem[];
   refsByFrom: Map<string, Array<{ id: string; toKind: EntityKind; toId: string }>>;
   editingId: string | null;
   setEditingId: (id: string | null) => void;
-  materialUsecases: ReturnType<typeof useBookMaterial>;
+  libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
   removeRelation: (
     fromKind: EntityKind,
@@ -1047,8 +1007,8 @@ function KindGroup({
     toKind: EntityKind,
     toId: string,
   ) => void;
-  openMaterialInApp: (m: Material) => void;
-  openMaterialInSystem: (m: Material) => Promise<void>;
+  openLibraryItemInApp: (m: LibraryItem) => void;
+  openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   return (
     <section style={{ marginBottom: 18 }}>
@@ -1063,7 +1023,7 @@ function KindGroup({
           borderBottom: '1px dashed hsl(var(--rule))',
         }}
       >
-        <span>{MATERIAL_KIND_LABEL[kind]}</span>
+        <span>{LIBRARY_ITEM_KIND_LABEL[kind]}</span>
         <span style={{ color: 'hsl(var(--ink-4))' }}>{items.length}</span>
       </div>
       <div
@@ -1075,20 +1035,20 @@ function KindGroup({
         }}
       >
         {items.map((mat) => (
-          <MaterialCard
+          <LibraryItemCard
             key={mat.id}
             material={mat}
-            relations={refsByFrom.get(`material:${mat.id}`) ?? []}
+            relations={refsByFrom.get(`library_item:${mat.id}`) ?? []}
             editing={editingId === mat.id}
             onSetEditing={(on) => setEditingId(on ? mat.id : null)}
-            onOpenInSystem={() => openMaterialInSystem(mat)}
-            onOpenInApp={() => openMaterialInApp(mat)}
-            onUpdate={(updates) => materialUsecases.updateMaterial(mat.id, updates)}
-            onDelete={() => materialUsecases.removeMaterial(mat.id)}
+            onOpenInSystem={() => openLibraryItemInSystem(mat)}
+            onOpenInApp={() => openLibraryItemInApp(mat)}
+            onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
+            onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
             onAddRelation={(t) =>
-              relationUsecases.addRelation('material', mat.id, t.kind, t.id)
+              relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
             }
-            onRemoveRelation={(t) => removeRelation('material', mat.id, t.kind, t.id)}
+            onRemoveRelation={(t) => removeRelation('library_item', mat.id, t.kind, t.id)}
             defaultExpanded
           />
         ))}
@@ -1099,26 +1059,26 @@ function KindGroup({
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BottomDrawer — collapsed header strip + draggable resize when expanded.
-// Body is a 2-column split: orphan materials | resolved memos.
+// Body is a 2-column split: orphan libraryItems | resolved memos.
 
 function BottomDrawer({
   orphans,
-  resolvedMemos,
+  resolvedTodos,
   editingId,
   setEditingId,
-  memoUsecases,
-  materialUsecases,
+  commentUsecases,
+  libraryItemUsecases,
   relationUsecases,
   removeRelation,
-  openMaterialInApp,
-  openMaterialInSystem,
+  openLibraryItemInApp,
+  openLibraryItemInSystem,
 }: {
-  orphans: Material[];
-  resolvedMemos: Memo[];
+  orphans: LibraryItem[];
+  resolvedTodos: Comment[];
   editingId: string | null;
   setEditingId: (id: string | null) => void;
-  memoUsecases: ReturnType<typeof useBookMemo>;
-  materialUsecases: ReturnType<typeof useBookMaterial>;
+  commentUsecases: ReturnType<typeof useComment>;
+  libraryItemUsecases: ReturnType<typeof useLibraryItem>;
   relationUsecases: ReturnType<typeof useEntityRelations>;
   removeRelation: (
     fromKind: EntityKind,
@@ -1126,8 +1086,8 @@ function BottomDrawer({
     toKind: EntityKind,
     toId: string,
   ) => void;
-  openMaterialInApp: (m: Material) => void;
-  openMaterialInSystem: (m: Material) => Promise<void>;
+  openLibraryItemInApp: (m: LibraryItem) => void;
+  openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
@@ -1225,7 +1185,7 @@ function BottomDrawer({
           <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
           <span>
             已解决{' '}
-            <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedMemos.length}</span>
+            <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
           </span>
         </span>
         <ChevronUp
@@ -1248,7 +1208,7 @@ function BottomDrawer({
             background: 'hsl(var(--rule))',
           }}
         >
-          {/* Orphan materials */}
+          {/* Orphan libraryItems */}
           <div
             style={{
               minWidth: 0,
@@ -1288,20 +1248,20 @@ function BottomDrawer({
                 </div>
               )}
               {orphans.map((mat) => (
-                <MaterialCard
+                <LibraryItemCard
                   key={mat.id}
                   material={mat}
                   relations={[]}
                   editing={editingId === mat.id}
                   onSetEditing={(on) => setEditingId(on ? mat.id : null)}
-                  onOpenInSystem={() => openMaterialInSystem(mat)}
-                  onOpenInApp={() => openMaterialInApp(mat)}
-                  onUpdate={(updates) => materialUsecases.updateMaterial(mat.id, updates)}
-                  onDelete={() => materialUsecases.removeMaterial(mat.id)}
+                  onOpenInSystem={() => openLibraryItemInSystem(mat)}
+                  onOpenInApp={() => openLibraryItemInApp(mat)}
+                  onUpdate={(updates) => libraryItemUsecases.updateLibraryItem(mat.id, updates)}
+                  onDelete={() => libraryItemUsecases.removeLibraryItem(mat.id)}
                   onAddRelation={(t) =>
-                    relationUsecases.addRelation('material', mat.id, t.kind, t.id)
+                    relationUsecases.addRelation('library_item', mat.id, t.kind, t.id)
                   }
-                  onRemoveRelation={(t) => removeRelation('material', mat.id, t.kind, t.id)}
+                  onRemoveRelation={(t) => removeRelation('library_item', mat.id, t.kind, t.id)}
                   defaultExpanded
                 />
               ))}
@@ -1318,7 +1278,7 @@ function BottomDrawer({
               background: 'hsl(var(--paper))',
             }}
           >
-            <SubHeader kicker="已解决 · 备忘归档" count={resolvedMemos.length} />
+            <SubHeader kicker="已解决 · TODO 归档" count={resolvedTodos.length} />
             <div
               className="smm-scroll"
               style={{
@@ -1331,7 +1291,7 @@ function BottomDrawer({
                 gap: 4,
               }}
             >
-              {resolvedMemos.length === 0 && (
+              {resolvedTodos.length === 0 && (
                 <div
                   style={{
                     padding: '20px 8px',
@@ -1342,15 +1302,15 @@ function BottomDrawer({
                     textAlign: 'center',
                   }}
                 >
-                  暂无已解决的备忘。
+                  暂无已完成的 TODO。
                 </div>
               )}
-              {resolvedMemos.map((m) => (
-                <ResolvedMemoRow
-                  key={m.id}
-                  memo={m}
-                  onReopen={() => memoUsecases.setMemoResolution(m.id, 'unresolved')}
-                  onDelete={() => memoUsecases.removeMemo(m.id)}
+              {resolvedTodos.map((c) => (
+                <ResolvedTodoRow
+                  key={c.id}
+                  todo={c}
+                  onReopen={() => commentUsecases.reopenComment(c.id)}
+                  onDelete={() => commentUsecases.deleteComment(c.id)}
                 />
               ))}
             </div>
@@ -1389,15 +1349,16 @@ function SubHeader({ kicker, count }: { kicker: string; count: number }) {
   );
 }
 
-function ResolvedMemoRow({
-  memo,
+function ResolvedTodoRow({
+  todo,
   onReopen,
   onDelete,
 }: {
-  memo: Memo;
+  todo: Comment;
   onReopen: () => void;
   onDelete: () => void;
 }) {
+  const text = extractTextFromCommentBody(todo.bodyJson);
   return (
     <div
       style={{
@@ -1431,9 +1392,9 @@ function ResolvedMemoRow({
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        title={memo.title}
+        title={text}
       >
-        {memo.title || '无标题'}
+        {text || '(空 TODO)'}
       </div>
       <button
         onClick={onReopen}

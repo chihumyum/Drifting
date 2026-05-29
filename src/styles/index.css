@@ -1371,6 +1371,12 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: transparent;
   pointer-events: none;
   animation: editor-margin-fade-in 0.16s ease;
+  /* Clip cards anchored to off-screen blocks. Card top values are
+     scroll-relative (block viewport pos), so cards for blocks far above/below
+     the viewport land outside the rail's box — without clipping they leak
+     into the document and grow its scroll height, producing a spurious
+     extra scrollbar. The cards beyond the bounds are off-screen anyway. */
+  overflow: hidden;
 }
 .editor__margin .mnote,
 .editor__margin .comment-chip {
@@ -1388,6 +1394,9 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-radius: 4px;
   padding: 9px 11px 10px;
   position: absolute;
+  /* Fallback so a card never paints at top:auto before CommentRail writes its
+     real `top` imperatively. The JS write (inline style) overrides this. */
+  top: 28px;
   left: 0;
   right: 0;
   cursor: default;
@@ -1406,6 +1415,36 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .mnote--resolved {
   border-left-color: hsl(var(--ink-5));
   opacity: 0.72;
+}
+/* Card has been promoted to a TODO (comment.kind = 'todo'). Keeps the
+   block anchor + body intact; the rail visually nudges to checklist-style
+   so the author can tell which annotations are tasks vs. plain notes.
+   Story-4 (ochre) reads as "pending task" against the cooler default
+   accent — strong enough to register against the surface, light enough
+   not to fight with the body text.
+
+   The tint is layered as a background-image so the underlying surface
+   stays opaque. Using the `background:` shorthand here would reset
+   background-color (inherited from .mnote = hsl(var(--surface))) and the
+   card would render semi-transparent against whatever sits behind the
+   editor rail. */
+.mnote--todo {
+  border-left: 2px solid hsl(var(--story-4));
+  background-color: hsl(var(--surface));
+  background-image: linear-gradient(
+    hsl(var(--story-4) / 0.12),
+    hsl(var(--story-4) / 0.12)
+  );
+}
+.mnote--todo:hover {
+  background-image: linear-gradient(
+    hsl(var(--story-4) / 0.18),
+    hsl(var(--story-4) / 0.18)
+  );
+}
+.mnote--todo .mnote__head-glyph,
+.mnote--todo .mnote__head-l > span:last-child {
+  color: hsl(var(--story-4));
 }
 .mnote--composer {
   border-left-color: hsl(var(--accent));
@@ -1517,6 +1556,18 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--accent-foreground));
   border-color: hsl(var(--accent));
 }
+/* Compact variant for the "revert to note" affordance — same shape as
+   .mnote__icon-btn but inline with the actions row instead of the head
+   chrome. Used by the TODO downgrade button (icon only, no label). */
+.mnote__btn--ghost {
+  padding: 3px 6px;
+  border-color: hsl(var(--rule));
+  color: hsl(var(--ink-4));
+}
+.mnote__btn--ghost:hover {
+  color: hsl(var(--ink-2));
+  border-color: hsl(var(--ink-4));
+}
 .mnote__btn--primary:hover {
   background: hsl(var(--story-1));
   color: hsl(var(--accent-foreground));
@@ -1574,6 +1625,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    competing for horizontal space with expanded cards. */
 .comment-chip {
   position: absolute;
+  top: 28px; /* fallback; CommentRail writes the real top imperatively */
   right: 8px;
   width: 22px;
   height: 22px;

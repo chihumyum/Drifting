@@ -2,19 +2,19 @@ import { useEffect, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 
-type RightPanelId = 'fragments' | 'stats' | 'shadow';
+type RightPanelId = 'todo' | 'library' | 'stats' | 'shadow';
 
 interface RightSidebarHeaderProps {
   shadowReviewCount: number;
   kicker: string;
   title: string;
-  /** Pulsates the fragments tab label after a shadow → fragment conversion. */
+  /** Pulsates the library/TODO tab labels after a shadow → fragment conversion. */
   fragmentCountFlash?: boolean;
   /** Pulsates the Shadow tab when shadow mode first activates. */
   shadowJustAppeared?: boolean;
   /** Skip the kicker + title block under the tab strip — used by the
-   *  fragments tab where the tab label itself already describes the surface
-   *  and the project-wide list doesn't need a per-entity title. */
+   *  TODO + Library tabs where the tab label itself already describes the
+   *  surface and the project-wide list doesn't need a per-entity title. */
   hideTitleBlock?: boolean;
 }
 
@@ -51,8 +51,11 @@ export function RightSidebarHeader({
     ro.observe(node);
     return () => ro.disconnect();
   }, [trayRef]);
+  // With 4 tabs (TODO + Library + Stats + Shadow) the tray gets squeezed
+  // earlier than the old 3-tab layout, so compactLabels triggers at a
+  // wider threshold than before.
   const shadowGlyphOnly = shadowMode && trayWidth < 300;
-  const compactLabels = trayWidth < 135;
+  const compactLabels = trayWidth < 200;
 
   return (
     <>
@@ -94,9 +97,9 @@ export function RightSidebarHeader({
         >
           <div className="tab-indicator" style={indicatorStyle} />
           <RightPanelTab
-            id="fragments"
-            active={activeRightPanel === 'fragments'}
-            onClick={() => setActiveRightPanel('fragments')}
+            id="todo"
+            active={activeRightPanel === 'todo'}
+            onClick={() => setActiveRightPanel('todo')}
           >
             <span
               style={
@@ -107,8 +110,15 @@ export function RightSidebarHeader({
                 } as React.CSSProperties
               }
             >
-              {compactLabels ? 'MM' : '备忘与材料'}
+              {compactLabels ? 'TD' : 'TODO'}
             </span>
+          </RightPanelTab>
+          <RightPanelTab
+            id="library"
+            active={activeRightPanel === 'library'}
+            onClick={() => setActiveRightPanel('library')}
+          >
+            <span>{compactLabels ? 'LIB' : '素材库'}</span>
           </RightPanelTab>
           <RightPanelTab
             id="stats"

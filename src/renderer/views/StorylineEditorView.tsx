@@ -52,7 +52,7 @@ export function StorylineEditorView({
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
-  const { storylines, bookNodes, storylineNodeMapping, manuscriptComments } = useDataStore();
+  const { storylines, bookNodes, storylineNodeMapping, comments } = useDataStore();
   const { navigateToStoryline, navigateToHome, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
@@ -90,14 +90,14 @@ export function StorylineEditorView({
   );
   const commentCount = useMemo(
     () =>
-      manuscriptComments.filter(
+      comments.filter(
         (comment) =>
           comment.projectId === projectId &&
           comment.targetKind === 'storyline' &&
           comment.targetId === (storylineId ?? '') &&
           comment.status !== 'converted',
       ).length,
-    [manuscriptComments, projectId, storylineId],
+    [comments, projectId, storylineId],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

@@ -154,6 +154,14 @@ interface SettingsState {
   copilotMode: CopilotMode;
   setCopilotMode: (m: CopilotMode) => void;
   /**
+   * Whether Copilot runs inside the drift-node editor. Drift nodes are
+   * scratch / inspiration space, so by default we keep the副手 quiet there
+   * even when the master switch is on — it stays active in chapter editors.
+   * Flip on to get the same task suggestions in drifts.
+   */
+  copilotInDrift: boolean;
+  setCopilotInDrift: (on: boolean) => void;
+  /**
    * Per-task configuration map. Each task carries its own enabled flag
    * and an optional debounceMs override (undefined = fall back to the
    * capability's `defaultDebounceMs`). Replaces the legacy
@@ -283,6 +291,8 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotEnabled: (on) => set({ copilotEnabled: on }),
       copilotMode: 'cloud',
       setCopilotMode: (m) => set({ copilotMode: m }),
+      copilotInDrift: false,
+      setCopilotInDrift: (on) => set({ copilotInDrift: on }),
       copilotTaskConfigs: buildInitialTaskConfigs(),
       setCopilotTaskEnabled: (id, on) =>
         set((state) => ({

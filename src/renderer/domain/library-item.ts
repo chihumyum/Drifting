@@ -1,13 +1,13 @@
-export type MaterialKind = 'image' | 'pdf' | 'url' | 'text';
+export type LibraryItemKind = 'image' | 'pdf' | 'url' | 'text';
 
-export type MaterialSource = 'local' | 'url';
+export type LibraryItemSource = 'local' | 'url';
 
-export interface Material {
+export interface LibraryItem {
   id: string;
   projectId: string;
   title: string;
-  kind: MaterialKind;
-  source: MaterialSource;
+  kind: LibraryItemKind;
+  source: LibraryItemSource;
   /** http(s) URL for `source === 'url'`; file:// path for `source === 'local'`. */
   uri: string;
   /** Absolute on-disk path when `source === 'local'`; null otherwise. */
@@ -16,7 +16,7 @@ export interface Material {
   sizeBytes: number | null;
   /** Plain-text body when `kind === 'text'`; otherwise null. */
   bodyJson: string | null;
-  /** Free-form author annotations attached to the material. */
+  /** Free-form author annotations attached to the item. */
   notesJson: string | null;
   thumbnailUri: string | null;
   orderKey: number;

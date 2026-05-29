@@ -1,28 +1,28 @@
 import { getDb, type DbExecutor } from '../lib/db';
-import { MaterialTable } from '../schema/drizzle';
+import { LibraryItemTable } from '../schema/drizzle';
 import { eq, asc, desc } from 'drizzle-orm';
-import type { Material, MaterialKind, MaterialSource } from '../domain/material';
+import type { LibraryItem, LibraryItemKind, LibraryItemSource } from '../domain/library-item';
 
-export type MaterialCreateData = Material;
-export type MaterialUpdateData = Partial<Omit<Material, 'id' | 'createdAt' | 'projectId'>> & {
+export type LibraryItemCreateData = LibraryItem;
+export type LibraryItemUpdateData = Partial<Omit<LibraryItem, 'id' | 'createdAt' | 'projectId'>> & {
   updatedAt: string;
 };
 
-export interface MaterialRepository {
-  findById(id: string): Promise<Material | null>;
-  findAll(): Promise<Material[]>;
-  create(input: MaterialCreateData): Promise<Material>;
-  update(id: string, data: MaterialUpdateData): Promise<Material | null>;
+export interface LibraryItemRepository {
+  findById(id: string): Promise<LibraryItem | null>;
+  findAll(): Promise<LibraryItem[]>;
+  create(input: LibraryItemCreateData): Promise<LibraryItem>;
+  update(id: string, data: LibraryItemUpdateData): Promise<LibraryItem | null>;
   delete(id: string): Promise<boolean>;
 }
 
-function toDomain(record: typeof MaterialTable.$inferSelect): Material {
+function toDomain(record: typeof LibraryItemTable.$inferSelect): LibraryItem {
   return {
     id: record.id,
     projectId: record.projectId,
     title: record.title,
-    kind: record.kind as MaterialKind,
-    source: record.source as MaterialSource,
+    kind: record.kind as LibraryItemKind,
+    source: record.source as LibraryItemSource,
     uri: record.uri,
     localPath: record.localPath,
     mime: record.mime,
@@ -36,27 +36,27 @@ function toDomain(record: typeof MaterialTable.$inferSelect): Material {
   };
 }
 
-export function createMaterialSqliteRepository(
+export function createLibraryItemSqliteRepository(
   projectId: string,
   dbOverride?: DbExecutor,
-): MaterialRepository {
+): LibraryItemRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
-  const findById = async (id: string): Promise<Material | null> => {
+  const findById = async (id: string): Promise<LibraryItem | null> => {
     const rows = await dbProvider()
       .select()
-      .from(MaterialTable)
-      .where(eq(MaterialTable.id, id))
+      .from(LibraryItemTable)
+      .where(eq(LibraryItemTable.id, id))
       .limit(1);
     return rows[0] ? toDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<Material[]> => {
+  const findAll = async (): Promise<LibraryItem[]> => {
     const rows = await dbProvider()
       .select()
-      .from(MaterialTable)
-      .where(eq(MaterialTable.projectId, projectId))
-      .orderBy(asc(MaterialTable.orderKey), desc(MaterialTable.updatedAt));
+      .from(LibraryItemTable)
+      .where(eq(LibraryItemTable.projectId, projectId))
+      .orderBy(asc(LibraryItemTable.orderKey), desc(LibraryItemTable.updatedAt));
     return rows.map(toDomain);
   };
 
@@ -64,7 +64,7 @@ export function createMaterialSqliteRepository(
     findById,
     findAll,
     create: async (input) => {
-      const row: typeof MaterialTable.$inferInsert = {
+      const row: typeof LibraryItemTable.$inferInsert = {
         id: input.id,
         projectId: input.projectId,
         title: input.title,
@@ -81,13 +81,13 @@ export function createMaterialSqliteRepository(
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       };
-      await dbProvider().insert(MaterialTable).values(row);
+      await dbProvider().insert(LibraryItemTable).values(row);
       return (await findById(input.id))!;
     },
     update: async (id, data) => {
-      if (!data.updatedAt) throw new Error('updatedAt is required when updating a material');
+      if (!data.updatedAt) throw new Error('updatedAt is required when updating a library item');
 
-      const updateValues: Partial<typeof MaterialTable.$inferInsert> = {
+      const updateValues: Partial<typeof LibraryItemTable.$inferInsert> = {
         updatedAt: data.updatedAt,
       };
       if (data.title !== undefined) updateValues.title = data.title;
@@ -102,11 +102,11 @@ export function createMaterialSqliteRepository(
       if (data.thumbnailUri !== undefined) updateValues.thumbnailUri = data.thumbnailUri;
       if (data.orderKey !== undefined) updateValues.orderKey = data.orderKey;
 
-      await dbProvider().update(MaterialTable).set(updateValues).where(eq(MaterialTable.id, id));
+      await dbProvider().update(LibraryItemTable).set(updateValues).where(eq(LibraryItemTable.id, id));
       return findById(id);
     },
     delete: async (id) => {
-      await dbProvider().delete(MaterialTable).where(eq(MaterialTable.id, id));
+      await dbProvider().delete(LibraryItemTable).where(eq(LibraryItemTable.id, id));
       return true;
     },
   };

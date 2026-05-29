@@ -336,14 +336,26 @@ function SetRail({
 
 // ─── Shared primitives ───────────────────────────────────────────────
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (next: boolean) => void }) {
+function Toggle({
+  on,
+  onChange,
+  disabled = false,
+}: {
+  on: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
       className={'tog' + (on ? ' tog--on' : '')}
       role="switch"
       aria-checked={on}
-      onClick={() => onChange(!on)}
+      disabled={disabled}
+      style={disabled ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+      onClick={() => {
+        if (!disabled) onChange(!on);
+      }}
     />
   );
 }
@@ -2182,6 +2194,8 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
+  const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
+  const setCopilotInDrift = useSettingsStore((s) => s.setCopilotInDrift);
   const copilotMode = useSettingsStore((s) => s.copilotMode);
   const setCopilotMode = useSettingsStore((s) => s.setCopilotMode);
   const generateSummaries = useSettingsStore((s) => s.copilotGenerateSummaries);
@@ -2203,6 +2217,17 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="启用 Copilot"
           desc="总开关，关闭后下面所有 task 都不会启动。"
           control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
+        />
+        <Row
+          label="在 drift 节点中启用"
+          desc="drift 是灵感草稿区，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后 drift 编辑器也会跑同样的 task。"
+          control={
+            <Toggle
+              on={copilotInDrift}
+              onChange={setCopilotInDrift}
+              disabled={!copilotEnabled}
+            />
+          }
         />
       </div>
 

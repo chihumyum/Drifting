@@ -3,9 +3,8 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
-import type { Memo } from '../domain/memo';
-import type { Material } from '../domain/material';
-import type { CommentAction, ManuscriptComment } from '../domain/manuscript-comment';
+import type { LibraryItem } from '../domain/library-item';
+import type { Comment, CommentAction } from '../domain/comment';
 import type { BlockSection } from '../domain/block-section';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
@@ -68,23 +67,17 @@ interface DataState {
   updateBookElement: (id: string, updates: Partial<BookElement>) => void;
   removeBookElement: (id: string) => void;
 
-  memos: Memo[];
-  setMemos: (memos: Memo[]) => void;
-  addMemo: (memo: Memo) => void;
-  updateMemo: (id: string, updates: Partial<Memo>) => void;
-  removeMemo: (id: string) => void;
+  libraryItems: LibraryItem[];
+  setLibraryItems: (items: LibraryItem[]) => void;
+  addLibraryItem: (item: LibraryItem) => void;
+  updateLibraryItem: (id: string, updates: Partial<LibraryItem>) => void;
+  removeLibraryItem: (id: string) => void;
 
-  materials: Material[];
-  setMaterials: (materials: Material[]) => void;
-  addMaterial: (material: Material) => void;
-  updateMaterial: (id: string, updates: Partial<Material>) => void;
-  removeMaterial: (id: string) => void;
-
-  manuscriptComments: ManuscriptComment[];
-  setManuscriptComments: (comments: ManuscriptComment[]) => void;
-  addManuscriptComment: (comment: ManuscriptComment) => void;
-  updateManuscriptComment: (id: string, updates: Partial<ManuscriptComment>) => void;
-  removeManuscriptComment: (id: string) => void;
+  comments: Comment[];
+  setComments: (comments: Comment[]) => void;
+  addComment: (comment: Comment) => void;
+  updateComment: (id: string, updates: Partial<Comment>) => void;
+  removeComment: (id: string) => void;
 
   commentActions: CommentAction[];
   setCommentActions: (actions: CommentAction[]) => void;
@@ -93,7 +86,7 @@ interface DataState {
   removeCommentAction: (id: string) => void;
 
   /**
-   * User-curated cross-entity relations (memo → node, material → element …).
+   * User-curated cross-entity relations (comment → node, library_item → element …).
    * Inline mentions are NOT mirrored here; only relation rows used by the
    * right sidebar relation picker.
    */
@@ -264,38 +257,29 @@ export const useDataStore = create<DataState>((set) => ({
   removeBookElement: (id) =>
     set((state) => ({ bookElements: state.bookElements.filter((element) => element.id !== id) })),
 
-  memos: [],
-  setMemos: (memos) => set({ memos }),
-  addMemo: (memo) => set((state) => ({ memos: [memo, ...state.memos] })),
-  updateMemo: (id, updates) =>
+  libraryItems: [],
+  setLibraryItems: (libraryItems) => set({ libraryItems }),
+  addLibraryItem: (item) => set((state) => ({ libraryItems: [item, ...state.libraryItems] })),
+  updateLibraryItem: (id, updates) =>
     set((state) => ({
-      memos: state.memos.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+      libraryItems: state.libraryItems.map((m) => (m.id === id ? { ...m, ...updates } : m)),
     })),
-  removeMemo: (id) => set((state) => ({ memos: state.memos.filter((m) => m.id !== id) })),
+  removeLibraryItem: (id) =>
+    set((state) => ({ libraryItems: state.libraryItems.filter((m) => m.id !== id) })),
 
-  materials: [],
-  setMaterials: (materials) => set({ materials }),
-  addMaterial: (material) => set((state) => ({ materials: [material, ...state.materials] })),
-  updateMaterial: (id, updates) =>
+  comments: [],
+  setComments: (comments) => set({ comments }),
+  addComment: (comment) =>
+    set((state) => ({ comments: [...state.comments, comment] })),
+  updateComment: (id, updates) =>
     set((state) => ({
-      materials: state.materials.map((m) => (m.id === id ? { ...m, ...updates } : m)),
-    })),
-  removeMaterial: (id) =>
-    set((state) => ({ materials: state.materials.filter((m) => m.id !== id) })),
-
-  manuscriptComments: [],
-  setManuscriptComments: (manuscriptComments) => set({ manuscriptComments }),
-  addManuscriptComment: (comment) =>
-    set((state) => ({ manuscriptComments: [...state.manuscriptComments, comment] })),
-  updateManuscriptComment: (id, updates) =>
-    set((state) => ({
-      manuscriptComments: state.manuscriptComments.map((comment) =>
+      comments: state.comments.map((comment) =>
         comment.id === id ? { ...comment, ...updates } : comment,
       ),
     })),
-  removeManuscriptComment: (id) =>
+  removeComment: (id) =>
     set((state) => ({
-      manuscriptComments: state.manuscriptComments.filter((comment) => comment.id !== id),
+      comments: state.comments.filter((comment) => comment.id !== id),
       commentActions: state.commentActions.filter((action) => action.commentId !== id),
     })),
 

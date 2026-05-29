@@ -34,7 +34,7 @@ import {
 import { copilotRuntime } from '../lib/copilot/runtime';
 import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
-import { useManuscriptComment } from '../usecase/useManuscriptComment';
+import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { events } from '../lib/events';
 
@@ -52,7 +52,7 @@ export function useCopilot({
   nodeId,
   userId,
 }: UseCopilotInput): void {
-  const { createCopilotSuggestion } = useManuscriptComment({ projectId, userId });
+  const { createCopilotSuggestion } = useComment({ projectId, userId });
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const summariesEnabled = useSettingsStore((s) => s.copilotGenerateSummaries);
   const summarySectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);

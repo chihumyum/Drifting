@@ -30,9 +30,8 @@ import {
   EntityRelationTable,
   InlineMentionTable,
   LocalSyncMutationTable,
-  ManuscriptCommentTable,
-  MaterialTable,
-  MemoTable,
+  CommentTable,
+  LibraryItemTable,
   NodeContentTable,
   NodeStorylineLinkTable,
   ProjectTable,
@@ -64,10 +63,9 @@ export type EntityType =
   | 'elementCategory'
   | 'elementPatch'
   | 'blockSection'
-  | 'memo'
-  | 'material'
+  | 'libraryItem'
   | 'entityRelation'
-  | 'manuscriptComment'
+  | 'comment'
   | 'commentAction';
 
 // 'softDelete' moves the entity to trash (deletedAt = now); restore clears
@@ -125,9 +123,8 @@ export interface ProjectGraphPayload {
   inlineMentions: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
   blockSections: Record<string, unknown>[];
-  memos: Record<string, unknown>[];
-  materials: Record<string, unknown>[];
-  manuscriptComments: Record<string, unknown>[];
+  libraryItems: Record<string, unknown>[];
+  comments: Record<string, unknown>[];
   commentActions: Record<string, unknown>[];
 }
 
@@ -553,31 +550,18 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         endpoint: `/api/projects/${projectId}/block-sections/${entityId}`,
       };
 
-    // ---- Memo ----
-    case 'memo':
+    // ---- Library Item (formerly material; now also hosts free-form text notes) ----
+    case 'libraryItem':
       if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/memos`, data: payload };
+        return { method: 'POST', endpoint: `/api/projects/${projectId}/library`, data: payload };
       } else if (mutationType === 'update') {
         return {
           method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/memos/${entityId}`,
+          endpoint: `/api/projects/${projectId}/library/${entityId}`,
           data: payload,
         };
       }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/memos/${entityId}` };
-
-    // ---- Material ----
-    case 'material':
-      if (mutationType === 'create') {
-        return { method: 'POST', endpoint: `/api/projects/${projectId}/materials`, data: payload };
-      } else if (mutationType === 'update') {
-        return {
-          method: 'PATCH',
-          endpoint: `/api/projects/${projectId}/materials/${entityId}`,
-          data: payload,
-        };
-      }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/materials/${entityId}` };
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/library/${entityId}` };
 
     // ---- Entity Relation (user-curated cross-entity link) ----
     case 'entityRelation':
@@ -596,8 +580,8 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/relations/${entityId}` };
 
-    // ---- Manuscript Comment ----
-    case 'manuscriptComment':
+    // ---- Comment (notes + TODOs; see drizzle.ts for the anchor matrix) ----
+    case 'comment':
       if (mutationType === 'create') {
         return {
           method: 'POST',
@@ -805,9 +789,8 @@ export interface PullResult {
   inlineMentions?: unknown[];
   entityPatches?: unknown[];
   blockSections?: unknown[];
-  memos?: unknown[];
-  materials?: unknown[];
-  manuscriptComments?: unknown[];
+  libraryItems?: unknown[];
+  comments?: unknown[];
   commentActions?: unknown[];
 }
 
@@ -831,9 +814,8 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     inlineMentions: graph.inlineMentions,
     entityPatches: graph.entityPatches,
     blockSections: graph.blockSections,
-    memos: graph.memos,
-    materials: graph.materials,
-    manuscriptComments: graph.manuscriptComments,
+    libraryItems: graph.libraryItems,
+    comments: graph.comments,
     commentActions: graph.commentActions,
   };
 }
@@ -989,26 +971,8 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       };
     }),
   );
-  dataStore.setMemos(
-    graph.memos.map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      title: stringValue(row, 'title'),
-      bodyJson: stringValue(row, 'bodyJson', '{}'),
-      resolution: (stringValue(row, 'resolution', 'no_action') || 'no_action') as
-        | 'no_action'
-        | 'unresolved'
-        | 'resolved',
-      priority: (nullableStringValue(row, 'priority') as 'low' | 'med' | 'high' | null) ?? null,
-      dueAt: nullableStringValue(row, 'dueAt'),
-      orderKey: numberValue(row, 'orderKey'),
-      resolvedAt: nullableStringValue(row, 'resolvedAt'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
-  );
-  dataStore.setMaterials(
-    graph.materials.map((row) => ({
+  dataStore.setLibraryItems(
+    graph.libraryItems.map((row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       title: stringValue(row, 'title'),
@@ -1031,13 +995,14 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       updatedAt: dateText(row.updatedAt),
     })),
   );
-  dataStore.setManuscriptComments(
-    graph.manuscriptComments.map((row) => ({
+  dataStore.setComments(
+    graph.comments.map((row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
-      targetKind: stringValue(row, 'targetKind') as any,
-      targetId: stringValue(row, 'targetId'),
-      targetBlockId: stringValue(row, 'targetBlockId'),
+      kind: (stringValue(row, 'kind', 'note') || 'note') as 'note' | 'todo',
+      targetKind: nullableStringValue(row, 'targetKind') as any,
+      targetId: nullableStringValue(row, 'targetId'),
+      targetBlockId: nullableStringValue(row, 'targetBlockId'),
       anchorJson: stringValue(row, 'anchorJson', '{}'),
       authorKind: (stringValue(row, 'authorKind', 'user') || 'user') as any,
       authorId: nullableStringValue(row, 'authorId'),
@@ -1274,16 +1239,16 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     }
     await deletePolymorphicForIds('category', oldCategoryIds);
 
-    // Memos and materials are project-scoped; wipe and reinsert from the
-    // payload. Their entity_relation rows are dropped here too — server is the
-    // source of truth for memo/material relations. (Inline mentions never
-    // target memo/material, so only relation cleanup is needed.)
+    // Library items and comments are project-scoped; wipe and reinsert from
+    // the payload. Their entity_relation rows are dropped here too — server is
+    // the source of truth for annotative-side relations. (Inline mentions
+    // never target an annotative entity, so only relation cleanup is needed.)
     await tx
       .delete(EntityRelationTable)
       .where(
         and(
           eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.fromKind, 'memo'),
+          eq(EntityRelationTable.fromKind, 'comment'),
         ),
       );
     await tx
@@ -1291,33 +1256,17 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       .where(
         and(
           eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.toKind, 'memo'),
+          eq(EntityRelationTable.fromKind, 'library_item'),
         ),
       );
-    await tx
-      .delete(EntityRelationTable)
-      .where(
-        and(
-          eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.fromKind, 'material'),
-        ),
-      );
-    await tx
-      .delete(EntityRelationTable)
-      .where(
-        and(
-          eq(EntityRelationTable.projectId, projectId),
-          eq(EntityRelationTable.toKind, 'material'),
-        ),
-      );
-    // Inline mentions originating from memo/material bodies (if the user
-    // happens to @-mention an element in their memo) — wipe alongside.
+    // Inline mentions originating from comment / library_item bodies (if the
+    // user happens to @-mention an element from a TODO body) — wipe alongside.
     await tx
       .delete(InlineMentionTable)
       .where(
         and(
           eq(InlineMentionTable.projectId, projectId),
-          eq(InlineMentionTable.fromKind, 'memo'),
+          eq(InlineMentionTable.fromKind, 'comment'),
         ),
       );
     await tx
@@ -1325,13 +1274,12 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       .where(
         and(
           eq(InlineMentionTable.projectId, projectId),
-          eq(InlineMentionTable.fromKind, 'material'),
+          eq(InlineMentionTable.fromKind, 'library_item'),
         ),
       );
-    await tx.delete(MemoTable).where(eq(MemoTable.projectId, projectId));
-    await tx.delete(MaterialTable).where(eq(MaterialTable.projectId, projectId));
+    await tx.delete(LibraryItemTable).where(eq(LibraryItemTable.projectId, projectId));
     await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
-    await tx.delete(ManuscriptCommentTable).where(eq(ManuscriptCommentTable.projectId, projectId));
+    await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
@@ -1598,24 +1546,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       }
     }
 
-    const memos = normalizeRows(graph.memos, (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      title: stringValue(row, 'title'),
-      bodyJson: stringValue(row, 'bodyJson', '{}'),
-      resolution: stringValue(row, 'resolution', 'no_action') || 'no_action',
-      priority: nullableStringValue(row, 'priority'),
-      dueAt: nullableStringValue(row, 'dueAt'),
-      orderKey: numberValue(row, 'orderKey'),
-      resolvedAt: nullableStringValue(row, 'resolvedAt'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id);
-    if (memos.length > 0) {
-      await tx.insert(MemoTable).values(memos as any[]);
-    }
-
-    const materials = normalizeRows(graph.materials, (row) => ({
+    const libraryItems = normalizeRows(graph.libraryItems, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       title: stringValue(row, 'title'),
@@ -1635,16 +1566,17 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.kind);
-    if (materials.length > 0) {
-      await tx.insert(MaterialTable).values(materials as any[]);
+    if (libraryItems.length > 0) {
+      await tx.insert(LibraryItemTable).values(libraryItems as any[]);
     }
 
-    const manuscriptComments = normalizeRows(graph.manuscriptComments, (row) => ({
+    const comments = normalizeRows(graph.comments, (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
-      targetKind: stringValue(row, 'targetKind'),
-      targetId: stringValue(row, 'targetId'),
-      targetBlockId: stringValue(row, 'targetBlockId'),
+      kind: stringValue(row, 'kind', 'note') || 'note',
+      targetKind: nullableStringValue(row, 'targetKind'),
+      targetId: nullableStringValue(row, 'targetId'),
+      targetBlockId: nullableStringValue(row, 'targetBlockId'),
       anchorJson: stringValue(row, 'anchorJson', '{}'),
       authorKind: stringValue(row, 'authorKind', 'user') || 'user',
       authorId: nullableStringValue(row, 'authorId'),
@@ -1657,9 +1589,9 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       resolvedAt: nullableStringValue(row, 'resolvedAt'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.targetId && row.targetBlockId);
-    if (manuscriptComments.length > 0) {
-      await tx.insert(ManuscriptCommentTable).values(manuscriptComments as any[]);
+    })).filter((row) => row.id);
+    if (comments.length > 0) {
+      await tx.insert(CommentTable).values(comments as any[]);
     }
 
     const commentActions = normalizeRows(graph.commentActions, (row) => ({
@@ -1738,9 +1670,8 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.inlineMentions.length +
       response.data.entityPatches.length +
       (response.data.blockSections?.length ?? 0) +
-      response.data.memos.length +
-      response.data.materials.length +
-      response.data.manuscriptComments.length +
+      response.data.libraryItems.length +
+      response.data.comments.length +
       response.data.commentActions.length;
 
     setStatus('idle');

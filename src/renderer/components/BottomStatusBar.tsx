@@ -94,8 +94,8 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__super${activeSuperView === 'memo-material' ? ' is-active' : ''}`}
         onClick={() => toggleSuper('memo-material')}
-        title="Memo & Material"
-        aria-label="Memo & Material"
+        title="TODO & Library"
+        aria-label="TODO & Library"
       >
         <AllRefsIcon size={14} />
       </button>

@@ -1,16 +1,20 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
-import type { Material, MaterialKind, MaterialSource } from '../domain/material';
-import { createMaterialSqliteRepository } from '../sqlite-repo/material-repo';
+import type { LibraryItem, LibraryItemKind, LibraryItemSource } from '../domain/library-item';
+import { createLibraryItemSqliteRepository } from '../sqlite-repo/library-item-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
-import { syncMaterialCreate, syncMaterialUpdate, syncMaterialDelete } from './sync-helpers';
+import {
+  syncLibraryItemCreate,
+  syncLibraryItemUpdate,
+  syncLibraryItemDelete,
+} from './sync-helpers';
 
-export interface CreateMaterialInput {
+export interface CreateLibraryItemInput {
   title?: string;
-  kind: MaterialKind;
-  source: MaterialSource;
+  kind: LibraryItemKind;
+  source: LibraryItemSource;
   uri: string;
   localPath?: string | null;
   mime?: string | null;
@@ -20,42 +24,42 @@ export interface CreateMaterialInput {
   thumbnailUri?: string | null;
 }
 
-export type UpdateMaterialUsecaseInput = Partial<
-  Omit<Material, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>
+export type UpdateLibraryItemUsecaseInput = Partial<
+  Omit<LibraryItem, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>
 >;
 
-export interface UseBookMaterialContext {
+export interface UseLibraryItemContext {
   projectId: string;
   userId: string;
 }
 
-export function useBookMaterial({ projectId, userId }: UseBookMaterialContext) {
-  if (!projectId) throw new Error('useBookMaterial requires a projectId');
-  if (!userId) throw new Error('useBookMaterial requires a userId');
+export function useLibraryItem({ projectId, userId }: UseLibraryItemContext) {
+  if (!projectId) throw new Error('useLibraryItem requires a projectId');
+  if (!userId) throw new Error('useLibraryItem requires a userId');
 
-  const repo = useMemo(() => createMaterialSqliteRepository(projectId), [projectId]);
+  const repo = useMemo(() => createLibraryItemSqliteRepository(projectId), [projectId]);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
 
-  const getMaterials = useCallback(() => useDataStore.getState().materials, []);
-  const setMaterials = useCallback(
-    (mats: Material[]) => useDataStore.getState().setMaterials(mats),
+  const getItems = useCallback(() => useDataStore.getState().libraryItems, []);
+  const setItems = useCallback(
+    (items: LibraryItem[]) => useDataStore.getState().setLibraryItems(items),
     [],
   );
 
   const loadInitial = useCallback(async () => {
     await ensureDb();
-    const materials = await repo.findAll();
-    setMaterials(materials);
-  }, [repo, setMaterials, ensureDb]);
+    const items = await repo.findAll();
+    setItems(items);
+  }, [repo, setItems, ensureDb]);
 
-  const createMaterial = useCallback(
-    async (input: CreateMaterialInput) => {
+  const createLibraryItem = useCallback(
+    async (input: CreateLibraryItemInput) => {
       await ensureDb();
-      const prev = getMaterials().slice();
+      const prev = getItems().slice();
       const now = new Date().toISOString();
-      const newMaterial: Material = {
+      const newItem: LibraryItem = {
         id: uuidv7(),
         projectId,
         title: input.title?.trim() ?? '',
@@ -74,15 +78,15 @@ export function useBookMaterial({ projectId, userId }: UseBookMaterialContext) {
       };
 
       return withOptimisticUpdate({
-        apply: () => setMaterials([newMaterial, ...prev]),
-        rollback: () => setMaterials(prev),
-        effect: () => repo.create(newMaterial),
+        apply: () => setItems([newItem, ...prev]),
+        rollback: () => setItems(prev),
+        effect: () => repo.create(newItem),
         onSuccess: (persisted) => {
-          const current = getMaterials();
-          setMaterials(current.map((m) => (m.id === persisted.id ? persisted : m)));
+          const current = getItems();
+          setItems(current.map((m) => (m.id === persisted.id ? persisted : m)));
         },
         sync: (persisted) =>
-          syncMaterialCreate(persisted.id, projectId, {
+          syncLibraryItemCreate(persisted.id, projectId, {
             id: persisted.id,
             title: persisted.title,
             kind: persisted.kind,
@@ -98,21 +102,21 @@ export function useBookMaterial({ projectId, userId }: UseBookMaterialContext) {
           }),
       });
     },
-    [repo, getMaterials, setMaterials, ensureDb, projectId],
+    [repo, getItems, setItems, ensureDb, projectId],
   );
 
-  const updateMaterial = useCallback(
-    async (id: string, updates: UpdateMaterialUsecaseInput) => {
+  const updateLibraryItem = useCallback(
+    async (id: string, updates: UpdateLibraryItemUsecaseInput) => {
       await ensureDb();
       const now = new Date().toISOString();
-      const materials = getMaterials();
-      const existing = materials.find((m) => m.id === id);
-      if (!existing) throw new Error(`Material with id ${id} not found`);
+      const items = getItems();
+      const existing = items.find((m) => m.id === id);
+      if (!existing) throw new Error(`Library item with id ${id} not found`);
 
-      const updated: Material = { ...existing, ...updates, updatedAt: now };
+      const updated: LibraryItem = { ...existing, ...updates, updatedAt: now };
       return withOptimisticUpdate({
-        apply: () => setMaterials(materials.map((m) => (m.id === id ? updated : m))),
-        rollback: () => setMaterials(materials),
+        apply: () => setItems(items.map((m) => (m.id === id ? updated : m))),
+        rollback: () => setItems(items),
         effect: async () => {
           const persisted = await repo.update(id, {
             title: updated.title,
@@ -128,15 +132,15 @@ export function useBookMaterial({ projectId, userId }: UseBookMaterialContext) {
             orderKey: updated.orderKey,
             updatedAt: updated.updatedAt,
           });
-          if (!persisted) throw new Error(`Material with id ${id} not found`);
+          if (!persisted) throw new Error(`Library item with id ${id} not found`);
           return persisted;
         },
         onSuccess: (persisted) => {
-          const current = getMaterials();
-          setMaterials(current.map((m) => (m.id === id ? persisted : m)));
+          const current = getItems();
+          setItems(current.map((m) => (m.id === id ? persisted : m)));
         },
         sync: (persisted) =>
-          syncMaterialUpdate(id, projectId, {
+          syncLibraryItemUpdate(id, projectId, {
             title: persisted.title,
             kind: persisted.kind,
             source: persisted.source,
@@ -151,29 +155,29 @@ export function useBookMaterial({ projectId, userId }: UseBookMaterialContext) {
           }),
       });
     },
-    [repo, getMaterials, setMaterials, ensureDb, projectId],
+    [repo, getItems, setItems, ensureDb, projectId],
   );
 
-  const removeMaterial = useCallback(
+  const removeLibraryItem = useCallback(
     async (id: string) => {
       await ensureDb();
-      const materials = getMaterials();
-      const existing = materials.find((m) => m.id === id);
-      if (!existing) throw new Error(`Material with id ${id} not found`);
+      const items = getItems();
+      const existing = items.find((m) => m.id === id);
+      if (!existing) throw new Error(`Library item with id ${id} not found`);
 
-      const filtered = materials.filter((m) => m.id !== id);
+      const filtered = items.filter((m) => m.id !== id);
       return withOptimisticUpdate({
-        apply: () => setMaterials(filtered),
-        rollback: () => setMaterials(materials),
+        apply: () => setItems(filtered),
+        rollback: () => setItems(items),
         effect: () => repo.delete(id),
-        sync: () => syncMaterialDelete(id, projectId),
+        sync: () => syncLibraryItemDelete(id, projectId),
       });
     },
-    [repo, getMaterials, setMaterials, ensureDb, projectId],
+    [repo, getItems, setItems, ensureDb, projectId],
   );
 
   return useMemo(
-    () => ({ loadInitial, createMaterial, updateMaterial, removeMaterial }),
-    [loadInitial, createMaterial, updateMaterial, removeMaterial],
+    () => ({ loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem }),
+    [loadInitial, createLibraryItem, updateLibraryItem, removeLibraryItem],
   );
 }

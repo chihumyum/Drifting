@@ -1,47 +1,46 @@
 import { useCallback, useMemo } from 'react';
 import { v7 as uuidv7 } from 'uuid';
 import { initDatabase, getDb } from '../lib/db';
-import { EntityRelationTable } from '../schema/drizzle';
-import { createPlainCommentDoc, extractTextFromCommentBody, getSelectedTextFromAnchor } from '../domain/manuscript-comment';
+import { createPlainCommentDoc } from '../domain/comment';
 import type {
+  Comment,
   CommentAction,
   CommentAuthorKind,
+  CommentKind,
   CommentPriority,
   CommentSource,
   CommentTargetKind,
-  ManuscriptComment,
-} from '../domain/manuscript-comment';
+} from '../domain/comment';
 import {
   encodeCopilotMetadata,
   type AcceptCopilotResult,
   type CopilotSuggestionMetadata,
 } from '../domain/copilot-suggestion';
-import type { Memo } from '../domain/memo';
-import { createMemoSqliteRepository } from '../sqlite-repo/memo-repo';
 import {
   createCommentActionRepository,
-  createManuscriptCommentRepository,
-} from '../sqlite-repo/manuscript-comment-repo';
-import { useDataStore, type EntityRelationLink } from '../store/data-store';
+  createCommentRepository,
+} from '../sqlite-repo/comment-repo';
+import { useDataStore } from '../store/data-store';
 import { withOptimisticUpdate } from './optimistic';
 import {
   syncCommentActionCreate,
-  syncEntityRelationCreate,
-  syncManuscriptCommentCreate,
-  syncManuscriptCommentDelete,
-  syncManuscriptCommentUpdate,
-  syncMemoCreate,
+  syncCommentCreate,
+  syncCommentDelete,
+  syncCommentUpdate,
 } from './sync-helpers';
 
-export interface UseManuscriptCommentContext {
+export interface UseCommentContext {
   projectId: string;
   userId: string;
 }
 
-export interface CreateManuscriptCommentInput {
-  targetKind: CommentTargetKind;
-  targetId: string;
-  targetBlockId: string;
+export interface CreateCommentInput {
+  /** 'note' for editor-anchored annotations, 'todo' for right-sidebar tasks. */
+  kind?: CommentKind;
+  /** All three target fields are optional. Omit for floating (project-level) TODOs. */
+  targetKind?: CommentTargetKind | null;
+  targetId?: string | null;
+  targetBlockId?: string | null;
   anchorJson?: string;
   bodyJson: string;
   authorKind?: CommentAuthorKind;
@@ -53,11 +52,11 @@ export interface CreateManuscriptCommentInput {
 }
 
 /**
- * Copilot-flavored variant of CreateManuscriptCommentInput. Hard-codes
+ * Copilot-flavored variant of CreateCommentInput. Hard-codes
  * authorKind/source/authorName to the copilot defaults, requires structured
  * metadata, and auto-builds bodyJson from the metadata if the caller doesn't
- * supply one. Kept separate from CreateManuscriptCommentInput so type-level
- * mistakes (e.g. forgetting to set source: 'copilot') become impossible.
+ * supply one. Kept separate from CreateCommentInput so type-level mistakes
+ * (e.g. forgetting to set source: 'copilot') become impossible.
  */
 export interface CreateCopilotSuggestionInput {
   targetKind: CommentTargetKind;
@@ -72,9 +71,10 @@ export interface CreateCopilotSuggestionInput {
   priority?: CommentPriority | null;
 }
 
-function commentSyncPayload(comment: ManuscriptComment): Record<string, unknown> {
+function commentSyncPayload(comment: Comment): Record<string, unknown> {
   return {
     id: comment.id,
+    kind: comment.kind,
     targetKind: comment.targetKind,
     targetId: comment.targetId,
     targetBlockId: comment.targetBlockId,
@@ -106,24 +106,11 @@ function actionSyncPayload(action: CommentAction): Record<string, unknown> {
   };
 }
 
-function memoSyncPayload(memo: Memo): Record<string, unknown> {
-  return {
-    id: memo.id,
-    title: memo.title,
-    bodyJson: memo.bodyJson,
-    resolution: memo.resolution,
-    priority: memo.priority,
-    dueAt: memo.dueAt,
-    orderKey: memo.orderKey,
-    resolvedAt: memo.resolvedAt,
-  };
-}
+export function useComment({ projectId, userId }: UseCommentContext) {
+  if (!projectId) throw new Error('useComment requires a projectId');
+  if (!userId) throw new Error('useComment requires a userId');
 
-export function useManuscriptComment({ projectId, userId }: UseManuscriptCommentContext) {
-  if (!projectId) throw new Error('useManuscriptComment requires a projectId');
-  if (!userId) throw new Error('useManuscriptComment requires a userId');
-
-  const commentRepo = useMemo(() => createManuscriptCommentRepository(projectId), [projectId]);
+  const commentRepo = useMemo(() => createCommentRepository(projectId), [projectId]);
   const actionRepo = useMemo(() => createCommentActionRepository(projectId), [projectId]);
 
   const ensureDb = useCallback(async () => {
@@ -134,21 +121,22 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
     await ensureDb();
     const [comments, actions] = await Promise.all([commentRepo.findAll(), actionRepo.findAll()]);
     const store = useDataStore.getState();
-    store.setManuscriptComments(comments);
+    store.setComments(comments);
     store.setCommentActions(actions);
   }, [ensureDb, commentRepo, actionRepo]);
 
   const createComment = useCallback(
-    async (input: CreateManuscriptCommentInput) => {
+    async (input: CreateCommentInput) => {
       await ensureDb();
-      const prev = useDataStore.getState().manuscriptComments.slice();
+      const prev = useDataStore.getState().comments.slice();
       const now = new Date().toISOString();
-      const comment: ManuscriptComment = {
+      const comment: Comment = {
         id: uuidv7(),
         projectId,
-        targetKind: input.targetKind,
-        targetId: input.targetId,
-        targetBlockId: input.targetBlockId,
+        kind: input.kind ?? 'note',
+        targetKind: input.targetKind ?? null,
+        targetId: input.targetId ?? null,
+        targetBlockId: input.targetBlockId ?? null,
         anchorJson: input.anchorJson ?? '{}',
         authorKind: input.authorKind ?? 'user',
         authorId: input.authorId ?? userId,
@@ -164,11 +152,11 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       };
 
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setManuscriptComments([...prev, comment]),
-        rollback: () => useDataStore.getState().setManuscriptComments(prev),
+        apply: () => useDataStore.getState().setComments([...prev, comment]),
+        rollback: () => useDataStore.getState().setComments(prev),
         effect: () => commentRepo.create(comment),
         sync: (persisted) =>
-          syncManuscriptCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
+          syncCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
       });
     },
     [ensureDb, projectId, userId, commentRepo],
@@ -177,12 +165,12 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
   const resolveComment = useCallback(
     async (id: string) => {
       await ensureDb();
-      const comments = useDataStore.getState().manuscriptComments;
+      const comments = useDataStore.getState().comments;
       const existing = comments.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
 
       const now = new Date().toISOString();
-      const updated: ManuscriptComment = {
+      const updated: Comment = {
         ...existing,
         status: 'resolved',
         resolvedAt: now,
@@ -193,8 +181,8 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         apply: () =>
           useDataStore
             .getState()
-            .setManuscriptComments(comments.map((comment) => (comment.id === id ? updated : comment))),
-        rollback: () => useDataStore.getState().setManuscriptComments(comments),
+            .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
+        rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
           const persisted = await commentRepo.update(id, {
             status: updated.status,
@@ -205,7 +193,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
           return persisted;
         },
         sync: (persisted) =>
-          syncManuscriptCommentUpdate(persisted.id, projectId, {
+          syncCommentUpdate(persisted.id, projectId, {
             status: persisted.status,
             resolvedAt: persisted.resolvedAt,
           }),
@@ -217,12 +205,12 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
   const reopenComment = useCallback(
     async (id: string) => {
       await ensureDb();
-      const comments = useDataStore.getState().manuscriptComments;
+      const comments = useDataStore.getState().comments;
       const existing = comments.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
 
       const now = new Date().toISOString();
-      const updated: ManuscriptComment = {
+      const updated: Comment = {
         ...existing,
         status: 'open',
         resolvedAt: null,
@@ -233,8 +221,8 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         apply: () =>
           useDataStore
             .getState()
-            .setManuscriptComments(comments.map((comment) => (comment.id === id ? updated : comment))),
-        rollback: () => useDataStore.getState().setManuscriptComments(comments),
+            .setComments(comments.map((comment) => (comment.id === id ? updated : comment))),
+        rollback: () => useDataStore.getState().setComments(comments),
         effect: async () => {
           const persisted = await commentRepo.update(id, {
             status: updated.status,
@@ -245,7 +233,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
           return persisted;
         },
         sync: (persisted) =>
-          syncManuscriptCommentUpdate(persisted.id, projectId, {
+          syncCommentUpdate(persisted.id, projectId, {
             status: persisted.status,
             resolvedAt: persisted.resolvedAt,
           }),
@@ -258,154 +246,106 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
     async (id: string) => {
       await ensureDb();
       const state = useDataStore.getState();
-      const comments = state.manuscriptComments;
+      const comments = state.comments;
       const actions = state.commentActions;
       const existing = comments.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
 
       return withOptimisticUpdate({
-        apply: () => state.removeManuscriptComment(id),
+        apply: () => state.removeComment(id),
         rollback: () => {
-          useDataStore.getState().setManuscriptComments(comments);
+          useDataStore.getState().setComments(comments);
           useDataStore.getState().setCommentActions(actions);
         },
         effect: () => commentRepo.delete(id),
-        sync: () => syncManuscriptCommentDelete(id, projectId),
+        sync: () => syncCommentDelete(id, projectId),
       });
     },
     [ensureDb, projectId, commentRepo],
   );
 
-  const convertToMemo = useCallback(
+  // Promote a note-style comment to a TODO. In the consolidated model this is
+  // just an in-place kind flip: the block anchor (if any) is preserved so the
+  // promoted TODO still surfaces at its original position AND in the global
+  // TODO list. No new comment row, no entity_relation, no action audit —
+  // there's nothing to converge across.
+  const convertToTodo = useCallback(
     async (id: string) => {
       await ensureDb();
-      const state = useDataStore.getState();
-      const commentsBefore = state.manuscriptComments.slice();
-      const actionsBefore = state.commentActions.slice();
-      const memosBefore = state.memos.slice();
-      const refsBefore = state.entityRelations.slice();
-      const existing = commentsBefore.find((comment) => comment.id === id);
+      const comments = useDataStore.getState().comments;
+      const existing = comments.find((comment) => comment.id === id);
       if (!existing) throw new Error(`Comment with id ${id} not found`);
-      if (existing.status === 'converted') return null;
+      if (existing.kind === 'todo') return existing;
 
       const now = new Date().toISOString();
-      const bodyText = extractTextFromCommentBody(existing.bodyJson);
-      const quote = getSelectedTextFromAnchor(existing.anchorJson);
-      const title = bodyText.split('\n')[0]?.trim() || quote.trim() || '批注 TODO';
+      const updated: Comment = { ...existing, kind: 'todo', updatedAt: now };
 
-      const memo: Memo = {
-        id: uuidv7(),
-        projectId,
-        title,
-        bodyJson: createPlainCommentDoc(
-          [bodyText, quote ? `原文：${quote}` : ''].filter(Boolean).join('\n\n'),
-        ),
-        resolution: 'unresolved',
-        priority: existing.priority,
-        dueAt: null,
-        orderKey: 0,
-        resolvedAt: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      // The comment's block anchor (targetBlockId) is dropped here — the memo
-      // is associated with the whole entity, not the specific block. Block-
-      // level anchoring belongs to manuscript_comment, not the relation table.
-      const relation: EntityRelationLink = {
-        id: uuidv7(),
-        projectId,
-        fromKind: 'memo',
-        fromId: memo.id,
-        toKind: existing.targetKind,
-        toId: existing.targetId,
-        kind: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const action: CommentAction = {
-        id: uuidv7(),
-        projectId,
-        commentId: existing.id,
-        kind: 'convert_to_memo',
-        label: 'Convert to memo TODO',
-        payloadJson: JSON.stringify({ memoId: memo.id }),
-        status: 'applied',
-        resultJson: JSON.stringify({ memoId: memo.id, relationId: relation.id }),
-        createdByKind: 'user',
-        createdById: userId,
-        createdAt: now,
-        updatedAt: now,
-        appliedAt: now,
-      };
-
-      const converted: ManuscriptComment = {
-        ...existing,
-        status: 'converted',
-        resolvedAt: now,
-        updatedAt: now,
-      };
-
-      try {
-        const store = useDataStore.getState();
-        store.setMemos([memo, ...memosBefore]);
-        store.setEntityRelations([...refsBefore, relation]);
-        store.setCommentActions([...actionsBefore, action]);
-        store.setManuscriptComments(
-          commentsBefore.map((comment) => (comment.id === id ? converted : comment)),
-        );
-
-        await getDb().transaction(async (tx) => {
-          const txCommentRepo = createManuscriptCommentRepository(projectId, tx);
-          const txActionRepo = createCommentActionRepository(projectId, tx);
-          const txMemoRepo = createMemoSqliteRepository(projectId, tx);
-          await txMemoRepo.create(memo);
-          await tx.insert(EntityRelationTable).values(relation);
-          await txCommentRepo.update(id, {
-            status: converted.status,
-            resolvedAt: converted.resolvedAt,
-            updatedAt: converted.updatedAt,
+      return withOptimisticUpdate({
+        apply: () =>
+          useDataStore
+            .getState()
+            .setComments(comments.map((c) => (c.id === id ? updated : c))),
+        rollback: () => useDataStore.getState().setComments(comments),
+        effect: async () => {
+          const persisted = await commentRepo.update(id, {
+            kind: updated.kind,
+            updatedAt: updated.updatedAt,
           });
-          await txActionRepo.create(action);
-        });
-
-        syncMemoCreate(memo.id, projectId, memoSyncPayload(memo));
-        syncEntityRelationCreate(relation.id, projectId, {
-          id: relation.id,
-          fromKind: relation.fromKind,
-          fromId: relation.fromId,
-          toKind: relation.toKind,
-          toId: relation.toId,
-          kind: relation.kind,
-        });
-        syncManuscriptCommentUpdate(existing.id, projectId, {
-          status: converted.status,
-          resolvedAt: converted.resolvedAt,
-        });
-        syncCommentActionCreate(action.id, projectId, actionSyncPayload(action));
-
-        return memo;
-      } catch (error) {
-        const store = useDataStore.getState();
-        store.setManuscriptComments(commentsBefore);
-        store.setCommentActions(actionsBefore);
-        store.setMemos(memosBefore);
-        store.setEntityRelations(refsBefore);
-        throw error;
-      }
+          if (!persisted) throw new Error(`Comment with id ${id} not found`);
+          return persisted;
+        },
+        sync: (persisted) =>
+          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
+      });
     },
-    [ensureDb, projectId, userId],
+    [ensureDb, projectId, commentRepo],
+  );
+
+  // Inverse of convertToTodo: flip kind back to 'note' in place. Used by the
+  // editor rail "downgrade" affordance when the user wants the row to behave
+  // as a plain annotation again (drops it from the right-sidebar TODO list,
+  // keeps the block anchor and body intact).
+  const revertToNote = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      const comments = useDataStore.getState().comments;
+      const existing = comments.find((comment) => comment.id === id);
+      if (!existing) throw new Error(`Comment with id ${id} not found`);
+      if (existing.kind === 'note') return existing;
+
+      const now = new Date().toISOString();
+      const updated: Comment = { ...existing, kind: 'note', updatedAt: now };
+
+      return withOptimisticUpdate({
+        apply: () =>
+          useDataStore
+            .getState()
+            .setComments(comments.map((c) => (c.id === id ? updated : c))),
+        rollback: () => useDataStore.getState().setComments(comments),
+        effect: async () => {
+          const persisted = await commentRepo.update(id, {
+            kind: updated.kind,
+            updatedAt: updated.updatedAt,
+          });
+          if (!persisted) throw new Error(`Comment with id ${id} not found`);
+          return persisted;
+        },
+        sync: (persisted) =>
+          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
+      });
+    },
+    [ensureDb, projectId, commentRepo],
   );
 
   const createCopilotSuggestion = useCallback(
     async (input: CreateCopilotSuggestionInput) => {
       await ensureDb();
-      const prev = useDataStore.getState().manuscriptComments.slice();
+      const prev = useDataStore.getState().comments.slice();
       const now = new Date().toISOString();
-      const comment: ManuscriptComment = {
+      const comment: Comment = {
         id: uuidv7(),
         projectId,
+        kind: 'note',
         targetKind: input.targetKind,
         targetId: input.targetId,
         targetBlockId: input.targetBlockId,
@@ -424,11 +364,11 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       };
 
       return withOptimisticUpdate({
-        apply: () => useDataStore.getState().setManuscriptComments([...prev, comment]),
-        rollback: () => useDataStore.getState().setManuscriptComments(prev),
+        apply: () => useDataStore.getState().setComments([...prev, comment]),
+        rollback: () => useDataStore.getState().setComments(prev),
         effect: () => commentRepo.create(comment),
         sync: (persisted) =>
-          syncManuscriptCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
+          syncCommentCreate(persisted.id, projectId, commentSyncPayload(persisted)),
       });
     },
     [ensureDb, projectId, commentRepo],
@@ -450,7 +390,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
     ): Promise<CommentAction> => {
       await ensureDb();
       const state = useDataStore.getState();
-      const commentsBefore = state.manuscriptComments.slice();
+      const commentsBefore = state.comments.slice();
       const actionsBefore = state.commentActions.slice();
       const existing = commentsBefore.find((c) => c.id === commentId);
       if (!existing) throw new Error(`Comment with id ${commentId} not found`);
@@ -477,7 +417,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         updatedAt: now,
         appliedAt: now,
       };
-      const updatedComment: ManuscriptComment = {
+      const updatedComment: Comment = {
         ...existing,
         status: 'converted',
         resolvedAt: now,
@@ -487,12 +427,12 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       try {
         const store = useDataStore.getState();
         store.setCommentActions([...actionsBefore, action]);
-        store.setManuscriptComments(
+        store.setComments(
           commentsBefore.map((c) => (c.id === commentId ? updatedComment : c)),
         );
 
         await getDb().transaction(async (tx) => {
-          const txCommentRepo = createManuscriptCommentRepository(projectId, tx);
+          const txCommentRepo = createCommentRepository(projectId, tx);
           const txActionRepo = createCommentActionRepository(projectId, tx);
           await txCommentRepo.update(commentId, {
             status: updatedComment.status,
@@ -502,7 +442,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
           await txActionRepo.create(action);
         });
 
-        syncManuscriptCommentUpdate(commentId, projectId, {
+        syncCommentUpdate(commentId, projectId, {
           status: updatedComment.status,
           resolvedAt: updatedComment.resolvedAt,
         });
@@ -511,7 +451,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
         return action;
       } catch (error) {
         const store = useDataStore.getState();
-        store.setManuscriptComments(commentsBefore);
+        store.setComments(commentsBefore);
         store.setCommentActions(actionsBefore);
         throw error;
       }
@@ -521,7 +461,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
 
   const acceptCopilotSuggestion = useCallback(
     async (commentId: string, result: AcceptCopilotResult) => {
-      const existing = useDataStore.getState().manuscriptComments.find((c) => c.id === commentId);
+      const existing = useDataStore.getState().comments.find((c) => c.id === commentId);
       const payload = existing?.metadataJson ? JSON.parse(existing.metadataJson) : {};
       return recordSuggestionTerminal(
         commentId,
@@ -536,7 +476,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
 
   const rejectCopilotSuggestion = useCallback(
     async (commentId: string, reason?: string) => {
-      const existing = useDataStore.getState().manuscriptComments.find((c) => c.id === commentId);
+      const existing = useDataStore.getState().comments.find((c) => c.id === commentId);
       const payload = existing?.metadataJson ? JSON.parse(existing.metadataJson) : {};
       return recordSuggestionTerminal(
         commentId,
@@ -556,7 +496,8 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       resolveComment,
       reopenComment,
       deleteComment,
-      convertToMemo,
+      convertToTodo,
+      revertToNote,
       createCopilotSuggestion,
       acceptCopilotSuggestion,
       rejectCopilotSuggestion,
@@ -567,7 +508,8 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
       resolveComment,
       reopenComment,
       deleteComment,
-      convertToMemo,
+      convertToTodo,
+      revertToNote,
       createCopilotSuggestion,
       acceptCopilotSuggestion,
       rejectCopilotSuggestion,
@@ -577,9 +519,7 @@ export function useManuscriptComment({ projectId, userId }: UseManuscriptComment
 
 /**
  * Auto-generate a human-readable body for a copilot suggestion comment when
- * the caller doesn't supply one. PR 5 will likely have CommentRail render
- * from `metadataJson` directly and ignore this body for copilot rows, but a
- * sensible default keeps the existing CommentRail working out of the box.
+ * the caller doesn't supply one.
  */
 function buildCopilotBody(meta: CopilotSuggestionMetadata): string {
   switch (meta.kind) {

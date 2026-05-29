@@ -8,9 +8,9 @@
 //                target of @-mentions, manuscript comments, and entity
 //                references. Show up as named addressable things in the UI.
 //
-//   ANNOTATIVE — author-side scaffolding (memos / materials). They link
-//                OUT to structural entities but are never linked to. Not
-//                comment-able, not @-mention-able.
+//   ANNOTATIVE — author-side scaffolding (comments / library items). They
+//                link OUT to structural entities but are never linked to.
+//                Not comment-able, not @-mention-able.
 //
 //   ALL        — STRUCTURAL ∪ ANNOTATIVE. The full polymorphic vocabulary
 //                that may appear in `entity_relation.fromKind`. The
@@ -24,7 +24,7 @@ export const STRUCTURAL_ENTITY_KINDS = [
   'storyline',
 ] as const;
 
-export const ANNOTATIVE_ENTITY_KINDS = ['memo', 'material'] as const;
+export const ANNOTATIVE_ENTITY_KINDS = ['comment', 'library_item'] as const;
 
 export const ALL_ENTITY_KINDS = [
   ...STRUCTURAL_ENTITY_KINDS,

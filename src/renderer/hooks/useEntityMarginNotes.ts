@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { CommentTargetKind } from '../domain/manuscript-comment';
+import type { CommentTargetKind } from '../domain/comment';
 import { events } from '../lib/events';
 
 const STORAGE_PREFIX = 'editor:margin-notes:';

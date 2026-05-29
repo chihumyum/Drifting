@@ -1,38 +1,46 @@
-// Manuscript comments anchor to structural-entity blocks only; memo /
-// material aren't comment-able (they don't host body text the user
-// references inline).
+// Comments are the single home for {block-anchored notes, chapter-anchored
+// TODOs, floating TODOs, AI suggestions}. `kind` distinguishes 'note' (the
+// classic Word-style marginal annotation) from 'todo' (surfaces in the
+// right-sidebar TODO list and is what agent pipelines consume). target_* are
+// nullable so a comment can sit at block / chapter / nowhere — see drizzle.ts
+// for the anchor matrix.
 import type { CommentTargetKind } from './entity-kinds';
 export type { CommentTargetKind };
-export type ManuscriptCommentStatus = 'open' | 'resolved' | 'converted';
+
+export type CommentKind = 'note' | 'todo';
+export type CommentStatus = 'open' | 'resolved' | 'converted';
 export type CommentAuthorKind = 'user' | 'ai' | 'copilot' | 'external';
 export type CommentSource = 'manual' | 'shadow' | 'copilot' | 'api';
 export type CommentPriority = 'low' | 'med' | 'high';
 // Comment action log entries. New kinds are additive — `kind` is an
 // unconstrained text column at the DB level (see CommentActionTable in
 // schema/drizzle.ts), so extending this union does not require migration.
-//   - convert_to_memo:  user manually converted a comment to a memo/TODO
 //   - accept_suggestion: user accepted a Copilot proposal (status -> 'converted',
 //     resultJson carries the created Element id / patch result / etc.)
 //   - reject_suggestion: user dismissed a Copilot proposal as incorrect; row
 //     stays around as the dedup source ("don't suggest this name again")
-export type CommentActionKind =
-  | 'convert_to_memo'
-  | 'accept_suggestion'
-  | 'reject_suggestion';
+//
+// Note: legacy 'convert_to_memo' rows may still exist in older databases (the
+// pre-consolidation memo conversion path). Readers should treat unknown kinds
+// as inert — there's no live convert_to_memo handler anymore.
+export type CommentActionKind = 'accept_suggestion' | 'reject_suggestion';
 export type CommentActionStatus = 'pending' | 'applied' | 'failed';
 
-export interface ManuscriptComment {
+export interface Comment {
   id: string;
   projectId: string;
-  targetKind: CommentTargetKind;
-  targetId: string;
-  targetBlockId: string;
+  kind: CommentKind;
+  /** null when the comment is project-level / floating. */
+  targetKind: CommentTargetKind | null;
+  targetId: string | null;
+  /** null when the comment is chapter-level (no specific block) or floating. */
+  targetBlockId: string | null;
   anchorJson: string;
   authorKind: CommentAuthorKind;
   authorId: string | null;
   authorName: string | null;
   bodyJson: string;
-  status: ManuscriptCommentStatus;
+  status: CommentStatus;
   priority: CommentPriority | null;
   source: CommentSource;
   metadataJson: string | null;

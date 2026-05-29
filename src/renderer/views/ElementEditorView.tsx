@@ -42,7 +42,7 @@ export function ElementEditorView({
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(elementId);
   const userId = useAuthStore((state) => state.user?.id);
-  const { bookElements, bookElementCategories, manuscriptComments } = useDataStore();
+  const { bookElements, bookElementCategories, comments } = useDataStore();
 
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',
@@ -87,14 +87,14 @@ export function ElementEditorView({
 
   const commentCount = useMemo(
     () =>
-      manuscriptComments.filter(
+      comments.filter(
         (comment) =>
           comment.projectId === (projectId ?? '') &&
           comment.targetKind === 'element' &&
           comment.targetId === (elementId ?? '') &&
           comment.status !== 'converted',
       ).length,
-    [elementId, manuscriptComments, projectId],
+    [elementId, comments, projectId],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

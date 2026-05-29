@@ -237,36 +237,24 @@ export function syncBlockSectionDelete(id: string, projectId: string) {
   enqueueSync('blockSection', 'delete', id, projectId);
 }
 
-export function syncMemoCreate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('memo', 'create', id, projectId, payload);
-}
-
-export function syncMemoUpdate(id: string, projectId: string, payload: Record<string, unknown>) {
-  enqueueSync('memo', 'update', id, projectId, payload);
-}
-
-export function syncMemoDelete(id: string, projectId: string) {
-  enqueueSync('memo', 'delete', id, projectId);
-}
-
-export function syncMaterialCreate(
+export function syncLibraryItemCreate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('material', 'create', id, projectId, payload);
+  enqueueSync('libraryItem', 'create', id, projectId, payload);
 }
 
-export function syncMaterialUpdate(
+export function syncLibraryItemUpdate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('material', 'update', id, projectId, payload);
+  enqueueSync('libraryItem', 'update', id, projectId, payload);
 }
 
-export function syncMaterialDelete(id: string, projectId: string) {
-  enqueueSync('material', 'delete', id, projectId);
+export function syncLibraryItemDelete(id: string, projectId: string) {
+  enqueueSync('libraryItem', 'delete', id, projectId);
 }
 
 export function syncEntityRelationCreate(
@@ -289,24 +277,24 @@ export function syncEntityRelationDelete(id: string, projectId: string) {
   enqueueSync('entityRelation', 'delete', id, projectId);
 }
 
-export function syncManuscriptCommentCreate(
+export function syncCommentCreate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('manuscriptComment', 'create', id, projectId, payload);
+  enqueueSync('comment', 'create', id, projectId, payload);
 }
 
-export function syncManuscriptCommentUpdate(
+export function syncCommentUpdate(
   id: string,
   projectId: string,
   payload: Record<string, unknown>,
 ) {
-  enqueueSync('manuscriptComment', 'update', id, projectId, payload);
+  enqueueSync('comment', 'update', id, projectId, payload);
 }
 
-export function syncManuscriptCommentDelete(id: string, projectId: string) {
-  enqueueSync('manuscriptComment', 'delete', id, projectId);
+export function syncCommentDelete(id: string, projectId: string) {
+  enqueueSync('comment', 'delete', id, projectId);
 }
 
 export function syncCommentActionCreate(

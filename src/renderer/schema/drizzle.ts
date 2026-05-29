@@ -363,8 +363,8 @@ export const BlockSectionTable = sqliteTable(
 
 // Entity Relation
 // User-curated directed link between two entities. Source of truth for cross-
-// entity associations the user explicitly asserts: memo→node, material→element,
-// node→node (story-graph edges), element↔element, etc.
+// entity associations the user explicitly asserts: comment→node, library_item→
+// element, node→node (story-graph edges), element↔element, etc.
 //
 // "Curated" not "manual" — provenance (who created the row) is irrelevant to
 // the table's purpose; an AI-suggested relation accepted by the user would
@@ -381,8 +381,8 @@ export const EntityRelationTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
 
-    // fromKind ∈ EntityKind (all 7) — memo / material can link OUT.
-    // toKind   ∈ StructuralEntityKind (5) — memo / material are never targets.
+    // fromKind ∈ EntityKind (all 7) — comment / library_item can link OUT.
+    // toKind   ∈ StructuralEntityKind (5) — comment / library_item are never targets.
     // See domain/entity-kinds.ts for the canonical vocabulary + guards.
     fromKind: text('from_kind').notNull(),
     fromId: text('from_id').notNull(),
@@ -411,9 +411,9 @@ export const EntityRelationTable = sqliteTable(
 // into fromSpansJson. Rebuilt on every save of the source document by
 // reference-projection.service.
 //
-// Strictly structural on both ends — memo / material don't have manuscripts
-// to host marks, and inline marks always target whole entities (never deep-
-// linking to a specific block).
+// Strictly structural on both ends — comment / library_item don't have
+// manuscripts to host marks, and inline marks always target whole entities
+// (never deep-linking to a specific block).
 //
 // Not a source of truth — `entity_relation` is. Deleting an inline_mention
 // row by hand is meaningless; it'll come back on the next projection.
@@ -444,23 +444,35 @@ export const InlineMentionTable = sqliteTable(
   ],
 );
 
-// Manuscript Comment
-// Word-style marginal comment anchored to a block in a content-bearing entity.
-// It is intentionally independent from Memo and ElementPatch:
-// - Memo is project-level thinking / TODO, linked through entity_relation.
-// - ElementPatch is additive canonical content for an element.
-// - ManuscriptComment is review/annotation state that may later carry AI,
-//   external, copilot, or patch-suggestion metadata through comment_action.
-export const ManuscriptCommentTable = sqliteTable(
-  'manuscript_comment',
+// Comment
+// Single home for {block-anchored notes, chapter-anchored TODOs, project-level
+// floating TODOs, AI suggestions}. Replaced the former `manuscript_comment` +
+// `memo` split — see drizzle/0034 for the consolidation.
+//
+// Anchor matrix (target_* are nullable; the row uses whichever depth it needs):
+//   target_kind   target_id   target_block_id   meaning
+//   'node'        chapterId   blockId           block-anchored (manuscript)
+//   'node'        chapterId   null              chapter-anchored, no block
+//   null          null        null              floating (project-level TODO)
+//
+// `kind` distinguishes the comment's role: 'note' is the classic Word-style
+// marginal annotation; 'todo' surfaces in the right-sidebar TODO list and is
+// what agent pipelines consume as actionable instructions.
+//
+// Still independent from ElementPatch: patches are additive canonical content
+// for an element; comments carry review/annotation state and feed action
+// records via comment_action.
+export const CommentTable = sqliteTable(
+  'comment',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    targetKind: text('target_kind').notNull(), // StructuralEntityKind — see domain/entity-kinds.ts
-    targetId: text('target_id').notNull(),
-    targetBlockId: text('target_block_id').notNull(),
+    kind: text('kind').notNull().default('note'), // 'note' | 'todo'
+    targetKind: text('target_kind'), // nullable: StructuralEntityKind or null when floating
+    targetId: text('target_id'),
+    targetBlockId: text('target_block_id'),
     anchorJson: text('anchor_json').notNull().default('{}'),
     authorKind: text('author_kind').notNull().default('user'), // user | ai | copilot | external
     authorId: text('author_id'),
@@ -479,13 +491,14 @@ export const ManuscriptCommentTable = sqliteTable(
     index('idx_comment_target').on(t.targetKind, t.targetId),
     index('idx_comment_block').on(t.targetKind, t.targetId, t.targetBlockId),
     index('idx_comment_project_status').on(t.projectId, t.status),
+    index('idx_comment_project_kind_status').on(t.projectId, t.kind, t.status),
   ],
 );
 
 // Comment Action
 // Append-only-ish action record for operations initiated from a comment.
-// v1 writes convert_to_memo; future patch/apply/reject/copilot actions can
-// share this surface without changing ManuscriptComment itself.
+// Carries patch/apply/reject/copilot-suggestion actions; share this surface
+// without changing Comment itself.
 export const CommentActionTable = sqliteTable(
   'comment_action',
   {
@@ -495,7 +508,7 @@ export const CommentActionTable = sqliteTable(
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     commentId: text('comment_id')
       .notNull()
-      .references(() => ManuscriptCommentTable.id, { onDelete: 'cascade' }),
+      .references(() => CommentTable.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(),
     label: text('label'),
     payloadJson: text('payload_json').notNull().default('{}'),
@@ -514,55 +527,29 @@ export const CommentActionTable = sqliteTable(
   ],
 );
 
-// Memo
-// Project-level note / TODO. Whether a memo is treated as a task is the
-// author's choice via `resolution`:
-//   'no_action'  — pure note, no checkbox shown on the card
-//   'unresolved' — promoted to TODO; card shows a checkbox affordance
-//   'resolved'   — completed; hidden from the main list, surfaced in
-//                  the collapsed "已解决" archive group
-// Linkage to other entities (chapter / drift / element / storyline / category)
-// goes through `entity_relation` with fromKind='memo'.
-export const MemoTable = sqliteTable(
-  'memo',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
-    title: text('title').notNull().default(''),
-    bodyJson: text('body_json').notNull().default('{}'),
-    resolution: text('resolution').notNull().default('no_action'),
-    priority: text('priority'),
-    dueAt: text('due_at'),
-    orderKey: integer('order_key').notNull().default(0),
-    resolvedAt: text('resolved_at'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (t) => [
-    index('idx_memo_project').on(t.projectId),
-    index('idx_memo_project_resolution').on(t.projectId, t.resolution),
-  ],
-);
-
-// Material
-// Project-level reference asset. A material has one of four kinds — image, pdf,
-// url, or markdown — and a source describing where it lives:
+// Library Item (formerly Material)
+// Project-level "stuff I keep around": reference assets (image / pdf / url /
+// markdown attachment) and free-form text notes that don't belong to any
+// chapter and aren't tasks. Kinds:
+//   'image' | 'pdf' | 'url' | 'markdown' — file or URL reference (uri set)
+//   'text'                                — free-form note (bodyJson set,
+//                                            uri/localPath/mime all empty)
+// Source describes where the underlying payload lives:
 //   'local' — uri is a file:// path; localPath is the absolute on-disk path
 //   'url'   — uri is the http(s) URL itself
-// Markdown materials store their content inline in bodyJson (TipTap doc).
-// notesJson is the author's free-form annotations attached to the material.
-// Linkage goes through `entity_relation` with fromKind='material'.
-export const MaterialTable = sqliteTable(
-  'material',
+// 'markdown' attachments and 'text' notes store their TipTap doc in bodyJson.
+// notesJson is the author's free-form annotations attached to the item.
+// Linkage to chapters / elements / etc. goes through `entity_relation` with
+// fromKind='library_item'.
+export const LibraryItemTable = sqliteTable(
+  'library_item',
   {
     id: text('id').primaryKey(),
     projectId: text('project_id')
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
-    kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'markdown'
+    kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'markdown' | 'text'
     source: text('source').notNull().default('local'), // 'local' | 'url'
     uri: text('uri').notNull().default(''),
     localPath: text('local_path'),
@@ -576,8 +563,8 @@ export const MaterialTable = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
-    index('idx_material_project').on(t.projectId),
-    index('idx_material_project_kind').on(t.projectId, t.kind),
+    index('idx_library_item_project').on(t.projectId),
+    index('idx_library_item_project_kind').on(t.projectId, t.kind),
   ],
 );
 

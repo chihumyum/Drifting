@@ -57,10 +57,9 @@ import { useBookNode } from './usecase/useBookNode';
 import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
 import { useElementCategory } from './usecase/useElementCategory';
-import { useBookMemo } from './usecase/useBookMemo';
-import { useBookMaterial } from './usecase/useBookMaterial';
+import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
-import { useManuscriptComment } from './usecase/useManuscriptComment';
+import { useComment } from './usecase/useComment';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
@@ -208,10 +207,9 @@ function Layout() {
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
   const categoryUsecases = useElementCategory({ projectId: projectId, userId: userId });
-  const memoUsecases = useBookMemo({ projectId: projectId, userId: userId });
-  const materialUsecases = useBookMaterial({ projectId: projectId, userId: userId });
+  const libraryItemUsecases = useLibraryItem({ projectId: projectId, userId: userId });
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
-  const commentUsecases = useManuscriptComment({ projectId: projectId, userId: userId });
+  const commentUsecases = useComment({ projectId: projectId, userId: userId });
 
   // Reset ready state when project or user changes
   useEffect(() => {
@@ -348,8 +346,7 @@ function Layout() {
           storylineUsecases.loadStorylines(),
           elementUsecases.loadInitial(),
           categoryUsecases.loadCategories(),
-          memoUsecases.loadInitial(),
-          materialUsecases.loadInitial(),
+          libraryItemUsecases.loadInitial(),
           relationUsecases.loadInitial(),
           commentUsecases.loadInitial(),
         ]);
@@ -383,8 +380,7 @@ function Layout() {
     storylineUsecases,
     elementUsecases,
     categoryUsecases,
-    memoUsecases,
-    materialUsecases,
+    libraryItemUsecases,
     relationUsecases,
     commentUsecases,
   ]); // Re-init when projectId or user changes

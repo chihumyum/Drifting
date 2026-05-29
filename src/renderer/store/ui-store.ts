@@ -252,8 +252,8 @@ interface UiState {
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
 
-  activeRightPanel: 'fragments' | 'stats' | 'shadow';
-  setActiveRightPanel: (panel: 'fragments' | 'stats' | 'shadow') => void;
+  activeRightPanel: 'todo' | 'library' | 'stats' | 'shadow';
+  setActiveRightPanel: (panel: 'todo' | 'library' | 'stats' | 'shadow') => void;
 
   shadowMode: boolean;
   setShadowMode: (active: boolean) => void;
@@ -560,7 +560,7 @@ export const useUiStore = create<UiState>()(
         set({ chapterStorylineInnerSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
-      activeRightPanel: 'fragments',
+      activeRightPanel: 'library',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
 
       shadowMode: false,
@@ -573,7 +573,7 @@ export const useUiStore = create<UiState>()(
           }
           return {
             shadowMode: false,
-            activeRightPanel: state.activeRightPanel === 'shadow' ? 'fragments' : state.activeRightPanel,
+            activeRightPanel: state.activeRightPanel === 'shadow' ? 'library' : state.activeRightPanel,
           };
         }),
       toggleShadowMode: () =>
@@ -582,7 +582,7 @@ export const useUiStore = create<UiState>()(
           if (next) return { shadowMode: true, activeRightPanel: 'shadow' };
           return {
             shadowMode: false,
-            activeRightPanel: state.activeRightPanel === 'shadow' ? 'fragments' : state.activeRightPanel,
+            activeRightPanel: state.activeRightPanel === 'shadow' ? 'library' : state.activeRightPanel,
           };
         }),
 
@@ -1278,16 +1278,21 @@ export const useUiStore = create<UiState>()(
         }
         return { ...state, tabsByProject: migrated };
       },
-      // Older persisted state used 'references' | 'inspirations' | 'ai' for
-      // activeRightPanel. Coerce any unknown value back to the default so the
-      // first render after upgrade doesn't crash the right panel. Same idea
-      // for activeSuperView, which was renamed 'reference' → 'memo-material'
-      // when the placeholder view was clarified.
+      // Older persisted state used 'references' | 'inspirations' | 'ai' and
+      // later 'fragments' for activeRightPanel. After the TODO/Library split
+      // the 'fragments' bucket maps to 'library' (素材库 is the dominant
+      // surface; TODO is reachable via a sibling tab). Coerce any other
+      // unknown value back to the default. Same idea for activeSuperView,
+      // which was renamed 'reference' → 'memo-material' when the placeholder
+      // view was clarified.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<UiState>) };
-        const allowed = new Set(['fragments', 'stats', 'shadow']);
+        if ((merged.activeRightPanel as string) === 'fragments') {
+          merged.activeRightPanel = 'library';
+        }
+        const allowed = new Set(['todo', 'library', 'stats', 'shadow']);
         if (!allowed.has(merged.activeRightPanel as string)) {
-          merged.activeRightPanel = 'fragments';
+          merged.activeRightPanel = 'library';
         }
         const allowedSuper = new Set(['none', 'element', 'graph', 'memo-material']);
         if ((merged.activeSuperView as string) === 'reference') {

@@ -52,7 +52,7 @@ export function CategoryEditorView({
   if (!projectId) throw new Error('Project ID is required');
   if (!userId) throw new Error('User must be authenticated');
 
-  const { bookElementCategories, bookElements, manuscriptComments } = useDataStore();
+  const { bookElementCategories, bookElements, comments } = useDataStore();
   useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
   const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
@@ -84,14 +84,14 @@ export function CategoryEditorView({
   );
   const commentCount = useMemo(
     () =>
-      manuscriptComments.filter(
+      comments.filter(
         (comment) =>
           comment.projectId === projectId &&
           comment.targetKind === 'category' &&
           comment.targetId === (categoryId ?? '') &&
           comment.status !== 'converted',
       ).length,
-    [categoryId, manuscriptComments, projectId],
+    [categoryId, comments, projectId],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

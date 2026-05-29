@@ -41,7 +41,7 @@ export interface CoverageMap {
   /**
    * Blocks not currently covered by any valid section, in document order.
    * Capabilities consume this as the "what the user has been editing"
-   * material — fed to prompts as raw text.
+   * payload — fed to prompts as raw text.
    */
   uncoveredBlocks: BlockSnippet[];
   /**

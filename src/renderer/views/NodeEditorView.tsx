@@ -95,7 +95,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     storylines,
     nodeStorylineMapping,
     storylineNodeMapping,
-    manuscriptComments,
+    comments,
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStore();
@@ -115,14 +115,14 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   );
   const commentCount = useMemo(
     () =>
-      manuscriptComments.filter(
+      comments.filter(
         (comment) =>
           comment.projectId === activeProjectId &&
           comment.targetKind === 'node' &&
           comment.targetId === (nodeId ?? '') &&
           comment.status !== 'converted',
       ).length,
-    [activeProjectId, manuscriptComments, nodeId],
+    [activeProjectId, comments, nodeId],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

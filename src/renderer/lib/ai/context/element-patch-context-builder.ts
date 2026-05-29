@@ -88,7 +88,7 @@ function gatherMentionedElements(
 
 function gatherPendingPatchKeys(projectId: string): string[] {
   const keys = new Set<string>();
-  for (const comment of useDataStore.getState().manuscriptComments) {
+  for (const comment of useDataStore.getState().comments) {
     if (comment.projectId !== projectId) continue;
     if (comment.source !== 'copilot') continue;
     if (comment.status !== 'open') continue;

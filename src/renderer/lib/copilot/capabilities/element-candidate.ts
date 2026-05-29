@@ -8,7 +8,7 @@
  *
  * Naming note: this was `entity-candidate` before PR E. Renamed because in
  * Drifting's domain "entity" is the union of node / storyline / element /
- * memo / material — but this feature specifically targets BookElement.
+ * comment / library_item — but this feature specifically targets BookElement.
  * Legacy persisted comments still carry `kind === 'entity-candidate'`;
  * `decodeCopilotMetadata` normalises them to the new kind on read.
  *
@@ -318,7 +318,7 @@ function scanAndLinkInDoc(editor: Editor, name: string, elementId: string): void
  */
 function collectPendingElementNames(projectId: string): Set<string> {
   const out = new Set<string>();
-  for (const comment of useDataStore.getState().manuscriptComments) {
+  for (const comment of useDataStore.getState().comments) {
     if (comment.projectId !== projectId) continue;
     if (comment.source !== 'copilot') continue;
     if (comment.status !== 'open') continue;

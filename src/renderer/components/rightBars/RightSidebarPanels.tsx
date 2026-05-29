@@ -4,7 +4,8 @@ import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
-import { MemoMaterialPanel, type FocusedEntity } from './MemoMaterialPanel';
+import { LibraryPanel, type FocusedEntity } from './MemoMaterialPanel';
+import { TodoPanel } from './TodoPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
 interface ResolvedTarget {
@@ -133,21 +134,27 @@ export function RightSidebarPanels() {
   // (defensive — store should already coerce), step it back to fragments.
   useEffect(() => {
     if (!shadowMode && activeRightPanel === 'shadow') {
-      setActiveRightPanel('fragments');
+      setActiveRightPanel('library');
     }
   }, [shadowMode, activeRightPanel, setActiveRightPanel]);
 
-  const headerKicker = activeRightPanel === 'shadow'
-    ? 'Shadow Agent · 跨章节任务'
-    : activeRightPanel === 'stats'
-      ? target.kicker.replace('片段与材料', '详细统计')
-      : '全项目 · 备忘与材料';
+  const isFragmentTab = activeRightPanel === 'todo' || activeRightPanel === 'library';
+  const headerKicker =
+    activeRightPanel === 'shadow'
+      ? 'Shadow Agent · 跨章节任务'
+      : activeRightPanel === 'stats'
+        ? target.kicker.replace('片段与材料', '详细统计')
+        : activeRightPanel === 'todo'
+          ? '全项目 · TODO'
+          : '全项目 · 素材库';
   const headerTitle =
     activeRightPanel === 'shadow'
       ? '全书 · 跨章节'
-      : activeRightPanel === 'fragments'
-        ? '备忘 & 材料'
-        : target.title;
+      : activeRightPanel === 'todo'
+        ? 'TODO'
+        : activeRightPanel === 'library'
+          ? '素材库'
+          : target.title;
 
   return (
     <div
@@ -165,11 +172,12 @@ export function RightSidebarPanels() {
         title={headerTitle}
         fragmentCountFlash={fragmentCountFlash}
         shadowJustAppeared={shadowJustAppeared}
-        hideTitleBlock={activeRightPanel === 'fragments'}
+        hideTitleBlock={isFragmentTab}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {activeRightPanel === 'fragments' && <MemoMaterialPanel focused={focusedForPanel} />}
+        {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
+        {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
         {activeRightPanel === 'stats' && (
           <StatsView
             target={target}

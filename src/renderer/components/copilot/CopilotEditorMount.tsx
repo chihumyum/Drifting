@@ -5,11 +5,14 @@
  *
  * The inner component pattern (CopilotMountInner) is what lets us call
  * useCopilot only after asserting userId and editor are non-null — useCopilot
- * uses useManuscriptComment, which throws on empty userId, so it can't be
+ * uses useComment, which throws on empty userId, so it can't be
  * conditionally called from a component that may have userId === undefined.
  */
 import type { Editor } from '@tiptap/core';
 import { useAuthStore } from '../../store/auth';
+import { useDataStore } from '../../store/data-store';
+import { useSettingsStore } from '../../store/settings-store';
+import { isDrift } from '../../domain/book-node';
 import { useCopilot } from '../../hooks/useCopilot';
 
 interface CopilotEditorMountProps {
@@ -24,8 +27,17 @@ export function CopilotEditorMount({
   nodeId,
 }: CopilotEditorMountProps) {
   const userId = useAuthStore((s) => s.user?.id);
+  // `.find` returns the node object itself (a stable reference until that node
+  // changes), so this selector is safe — it won't churn renders the way a
+  // freshly-built object would.
+  const node = useDataStore((s) => s.bookNodes.find((n) => n.id === nodeId));
+  const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
 
   if (!editor || !userId || !projectId || !nodeId) return null;
+  // Drift editors are opt-in: skip the hook entirely (no debounced detect, no
+  // suggestions) unless the user turned Copilot-in-drift on. Chapter editors
+  // are unaffected.
+  if (node && isDrift(node) && !copilotInDrift) return null;
 
   return (
     <CopilotMountInner

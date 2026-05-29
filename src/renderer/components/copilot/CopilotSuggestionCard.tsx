@@ -9,16 +9,14 @@
  * the card, second Tab accepts" double-press problem and lets keyboard
  * acceptance work directly while the user is typing in the editor.
  */
-import { useCallback, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Check, Minimize2, X } from 'lucide-react';
-import type { ManuscriptComment } from '../../domain/manuscript-comment';
+import type { Comment } from '../../domain/comment';
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
 import { getCopilotCapabilityForMetadataKind } from '../../lib/copilot/capability';
 
 interface CopilotSuggestionCardProps {
-  comment: ManuscriptComment;
-  /** Absolute positioning style (top or bottom) within the rail. */
-  style?: CSSProperties;
+  comment: Comment;
   /** Tab/Esc currently routes here. Accept button shows a glow pulse. */
   isActive: boolean;
   /** Active window expired. Mouse still works; keyboard does not route here. */
@@ -35,7 +33,6 @@ interface CopilotSuggestionCardProps {
 
 export function CopilotSuggestionCard({
   comment,
-  style,
   isActive,
   isStale,
   isOrphan = false,
@@ -91,7 +88,7 @@ export function CopilotSuggestionCard({
   // stale copilot comment for a feature we no longer ship).
   if (!metadata || !capability) {
     return (
-      <div className={baseClasses.join(' ')} style={style}>
+      <div className={baseClasses.join(' ')} data-comment-id={comment.id}>
         {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
@@ -119,7 +116,7 @@ export function CopilotSuggestionCard({
   if (isActive) acceptClasses.push('mnote__btn--glow');
 
   return (
-    <div className={baseClasses.join(' ')} style={style}>
+    <div className={baseClasses.join(' ')} data-comment-id={comment.id}>
       {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
       <div className="mnote__head">
         <span className="mnote__head-l">

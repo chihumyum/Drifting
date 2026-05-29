@@ -3,26 +3,24 @@ import StarterKit from '@tiptap/starter-kit';
 import { useEffect } from 'react';
 import { Node as PMNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/core';
-import type { Material } from '../../domain/material';
+import type { LibraryItem } from '../../domain/library-item';
 
 interface Props {
-  material: Material;
+  item: LibraryItem;
   onClose: () => void;
 }
 
 /**
- * Floating preview for `kind === 'text'` materials.
+ * Floating preview for `kind === 'text'` library items.
  *
  * Mounts a read-only TipTap instance with the StarterKit so paragraphs /
- * headings / lists / blockquotes render uniformly (the field is labelled
- * "普通文本" in the UI but the underlying body is still a TipTap doc so
- * future editing can expand back to rich content without a migration).
+ * headings / lists / blockquotes render uniformly.
  *
- * Image / PDF materials open in the OS default app via `electronAPI.material.
- * openLocal` and never reach this popover. URL materials open in the system
+ * Image / PDF items open in the OS default app via `electronAPI.material.
+ * openLocal` and never reach this popover. URL items open in the system
  * browser via `openExternal`. Both code paths live in the panel itself.
  */
-export function MaterialPreviewPopover({ material, onClose }: Props) {
+export function MaterialPreviewPopover({ item, onClose }: Props) {
   const editor = useEditor({
     editable: false,
     extensions: [
@@ -44,7 +42,7 @@ export function MaterialPreviewPopover({ material, onClose }: Props) {
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     let json: JSONContent = { type: 'doc', content: [] };
-    const raw = material.bodyJson;
+    const raw = item.bodyJson;
     if (raw && raw !== '{}' && raw !== 'null') {
       try {
         const parsed = JSON.parse(raw) as JSONContent;
@@ -63,7 +61,7 @@ export function MaterialPreviewPopover({ material, onClose }: Props) {
     } catch {
       /* leave editor empty */
     }
-  }, [editor, material.bodyJson]);
+  }, [editor, item.bodyJson]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -130,7 +128,7 @@ export function MaterialPreviewPopover({ material, onClose }: Props) {
                 color: 'hsl(var(--ink-4))',
               }}
             >
-              Material · 片段
+              Library · 片段
             </div>
             <div
               style={{
@@ -144,7 +142,7 @@ export function MaterialPreviewPopover({ material, onClose }: Props) {
                 whiteSpace: 'nowrap',
               }}
             >
-              {material.title || 'Untitled'}
+              {item.title || 'Untitled'}
             </div>
           </div>
           <button

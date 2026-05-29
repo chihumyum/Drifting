@@ -32,7 +32,7 @@ import {
   type AcceptElementPatchResult,
   type ElementPatchMetadata,
 } from '../../../domain/copilot-suggestion';
-import { createPlainCommentDoc } from '../../../domain/manuscript-comment';
+import { createPlainCommentDoc } from '../../../domain/comment';
 import { createElementPatchRepository } from '../../../sqlite-repo/element-patch-repo';
 import { syncElementPatchCreate } from '../../../usecase/sync-helpers';
 import { useDataStore } from '../../../store/data-store';

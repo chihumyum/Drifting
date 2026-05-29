@@ -1,21 +1,22 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
-import { CommentActionTable, ManuscriptCommentTable } from '../schema/drizzle';
+import { CommentActionTable, CommentTable } from '../schema/drizzle';
 import type {
+  Comment,
   CommentAction,
   CommentActionKind,
   CommentActionStatus,
   CommentAuthorKind,
+  CommentKind,
   CommentPriority,
   CommentSource,
+  CommentStatus,
   CommentTargetKind,
-  ManuscriptComment,
-  ManuscriptCommentStatus,
-} from '../domain/manuscript-comment';
+} from '../domain/comment';
 
-export type ManuscriptCommentCreateData = ManuscriptComment;
-export type ManuscriptCommentUpdateData = Partial<
-  Omit<ManuscriptComment, 'id' | 'projectId' | 'createdAt'>
+export type CommentCreateData = Comment;
+export type CommentUpdateData = Partial<
+  Omit<Comment, 'id' | 'projectId' | 'createdAt'>
 > & {
   updatedAt: string;
 };
@@ -27,11 +28,11 @@ export type CommentActionUpdateData = Partial<
   updatedAt: string;
 };
 
-export interface ManuscriptCommentRepository {
-  findById(id: string): Promise<ManuscriptComment | null>;
-  findAll(): Promise<ManuscriptComment[]>;
-  create(input: ManuscriptCommentCreateData): Promise<ManuscriptComment>;
-  update(id: string, data: ManuscriptCommentUpdateData): Promise<ManuscriptComment | null>;
+export interface CommentRepository {
+  findById(id: string): Promise<Comment | null>;
+  findAll(): Promise<Comment[]>;
+  create(input: CommentCreateData): Promise<Comment>;
+  update(id: string, data: CommentUpdateData): Promise<Comment | null>;
   delete(id: string): Promise<boolean>;
 }
 
@@ -44,11 +45,12 @@ export interface CommentActionRepository {
   delete(id: string): Promise<boolean>;
 }
 
-function toCommentDomain(record: typeof ManuscriptCommentTable.$inferSelect): ManuscriptComment {
+function toCommentDomain(record: typeof CommentTable.$inferSelect): Comment {
   return {
     id: record.id,
     projectId: record.projectId,
-    targetKind: record.targetKind as CommentTargetKind,
+    kind: record.kind as CommentKind,
+    targetKind: (record.targetKind as CommentTargetKind | null) ?? null,
     targetId: record.targetId,
     targetBlockId: record.targetBlockId,
     anchorJson: record.anchorJson,
@@ -56,7 +58,7 @@ function toCommentDomain(record: typeof ManuscriptCommentTable.$inferSelect): Ma
     authorId: record.authorId,
     authorName: record.authorName,
     bodyJson: record.bodyJson,
-    status: record.status as ManuscriptCommentStatus,
+    status: record.status as CommentStatus,
     priority: (record.priority as CommentPriority | null) ?? null,
     source: record.source as CommentSource,
     metadataJson: record.metadataJson,
@@ -84,27 +86,27 @@ function toActionDomain(record: typeof CommentActionTable.$inferSelect): Comment
   };
 }
 
-export function createManuscriptCommentRepository(
+export function createCommentRepository(
   projectId: string,
   dbOverride?: DbExecutor,
-): ManuscriptCommentRepository {
+): CommentRepository {
   const dbProvider = () => dbOverride ?? getDb();
 
-  const findById = async (id: string): Promise<ManuscriptComment | null> => {
+  const findById = async (id: string): Promise<Comment | null> => {
     const rows = await dbProvider()
       .select()
-      .from(ManuscriptCommentTable)
-      .where(eq(ManuscriptCommentTable.id, id))
+      .from(CommentTable)
+      .where(eq(CommentTable.id, id))
       .limit(1);
     return rows[0] ? toCommentDomain(rows[0]) : null;
   };
 
-  const findAll = async (): Promise<ManuscriptComment[]> => {
+  const findAll = async (): Promise<Comment[]> => {
     const rows = await dbProvider()
       .select()
-      .from(ManuscriptCommentTable)
-      .where(eq(ManuscriptCommentTable.projectId, projectId))
-      .orderBy(asc(ManuscriptCommentTable.createdAt));
+      .from(CommentTable)
+      .where(eq(CommentTable.projectId, projectId))
+      .orderBy(asc(CommentTable.createdAt));
     return rows.map(toCommentDomain);
   };
 
@@ -112,9 +114,10 @@ export function createManuscriptCommentRepository(
     findById,
     findAll,
     create: async (input) => {
-      const row: typeof ManuscriptCommentTable.$inferInsert = {
+      const row: typeof CommentTable.$inferInsert = {
         id: input.id,
         projectId: input.projectId,
+        kind: input.kind,
         targetKind: input.targetKind,
         targetId: input.targetId,
         targetBlockId: input.targetBlockId,
@@ -131,13 +134,14 @@ export function createManuscriptCommentRepository(
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       };
-      await dbProvider().insert(ManuscriptCommentTable).values(row);
+      await dbProvider().insert(CommentTable).values(row);
       return (await findById(input.id))!;
     },
     update: async (id, data) => {
-      const updateValues: Partial<typeof ManuscriptCommentTable.$inferInsert> = {
+      const updateValues: Partial<typeof CommentTable.$inferInsert> = {
         updatedAt: data.updatedAt,
       };
+      if (data.kind !== undefined) updateValues.kind = data.kind;
       if (data.targetKind !== undefined) updateValues.targetKind = data.targetKind;
       if (data.targetId !== undefined) updateValues.targetId = data.targetId;
       if (data.targetBlockId !== undefined) updateValues.targetBlockId = data.targetBlockId;
@@ -153,15 +157,15 @@ export function createManuscriptCommentRepository(
       if (data.resolvedAt !== undefined) updateValues.resolvedAt = data.resolvedAt;
 
       await dbProvider()
-        .update(ManuscriptCommentTable)
+        .update(CommentTable)
         .set(updateValues)
-        .where(eq(ManuscriptCommentTable.id, id));
+        .where(eq(CommentTable.id, id));
       return findById(id);
     },
     delete: async (id) => {
       await dbProvider()
-        .delete(ManuscriptCommentTable)
-        .where(eq(ManuscriptCommentTable.id, id));
+        .delete(CommentTable)
+        .where(eq(CommentTable.id, id));
       return true;
     },
   };
