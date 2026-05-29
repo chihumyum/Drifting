@@ -26,6 +26,7 @@ import {
   applyInlineEdit,
   type InlineEditResult,
 } from '../../lib/copilot/inline-edit';
+import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
 import { events } from '../../lib/events';
 
 const QUICK_CHIPS = ['修复语病', '换个说法', '更准的词', '强化通感', '更精炼'];
@@ -49,6 +50,8 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const [phase, setPhase] = useState<Phase>('input');
   const [result, setResult] = useState<InlineEditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [chapterBusy, setChapterBusy] = useState(false);
+  const [chapterMsg, setChapterMsg] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -68,6 +71,8 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     setPhase('input');
     setResult(null);
     setError(null);
+    setChapterBusy(false);
+    setChapterMsg(null);
   }
 
   // Focus the input when the popover opens.
@@ -148,6 +153,29 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     },
     [ctx, instruction, close],
   );
+
+  // 本章运行: reverse chapter summary (Task 5, fill-empty only).
+  const handleChapterSummary = useCallback(async () => {
+    if (!ctx) return;
+    setChapterBusy(true);
+    setChapterMsg(null);
+    try {
+      const r = await generateChapterSummary({ projectId: ctx.projectId, chapterId: ctx.nodeId });
+      setChapterMsg(
+        r.status === 'written'
+          ? '已生成章节摘要'
+          : r.status === 'skipped-nonempty'
+            ? '本章已有摘要，未覆盖'
+            : r.status === 'no-sections'
+              ? '暂无段落摘要可汇总'
+              : '生成失败',
+      );
+    } catch {
+      setChapterMsg('生成失败');
+    } finally {
+      setChapterBusy(false);
+    }
+  }, [ctx]);
 
   // Esc closes; Enter accepts a ready result.
   useEffect(() => {
@@ -268,6 +296,24 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                 })}
               </div>
             )}
+
+            <div style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 10, paddingTop: 8 }}>
+              <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 4 }}>本章运行</div>
+              <button
+                type="button"
+                onClick={() => void handleChapterSummary()}
+                disabled={chapterBusy}
+                style={{ ...menuItemStyle, opacity: chapterBusy ? 0.6 : 1 }}
+              >
+                <span>生成章节摘要</span>
+                <span style={{ fontSize: 10, color: '#b0a088' }}>
+                  {chapterBusy ? '生成中…' : '仅在摘要为空时写入'}
+                </span>
+              </button>
+              {chapterMsg && (
+                <div style={{ fontSize: 11, color: '#8a7860', padding: '2px 4px' }}>{chapterMsg}</div>
+              )}
+            </div>
           </div>
         )}
 
