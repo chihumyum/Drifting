@@ -24,6 +24,12 @@ export interface CallStructuredOptions {
   signal?: AbortSignal;
   /** Override the prompt's default model for this single call. */
   model?: string;
+  /**
+   * Human-readable language name (e.g. "Simplified Chinese (简体中文)") to
+   * force the model's natural-language output into, appended to the system
+   * prompt. Used for project-level output-language control (Task 1).
+   */
+  outputLanguage?: string;
 }
 
 export async function callStructured<
@@ -51,9 +57,22 @@ export async function callStructured<
     parametersSchema: prompt.output as unknown as object,
   };
 
+  // Project-level output-language directive (Task 1): append to the system
+  // prompt so natural-language output stays in the manuscript's language
+  // regardless of the (English) instruction language.
+  let system = prompt.buildSystem?.(input);
+  if (options.outputLanguage) {
+    const directive =
+      `OUTPUT LANGUAGE: Write ALL natural-language output (prose, summaries, ` +
+      `descriptions, reasons) in ${options.outputLanguage}, regardless of the ` +
+      `language of these instructions or examples. Proper nouns may stay in ` +
+      `their original script.`;
+    system = system ? `${system}\n\n${directive}` : directive;
+  }
+
   const response = await client.complete({
     model: options.model ?? prompt.model,
-    system: prompt.buildSystem?.(input),
+    system,
     messages: [{ role: 'user', content: prompt.buildUserMessage(input) }],
     tools: [tool],
     signal: options.signal,

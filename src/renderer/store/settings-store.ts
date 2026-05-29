@@ -9,6 +9,8 @@ export type LineHeight = 1.5 | 1.65 | 1.72 | 1.8 | 2.0;
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
+/** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
+export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 export type OrbCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type EditPermission = 'suggest' | 'small' | 'all';
@@ -221,6 +223,15 @@ interface SettingsState {
    */
   copilotInlineEditAllowNewContent: boolean;
   setCopilotInlineEditAllowNewContent: (on: boolean) => void;
+  /**
+   * Per-project output language for Copilot (and future Shadow) generation,
+   * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
+   * 副手 from drifting into the wrong language (e.g. English in a Chinese
+   * novel). Client-local for now — promote to a synced ProjectTable column
+   * if cross-device parity is needed.
+   */
+  copilotOutputLangByProject: Record<string, CopilotOutputLang>;
+  setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -355,6 +366,14 @@ export const useSettingsStore = create<SettingsState>()(
       copilotInlineEditAllowNewContent: false,
       setCopilotInlineEditAllowNewContent: (on) =>
         set({ copilotInlineEditAllowNewContent: on }),
+      copilotOutputLangByProject: {},
+      setCopilotOutputLang: (projectId, lang) =>
+        set((state) => ({
+          copilotOutputLangByProject: {
+            ...state.copilotOutputLangByProject,
+            [projectId]: lang,
+          },
+        })),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),

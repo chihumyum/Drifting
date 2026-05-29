@@ -28,6 +28,7 @@ import { callStructured } from '../../ai/call-structured';
 const log = loglevel.getLogger('copilot:element-candidate');
 import { buildElementCandidateContext } from '../../ai/context/element-candidate-context-builder';
 import { elementCandidatePrompt } from '../../ai/prompts/templates/element-candidate';
+import { resolveOutputLanguageName } from '../../ai/output-language';
 import {
   decodeCopilotMetadata,
   type AcceptElementCandidateResult,
@@ -94,7 +95,7 @@ export const elementCandidateCapability: CopilotCapability = {
         userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
-      { signal: ctx.signal },
+      { signal: ctx.signal, outputLanguage: resolveOutputLanguageName(ctx.projectId) },
     );
 
     if (ctx.signal.aborted) return [];

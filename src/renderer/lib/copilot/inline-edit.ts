@@ -16,6 +16,7 @@
 import type { Editor, Content } from '@tiptap/core';
 import { callStructured } from '../ai/call-structured';
 import { inlineEditPrompt } from '../ai/prompts/templates/inline-edit';
+import { resolveOutputLanguageName } from '../ai/output-language';
 import { copilotRuntime } from './runtime';
 
 export interface InlineEditTarget {
@@ -62,9 +63,11 @@ export async function runInlineEdit(params: {
   target: InlineEditTarget;
   instruction: string;
   allowNewContent: boolean;
+  /** Project whose output-language setting governs this edit's language. */
+  projectId: string;
   signal?: AbortSignal;
 }): Promise<InlineEditResult> {
-  const { target, instruction, allowNewContent, signal } = params;
+  const { target, instruction, allowNewContent, projectId, signal } = params;
   const base = {
     from: target.from,
     to: target.to,
@@ -94,7 +97,7 @@ export async function runInlineEdit(params: {
       nearbyContext: target.nearbyContext,
       allowNewContent,
     },
-    { signal },
+    { signal, outputLanguage: resolveOutputLanguageName(projectId) },
   );
 
   return {

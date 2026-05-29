@@ -105,6 +105,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           },
           instruction: instr.trim(),
           allowNewContent,
+          projectId: ctx.projectId,
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;

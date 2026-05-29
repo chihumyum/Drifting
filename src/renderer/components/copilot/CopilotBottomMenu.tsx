@@ -9,8 +9,24 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { useSettingsStore, COPILOT_TASKS, type CopilotTaskId } from '../../store/settings-store';
+import {
+  useSettingsStore,
+  COPILOT_TASKS,
+  type CopilotTaskId,
+  type CopilotOutputLang,
+} from '../../store/settings-store';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+
+const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
+  { value: 'auto', label: '跟随手稿' },
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'zh-TW', label: '繁體中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'fr', label: 'Français' },
+];
 
 export function CopilotBottomMenu() {
   const [open, setOpen] = useState(false);
@@ -22,6 +38,11 @@ export function CopilotBottomMenu() {
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
   const setTaskEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
+  const { projectId } = useProjectNavigation();
+  const outputLang =
+    useSettingsStore((s) => (projectId ? s.copilotOutputLangByProject[projectId] : undefined)) ??
+    'auto';
+  const setOutputLang = useSettingsStore((s) => s.setCopilotOutputLang);
 
   // Click-away close.
   useEffect(() => {
@@ -76,6 +97,43 @@ export function CopilotBottomMenu() {
             onChange={setAutoTrigger}
             disabled={!copilotEnabled}
           />
+
+          {projectId && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                padding: '5px 4px',
+              }}
+            >
+              <span style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 13, color: '#3a2e22' }}>输出语言</span>
+                <span style={{ fontSize: 10.5, color: '#9a8a72', lineHeight: 1.3 }}>
+                  本项目 Copilot 生成语言
+                </span>
+              </span>
+              <select
+                value={outputLang}
+                onChange={(e) => setOutputLang(projectId, e.target.value as CopilotOutputLang)}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 6px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(184, 153, 104, 0.4)',
+                  background: '#fff',
+                  color: '#3a2e22',
+                }}
+              >
+                {OUTPUT_LANG_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', margin: '8px 0 6px' }} />
           <div style={{ fontSize: 11, color: '#9a8a72', margin: '0 2px 4px' }}>任务</div>
