@@ -28,6 +28,9 @@ export interface CopilotInlineCtx {
   blockContext: string;
   /** Adjacent blocks' plain text, fed to the model as local context. */
   nearbyContext: string;
+  /** Block ids covered by the selection (Task 6 capability runs). Empty in
+   *  'block' mode — those run on the rolling context (Task 7). */
+  selectionBlockIds: string[];
   /** Viewport coords to anchor the popover near the selection/caret. */
   clientX: number;
   clientY: number;

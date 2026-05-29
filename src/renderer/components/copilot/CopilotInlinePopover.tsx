@@ -140,6 +140,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         nodeId: ctx.nodeId,
         capId,
         instruction: instruction.trim() || undefined,
+        // Selection mode → run scoped to the selected blocks (Task 6). Block
+        // mode → omit, so it runs on the rolling context (Task 7).
+        selectionBlockIds: ctx.mode === 'selection' ? ctx.selectionBlockIds : undefined,
       });
       close();
     },

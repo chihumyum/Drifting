@@ -98,8 +98,15 @@ export type AppEvents = {
   // fire even if the capability's per-task toggle is off, and even when
   // automatic Copilot is disabled (manual is never gated by those switches).
   // `instruction` is the optional free-text steer the user typed in the
-  // popover; it's threaded into the capability's prompt.
-  'copilot:manual-run': { nodeId: string; capId: string; instruction?: string };
+  // popover; it's threaded into the capability's prompt. `selectionBlockIds`,
+  // when present (Task 6), scopes the run to those blocks + the segments they
+  // fall into, instead of the rolling coverage context.
+  'copilot:manual-run': {
+    nodeId: string;
+    capId: string;
+    instruction?: string;
+    selectionBlockIds?: string[];
+  };
 };
 
 export const eventBus = mitt<AppEvents>();

@@ -33,7 +33,11 @@ import {
   type CopilotCapability,
 } from '../lib/copilot/capability';
 import { copilotRuntime } from '../lib/copilot/runtime';
-import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
+import {
+  buildBaseBlockContext,
+  buildSelectionBlockContext,
+  selectionWarrantsSummaryRegen,
+} from '../lib/copilot/base-block-context';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
 import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
@@ -93,11 +97,13 @@ export function useCopilot({
 
     const runFor = async (
       cap: CopilotCapability,
-      opts?: { force?: boolean; instruction?: string },
+      opts?: { force?: boolean; instruction?: string; selectionBlockIds?: string[] },
     ): Promise<void> => {
       fireCount += 1;
       const localFireId = fireCount;
       const forced = opts?.force === true;
+      const selectionBlockIds = opts?.selectionBlockIds ?? [];
+      const isSelectionRun = selectionBlockIds.length > 0;
 
       // Pause automatic fires while the inline-Copilot popover is open — the
       // user is actively steering Copilot there, so a background fire would
@@ -107,9 +113,13 @@ export function useCopilot({
         return;
       }
 
-      const baseContext = await buildBaseBlockContext({ editor, chapterId: nodeId });
+      // Selection-scoped run (Task 6): the capability sees exactly the
+      // selected blocks + their segments. Otherwise the rolling coverage view.
+      const baseContext = isSelectionRun
+        ? buildSelectionBlockContext(editor, nodeId, selectionBlockIds)
+        : await buildBaseBlockContext({ editor, chapterId: nodeId });
       if (!baseContext) {
-        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (coverage empty)`);
+        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (empty context)`);
         return;
       }
 
@@ -178,11 +188,32 @@ export function useCopilot({
           });
         }
 
-        // Threshold-triggered summary, decoupled from any specific cap.
-        // First fire to see uncovered ≥ threshold wins the lock; others
-        // skip until completion. The summary call's signal is the cap's
-        // controller — chapter teardown aborts in-flight summaries too.
-        if (
+        if (isSelectionRun) {
+          // Task 6 regen decision: refresh a segment summary only when the
+          // selection spans multiple segments (or none) — never when it's
+          // already contained in one segment.
+          if (
+            summariesEnabled &&
+            selectionBlockIds.length >= 2 &&
+            !summaryInFlightRef.current &&
+            selectionWarrantsSummaryRegen(nodeId, selectionBlockIds)
+          ) {
+            summaryInFlightRef.current = true;
+            void produceBlockSectionSummary({
+              projectId,
+              chapterId: nodeId,
+              blockIds: selectionBlockIds,
+              editor,
+              signal: controller.signal,
+            }).finally(() => {
+              summaryInFlightRef.current = false;
+            });
+          }
+        } else if (
+          // Threshold-triggered summary, decoupled from any specific cap.
+          // First fire to see uncovered ≥ threshold wins the lock; others
+          // skip until completion. The summary call's signal is the cap's
+          // controller — chapter teardown aborts in-flight summaries too.
           summariesEnabled &&
           baseContext.uncoveredBlocks.length >= summarySectionSize &&
           !summaryInFlightRef.current
@@ -239,10 +270,12 @@ export function useCopilot({
       nodeId: target,
       capId,
       instruction,
+      selectionBlockIds,
     }: {
       nodeId: string;
       capId: string;
       instruction?: string;
+      selectionBlockIds?: string[];
     }): void => {
       if (target !== nodeId) return;
       const cap = getCopilotCapability(capId);
@@ -250,7 +283,7 @@ export function useCopilot({
         log.warn(`[useCopilot] manual-run for unknown capability "${capId}"`);
         return;
       }
-      void runFor(cap, { force: true, instruction });
+      void runFor(cap, { force: true, instruction, selectionBlockIds });
     };
     events.on('copilot:manual-run', onManualRun);
 

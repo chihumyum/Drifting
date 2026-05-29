@@ -190,6 +190,17 @@ function buildInlineCopilotCtx(
     : doc.textBetween(selection.from, selection.to, '\n').trim();
   const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
 
+  // Block ids the selection covers (Task 6). Only meaningful in selection
+  // mode; block mode runs capabilities on the rolling context instead.
+  const selectionBlockIds: string[] = [];
+  if (mode === 'selection') {
+    doc.nodesBetween(selection.from, selection.to, (node) => {
+      const bid = node.attrs?.id as string | null | undefined;
+      if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
+      return true;
+    });
+  }
+
   return {
     nodeId,
     projectId,
@@ -199,6 +210,7 @@ function buildInlineCopilotCtx(
     selectedText: mode === 'selection' ? selText : blockText,
     blockContext: blockText,
     nearbyContext: nearby.join('\n\n'),
+    selectionBlockIds,
     clientX: coords.clientX,
     clientY: coords.clientY,
   };
