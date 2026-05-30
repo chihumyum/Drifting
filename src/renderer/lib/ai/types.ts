@@ -46,6 +46,12 @@ export interface AICompletionRequest {
   tools?: AITool[];
   maxOutputTokens?: number;
   temperature?: number;
+  /**
+   * Request thinking/reasoning mode for this single call, overriding the
+   * provider's default. Honored by providers with a thinking toggle (DeepSeek);
+   * ignored by the rest. Used by inline-ask to force reasoning on.
+   */
+  thinking?: boolean;
   signal?: AbortSignal;
   /**
    * Free-form metadata threaded through interceptors. `feature` is required
@@ -80,6 +86,17 @@ export interface AICompletionResponse {
   usage: AIUsage;
   /** Raw provider response — kept for debugging, never relied on by upper layers. */
   raw?: unknown;
+}
+
+/**
+ * One streamed chunk from `stream()`. Free-form text only (streaming is for
+ * the interactive chat surface, never structured/tool output). `delta` is the
+ * INCREMENTAL text for this chunk; `usage` is present only on the terminal
+ * chunk, which may carry an empty delta.
+ */
+export interface AICompletionChunk {
+  delta: string;
+  usage?: AIUsage;
 }
 
 export type AIErrorKind =

@@ -23,7 +23,7 @@ import { definePrompt } from '../define-prompt';
 
 export const inlineEditPrompt = definePrompt({
   id: 'inline-edit',
-  version: 1,
+  version: 2,
   // Interactive (the author is waiting on the result), so the fast model.
   model: 'gemini-2.5-flash',
   description:
@@ -44,12 +44,20 @@ export const inlineEditPrompt = definePrompt({
         'The enclosing paragraph/block, for context only. Do NOT rewrite ' +
         'it — it tells you what the selected span is doing in its sentence.',
     }),
-    nearbyContext: Type.Optional(
+    contextBefore: Type.Optional(
       Type.String({
         description:
-          'Plain text of the blocks surrounding the whole target region, for ' +
-          'local context only (tone, who is speaking, what just happened). ' +
+          'Plain text of the blocks ABOVE the target (上文 / what leads into it), ' +
+          'for local context only (tone, who is speaking, what just happened). ' +
           'Do NOT edit or echo it.',
+      }),
+    ),
+    contextAfter: Type.Optional(
+      Type.String({
+        description:
+          'Plain text of the blocks BELOW the target (下文 / what follows it), ' +
+          'for local context only (where the scene is heading). Do NOT edit or ' +
+          'echo it.',
       }),
     ),
     priorSummaries: Type.Optional(
@@ -112,8 +120,11 @@ export const inlineEditPrompt = definePrompt({
 
   buildUserMessage: (input) => {
     const summaries = (input.priorSummaries ?? []).map((s) => s.trim()).filter(Boolean);
-    const nearby = input.nearbyContext?.trim();
+    const before = input.contextBefore?.trim();
+    const after = input.contextAfter?.trim();
     const enclosing = input.blockContext?.trim();
+    // Narrative order — 上文, then the enclosing paragraph holding the span,
+    // then 下文 — so the span reads in place between what precedes and follows.
     return [
       `[New-content generation: ${input.allowNewContent ? 'PERMITTED' : 'FORBIDDEN'}]`,
       `Instruction: ${input.instruction}`,
@@ -121,12 +132,13 @@ export const inlineEditPrompt = definePrompt({
         ? `Story so far — section summaries (context, do not edit):\n` +
           summaries.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
         : '',
-      nearby ? `Surrounding text (context, do not edit):\n${nearby}` : '',
+      before ? `Context ABOVE — 上文 (context only, do NOT edit or echo):\n${before}` : '',
       enclosing
         ? `Enclosing paragraph — the span sits inside this; do not rewrite the ` +
           `whole paragraph:\n${enclosing}`
         : '',
       `Text to revise:\n${input.selectedText}`,
+      after ? `Context BELOW — 下文 (context only, do NOT edit or echo):\n${after}` : '',
     ]
       .filter(Boolean)
       .join('\n\n');

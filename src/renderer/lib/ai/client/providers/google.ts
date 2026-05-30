@@ -12,6 +12,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { LLMProvider } from './provider';
 import {
   AIError,
+  type AICompletionChunk,
   type AICompletionRequest,
   type AICompletionResponse,
   type AIToolCall,
@@ -115,6 +116,59 @@ export class GoogleAIStudioProvider implements LLMProvider {
           cachedTokens: usage?.cachedContentTokenCount,
         },
         raw: response,
+      };
+    } catch (err) {
+      throw mapGoogleError(err);
+    }
+  }
+
+  /**
+   * Free-form streaming via the SDK's `generateContentStream`. Each yielded
+   * chunk's `.text` is the incremental delta. Tools/maxOutputTokens for
+   * structured output don't apply here — this path is interactive chat only.
+   * A terminal empty-delta chunk carries the final usage totals.
+   */
+  async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
+    const { model, system, messages, temperature, signal } = request;
+
+    if (signal?.aborted) {
+      throw new AIError('aborted', 'Request aborted before send');
+    }
+
+    const contents = messages.map((m) => ({
+      role: m.role,
+      parts: [{ text: m.content }],
+    }));
+
+    const config: Record<string, unknown> = {};
+    if (system) config.systemInstruction = system;
+    if (typeof temperature === 'number') config.temperature = temperature;
+    if (signal) config.abortSignal = signal;
+
+    try {
+      const stream = await this.client.models.generateContentStream({
+        model,
+        contents,
+        config,
+      });
+
+      let usage: GoogleUsage | undefined;
+      for await (const chunk of stream) {
+        if (signal?.aborted) throw new AIError('aborted', 'Request aborted');
+        const c = chunk as unknown as { text?: string; usageMetadata?: GoogleUsage };
+        if (c.usageMetadata) usage = c.usageMetadata;
+        if (typeof c.text === 'string' && c.text.length > 0) {
+          yield { delta: c.text };
+        }
+      }
+
+      yield {
+        delta: '',
+        usage: {
+          inputTokens: usage?.promptTokenCount ?? 0,
+          outputTokens: usage?.candidatesTokenCount ?? 0,
+          cachedTokens: usage?.cachedContentTokenCount,
+        },
       };
     } catch (err) {
       throw mapGoogleError(err);

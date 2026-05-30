@@ -42,7 +42,12 @@ export function ElementEditorView({
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(elementId);
   const userId = useAuthStore((state) => state.user?.id);
-  const { bookElements, bookElementCategories, comments } = useDataStore();
+  // Per-slice selectors instead of `useDataStore()` (no selector) so this large
+  // view only re-renders when a slice it actually uses changes — not on every
+  // unrelated store mutation (storylines, relations, bookNodes, …).
+  const bookElements = useDataStore((s) => s.bookElements);
+  const bookElementCategories = useDataStore((s) => s.bookElementCategories);
+  const comments = useDataStore((s) => s.comments);
 
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',

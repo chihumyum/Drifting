@@ -11,6 +11,19 @@
  */
 import { create } from 'zustand';
 
+/** One whole block in the inline-edit target region, used by the block-by-block
+ *  edit pipeline (multi-block / whole-block / Cmd+A targets). */
+export interface InlineTargetBlock {
+  /** BlockId of the block in the live doc — how apply locates it again. */
+  id: string;
+  /** 'heading' | 'paragraph' — preserved across the edit. */
+  kind: string;
+  /** Heading level, when kind is 'heading'. */
+  level?: number;
+  /** Block's current plain text. */
+  text: string;
+}
+
 export interface CopilotInlineCtx {
   /** Chapter (BookNode) this invocation belongs to — disambiguates which
    *  mounted popover renders, and scopes manual-run capability events. */
@@ -26,15 +39,26 @@ export interface CopilotInlineCtx {
   selectedText: string;
   /** Enclosing block's plain text, for model context + display. */
   blockContext: string;
-  /** Blocks around the whole invocation region (before first / after last
-   *  covered block), joined — local context the model must not edit. */
-  nearbyContext: string;
+  /** Blocks ABOVE the invocation region (上文) — the INLINE_CONTEXT_WINDOW
+   *  blocks before the first covered block, joined. Local context, never
+   *  edited. Kept separate from contextAfter so the model can place the
+   *  target between its 上文 and 下文 instead of one undifferentiated blob. */
+  contextBefore: string;
+  /** Blocks BELOW the invocation region (下文) — the INLINE_CONTEXT_WINDOW
+   *  blocks after the last covered block, joined. Local context, never edited. */
+  contextAfter: string;
   /** Rolling segment summaries overlapping the context window — the local
    *  narrative arc, for grounding the edit. */
   segmentSummaries: string[];
   /** Block ids covered by the selection (Task 6 capability runs). Empty in
    *  'block' mode — those run on the rolling context (Task 7). */
   selectionBlockIds: string[];
+  /** Whole blocks covered by this invocation, in doc order — the unit the
+   *  block-by-block edit pipeline revises and applies. */
+  targetBlocks: InlineTargetBlock[];
+  /** True when the target is a partial span inside ONE block (e.g. a few
+   *  selected words). Then we revise just that span, not whole blocks. */
+  spanWithinBlock: boolean;
   /** Viewport coords to anchor the popover near the selection/caret. */
   clientX: number;
   clientY: number;
