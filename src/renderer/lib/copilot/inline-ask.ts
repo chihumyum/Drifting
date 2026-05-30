@@ -14,6 +14,7 @@
  */
 import { resolveOutputLanguageName } from '../ai/output-language';
 import { AIError, type AIErrorKind } from '../ai/types';
+import { aiByokHeaders } from '../ai/remote/byok-headers';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -62,7 +63,11 @@ export async function* runInlineAskStream(params: {
     res = await fetch(`${API_BASE_URL}/api/ai/stream/inline-ask`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // BYOK key (when ai_mode='byok'); empty for the hosted path.
+        ...(await aiByokHeaders()),
+      },
       body: JSON.stringify({
         context,
         history,

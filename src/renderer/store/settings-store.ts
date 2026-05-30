@@ -8,6 +8,13 @@ export type ParagraphIndent = 'none' | 'one' | 'two';
 export type LineHeight = 1.5 | 1.65 | 1.72 | 1.8 | 2.0;
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
+/**
+ * Where copilot LLM calls get their credential (Phase 4).
+ *  - 'hosted': the Drifting server uses its own provider key (metered/billed).
+ *  - 'byok':   the user's own key (from the OS keychain) is sent per-request so
+ *              the server calls the provider with it. Never persisted server-side.
+ */
+export type AiMode = 'hosted' | 'byok';
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 /** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';
@@ -128,6 +135,9 @@ interface SettingsState {
   // them in plaintext localStorage. Only non-secret config belongs here.
   modelTier: ModelTier;
   setModelTier: (t: ModelTier) => void;
+  // 'hosted' (server key, metered) vs 'byok' (user's own key, sent per-request).
+  aiMode: AiMode;
+  setAiMode: (m: AiMode) => void;
   ollamaEndpoint: string;
   setOllamaEndpoint: (s: string) => void;
   uploadFullManuscript: boolean;
@@ -290,6 +300,8 @@ export const useSettingsStore = create<SettingsState>()(
       dateFormat: 'cjk',
       setDateFormat: (f) => set({ dateFormat: f }),
 
+      aiMode: 'hosted',
+      setAiMode: (m) => set({ aiMode: m }),
       modelTier: 'standard',
       setModelTier: (t) => set({ modelTier: t }),
       ollamaEndpoint: 'http://localhost:11434',

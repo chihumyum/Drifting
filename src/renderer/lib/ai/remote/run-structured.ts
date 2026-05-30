@@ -20,6 +20,7 @@ import type { Static, TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import { apiClient } from '../../axios-config';
 import { AIError } from '../types';
+import { aiByokHeaders } from './byok-headers';
 
 /** Description-free prompt handle held by the renderer. */
 export interface RemotePrompt<TInputSchema extends TSchema, TOutputSchema extends TSchema> {
@@ -78,6 +79,8 @@ export async function runStructured<
         input,
         outputLanguage: options.outputLanguage,
       },
+      // BYOK key (when ai_mode='byok'); empty for the hosted path.
+      headers: await aiByokHeaders(),
       signal: options.signal,
     });
     data = res.data;
