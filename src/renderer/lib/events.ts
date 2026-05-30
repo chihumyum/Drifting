@@ -75,7 +75,6 @@ export type AppEvents = {
   // panel). Empty payload = open at last position.
   'settings:open': { railId?: string };
   'search:open': void;
-  'export:open': void;
   'import:open': void;
   'left-sidebar:toggle': void;
   'right-sidebar:toggle': void;
@@ -90,6 +89,22 @@ export type AppEvents = {
   'copilot:suggestion-persisted': {
     targetKind: 'node' | 'element' | 'patch' | 'category' | 'storyline';
     targetId: string;
+  };
+
+  // User explicitly asked Copilot to run a capability NOW (Cmd+Shift+I / copilot
+  // menu), bypassing the per-capability debounce and dedup gate. Consumed by
+  // the useCopilot instance whose chapter (nodeId) matches — it forces a
+  // fire even if the capability's per-task toggle is off, and even when
+  // automatic Copilot is disabled (manual is never gated by those switches).
+  // `instruction` is the optional free-text steer the user typed in the
+  // popover; it's threaded into the capability's prompt. `selectionBlockIds`,
+  // when present (Task 6), scopes the run to those blocks + the segments they
+  // fall into, instead of the rolling coverage context.
+  'copilot:manual-run': {
+    nodeId: string;
+    capId: string;
+    instruction?: string;
+    selectionBlockIds?: string[];
   };
 };
 

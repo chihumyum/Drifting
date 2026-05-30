@@ -29,13 +29,19 @@ log.setLevel(loglevel.levels.INFO);
 import { AIError } from '../lib/ai/types';
 import {
   capabilitiesForTrigger,
+  getCopilotCapability,
   type CopilotCapability,
 } from '../lib/copilot/capability';
 import { copilotRuntime } from '../lib/copilot/runtime';
-import { buildBaseBlockContext } from '../lib/copilot/base-block-context';
+import {
+  buildBaseBlockContext,
+  buildSelectionBlockContext,
+  selectionWarrantsSummaryRegen,
+} from '../lib/copilot/base-block-context';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
 import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
+import { useCopilotInlineStore } from '../store/copilot-inline-store';
 import { events } from '../lib/events';
 
 export interface UseCopilotInput {
@@ -54,6 +60,7 @@ export function useCopilot({
 }: UseCopilotInput): void {
   const { createCopilotSuggestion } = useComment({ projectId, userId });
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
+  const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const summariesEnabled = useSettingsStore((s) => s.copilotGenerateSummaries);
   const summarySectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
   const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
@@ -72,15 +79,12 @@ export function useCopilot({
   const summaryInFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!copilotEnabled) return;
-
     const allCaps = capabilitiesForTrigger('editor-block-debounced');
     const enabledCaps = allCaps.filter((c) => taskConfigs[c.id as CopilotTaskId]?.enabled);
-
-    if (enabledCaps.length === 0) {
-      log.info(`[useCopilot] mount nodeId=${nodeId} no enabled caps — idle`);
-      return;
-    }
+    // Auto debounce requires BOTH the master switch and the auto-trigger
+    // switch. The manual path (Cmd+Shift+I / context menu) is wired below
+    // regardless — it is never gated by these, since the user asked for it.
+    const autoEnabled = copilotEnabled && autoTrigger;
 
     log.info(
       `[useCopilot] mount nodeId=${nodeId} caps=[${enabledCaps.map((c) => `${c.id}@${effectiveDebounceMs(c, taskConfigs)}ms`).join(',')}] summaries=${summariesEnabled} sectionSize=${summarySectionSize}`,
@@ -91,18 +95,39 @@ export function useCopilot({
     let updateCount = 0;
     let fireCount = 0;
 
-    const runFor = async (cap: CopilotCapability): Promise<void> => {
+    const runFor = async (
+      cap: CopilotCapability,
+      opts?: { force?: boolean; instruction?: string; selectionBlockIds?: string[] },
+    ): Promise<void> => {
       fireCount += 1;
       const localFireId = fireCount;
+      const forced = opts?.force === true;
+      const selectionBlockIds = opts?.selectionBlockIds ?? [];
+      const isSelectionRun = selectionBlockIds.length > 0;
 
-      const baseContext = await buildBaseBlockContext({ editor, chapterId: nodeId });
+      // Pause automatic fires while the inline-Copilot popover is open — the
+      // user is actively steering Copilot there, so a background fire would
+      // race it and muddy the shared coverage context. Manual fires are exempt.
+      if (!forced && useCopilotInlineStore.getState().ctx) {
+        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (inline popover open)`);
+        return;
+      }
+
+      // Selection-scoped run (Task 6): the capability sees exactly the
+      // selected blocks + their segments. Otherwise the rolling coverage view.
+      const baseContext = isSelectionRun
+        ? buildSelectionBlockContext(editor, nodeId, selectionBlockIds)
+        : await buildBaseBlockContext({ editor, chapterId: nodeId });
       if (!baseContext) {
-        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (coverage empty)`);
+        log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (empty context)`);
         return;
       }
 
       const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
-      if (lastFingerprintRef.current[cap.id] === fingerprint) {
+      // Manual fires (Cmd+Shift+I / copilot menu) skip the dedup gate: the user is
+      // explicitly re-running, often precisely because the debounced fire on
+      // this same content wasn't satisfactory.
+      if (!forced && lastFingerprintRef.current[cap.id] === fingerprint) {
         log.debug(`[useCopilot] cap=${cap.id} fire #${localFireId} skip (fingerprint unchanged)`);
         return;
       }
@@ -113,7 +138,7 @@ export function useCopilot({
       inFlightByCapRef.current[cap.id] = controller;
 
       log.info(
-        `[useCopilot] cap=${cap.id} fire #${localFireId} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
+        `[useCopilot] cap=${cap.id} fire #${localFireId}${forced ? ' (manual)' : ''} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
       );
 
       try {
@@ -126,6 +151,7 @@ export function useCopilot({
             targetKind: 'node',
             targetId: nodeId,
             baseContext,
+            userInstruction: opts?.instruction,
             signal: controller.signal,
           });
           lastFingerprintRef.current[cap.id] = fingerprint;
@@ -162,11 +188,32 @@ export function useCopilot({
           });
         }
 
-        // Threshold-triggered summary, decoupled from any specific cap.
-        // First fire to see uncovered ≥ threshold wins the lock; others
-        // skip until completion. The summary call's signal is the cap's
-        // controller — chapter teardown aborts in-flight summaries too.
-        if (
+        if (isSelectionRun) {
+          // Task 6 regen decision: refresh a segment summary only when the
+          // selection spans multiple segments (or none) — never when it's
+          // already contained in one segment.
+          if (
+            summariesEnabled &&
+            selectionBlockIds.length >= 2 &&
+            !summaryInFlightRef.current &&
+            selectionWarrantsSummaryRegen(nodeId, selectionBlockIds)
+          ) {
+            summaryInFlightRef.current = true;
+            void produceBlockSectionSummary({
+              projectId,
+              chapterId: nodeId,
+              blockIds: selectionBlockIds,
+              editor,
+              signal: controller.signal,
+            }).finally(() => {
+              summaryInFlightRef.current = false;
+            });
+          }
+        } else if (
+          // Threshold-triggered summary, decoupled from any specific cap.
+          // First fire to see uncovered ≥ threshold wins the lock; others
+          // skip until completion. The summary call's signal is the cap's
+          // controller — chapter teardown aborts in-flight summaries too.
           summariesEnabled &&
           baseContext.uncoveredBlocks.length >= summarySectionSize &&
           !summaryInFlightRef.current
@@ -205,13 +252,48 @@ export function useCopilot({
       }
     };
 
-    editor.on('update', onEditorUpdate);
+    // Debounced auto-fire only when auto is on AND a cap is enabled for it.
+    // The manual path below stays wired regardless, so Cmd+Shift+I can run a
+    // per-task-disabled capability (or run at all while auto is off).
+    if (autoEnabled && enabledCaps.length > 0) {
+      editor.on('update', onEditorUpdate);
+    } else {
+      log.info(
+        `[useCopilot] nodeId=${nodeId} auto idle (enabled=${copilotEnabled} auto=${autoTrigger} caps=${enabledCaps.length}) — manual still armed`,
+      );
+    }
+
+    // Manual run: user pressed Cmd+Shift+I / picked a capability from the copilot
+    // menu. Force a fire (skip dedup) regardless of the per-task enabled flag.
+    // Gated by the master switch (copilotEnabled closes manual AND auto);
+    // nodeId match scopes the event to this editor's chapter.
+    const onManualRun = ({
+      nodeId: target,
+      capId,
+      instruction,
+      selectionBlockIds,
+    }: {
+      nodeId: string;
+      capId: string;
+      instruction?: string;
+      selectionBlockIds?: string[];
+    }): void => {
+      if (target !== nodeId) return;
+      const cap = getCopilotCapability(capId);
+      if (!cap) {
+        log.warn(`[useCopilot] manual-run for unknown capability "${capId}"`);
+        return;
+      }
+      void runFor(cap, { force: true, instruction, selectionBlockIds });
+    };
+    if (copilotEnabled) events.on('copilot:manual-run', onManualRun);
 
     return () => {
       log.info(
         `[useCopilot] cleanup nodeId=${nodeId} totalUpdates=${updateCount} totalFires=${fireCount}`,
       );
       editor.off('update', onEditorUpdate);
+      events.off('copilot:manual-run', onManualRun);
       for (const t of Object.values(timers)) {
         if (t) clearTimeout(t);
       }
@@ -225,6 +307,7 @@ export function useCopilot({
   }, [
     editor,
     copilotEnabled,
+    autoTrigger,
     taskConfigsKey,
     projectId,
     nodeId,

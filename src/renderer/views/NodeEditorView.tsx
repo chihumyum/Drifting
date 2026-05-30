@@ -71,7 +71,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const navigate = useNavigate();
   const {
     navigateToElement,
-    navigateToHome,
+    leaveDeletedEntity,
     navigateToNode,
     navigateToStoryline,
     navigateToCategory,
@@ -475,7 +475,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
         try {
           await deleteNode(nodeId);
-          navigateToHome();
+          leaveDeletedEntity();
         } catch (error) {
           log.error('[NodeEditor] Failed to delete node:', error);
           alert('Failed to delete node. Please try again.');
@@ -485,7 +485,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     [
       curNode,
       deleteNode,
-      navigateToHome,
+      leaveDeletedEntity,
       nodeId,
       openStorylineEditor,
       updateNode,

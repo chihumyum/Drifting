@@ -14,6 +14,8 @@ import { useDataStore } from '../../store/data-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { isDrift } from '../../domain/book-node';
 import { useCopilot } from '../../hooks/useCopilot';
+import { useTodoAutoParse } from '../../hooks/useTodoAutoParse';
+import { useSegmentMergeOnFinalize } from '../../hooks/useSegmentMergeOnFinalize';
 
 interface CopilotEditorMountProps {
   editor: Editor | null;
@@ -61,5 +63,7 @@ function CopilotMountInner({
   userId: string;
 }): null {
   useCopilot({ editor, projectId, nodeId, userId });
+  useTodoAutoParse({ editor, projectId, nodeId, userId });
+  useSegmentMergeOnFinalize({ editor, projectId, nodeId });
   return null;
 }

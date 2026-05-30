@@ -9,6 +9,8 @@ export type LineHeight = 1.5 | 1.65 | 1.72 | 1.8 | 2.0;
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
+/** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
+export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 export type OrbCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type EditPermission = 'suggest' | 'small' | 'all';
@@ -22,6 +24,7 @@ export type CopilotTaskId =
   | 'elementExtract'
   | 'elementPatch'
   | 'autoLink'
+  | 'inlineEdit'
   | 'polish'
   | 'research';
 
@@ -31,6 +34,7 @@ export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[]
   { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
   { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
   { id: 'autoLink', label: '自动链接', desc: '把正文里出现的元素自动挂载到元素页面' },
+  { id: 'inlineEdit', label: '行内修改', desc: '⇧⌘I 手动触发的局部润色 / 改写，不生成新情节' },
   { id: 'polish', label: '语言润色', desc: '挑出生硬或重复的句式作为批注' },
   { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
 ];
@@ -59,7 +63,12 @@ function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
     // elementExtract / elementPatch are the two wired capabilities — default
     // on so a fresh install actually does something. The placeholders stay
     // off until their capabilities ship.
-    const on = t.id === 'elementExtract' || t.id === 'elementPatch' || t.id === 'autoLink' || t.id === 'continuityCheck';
+    const on =
+      t.id === 'elementExtract' ||
+      t.id === 'elementPatch' ||
+      t.id === 'autoLink' ||
+      t.id === 'continuityCheck' ||
+      t.id === 'inlineEdit';
     out[t.id] = defaultTaskConfig(on);
   }
   return out;
@@ -149,8 +158,23 @@ interface SettingsState {
   setShadowSystemPrompt: (s: string) => void;
 
   // Copilot (任务自动化, 没有续写)
+  /**
+   * Master switch for AUTOMATIC Copilot. When off, Copilot no longer runs on
+   * its own as you write. It does NOT gate manual triggers — ⇧⌘I / the
+   * context-menu Copilot popover keep working regardless, since those are
+   * user-initiated. Pair with copilotAutoTrigger for finer control.
+   */
   copilotEnabled: boolean;
   setCopilotEnabled: (on: boolean) => void;
+  /**
+   * Automatic debounced triggering. When false, capabilities never fire on
+   * their own as you type, but manual ⇧⌘I / context-menu triggers still work.
+   * Separate from copilotEnabled so you can keep Copilot enabled (manual
+   * available, summaries on) while silencing the background as-you-type calls.
+   * Effective auto-fire requires copilotEnabled && copilotAutoTrigger.
+   */
+  copilotAutoTrigger: boolean;
+  setCopilotAutoTrigger: (on: boolean) => void;
   copilotMode: CopilotMode;
   setCopilotMode: (m: CopilotMode) => void;
   /**
@@ -190,6 +214,24 @@ interface SettingsState {
    */
   copilotSummarySectionSize: number;
   setCopilotSummarySectionSize: (n: number) => void;
+  /**
+   * Inline-edit (Cmd+Shift+I) escape hatch. Default false: inline-edit refuses to
+   * generate NEW story content because it runs without the project / chapter
+   * / storyline context the rest of Copilot assembles. Flip on to let it
+   * fulfill "continue this" style asks — the author then owns the quality
+   * loss from the missing global context.
+   */
+  copilotInlineEditAllowNewContent: boolean;
+  setCopilotInlineEditAllowNewContent: (on: boolean) => void;
+  /**
+   * Per-project output language for Copilot (and future Shadow) generation,
+   * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
+   * 副手 from drifting into the wrong language (e.g. English in a Chinese
+   * novel). Client-local for now — promote to a synced ProjectTable column
+   * if cross-device parity is needed.
+   */
+  copilotOutputLangByProject: Record<string, CopilotOutputLang>;
+  setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -289,6 +331,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       copilotEnabled: true,
       setCopilotEnabled: (on) => set({ copilotEnabled: on }),
+      copilotAutoTrigger: true,
+      setCopilotAutoTrigger: (on) => set({ copilotAutoTrigger: on }),
       copilotMode: 'cloud',
       setCopilotMode: (m) => set({ copilotMode: m }),
       copilotInDrift: false,
@@ -319,6 +363,17 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotGenerateSummaries: (on) => set({ copilotGenerateSummaries: on }),
       copilotSummarySectionSize: 8,
       setCopilotSummarySectionSize: (n) => set({ copilotSummarySectionSize: n }),
+      copilotInlineEditAllowNewContent: false,
+      setCopilotInlineEditAllowNewContent: (on) =>
+        set({ copilotInlineEditAllowNewContent: on }),
+      copilotOutputLangByProject: {},
+      setCopilotOutputLang: (projectId, lang) =>
+        set((state) => ({
+          copilotOutputLangByProject: {
+            ...state.copilotOutputLangByProject,
+            [projectId]: lang,
+          },
+        })),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),
@@ -337,7 +392,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 7,
+      version: 8,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -431,6 +486,21 @@ export const useSettingsStore = create<SettingsState>()(
           }
           delete configs.entityExtract;
           next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
+        }
+        if (version < 8) {
+          // New task ids ship over time (e.g. 'inlineEdit'). Backfill any
+          // COPILOT_TASKS entry missing from the user's persisted configs
+          // with its first-run default, so the settings UI and the manual-run
+          // menu surface it instead of treating it as silently disabled.
+          // Existing user choices are preserved (only missing keys are added).
+          const defaults = buildInitialTaskConfigs();
+          const configs = {
+            ...(next.copilotTaskConfigs ?? {}),
+          } as Record<CopilotTaskId, CopilotTaskConfig>;
+          for (const id of Object.keys(defaults) as CopilotTaskId[]) {
+            if (!configs[id]) configs[id] = defaults[id];
+          }
+          next = { ...next, copilotTaskConfigs: configs };
         }
         return next;
       },

@@ -7,9 +7,9 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useCanUseFeature } from '../lib/feature-access';
 
-// Minimal trash UI. Lists soft-deleted entities across the 4 core domains
-// and restores them. Permanent delete from trash is intentionally omitted
-// in v1 — the 30-day server cron handles it.
+// Minimal trash UI. Lists soft-deleted entities across the 4 core domains.
+// Each row can be restored, or permanently deleted right away ("立刻删除")
+// instead of waiting for the 30-day server cron to purge it.
 interface TrashItem {
   kind: 'chapter' | 'drift' | 'element' | 'storyline' | 'category';
   id: string;
@@ -102,6 +102,25 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     await reload();
   };
 
+  // Skip the 30-day wait and drop the row for good. Irreversible, so gate it
+  // behind a confirm — once purged there's no restore.
+  const purge = async (item: TrashItem) => {
+    const confirmed = window.confirm(
+      `彻底删除「${item.label}」？此操作无法撤销，将立即永久删除。`,
+    );
+    if (!confirmed) return;
+    if (item.kind === 'chapter' || item.kind === 'drift') {
+      await nodeUC.purgeNode(item.id);
+    } else if (item.kind === 'element') {
+      await elementUC.purgeElement(item.id);
+    } else if (item.kind === 'storyline') {
+      await storylineUC.purgeStoryline(item.id);
+    } else if (item.kind === 'category') {
+      await categoryUC.purgeCategory(item.id);
+    }
+    await reload();
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 720 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -132,9 +151,17 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
                 <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-4))', fontSize: 11 }}>
                   {new Date(it.deletedAt).toLocaleString()}
                 </td>
-                <td style={{ padding: '8px 4px', textAlign: 'right' }}>
-                  <button className="set-btn" onClick={() => void restore(it)}>
+                <td style={{ padding: '8px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button className="set-btn" disabled={busy} onClick={() => void restore(it)}>
                     恢复
+                  </button>
+                  <button
+                    className="set-btn set-btn--danger"
+                    disabled={busy}
+                    style={{ marginLeft: 8 }}
+                    onClick={() => void purge(it)}
+                  >
+                    立刻删除
                   </button>
                 </td>
               </tr>

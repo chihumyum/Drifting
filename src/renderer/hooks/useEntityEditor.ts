@@ -16,6 +16,7 @@ import { extractOutline, serializeOutline, type OutlineItem } from '../lib/outli
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import {
   EntityLink,
+  EntityLinkDanglingPluginKey,
   entityLinkConfig,
   type AutoDetectTarget,
   type EntityKind,
@@ -27,10 +28,11 @@ import {
 } from '../lib/extensions/entity-mention-suggestion';
 import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-menu';
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
-import { exportDocToMarkdown } from '../services/markdown-export.service';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
+import type { EditorView } from '@tiptap/pm/view';
 import { useDataStore } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
+import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
 import { useAuthStore } from '../store/auth';
 import { useBookElement } from '../usecase/useBookElement';
 import { useProjectNavigation } from './useProjectNavigation';
@@ -105,6 +107,7 @@ function removeCommentContextMenu(): void {
 function openCommentContextMenu(
   request: EditorCommentRequest,
   onAddCommentRequest: (request: EditorCommentRequest) => void,
+  onCopilot?: () => void,
 ): void {
   removeCommentContextMenu();
   const menu = document.createElement('div');
@@ -112,15 +115,22 @@ function openCommentContextMenu(
   menu.style.left = `${request.clientX}px`;
   menu.style.top = `${request.clientY}px`;
 
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = '添加批注';
-  button.addEventListener('mousedown', (event) => event.preventDefault());
-  button.addEventListener('click', () => {
-    removeCommentContextMenu();
-    onAddCommentRequest(request);
-  });
-  menu.appendChild(button);
+  const addButton = (label: string, onClick: () => void): void => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('mousedown', (event) => event.preventDefault());
+    button.addEventListener('click', () => {
+      removeCommentContextMenu();
+      onClick();
+    });
+    menu.appendChild(button);
+  };
+
+  addButton('添加批注', () => onAddCommentRequest(request));
+  // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
+  if (onCopilot) addButton('Copilot 修改', onCopilot);
+
   document.body.appendChild(menu);
 
   const close = (event: MouseEvent) => {
@@ -130,6 +140,126 @@ function openCommentContextMenu(
     }
   };
   setTimeout(() => document.addEventListener('mousedown', close, true), 0);
+}
+
+/** How many blocks before/after the invocation region to pull in as context. */
+const INLINE_CONTEXT_WINDOW = 3;
+
+/**
+ * Resolve the inline-Copilot invocation context from the current editor
+ * selection. With a non-empty selection the target IS the selection; with a
+ * bare caret it's the enclosing block (so ⇧⌘I works mid-typing).
+ *
+ * Context is gathered around the WHOLE invocation region, not just its first
+ * block: `nearbyContext` = up to INLINE_CONTEXT_WINDOW blocks before the first
+ * covered block + after the last; `segmentSummaries` = the rolling segment
+ * summaries overlapping that window. `blockContext` (enclosing paragraph) is
+ * only set for a PARTIAL within-one-block selection, where the surrounding
+ * sentence adds something the target span alone doesn't — for multi-block or
+ * whole-block targets it's left empty (the target already spans full blocks).
+ *
+ * Returns null only if the caret isn't inside any id-bearing block.
+ */
+function buildInlineCopilotCtx(
+  view: EditorView,
+  projectId: string,
+  nodeId: string,
+  coords: { clientX: number; clientY: number },
+): CopilotInlineCtx | null {
+  const { selection, doc } = view.state;
+
+  // All blocks in document order.
+  const blocks: { id: string; text: string }[] = [];
+  doc.descendants((node) => {
+    if (!isBlockType(node.type.name)) return undefined;
+    const id = node.attrs?.id as string | null | undefined;
+    if (id) blocks.push({ id, text: node.textContent.replace(/\s+/g, ' ').trim() });
+    return false;
+  });
+  if (blocks.length === 0) return null;
+  const indexById = new Map(blocks.map((b, i) => [b.id, i]));
+
+  // Enclosing block of the caret / selection start.
+  const resolved = doc.resolve(selection.from);
+  let encId: string | null = null;
+  let encText = '';
+  let blockStart = 0;
+  let blockEnd = 0;
+  for (let depth = resolved.depth; depth >= 0; depth--) {
+    const node = resolved.node(depth);
+    if (!isBlockType(node.type.name)) continue;
+    encId = (node.attrs?.id as string | null | undefined) ?? null;
+    encText = node.textContent.replace(/\s+/g, ' ').trim();
+    blockStart = resolved.before(depth) + 1;
+    blockEnd = blockStart + node.content.size;
+    break;
+  }
+  if (!encId) return null;
+
+  // Selection block ids (Task 6) + the block-index range the run covers.
+  const selectionBlockIds: string[] = [];
+  if (!selection.empty) {
+    doc.nodesBetween(selection.from, selection.to, (node) => {
+      const bid = node.attrs?.id as string | null | undefined;
+      if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
+      return true;
+    });
+  }
+  const selText = selection.empty
+    ? ''
+    : doc.textBetween(selection.from, selection.to, '\n').trim();
+  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
+
+  const coveredIds =
+    mode === 'selection' && selectionBlockIds.length > 0 ? selectionBlockIds : [encId];
+  const coveredIdxs = coveredIds
+    .map((id) => indexById.get(id))
+    .filter((i): i is number => i !== undefined);
+  const firstIdx = coveredIdxs.length ? Math.min(...coveredIdxs) : (indexById.get(encId) ?? 0);
+  const lastIdx = coveredIdxs.length ? Math.max(...coveredIdxs) : firstIdx;
+  const coveredSet = new Set(coveredIds);
+
+  // Enclosing paragraph only when a partial selection lives inside one block.
+  const singleBlockPartial =
+    mode === 'selection' && firstIdx === lastIdx && selText !== blocks[firstIdx]?.text;
+  const blockContext = singleBlockPartial ? encText : '';
+
+  // Nearby: window of blocks before the first / after the last covered block.
+  const windowStart = Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
+  const windowEnd = Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
+  const nearbyParts: string[] = [];
+  for (let i = windowStart; i <= windowEnd; i++) {
+    if (i >= firstIdx && i <= lastIdx) continue; // skip the covered region itself
+    const b = blocks[i]!;
+    if (!coveredSet.has(b.id) && b.text) nearbyParts.push(b.text);
+  }
+
+  // Segment summaries overlapping the window — the local narrative arc.
+  const windowIds = new Set<string>();
+  for (let i = windowStart; i <= windowEnd; i++) windowIds.add(blocks[i]!.id);
+  const segmentSummaries = useDataStore
+    .getState()
+    .blockSections.filter(
+      (s) => s.chapterId === nodeId && s.blockIds.some((b) => windowIds.has(b)),
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((s) => s.summary)
+    .filter((s) => s.trim().length > 0);
+
+  return {
+    nodeId,
+    projectId,
+    mode,
+    from: mode === 'selection' ? selection.from : blockStart,
+    to: mode === 'selection' ? selection.to : blockEnd,
+    selectedText: mode === 'selection' ? selText : (blocks[firstIdx]?.text ?? encText),
+    blockContext,
+    nearbyContext: nearbyParts.join('\n\n'),
+    segmentSummaries,
+    selectionBlockIds,
+    clientX: coords.clientX,
+    clientY: coords.clientY,
+  };
 }
 
 /**
@@ -174,10 +304,8 @@ export interface UseEntityEditorConfig {
   // helpers.
   onPersist: (editor: Editor, derived: EditorPersistDerived) => void;
 
-  // Optional slash menu items beyond the defaults. The `导出 Markdown` item
-  // is provided automatically unless `enableMarkdownExport: false`.
+  // Optional slash menu items beyond the defaults.
   slashExtraItems?: SlashMenuExtraItem[];
-  enableMarkdownExport?: boolean;
 
   // Editor click on an entity-link mark. Defaults to navigation by targetKind.
   onEntityClick?: (ref: EntityLinkRef) => void;
@@ -195,6 +323,11 @@ export interface UseEntityEditorConfig {
   // Optional Word-style comment creation entry. The hook only detects the
   // selected block and selected text; persistence/UI lives above it.
   onAddCommentRequest?: (request: EditorCommentRequest) => void;
+
+  // Enable the Cmd+Shift+I inline-Copilot popover for this editor. Only chapter
+  // editors set this (Copilot is chapter-scoped); the popover itself is
+  // mounted by the caller (ChapterEditor) and keys off the same nodeId.
+  enableInlineCopilot?: boolean;
 }
 
 export interface UseEntityEditorResult {
@@ -218,7 +351,6 @@ export interface UseEntityEditorResult {
 //   • the persist pipeline (onUpdate dispatches projection + onPersist),
 //   • the entity-link config sync (auto-detect map + enabled flag),
 //   • the @-picker (mentionable entities and "+ create element" affordance),
-//   • the default `/导出 Markdown` slash item,
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
 export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorResult {
   const {
@@ -230,7 +362,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     ydoc,
     onPersist,
     slashExtraItems,
-    enableMarkdownExport = true,
     onEntityClick,
     autoFocus,
     placeholder,
@@ -238,15 +369,16 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     minHeight,
     selectionKey,
     onAddCommentRequest,
+    enableInlineCopilot = false,
   } = config;
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
   const onPersistRef = useLatestRef(onPersist);
   const slashExtraItemsRef = useLatestRef(slashExtraItems);
-  const enableMarkdownExportRef = useLatestRef(enableMarkdownExport);
   const onEntityClickRef = useLatestRef(onEntityClick);
   const selectionKeyRef = useLatestRef(selectionKey ?? null);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
+  const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -471,41 +603,24 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {
-    const items: SlashMenuExtraItem[] = [];
-    if (enableMarkdownExportRef.current) {
-      items.push({
-        id: 'export-md',
-        title: '导出 Markdown',
-        run: ({ editor }) => {
-          const state = useDataStore.getState();
-          const md = exportDocToMarkdown(editor.state.doc, {
-            resolveLabel: (kind, id) => {
-              if (kind === 'element')
-                return state.bookElements.find((e) => e.id === id)?.name ?? '';
-              if (kind === 'node')
-                return state.bookNodes.find((n) => n.id === id)?.title ?? '';
-              return '';
-            },
-          });
-          void navigator.clipboard.writeText(md).catch((error) => {
-            log.error('Failed to copy markdown to clipboard:', error);
-          });
-        },
-      });
-    }
     const extraItems = slashExtraItemsRef.current;
-    if (extraItems) items.push(...extraItems);
-    return items;
-  }, [enableMarkdownExportRef, slashExtraItemsRef]);
+    return extraItems ? [...extraItems] : [];
+  }, [slashExtraItemsRef]);
 
   const editor = useEditor(
     {
       extensions: [
         StarterKit.configure({
           heading: { levels: [1, 2, 3] },
-          bulletList: { keepMarks: true },
-          orderedList: { keepMarks: true },
-          codeBlock: {},
+          // Novel-writing surface: no code or lists. Disabling the nodes/marks
+          // also strips their input rules (`- `, `1. `, ``` ``` ```) and keymaps
+          // (Mod-Shift-7/8, Mod-e, Mod-Alt-c), so there's no way to create them.
+          bulletList: false,
+          orderedList: false,
+          listItem: false,
+          listKeymap: false,
+          code: false,
+          codeBlock: false,
           // Collaboration ships its own y-undo manager; if StarterKit's
           // undoRedo is left on alongside it, ProseMirror's history plugin
           // collides with the Yjs binding and crashes on first edit.
@@ -558,6 +673,32 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           class: editorClass ?? 'prose max-w-none focus:outline-none',
           style: minHeight ? `min-height: ${minHeight}` : '',
           spellcheck: 'false',
+        },
+        handleKeyDown: (view, event) => {
+          // Cmd/Ctrl+Shift+I → inline Copilot popover. The Shift is what keeps
+          // it off Mod+I (italic). Only for editors that opted in (chapter
+          // editors), and only while the Copilot master switch is on (it gates
+          // manual AND auto). Works with or without a selection (no selection →
+          // current block).
+          if (event.key !== 'i' && event.key !== 'I') return false;
+          if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
+            return false;
+          }
+          if (!enableInlineCopilotRef.current) return false;
+          if (!useSettingsStore.getState().copilotEnabled) return false;
+          const source = sourceRef.current;
+          if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
+            return false;
+          }
+          const c = view.coordsAtPos(view.state.selection.from);
+          const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+            clientX: c.left,
+            clientY: c.bottom,
+          });
+          if (!ctx) return false;
+          event.preventDefault();
+          useCopilotInlineStore.getState().open(ctx);
+          return true;
         },
         handleDOMEvents: {
           contextmenu: (view, event) => {
@@ -632,7 +773,21 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               clientX: event.clientX,
               clientY: event.clientY,
             };
-            openCommentContextMenu(request, handler);
+            // Chapter editors also offer "Copilot 修改" — same entry as ⇧⌘I,
+            // run on the selection. Build the inline ctx from the live view.
+            const onCopilot =
+              enableInlineCopilotRef.current &&
+              source.sourceKind === 'node' &&
+              useSettingsStore.getState().copilotEnabled
+                ? () => {
+                    const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+                      clientX: event.clientX,
+                      clientY: event.clientY,
+                    });
+                    if (ctx) useCopilotInlineStore.getState().open(ctx);
+                  }
+                : undefined;
+            openCommentContextMenu(request, handler, onCopilot);
             return true;
           },
         },
@@ -682,7 +837,33 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     entityLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
     entityLinkConfig.autoDetectTargets = autoDetectTargets;
     entityLinkConfig.interactionEnabled = entityLinkInteractive;
-  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive]);
+    // Read the store live at click time so a link whose target was just
+    // deleted (its mark still embedded in this doc's content) is treated as
+    // dangling and ignored instead of opening a phantom "untitled" editor.
+    entityLinkConfig.targetExists = (kind, id) => {
+      const state = useDataStore.getState();
+      switch (kind) {
+        case 'element':
+          return state.bookElements.some((e) => e.id === id);
+        case 'node':
+          return state.bookNodes.some((n) => n.id === id);
+        case 'storyline':
+          return state.storylines.some((s) => s.id === id);
+        case 'category':
+          return state.bookElementCategories.some((c) => c.id === id);
+        default:
+          // Kinds we don't track here (e.g. patch) stay navigable.
+          return true;
+      }
+    };
+    // The known-entity set just changed (e.g. an element was deleted while this
+    // doc is open). Nudge the dangling-link plugin to re-walk so any link to a
+    // now-missing target greys out immediately. A meta-only transaction adds no
+    // steps and never enters history.
+    if (editor && !editor.isDestroyed) {
+      editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
+    }
+  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, editor]);
 
   // Load content into the editor whenever the (editor instance, sourceId)
   // pair changes. Don't depend on `content` — that would re-load on every

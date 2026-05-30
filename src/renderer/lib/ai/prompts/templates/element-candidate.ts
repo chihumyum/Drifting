@@ -62,6 +62,15 @@ export const elementCandidatePrompt = definePrompt({
         'Names the user has explicitly rejected before (lowercased). Never ' +
         'propose these — the user has already said no.',
     }),
+    userInstruction: Type.Optional(
+      Type.String({
+        description:
+          'Optional free-text steer the author typed when manually running ' +
+          'this task (e.g. "只关注地名", "忽略配角"). Empty/absent on automatic ' +
+          'runs. When present, bias your scan toward it — but never break the ' +
+          'STRICT rules below to satisfy it.',
+      }),
+    ),
     priorSectionSummaries: Type.Array(Type.String(), {
       description:
         'Rolling 1-2-sentence summaries of earlier passages in the same ' +
@@ -140,7 +149,9 @@ export const elementCandidatePrompt = definePrompt({
     const priorSectionLines = input.priorSectionSummaries.length
       ? input.priorSectionSummaries.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')
       : '  (none — this chapter has no earlier summaries yet)';
+    const steer = input.userInstruction?.trim();
     return [
+      steer ? `Author's steer for this run (honor within the rules): ${steer}` : '',
       `Earlier in this chapter (oldest first; use for setting / tone / ` +
         `existing-cast context):\n${priorSectionLines}`,
       '',

@@ -5,7 +5,8 @@
  * minutiae (font, color, mysterious spacings) and emits semantic tags
  * (h1..h6, p, ul/ol/li, strong, em, blockquote). We then run Tiptap's
  * `generateJSON` over that HTML so we land in the same JSON shape as
- * markdown imports.
+ * markdown imports. Lists and code aren't in the editor schema, so
+ * <ul>/<ol>/<li> degrade to paragraphs and <pre>/<code> to plain text.
  *
  * Images: mammoth can convert images to data URIs, but the editor's
  * StarterKit doesn't currently render images. We drop them with a
@@ -23,7 +24,16 @@ import type { ParsedDoc } from './types';
 
 const PARSER_EXTENSIONS = [
   StarterKit.configure({
-    codeBlock: { HTMLAttributes: { class: 'code-block' } },
+    // Mirror the editor (useEntityEditor): a novel-writing surface with no
+    // lists or code. Dropping these from the parser schema makes ProseMirror
+    // descend through <ul>/<ol>/<li> into paragraphs and flatten <pre>/<code>
+    // to plain text, instead of emitting nodes the editor can't load.
+    bulletList: false,
+    orderedList: false,
+    listItem: false,
+    listKeymap: false,
+    code: false,
+    codeBlock: false,
   }),
   Underline,
   Link.configure({ openOnClick: false, autolink: true }),

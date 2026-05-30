@@ -50,7 +50,6 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
               .unsetBold() // 清除粗体
               .unsetItalic() // 清除斜体
               .unsetStrike() // 清除删除线（如果有）
-              .unsetCode() // 清除行内代码（如果有）
               .setParagraph() // 设置为段落
               .run();
           },

@@ -1,6 +1,8 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 // Re-export from the canonical vocabulary so callers that already import
 // EntityKind from this extension don't need to be rewired. New code should
@@ -40,11 +42,50 @@ export const entityLinkConfig = {
   // Visual styling is gated separately via the `data-entity-link-interactive`
   // attribute on <html> (see editor-preferences.ts and index.css).
   interactionEnabled: true,
+  // Resolve whether a link's target entity still exists. Marks live inside
+  // other documents' content JSON, so deleting an entity leaves dangling
+  // links behind; clicking one would otherwise navigate to a phantom
+  // "untitled" editor. The hook injects a store-backed implementation; the
+  // permissive default keeps the extension usable in isolation/tests.
+  targetExists: (_kind: EntityKind, _id: string): boolean => true,
 };
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
 
+// Separate plugin that greys out "dangling" links — marks whose target entity
+// has been deleted. Carried in its own DecorationSet so we can recompute it
+// (a) on every doc change and (b) on demand when the known-entity set shifts
+// (an element deleted while this doc is open). The hook fires the on-demand
+// refresh by dispatching a transaction tagged with this key's meta.
+export const EntityLinkDanglingPluginKey = new PluginKey<DecorationSet>(
+  'entityLinkDangling',
+);
+
 const META_FLAG = 'entityLink';
+
+const DANGLING_CLASS = 'entity-link--dangling';
+
+// Walk the doc and decorate every entity-link span whose target no longer
+// exists. The CSS for DANGLING_CLASS strips the link styling so the text reads
+// as plain prose (clicks are already swallowed by the handleClick guard).
+function computeDanglingDecorations(doc: PMNode): DecorationSet {
+  const decorations: Decoration[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'entityLink') continue;
+      const targetId = mark.attrs.targetId as string | null;
+      if (!targetId) continue;
+      const targetKind = (mark.attrs.targetKind as EntityKind) ?? 'element';
+      if (entityLinkConfig.targetExists(targetKind, targetId)) continue;
+      decorations.push(
+        Decoration.inline(pos, pos + node.text.length, { class: DANGLING_CLASS }),
+      );
+      break; // one decoration per text node is enough
+    }
+  });
+  return DecorationSet.create(doc, decorations);
+}
 
 export const EntityLink = Mark.create<EntityLinkOptions>({
   name: 'entityLink',
@@ -234,10 +275,35 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
             const targetKind = (target.getAttribute('data-target-kind') as EntityKind) ?? 'element';
             const targetId = target.getAttribute('data-target-id');
             if (!targetId) return false;
+            // Dangling link: the target entity was deleted. Swallow the click
+            // so we don't navigate to a phantom "untitled" editor, but report
+            // it handled so the click doesn't also place the caret mid-word.
+            if (!entityLinkConfig.targetExists(targetKind, targetId)) return true;
             const targetBlockId = target.getAttribute('data-target-block-id');
 
             onClick({ targetKind, targetId, targetBlockId });
             return true;
+          },
+        },
+      }),
+
+      // Dangling-link decorations. Kept in plugin state so we only re-walk the
+      // doc when it changes or when the hook forces a refresh (entity deleted
+      // while this doc is open) via a meta-tagged transaction.
+      new Plugin<DecorationSet>({
+        key: EntityLinkDanglingPluginKey,
+        state: {
+          init: (_config, state) => computeDanglingDecorations(state.doc),
+          apply(tr, value) {
+            if (tr.docChanged || tr.getMeta(EntityLinkDanglingPluginKey)) {
+              return computeDanglingDecorations(tr.doc);
+            }
+            return value.map(tr.mapping, tr.doc);
+          },
+        },
+        props: {
+          decorations(state) {
+            return EntityLinkDanglingPluginKey.getState(state);
           },
         },
       }),

@@ -15,7 +15,8 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isBlockType } from '../extensions/block-id';
 import { computeCoverageMap } from './coverage-map';
-import type { BaseBlockContext } from '../ai/context/types';
+import { useDataStore } from '../../store/data-store';
+import type { BaseBlockContext, BlockSnippet, PriorSectionSnippet } from '../ai/context/types';
 
 export interface BuildBaseBlockContextInput {
   editor: Editor;
@@ -61,4 +62,88 @@ export async function buildBaseBlockContext(
     priorSections: coverage.priorSections,
     mentionedElementIds: [...mentionedElementIds],
   };
+}
+
+/**
+ * Build a SELECTION-scoped BaseBlockContext (Task 6): instead of the rolling
+ * coverage view, the capability sees exactly the blocks the user selected as
+ * `uncoveredBlocks`, plus every segment those blocks fall into as
+ * `priorSections` (so the selection's summaries come along). Used when the
+ * user right-clicks / ⇧⌘I's a selection and runs a capability on it.
+ *
+ * Synchronous (no eviction side-effects) — pure read of the doc + section
+ * store. Returns null if the selection has no non-empty text blocks.
+ */
+export function buildSelectionBlockContext(
+  editor: Editor,
+  chapterId: string,
+  selectedBlockIds: string[],
+): BaseBlockContext | null {
+  if (selectedBlockIds.length === 0) return null;
+  const idSet = new Set(selectedBlockIds);
+
+  const uncoveredBlocks: BlockSnippet[] = [];
+  const mentionedElementIds = new Set<string>();
+  let docIndex = 0;
+  editor.state.doc.descendants((node: PMNode) => {
+    if (!isBlockType(node.type.name)) return undefined;
+    const id = node.attrs?.id as string | null | undefined;
+    const myIndex = docIndex++;
+    if (!id || !idSet.has(id)) return false;
+    const text = node.textContent.replace(/\s+/g, ' ').trim();
+    if (text.length > 0) uncoveredBlocks.push({ blockId: id, text, offset: myIndex });
+    node.descendants((child) => {
+      if (!child.isText) return undefined;
+      for (const mark of child.marks) {
+        if (
+          mark.type.name === 'entityLink' &&
+          mark.attrs?.targetKind === 'element' &&
+          typeof mark.attrs?.targetId === 'string' &&
+          mark.attrs.targetId
+        ) {
+          mentionedElementIds.add(mark.attrs.targetId);
+        }
+      }
+      return undefined;
+    });
+    return false;
+  });
+  if (uncoveredBlocks.length === 0) return null;
+
+  const priorSections: PriorSectionSnippet[] = useDataStore
+    .getState()
+    .blockSections.filter(
+      (s) => s.chapterId === chapterId && s.blockIds.some((b) => idSet.has(b)),
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((s) => ({ blockIds: s.blockIds, summary: s.summary }));
+
+  return {
+    chapterId,
+    uncoveredBlocks,
+    priorSections,
+    mentionedElementIds: [...mentionedElementIds],
+  };
+}
+
+/**
+ * Regen decision for Task 6: should we produce a fresh segment summary after
+ * running a capability over a selection? "Contained in one segment" → no
+ * (that segment's summary already covers it). Spans multiple segments, or
+ * isn't covered by any → yes (a span-scoped summary is worth having).
+ */
+export function selectionWarrantsSummaryRegen(
+  chapterId: string,
+  selectedBlockIds: string[],
+): boolean {
+  if (selectedBlockIds.length === 0) return false;
+  const idSet = new Set(selectedBlockIds);
+  const hit = useDataStore
+    .getState()
+    .blockSections.filter((s) => s.chapterId === chapterId && s.blockIds.some((b) => idSet.has(b)));
+  if (hit.length > 1) return true; // spans multiple segments
+  if (hit.length === 0) return true; // not covered by any segment yet
+  // Exactly one segment touched — regen only if the selection spills outside it.
+  const segIds = new Set(hit[0]!.blockIds);
+  return !selectedBlockIds.every((b) => segIds.has(b));
 }

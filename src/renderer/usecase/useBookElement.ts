@@ -6,9 +6,12 @@ import {
   ElementNameConflictError,
   encodeAliases,
   findElementNameConflict,
+  makeUniqueElementName,
   type BookElement,
 } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
+import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
+import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import {
@@ -17,6 +20,7 @@ import {
   syncElementDelete,
   syncElementSoftDelete,
   syncElementRestore,
+  syncEntityRelationDelete,
 } from './sync-helpers';
 import { canUseFeature } from '../lib/feature-access';
 
@@ -56,6 +60,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     () => createBookElementSqliteRepository(activeProjectId),
     [activeProjectId],
   );
+  const relationRepo = useMemo(() => createEntityRelationRepository(), []);
+  const mentionRepo = useMemo(() => createInlineMentionRepository(), []);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -96,7 +102,13 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // when the template later changes.
       const seededKvJson = category?.elementTemplateKvJson?.trim() || '[]';
 
-      const resolvedName = input.name?.trim() || 'New Element';
+      const explicitName = input.name?.trim();
+      // No name supplied → this is the "+ element" placeholder path. Derive a
+      // project-unique default ("New Element", "New Element 2", …) instead of
+      // throwing, so the user can spin up several blank elements before
+      // renaming them. An explicit name still goes through the uniqueness
+      // check below and surfaces a conflict.
+      const resolvedName = explicitName || makeUniqueElementName('New Element', prev, activeProjectId);
       const resolvedAliases = (input.aliases ?? [])
         .map((a) => a.trim())
         .filter((a) => a.length > 0);
@@ -106,6 +118,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // ElementNameConflictError so the caller can surface the offender
       // (CommentRail's CopilotSuggestionCard already shows error.message
       // inline; PatchTargetModal currently swallows — both will benefit).
+      // The auto-derived placeholder is already conflict-free by construction;
+      // this still guards the explicit-name and alias inputs.
       const conflict = findElementNameConflict(
         [resolvedName, ...resolvedAliases],
         prev,
@@ -240,6 +254,41 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     [elementRepo, getElements, setElements, ensureDb, activeProjectId],
   );
 
+  // Drop every relation that pointed at (or out of) a now hard-deleted element.
+  // entity_relation / inline_mention carry polymorphic (kind, id) endpoints
+  // with no element FK, so a hard delete leaves them orphaned unless we sweep
+  // them here. Only call on a TRUE delete — soft-delete keeps these around so a
+  // restore brings the links back.
+  //   • entity_relation: curated, per-row synced → delete each + enqueue sync,
+  //     and prune the in-memory store so graph / references update immediately.
+  //   • inline_mention: a derived projection (no per-row sync); just clear both
+  //     directions locally. The server reconciles on the next graph pull.
+  const cleanupElementRelations = useCallback(
+    async (id: string) => {
+      const relations = useDataStore.getState().entityRelations;
+      const doomedIds = relations
+        .filter(
+          (r) =>
+            (r.fromKind === 'element' && r.fromId === id) ||
+            (r.toKind === 'element' && r.toId === id),
+        )
+        .map((r) => r.id);
+      if (doomedIds.length > 0) {
+        const doomedSet = new Set(doomedIds);
+        useDataStore
+          .getState()
+          .setEntityRelations(relations.filter((r) => !doomedSet.has(r.id)));
+        for (const relationId of doomedIds) {
+          await relationRepo.removeRelation(relationId);
+          syncEntityRelationDelete(relationId, activeProjectId);
+        }
+      }
+      await mentionRepo.deleteAllForTarget('element', id);
+      await mentionRepo.deleteAllForSource('element', id);
+    },
+    [relationRepo, mentionRepo, activeProjectId],
+  );
+
   const removeElement = useCallback(
     async (id: string) => {
       await ensureDb();
@@ -259,14 +308,17 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         });
       }
 
-      return withOptimisticUpdate({
+      // Free tier: hard delete — also sweep the now-orphaned relations.
+      const result = await withOptimisticUpdate({
         apply: () => setElements(filtered),
         rollback: () => setElements(elements),
         effect: () => elementRepo.delete(id),
         sync: () => syncElementDelete(id, activeProjectId),
       });
+      await cleanupElementRelations(id);
+      return result;
     },
-    [elementRepo, getElements, setElements, ensureDb, activeProjectId],
+    [elementRepo, getElements, setElements, ensureDb, activeProjectId, cleanupElementRelations],
   );
 
   const restoreElement = useCallback(
@@ -278,6 +330,20 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       setElements(fresh);
     },
     [elementRepo, ensureDb, setElements, activeProjectId],
+  );
+
+  // Permanently delete an already-trashed element — the "立刻删除" path in the
+  // trash UI, skipping the 30-day cron. The row is gone for good (no restore).
+  // The element isn't in the active store (it's soft-deleted), so there's
+  // nothing to mutate there; the trash view reloads its own list afterward.
+  const purgeElement = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      await elementRepo.delete(id);
+      syncElementDelete(id, activeProjectId);
+      await cleanupElementRelations(id);
+    },
+    [elementRepo, ensureDb, activeProjectId, cleanupElementRelations],
   );
 
   const listTrashedElements = useCallback(async () => {
@@ -292,8 +358,17 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       updateElement,
       removeElement,
       restoreElement,
+      purgeElement,
       listTrashedElements,
     }),
-    [loadInitial, createElement, updateElement, removeElement, restoreElement, listTrashedElements],
+    [
+      loadInitial,
+      createElement,
+      updateElement,
+      removeElement,
+      restoreElement,
+      purgeElement,
+      listTrashedElements,
+    ],
   );
 }

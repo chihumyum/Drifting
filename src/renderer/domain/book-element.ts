@@ -119,6 +119,30 @@ export function findElementNameConflict(
   return null;
 }
 
+/**
+ * Produce a project-unique element name from `baseName` by appending an
+ * incrementing suffix (" 2", " 3", …) until it no longer collides with any
+ * existing element's name or alias. Used for the auto-created placeholder
+ * ("New Element") so the "+ element" button never throws an
+ * ElementNameConflictError just because a prior un-renamed placeholder is
+ * still around. An explicit user-supplied name is NOT auto-numbered — that
+ * path keeps throwing so the conflict surfaces to the user.
+ */
+export function makeUniqueElementName(
+  baseName: string,
+  existingElements: BookElement[],
+  projectId: string,
+): string {
+  const base = baseName.trim() || 'New Element';
+  if (!findElementNameConflict([base], existingElements, projectId)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base} ${n}`;
+    if (!findElementNameConflict([candidate], existingElements, projectId)) {
+      return candidate;
+    }
+  }
+}
+
 export type ElementCategoryLayoutMode = 'auto' | 'pinned';
 
 export interface BookElementCategory {
