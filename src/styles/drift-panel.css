@@ -140,7 +140,12 @@
 
 .drift-panel__hand {
   display: flex;
-  justify-content: center; /* center the hand when it fits */
+  /* `safe center` centers the hand while it fits, but falls back to
+     flex-start the moment the cards overflow. Plain `center` would push
+     the overflow off BOTH edges — the left-side cards land at a negative
+     scroll offset scrollLeft can never reach, so they're clipped and
+     unscrollable. `safe` is the overflow-aware variant. */
+  justify-content: safe center;
   gap: 10px;
   padding: 14px 22px;
   box-sizing: border-box;
