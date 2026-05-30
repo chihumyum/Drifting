@@ -25,13 +25,12 @@
  */
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { callStructured } from '../ai/call-structured';
+import { runStructured } from '../ai/remote/run-structured';
 import { inlineEditPrompt } from '../ai/prompts/templates/inline-edit';
 import { inlineEditBlocksPrompt } from '../ai/prompts/templates/inline-edit-blocks';
 import { resolveOutputLanguageName } from '../ai/output-language';
 import type { InlineTargetBlock } from '../../store/copilot-inline-store';
 import { diffChars, type DiffChunk } from './text-diff';
-import { copilotRuntime } from './runtime';
 
 export interface InlineEditTarget {
   /** True for a partial span inside one block; false for a block-level target. */
@@ -127,13 +126,11 @@ export async function runInlineEdit(params: {
     };
   }
 
-  const client = await copilotRuntime.getClient();
   const outputLanguage = resolveOutputLanguageName(projectId);
 
   // SPAN MODE — revise just the selected sub-span of one block.
   if (target.spanWithinBlock) {
-    const out = await callStructured(
-      client,
+    const out = await runStructured(
       inlineEditPrompt,
       {
         instruction,
@@ -162,8 +159,7 @@ export async function runInlineEdit(params: {
     kind: b.kind,
     text: b.text,
   }));
-  const out = await callStructured(
-    client,
+  const out = await runStructured(
     inlineEditBlocksPrompt,
     {
       instruction,

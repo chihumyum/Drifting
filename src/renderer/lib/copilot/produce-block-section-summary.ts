@@ -14,12 +14,11 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
-import { callStructured } from '../ai/call-structured';
+import { runStructured } from '../ai/remote/run-structured';
 import { blockSectionSummaryPrompt } from '../ai/prompts/templates/block-section-summary';
 import { resolveOutputLanguageName } from '../ai/output-language';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
-import { copilotRuntime } from './runtime';
 import type { CopilotRuntime } from './capability';
 import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
 import { encodeBlockHashes, encodeBlockIds } from '../../domain/block-section';
@@ -62,10 +61,9 @@ export async function produceBlockSectionSummary(
 
   let summaryText: string;
   try {
-    const runtime = input.runtime ?? copilotRuntime;
-    const client = await runtime.getClient();
-    const result = await callStructured(
-      client,
+    // Phase 2: built + run server-side. `input.runtime` (a client-side LLM
+    // client override) is no longer consulted for this path.
+    const result = await runStructured(
       blockSectionSummaryPrompt,
       { recentText },
       { signal: input.signal, outputLanguage: resolveOutputLanguageName(input.projectId) },

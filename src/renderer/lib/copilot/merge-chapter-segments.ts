@@ -16,12 +16,11 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
-import { callStructured } from '../ai/call-structured';
+import { runStructured } from '../ai/remote/run-structured';
 import { segmentMergePrompt } from '../ai/prompts/templates/segment-merge';
 import { resolveOutputLanguageName } from '../ai/output-language';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
-import { copilotRuntime } from './runtime';
 import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
 import { encodeBlockHashes, encodeBlockIds, type BlockSection } from '../../domain/block-section';
 import { useDataStore } from '../../store/data-store';
@@ -93,9 +92,7 @@ export async function mergeChapterSegments(params: {
 
     let merged: string;
     try {
-      const client = await copilotRuntime.getClient();
-      const out = await callStructured(
-        client,
+      const out = await runStructured(
         segmentMergePrompt,
         { summaries: group.map((s) => s.summary) },
         { signal, outputLanguage },

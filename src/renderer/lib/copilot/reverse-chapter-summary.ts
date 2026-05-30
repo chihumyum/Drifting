@@ -8,10 +8,9 @@
  * so it can be invoked from the inline popover without a hook.
  */
 import loglevel from 'loglevel';
-import { callStructured } from '../ai/call-structured';
+import { runStructured } from '../ai/remote/run-structured';
 import { chapterSummaryPrompt } from '../ai/prompts/templates/chapter-summary';
 import { resolveOutputLanguageName } from '../ai/output-language';
-import { copilotRuntime } from './runtime';
 import { useDataStore } from '../../store/data-store';
 import { createBookNodeSqliteRepository } from '../../sqlite-repo/node-repo';
 import { syncNodeUpdate } from '../../usecase/sync-helpers';
@@ -53,9 +52,7 @@ export async function generateChapterSummary(params: {
 
   let summary: string;
   try {
-    const client = await copilotRuntime.getClient();
-    const out = await callStructured(
-      client,
+    const out = await runStructured(
       chapterSummaryPrompt,
       { sectionSummaries },
       { signal, outputLanguage: resolveOutputLanguageName(projectId) },

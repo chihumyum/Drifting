@@ -21,7 +21,7 @@
  * key construction). No framework code changes were required.
  */
 import log from 'loglevel';
-import { callStructured } from '../../ai/call-structured';
+import { runStructured } from '../../ai/remote/run-structured';
 import {
   buildElementPatchContext,
   pendingKey,
@@ -85,9 +85,8 @@ export const elementPatchCapability: CopilotCapability = {
 
     const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
 
-    const client = await ctx.runtime.getClient();
-    const { patches } = await callStructured(
-      client,
+    // Phase 2: prompt built + run server-side; send only (promptId, input).
+    const { patches } = await runStructured(
       elementPatchPrompt,
       {
         recentText,
