@@ -26,8 +26,12 @@ export interface CopilotInlineCtx {
   selectedText: string;
   /** Enclosing block's plain text, for model context + display. */
   blockContext: string;
-  /** Adjacent blocks' plain text, fed to the model as local context. */
+  /** Blocks around the whole invocation region (before first / after last
+   *  covered block), joined — local context the model must not edit. */
   nearbyContext: string;
+  /** Rolling segment summaries overlapping the context window — the local
+   *  narrative arc, for grounding the edit. */
+  segmentSummaries: string[];
   /** Block ids covered by the selection (Task 6 capability runs). Empty in
    *  'block' mode — those run on the rolling context (Task 7). */
   selectionBlockIds: string[];

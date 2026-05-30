@@ -265,6 +265,7 @@ export function useCopilot({
 
     // Manual run: user pressed Cmd+I / picked a capability from the copilot
     // menu. Force a fire (skip dedup) regardless of the per-task enabled flag.
+    // Gated by the master switch (copilotEnabled closes manual AND auto);
     // nodeId match scopes the event to this editor's chapter.
     const onManualRun = ({
       nodeId: target,
@@ -285,7 +286,7 @@ export function useCopilot({
       }
       void runFor(cap, { force: true, instruction, selectionBlockIds });
     };
-    events.on('copilot:manual-run', onManualRun);
+    if (copilotEnabled) events.on('copilot:manual-run', onManualRun);
 
     return () => {
       log.info(

@@ -1,6 +1,12 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useCallback } from 'react';
-import { useUiStore, SINGLETON_TAB_ID, type TabRef } from '../store/ui-store';
+import {
+  useUiStore,
+  SINGLETON_TAB_ID,
+  tabKey,
+  focusedLeafOf,
+  type TabRef,
+} from '../store/ui-store';
 
 const DEFAULT_PROJECT = { id: 'default-project', name: 'Default Project' };
 
@@ -109,6 +115,25 @@ export function useProjectNavigation() {
     [openEntity],
   );
 
+  // Where to land after the entity you were viewing got deleted. The delete
+  // usecase has already closed its tab(s) and the store promoted whichever
+  // sibling tab should take over (or none). Follow that: switch to the
+  // promoted tab if there is one, otherwise drop to the bare project URL so
+  // the empty editor surface shows. Deliberately does NOT fall back to the
+  // dashboard — opening a dashboard tab the user never asked for is a bug
+  // (see TopTimeline.handleCloseTab for the same "don't re-spawn dashboard"
+  // rule).
+  const leaveDeletedEntity = useCallback(() => {
+    const project = useUiStore.getState().tabsByProject[currentProjectId];
+    const active = project?.openTabs.find((t) => tabKey(t) === project.activeTabKey);
+    const leaf = active ? focusedLeafOf(active) : null;
+    if (leaf) {
+      openEntity({ entityType: leaf.entityType, id: leaf.id });
+    } else {
+      navigate(`/project/${currentProjectId}`, { replace: true });
+    }
+  }, [currentProjectId, openEntity, navigate]);
+
   const navigateTo = useCallback(
     (path: string) => {
       // If path starts with /, use it as-is; otherwise prepend project context
@@ -141,6 +166,7 @@ export function useProjectNavigation() {
     navigateToCategory,
     navigateToHome,
     navigateToAllChapters,
+    leaveDeletedEntity,
     navigateTo,
     openEntity,
     activateLeafTab,

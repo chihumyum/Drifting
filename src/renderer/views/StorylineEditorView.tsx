@@ -53,7 +53,7 @@ export function StorylineEditorView({
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
   const { storylines, bookNodes, storylineNodeMapping, comments } = useDataStore();
-  const { navigateToStoryline, navigateToHome, navigateToNode } = useProjectNavigation();
+  const { navigateToStoryline, leaveDeletedEntity, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
   const currentStoryline = useMemo(() => {
@@ -251,14 +251,14 @@ export function StorylineEditorView({
         if (!confirmed) return;
         try {
           await storylineUsecases.deleteStoryline(storylineId);
-          navigateToHome();
+          leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete storyline:', error);
           alert('Failed to delete storyline. Please try again.');
         }
       }
     },
-    [storylineId, currentStoryline, storylineUsecases, navigateToHome],
+    [storylineId, currentStoryline, storylineUsecases, leaveDeletedEntity],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.

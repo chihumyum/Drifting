@@ -142,12 +142,23 @@ function openCommentContextMenu(
   setTimeout(() => document.addEventListener('mousedown', close, true), 0);
 }
 
+/** How many blocks before/after the invocation region to pull in as context. */
+const INLINE_CONTEXT_WINDOW = 3;
+
 /**
  * Resolve the inline-Copilot invocation context from the current editor
  * selection. With a non-empty selection the target IS the selection; with a
- * bare caret it's the enclosing block (so ⌘I works mid-typing). Gathers the
- * enclosing block text + adjacent blocks as local model context. Returns null
- * only if the caret isn't inside any id-bearing block.
+ * bare caret it's the enclosing block (so ⌘I works mid-typing).
+ *
+ * Context is gathered around the WHOLE invocation region, not just its first
+ * block: `nearbyContext` = up to INLINE_CONTEXT_WINDOW blocks before the first
+ * covered block + after the last; `segmentSummaries` = the rolling segment
+ * summaries overlapping that window. `blockContext` (enclosing paragraph) is
+ * only set for a PARTIAL within-one-block selection, where the surrounding
+ * sentence adds something the target span alone doesn't — for multi-block or
+ * whole-block targets it's left empty (the target already spans full blocks).
+ *
+ * Returns null only if the caret isn't inside any id-bearing block.
  */
 function buildInlineCopilotCtx(
   view: EditorView,
@@ -156,50 +167,84 @@ function buildInlineCopilotCtx(
   coords: { clientX: number; clientY: number },
 ): CopilotInlineCtx | null {
   const { selection, doc } = view.state;
-  const resolved = doc.resolve(selection.from);
 
-  let blockText = '';
+  // All blocks in document order.
+  const blocks: { id: string; text: string }[] = [];
+  doc.descendants((node) => {
+    if (!isBlockType(node.type.name)) return undefined;
+    const id = node.attrs?.id as string | null | undefined;
+    if (id) blocks.push({ id, text: node.textContent.replace(/\s+/g, ' ').trim() });
+    return false;
+  });
+  if (blocks.length === 0) return null;
+  const indexById = new Map(blocks.map((b, i) => [b.id, i]));
+
+  // Enclosing block of the caret / selection start.
+  const resolved = doc.resolve(selection.from);
+  let encId: string | null = null;
+  let encText = '';
   let blockStart = 0;
   let blockEnd = 0;
-  let found = false;
   for (let depth = resolved.depth; depth >= 0; depth--) {
     const node = resolved.node(depth);
     if (!isBlockType(node.type.name)) continue;
-    blockText = node.textContent;
+    encId = (node.attrs?.id as string | null | undefined) ?? null;
+    encText = node.textContent.replace(/\s+/g, ' ').trim();
     blockStart = resolved.before(depth) + 1;
     blockEnd = blockStart + node.content.size;
-    found = true;
     break;
   }
-  if (!found) return null;
+  if (!encId) return null;
 
-  // Nearby context: previous + next top-level block (cheap, local).
-  const topIndex = resolved.index(0);
-  const nearby: string[] = [];
-  if (topIndex - 1 >= 0) {
-    const t = doc.child(topIndex - 1).textContent.trim();
-    if (t) nearby.push(t);
-  }
-  if (topIndex + 1 < doc.childCount) {
-    const t = doc.child(topIndex + 1).textContent.trim();
-    if (t) nearby.push(t);
-  }
-
-  const selText = selection.empty
-    ? ''
-    : doc.textBetween(selection.from, selection.to, '\n').trim();
-  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
-
-  // Block ids the selection covers (Task 6). Only meaningful in selection
-  // mode; block mode runs capabilities on the rolling context instead.
+  // Selection block ids (Task 6) + the block-index range the run covers.
   const selectionBlockIds: string[] = [];
-  if (mode === 'selection') {
+  if (!selection.empty) {
     doc.nodesBetween(selection.from, selection.to, (node) => {
       const bid = node.attrs?.id as string | null | undefined;
       if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
       return true;
     });
   }
+  const selText = selection.empty
+    ? ''
+    : doc.textBetween(selection.from, selection.to, '\n').trim();
+  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
+
+  const coveredIds =
+    mode === 'selection' && selectionBlockIds.length > 0 ? selectionBlockIds : [encId];
+  const coveredIdxs = coveredIds
+    .map((id) => indexById.get(id))
+    .filter((i): i is number => i !== undefined);
+  const firstIdx = coveredIdxs.length ? Math.min(...coveredIdxs) : (indexById.get(encId) ?? 0);
+  const lastIdx = coveredIdxs.length ? Math.max(...coveredIdxs) : firstIdx;
+  const coveredSet = new Set(coveredIds);
+
+  // Enclosing paragraph only when a partial selection lives inside one block.
+  const singleBlockPartial =
+    mode === 'selection' && firstIdx === lastIdx && selText !== blocks[firstIdx]?.text;
+  const blockContext = singleBlockPartial ? encText : '';
+
+  // Nearby: window of blocks before the first / after the last covered block.
+  const windowStart = Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
+  const windowEnd = Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
+  const nearbyParts: string[] = [];
+  for (let i = windowStart; i <= windowEnd; i++) {
+    if (i >= firstIdx && i <= lastIdx) continue; // skip the covered region itself
+    const b = blocks[i]!;
+    if (!coveredSet.has(b.id) && b.text) nearbyParts.push(b.text);
+  }
+
+  // Segment summaries overlapping the window — the local narrative arc.
+  const windowIds = new Set<string>();
+  for (let i = windowStart; i <= windowEnd; i++) windowIds.add(blocks[i]!.id);
+  const segmentSummaries = useDataStore
+    .getState()
+    .blockSections.filter(
+      (s) => s.chapterId === nodeId && s.blockIds.some((b) => windowIds.has(b)),
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((s) => s.summary)
+    .filter((s) => s.trim().length > 0);
 
   return {
     nodeId,
@@ -207,9 +252,10 @@ function buildInlineCopilotCtx(
     mode,
     from: mode === 'selection' ? selection.from : blockStart,
     to: mode === 'selection' ? selection.to : blockEnd,
-    selectedText: mode === 'selection' ? selText : blockText,
-    blockContext: blockText,
-    nearbyContext: nearby.join('\n\n'),
+    selectedText: mode === 'selection' ? selText : (blocks[firstIdx]?.text ?? encText),
+    blockContext,
+    nearbyContext: nearbyParts.join('\n\n'),
+    segmentSummaries,
     selectionBlockIds,
     clientX: coords.clientX,
     clientY: coords.clientY,
@@ -652,14 +698,15 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         },
         handleKeyDown: (view, event) => {
           // Cmd/Ctrl+I → inline Copilot popover. Only for editors that opted
-          // in (chapter editors). NOT gated by the Copilot master switch —
-          // manual triggers are user-initiated and always available. Works
-          // with or without a selection (no selection → current block).
+          // in (chapter editors), and only while the Copilot master switch is
+          // on (it gates manual AND auto). Works with or without a selection
+          // (no selection → current block).
           if (event.key !== 'i' && event.key !== 'I') return false;
           if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
             return false;
           }
           if (!enableInlineCopilotRef.current) return false;
+          if (!useSettingsStore.getState().copilotEnabled) return false;
           const source = sourceRef.current;
           if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
             return false;
@@ -750,7 +797,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
             // Chapter editors also offer "Copilot 修改" — same entry as ⌘I,
             // run on the selection. Build the inline ctx from the live view.
             const onCopilot =
-              enableInlineCopilotRef.current && source.sourceKind === 'node'
+              enableInlineCopilotRef.current &&
+              source.sourceKind === 'node' &&
+              useSettingsStore.getState().copilotEnabled
                 ? () => {
                     const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
                       clientX: event.clientX,
@@ -809,6 +858,25 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     entityLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
     entityLinkConfig.autoDetectTargets = autoDetectTargets;
     entityLinkConfig.interactionEnabled = entityLinkInteractive;
+    // Read the store live at click time so a link whose target was just
+    // deleted (its mark still embedded in this doc's content) is treated as
+    // dangling and ignored instead of opening a phantom "untitled" editor.
+    entityLinkConfig.targetExists = (kind, id) => {
+      const state = useDataStore.getState();
+      switch (kind) {
+        case 'element':
+          return state.bookElements.some((e) => e.id === id);
+        case 'node':
+          return state.bookNodes.some((n) => n.id === id);
+        case 'storyline':
+          return state.storylines.some((s) => s.id === id);
+        case 'category':
+          return state.bookElementCategories.some((c) => c.id === id);
+        default:
+          // Kinds we don't track here (e.g. patch) stay navigable.
+          return true;
+      }
+    };
   }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive]);
 
   // Load content into the editor whenever the (editor instance, sourceId)

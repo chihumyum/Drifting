@@ -40,6 +40,12 @@ export const entityLinkConfig = {
   // Visual styling is gated separately via the `data-entity-link-interactive`
   // attribute on <html> (see editor-preferences.ts and index.css).
   interactionEnabled: true,
+  // Resolve whether a link's target entity still exists. Marks live inside
+  // other documents' content JSON, so deleting an entity leaves dangling
+  // links behind; clicking one would otherwise navigate to a phantom
+  // "untitled" editor. The hook injects a store-backed implementation; the
+  // permissive default keeps the extension usable in isolation/tests.
+  targetExists: (_kind: EntityKind, _id: string): boolean => true,
 };
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
@@ -234,6 +240,10 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
             const targetKind = (target.getAttribute('data-target-kind') as EntityKind) ?? 'element';
             const targetId = target.getAttribute('data-target-id');
             if (!targetId) return false;
+            // Dangling link: the target entity was deleted. Swallow the click
+            // so we don't navigate to a phantom "untitled" editor, but report
+            // it handled so the click doesn't also place the caret mid-word.
+            if (!entityLinkConfig.targetExists(targetKind, targetId)) return true;
             const targetBlockId = target.getAttribute('data-target-block-id');
 
             onClick({ targetKind, targetId, targetBlockId });

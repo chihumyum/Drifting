@@ -55,12 +55,13 @@ export function CategoryEditorView({
   const { bookElementCategories, bookElements, comments } = useDataStore();
   useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
-  const { navigateToHome, navigateToElement, navigateToCategory } = useProjectNavigation();
+  const { leaveDeletedEntity, navigateToElement, navigateToCategory } = useProjectNavigation();
 
-  // Redirect if category param is missing.
+  // Redirect if category param is missing. Fall back to the active tab / empty
+  // editor rather than the dashboard (no auto-opened dashboard tab, ever).
   useEffect(() => {
-    if (!categoryId) navigateToHome();
-  }, [categoryId, navigateToHome]);
+    if (!categoryId) leaveDeletedEntity();
+  }, [categoryId, leaveDeletedEntity]);
 
   const curCategory = useMemo(() => {
     if (!categoryId) return null;
@@ -240,14 +241,14 @@ export function CategoryEditorView({
         if (!confirmed) return;
         try {
           await categoryUsecases.deleteCategory(curCategory.id);
-          navigateToHome();
+          leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete category:', error);
           alert('Failed to delete category. Please try again.');
         }
       }
     },
-    [curCategory, categoryUsecases, navigateToHome],
+    [curCategory, categoryUsecases, leaveDeletedEntity],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.

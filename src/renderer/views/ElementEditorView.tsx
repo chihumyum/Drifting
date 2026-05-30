@@ -35,7 +35,7 @@ export function ElementEditorView({
   elementIdOverride,
 }: { elementIdOverride?: string } = {}) {
   const navigate = useNavigate();
-  const { navigateToHome } = useProjectNavigation();
+  const { leaveDeletedEntity } = useProjectNavigation();
   const params = useParams<{ elementId: string; projectId: string }>();
   const projectId = params.projectId;
   const elementId = elementIdOverride ?? params.elementId;
@@ -298,7 +298,7 @@ export function ElementEditorView({
         if (!confirmed) return;
         try {
           await elementUsecases.removeElement(elementId);
-          navigateToHome();
+          leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete element:', error);
           alert('Failed to delete element. Please try again.');
@@ -310,7 +310,7 @@ export function ElementEditorView({
         setShowGroupModal(true);
       }
     },
-    [elementId, curElement, elementUsecases, navigateToHome, updateElement],
+    [elementId, curElement, elementUsecases, leaveDeletedEntity, updateElement],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.

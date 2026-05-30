@@ -47,9 +47,16 @@ export const inlineEditPrompt = definePrompt({
     nearbyContext: Type.Optional(
       Type.String({
         description:
-          'Plain text of the blocks immediately around the target, for local ' +
-          'context only (tone, who is speaking, what just happened). Do NOT ' +
-          'edit or echo it.',
+          'Plain text of the blocks surrounding the whole target region, for ' +
+          'local context only (tone, who is speaking, what just happened). ' +
+          'Do NOT edit or echo it.',
+      }),
+    ),
+    priorSummaries: Type.Optional(
+      Type.Array(Type.String(), {
+        description:
+          'Rolling segment summaries near the target — the local narrative ' +
+          'arc, for grounding. Context only; do NOT edit or echo.',
       }),
     ),
     allowNewContent: Type.Boolean({
@@ -104,13 +111,24 @@ export const inlineEditPrompt = definePrompt({
     'commentary. Put notes in reason.',
 
   buildUserMessage: (input) => {
+    const summaries = (input.priorSummaries ?? []).map((s) => s.trim()).filter(Boolean);
     const nearby = input.nearbyContext?.trim();
-    return (
-      `[New-content generation: ${input.allowNewContent ? 'PERMITTED' : 'FORBIDDEN'}]\n\n` +
-      `Instruction: ${input.instruction}\n\n` +
-      (nearby ? `Nearby context (do not edit):\n${nearby}\n\n` : '') +
-      `Enclosing paragraph (context — do not rewrite this whole thing):\n${input.blockContext}\n\n` +
-      `Text to revise:\n${input.selectedText}`
-    );
+    const enclosing = input.blockContext?.trim();
+    return [
+      `[New-content generation: ${input.allowNewContent ? 'PERMITTED' : 'FORBIDDEN'}]`,
+      `Instruction: ${input.instruction}`,
+      summaries.length
+        ? `Story so far — section summaries (context, do not edit):\n` +
+          summaries.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
+        : '',
+      nearby ? `Surrounding text (context, do not edit):\n${nearby}` : '',
+      enclosing
+        ? `Enclosing paragraph — the span sits inside this; do not rewrite the ` +
+          `whole paragraph:\n${enclosing}`
+        : '',
+      `Text to revise:\n${input.selectedText}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   },
 });

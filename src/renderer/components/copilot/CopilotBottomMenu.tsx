@@ -7,7 +7,8 @@
  * Toggling here writes straight to the settings store (persisted), so it stays
  * in sync with the Settings modal. "更多设置" deep-links to the full panel.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Sparkles } from 'lucide-react';
 import {
   useSettingsStore,
@@ -30,7 +31,7 @@ const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
 
 export function CopilotBottomMenu() {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
@@ -44,21 +45,31 @@ export function CopilotBottomMenu() {
     'auto';
   const setOutputLang = useSettingsStore((s) => s.setCopilotOutputLang);
 
-  // Click-away close.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown, true);
-    return () => document.removeEventListener('mousedown', onDown, true);
-  }, [open]);
+  // Panel position: anchored above the button, computed from its rect. The
+  // panel is portaled to <body> with a high z-index so the editor floating
+  // island (modern skin) can't paint over it.
+  const rect = buttonRef.current?.getBoundingClientRect();
+  const panelStyle: React.CSSProperties = {
+    position: 'fixed',
+    bottom: rect ? window.innerHeight - rect.top + 6 : 48,
+    left: rect ? Math.max(8, rect.right - 248) : 8,
+    zIndex: 100000,
+    width: 248,
+    background: '#fffdf9',
+    border: '1px solid rgba(184, 153, 104, 0.4)',
+    borderRadius: 10,
+    boxShadow: '0 12px 32px rgba(60, 40, 20, 0.18)',
+    padding: 10,
+    fontSize: 13,
+    color: '#3a2e22',
+  };
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
+    <div style={{ display: 'inline-flex' }}>
       <button
+        ref={buttonRef}
         type="button"
-        className={`bsb__seg bsb__shadow${copilotEnabled ? ' is-active' : ''}`}
+        className={`bsb__seg bsb__copilot${copilotEnabled ? ' is-live' : ''}`}
         onClick={() => setOpen((v) => !v)}
         title="Copilot"
         aria-label="Copilot"
@@ -67,23 +78,14 @@ export function CopilotBottomMenu() {
         <span>Copilot</span>
       </button>
 
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 'calc(100% + 6px)',
-            right: 0,
-            zIndex: 999,
-            width: 248,
-            background: '#fffdf9',
-            border: '1px solid rgba(184, 153, 104, 0.4)',
-            borderRadius: 10,
-            boxShadow: '0 12px 32px rgba(60, 40, 20, 0.18)',
-            padding: 10,
-            fontSize: 13,
-            color: '#3a2e22',
-          }}
-        >
+      {open &&
+        createPortal(
+          <>
+            <div
+              onMouseDown={() => setOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+            />
+            <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
           <ToggleRow
             label="启用 Copilot"
             desc="关闭后不自动运行；⌘I 手动触发仍可用"
@@ -167,8 +169,10 @@ export function CopilotBottomMenu() {
           >
             更多设置…
           </button>
-        </div>
-      )}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -26,10 +26,13 @@ export interface InlineEditTarget {
   to: number;
   /** Plain text of the span [from, to]. */
   selectedText: string;
-  /** Plain text of the enclosing block, for context. */
+  /** Enclosing block — only set for a partial within-one-block selection;
+   *  empty for multi-block / whole-block targets. */
   blockContext: string;
-  /** Plain text of adjacent blocks, for local context. */
+  /** Blocks surrounding the whole target region, for local context. */
   nearbyContext?: string;
+  /** Rolling segment summaries overlapping the region, for arc grounding. */
+  segmentSummaries?: string[];
 }
 
 export interface InlineEditResult {
@@ -95,6 +98,7 @@ export async function runInlineEdit(params: {
       selectedText: target.selectedText,
       blockContext: target.blockContext,
       nearbyContext: target.nearbyContext,
+      priorSummaries: target.segmentSummaries,
       allowNewContent,
     },
     { signal, outputLanguage: resolveOutputLanguageName(projectId) },

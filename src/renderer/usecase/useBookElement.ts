@@ -6,6 +6,7 @@ import {
   ElementNameConflictError,
   encodeAliases,
   findElementNameConflict,
+  makeUniqueElementName,
   type BookElement,
 } from '../domain/book-element';
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
@@ -96,7 +97,13 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // when the template later changes.
       const seededKvJson = category?.elementTemplateKvJson?.trim() || '[]';
 
-      const resolvedName = input.name?.trim() || 'New Element';
+      const explicitName = input.name?.trim();
+      // No name supplied → this is the "+ element" placeholder path. Derive a
+      // project-unique default ("New Element", "New Element 2", …) instead of
+      // throwing, so the user can spin up several blank elements before
+      // renaming them. An explicit name still goes through the uniqueness
+      // check below and surfaces a conflict.
+      const resolvedName = explicitName || makeUniqueElementName('New Element', prev, activeProjectId);
       const resolvedAliases = (input.aliases ?? [])
         .map((a) => a.trim())
         .filter((a) => a.length > 0);
@@ -106,6 +113,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // ElementNameConflictError so the caller can surface the offender
       // (CommentRail's CopilotSuggestionCard already shows error.message
       // inline; PatchTargetModal currently swallows — both will benefit).
+      // The auto-derived placeholder is already conflict-free by construction;
+      // this still guards the explicit-name and alias inputs.
       const conflict = findElementNameConflict(
         [resolvedName, ...resolvedAliases],
         prev,

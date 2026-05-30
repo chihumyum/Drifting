@@ -107,6 +107,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             selectedText: ctx.selectedText,
             blockContext: ctx.blockContext,
             nearbyContext: ctx.nearbyContext || undefined,
+            segmentSummaries: ctx.segmentSummaries.length ? ctx.segmentSummaries : undefined,
           },
           instruction: instr.trim(),
           allowNewContent,
