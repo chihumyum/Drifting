@@ -846,6 +846,20 @@ function nullableNumberValue(row: Record<string, unknown>, key: string): number 
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+// deletedAt arrives as an ISO string over JSON (or a Date in-process). Preserve
+// null — a non-deleted row must stay null, unlike dateText() which defaults to
+// now(). Soft-deleted rows keep their timestamp so the trash view can find them.
+function nullableDateText(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === 'string') return value || null;
+  if (value instanceof Date) return value.toISOString();
+  return null;
+}
+
+function isDeleted(row: Record<string, unknown>): boolean {
+  return nullableDateText(row.deletedAt) != null;
+}
+
 function buildStorylineNodeMapping(
   links: Array<{ nodeId: string; storylineId: string }>,
 ): Record<string, string[]> {
@@ -858,13 +872,49 @@ function buildStorylineNodeMapping(
 }
 
 function applyGraphToStores(graph: ProjectGraphPayload): void {
+  // Soft-deleted rows still ride along in the pulled graph — the server returns
+  // them so the trash view + restore can work. The live in-memory stores must
+  // only ever hold non-deleted entities; otherwise a just-trashed storyline /
+  // chapter / element reappears on the next pull. Filter them out here. SQLite
+  // keeps the rows (with deletedAt) for the trash panel — see the hydrate below.
+  const liveStorylines = graph.storylines.filter((row) => !isDeleted(row));
+  const liveNodes = graph.nodes.filter((row) => !isDeleted(row));
+  const liveCategories = graph.elementCategories.filter((row) => !isDeleted(row));
+  const liveElements = graph.elements.filter((row) => !isDeleted(row));
+  const deletedNodeIds = new Set(
+    graph.nodes.filter((row) => isDeleted(row)).map((row) => stringValue(row, 'id')),
+  );
+  const deletedStorylineIds = new Set(
+    graph.storylines.filter((row) => isDeleted(row)).map((row) => stringValue(row, 'id')),
+  );
+
+  // Trashed (soft-deleted, recoverable) ids by kind — lets inline mentions
+  // render a "dimmed" state distinct from hard-deleted ("gone") targets. The
+  // live arrays drop these rows; this set is the only place their ids survive
+  // in memory. Keyed exactly like trashedKey(kind, id).
+  const trashedEntityIds = new Set<string>();
+  for (const id of deletedNodeIds) if (id) trashedEntityIds.add(`node:${id}`);
+  for (const id of deletedStorylineIds) if (id) trashedEntityIds.add(`storyline:${id}`);
+  for (const row of graph.elements) {
+    if (isDeleted(row)) trashedEntityIds.add(`element:${stringValue(row, 'id')}`);
+  }
+  for (const row of graph.elementCategories) {
+    if (isDeleted(row)) trashedEntityIds.add(`category:${stringValue(row, 'id')}`);
+  }
+
   const nodeStorylineLinks = graph.nodeStorylineLinks
     .map((row) => ({
       nodeId: stringValue(row, 'nodeId'),
       storylineId: stringValue(row, 'storylineId'),
       isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
     }))
-    .filter((row) => row.nodeId && row.storylineId);
+    .filter(
+      (row) =>
+        row.nodeId &&
+        row.storylineId &&
+        !deletedNodeIds.has(row.nodeId) &&
+        !deletedStorylineIds.has(row.storylineId),
+    );
 
   // Derived: which storyline is primary for each node. Replaces the role of
   // book_node.mainStorylineId — the column is gone, the link table is truth.
@@ -874,9 +924,10 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
   }
 
   const dataStore = useDataStore.getState();
+  dataStore.setTrashedEntityIds(trashedEntityIds);
   dataStore.setPrimaryStorylineByNode(primaryStorylineByNode);
   dataStore.setStorylines(
-    graph.storylines.map((row) => ({
+    liveStorylines.map((row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       name: stringValue(row, 'name'),
@@ -891,7 +942,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
     })),
   );
   dataStore.setBookNodes(
-    graph.nodes.map((row): BookNode => {
+    liveNodes.map((row): BookNode => {
       const base = {
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
@@ -926,7 +977,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
   );
   dataStore.setStorylineNodeMapping(buildStorylineNodeMapping(nodeStorylineLinks));
   dataStore.setBookElementCategories(
-    graph.elementCategories.map((row) => ({
+    liveCategories.map((row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       name: stringValue(row, 'name'),
@@ -947,12 +998,12 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
   // categoryId doesn't appear in the returned categories list fall into the
   // "未分类" bucket instead of leaving a dangling reference.
   const knownCategoryIdsForStore = new Set<string>();
-  for (const row of graph.elementCategories) {
+  for (const row of liveCategories) {
     const id = stringValue(row, 'id');
     if (id) knownCategoryIdsForStore.add(id);
   }
   dataStore.setBookElements(
-    graph.elements.map((row) => {
+    liveElements.map((row) => {
       const rawCategoryId = nullableStringValue(row, 'categoryId');
       const categoryId =
         rawCategoryId && knownCategoryIdsForStore.has(rawCategoryId) ? rawCategoryId : null;
@@ -1315,6 +1366,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       gridY: nullableNumberValue(row, 'gridY'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
+      deletedAt: nullableDateText(row.deletedAt),
     }));
     if (elementCategories.length > 0) {
       await tx.insert(ElementCategoryTable).values(elementCategories as any[]);
@@ -1332,6 +1384,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       nodeContentTemplateJson: stringValue(row, 'nodeContentTemplateJson', '{}'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
+      deletedAt: nullableDateText(row.deletedAt),
     }));
     if (storylines.length > 0) {
       await tx.insert(StorylineTable).values(storylines as any[]);
@@ -1354,6 +1407,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         writingStatus: stringValue(row, 'writingStatus', 'draft'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
+        deletedAt: nullableDateText(row.deletedAt),
       };
     });
     if (nodes.length > 0) {
@@ -1400,6 +1454,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         groupName: nullableStringValue(row, 'groupName'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
+        deletedAt: nullableDateText(row.deletedAt),
       };
     });
     if (elements.length > 0) {

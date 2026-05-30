@@ -428,8 +428,16 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       // free-tier-cleanup job catches anyone who churns from paid → free.
       if (canUseFeature('trash')) {
         return withOptimisticUpdate({
-          apply: () => setNodesState(nextNodes),
-          rollback: () => setNodesState(prevNodes),
+          // Mark trashed so open editors dim (not strip) inline mentions to
+          // this chapter — soft-deleted is recoverable, unlike a hard delete.
+          apply: () => {
+            setNodesState(nextNodes);
+            useDataStore.getState().markTrashed('node', id);
+          },
+          rollback: () => {
+            setNodesState(prevNodes);
+            useDataStore.getState().unmarkTrashed('node', id);
+          },
           effect: () => nodeRepo.softDelete(id),
           sync: () => syncNodeSoftDelete(id, activeProjectId),
         });
@@ -450,6 +458,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       await ensureDb();
       await nodeRepo.restore(id);
       syncNodeRestore(id, activeProjectId);
+      useDataStore.getState().unmarkTrashed('node', id);
       const fresh = await nodeRepo.findAll();
       setNodesState(fresh);
     },
@@ -464,6 +473,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       await ensureDb();
       await nodeRepo.delete(id);
       syncNodeDelete(id, activeProjectId);
+      // No longer trashed — it's gone for good. Mentions flip dim → stripped.
+      useDataStore.getState().unmarkTrashed('node', id);
     },
     [nodeRepo, ensureDb, activeProjectId],
   );

@@ -24,6 +24,10 @@ export interface EntityRelationLink {
   updatedAt: string;
 }
 
+// Key for the trashed-id set below. Kind-scoped so an element and a node that
+// happen to share a uuid don't collide.
+export const trashedKey = (kind: EntityKind, id: string): string => `${kind}:${id}`;
+
 interface DataState {
   storylines: Storyline[];
   /** storyline.id → nodeId[] */
@@ -66,6 +70,20 @@ interface DataState {
   addBookElement: (element: BookElement) => void;
   updateBookElement: (id: string, updates: Partial<BookElement>) => void;
   removeBookElement: (id: string) => void;
+
+  /**
+   * Soft-deleted (trashed) entity ids, keyed via {@link trashedKey}. Trashed
+   * rows are filtered OUT of the live arrays above, so by absence alone the
+   * editor can't tell "trashed" (recoverable, dim the mention) from
+   * "hard-deleted" (gone, strip the mention). This set supplies that
+   * distinction. Populated from the server graph on pull + kept live by the
+   * trash/restore usecases. Only element + node are inline-mentionable, but we
+   * track every soft-deletable kind for completeness.
+   */
+  trashedEntityIds: Set<string>;
+  setTrashedEntityIds: (ids: Set<string>) => void;
+  markTrashed: (kind: EntityKind, id: string) => void;
+  unmarkTrashed: (kind: EntityKind, id: string) => void;
 
   libraryItems: LibraryItem[];
   setLibraryItems: (items: LibraryItem[]) => void;
@@ -256,6 +274,25 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeBookElement: (id) =>
     set((state) => ({ bookElements: state.bookElements.filter((element) => element.id !== id) })),
+
+  trashedEntityIds: new Set<string>(),
+  setTrashedEntityIds: (trashedEntityIds) => set({ trashedEntityIds }),
+  markTrashed: (kind, id) =>
+    set((state) => {
+      const key = trashedKey(kind, id);
+      if (state.trashedEntityIds.has(key)) return {};
+      const next = new Set(state.trashedEntityIds);
+      next.add(key);
+      return { trashedEntityIds: next };
+    }),
+  unmarkTrashed: (kind, id) =>
+    set((state) => {
+      const key = trashedKey(kind, id);
+      if (!state.trashedEntityIds.has(key)) return {};
+      const next = new Set(state.trashedEntityIds);
+      next.delete(key);
+      return { trashedEntityIds: next };
+    }),
 
   libraryItems: [],
   setLibraryItems: (libraryItems) => set({ libraryItems }),

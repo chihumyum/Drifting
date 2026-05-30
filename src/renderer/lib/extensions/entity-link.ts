@@ -1,4 +1,5 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
+import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -15,6 +16,12 @@ export interface EntityLinkRef {
   targetId: string;
   targetBlockId: string | null;
 }
+
+// Live state of a mention's target entity, driving both styling and clickability:
+//   'alive'   → target exists: full styling + clickable
+//   'trashed' → soft-deleted (recoverable): dimmed/desaturated + not clickable
+//   'gone'    → hard-deleted or never existed: styling stripped + not clickable
+export type EntityLinkTargetState = 'alive' | 'trashed' | 'gone';
 
 // One detectable entity: name → { kind, id }. Both nodes (chapter titles) and
 // elements participate; future kinds can be added by extending the union.
@@ -42,32 +49,36 @@ export const entityLinkConfig = {
   // Visual styling is gated separately via the `data-entity-link-interactive`
   // attribute on <html> (see editor-preferences.ts and index.css).
   interactionEnabled: true,
-  // Resolve whether a link's target entity still exists. Marks live inside
-  // other documents' content JSON, so deleting an entity leaves dangling
-  // links behind; clicking one would otherwise navigate to a phantom
-  // "untitled" editor. The hook injects a store-backed implementation; the
-  // permissive default keeps the extension usable in isolation/tests.
-  targetExists: (_kind: EntityKind, _id: string): boolean => true,
+  // Resolve a link target's live state. Marks live inside other documents'
+  // content JSON, so deleting an entity leaves links behind; clicking a
+  // dead one would otherwise navigate to a phantom "untitled" editor. The
+  // hook injects a store-backed implementation; the permissive default keeps
+  // the extension usable in isolation/tests.
+  resolveTargetState: (_kind: EntityKind, _id: string): EntityLinkTargetState => 'alive',
 };
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
 
-// Separate plugin that greys out "dangling" links — marks whose target entity
-// has been deleted. Carried in its own DecorationSet so we can recompute it
-// (a) on every doc change and (b) on demand when the known-entity set shifts
-// (an element deleted while this doc is open). The hook fires the on-demand
-// refresh by dispatching a transaction tagged with this key's meta.
+// Separate plugin that re-styles links whose target entity is no longer alive:
+// soft-deleted targets get dimmed, hard-deleted/missing targets get stripped to
+// plain prose. Carried in its own DecorationSet so we can recompute it (a) on
+// every doc change and (b) on demand when the known-entity / trashed set shifts
+// (an entity deleted or restored while this doc is open). The hook fires the
+// on-demand refresh by dispatching a transaction tagged with this key's meta.
 export const EntityLinkDanglingPluginKey = new PluginKey<DecorationSet>(
   'entityLinkDangling',
 );
 
 const META_FLAG = 'entityLink';
 
+// 'gone' → strip styling (reads as plain prose); 'trashed' → dim/desaturate.
+// CSS lives in index.css; both also cover the wrap case via :has().
 const DANGLING_CLASS = 'entity-link--dangling';
+const TRASHED_CLASS = 'entity-link--trashed';
 
-// Walk the doc and decorate every entity-link span whose target no longer
-// exists. The CSS for DANGLING_CLASS strips the link styling so the text reads
-// as plain prose (clicks are already swallowed by the handleClick guard).
+// Walk the doc and decorate every entity-link span by its target's live state.
+// Alive targets are left untouched; clicks on non-alive targets are already
+// swallowed by the handleClick guard.
 function computeDanglingDecorations(doc: PMNode): DecorationSet {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos) => {
@@ -77,9 +88,12 @@ function computeDanglingDecorations(doc: PMNode): DecorationSet {
       const targetId = mark.attrs.targetId as string | null;
       if (!targetId) continue;
       const targetKind = (mark.attrs.targetKind as EntityKind) ?? 'element';
-      if (entityLinkConfig.targetExists(targetKind, targetId)) continue;
+      const state = entityLinkConfig.resolveTargetState(targetKind, targetId);
+      if (state === 'alive') continue;
       decorations.push(
-        Decoration.inline(pos, pos + node.text.length, { class: DANGLING_CLASS }),
+        Decoration.inline(pos, pos + node.text.length, {
+          class: state === 'trashed' ? TRASHED_CLASS : DANGLING_CLASS,
+        }),
       );
       break; // one decoration per text node is enough
     }
@@ -275,10 +289,10 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
             const targetKind = (target.getAttribute('data-target-kind') as EntityKind) ?? 'element';
             const targetId = target.getAttribute('data-target-id');
             if (!targetId) return false;
-            // Dangling link: the target entity was deleted. Swallow the click
-            // so we don't navigate to a phantom "untitled" editor, but report
-            // it handled so the click doesn't also place the caret mid-word.
-            if (!entityLinkConfig.targetExists(targetKind, targetId)) return true;
+            // Non-alive target (soft- or hard-deleted): swallow the click so we
+            // don't navigate to a phantom "untitled" editor, but report it
+            // handled so the click doesn't also place the caret mid-word.
+            if (entityLinkConfig.resolveTargetState(targetKind, targetId) !== 'alive') return true;
             const targetBlockId = target.getAttribute('data-target-block-id');
 
             onClick({ targetKind, targetId, targetBlockId });
@@ -313,4 +327,60 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Walk the whole editor document and stamp the entityLink mark on every run of
+ * text matching any of `target.names`, pointing at the given entity. Used to
+ * retroactively link prose written BEFORE the entity existed — the autoDetect
+ * plugin above only fires on freshly-typed text, so earlier blocks would stay
+ * unlinked otherwise.
+ *
+ * Verbatim case-sensitive match, mirroring autoDetect so both paths agree on
+ * what links. Idempotent: a text run already linked to this exact target is
+ * skipped, so re-running (or overlapping with autoDetect) is safe. Dispatched
+ * with `addToHistory: false` so retro-linking isn't an undo step.
+ */
+export function linkEntityInDoc(
+  editor: Editor,
+  target: { kind: EntityKind; id: string; names: string[] },
+): void {
+  const markType = editor.schema.marks.entityLink;
+  if (!markType) return;
+  const names = Array.from(new Set(target.names.map((n) => n.trim()).filter(Boolean)));
+  if (names.length === 0) return;
+
+  const tr = editor.state.tr;
+  let modified = false;
+
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    // A PM text node is a single uniform mark run, so one check covers it all:
+    // if it already links to this target, every match inside is already linked.
+    const alreadyLinked = node.marks.some(
+      (mark) =>
+        mark.type === markType &&
+        mark.attrs.targetKind === target.kind &&
+        mark.attrs.targetId === target.id,
+    );
+    if (alreadyLinked) return;
+    const text = node.text;
+    for (const name of names) {
+      const regex = new RegExp(escapeRegExp(name), 'g');
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(text)) !== null) {
+        const from = pos + m.index;
+        tr.addMark(
+          from,
+          from + name.length,
+          markType.create({ targetKind: target.kind, targetId: target.id, targetBlockId: null }),
+        );
+        modified = true;
+      }
+    }
+  });
+
+  if (!modified) return;
+  tr.setMeta('addToHistory', false);
+  editor.view.dispatch(tr);
 }

@@ -18,10 +18,12 @@ import {
   EntityLink,
   EntityLinkDanglingPluginKey,
   entityLinkConfig,
+  linkEntityInDoc,
   type AutoDetectTarget,
   type EntityKind,
   type EntityLinkRef,
 } from '../lib/extensions/entity-link';
+import type { BookElement } from '../domain/book-element';
 import {
   EntityMentionSuggestion,
   type MentionableEntity,
@@ -30,7 +32,7 @@ import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-me
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import type { EditorView } from '@tiptap/pm/view';
-import { useDataStore } from '../store/data-store';
+import { useDataStore, trashedKey } from '../store/data-store';
 import { useSettingsStore } from '../store/settings-store';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../store/copilot-inline-store';
 import { useAuthStore } from '../store/auth';
@@ -179,6 +181,21 @@ function buildInlineCopilotCtx(
   if (blocks.length === 0) return null;
   const indexById = new Map(blocks.map((b, i) => [b.id, i]));
 
+  // Selection block ids (Task 6) + covered text. Computed up front so the
+  // enclosing-block resolution below can fall back to the selection.
+  const selectionBlockIds: string[] = [];
+  if (!selection.empty) {
+    doc.nodesBetween(selection.from, selection.to, (node) => {
+      const bid = node.attrs?.id as string | null | undefined;
+      if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
+      return true;
+    });
+  }
+  const selText = selection.empty
+    ? ''
+    : doc.textBetween(selection.from, selection.to, '\n').trim();
+  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
+
   // Enclosing block of the caret / selection start.
   const resolved = doc.resolve(selection.from);
   let encId: string | null = null;
@@ -194,21 +211,17 @@ function buildInlineCopilotCtx(
     blockEnd = blockStart + node.content.size;
     break;
   }
-  if (!encId) return null;
-
-  // Selection block ids (Task 6) + the block-index range the run covers.
-  const selectionBlockIds: string[] = [];
-  if (!selection.empty) {
-    doc.nodesBetween(selection.from, selection.to, (node) => {
-      const bid = node.attrs?.id as string | null | undefined;
-      if (isBlockType(node.type.name) && bid) selectionBlockIds.push(bid);
-      return true;
-    });
+  // Boundary fallback: Cmd+A makes an AllSelection whose `from` is 0 (the doc
+  // edge), which resolves to the doc node — not a block — so the loop above
+  // leaves encId null. If the selection still covers blocks, anchor on the
+  // first covered one so whole-doc runs build a ctx instead of bailing. A null
+  // ctx here would let ⇧⌘I fall through to TipTap's Mod-I italic alias.
+  if (!encId && selectionBlockIds.length > 0) {
+    encId = selectionBlockIds[0];
+    const idx = indexById.get(encId);
+    if (idx !== undefined) encText = blocks[idx]!.text;
   }
-  const selText = selection.empty
-    ? ''
-    : doc.textBetween(selection.from, selection.to, '\n').trim();
-  const mode: 'selection' | 'block' = selText.length > 0 ? 'selection' : 'block';
+  if (!encId) return null;
 
   const coveredIds =
     mode === 'selection' && selectionBlockIds.length > 0 ? selectionBlockIds : [encId];
@@ -387,6 +400,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
 
   const bookElements = useDataStore((state) => state.bookElements);
   const bookNodes = useDataStore((state) => state.bookNodes);
+  // Subscribed so the dangling-link plugin re-walks when an entity is trashed or
+  // restored while this doc is open (mention dims / un-dims immediately).
+  const trashedEntityIds = useDataStore((state) => state.trashedEntityIds);
 
   // Auto-detect: every element name + alias, and every chapter title, minus
   // self. Built fresh whenever the entity lists change so plugin config
@@ -675,11 +691,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           spellcheck: 'false',
         },
         handleKeyDown: (view, event) => {
-          // Cmd/Ctrl+Shift+I → inline Copilot popover. The Shift is what keeps
-          // it off Mod+I (italic). Only for editors that opted in (chapter
-          // editors), and only while the Copilot master switch is on (it gates
-          // manual AND auto). Works with or without a selection (no selection →
-          // current block).
+          // Cmd/Ctrl+Shift+I → inline Copilot popover. NB: TipTap's Italic
+          // binds BOTH Mod-i and Mod-I, so ⇧⌘I is also an italic alias —
+          // prosemirror-keymap retries shifted single-char keys without Shift
+          // and matches Mod-I. We win because editorProps.handleKeyDown runs
+          // before the Italic keymap and we swallow the chord below. Only for
+          // editors that opted in (chapter editors), and only while the Copilot
+          // master switch is on (it gates manual AND auto). Works with or
+          // without a selection (no selection → current block).
           if (event.key !== 'i' && event.key !== 'I') return false;
           if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
             return false;
@@ -690,14 +709,17 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
             return false;
           }
+          // This is unambiguously the Copilot chord in a chapter editor, so
+          // swallow it unconditionally — otherwise a null ctx (e.g. empty doc)
+          // would let it fall through to TipTap's Mod-I italic alias, which is
+          // exactly what ⇧⌘I must never do here.
+          event.preventDefault();
           const c = view.coordsAtPos(view.state.selection.from);
           const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
             clientX: c.left,
             clientY: c.bottom,
           });
-          if (!ctx) return false;
-          event.preventDefault();
-          useCopilotInlineStore.getState().open(ctx);
+          if (ctx) useCopilotInlineStore.getState().open(ctx);
           return true;
         },
         handleDOMEvents: {
@@ -837,33 +859,67 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     entityLinkConfig.autoDetectEnabled = autoElementLinkEnabled;
     entityLinkConfig.autoDetectTargets = autoDetectTargets;
     entityLinkConfig.interactionEnabled = entityLinkInteractive;
-    // Read the store live at click time so a link whose target was just
+    // Read the store live at resolve/click time so a link whose target was just
     // deleted (its mark still embedded in this doc's content) is treated as
-    // dangling and ignored instead of opening a phantom "untitled" editor.
-    entityLinkConfig.targetExists = (kind, id) => {
+    // non-alive: dimmed if the target sits in the trash (recoverable), stripped
+    // if it's gone for good — and never opens a phantom "untitled" editor.
+    entityLinkConfig.resolveTargetState = (kind, id) => {
       const state = useDataStore.getState();
-      switch (kind) {
-        case 'element':
-          return state.bookElements.some((e) => e.id === id);
-        case 'node':
-          return state.bookNodes.some((n) => n.id === id);
-        case 'storyline':
-          return state.storylines.some((s) => s.id === id);
-        case 'category':
-          return state.bookElementCategories.some((c) => c.id === id);
-        default:
-          // Kinds we don't track here (e.g. patch) stay navigable.
-          return true;
-      }
+      const alive = (() => {
+        switch (kind) {
+          case 'element':
+            return state.bookElements.some((e) => e.id === id);
+          case 'node':
+            return state.bookNodes.some((n) => n.id === id);
+          case 'storyline':
+            return state.storylines.some((s) => s.id === id);
+          case 'category':
+            return state.bookElementCategories.some((c) => c.id === id);
+          default:
+            // Kinds we don't track here (e.g. patch) stay navigable.
+            return true;
+        }
+      })();
+      if (alive) return 'alive';
+      return state.trashedEntityIds.has(trashedKey(kind, id)) ? 'trashed' : 'gone';
     };
-    // The known-entity set just changed (e.g. an element was deleted while this
-    // doc is open). Nudge the dangling-link plugin to re-walk so any link to a
-    // now-missing target greys out immediately. A meta-only transaction adds no
-    // steps and never enters history.
+    // The known-entity / trashed set just changed (e.g. an element was deleted,
+    // trashed, or restored while this doc is open). Nudge the dangling-link
+    // plugin to re-walk so links re-style immediately. A meta-only transaction
+    // adds no steps and never enters history.
     if (editor && !editor.isDestroyed) {
       editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
     }
-  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, editor]);
+  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, trashedEntityIds, editor]);
+
+  // Retroactively link prose that mentioned an element before it was created.
+  // Auto-detect only fires on freshly-typed text, so an element created after
+  // its name was already written (e.g. accepting a Copilot element-candidate)
+  // would leave those earlier blocks unlinked. createElement emits this event;
+  // every mounted editor handles it, so all open chapters pick up the new link
+  // — not just whichever editor happened to be active at creation time.
+  useEffect(() => {
+    if (!editor) return;
+    const onElementCreated = ({ element }: { element: BookElement }) => {
+      if (editor.isDestroyed || !entityLinkConfig.autoDetectEnabled) return;
+      // Mirror the autoDetectTargets exclusions: never self-link the entity (or
+      // its parent element) this editor is editing.
+      const { sourceKind: sk, sourceId: sid, parentElementId: pid } = sourceRef.current;
+      if (sk === 'element' && element.id === sid) return;
+      if (pid && element.id === pid) return;
+      try {
+        linkEntityInDoc(editor, {
+          kind: 'element',
+          id: element.id,
+          names: [element.name, ...element.aliases],
+        });
+      } catch (err) {
+        log.warn('Retroactive entity link failed:', err);
+      }
+    };
+    events.on('element:element-created', onElementCreated);
+    return () => events.off('element:element-created', onElementCreated);
+  }, [editor]);
 
   // Load content into the editor whenever the (editor instance, sourceId)
   // pair changes. Don't depend on `content` — that would re-load on every

@@ -799,23 +799,38 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   );
 }
 
-/* Dangling link — the target entity was deleted. Strip every entity-link
-   treatment (colour, gradient, underline, deep-link glyph, pointer) so the
-   span reads as ordinary prose. The mark itself stays in the doc (inert);
-   clicks are already swallowed by the plugin's targetExists guard. Applied as
-   a ProseMirror decoration class, which may merge onto or wrap the mark span —
-   cover both with !important rather than chase specificity across variants. */
+/* Dangling link — the target entity was hard-deleted (gone for good). Strip
+   every entity-link treatment (colour, gradient, underline, deep-link glyph,
+   pointer) so the span reads as ordinary prose. The mark itself stays in the
+   doc (inert); clicks are already swallowed by the plugin's state guard.
+   Applied as a ProseMirror decoration class, which may MERGE onto the mark span
+   or WRAP inside it. The colour/gradient live on the .entity-link span, so the
+   wrap case needs :has() to reach back up to it — the original merge-only
+   selectors missed it and left the highlight showing. */
 .entity-link--dangling,
 .entity-link--dangling.entity-link,
-.entity-link--dangling .entity-link {
+.entity-link--dangling .entity-link,
+.entity-link:has(.entity-link--dangling) {
   color: inherit !important;
   background-image: none !important;
   border-bottom: none !important;
   cursor: text !important;
 }
 .entity-link--dangling.entity-link--deep::after,
-.entity-link--dangling .entity-link--deep::after {
+.entity-link--dangling .entity-link--deep::after,
+.entity-link:has(.entity-link--dangling) .entity-link--deep::after {
   content: none !important;
+}
+
+/* Trashed link — the target sits in the trash (soft-deleted, recoverable).
+   Keep the link shape but desaturate the colour so it reads as muted/inactive,
+   and drop the pointer. Same merge-or-wrap decoration nesting as dangling, so
+   cover the outer .entity-link via :has(). */
+.entity-link--trashed.entity-link,
+.entity-link:has(.entity-link--trashed) {
+  filter: saturate(0.3);
+  opacity: 0.65;
+  cursor: default !important;
 }
 
 /* Target kind palette — re-uses element link tokens for elements,

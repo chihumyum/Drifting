@@ -14,6 +14,7 @@ import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-r
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
+import { events } from '../lib/events';
 import {
   syncElementCreate,
   syncElementUpdate,
@@ -146,7 +147,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         updatedAt: now,
       };
 
-      return withOptimisticUpdate({
+      const created = await withOptimisticUpdate({
         apply: () => setElements([newElement, ...prev]),
         rollback: () => setElements(prev),
         effect: () => elementRepo.create(newElement),
@@ -167,6 +168,13 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             groupName: persisted.groupName,
           }),
       });
+      // Let every open editor retroactively link prose that already mentioned
+      // this element before it existed. Auto-detect only fires on freshly-typed
+      // text, so without this, earlier blocks stay unlinked. Covers all creation
+      // paths (Copilot element-candidate, @-picker create, manual add) since
+      // they all funnel through here.
+      events.emit('element:element-created', { element: created });
+      return created;
     },
     [elementRepo, getElements, setElements, ensureDb, activeProjectId],
   );
@@ -301,8 +309,16 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
 
       if (canUseFeature('trash')) {
         return withOptimisticUpdate({
-          apply: () => setElements(filtered),
-          rollback: () => setElements(elements),
+          // Mark trashed so open editors dim (not strip) inline mentions to
+          // this element — soft-deleted is recoverable, unlike a hard delete.
+          apply: () => {
+            setElements(filtered);
+            useDataStore.getState().markTrashed('element', id);
+          },
+          rollback: () => {
+            setElements(elements);
+            useDataStore.getState().unmarkTrashed('element', id);
+          },
           effect: () => elementRepo.softDelete(id),
           sync: () => syncElementSoftDelete(id, activeProjectId),
         });
@@ -326,6 +342,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       await ensureDb();
       await elementRepo.restore(id);
       syncElementRestore(id, activeProjectId);
+      useDataStore.getState().unmarkTrashed('element', id);
       const fresh = await elementRepo.findAll();
       setElements(fresh);
     },
@@ -341,6 +358,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       await ensureDb();
       await elementRepo.delete(id);
       syncElementDelete(id, activeProjectId);
+      // No longer trashed — it's gone for good. Mentions flip dim → stripped.
+      useDataStore.getState().unmarkTrashed('element', id);
       await cleanupElementRelations(id);
     },
     [elementRepo, ensureDb, activeProjectId, cleanupElementRelations],

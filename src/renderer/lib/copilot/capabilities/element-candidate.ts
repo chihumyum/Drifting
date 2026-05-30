@@ -18,10 +18,10 @@
  *   - dedup post-filter (against project + rejected + pending names)
  *   - render hint for CommentRail
  *   - accept handler (creates the BookElement, seeds summary from
- *     model-generated initial description, scan-and-link existing prose
- *     mentions of the new name)
+ *     model-generated initial description). Retroactive linking of existing
+ *     prose mentions is handled centrally — createElement emits
+ *     `element:element-created` and open editors link their own docs.
  */
-import type { Editor } from '@tiptap/core';
 import loglevel from 'loglevel';
 import { callStructured } from '../../ai/call-structured';
 
@@ -187,20 +187,10 @@ export const elementCandidateCapability: CopilotCapability = {
       summary: meta.initialDescription,
     });
 
-    // The entity-link auto-detect plugin only fires on docChanged
-    // transactions (typed text), so it won't see this element's name in
-    // text the user already wrote. Manually scan the editor doc and stamp
-    // the entityLink mark on every match — subsequent typing of the same
-    // name will then be picked up by the auto-detect on its own.
-    if (ctx.editor) {
-      try {
-        scanAndLinkInDoc(ctx.editor, meta.suggestedName, created.id);
-      } catch (err) {
-        // Linking failure shouldn't fail the accept — element is still
-        // created and discoverable; user can re-type or @-link manually.
-        log.warn('[copilot:element-candidate] scan-and-link failed', err);
-      }
-    }
+    // Retroactive linking of prose the user already wrote is handled centrally:
+    // createElement emits `element:element-created`, and every mounted editor
+    // links its own doc (see useEntityEditor). That covers all open chapters and
+    // doesn't depend on an editor being "active" here, so no manual scan needed.
 
     return {
       kind: 'element-candidate',
@@ -252,61 +242,6 @@ function pickFallbackCategoryId(projectId: string): string | null {
   const categories = useDataStore.getState().bookElementCategories;
   const first = categories.find((c) => c.projectId === projectId);
   return first?.id ?? null;
-}
-
-/**
- * Scan the entire editor document for occurrences of `name` and apply the
- * entityLink mark to each match pointing at the newly-created element.
- * Used because the EntityLink plugin's autoDetect only runs on typed text;
- * existing text that mentioned the entity before it was registered would
- * stay un-linked otherwise.
- *
- * Verbatim case-sensitive match — mirrors the autoDetect behavior in
- * lib/extensions/entity-link.ts so the two paths agree on what gets linked.
- * Skips ranges that already carry an entityLink mark pointing at the same
- * (targetKind, targetId).
- */
-function scanAndLinkInDoc(editor: Editor, name: string, elementId: string): void {
-  const markType = editor.schema.marks.entityLink;
-  if (!markType) return;
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  const tr = editor.state.tr;
-  let modified = false;
-
-  editor.state.doc.descendants((node, pos) => {
-    if (!node.isText || !node.text) return;
-    const text = node.text;
-    const regex = new RegExp(escaped, 'g');
-    let m: RegExpExecArray | null;
-    while ((m = regex.exec(text)) !== null) {
-      const from = pos + m.index;
-      const to = from + trimmed.length;
-      const alreadyLinked = node.marks.some(
-        (mark) =>
-          mark.type === markType &&
-          mark.attrs.targetKind === 'element' &&
-          mark.attrs.targetId === elementId,
-      );
-      if (alreadyLinked) continue;
-      tr.addMark(
-        from,
-        to,
-        markType.create({
-          targetKind: 'element',
-          targetId: elementId,
-          targetBlockId: null,
-        }),
-      );
-      modified = true;
-    }
-  });
-
-  if (!modified) return;
-  tr.setMeta('addToHistory', false);
-  editor.view.dispatch(tr);
 }
 
 /**
