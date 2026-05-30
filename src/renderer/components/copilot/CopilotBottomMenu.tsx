@@ -31,7 +31,15 @@ const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
 
 export function CopilotBottomMenu() {
   const [open, setOpen] = useState(false);
+  // Button rect captured on open (in the click handler — reading the ref in
+  // render is disallowed). Drives the portaled panel's fixed position.
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const toggleOpen = () => {
+    setRect(buttonRef.current?.getBoundingClientRect() ?? null);
+    setOpen((v) => !v);
+  };
 
   const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
@@ -45,10 +53,9 @@ export function CopilotBottomMenu() {
     'auto';
   const setOutputLang = useSettingsStore((s) => s.setCopilotOutputLang);
 
-  // Panel position: anchored above the button, computed from its rect. The
-  // panel is portaled to <body> with a high z-index so the editor floating
-  // island (modern skin) can't paint over it.
-  const rect = buttonRef.current?.getBoundingClientRect();
+  // Panel position: anchored above the button, computed from its captured
+  // rect. The panel is portaled to <body> with a high z-index so the editor
+  // floating island (modern skin) can't paint over it.
   const panelStyle: React.CSSProperties = {
     position: 'fixed',
     bottom: rect ? window.innerHeight - rect.top + 6 : 48,
@@ -70,7 +77,7 @@ export function CopilotBottomMenu() {
         ref={buttonRef}
         type="button"
         className={`bsb__seg bsb__copilot${copilotEnabled ? ' is-live' : ''}`}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         title="Copilot"
         aria-label="Copilot"
       >
