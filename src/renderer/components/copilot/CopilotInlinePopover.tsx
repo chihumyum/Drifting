@@ -4,8 +4,8 @@
  *
  * Input box (always shown): a free-text prompt. The action list below is one
  * keyboard-navigable menu (↑/↓ to move, ⏎ to run the highlighted item); the
- * default item is the local-edit, so typing + ⏎ runs inline-edit. The input
- * carries a random example as placeholder — ⏎ on an empty box runs that.
+ * default item is the local-edit, so typing + ⏎ runs inline-edit. An empty
+ * box does nothing on ⏎ (the user supplies the instruction).
  *
  * Actions are grouped by scenario:
  *   - No selection: 「在光标处触发」(local edit only) + 「本章节触发」(chapter
@@ -27,10 +27,6 @@ import {
   type InlineEditResult,
 } from '../../lib/copilot/inline-edit';
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
-import {
-  getInlinePlaceholders,
-  ensureInlinePlaceholders,
-} from '../../lib/copilot/inline-placeholders';
 import { events } from '../../lib/events';
 
 const PANEL_WIDTH = 360;
@@ -123,16 +119,6 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
   const selIndex = Math.min(selectedIndex, Math.max(0, actions.length - 1));
 
-  // Genre-tailored example placeholder for the current mode (selection vs
-  // bare caret). Rotated deterministically per open (seeded from invocation
-  // position — no impure Math.random() in render). Empty ⏎ runs this example.
-  const examples = ctx
-    ? getInlinePlaceholders(ctx.projectId, ctx.mode === 'selection' ? 'selection' : 'block')
-    : [];
-  const placeholder = examples.length
-    ? examples[((ctx?.from ?? 0) + (ctx?.clientX ?? 0)) % examples.length]!
-    : '';
-
   // Position: anchor below the caret, but if that would overflow the bottom,
   // slide up so the panel's bottom sticks to just above the app edge. Measured
   // after layout so the real height is used (the menu's height varies by mode/
@@ -160,12 +146,6 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       return () => clearTimeout(id);
     }
   }, [visible, ctx, phase]);
-
-  // On open, lazily refresh this project's genre-tailored placeholders
-  // (regenerates weekly; no-op if fresh). Fire-and-forget.
-  useEffect(() => {
-    if (visible && ctx) ensureInlinePlaceholders(ctx.projectId);
-  }, [visible, ctx]);
 
   // Abort any in-flight call when the popover unmounts.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -268,11 +248,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const triggerAction = useCallback(
     (a: Action | undefined) => {
       if (!a) return;
-      if (a.kind === 'inline') void runEdit(instruction.trim() || placeholder);
+      if (a.kind === 'inline') void runEdit(instruction.trim());
       else if (a.kind === 'cap' && a.capId) runCapability(a.capId);
       else if (a.kind === 'chapter') void handleChapterSummary();
     },
-    [runEdit, runCapability, handleChapterSummary, instruction, placeholder],
+    [runEdit, runCapability, handleChapterSummary, instruction],
   );
 
   // Esc closes; Enter accepts a ready result.
@@ -350,7 +330,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   triggerAction(actions[selIndex]);
                 }
               }}
-              placeholder={placeholder}
+              placeholder="输入修改要求…"
               rows={2}
               style={{
                 width: '100%',
