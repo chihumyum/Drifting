@@ -54,6 +54,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const [chapterMsg, setChapterMsg] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // The instruction of the most recent run — lets the "本次执行" button on a
+  // refusal re-run the same ask with the guard lifted for this one call.
+  const lastInstructionRef = useRef('');
 
   // Block-scoped capabilities the user can manually run with the typed prompt.
   const menuCaps = useMemo(() => capabilitiesForTrigger('editor-block-debounced'), []);
@@ -92,8 +95,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   }, [close]);
 
   const runEdit = useCallback(
-    async (instr: string) => {
+    async (instr: string, opts?: { forceAllowNewContent?: boolean }) => {
       if (!ctx || !instr.trim()) return;
+      lastInstructionRef.current = instr.trim();
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -110,7 +114,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             segmentSummaries: ctx.segmentSummaries.length ? ctx.segmentSummaries : undefined,
           },
           instruction: instr.trim(),
-          allowNewContent,
+          // One-shot override (本次执行) lifts the new-content guard for this
+          // single run without touching the persisted setting.
+          allowNewContent: allowNewContent || opts?.forceAllowNewContent === true,
           projectId: ctx.projectId,
           signal: controller.signal,
         });
@@ -360,6 +366,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             <div style={{ color: '#a65a3a', fontWeight: 600, marginBottom: 4 }}>未执行</div>
             <div style={{ color: '#6a5b48' }}>{result.reason}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => void runEdit(lastInstructionRef.current, { forceAllowNewContent: true })}
+                style={primaryBtn}
+                title="仅本次允许生成新内容（缺少全局上下文，质量可能下降）"
+              >
+                本次执行
+              </button>
               <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
                 换个指令
               </button>

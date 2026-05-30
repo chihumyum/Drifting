@@ -272,6 +272,19 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
     [ensureDb, repo, setCategoriesState, activeProjectId],
   );
 
+  // Permanently delete an already-trashed category — the "立刻删除" path in the
+  // trash UI. Child elements were detached to "未分类" at soft-delete time (and
+  // the FK is `set null` anyway), so the hard delete just drops the row. The
+  // category isn't in the active store, so nothing to mutate there.
+  const purgeCategory = useCallback(
+    async (categoryId: string): Promise<void> => {
+      await ensureDb();
+      await repo.delete(categoryId);
+      syncCategoryDelete(categoryId, activeProjectId);
+    },
+    [ensureDb, repo, activeProjectId],
+  );
+
   const listTrashedCategories = useCallback(async () => {
     await ensureDb();
     return await repo.findTrashed();
@@ -304,6 +317,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       updateCategory,
       deleteCategory,
       restoreCategory,
+      purgeCategory,
       listTrashedCategories,
       getCategoryColor,
     }),
@@ -313,6 +327,7 @@ export function useElementCategory({ projectId, userId }: UseElementCategoryCont
       updateCategory,
       deleteCategory,
       restoreCategory,
+      purgeCategory,
       listTrashedCategories,
       getCategoryColor,
     ],

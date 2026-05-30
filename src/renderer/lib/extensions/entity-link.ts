@@ -1,6 +1,8 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { isHistoryTransaction } from '@tiptap/pm/history';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 // Re-export from the canonical vocabulary so callers that already import
 // EntityKind from this extension don't need to be rewired. New code should
@@ -50,7 +52,40 @@ export const entityLinkConfig = {
 
 export const EntityLinkPluginKey = new PluginKey('entityLink');
 
+// Separate plugin that greys out "dangling" links — marks whose target entity
+// has been deleted. Carried in its own DecorationSet so we can recompute it
+// (a) on every doc change and (b) on demand when the known-entity set shifts
+// (an element deleted while this doc is open). The hook fires the on-demand
+// refresh by dispatching a transaction tagged with this key's meta.
+export const EntityLinkDanglingPluginKey = new PluginKey<DecorationSet>(
+  'entityLinkDangling',
+);
+
 const META_FLAG = 'entityLink';
+
+const DANGLING_CLASS = 'entity-link--dangling';
+
+// Walk the doc and decorate every entity-link span whose target no longer
+// exists. The CSS for DANGLING_CLASS strips the link styling so the text reads
+// as plain prose (clicks are already swallowed by the handleClick guard).
+function computeDanglingDecorations(doc: PMNode): DecorationSet {
+  const decorations: Decoration[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'entityLink') continue;
+      const targetId = mark.attrs.targetId as string | null;
+      if (!targetId) continue;
+      const targetKind = (mark.attrs.targetKind as EntityKind) ?? 'element';
+      if (entityLinkConfig.targetExists(targetKind, targetId)) continue;
+      decorations.push(
+        Decoration.inline(pos, pos + node.text.length, { class: DANGLING_CLASS }),
+      );
+      break; // one decoration per text node is enough
+    }
+  });
+  return DecorationSet.create(doc, decorations);
+}
 
 export const EntityLink = Mark.create<EntityLinkOptions>({
   name: 'entityLink',
@@ -248,6 +283,27 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
 
             onClick({ targetKind, targetId, targetBlockId });
             return true;
+          },
+        },
+      }),
+
+      // Dangling-link decorations. Kept in plugin state so we only re-walk the
+      // doc when it changes or when the hook forces a refresh (entity deleted
+      // while this doc is open) via a meta-tagged transaction.
+      new Plugin<DecorationSet>({
+        key: EntityLinkDanglingPluginKey,
+        state: {
+          init: (_config, state) => computeDanglingDecorations(state.doc),
+          apply(tr, value) {
+            if (tr.docChanged || tr.getMeta(EntityLinkDanglingPluginKey)) {
+              return computeDanglingDecorations(tr.doc);
+            }
+            return value.map(tr.mapping, tr.doc);
+          },
+        },
+        props: {
+          decorations(state) {
+            return EntityLinkDanglingPluginKey.getState(state);
           },
         },
       }),

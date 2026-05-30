@@ -799,6 +799,25 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   );
 }
 
+/* Dangling link — the target entity was deleted. Strip every entity-link
+   treatment (colour, gradient, underline, deep-link glyph, pointer) so the
+   span reads as ordinary prose. The mark itself stays in the doc (inert);
+   clicks are already swallowed by the plugin's targetExists guard. Applied as
+   a ProseMirror decoration class, which may merge onto or wrap the mark span —
+   cover both with !important rather than chase specificity across variants. */
+.entity-link--dangling,
+.entity-link--dangling.entity-link,
+.entity-link--dangling .entity-link {
+  color: inherit !important;
+  background-image: none !important;
+  border-bottom: none !important;
+  cursor: text !important;
+}
+.entity-link--dangling.entity-link--deep::after,
+.entity-link--dangling .entity-link--deep::after {
+  content: none !important;
+}
+
 /* Target kind palette — re-uses element link tokens for elements,
    plus distinct shades for chapter/patch targets. */
 .entity-link--element   { --el-color: var(--el-person); }

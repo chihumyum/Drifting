@@ -349,6 +349,20 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
     [activeProjectId, ensureDb, setStorylinesState],
   );
 
+  // Permanently delete an already-trashed storyline — the "立刻删除" path in
+  // the trash UI. The hard delete fires the NodeStorylineLink FK cascade, so
+  // any lingering link rows go with it. The storyline isn't in the active
+  // store (soft-deleted), so there's nothing to mutate there.
+  const purgeStoryline = useCallback(
+    async (id: string): Promise<void> => {
+      await ensureDb();
+      const repo = createStorylineRepository(activeProjectId);
+      await repo.deleteStoryline(id);
+      syncStorylineDelete(id, activeProjectId);
+    },
+    [activeProjectId, ensureDb],
+  );
+
   const listTrashedStorylines = useCallback(async () => {
     await ensureDb();
     const repo = createStorylineRepository(activeProjectId);
@@ -583,6 +597,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       updateStoryline,
       deleteStoryline,
       restoreStoryline,
+      purgeStoryline,
       listTrashedStorylines,
       addNodeToStoryline,
       removeNodeFromStoryline,
@@ -600,6 +615,7 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       updateStoryline,
       deleteStoryline,
       restoreStoryline,
+      purgeStoryline,
       listTrashedStorylines,
       addNodeToStoryline,
       removeNodeFromStoryline,

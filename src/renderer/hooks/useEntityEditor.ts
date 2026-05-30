@@ -16,6 +16,7 @@ import { extractOutline, serializeOutline, type OutlineItem } from '../lib/outli
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import {
   EntityLink,
+  EntityLinkDanglingPluginKey,
   entityLinkConfig,
   type AutoDetectTarget,
   type EntityKind,
@@ -855,7 +856,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           return true;
       }
     };
-  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive]);
+    // The known-entity set just changed (e.g. an element was deleted while this
+    // doc is open). Nudge the dangling-link plugin to re-walk so any link to a
+    // now-missing target greys out immediately. A meta-only transaction adds no
+    // steps and never enters history.
+    if (editor && !editor.isDestroyed) {
+      editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
+    }
+  }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, editor]);
 
   // Load content into the editor whenever the (editor instance, sourceId)
   // pair changes. Don't depend on `content` — that would re-load on every

@@ -456,6 +456,18 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
     [nodeRepo, ensureDb, setNodesState, activeProjectId],
   );
 
+  // Permanently delete an already-trashed node — the "立刻删除" path in the
+  // trash UI. node_content and storyline links cascade off the FK; the node is
+  // not in the active store (soft-deleted) so nothing to mutate there.
+  const purgeNode = useCallback(
+    async (id: string) => {
+      await ensureDb();
+      await nodeRepo.delete(id);
+      syncNodeDelete(id, activeProjectId);
+    },
+    [nodeRepo, ensureDb, activeProjectId],
+  );
+
   const listTrashedNodes = useCallback(async () => {
     await ensureDb();
     return await nodeRepo.findTrashed();
@@ -472,6 +484,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNode,
       deleteNode,
       restoreNode,
+      purgeNode,
       listTrashedNodes,
     }),
     [
@@ -484,6 +497,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       updateNode,
       deleteNode,
       restoreNode,
+      purgeNode,
       listTrashedNodes,
     ],
   );
