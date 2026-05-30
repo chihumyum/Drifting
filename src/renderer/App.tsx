@@ -33,6 +33,7 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
+import { AgentPanel } from './components/agent/AgentPanel';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { initAccentColor } from './lib/theme';
@@ -823,6 +824,7 @@ function Layout() {
         />
       )}
       <SyncStatusHUD />
+      <AgentPanel />
     </div>
   );
 }

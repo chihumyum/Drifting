@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { AgentEvent, AgentStartInput } from './agent';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -101,6 +102,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('auth:oauth-callback', handler);
     },
   },
+
+  // Claude Agent — SDK runs in main, streams events here over `agent:event`.
+  agent: {
+    authPrepare: () => ipcRenderer.invoke('agent:auth-prepare'),
+    authSubmitCode: (code: string) => ipcRenderer.invoke('agent:auth-submit-code', code),
+    authStatus: () => ipcRenderer.invoke('agent:auth-status'),
+    authLogout: () => ipcRenderer.invoke('agent:auth-logout'),
+    start: (input: AgentStartInput) => ipcRenderer.invoke('agent:start', input),
+    abort: () => ipcRenderer.invoke('agent:abort'),
+    onEvent: (callback: (event: AgentEvent) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, event: AgentEvent) => callback(event);
+      ipcRenderer.on('agent:event', handler);
+      return () => ipcRenderer.removeListener('agent:event', handler);
+    },
+  },
 });
 
 // Type definitions for TypeScript
@@ -128,6 +144,19 @@ export interface ElectronAPI {
     onOAuthCallback: (
       callback: (data: { token: string | null; error: string | null }) => void,
     ) => () => void;
+  };
+  agent: {
+    authPrepare: () => Promise<{ url: string }>;
+    authSubmitCode: (
+      code: string,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
+    authStatus: () => Promise<{ authenticated: boolean }>;
+    authLogout: () => Promise<{ ok: true }>;
+    start: (
+      input: AgentStartInput,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
+    abort: () => Promise<{ ok: true }>;
+    onEvent: (callback: (event: AgentEvent) => void) => () => void;
   };
   aiLog: {
     write: (

@@ -5,6 +5,7 @@ import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
 import { registerKeyringIpc } from './keyring-ipc';
 import { registerAiLogIpc } from './ai-log-ipc';
+import { registerAgentIpc } from './agent';
 
 function parseEnvValue(raw: string): string {
   const value = raw.trim();
@@ -159,6 +160,8 @@ app.whenReady().then(async () => {
   registerKeyringIpc();
   // AI request log writer
   registerAiLogIpc();
+  // Claude Agent (SDK runs in main; streams to renderer over IPC)
+  registerAgentIpc(() => mainWindow);
 
   createWindow();
 

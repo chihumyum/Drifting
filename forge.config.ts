@@ -8,7 +8,9 @@ import { VitePlugin } from '@electron-forge/plugin-vite';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    // Unpack the Claude Agent SDK's per-platform native `claude` binary from
+    // the asar archive — it must be a real file on disk to be spawned.
+    asar: { unpack: '**/@anthropic-ai/claude-agent-sdk-*/**' },
     icon: './src/assets/icon',
     name: 'Drifting',
     extraResource: ['./drizzle'],

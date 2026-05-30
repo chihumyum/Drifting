@@ -22,6 +22,10 @@ export default defineConfig({
         '@napi-rs/keyring',
         // Match every platform-suffixed prebuild (-darwin-arm64 / -linux-x64 / ...).
         /^@napi-rs\/keyring-/,
+        // Claude Agent SDK (ESM, spawns a native binary) — resolve at runtime
+        // from node_modules; never bundle it or its per-platform binary package.
+        '@anthropic-ai/claude-agent-sdk',
+        /^@anthropic-ai\/claude-agent-sdk/,
         // Also exclude electron and node built-ins
         'electron',
         'fs',
