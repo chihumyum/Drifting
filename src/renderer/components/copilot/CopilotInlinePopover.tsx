@@ -233,6 +233,10 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               onKeyDown={(e) => {
+                // Don't submit while an IME composition is active — Enter is
+                // committing the pinyin candidate, not sending. isComposing
+                // covers modern browsers; keyCode 229 is the legacy signal.
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   void runEdit(instruction);
