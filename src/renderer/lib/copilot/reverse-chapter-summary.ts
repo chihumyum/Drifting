@@ -10,7 +10,6 @@
 import loglevel from 'loglevel';
 import { runStructured } from '../ai/remote/run-structured';
 import { chapterSummaryPrompt } from '../ai/prompts/templates/chapter-summary';
-import { resolveOutputLanguageName } from '../ai/output-language';
 import { useDataStore } from '../../store/data-store';
 import { createBookNodeSqliteRepository } from '../../sqlite-repo/node-repo';
 import { syncNodeUpdate } from '../../usecase/sync-helpers';
@@ -55,7 +54,7 @@ export async function generateChapterSummary(params: {
     const out = await runStructured(
       chapterSummaryPrompt,
       { sectionSummaries },
-      { signal, outputLanguage: resolveOutputLanguageName(projectId) },
+      { signal, projectId },
     );
     summary = out.summary.trim();
   } catch (err) {

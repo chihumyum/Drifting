@@ -54,7 +54,6 @@ type SyncableSlice = {
   dateFormat: unknown;
   // intelligence (non-secret)
   modelTier: unknown;
-  ollamaEndpoint: unknown;
   uploadFullManuscript: unknown;
   allowWebSearch: unknown;
   requestTimeoutSec: unknown;
@@ -74,6 +73,7 @@ type SyncableSlice = {
   copilotTaskConfigs: unknown;
   copilotGenerateSummaries: unknown;
   copilotSummarySectionSize: unknown;
+  copilotOutputLangByProject: unknown;
   // sync / privacy
   wifiOnlySync: unknown;
   autoSnapshot: unknown;
@@ -99,7 +99,6 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'spellcheck',
   'dateFormat',
   'modelTier',
-  'ollamaEndpoint',
   'uploadFullManuscript',
   'allowWebSearch',
   'requestTimeoutSec',
@@ -117,6 +116,7 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'copilotTaskConfigs',
   'copilotGenerateSummaries',
   'copilotSummarySectionSize',
+  'copilotOutputLangByProject',
   'wifiOnlySync',
   'autoSnapshot',
   'improveModelsWithManuscripts',
@@ -219,7 +219,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     spellcheck: (v) => store.setSpellcheck(!!v),
     dateFormat: (v) => store.setDateFormat(v as never),
     modelTier: (v) => store.setModelTier(v as never),
-    ollamaEndpoint: (v) => store.setOllamaEndpoint(String(v)),
     uploadFullManuscript: (v) => store.setUploadFullManuscript(!!v),
     allowWebSearch: (v) => store.setAllowWebSearch(!!v),
     requestTimeoutSec: (v) => store.setRequestTimeoutSec(Number(v)),
@@ -256,6 +255,10 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       const n = Number(v);
       if (Number.isFinite(n) && n > 0) store.setCopilotSummarySectionSize(Math.floor(n));
     },
+    copilotOutputLangByProject: (v) =>
+      store.setCopilotOutputLangByProject(
+        v && typeof v === 'object' ? (v as Record<string, never>) : {},
+      ),
     wifiOnlySync: (v) => store.setWifiOnlySync(!!v),
     autoSnapshot: (v) => store.setAutoSnapshot(!!v),
     improveModelsWithManuscripts: (v) => store.setImproveModelsWithManuscripts(!!v),

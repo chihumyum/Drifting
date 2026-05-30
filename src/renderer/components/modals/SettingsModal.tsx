@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
+import { apiClient } from '../../lib/axios-config';
 import { getCopilotCapability } from '../../lib/copilot/capability';
 import { events } from '../../lib/events';
 import { SyncActivityPanel } from '../sync/SyncActivityPanel';
@@ -14,7 +15,6 @@ import {
 import {
   COPILOT_TASKS,
   useSettingsStore,
-  type CopilotMode,
   type CopilotTaskId,
   type DateFormat,
   type EditPermission,
@@ -1658,8 +1658,6 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     setModelTier,
     aiMode,
     setAiMode,
-    ollamaEndpoint,
-    setOllamaEndpoint,
     uploadFullManuscript,
     setUploadFullManuscript,
     allowWebSearch,
@@ -1773,36 +1771,6 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="本地模型" hint="LOCAL" />
-        <div className="set-provider">
-          <div className="set-provider__head">
-            <div className="set-provider__logo set-provider__logo--ollama">◖</div>
-            <div className="set-provider__main">
-              <div className="set-provider__name">
-                <b>Ollama</b> <em>本地</em>
-              </div>
-              <div className="set-provider__desc">
-                本机模型，零数据外发。配置端点后，Copilot 与 Shadow Agent 都可以走本地。
-              </div>
-            </div>
-          </div>
-          <div className="set-provider__body">
-            <div className="set-provider__body-inner">
-              <span className="set-provider__k">Endpoint</span>
-              <span className="set-provider__v">
-                <input
-                  className="set-input set-input--mono"
-                  style={{ minWidth: 280 }}
-                  value={ollamaEndpoint}
-                  onChange={(e) => setOllamaEndpoint(e.target.value)}
-                />
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="set-sec">
         <SecHead title="高级" hint="ADVANCED" />
         <Row
           label="允许稿件全文上传"
@@ -1868,6 +1836,38 @@ function ProviderRow({
 
   const connected = !!stored;
   const masked = useMemo(() => maskBYOK(stored), [stored]);
+
+  const aiMode = useSettingsStore((s) => s.aiMode);
+  const activeProvider = useSettingsStore((s) => s.byokProvider);
+  const setByokProvider = useSettingsStore((s) => s.setByokProvider);
+  const isActive = activeProvider === provider;
+
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [testMsg, setTestMsg] = useState('');
+
+  const testConnection = async () => {
+    if (!stored) return;
+    setTestState('testing');
+    setTestMsg('');
+    try {
+      // Send the key for THIS row (not the active one) so the user can verify a
+      // specific provider's key. Server makes a tiny call and reports ok/fail.
+      const res = await apiClient.request<{ ok?: boolean; message?: string }>({
+        method: 'POST',
+        url: '/api/ai/byok/test',
+        headers: { 'X-AI-Provider': provider, 'X-AI-Provider-Key': stored },
+      });
+      if (res.data?.ok) {
+        setTestState('ok');
+      } else {
+        setTestState('fail');
+        setTestMsg(res.data?.message ?? '密钥无效');
+      }
+    } catch {
+      setTestState('fail');
+      setTestMsg('请求失败（服务器未启动或网络问题）');
+    }
+  };
 
   const save = async () => {
     const value = draft.trim();
@@ -1949,7 +1949,19 @@ function ProviderRow({
           </>
         ) : connected ? (
           <>
-            <button className="set-btn">测试连接</button>
+            <button className="set-btn" onClick={testConnection} disabled={testState === 'testing'}>
+              {testState === 'testing' ? '测试中…' : '测试连接'}
+            </button>
+            {testState === 'ok' && (
+              <span className="set-mono" style={{ color: '#2e7d52' }}>
+                ✓ 可用
+              </span>
+            )}
+            {testState === 'fail' && (
+              <span className="set-mono" style={{ color: '#c0392b' }}>
+                ✗ {testMsg}
+              </span>
+            )}
             <button
               className="set-btn"
               onClick={() => {
@@ -1959,6 +1971,16 @@ function ProviderRow({
             >
               编辑密钥
             </button>
+            {aiMode === 'byok' &&
+              (isActive ? (
+                <span className="set-mono" style={{ color: '#4D6BFE', fontWeight: 600 }}>
+                  ✓ 当前 BYOK
+                </span>
+              ) : (
+                <button className="set-btn" onClick={() => setByokProvider(provider)}>
+                  设为当前
+                </button>
+              ))}
             <span style={{ flex: 1 }} />
             <button className="set-btn set-btn--danger" onClick={disconnect}>
               断开
@@ -2239,8 +2261,6 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
   const setCopilotInDrift = useSettingsStore((s) => s.setCopilotInDrift);
-  const copilotMode = useSettingsStore((s) => s.copilotMode);
-  const setCopilotMode = useSettingsStore((s) => s.setCopilotMode);
   const generateSummaries = useSettingsStore((s) => s.copilotGenerateSummaries);
   const setGenerateSummaries = useSettingsStore((s) => s.setCopilotGenerateSummaries);
   const sectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
@@ -2265,28 +2285,6 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
           label="在 drift 节点中启用"
           desc="drift 是灵感草稿区，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后 drift 编辑器也会跑同样的 task。"
           control={<Toggle on={copilotInDrift} onChange={setCopilotInDrift} />}
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="模型来源" hint="ROUTING" />
-        <Row
-          label="运行位置"
-          desc={
-            copilotMode === 'local'
-              ? '走本地 Ollama 端点。零数据外发，速度取决于硬件。'
-              : '走云端模型 —— 官方通道或你的 BYOK 密钥（取决于「模型与 API」配置）。'
-          }
-          control={
-            <Seg<CopilotMode>
-              value={copilotMode}
-              options={[
-                { value: 'local', label: '本地' },
-                { value: 'cloud', label: '云端' },
-              ]}
-              onChange={setCopilotMode}
-            />
-          }
         />
       </div>
 

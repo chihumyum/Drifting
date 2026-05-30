@@ -18,7 +18,6 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
 import { runStructured } from '../ai/remote/run-structured';
 import { segmentMergePrompt } from '../ai/prompts/templates/segment-merge';
-import { resolveOutputLanguageName } from '../ai/output-language';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
 import { createBlockSectionRepository } from '../../sqlite-repo/block-section-repo';
@@ -79,7 +78,6 @@ export async function mergeChapterSegments(params: {
   }
 
   const repo = createBlockSectionRepository();
-  const outputLanguage = resolveOutputLanguageName(projectId);
 
   for (const group of groups) {
     if (signal?.aborted) return;
@@ -95,7 +93,7 @@ export async function mergeChapterSegments(params: {
       const out = await runStructured(
         segmentMergePrompt,
         { summaries: group.map((s) => s.summary) },
-        { signal, outputLanguage },
+        { signal, projectId },
       );
       merged = out.summary.trim();
     } catch (err) {

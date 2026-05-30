@@ -12,7 +12,6 @@
  *
  * Nothing is persisted — this is an ephemeral chat living only in the popover.
  */
-import { resolveOutputLanguageName } from '../ai/output-language';
 import { AIError, type AIErrorKind } from '../ai/types';
 import { aiByokHeaders } from '../ai/remote/byok-headers';
 
@@ -71,7 +70,7 @@ export async function* runInlineAskStream(params: {
       body: JSON.stringify({
         context,
         history,
-        outputLanguage: resolveOutputLanguageName(projectId),
+        projectId,
       }),
       signal,
     });

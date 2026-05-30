@@ -16,7 +16,6 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import loglevel from 'loglevel';
 import { runStructured } from '../ai/remote/run-structured';
 import { blockSectionSummaryPrompt } from '../ai/prompts/templates/block-section-summary';
-import { resolveOutputLanguageName } from '../ai/output-language';
 import { isBlockType } from '../extensions/block-id';
 import { computeBlockHashes } from './block-signature';
 import type { CopilotRuntime } from './capability';
@@ -66,7 +65,7 @@ export async function produceBlockSectionSummary(
     const result = await runStructured(
       blockSectionSummaryPrompt,
       { recentText },
-      { signal: input.signal, outputLanguage: resolveOutputLanguageName(input.projectId) },
+      { signal: input.signal, projectId: input.projectId },
     );
     summaryText = result.summary.trim();
   } catch (err) {

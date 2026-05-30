@@ -27,7 +27,6 @@ import {
   pendingKey,
 } from '../../ai/context/element-patch-context-builder';
 import { elementPatchPrompt } from '../../ai/prompts/templates/element-patch';
-import { resolveOutputLanguageName } from '../../ai/output-language';
 import {
   decodeCopilotMetadata,
   type AcceptElementPatchResult,
@@ -95,7 +94,7 @@ export const elementPatchCapability: CopilotCapability = {
         userInstruction: ctx.userInstruction,
         priorSectionSummaries,
       },
-      { signal: ctx.signal, outputLanguage: resolveOutputLanguageName(ctx.projectId) },
+      { signal: ctx.signal, projectId: ctx.projectId },
     );
 
     if (ctx.signal.aborted) return [];

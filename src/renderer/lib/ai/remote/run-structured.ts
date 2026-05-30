@@ -45,8 +45,8 @@ export interface RunStructuredOptions {
   signal?: AbortSignal;
   /** Override the prompt's default model for this call. */
   model?: string;
-  /** Resolved output-language directive name; appended to the system prompt server-side. */
-  outputLanguage?: string;
+  /** Project id — the server resolves the output language from synced prefs. */
+  projectId?: string;
 }
 
 export async function runStructured<
@@ -77,7 +77,7 @@ export async function runStructured<
         promptVersion: prompt.version,
         model: options.model,
         input,
-        outputLanguage: options.outputLanguage,
+        projectId: options.projectId,
       },
       // BYOK key (when ai_mode='byok'); empty for the hosted path.
       headers: await aiByokHeaders(),

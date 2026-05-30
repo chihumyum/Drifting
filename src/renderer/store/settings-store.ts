@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import type { BYOKProvider } from '../lib/byok-keychain';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AppearanceSkin = 'classic' | 'modern';
@@ -138,8 +139,9 @@ interface SettingsState {
   // 'hosted' (server key, metered) vs 'byok' (user's own key, sent per-request).
   aiMode: AiMode;
   setAiMode: (m: AiMode) => void;
-  ollamaEndpoint: string;
-  setOllamaEndpoint: (s: string) => void;
+  // Which provider the BYOK path uses (the key for it must be in the keychain).
+  byokProvider: BYOKProvider;
+  setByokProvider: (p: BYOKProvider) => void;
   uploadFullManuscript: boolean;
   setUploadFullManuscript: (on: boolean) => void;
   allowWebSearch: boolean;
@@ -229,11 +231,13 @@ interface SettingsState {
    * Per-project output language for Copilot (and future Shadow) generation,
    * keyed by projectId. 'auto'/unset follows manuscriptLocale. Keeps the
    * 副手 from drifting into the wrong language (e.g. English in a Chinese
-   * novel). Client-local for now — promote to a synced ProjectTable column
-   * if cross-device parity is needed.
+   * novel). Synced to the server (so the server resolves output language for
+   * copilot calls) via the preferences whitelist.
    */
   copilotOutputLangByProject: Record<string, CopilotOutputLang>;
   setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
+  /** Replace the whole per-project map — used by cross-device preferences sync. */
+  setCopilotOutputLangByProject: (map: Record<string, CopilotOutputLang>) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -302,10 +306,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       aiMode: 'hosted',
       setAiMode: (m) => set({ aiMode: m }),
+      byokProvider: 'deepseek',
+      setByokProvider: (p) => set({ byokProvider: p }),
       modelTier: 'standard',
       setModelTier: (t) => set({ modelTier: t }),
-      ollamaEndpoint: 'http://localhost:11434',
-      setOllamaEndpoint: (s) => set({ ollamaEndpoint: s }),
       uploadFullManuscript: true,
       setUploadFullManuscript: (on) => set({ uploadFullManuscript: on }),
       allowWebSearch: true,
@@ -376,6 +380,7 @@ export const useSettingsStore = create<SettingsState>()(
             [projectId]: lang,
           },
         })),
+      setCopilotOutputLangByProject: (map) => set({ copilotOutputLangByProject: map }),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),

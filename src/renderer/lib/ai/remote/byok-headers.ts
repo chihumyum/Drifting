@@ -12,23 +12,25 @@
  * localStorage. Only DeepSeek is supported server-side for now.
  */
 import { useSettingsStore } from '../../../store/settings-store';
-import { byokKeychain, type BYOKProvider } from '../../byok-keychain';
-
-/** The single BYOK provider the server currently accepts. */
-const BYOK_PROVIDER: BYOKProvider = 'deepseek';
+import { byokKeychain } from '../../byok-keychain';
 
 /**
  * Returns the BYOK headers to attach to a copilot request, or an empty object
- * for the hosted path. Async because the key is read from the OS keychain.
+ * for the hosted path. The active provider is the user's `byokProvider`
+ * setting; its key is read just-in-time from the OS keychain. Async because the
+ * keychain read crosses to the main process.
  */
 export async function aiByokHeaders(): Promise<Record<string, string>> {
-  if (useSettingsStore.getState().aiMode !== 'byok') return {};
-  const key = await byokKeychain.get(BYOK_PROVIDER);
+  const { aiMode, byokProvider } = useSettingsStore.getState();
+  if (aiMode !== 'byok') return {};
+  const key = await byokKeychain.get(byokProvider);
   if (!key) {
-    // BYOK selected but no key configured — fall back to the hosted path rather
-    // than failing the call. (Once a quota gate exists, surface this in the UI.)
-    console.warn('[ai] ai_mode=byok but no key in keychain — falling back to hosted');
+    // BYOK selected but the chosen provider has no key — fall back to the hosted
+    // path rather than failing the call (surfaced in the UI as a warning).
+    console.warn(
+      `[ai] ai_mode=byok but no "${byokProvider}" key in keychain — falling back to hosted`,
+    );
     return {};
   }
-  return { 'X-AI-Provider': BYOK_PROVIDER, 'X-AI-Provider-Key': key };
+  return { 'X-AI-Provider': byokProvider, 'X-AI-Provider-Key': key };
 }
