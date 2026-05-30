@@ -221,6 +221,11 @@ function Layout() {
     renameNode: nodeUsecases.renameNode,
     updateNode: nodeUsecases.updateNode,
     updateContentByNodeId: contentUsecases.updateContentByNodeId,
+    addNodeToStoryline: storylineUsecases.addNodeToStoryline,
+    removeNodeFromStoryline: storylineUsecases.removeNodeFromStoryline,
+    setNodeStorylines: storylineUsecases.setNodeStorylines,
+    addRelation: relationUsecases.addRelation,
+    removeElement: elementUsecases.removeElement,
   });
 
   // Reset ready state when project or user changes

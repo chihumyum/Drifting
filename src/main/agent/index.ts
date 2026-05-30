@@ -37,6 +37,7 @@ export interface AgentStartInput {
 }
 
 let activeQuery: Query | null = null;
+let activeAbort: AbortController | null = null;
 
 function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
   const blocks = msg.message?.content;
@@ -136,14 +137,20 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
       ensureClaudeConfig();
 
       const driftingServer = await createDriftingMcpServer(getWindow);
+      const abortController = new AbortController();
+      activeAbort = abortController;
 
       const options: Options = {
+        abortController,
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
           'Inspect the project with: list_project_structure (call this FIRST to discover ids), ' +
           'read_chapter, read_element, search_project. ' +
           'You can also edit: update_element, create_element, rename_chapter, set_node_summary, ' +
           'edit_block (replace one prose block by its blockId from read_chapter), append_paragraph. ' +
+          'Manage relationships: link_chapter_to_storyline, unlink_chapter_from_storyline, ' +
+          'set_primary_storyline, add_relation (curated story-graph edge), and delete_element ' +
+          '(the user is asked to confirm). ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
           'the request. Be concise.',
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
@@ -168,19 +175,28 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         emit({ type: 'done' });
         return { ok: true };
       } catch (err) {
+        if (abortController.signal.aborted) {
+          // User-initiated stop — not an error.
+          emit({ type: 'done' });
+          return { ok: true };
+        }
         const message = err instanceof Error ? err.message : String(err);
         emit({ type: 'error', message });
         emit({ type: 'done' });
         return { ok: false, error: message };
       } finally {
-        if (activeQuery) activeQuery = null;
+        activeQuery = null;
+        if (activeAbort === abortController) activeAbort = null;
       }
     },
   );
 
   ipcMain.handle('agent:abort', async (): Promise<{ ok: true }> => {
     const q = activeQuery;
+    const ac = activeAbort;
     activeQuery = null;
+    activeAbort = null;
+    if (ac) ac.abort();
     if (q) {
       try {
         await q.interrupt();

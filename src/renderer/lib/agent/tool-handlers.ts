@@ -10,6 +10,12 @@ import { useDataStore } from '../../store/data-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
+import {
+  isEntityKind,
+  isStructuralEntityKind,
+  type EntityRefSourceKind,
+  type EntityRefTargetKind,
+} from '../../domain/entity-kinds';
 import type {
   CreateBookElementInput,
   UpdateElementUsecaseInput,
@@ -30,6 +36,21 @@ export interface AgentWriteApi {
     updates: Partial<BookNode> & { mainStorylineId?: string | null },
   ) => Promise<unknown>;
   updateContentByNodeId: (nodeId: string, updates: Partial<NodeContent>) => Promise<unknown>;
+  addNodeToStoryline: (nodeId: string, storylineId: string) => Promise<void>;
+  removeNodeFromStoryline: (nodeId: string, storylineId: string) => Promise<void>;
+  setNodeStorylines: (
+    nodeId: string,
+    storylineIds: string[],
+    options?: { primaryStorylineId?: string | null },
+  ) => Promise<void>;
+  addRelation: (
+    fromKind: EntityRefSourceKind,
+    fromId: string,
+    toKind: EntityRefTargetKind,
+    toId: string,
+    options?: { kind?: string | null },
+  ) => Promise<unknown>;
+  removeElement: (id: string) => Promise<unknown>;
 }
 
 export interface AgentToolContext {
@@ -182,6 +203,66 @@ async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, u
   return { ok: true, nodeId };
 }
 
+// ---- Relationship handlers -------------------------------------------------
+
+async function linkChapterToStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const storylineId = String(args.storylineId ?? '');
+  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  await ctx.write.addNodeToStoryline(nodeId, storylineId);
+  return { ok: true, nodeId, storylineId };
+}
+
+async function unlinkChapterFromStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const storylineId = String(args.storylineId ?? '');
+  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  await ctx.write.removeNodeFromStoryline(nodeId, storylineId);
+  return { ok: true, nodeId, storylineId };
+}
+
+async function setPrimaryStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const storylineId = String(args.storylineId ?? '');
+  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  // Ensure membership, then mark it primary — setNodeStorylines replaces the
+  // full set, so include the current memberships plus this one.
+  const current = useDataStore.getState().nodeStorylineMapping[nodeId] ?? [];
+  const ids = current.includes(storylineId) ? current : [...current, storylineId];
+  await ctx.write.setNodeStorylines(nodeId, ids, { primaryStorylineId: storylineId });
+  return { ok: true, nodeId, primaryStorylineId: storylineId };
+}
+
+async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const fromKind = String(args.fromKind ?? '');
+  const fromId = String(args.fromId ?? '');
+  const toKind = String(args.toKind ?? '');
+  const toId = String(args.toId ?? '');
+  if (!isEntityKind(fromKind)) throw new Error(`Invalid fromKind "${fromKind}"`);
+  if (!isStructuralEntityKind(toKind)) {
+    throw new Error(`Invalid toKind "${toKind}" (must be node/element/patch/category/storyline)`);
+  }
+  if (!fromId || !toId) throw new Error('add_relation requires fromId and toId');
+  const kind = typeof args.kind === 'string' ? args.kind : undefined;
+  const relation = await ctx.write.addRelation(fromKind, fromId, toKind, toId, { kind });
+  return { ok: true, relation };
+}
+
+async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.elementId ?? '');
+  if (!id) throw new Error('delete_element requires elementId');
+  const el = useDataStore.getState().bookElements.find((e) => e.id === id);
+  const label = el ? el.name : id;
+  // Destructive — require explicit human confirmation in the renderer.
+  const confirmed =
+    typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm(`Claude wants to delete the element "${label}". Allow?`)
+      : false;
+  if (!confirmed) return { ok: false, declined: true };
+  await ctx.write.removeElement(id);
+  return { ok: true, id };
+}
+
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
 export async function runAgentTool(
   name: string,
@@ -211,6 +292,18 @@ export async function runAgentTool(
       return editBlock(ctx, args);
     case 'append_paragraph':
       return appendParagraphTool(ctx, args);
+    // relationships
+    case 'link_chapter_to_storyline':
+      return linkChapterToStoryline(ctx, args);
+    case 'unlink_chapter_from_storyline':
+      return unlinkChapterFromStoryline(ctx, args);
+    case 'set_primary_storyline':
+      return setPrimaryStoryline(ctx, args);
+    case 'add_relation':
+      return addRelation(ctx, args);
+    // destructive
+    case 'delete_element':
+      return deleteElement(ctx, args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

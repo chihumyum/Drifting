@@ -104,6 +104,44 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         { nodeId: z.string(), text: z.string() },
         (args) => run('append_paragraph', args),
       ),
+      // ---- relationships ----
+      tool(
+        'link_chapter_to_storyline',
+        'Add a chapter (node) as a member of a storyline.',
+        { nodeId: z.string(), storylineId: z.string() },
+        (args) => run('link_chapter_to_storyline', args),
+      ),
+      tool(
+        'unlink_chapter_from_storyline',
+        'Remove a chapter (node) from a storyline.',
+        { nodeId: z.string(), storylineId: z.string() },
+        (args) => run('unlink_chapter_from_storyline', args),
+      ),
+      tool(
+        'set_primary_storyline',
+        "Make a storyline the chapter's primary storyline (adds membership if needed).",
+        { nodeId: z.string(), storylineId: z.string() },
+        (args) => run('set_primary_storyline', args),
+      ),
+      tool(
+        'add_relation',
+        'Create a curated cross-entity relation (story-graph edge). fromKind is one of node/element/patch/category/storyline/comment/library_item; toKind must be structural (node/element/patch/category/storyline). Optional free-form "kind" label.',
+        {
+          fromKind: z.string(),
+          fromId: z.string(),
+          toKind: z.string(),
+          toId: z.string(),
+          kind: z.string().optional(),
+        },
+        (args) => run('add_relation', args),
+      ),
+      // ---- destructive (asks the user to confirm in the app) ----
+      tool(
+        'delete_element',
+        'Delete an element. The app will ask the user to confirm before deleting; returns {declined:true} if they refuse.',
+        { elementId: z.string() },
+        (args) => run('delete_element', args),
+      ),
     ],
   });
 }
