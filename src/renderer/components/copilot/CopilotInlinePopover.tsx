@@ -1,22 +1,22 @@
 /**
  * CopilotInlinePopover — the ⇧⌘I / context-menu "输入框 + 菜单二合一" surface
- * (Tasks 4/6/7). One unified entry, with or without a selection:
+ * (Tasks 4/6/7). One unified entry, with or without a selection.
  *
- *   • Input box (always shown): a free-text prompt. Pressing Enter (or 局部修改)
- *     runs inline-edit on the target — the selection, or the current block when
- *     there's no selection. Local revision only; refuses new-content unless the
- *     author opted in. Result previews inline; accept applies it in place.
- *   • Quick chips: prefill + run inline-edit for the common asks.
- *   • Task menu: the other Copilot capabilities (element extract / patch). These
- *     are BLOCK-scoped — they run on the rolling/coverage context via the
- *     manual-run engine, carrying whatever prompt is in the box as a steer, and
- *     their results land in the margin (批注). NOT chapter-scoped.
+ * Input box (always shown): a free-text prompt. The action list below is one
+ * keyboard-navigable menu (↑/↓ to move, ⏎ to run the highlighted item); the
+ * default item is the local-edit, so typing + ⏎ runs inline-edit. The input
+ * carries a random example as placeholder — ⏎ on an empty box runs that.
  *
- * (Chapter-scoped "本章运行" actions like reverse-summary attach here once built.)
+ * Actions are grouped by scenario:
+ *   - No selection: 「在光标处触发」(local edit only) + 「本章节触发」(chapter
+ *     summary).
+ *   - Selection:    「对选中的文本触发」(local edit + element extract/patch) +
+ *     「本章节触发」(chapter summary — selection-independent).
+ * Capability runs land in the margin (批注); inline-edit previews inline.
  *
  * Mounted per ChapterEditor; renders only when the store's ctx.nodeId matches.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../../store/copilot-inline-store';
 import { useSettingsStore, COPILOT_TASKS } from '../../store/settings-store';
@@ -29,9 +29,23 @@ import {
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
 import { events } from '../../lib/events';
 
-const QUICK_CHIPS = ['修复语病', '换个说法', '更准的词', '强化通感', '更精炼'];
+/** Example instructions surfaced as a random placeholder; empty ⏎ runs one. */
+const EXAMPLE_PROMPTS = ['修复语病', '换个说法', '更准的词', '强化通感', '更精炼', '收紧节奏'];
+
+const PANEL_WIDTH = 360;
+const VIEWPORT_MARGIN = 8;
 
 type Phase = 'input' | 'running' | 'result' | 'refused' | 'error';
+
+/** One row in the unified action menu. */
+interface Action {
+  key: string;
+  kind: 'inline' | 'cap' | 'chapter';
+  capId?: string;
+  label: string;
+  note?: string;
+  group: string;
+}
 
 interface CopilotInlinePopoverProps {
   editor: Editor;
@@ -47,18 +61,20 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const visible = !!ctx && ctx.nodeId === nodeId;
 
   const [instruction, setInstruction] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('input');
   const [result, setResult] = useState<InlineEditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [chapterBusy, setChapterBusy] = useState(false);
   const [chapterMsg, setChapterMsg] = useState<string | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // The instruction of the most recent run — lets the "本次执行" button on a
-  // refusal re-run the same ask with the guard lifted for this one call.
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The instruction of the most recent run — lets "本次执行" on a refusal
+  // re-run the same ask with the guard lifted for that one call.
   const lastInstructionRef = useRef('');
 
-  // Block-scoped capabilities the user can manually run with the typed prompt.
   const menuCaps = useMemo(() => capabilitiesForTrigger('editor-block-debounced'), []);
   const taskLabel = useCallback(
     (id: string) => COPILOT_TASKS.find((t) => t.id === id)?.label ?? id,
@@ -71,14 +87,68 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   if (visible && seenCtx !== ctx) {
     setSeenCtx(ctx);
     setInstruction('');
+    setSelectedIndex(0);
     setPhase('input');
     setResult(null);
     setError(null);
     setChapterBusy(false);
     setChapterMsg(null);
+    setPos(null);
   }
 
-  // Focus the input when the popover opens.
+  // The unified, grouped action list — depends only on the invocation mode.
+  const actions = useMemo<Action[]>(() => {
+    if (!ctx) return [];
+    const list: Action[] = [];
+    if (ctx.mode === 'selection') {
+      list.push({ key: 'inline', kind: 'inline', label: '局部文本修改', group: '对选中的文本触发' });
+      for (const cap of menuCaps) {
+        const off = !taskConfigs[cap.id as keyof typeof taskConfigs]?.enabled;
+        list.push({
+          key: cap.id,
+          kind: 'cap',
+          capId: cap.id,
+          label: taskLabel(cap.id),
+          note: off ? '已关闭 · 单次运行' : undefined,
+          group: '对选中的文本触发',
+        });
+      }
+    } else {
+      list.push({ key: 'inline', kind: 'inline', label: '局部修改', group: '在光标处触发' });
+    }
+    list.push({ key: 'chapter', kind: 'chapter', label: '生成章节摘要', group: '本章节触发' });
+    return list;
+  }, [ctx, menuCaps, taskConfigs, taskLabel]);
+
+  const selIndex = Math.min(selectedIndex, Math.max(0, actions.length - 1));
+
+  // Example placeholder — rotated deterministically per open (seeded from the
+  // invocation position, so it varies between opens without an impure
+  // Math.random() in render). Empty ⏎ runs this example.
+  const placeholder =
+    EXAMPLE_PROMPTS[((ctx?.from ?? 0) + (ctx?.clientX ?? 0)) % EXAMPLE_PROMPTS.length]!;
+
+  // Position: anchor below the caret, but if that would overflow the bottom,
+  // slide up so the panel's bottom sticks to just above the app edge. Measured
+  // after layout so the real height is used (the menu's height varies by mode/
+  // phase). useLayoutEffect runs before paint → no flash.
+  useLayoutEffect(() => {
+    if (!visible || !ctx) return;
+    const el = panelRef.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    const w = el.offsetWidth || PANEL_WIDTH;
+    let left = Math.min(ctx.clientX, window.innerWidth - w - VIEWPORT_MARGIN);
+    left = Math.max(VIEWPORT_MARGIN, left);
+    let top = ctx.clientY + 8;
+    if (top + h > window.innerHeight - VIEWPORT_MARGIN) {
+      top = window.innerHeight - VIEWPORT_MARGIN - h;
+    }
+    top = Math.max(VIEWPORT_MARGIN, top);
+    setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }));
+  }, [visible, ctx, phase, chapterMsg, result, error, actions.length]);
+
+  // Focus the input when the popover opens / returns to input.
   useEffect(() => {
     if (visible && phase === 'input') {
       const id = setTimeout(() => textareaRef.current?.focus(), 0);
@@ -161,7 +231,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     [ctx, instruction, close],
   );
 
-  // 本章运行: reverse chapter summary (Task 5, fill-empty only).
+  // 本章节触发: reverse chapter summary (Task 5, fill-empty only).
   const handleChapterSummary = useCallback(async () => {
     if (!ctx) return;
     setChapterBusy(true);
@@ -184,6 +254,16 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     }
   }, [ctx]);
 
+  const triggerAction = useCallback(
+    (a: Action | undefined) => {
+      if (!a) return;
+      if (a.kind === 'inline') void runEdit(instruction.trim() || placeholder);
+      else if (a.kind === 'cap' && a.capId) runCapability(a.capId);
+      else if (a.kind === 'chapter') void handleChapterSummary();
+    },
+    [runEdit, runCapability, handleChapterSummary, instruction, placeholder],
+  );
+
   // Esc closes; Enter accepts a ready result.
   useEffect(() => {
     if (!visible) return;
@@ -202,21 +282,33 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
   if (!visible || !ctx) return null;
 
-  const left = Math.min(ctx.clientX, window.innerWidth - 380);
-  const top = Math.min(ctx.clientY + 8, window.innerHeight - 340);
-  const targetHint = ctx.mode === 'selection' ? '将修改选中的文字' : '将修改光标所在段落';
+  // Group the flat action list into ordered (group → items) buckets, keeping
+  // each item's flat index for keyboard-nav highlighting.
+  const groups: { name: string; items: { action: Action; index: number }[] }[] = [];
+  actions.forEach((action, index) => {
+    let g = groups.find((x) => x.name === action.group);
+    if (!g) {
+      g = { name: action.group, items: [] };
+      groups.push(g);
+    }
+    g.items.push({ action, index });
+  });
 
   return (
     <>
       <div onMouseDown={doClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
       <div
+        ref={panelRef}
         onMouseDown={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
-          left: Math.max(8, left),
-          top: Math.max(8, top),
+          left: pos ? pos.left : Math.max(VIEWPORT_MARGIN, ctx.clientX),
+          top: pos ? pos.top : ctx.clientY + 8,
+          visibility: pos ? 'visible' : 'hidden',
           zIndex: 999,
-          width: 360,
+          width: PANEL_WIDTH,
+          maxHeight: `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
+          overflowY: 'auto',
           background: '#fffdf9',
           border: '1px solid rgba(184, 153, 104, 0.4)',
           borderRadius: 10,
@@ -233,16 +325,21 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               onKeyDown={(e) => {
-                // Don't submit while an IME composition is active — Enter is
-                // committing the pinyin candidate, not sending. isComposing
-                // covers modern browsers; keyCode 229 is the legacy signal.
+                // Don't act while an IME composition is active — keys are
+                // committing pinyin candidates, not navigating/sending.
                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  void runEdit(instruction);
+                  setSelectedIndex((i) => Math.min(i + 1, actions.length - 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSelectedIndex((i) => Math.max(i - 1, 0));
+                } else if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  triggerAction(actions[selIndex]);
                 }
               }}
-              placeholder="想怎么改？例如：修复语病、换个更准的动词……（不生成新情节）"
+              placeholder={`想怎么改？例如「${placeholder}」——直接回车即用此例（不生成新情节）`}
               rows={2}
               style={{
                 width: '100%',
@@ -256,75 +353,46 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                 fontFamily: 'inherit',
               }}
             />
-            <div style={{ fontSize: 11, color: '#9a8a72', marginTop: 4 }}>{targetHint}</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
-              {QUICK_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => {
-                    setInstruction(chip);
-                    void runEdit(chip);
-                  }}
-                  style={chipStyle}
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-              <button
-                type="button"
-                onClick={() => void runEdit(instruction)}
-                disabled={!instruction.trim()}
-                style={{ ...primaryBtn, opacity: instruction.trim() ? 1 : 0.45 }}
-              >
-                局部修改 <kbd style={kbdStyle}>↵</kbd>
-              </button>
-              <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                关闭 <kbd style={kbdStyle}>Esc</kbd>
-              </button>
+
+            <div style={{ fontSize: 11, color: '#9a8a72', margin: '7px 2px 2px' }}>
+              ↑/↓ 选择 · ⏎ 执行
             </div>
 
-            {menuCaps.length > 0 && (
-              <div style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 10, paddingTop: 8 }}>
-                <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 4 }}>
-                  用上面的提示运行任务（结果进批注）
-                </div>
-                {menuCaps.map((cap) => {
-                  const off = !taskConfigs[cap.id as keyof typeof taskConfigs]?.enabled;
+            {groups.map((group) => (
+              <div
+                key={group.name}
+                style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 8, paddingTop: 7 }}
+              >
+                <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 3 }}>{group.name}</div>
+                {group.items.map(({ action, index }) => {
+                  const isChapterBusy = action.kind === 'chapter' && chapterBusy;
                   return (
                     <button
-                      key={cap.id}
+                      key={action.key}
                       type="button"
-                      onClick={() => runCapability(cap.id)}
-                      style={menuItemStyle}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      onClick={() => triggerAction(action)}
+                      disabled={isChapterBusy}
+                      style={{
+                        ...menuItemStyle,
+                        background: index === selIndex ? 'rgba(184, 153, 104, 0.16)' : 'transparent',
+                        opacity: isChapterBusy ? 0.6 : 1,
+                      }}
                     >
-                      <span>{taskLabel(cap.id)}</span>
-                      {off && <span style={{ fontSize: 10, color: '#b0a088' }}>已关闭 · 单次运行</span>}
+                      <span>{action.label}</span>
+                      {action.note && (
+                        <span style={{ fontSize: 10, color: '#b0a088' }}>
+                          {isChapterBusy ? '生成中…' : action.note}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
+                {group.name === '本章节触发' && chapterMsg && (
+                  <div style={{ fontSize: 11, color: '#8a7860', padding: '2px 4px' }}>{chapterMsg}</div>
+                )}
               </div>
-            )}
-
-            <div style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 10, paddingTop: 8 }}>
-              <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 4 }}>本章运行</div>
-              <button
-                type="button"
-                onClick={() => void handleChapterSummary()}
-                disabled={chapterBusy}
-                style={{ ...menuItemStyle, opacity: chapterBusy ? 0.6 : 1 }}
-              >
-                <span>生成章节摘要</span>
-                <span style={{ fontSize: 10, color: '#b0a088' }}>
-                  {chapterBusy ? '生成中…' : '仅在摘要为空时写入'}
-                </span>
-              </button>
-              {chapterMsg && (
-                <div style={{ fontSize: 11, color: '#8a7860', padding: '2px 4px' }}>{chapterMsg}</div>
-              )}
-            </div>
+            ))}
           </div>
         )}
 
@@ -407,16 +475,6 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   );
 }
 
-const chipStyle: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.4)',
-  borderRadius: 999,
-  background: '#fff',
-  padding: '2px 9px',
-  fontSize: 12,
-  color: '#5a4a3a',
-  cursor: 'pointer',
-};
-
 const kbdStyle: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: 11,
@@ -457,10 +515,10 @@ const primaryBtn: React.CSSProperties = {
 
 const ghostBtn: React.CSSProperties = {
   border: '1px solid rgba(184, 153, 104, 0.4)',
+  padding: '5px 10px',
   borderRadius: 6,
   background: 'transparent',
   color: '#5a4a3a',
-  padding: '5px 10px',
   fontSize: 12,
   cursor: 'pointer',
 };
@@ -471,8 +529,8 @@ const menuItemStyle: React.CSSProperties = {
   alignItems: 'center',
   width: '100%',
   border: 'none',
-  background: 'transparent',
-  padding: '5px 4px',
+  borderRadius: 5,
+  padding: '5px 6px',
   fontSize: 13,
   color: '#3a2e22',
   cursor: 'pointer',
