@@ -13,6 +13,7 @@
 import { LLMClient } from './llm-client';
 import { GoogleAIStudioProvider } from './providers/google';
 import { DeepSeekProvider } from './providers/deepseek';
+import { ServerProxyProvider } from './providers/server-proxy';
 import { BYOKCredentialsProvider } from '../credentials/byok';
 import { EnvCredentialsProvider } from '../credentials/env';
 import { ChainCredentialsProvider } from '../credentials/chain';
@@ -29,15 +30,22 @@ export interface BuildDefaultLLMClientOptions {
 export async function buildDefaultLLMClient(
   options: BuildDefaultLLMClientOptions = {},
 ): Promise<LLMClient> {
-  const credentials = new ChainCredentialsProvider([
-    new EnvCredentialsProvider(),
-    new BYOKCredentialsProvider(),
-  ]);
+  // Phase 1 of the backend-invocation migration: when VITE_AI_TRANSPORT=proxy,
+  // route every LLM call through the Drifting server (which holds the hosted
+  // key) instead of calling a provider SDK directly from the renderer. This is
+  // the SOLE behavioral change that flips the substrate to the proxy —
+  // callStructured, capabilities, prompts, retry, and interceptors are all
+  // untouched. The credentials chain is built (and a key read) ONLY on the
+  // direct path, so proxy builds never pull a key into the renderer.
+  const provider = isProxyTransport()
+    ? new ServerProxyProvider()
+    : await pickProvider(
+        new ChainCredentialsProvider([
+          new EnvCredentialsProvider(),
+          new BYOKCredentialsProvider(),
+        ]),
+      );
 
-  // Try DeepSeek first — it's the path the user explicitly opted into when
-  // they set their key, and current rate limits are friendlier than the
-  // Gemini free tier. Fall back to Google otherwise.
-  const provider = await pickProvider(credentials);
   const client = new LLMClient(provider).use(new LoggingInterceptor(options.logTag ?? 'ai'));
   // Dev-only request/response capture: console one-liner via LoggingInterceptor
   // stays; CaptureInterceptor builds the full Markdown trace + writes files
@@ -76,6 +84,15 @@ async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMP
     'auth',
     'No AI provider credentials configured. Set VITE_DEEPSEEK_AI_API_KEY or VITE_GOOGLE_AI_API_KEY, or configure a key in Settings → Models & API.',
   );
+}
+
+/**
+ * Whether to route LLM calls through the server proxy (Phase 1). Build-time
+ * flag — flip per build by setting VITE_AI_TRANSPORT=proxy. Defaults to the
+ * direct-to-provider path so existing builds are unchanged.
+ */
+function isProxyTransport(): boolean {
+  return import.meta.env.VITE_AI_TRANSPORT === 'proxy';
 }
 
 const TRUTHY = new Set(['1', 'true', 'enabled', 'on', 'yes']);
