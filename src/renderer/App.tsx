@@ -34,6 +34,7 @@ import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { AgentPanel } from './components/agent/AgentPanel';
+import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { initAccentColor } from './lib/theme';
@@ -209,6 +210,10 @@ function Layout() {
   const libraryItemUsecases = useLibraryItem({ projectId: projectId, userId: userId });
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
+
+  // Bridge the main-process agent's tool calls to renderer-side handlers
+  // (reads/writes go through the same store + usecases as manual edits).
+  useAgentToolBridge(projectId);
 
   // Reset ready state when project or user changes
   useEffect(() => {

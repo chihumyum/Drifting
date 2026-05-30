@@ -20,6 +20,8 @@ import {
   getValidAccessToken,
 } from './token-store';
 import { resolveClaudeBinary, ensureClaudeConfig, buildAgentEnv } from './runtime';
+import { registerToolResultListener } from './bridge';
+import { createDriftingMcpServer } from './tools';
 
 /** Normalized, structured-clonable event streamed to the renderer. */
 export type AgentEvent =
@@ -71,6 +73,8 @@ function normalize(msg: SDKMessage): AgentEvent | null {
 }
 
 export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
+  registerToolResultListener();
+
   const emit = (event: AgentEvent): void => {
     const win = getWindow();
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
@@ -131,12 +135,18 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
       ensureClaudeConfig();
 
+      const driftingServer = await createDriftingMcpServer(getWindow);
+
       const options: Options = {
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'Be concise and helpful.',
+          'You can inspect the user\'s project through the provided tools: ' +
+          'list_project_structure (call this FIRST to discover ids), read_chapter, ' +
+          'read_element, and search_project. Use them before answering questions about ' +
+          'the manuscript. Be concise.',
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
-        tools: [], // P0: chat only, no built-in tools
+        tools: [], // no built-in tools — entities are reached only via the drifting MCP tools
+        mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
         includePartialMessages: false,
         env: buildAgentEnv(token),
@@ -145,7 +155,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
       };
 
       try {
-        const { query } = await import('@anthropic-ai/claude-agent-sdk');
+        const { query } = await import(/* @vite-ignore */ '@anthropic-ai/claude-agent-sdk');
         const q = query({ prompt: input.prompt, options });
         activeQuery = q;
         for await (const msg of q) {

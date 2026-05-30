@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AgentEvent, AgentStartInput } from './agent';
+import type { ToolExecRequest, ToolExecResult } from './agent/bridge';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -116,6 +117,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('agent:event', handler);
       return () => ipcRenderer.removeListener('agent:event', handler);
     },
+    // Tool bridge: main asks the renderer to run an entity tool, renderer replies.
+    onToolExec: (callback: (req: ToolExecRequest) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, req: ToolExecRequest) => callback(req);
+      ipcRenderer.on('agent:tool-exec', handler);
+      return () => ipcRenderer.removeListener('agent:tool-exec', handler);
+    },
+    sendToolResult: (result: ToolExecResult) => ipcRenderer.send('agent:tool-result', result),
   },
 });
 
@@ -157,6 +165,8 @@ export interface ElectronAPI {
     ) => Promise<{ ok: true } | { ok: false; error: string }>;
     abort: () => Promise<{ ok: true }>;
     onEvent: (callback: (event: AgentEvent) => void) => () => void;
+    onToolExec: (callback: (req: ToolExecRequest) => void) => () => void;
+    sendToolResult: (result: ToolExecResult) => void;
   };
   aiLog: {
     write: (
