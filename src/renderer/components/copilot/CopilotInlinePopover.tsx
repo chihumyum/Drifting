@@ -30,6 +30,7 @@ import type { DiffChunk } from '../../lib/copilot/text-diff';
 import { runInlineAskStream, type AskTurn } from '../../lib/copilot/inline-ask';
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
 import { events } from '../../lib/events';
+import '../../../styles/copilot-surface.css';
 
 const PANEL_WIDTH = 360;
 const VIEWPORT_MARGIN = 8;
@@ -407,13 +408,13 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           width: PANEL_WIDTH,
           maxHeight: `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
           overflowY: 'auto',
-          background: '#fffdf9',
-          border: '1px solid rgba(184, 153, 104, 0.4)',
-          borderRadius: 10,
-          boxShadow: '0 12px 32px rgba(60, 40, 20, 0.18)',
+          background: 'var(--copilot-surface)',
+          border: '1px solid var(--copilot-border)',
+          borderRadius: 'var(--copilot-radius)',
+          boxShadow: '0 12px 32px var(--copilot-shadow)',
           padding: 12,
           fontSize: 13,
-          color: '#3a2e22',
+          color: 'var(--copilot-text)',
         }}
       >
         {phase === 'input' && (
@@ -439,29 +440,30 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               }}
               placeholder="输入修改要求 / 问题…"
               rows={2}
+              className="copilot-field"
               style={{
                 width: '100%',
                 resize: 'none',
-                border: '1px solid rgba(184, 153, 104, 0.35)',
-                borderRadius: 6,
+                border: '1px solid var(--copilot-border)',
+                borderRadius: 'var(--copilot-radius-sm)',
                 padding: '6px 8px',
                 fontSize: 13,
                 outline: 'none',
-                background: '#fff',
+                background: 'var(--copilot-field-bg)',
                 fontFamily: 'inherit',
               }}
             />
 
-            <div style={{ fontSize: 11, color: '#9a8a72', margin: '7px 2px 2px' }}>
+            <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '7px 2px 2px' }}>
               ↑/↓ 选择 · ⏎ 执行
             </div>
 
             {groups.map((group) => (
               <div
                 key={group.name}
-                style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 8, paddingTop: 7 }}
+                style={{ borderTop: '1px solid var(--copilot-border-soft)', marginTop: 8, paddingTop: 7 }}
               >
-                <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 3 }}>{group.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', marginBottom: 3 }}>{group.name}</div>
                 {group.items.map(({ action, index }) => {
                   const isChapterBusy = action.kind === 'chapter' && chapterBusy;
                   return (
@@ -473,13 +475,13 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                       disabled={isChapterBusy}
                       style={{
                         ...menuItemStyle,
-                        background: index === selIndex ? 'rgba(184, 153, 104, 0.16)' : 'transparent',
+                        background: index === selIndex ? 'var(--copilot-hover-bg)' : 'transparent',
                         opacity: isChapterBusy ? 0.6 : 1,
                       }}
                     >
                       <span>{action.label}</span>
                       {action.note && (
-                        <span style={{ fontSize: 10, color: '#b0a088' }}>
+                        <span style={{ fontSize: 10, color: 'var(--copilot-text-faint)' }}>
                           {isChapterBusy ? '生成中…' : action.note}
                         </span>
                       )}
@@ -487,7 +489,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   );
                 })}
                 {group.name === '本章节触发' && chapterMsg && (
-                  <div style={{ fontSize: 11, color: '#8a7860', padding: '2px 4px' }}>{chapterMsg}</div>
+                  <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', padding: '2px 4px' }}>{chapterMsg}</div>
                 )}
               </div>
             ))}
@@ -497,7 +499,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         {phase === 'running' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px' }}>
             <span style={spinnerStyle} />
-            <span style={{ color: '#6a5b48' }}>正在修改……</span>
+            <span style={{ color: 'var(--copilot-text-dim)' }}>正在修改……</span>
             <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
               取消
             </button>
@@ -534,7 +536,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                         {chatBusy && <span style={caretStyle} />}
                       </>
                     ) : (
-                      <span style={{ color: '#9a8a72' }}>正在思考……</span>
+                      <span style={{ color: 'var(--copilot-text-dim)' }}>正在思考……</span>
                     )}
                   </div>
                 </div>
@@ -555,16 +557,17 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               placeholder={chatBusy ? '回答生成中…' : '追问…（⏎ 发送，⇧⏎ 换行）'}
               rows={2}
               disabled={chatBusy}
+              className="copilot-field"
               style={{
                 width: '100%',
                 resize: 'none',
-                border: '1px solid rgba(184, 153, 104, 0.35)',
-                borderRadius: 6,
+                border: '1px solid var(--copilot-border)',
+                borderRadius: 'var(--copilot-radius-sm)',
                 padding: '6px 8px',
                 marginTop: 10,
                 fontSize: 13,
                 outline: 'none',
-                background: chatBusy ? '#f6f1e8' : '#fff',
+                background: chatBusy ? 'var(--copilot-field-bg-off)' : 'var(--copilot-field-bg)',
                 fontFamily: 'inherit',
               }}
             />
@@ -599,7 +602,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             return (
               <div>
                 {changeCount === 0 ? (
-                  <div style={{ color: '#6a5b48', padding: '4px 2px' }}>
+                  <div style={{ color: 'var(--copilot-text-dim)', padding: '4px 2px' }}>
                     模型未对所选内容作出修改。
                   </div>
                 ) : (
@@ -638,7 +641,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   </>
                 )}
                 {result.reason && (
-                  <div style={{ fontSize: 11, color: '#8a7860', marginTop: 8 }}>{result.reason}</div>
+                  <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', marginTop: 8 }}>{result.reason}</div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   {changeCount > 0 && (
@@ -659,8 +662,8 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
         {phase === 'refused' && result && (
           <div>
-            <div style={{ color: '#a65a3a', fontWeight: 600, marginBottom: 4 }}>未执行</div>
-            <div style={{ color: '#6a5b48' }}>{result.reason}</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>未执行</div>
+            <div style={{ color: 'var(--copilot-text-dim)' }}>{result.reason}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button
                 type="button"
@@ -682,8 +685,8 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
         {phase === 'error' && (
           <div>
-            <div style={{ color: '#a65a3a', fontWeight: 600, marginBottom: 4 }}>出错了</div>
-            <div style={{ color: '#6a5b48', wordBreak: 'break-word' }}>{error}</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>出错了</div>
+            <div style={{ color: 'var(--copilot-text-dim)', wordBreak: 'break-word' }}>{error}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
                 重试
@@ -719,7 +722,7 @@ function DiffText({ diff }: { diff: DiffChunk[] }) {
 const kbdStyle: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: 11,
-  background: 'rgba(0,0,0,0.06)',
+  background: 'var(--copilot-kbd-bg)',
   borderRadius: 4,
   padding: '0 4px',
 };
@@ -727,52 +730,52 @@ const kbdStyle: React.CSSProperties = {
 const spinnerStyle: React.CSSProperties = {
   width: 13,
   height: 13,
-  border: '2px solid rgba(184, 153, 104, 0.35)',
-  borderTopColor: '#9a7a4a',
+  border: '2px solid var(--copilot-border)',
+  borderTopColor: 'var(--copilot-accent)',
   borderRadius: '50%',
   display: 'inline-block',
   animation: 'copilot-inline-spin 0.7s linear infinite',
 };
 
-const previewLabel: React.CSSProperties = { fontSize: 11, color: '#9a8a72' };
-const diffCardLabel: React.CSSProperties = { fontSize: 10, color: '#9a8a72', marginBottom: 2 };
+const previewLabel: React.CSSProperties = { fontSize: 11, color: 'var(--copilot-text-dim)' };
+const diffCardLabel: React.CSSProperties = { fontSize: 10, color: 'var(--copilot-text-dim)', marginBottom: 2 };
 const diffBox: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.25)',
-  borderRadius: 6,
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
   padding: '6px 8px',
   fontSize: 13,
   lineHeight: 1.7,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
-  color: '#3a2e22',
-  background: '#fff',
+  color: 'var(--copilot-text)',
+  background: 'var(--copilot-field-bg)',
 };
 const diffDel: React.CSSProperties = {
-  color: '#a6442f',
-  background: 'rgba(200, 70, 40, 0.12)',
+  color: 'var(--copilot-diff-del-fg)',
+  background: 'var(--copilot-diff-del-bg)',
   textDecoration: 'line-through',
 };
 const diffIns: React.CSSProperties = {
-  color: '#3f7a3a',
-  background: 'rgba(90, 150, 70, 0.18)',
+  color: 'var(--copilot-diff-ins-fg)',
+  background: 'var(--copilot-diff-ins-bg)',
 };
 
-const askTurnLabel: React.CSSProperties = { fontSize: 10, color: '#9a8a72', marginBottom: 2 };
+const askTurnLabel: React.CSSProperties = { fontSize: 10, color: 'var(--copilot-text-dim)', marginBottom: 2 };
 const askUserTurn: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.25)',
-  borderRadius: 6,
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
   padding: '6px 8px',
-  background: 'rgba(184, 153, 104, 0.1)',
+  background: 'var(--copilot-bubble-bg)',
   fontSize: 13,
-  color: '#3a2e22',
+  color: 'var(--copilot-text)',
 };
 const askModelTurn: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.25)',
-  borderRadius: 6,
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
   padding: '6px 8px',
-  background: '#fff',
+  background: 'var(--copilot-field-bg)',
   fontSize: 13,
-  color: '#3a2e22',
+  color: 'var(--copilot-text)',
 };
 const caretStyle: React.CSSProperties = {
   display: 'inline-block',
@@ -780,26 +783,26 @@ const caretStyle: React.CSSProperties = {
   height: '1em',
   marginLeft: 2,
   verticalAlign: 'text-bottom',
-  background: '#9a7a4a',
+  background: 'var(--copilot-accent)',
   borderRadius: 1,
 };
 
 const primaryBtn: React.CSSProperties = {
   border: 'none',
-  borderRadius: 6,
-  background: '#7a5a3a',
-  color: '#fff',
+  borderRadius: 'var(--copilot-radius-sm)',
+  background: 'var(--copilot-accent)',
+  color: 'var(--copilot-accent-text)',
   padding: '5px 12px',
   fontSize: 12,
   cursor: 'pointer',
 };
 
 const ghostBtn: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.4)',
+  border: '1px solid var(--copilot-border)',
   padding: '5px 10px',
-  borderRadius: 6,
+  borderRadius: 'var(--copilot-radius-sm)',
   background: 'transparent',
-  color: '#5a4a3a',
+  color: 'var(--copilot-text)',
   fontSize: 12,
   cursor: 'pointer',
 };
@@ -810,10 +813,11 @@ const menuItemStyle: React.CSSProperties = {
   alignItems: 'center',
   width: '100%',
   border: 'none',
-  borderRadius: 5,
+  borderRadius: 'var(--copilot-radius-sm)',
   padding: '5px 6px',
   fontSize: 13,
-  color: '#3a2e22',
+  color: 'var(--copilot-text)',
   cursor: 'pointer',
   textAlign: 'left',
+  background: 'transparent',
 };

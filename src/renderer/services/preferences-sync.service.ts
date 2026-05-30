@@ -69,7 +69,7 @@ type SyncableSlice = {
   shadowVoice: unknown;
   shadowSystemPrompt: unknown;
   // copilot tasks
-  copilotEnabled: unknown;
+  copilotAutoTrigger: unknown;
   copilotMode: unknown;
   copilotTaskConfigs: unknown;
   copilotGenerateSummaries: unknown;
@@ -112,7 +112,7 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'agentWebSearch',
   'shadowVoice',
   'shadowSystemPrompt',
-  'copilotEnabled',
+  'copilotAutoTrigger',
   'copilotMode',
   'copilotTaskConfigs',
   'copilotGenerateSummaries',
@@ -232,7 +232,7 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     agentWebSearch: (v) => store.setAgentWebSearch(!!v),
     shadowVoice: (v) => store.setShadowVoice(v as never),
     shadowSystemPrompt: (v) => store.setShadowSystemPrompt(String(v)),
-    copilotEnabled: (v) => store.setCopilotEnabled(!!v),
+    copilotAutoTrigger: (v) => store.setCopilotAutoTrigger(!!v),
     copilotMode: (v) => store.setCopilotMode(v as never),
     copilotTaskConfigs: (v) => {
       // Apply each known task's incoming config via setCopilotTaskConfig so

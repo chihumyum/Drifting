@@ -1,0 +1,107 @@
+/* ============================================================================
+   Copilot floating surfaces — the ⇧⌘I inline popover (CopilotInlinePopover)
+   and the bottom-bar mini-menu (CopilotBottomMenu).
+
+   Both used to hard-code a single warm cream / oxblood palette, so they only
+   matched classic-light and read as out-of-place chips in modern / dark. Here
+   we hoist every color into a `--copilot-*` token. Most ride the app-wide
+   --popover / --ink-* / --rule / --accent tokens, so all four variants (plus
+   shadow mode) swap automatically — the component code stays skin-agnostic.
+
+   Skinning model (same two switches on <html> as the rest of the app)
+   --------------------------------------------------------------------
+       :root                            → classic-light  (default)
+       html.dark                        → classic-dark / modern-dark
+       html[data-skin='modern']         → modern-light
+       html.dark[data-skin='modern']    → modern-dark
+
+   Only the things with no good app-wide analogue are tuned per variant here:
+   the char-level diff red/green (needs lifting on dark) and the drop shadow
+   (a near-white ink-1 tint would glow on dark, so we set it explicitly).
+   ============================================================================ */
+
+@layer base {
+  :root {
+    /* Surfaces — popover is the semantic "elevated floating panel" token. */
+    --copilot-surface:        hsl(var(--popover));
+    --copilot-field-bg:       hsl(var(--page));
+    --copilot-field-bg-off:   hsl(var(--muted));
+
+    /* Borders / shadow */
+    --copilot-border:         hsl(var(--rule-strong));
+    --copilot-border-soft:    hsl(var(--rule));
+    --copilot-shadow:         hsl(28 25% 18% / 0.18);
+
+    /* Text */
+    --copilot-text:           hsl(var(--ink-1));
+    --copilot-text-dim:       hsl(var(--ink-3));
+    --copilot-text-faint:     hsl(var(--ink-4));
+    --copilot-warn:           hsl(var(--destructive));
+
+    /* Accent-derived — primary buttons, toggles, spinner, caret. Rides the
+       app accent so it's oxblood in classic, blue-gray in modern. */
+    --copilot-accent:         hsl(var(--accent));
+    --copilot-accent-text:    hsl(var(--accent-foreground));
+    --copilot-hover-bg:       hsl(var(--accent) / 0.12);
+    --copilot-bubble-bg:      hsl(var(--accent) / 0.08);
+
+    /* Controls */
+    --copilot-knob:           hsl(0 0% 100% / 0.95);
+    --copilot-toggle-off:     hsl(var(--ink-1) / 0.20);
+    --copilot-kbd-bg:         hsl(var(--ink-1) / 0.06);
+
+    /* Inline diff — char-level del/ins. Tuned for light surfaces. */
+    --copilot-diff-del-fg:    hsl(9 58% 42%);
+    --copilot-diff-del-bg:    hsl(11 65% 47% / 0.12);
+    --copilot-diff-ins-fg:    hsl(115 35% 35%);
+    --copilot-diff-ins-bg:    hsl(104 35% 42% / 0.18);
+
+    /* Corner radius — classic keeps the squared manuscript look; modern
+       rounds up (overridden in the html[data-skin='modern'] block below).
+       --copilot-radius = the panel; --copilot-radius-sm = inner controls
+       (inputs, buttons, diff cards, menu rows). */
+    --copilot-radius:         4px;
+    --copilot-radius-sm:      3px;
+  }
+
+  /* Modern light — rounder corners + a cooler, softer drop shadow
+     (Craft/Arc vocabulary). */
+  html[data-skin='modern'] {
+    --copilot-shadow:         hsl(220 18% 22% / 0.12);
+    --copilot-radius:         10px;
+    --copilot-radius-sm:      6px;
+  }
+
+  /* Any dark mode (classic or modern) — lift the diff hues so they read on a
+     dark surface, and switch the shadow to a true black so it doesn't glow. */
+  html.dark {
+    --copilot-shadow:         hsl(0 0% 0% / 0.5);
+    --copilot-diff-del-fg:    hsl(9 70% 68%);
+    --copilot-diff-del-bg:    hsl(11 65% 55% / 0.22);
+    --copilot-diff-ins-fg:    hsl(120 40% 64%);
+    --copilot-diff-ins-bg:    hsl(110 40% 50% / 0.22);
+  }
+}
+
+/* Text inputs / textareas / selects inside the copilot surfaces. Color +
+   placeholder can't be set per-element inline, so they ride this class. */
+.copilot-field {
+  color: var(--copilot-text);
+}
+.copilot-field::placeholder {
+  color: var(--copilot-text-faint);
+}
+
+/* Bottom-bar Copilot button "live" state — mirrors the existing
+   .bsb__super.is-active / .bsb__shadow.is-active treatment so the enabled
+   indicator reads consistently with its siblings across all four variants
+   (base .bsb__seg lives in bottom-status-bar.css). */
+.bsb__copilot.is-live {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.1);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.3);
+}
+.bsb__copilot.is-live:hover {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.16);
+}

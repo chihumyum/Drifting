@@ -800,15 +800,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           // prosemirror-keymap retries shifted single-char keys without Shift
           // and matches Mod-I. We win because editorProps.handleKeyDown runs
           // before the Italic keymap and we swallow the chord below. Only for
-          // editors that opted in (chapter editors), and only while the Copilot
-          // master switch is on (it gates manual AND auto). Works with or
-          // without a selection (no selection → current block).
+          // editors that opted in (chapter editors). Manual ⇧⌘I is always
+          // available — it is never gated by the auto-trigger switch. Works
+          // with or without a selection (no selection → current block).
           if (event.key !== 'i' && event.key !== 'I') return false;
           if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
             return false;
           }
           if (!enableInlineCopilotRef.current) return false;
-          if (!useSettingsStore.getState().copilotEnabled) return false;
           const source = sourceRef.current;
           if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
             return false;
@@ -900,11 +899,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               clientY: event.clientY,
             };
             // Chapter editors also offer "Copilot 修改" — same entry as ⇧⌘I,
-            // run on the selection. Build the inline ctx from the live view.
+            // run on the selection. Always available (manual, never gated by
+            // the auto switch). Build the inline ctx from the live view.
             const onCopilot =
-              enableInlineCopilotRef.current &&
-              source.sourceKind === 'node' &&
-              useSettingsStore.getState().copilotEnabled
+              enableInlineCopilotRef.current && source.sourceKind === 'node'
                 ? () => {
                     const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
                       clientX: event.clientX,

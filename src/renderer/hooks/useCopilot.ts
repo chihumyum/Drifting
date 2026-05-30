@@ -59,7 +59,6 @@ export function useCopilot({
   userId,
 }: UseCopilotInput): void {
   const { createCopilotSuggestion } = useComment({ projectId, userId });
-  const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const summariesEnabled = useSettingsStore((s) => s.copilotGenerateSummaries);
   const summarySectionSize = useSettingsStore((s) => s.copilotSummarySectionSize);
@@ -81,10 +80,10 @@ export function useCopilot({
   useEffect(() => {
     const allCaps = capabilitiesForTrigger('editor-block-debounced');
     const enabledCaps = allCaps.filter((c) => taskConfigs[c.id as CopilotTaskId]?.enabled);
-    // Auto debounce requires BOTH the master switch and the auto-trigger
-    // switch. The manual path (Cmd+Shift+I / context menu) is wired below
-    // regardless — it is never gated by these, since the user asked for it.
-    const autoEnabled = copilotEnabled && autoTrigger;
+    // Auto debounce is gated by the auto-trigger switch. The manual path
+    // (Cmd+Shift+I / context menu) is wired below regardless — it is never
+    // gated, since the user asked for it.
+    const autoEnabled = autoTrigger;
 
     log.info(
       `[useCopilot] mount nodeId=${nodeId} caps=[${enabledCaps.map((c) => `${c.id}@${effectiveDebounceMs(c, taskConfigs)}ms`).join(',')}] summaries=${summariesEnabled} sectionSize=${summarySectionSize}`,
@@ -259,13 +258,13 @@ export function useCopilot({
       editor.on('update', onEditorUpdate);
     } else {
       log.info(
-        `[useCopilot] nodeId=${nodeId} auto idle (enabled=${copilotEnabled} auto=${autoTrigger} caps=${enabledCaps.length}) — manual still armed`,
+        `[useCopilot] nodeId=${nodeId} auto idle (auto=${autoTrigger} caps=${enabledCaps.length}) — manual still armed`,
       );
     }
 
     // Manual run: user pressed Cmd+Shift+I / picked a capability from the copilot
     // menu. Force a fire (skip dedup) regardless of the per-task enabled flag.
-    // Gated by the master switch (copilotEnabled closes manual AND auto);
+    // Always wired — manual triggers are never gated by the auto switch;
     // nodeId match scopes the event to this editor's chapter.
     const onManualRun = ({
       nodeId: target,
@@ -286,7 +285,7 @@ export function useCopilot({
       }
       void runFor(cap, { force: true, instruction, selectionBlockIds });
     };
-    if (copilotEnabled) events.on('copilot:manual-run', onManualRun);
+    events.on('copilot:manual-run', onManualRun);
 
     return () => {
       log.info(
@@ -306,7 +305,6 @@ export function useCopilot({
     };
   }, [
     editor,
-    copilotEnabled,
     autoTrigger,
     taskConfigsKey,
     projectId,
