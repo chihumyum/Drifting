@@ -140,10 +140,12 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
       const options: Options = {
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'You can inspect the user\'s project through the provided tools: ' +
-          'list_project_structure (call this FIRST to discover ids), read_chapter, ' +
-          'read_element, and search_project. Use them before answering questions about ' +
-          'the manuscript. Be concise.',
+          'Inspect the project with: list_project_structure (call this FIRST to discover ids), ' +
+          'read_chapter, read_element, search_project. ' +
+          'You can also edit: update_element, create_element, rename_chapter, set_node_summary, ' +
+          'edit_block (replace one prose block by its blockId from read_chapter), append_paragraph. ' +
+          'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
+          'the request. Be concise.',
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
         tools: [], // no built-in tools — entities are reached only via the drifting MCP tools
         mcpServers: { drifting: driftingServer },

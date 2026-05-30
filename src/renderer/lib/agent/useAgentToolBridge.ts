@@ -1,20 +1,25 @@
 /**
  * Wires the main-process agent tool requests to the renderer-side handlers.
- * Mounted once inside the project Layout (where projectId is known). Subscribes
- * to `agent:tool-exec`, runs the tool, and replies on `agent:tool-result`.
+ * Mounted once inside the project Layout (where projectId + usecases live).
+ * Subscribes to `agent:tool-exec`, runs the tool, replies on `agent:tool-result`.
+ *
+ * The latest context (projectId + write usecases) is held in a ref so the
+ * subscription is set up once yet always calls the current usecase functions.
  */
-import { useEffect } from 'react';
-import { runAgentTool, type AgentToolContext } from './tool-handlers';
+import { useEffect, useRef } from 'react';
+import { runAgentTool, type AgentToolContext, type AgentWriteApi } from './tool-handlers';
 
-export function useAgentToolBridge(projectId: string): void {
+export function useAgentToolBridge(projectId: string, write: AgentWriteApi): void {
+  const ctxRef = useRef<AgentToolContext>({ projectId, write });
+  ctxRef.current = { projectId, write };
+
   useEffect(() => {
     const api = window.electronAPI?.agent;
     if (!api?.onToolExec) return undefined;
 
-    const ctx: AgentToolContext = { projectId };
     return api.onToolExec(async (req) => {
       try {
-        const data = await runAgentTool(req.name, req.args, ctx);
+        const data = await runAgentTool(req.name, req.args, ctxRef.current);
         api.sendToolResult({ id: req.id, ok: true, data });
       } catch (err) {
         api.sendToolResult({
@@ -24,5 +29,5 @@ export function useAgentToolBridge(projectId: string): void {
         });
       }
     });
-  }, [projectId]);
+  }, []);
 }

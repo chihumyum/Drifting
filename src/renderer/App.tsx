@@ -57,6 +57,7 @@ import { useWritingStatsStore } from './store/writing-stats-store';
 import { useBookNode } from './usecase/useBookNode';
 import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
+import { useBookContent } from './usecase/useBookContent';
 import { useElementCategory } from './usecase/useElementCategory';
 import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
@@ -210,10 +211,17 @@ function Layout() {
   const libraryItemUsecases = useLibraryItem({ projectId: projectId, userId: userId });
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
+  const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
 
   // Bridge the main-process agent's tool calls to renderer-side handlers
   // (reads/writes go through the same store + usecases as manual edits).
-  useAgentToolBridge(projectId);
+  useAgentToolBridge(projectId, {
+    updateElement: elementUsecases.updateElement,
+    createElement: elementUsecases.createElement,
+    renameNode: nodeUsecases.renameNode,
+    updateNode: nodeUsecases.updateNode,
+    updateContentByNodeId: contentUsecases.updateContentByNodeId,
+  });
 
   // Reset ready state when project or user changes
   useEffect(() => {

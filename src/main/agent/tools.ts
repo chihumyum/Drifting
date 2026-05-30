@@ -56,6 +56,54 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
       ),
+      // ---- writes ----
+      tool(
+        'update_element',
+        'Update an element\'s fields. Only provided fields change.',
+        {
+          elementId: z.string(),
+          name: z.string().optional(),
+          summary: z.string().optional(),
+          aliases: z.array(z.string()).optional(),
+          groupName: z.string().optional(),
+        },
+        (args) => run('update_element', args),
+      ),
+      tool(
+        'create_element',
+        'Create a new element under a category. categoryId is required (get it from list_project_structure).',
+        {
+          categoryId: z.string(),
+          name: z.string().optional(),
+          summary: z.string().optional(),
+          aliases: z.array(z.string()).optional(),
+        },
+        (args) => run('create_element', args),
+      ),
+      tool(
+        'rename_chapter',
+        'Rename a chapter or drift node.',
+        { nodeId: z.string(), title: z.string() },
+        (args) => run('rename_chapter', args),
+      ),
+      tool(
+        'set_node_summary',
+        "Set a chapter/drift node's summary.",
+        { nodeId: z.string(), summary: z.string() },
+        (args) => run('set_node_summary', args),
+      ),
+      tool(
+        'edit_block',
+        'Replace the text of one prose block (by blockId from read_chapter), keeping the block in place. Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
+        { nodeId: z.string(), blockId: z.string(), text: z.string() },
+        (args) => run('edit_block', args),
+      ),
+      tool(
+        'append_paragraph',
+        'Append a new paragraph to the end of a chapter/drift node.',
+        { nodeId: z.string(), text: z.string() },
+        (args) => run('append_paragraph', args),
+      ),
     ],
   });
 }
