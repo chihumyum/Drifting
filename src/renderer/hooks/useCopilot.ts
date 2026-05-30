@@ -82,7 +82,7 @@ export function useCopilot({
     const allCaps = capabilitiesForTrigger('editor-block-debounced');
     const enabledCaps = allCaps.filter((c) => taskConfigs[c.id as CopilotTaskId]?.enabled);
     // Auto debounce requires BOTH the master switch and the auto-trigger
-    // switch. The manual path (Cmd+I / context menu) is wired below
+    // switch. The manual path (Cmd+Shift+I / context menu) is wired below
     // regardless — it is never gated by these, since the user asked for it.
     const autoEnabled = copilotEnabled && autoTrigger;
 
@@ -124,7 +124,7 @@ export function useCopilot({
       }
 
       const fingerprint = computeUncoveredFingerprint(baseContext.uncoveredBlocks);
-      // Manual fires (Cmd+I / copilot menu) skip the dedup gate: the user is
+      // Manual fires (Cmd+Shift+I / copilot menu) skip the dedup gate: the user is
       // explicitly re-running, often precisely because the debounced fire on
       // this same content wasn't satisfactory.
       if (!forced && lastFingerprintRef.current[cap.id] === fingerprint) {
@@ -253,7 +253,7 @@ export function useCopilot({
     };
 
     // Debounced auto-fire only when auto is on AND a cap is enabled for it.
-    // The manual path below stays wired regardless, so Cmd+I can run a
+    // The manual path below stays wired regardless, so Cmd+Shift+I can run a
     // per-task-disabled capability (or run at all while auto is off).
     if (autoEnabled && enabledCaps.length > 0) {
       editor.on('update', onEditorUpdate);
@@ -263,7 +263,7 @@ export function useCopilot({
       );
     }
 
-    // Manual run: user pressed Cmd+I / picked a capability from the copilot
+    // Manual run: user pressed Cmd+Shift+I / picked a capability from the copilot
     // menu. Force a fire (skip dedup) regardless of the per-task enabled flag.
     // Gated by the master switch (copilotEnabled closes manual AND auto);
     // nodeId match scopes the event to this editor's chapter.

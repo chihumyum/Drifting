@@ -69,7 +69,7 @@ export async function buildBaseBlockContext(
  * coverage view, the capability sees exactly the blocks the user selected as
  * `uncoveredBlocks`, plus every segment those blocks fall into as
  * `priorSections` (so the selection's summaries come along). Used when the
- * user right-clicks / ⌘I's a selection and runs a capability on it.
+ * user right-clicks / ⇧⌘I's a selection and runs a capability on it.
  *
  * Synchronous (no eviction side-effects) — pure read of the doc + section
  * store. Returns null if the selection has no non-empty text blocks.

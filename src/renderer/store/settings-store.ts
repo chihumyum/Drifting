@@ -34,7 +34,7 @@ export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[]
   { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
   { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
   { id: 'autoLink', label: '自动链接', desc: '把正文里出现的元素自动挂载到元素页面' },
-  { id: 'inlineEdit', label: '行内修改', desc: 'Cmd+I 手动触发的局部润色 / 改写，不生成新情节' },
+  { id: 'inlineEdit', label: '行内修改', desc: '⇧⌘I 手动触发的局部润色 / 改写，不生成新情节' },
   { id: 'polish', label: '语言润色', desc: '挑出生硬或重复的句式作为批注' },
   { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
 ];
@@ -160,7 +160,7 @@ interface SettingsState {
   // Copilot (任务自动化, 没有续写)
   /**
    * Master switch for AUTOMATIC Copilot. When off, Copilot no longer runs on
-   * its own as you write. It does NOT gate manual triggers — ⌘I / the
+   * its own as you write. It does NOT gate manual triggers — ⇧⌘I / the
    * context-menu Copilot popover keep working regardless, since those are
    * user-initiated. Pair with copilotAutoTrigger for finer control.
    */
@@ -168,7 +168,7 @@ interface SettingsState {
   setCopilotEnabled: (on: boolean) => void;
   /**
    * Automatic debounced triggering. When false, capabilities never fire on
-   * their own as you type, but manual ⌘I / context-menu triggers still work.
+   * their own as you type, but manual ⇧⌘I / context-menu triggers still work.
    * Separate from copilotEnabled so you can keep Copilot enabled (manual
    * available, summaries on) while silencing the background as-you-type calls.
    * Effective auto-fire requires copilotEnabled && copilotAutoTrigger.
@@ -215,7 +215,7 @@ interface SettingsState {
   copilotSummarySectionSize: number;
   setCopilotSummarySectionSize: (n: number) => void;
   /**
-   * Inline-edit (Cmd+I) escape hatch. Default false: inline-edit refuses to
+   * Inline-edit (Cmd+Shift+I) escape hatch. Default false: inline-edit refuses to
    * generate NEW story content because it runs without the project / chapter
    * / storyline context the rest of Copilot assembles. Flip on to let it
    * fulfill "continue this" style asks — the author then owns the quality

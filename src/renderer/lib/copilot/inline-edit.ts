@@ -1,6 +1,6 @@
 /**
  * Inline-edit runner — the manual, local "improve this span" capability
- * (Cmd+I / copilot menu input box). Unlike the debounced capabilities, this
+ * (Cmd+Shift+I / copilot menu input box). Unlike the debounced capabilities, this
  * is NOT a registered CopilotCapability: it's interactive (takes a free-text
  * instruction, applies its result straight back into the editor) and so
  * doesn't fit the detect()→persist-comment→accept lifecycle. The popover UI

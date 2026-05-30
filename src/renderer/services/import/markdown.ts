@@ -3,8 +3,9 @@
  *
  * Pipeline: `marked` produces HTML, then Tiptap's `generateJSON` runs the
  * project's editor schema over it. This means whatever the editor renders
- * the parser can recover (headings, lists, blockquote, code, bold/italic,
- * links). Anything else degrades to a paragraph.
+ * the parser can recover (headings, blockquote, bold/italic, links).
+ * Anything the editor doesn't support — lists, code blocks, inline code —
+ * degrades to plain paragraphs/text, since those nodes aren't in the schema.
  *
  * Plain text takes a faster path — split on blank lines, each paragraph
  * becomes its own block. No markdown interpretation, which is correct:
@@ -25,7 +26,16 @@ import type { ParsedDoc } from './types';
 // content loss on import — better to assert by sharing.
 const PARSER_EXTENSIONS = [
   StarterKit.configure({
-    codeBlock: { HTMLAttributes: { class: 'code-block' } },
+    // Mirror the editor (useEntityEditor): a novel-writing surface with no
+    // lists or code. Dropping these from the parser schema makes ProseMirror
+    // descend through <ul>/<ol>/<li> into paragraphs and flatten <pre>/<code>
+    // to plain text, instead of emitting nodes the editor can't load.
+    bulletList: false,
+    orderedList: false,
+    listItem: false,
+    listKeymap: false,
+    code: false,
+    codeBlock: false,
   }),
   Underline,
   Link.configure({ openOnClick: false, autolink: true }),

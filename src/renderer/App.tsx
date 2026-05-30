@@ -30,7 +30,6 @@ import { EditorMainArea } from './components/editor/EditorMainArea';
 import { useSyncSplitFocusedUrl } from './components/editor/useSyncSplitFocusedUrl';
 import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
-import { ExportDialog } from './components/modals/ExportDialog';
 import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
@@ -192,7 +191,6 @@ function Layout() {
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTargetRail, setSettingsTargetRail] = useState<string | null>(null);
-  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const [findPanelEditor, setFindPanelEditor] = useState<Editor | null>(null);
@@ -391,7 +389,6 @@ function Layout() {
       setSettingsTargetRail(payload?.railId ?? null);
       setIsSettingsOpen(true);
     };
-    const handleOpenExport = () => setIsExportOpen(true);
     const handleOpenImport = () => setIsImportOpen(true);
     const handleOpenSearch = () => {
       setFindPanelEditor(null);
@@ -400,7 +397,6 @@ function Layout() {
     const handleToggleLeftSidebar = () => useUiStore.getState().toggleSidebar('left');
     const handleToggleRightSidebar = () => useUiStore.getState().toggleSidebar('right');
     events.on('settings:open', handleOpenSettings);
-    events.on('export:open', handleOpenExport);
     events.on('import:open', handleOpenImport);
     events.on('search:open', handleOpenSearch);
     events.on('left-sidebar:toggle', handleToggleLeftSidebar);
@@ -408,7 +404,6 @@ function Layout() {
 
     return () => {
       events.off('settings:open', handleOpenSettings);
-      events.off('export:open', handleOpenExport);
       events.off('import:open', handleOpenImport);
       events.off('search:open', handleOpenSearch);
       events.off('left-sidebar:toggle', handleToggleLeftSidebar);
@@ -810,7 +805,6 @@ function Layout() {
           setSettingsTargetRail(null);
         }}
       />
-      <ExportDialog open={isExportOpen} onClose={() => setIsExportOpen(false)} />
       <ImportDialog open={isImportOpen} onClose={() => setIsImportOpen(false)} />
       {chapterStorylineEditorNodeId && (
         <EditChapterStorylineModal

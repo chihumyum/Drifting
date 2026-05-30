@@ -71,7 +71,7 @@ export interface CopilotServices {
  *
  *   - 'editor-block-debounced': fires on its own debounce after edits.
  *   - 'manual': never auto-fires; only runs when the user invokes it
- *     (Cmd+I / copilot menu). Note that 'editor-block-debounced' capabilities
+ *     (Cmd+Shift+I / copilot menu). Note that 'editor-block-debounced' capabilities
  *     are ALSO manually runnable on demand — `trigger` describes the *auto*
  *     surface, not whether a capability can be hand-triggered.
  */
@@ -110,7 +110,7 @@ export interface CapabilityDetectContext {
   baseContext: BaseBlockContext;
   /**
    * Free-text steer the user typed when MANUALLY running this capability
-   * (Cmd+I / context menu). Undefined on automatic debounced fires.
+   * (Cmd+Shift+I / context menu). Undefined on automatic debounced fires.
    * Capabilities should pass it into their prompt as an optional bias —
    * never letting it override their hard rules. Lets the author lightly
    * direct an otherwise-autonomous task ("只关注地名", "重点看主角").

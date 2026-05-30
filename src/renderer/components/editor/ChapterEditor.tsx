@@ -345,7 +345,7 @@ export function ChapterEditor({
       {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}
       <CopilotEditorMount editor={editor} projectId={projectId} nodeId={nodeId} />
 
-      {/* Cmd+I inline-Copilot popover (input box + capability menu). Renders
+      {/* Cmd+Shift+I inline-Copilot popover (input box + capability menu). Renders
           only when its nodeId matches the active invocation. */}
       <CopilotInlinePopover editor={editor} nodeId={nodeId} />
     </div>

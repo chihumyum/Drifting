@@ -75,7 +75,6 @@ export type AppEvents = {
   // panel). Empty payload = open at last position.
   'settings:open': { railId?: string };
   'search:open': void;
-  'export:open': void;
   'import:open': void;
   'left-sidebar:toggle': void;
   'right-sidebar:toggle': void;
@@ -92,7 +91,7 @@ export type AppEvents = {
     targetId: string;
   };
 
-  // User explicitly asked Copilot to run a capability NOW (Cmd+I / copilot
+  // User explicitly asked Copilot to run a capability NOW (Cmd+Shift+I / copilot
   // menu), bypassing the per-capability debounce and dedup gate. Consumed by
   // the useCopilot instance whose chapter (nodeId) matches — it forces a
   // fire even if the capability's per-task toggle is off, and even when

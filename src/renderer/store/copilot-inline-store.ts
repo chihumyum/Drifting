@@ -1,5 +1,5 @@
 /**
- * copilot-inline-store — transient open/close state for the Cmd+I / context-
+ * copilot-inline-store — transient open/close state for the Cmd+Shift+I / context-
  * menu inline Copilot popover (the "输入框 + 菜单二合一" surface, Tasks 4/6/7).
  *
  * The editor resolves the target (selection, or the current block when there's

@@ -95,7 +95,7 @@ export function CopilotBottomMenu() {
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
           <ToggleRow
             label="启用 Copilot"
-            desc="关闭后不自动运行；⌘I 手动触发仍可用"
+            desc="关闭后不自动运行；⇧⌘I 手动触发仍可用"
             checked={copilotEnabled}
             onChange={setCopilotEnabled}
           />

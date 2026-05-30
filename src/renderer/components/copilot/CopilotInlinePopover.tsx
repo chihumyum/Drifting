@@ -1,5 +1,5 @@
 /**
- * CopilotInlinePopover — the ⌘I / context-menu "输入框 + 菜单二合一" surface
+ * CopilotInlinePopover — the ⇧⌘I / context-menu "输入框 + 菜单二合一" surface
  * (Tasks 4/6/7). One unified entry, with or without a selection:
  *
  *   • Input box (always shown): a free-text prompt. Pressing Enter (or 局部修改)

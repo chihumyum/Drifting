@@ -27,7 +27,6 @@ import {
 } from '../lib/extensions/entity-mention-suggestion';
 import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-menu';
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
-import { exportDocToMarkdown } from '../services/markdown-export.service';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import type { EditorView } from '@tiptap/pm/view';
 import { useDataStore } from '../store/data-store';
@@ -128,7 +127,7 @@ function openCommentContextMenu(
   };
 
   addButton('添加批注', () => onAddCommentRequest(request));
-  // Same entry point as ⌘I — run Copilot on the selection (chapter editors).
+  // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
   if (onCopilot) addButton('Copilot 修改', onCopilot);
 
   document.body.appendChild(menu);
@@ -148,7 +147,7 @@ const INLINE_CONTEXT_WINDOW = 3;
 /**
  * Resolve the inline-Copilot invocation context from the current editor
  * selection. With a non-empty selection the target IS the selection; with a
- * bare caret it's the enclosing block (so ⌘I works mid-typing).
+ * bare caret it's the enclosing block (so ⇧⌘I works mid-typing).
  *
  * Context is gathered around the WHOLE invocation region, not just its first
  * block: `nearbyContext` = up to INLINE_CONTEXT_WINDOW blocks before the first
@@ -304,10 +303,8 @@ export interface UseEntityEditorConfig {
   // helpers.
   onPersist: (editor: Editor, derived: EditorPersistDerived) => void;
 
-  // Optional slash menu items beyond the defaults. The `导出 Markdown` item
-  // is provided automatically unless `enableMarkdownExport: false`.
+  // Optional slash menu items beyond the defaults.
   slashExtraItems?: SlashMenuExtraItem[];
-  enableMarkdownExport?: boolean;
 
   // Editor click on an entity-link mark. Defaults to navigation by targetKind.
   onEntityClick?: (ref: EntityLinkRef) => void;
@@ -326,7 +323,7 @@ export interface UseEntityEditorConfig {
   // selected block and selected text; persistence/UI lives above it.
   onAddCommentRequest?: (request: EditorCommentRequest) => void;
 
-  // Enable the Cmd+I inline-Copilot popover for this editor. Only chapter
+  // Enable the Cmd+Shift+I inline-Copilot popover for this editor. Only chapter
   // editors set this (Copilot is chapter-scoped); the popover itself is
   // mounted by the caller (ChapterEditor) and keys off the same nodeId.
   enableInlineCopilot?: boolean;
@@ -353,7 +350,6 @@ export interface UseEntityEditorResult {
 //   • the persist pipeline (onUpdate dispatches projection + onPersist),
 //   • the entity-link config sync (auto-detect map + enabled flag),
 //   • the @-picker (mentionable entities and "+ create element" affordance),
-//   • the default `/导出 Markdown` slash item,
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
 export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorResult {
   const {
@@ -365,7 +361,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     ydoc,
     onPersist,
     slashExtraItems,
-    enableMarkdownExport = true,
     onEntityClick,
     autoFocus,
     placeholder,
@@ -379,7 +374,6 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
   const onPersistRef = useLatestRef(onPersist);
   const slashExtraItemsRef = useLatestRef(slashExtraItems);
-  const enableMarkdownExportRef = useLatestRef(enableMarkdownExport);
   const onEntityClickRef = useLatestRef(onEntityClick);
   const selectionKeyRef = useLatestRef(selectionKey ?? null);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
@@ -608,41 +602,24 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   );
 
   const getSlashItems = useCallback((): SlashMenuExtraItem[] => {
-    const items: SlashMenuExtraItem[] = [];
-    if (enableMarkdownExportRef.current) {
-      items.push({
-        id: 'export-md',
-        title: '导出 Markdown',
-        run: ({ editor }) => {
-          const state = useDataStore.getState();
-          const md = exportDocToMarkdown(editor.state.doc, {
-            resolveLabel: (kind, id) => {
-              if (kind === 'element')
-                return state.bookElements.find((e) => e.id === id)?.name ?? '';
-              if (kind === 'node')
-                return state.bookNodes.find((n) => n.id === id)?.title ?? '';
-              return '';
-            },
-          });
-          void navigator.clipboard.writeText(md).catch((error) => {
-            log.error('Failed to copy markdown to clipboard:', error);
-          });
-        },
-      });
-    }
     const extraItems = slashExtraItemsRef.current;
-    if (extraItems) items.push(...extraItems);
-    return items;
-  }, [enableMarkdownExportRef, slashExtraItemsRef]);
+    return extraItems ? [...extraItems] : [];
+  }, [slashExtraItemsRef]);
 
   const editor = useEditor(
     {
       extensions: [
         StarterKit.configure({
           heading: { levels: [1, 2, 3] },
-          bulletList: { keepMarks: true },
-          orderedList: { keepMarks: true },
-          codeBlock: {},
+          // Novel-writing surface: no code or lists. Disabling the nodes/marks
+          // also strips their input rules (`- `, `1. `, ``` ``` ```) and keymaps
+          // (Mod-Shift-7/8, Mod-e, Mod-Alt-c), so there's no way to create them.
+          bulletList: false,
+          orderedList: false,
+          listItem: false,
+          listKeymap: false,
+          code: false,
+          codeBlock: false,
           // Collaboration ships its own y-undo manager; if StarterKit's
           // undoRedo is left on alongside it, ProseMirror's history plugin
           // collides with the Yjs binding and crashes on first edit.
@@ -697,12 +674,13 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           spellcheck: 'false',
         },
         handleKeyDown: (view, event) => {
-          // Cmd/Ctrl+I → inline Copilot popover. Only for editors that opted
-          // in (chapter editors), and only while the Copilot master switch is
-          // on (it gates manual AND auto). Works with or without a selection
-          // (no selection → current block).
+          // Cmd/Ctrl+Shift+I → inline Copilot popover. The Shift is what keeps
+          // it off Mod+I (italic). Only for editors that opted in (chapter
+          // editors), and only while the Copilot master switch is on (it gates
+          // manual AND auto). Works with or without a selection (no selection →
+          // current block).
           if (event.key !== 'i' && event.key !== 'I') return false;
-          if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+          if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
             return false;
           }
           if (!enableInlineCopilotRef.current) return false;
@@ -794,7 +772,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               clientX: event.clientX,
               clientY: event.clientY,
             };
-            // Chapter editors also offer "Copilot 修改" — same entry as ⌘I,
+            // Chapter editors also offer "Copilot 修改" — same entry as ⇧⌘I,
             // run on the selection. Build the inline ctx from the live view.
             const onCopilot =
               enableInlineCopilotRef.current &&

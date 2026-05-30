@@ -2217,12 +2217,12 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
         <SecHead title="开关" hint="ENABLE" />
         <Row
           label="启用 Copilot"
-          desc="总开关。关闭后 Copilot 不再自动运行；⌘I / 右键手动触发始终可用。"
+          desc="总开关。关闭后 Copilot 不再自动运行；⇧⌘I / 右键手动触发始终可用。"
           control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
         />
         <Row
           label="自动触发"
-          desc="编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⌘I / 右键）时运行。"
+          desc="编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。"
           control={
             <Toggle
               on={autoTrigger}
@@ -2531,21 +2531,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="导出 / 导入" hint="EXPORT" />
-        <Row
-          label="导出整本"
-          desc="支持 DOCX · EPUB · PDF · Markdown · 纯文本。"
-          control={
-            <button
-              className="set-btn"
-              onClick={() => {
-                events.emit('export:open');
-              }}
-            >
-              配置导出…
-            </button>
-          }
-        />
+        <SecHead title="导入" hint="IMPORT" />
         <Row
           label="导入"
           desc="从 Markdown / Word / 纯文本 导入为章节、元素或浮缀。"

@@ -25,12 +25,20 @@ export function ElementTemplateEditor({ templateJson, onPersist, placeholder }: 
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
+        // Match the main editor: no code or lists in this novel-writing app.
+        // Templates seed element editors (useEntityEditor) which drop these
+        // nodes, so the skeleton must not be able to contain them either —
+        // otherwise a templated element would fail schema validation on load.
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
+        listKeymap: false,
+        code: false,
+        codeBlock: false,
       }),
       ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
       // Slash menu — same defaults as the main editor (paragraph/h1/h2/h3/
-      // lists/quote/etc). No extra items: this surface is just for shaping
+      // quote/hr/align). No extra items: this surface is just for shaping
       // the template skeleton, no entity links / patches / markdown export.
       createDefaultSlashMenu(),
     ],
