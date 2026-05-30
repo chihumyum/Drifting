@@ -14,6 +14,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { isBlockType } from '../extensions/block-id';
+import { flushPendingAutoDetect } from '../extensions/entity-link';
 import { computeCoverageMap } from './coverage-map';
 import { useDataStore } from '../../store/data-store';
 import type { BaseBlockContext, BlockSnippet, PriorSectionSnippet } from '../ai/context/types';
@@ -26,6 +27,11 @@ export interface BuildBaseBlockContextInput {
 export async function buildBaseBlockContext(
   input: BuildBaseBlockContextInput,
 ): Promise<BaseBlockContext | null> {
+  // Auto-detect is debounced, so a name typed moments ago may not be linked yet.
+  // Flush it now (synchronous, no-op if nothing pending) so mentionedElementIds
+  // below sees the just-typed name. Covers the manual ⇧⌘I-right-after-typing
+  // case; auto fires (≥3s debounce) would already have the mark anyway.
+  flushPendingAutoDetect(input.editor);
   const coverage = await computeCoverageMap({
     editor: input.editor,
     chapterId: input.chapterId,
@@ -71,8 +77,9 @@ export async function buildBaseBlockContext(
  * `priorSections` (so the selection's summaries come along). Used when the
  * user right-clicks / ⇧⌘I's a selection and runs a capability on it.
  *
- * Synchronous (no eviction side-effects) — pure read of the doc + section
- * store. Returns null if the selection has no non-empty text blocks.
+ * Reads the doc + section store (plus a one-shot flushPendingAutoDetect to
+ * materialize any debounced auto-links first, so freshly-typed names are seen).
+ * Returns null if the selection has no non-empty text blocks.
  */
 export function buildSelectionBlockContext(
   editor: Editor,
@@ -80,6 +87,9 @@ export function buildSelectionBlockContext(
   selectedBlockIds: string[],
 ): BaseBlockContext | null {
   if (selectedBlockIds.length === 0) return null;
+  // See buildBaseBlockContext — link any pending just-typed names before we
+  // read entityLink marks for mentionedElementIds.
+  flushPendingAutoDetect(editor);
   const idSet = new Set(selectedBlockIds);
 
   const uncoveredBlocks: BlockSnippet[] = [];

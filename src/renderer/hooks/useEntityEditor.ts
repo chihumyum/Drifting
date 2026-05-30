@@ -12,7 +12,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
-import { extractOutline, serializeOutline, type OutlineItem } from '../lib/outline';
+import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../lib/outline';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
 import {
   EntityLink,
@@ -54,6 +54,14 @@ log.setLevel(loglevel.levels.WARN);
 
 const DEFAULT_DOC: JSONContent = { type: 'doc', content: [] };
 const COMMENT_CONTEXT_MENU_CLASS = 'editor-comment-menu';
+
+// Trailing-debounce window for the heavy derive+persist pipeline (projection
+// walk, outline recompute, JSON serialize, caller onPersist). Keeps that O(doc)
+// work off the per-keystroke paint frame — a typing burst persists once, on
+// pause. Flushed immediately on blur / unmount / Cmd+S so nothing is lost. The
+// editor itself (ProseMirror DOM, plus the Y.Doc in collab mode) is the live
+// source of truth; the derived store/outline mirrors are stale-OK for this long.
+const PERSIST_DEBOUNCE_MS = 400;
 
 export interface EditorCommentRequest {
   projectId: string;
@@ -145,7 +153,7 @@ function openCommentContextMenu(
 }
 
 /** How many blocks before/after the invocation region to pull in as context. */
-const INLINE_CONTEXT_WINDOW = 3;
+const INLINE_CONTEXT_WINDOW = 5;
 
 /**
  * Resolve the inline-Copilot invocation context from the current editor
@@ -153,8 +161,11 @@ const INLINE_CONTEXT_WINDOW = 3;
  * bare caret it's the enclosing block (so ⇧⌘I works mid-typing).
  *
  * Context is gathered around the WHOLE invocation region, not just its first
- * block: `nearbyContext` = up to INLINE_CONTEXT_WINDOW blocks before the first
- * covered block + after the last; `segmentSummaries` = the rolling segment
+ * block, and split by side: `contextBefore` = up to INLINE_CONTEXT_WINDOW
+ * blocks before the first covered block (上文), `contextAfter` = up to that
+ * many after the last (下文). Keeping them apart lets the prompt place the
+ * target between its 上文 and 下文 rather than in one flat blob.
+ * `segmentSummaries` = the rolling segment
  * summaries overlapping that window. `blockContext` (enclosing paragraph) is
  * only set for a PARTIAL within-one-block selection, where the surrounding
  * sentence adds something the target span alone doesn't — for multi-block or
@@ -170,12 +181,28 @@ function buildInlineCopilotCtx(
 ): CopilotInlineCtx | null {
   const { selection, doc } = view.state;
 
-  // All blocks in document order.
-  const blocks: { id: string; text: string }[] = [];
+  // All blocks in document order. `isText` distinguishes leaf textblocks
+  // (paragraph/heading — editable in place) from containers (blockquote).
+  const blocks: {
+    id: string;
+    kind: string;
+    level?: number;
+    text: string;
+    isText: boolean;
+  }[] = [];
   doc.descendants((node) => {
     if (!isBlockType(node.type.name)) return undefined;
     const id = node.attrs?.id as string | null | undefined;
-    if (id) blocks.push({ id, text: node.textContent.replace(/\s+/g, ' ').trim() });
+    if (id) {
+      const level = node.attrs?.level;
+      blocks.push({
+        id,
+        kind: node.type.name,
+        level: typeof level === 'number' ? level : undefined,
+        text: node.textContent.replace(/\s+/g, ' ').trim(),
+        isText: node.isTextblock,
+      });
+    }
     return false;
   });
   if (blocks.length === 0) return null;
@@ -230,21 +257,42 @@ function buildInlineCopilotCtx(
     .filter((i): i is number => i !== undefined);
   const firstIdx = coveredIdxs.length ? Math.min(...coveredIdxs) : (indexById.get(encId) ?? 0);
   const lastIdx = coveredIdxs.length ? Math.max(...coveredIdxs) : firstIdx;
-  const coveredSet = new Set(coveredIds);
 
   // Enclosing paragraph only when a partial selection lives inside one block.
   const singleBlockPartial =
     mode === 'selection' && firstIdx === lastIdx && selText !== blocks[firstIdx]?.text;
   const blockContext = singleBlockPartial ? encText : '';
 
-  // Nearby: window of blocks before the first / after the last covered block.
+  // Whole blocks covered by the target, in doc order — the unit the block-by-
+  // block edit pipeline revises and applies in place. Only leaf textblocks
+  // (paragraph/heading) are editable; containers (blockquote) are left as-is.
+  const targetBlocks = [...coveredIdxs]
+    .sort((a, b) => a - b)
+    .map((i) => blocks[i]!)
+    .filter((b) => b.isText)
+    .map((b) => ({
+      id: b.id,
+      kind: b.kind === 'heading' ? 'heading' : 'paragraph',
+      level: b.level,
+      text: b.text,
+    }));
+
+  // Nearby context, split by side: a window of blocks strictly BEFORE the
+  // first covered block (上文) and strictly AFTER the last (下文). Iterating the
+  // two ranges separately both excludes the [firstIdx, lastIdx] target span and
+  // keeps each side in document order, so the prompt can show the target
+  // sitting between them rather than as one undifferentiated blob.
   const windowStart = Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
   const windowEnd = Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
-  const nearbyParts: string[] = [];
-  for (let i = windowStart; i <= windowEnd; i++) {
-    if (i >= firstIdx && i <= lastIdx) continue; // skip the covered region itself
+  const beforeParts: string[] = [];
+  const afterParts: string[] = [];
+  for (let i = windowStart; i < firstIdx; i++) {
     const b = blocks[i]!;
-    if (!coveredSet.has(b.id) && b.text) nearbyParts.push(b.text);
+    if (b.text) beforeParts.push(b.text);
+  }
+  for (let i = lastIdx + 1; i <= windowEnd; i++) {
+    const b = blocks[i]!;
+    if (b.text) afterParts.push(b.text);
   }
 
   // Segment summaries overlapping the window — the local narrative arc.
@@ -267,9 +315,12 @@ function buildInlineCopilotCtx(
     to: mode === 'selection' ? selection.to : blockEnd,
     selectedText: mode === 'selection' ? selText : (blocks[firstIdx]?.text ?? encText),
     blockContext,
-    nearbyContext: nearbyParts.join('\n\n'),
+    contextBefore: beforeParts.join('\n\n'),
+    contextAfter: afterParts.join('\n\n'),
     segmentSummaries,
     selectionBlockIds,
+    targetBlocks,
+    spanWithinBlock: singleBlockPartial,
     clientX: coords.clientX,
     clientY: coords.clientY,
   };
@@ -416,6 +467,25 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   // conflict here can only arise between an element name/alias and a
   // chapter title — accepted for now (chapter wins because chapters are
   // registered after elements below).
+  // Signature of just the fields auto-detect keys off (id + name + aliases +
+  // node title), excluding self. autoDetectTargets is memoized on THIS rather
+  // than on bookElements/bookNodes IDENTITY — so a contentJson write (which
+  // mints a fresh bookElements array on every persist but changes no names)
+  // does NOT rebuild the Map, nor fire the dangling-refresh effect keyed off it.
+  const autoDetectSignature = useMemo(() => {
+    const parts: string[] = [];
+    bookElements.forEach((el) => {
+      if (sourceKind === 'element' && el.id === sourceId) return;
+      if (parentElementId && el.id === parentElementId) return;
+      parts.push(`${el.id}=${el.name ?? ''}|${el.aliases.join(',')}`);
+    });
+    bookNodes.forEach((n) => {
+      if (sourceKind === 'node' && n.id === sourceId) return;
+      if (n.title) parts.push(`${n.id}#${n.title}`);
+    });
+    return parts.join('\n');
+  }, [bookElements, bookNodes, sourceKind, sourceId, parentElementId]);
+
   const autoDetectTargets = useMemo(() => {
     const map = new Map<string, AutoDetectTarget>();
     bookElements.forEach((el) => {
@@ -437,7 +507,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       map.set(n.title, { kind: 'node', id: n.id });
     });
     return map;
-  }, [bookElements, bookNodes, sourceKind, sourceId, parentElementId]);
+    // Keyed on the names/aliases/titles signature, NOT bookElements/bookNodes
+    // identity — content-only store writes won't rebuild this. Reading the live
+    // arrays here is safe: the signature changes whenever any keyed field does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDetectSignature]);
 
   // @-picker source: pulled live from the store so the popover stays in sync.
   const getMentionableEntities = useCallback((): MentionableEntity[] => {
@@ -512,17 +586,21 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   );
 
   // Projection: walk the doc, derive inline mentions, replace this source's
-  // rows. Debounced so a typing burst writes once.
+  // rows. The doc walk + write run together; this is invoked from the persist
+  // pipeline, which is itself trailing-debounced (schedulePersist), so a typing
+  // burst projects once on pause instead of walking the whole doc every key.
+  // NOTE: copilot reads mentioned elements from the LIVE editor doc, not this
+  // projection — only ReferencesPanel consumes the projected rows — so the
+  // debounce is safe for copilot context assembly.
   const mentionRepoRef = useRef(createInlineMentionRepository());
-  const projectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectReferences = useCallback(
     (editor: Editor) => {
-      if (projectTimeoutRef.current) clearTimeout(projectTimeoutRef.current);
       const source = sourceRef.current;
       if (!source.projectId || !source.sourceId) return;
       if (editor.isDestroyed) return;
       const drafts = projectInlineMentionsFromDoc(editor.state.doc);
-      projectTimeoutRef.current = setTimeout(async () => {
+      void (async () => {
         try {
           await mentionRepoRef.current.replaceMentionsFromSource(
             source.projectId,
@@ -539,14 +617,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         } catch (error) {
           log.error('Failed to project inline references:', error);
         }
-      }, 500);
+      })();
     },
     [sourceRef],
   );
 
   useEffect(
     () => () => {
-      if (projectTimeoutRef.current) clearTimeout(projectTimeoutRef.current);
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     },
     [],
   );
@@ -568,34 +646,60 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   });
   const suppressSelectionSaveRef = useRef(false);
 
-  // Live outline derived from the editor doc. Recomputed on every update and
-  // once on load. Cheap because we already have the JSON in hand; if this
-  // turns up in a profile, switch to walking the PMNode directly.
+  // Live outline derived from the editor doc. Recomputed on persist (debounced)
+  // and once on load. Walks the live PMNode directly — no getJSON/stringify/
+  // parse round trip (the comment that used to flag this as a TODO is now done).
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const recomputeOutline = useCallback((editor: Editor) => {
     if (editor.isDestroyed) return;
     try {
-      const pmJson = JSON.stringify(editor.getJSON());
-      setOutline(extractOutline(pmJson));
+      setOutline(extractOutlineFromDoc(editor.state.doc));
     } catch (error) {
       log.warn('Failed to recompute outline:', error);
     }
   }, []);
 
   // Persistence wrapper: runs projection + outline refresh + caller's onPersist.
-  // pmJson / outline are computed once here and handed to onPersist so callers
-  // don't redo the walk. Caller adds entity-specific extras (e.g. wordCount).
-  // All gated by the (editor, sourceId) token to avoid initial-load round-trips.
+  // Everything is computed ONCE here (one getJSON, one PMNode outline walk) and
+  // handed to onPersist so callers don't redo the walk. Caller adds entity-
+  // specific extras (e.g. wordCount). Heavy/synchronous — invoke via
+  // schedulePersist (debounced) on the typing path; call directly only to flush.
   const persistEditorContent = useCallback(
     (editor: Editor) => {
+      if (editor.isDestroyed) return;
       projectReferences(editor);
-      recomputeOutline(editor);
+      const outline = extractOutlineFromDoc(editor.state.doc);
+      setOutline(outline);
       const pmJson = JSON.stringify(editor.getJSON());
-      const outline = extractOutline(pmJson);
       const outlineJson = serializeOutline(outline);
       onPersistRef.current(editor, { pmJson, outline, outlineJson });
     },
-    [onPersistRef, projectReferences, recomputeOutline],
+    [onPersistRef, projectReferences],
+  );
+
+  // Trailing-debounce wrapper for the typing path: a burst of keystrokes runs
+  // the heavy persist once, on pause, instead of synchronously every keystroke.
+  const schedulePersist = useCallback(
+    (editor: Editor) => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = setTimeout(() => {
+        persistTimerRef.current = null;
+        persistEditorContent(editor);
+      }, PERSIST_DEBOUNCE_MS);
+    },
+    [persistEditorContent],
+  );
+
+  // Run any pending debounced persist immediately, then clear the timer. Used
+  // at flush points (blur, unmount, Cmd+S) so a pause-time write is never lost.
+  const flushPersist = useCallback(
+    (editor: Editor) => {
+      if (!persistTimerRef.current) return;
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+      persistEditorContent(editor);
+    },
+    [persistEditorContent],
   );
 
   const saveSelection = useCallback(
@@ -696,15 +800,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
           // prosemirror-keymap retries shifted single-char keys without Shift
           // and matches Mod-I. We win because editorProps.handleKeyDown runs
           // before the Italic keymap and we swallow the chord below. Only for
-          // editors that opted in (chapter editors), and only while the Copilot
-          // master switch is on (it gates manual AND auto). Works with or
-          // without a selection (no selection → current block).
+          // editors that opted in (chapter editors). Manual ⇧⌘I is always
+          // available — it is never gated by the auto-trigger switch. Works
+          // with or without a selection (no selection → current block).
           if (event.key !== 'i' && event.key !== 'I') return false;
           if (!(event.metaKey || event.ctrlKey) || event.altKey || !event.shiftKey) {
             return false;
           }
           if (!enableInlineCopilotRef.current) return false;
-          if (!useSettingsStore.getState().copilotEnabled) return false;
           const source = sourceRef.current;
           if (source.sourceKind !== 'node' || !source.projectId || !source.sourceId) {
             return false;
@@ -796,11 +899,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               clientY: event.clientY,
             };
             // Chapter editors also offer "Copilot 修改" — same entry as ⇧⌘I,
-            // run on the selection. Build the inline ctx from the live view.
+            // run on the selection. Always available (manual, never gated by
+            // the auto switch). Build the inline ctx from the live view.
             const onCopilot =
-              enableInlineCopilotRef.current &&
-              source.sourceKind === 'node' &&
-              useSettingsStore.getState().copilotEnabled
+              enableInlineCopilotRef.current && source.sourceKind === 'node'
                 ? () => {
                     const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
                       clientX: event.clientX,
@@ -828,13 +930,18 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         ) {
           return;
         }
-        persistEditorContent(ed);
+        // Debounced: a typing burst runs the heavy derive+persist once on pause,
+        // not synchronously every keystroke. saveSelection is cheap, keep it live.
+        schedulePersist(ed);
         saveSelection(ed);
       },
       onSelectionUpdate: ({ editor: ed }) => {
         saveSelection(ed);
       },
       onBlur: ({ editor: ed }) => {
+        // Losing focus / navigating away: flush any pending debounced persist so
+        // the derived store/outline/projection don't lag behind the live doc.
+        flushPersist(ed);
         saveSelection(ed, { force: true });
       },
     },
@@ -988,9 +1095,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     return () => {
       removeCommentContextMenu();
       if (!editor || editor.isDestroyed) return;
+      flushPersist(editor);
       saveSelection(editor);
     };
-  }, [editor, projectId, sourceKind, sourceId, saveSelection]);
+  }, [editor, projectId, sourceKind, sourceId, saveSelection, flushPersist]);
 
   // Register with the global active-editor registry: Cmd+F finds this
   // instance, Cmd+S runs the same persistence path as onUpdate.
@@ -1005,6 +1113,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       loadedTokenRef.current.sourceId !== source.sourceId
     ) {
       return;
+    }
+    // Cmd+S: persist immediately and cancel any pending debounced run.
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
     }
     persistEditorContent(editor);
   });

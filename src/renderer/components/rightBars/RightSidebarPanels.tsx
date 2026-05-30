@@ -175,7 +175,7 @@ export function RightSidebarPanels() {
         hideTitleBlock={isFragmentTab}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
         {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
         {activeRightPanel === 'stats' && (

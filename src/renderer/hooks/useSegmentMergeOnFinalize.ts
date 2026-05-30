@@ -32,7 +32,7 @@ export function useSegmentMergeOnFinalize({
   projectId,
   nodeId,
 }: UseSegmentMergeOnFinalizeInput): void {
-  const enabled = useSettingsStore((s) => s.copilotEnabled);
+  const enabled = useSettingsStore((s) => s.copilotAutoTrigger);
   const summaries = useSettingsStore((s) => s.copilotGenerateSummaries);
   const status = useDataStore((s) => {
     const n = s.bookNodes.find((x) => x.id === nodeId);

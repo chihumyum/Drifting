@@ -12,7 +12,13 @@
  */
 import type { LLMProvider } from './providers/provider';
 import type { RequestInterceptor } from '../interceptors/interceptor';
-import { AIError, type AICompletionRequest, type AICompletionResponse } from '../types';
+import {
+  AIError,
+  type AICompletionChunk,
+  type AICompletionRequest,
+  type AICompletionResponse,
+  type AIUsage,
+} from '../types';
 import { withRetry, type RetryConfig } from './retry';
 
 export interface LLMClientOptions {
@@ -56,6 +62,62 @@ export class LLMClient {
         }
       }
       return res;
+    } catch (err) {
+      for (const it of this.interceptors) {
+        try {
+          await it.onError?.(req, err);
+        } catch (e) {
+          console.warn('[ai] observer onError() threw', e);
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Stream a free-form completion as incremental text chunks. Runs the same
+   * interceptor chain as complete(): `before` hooks first, then on completion a
+   * synthesized final response (accumulated text + usage) is handed to `after`
+   * so the ai-log captures it exactly like a non-streaming call; `onError`
+   * fires on failure. No retry — a mid-stream retry would replay partial text,
+   * and this path is interactive (the user just re-asks). Providers without a
+   * `stream()` fall back to one chunk wrapping `complete()`.
+   */
+  async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
+    let req = request;
+    for (const it of this.interceptors) {
+      const next = await it.before?.(req);
+      if (next) req = next;
+    }
+
+    let text = '';
+    let usage: AIUsage | undefined;
+    try {
+      if (this.provider.stream) {
+        for await (const chunk of this.provider.stream(req)) {
+          if (chunk.delta) text += chunk.delta;
+          if (chunk.usage) usage = chunk.usage;
+          yield chunk;
+        }
+      } else {
+        const res = await this.provider.complete(req);
+        text = res.text ?? '';
+        usage = res.usage;
+        if (text) yield { delta: text };
+        yield { delta: '', usage };
+      }
+
+      const finalRes: AICompletionResponse = {
+        text,
+        usage: usage ?? { inputTokens: 0, outputTokens: 0 },
+      };
+      for (const it of this.interceptors) {
+        try {
+          await it.after?.(req, finalRes);
+        } catch (e) {
+          console.warn('[ai] observer after() threw', e);
+        }
+      }
     } catch (err) {
       for (const it of this.interceptors) {
         try {

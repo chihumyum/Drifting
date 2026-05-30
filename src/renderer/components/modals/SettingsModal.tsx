@@ -2192,8 +2192,6 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
 }
 
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
-  const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
-  const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
@@ -2216,31 +2214,14 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-sec">
         <SecHead title="开关" hint="ENABLE" />
         <Row
-          label="启用 Copilot"
-          desc="总开关。关闭后 Copilot 不再自动运行；⇧⌘I / 右键手动触发始终可用。"
-          control={<Toggle on={copilotEnabled} onChange={setCopilotEnabled} />}
-        />
-        <Row
           label="自动触发"
           desc="编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。"
-          control={
-            <Toggle
-              on={autoTrigger}
-              onChange={setAutoTrigger}
-              disabled={!copilotEnabled}
-            />
-          }
+          control={<Toggle on={autoTrigger} onChange={setAutoTrigger} />}
         />
         <Row
           label="在 drift 节点中启用"
           desc="drift 是灵感草稿区，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后 drift 编辑器也会跑同样的 task。"
-          control={
-            <Toggle
-              on={copilotInDrift}
-              onChange={setCopilotInDrift}
-              disabled={!copilotEnabled}
-            />
-          }
+          control={<Toggle on={copilotInDrift} onChange={setCopilotInDrift} />}
         />
       </div>
 

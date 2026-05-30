@@ -15,10 +15,11 @@
  *   - abortSignal flows through SDK request options to the underlying fetch
  *
  * Thinking mode (deepseek-v4-flash / -pro default to thinking-on):
- *   - Controlled explicitly via `thinking: boolean` on the provider config
- *   - Sent on every request as `{ thinking: { type: 'enabled' | 'disabled' } }`
- *     at the request body root (DeepSeek's OpenAI-compatible extension)
- *   - When enabled, also sends `reasoning_effort` ('high' default)
+ *   - Default on/off comes from provider config; a single request can override
+ *     it via `request.thinking` (inline-ask forces reasoning on this way)
+ *   - Sent as `{ thinking: { type: 'enabled' | 'disabled', reasoning_effort } }`
+ *     — per the DeepSeek API `reasoning_effort` is NESTED inside `thinking`,
+ *     NOT a top-level body field
  *   - When enabled, temperature/top_p/penalty params are silently ignored by
  *     DeepSeek (per their docs), so we omit them to keep wire traffic clean
  *
@@ -39,9 +40,11 @@ import OpenAI from 'openai';
 import type { LLMProvider } from './provider';
 import {
   AIError,
+  type AICompletionChunk,
   type AICompletionRequest,
   type AICompletionResponse,
   type AIToolCall,
+  type AIUsage,
 } from '../../types';
 
 export type DeepSeekReasoningEffort = 'high' | 'max';
@@ -95,6 +98,21 @@ export class DeepSeekProvider implements LLMProvider {
     this.reasoningEffort = this.thinking ? (config.reasoningEffort ?? 'high') : undefined;
   }
 
+  /**
+   * DeepSeek's thinking-mode extension (untyped by the OpenAI SDK). Per the
+   * API, `reasoning_effort` lives INSIDE the `thinking` object; when thinking
+   * is on we default the effort to 'high' if none was configured.
+   */
+  private thinkingExtension(thinkingOn: boolean): Record<string, unknown> {
+    const thinking: Record<string, unknown> = {
+      type: thinkingOn ? 'enabled' : 'disabled',
+    };
+    if (thinkingOn) {
+      thinking.reasoning_effort = this.reasoningEffort ?? 'high';
+    }
+    return { thinking };
+  }
+
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
     const { model, system, messages, tools, maxOutputTokens, temperature, signal } = request;
 
@@ -143,16 +161,12 @@ export class DeepSeekProvider implements LLMProvider {
     };
     // Per DeepSeek docs: thinking mode silently ignores temperature/top_p/
     // presence_penalty/frequency_penalty. Omit them to keep the wire clean.
-    if (!this.thinking && typeof temperature === 'number') {
+    const effectiveThinking = request.thinking ?? this.thinking;
+    if (!effectiveThinking && typeof temperature === 'number') {
       baseBody.temperature = temperature;
     }
 
-    const deepseekExtensions: Record<string, unknown> = {
-      thinking: { type: this.thinking ? 'enabled' : 'disabled' },
-    };
-    if (this.reasoningEffort) {
-      deepseekExtensions.reasoning_effort = this.reasoningEffort;
-    }
+    const deepseekExtensions = this.thinkingExtension(effectiveThinking);
 
     try {
       const response = await this.client.chat.completions.create(
@@ -202,6 +216,69 @@ export class DeepSeekProvider implements LLMProvider {
         },
         raw: response,
       };
+    } catch (err) {
+      throw mapDeepSeekError(err);
+    }
+  }
+
+  /**
+   * Free-form streaming via the OpenAI SDK's `stream: true` (DeepSeek is
+   * wire-compatible). Yields each chunk's `delta.content`; a terminal
+   * empty-delta chunk carries usage (requested via
+   * `stream_options.include_usage`). Only `content` is surfaced —
+   * `reasoning_content` from thinking mode is intentionally dropped so the
+   * visible answer excludes the model's chain of thought. Tools don't apply.
+   */
+  async *stream(request: AICompletionRequest): AsyncIterable<AICompletionChunk> {
+    const { model, system, messages, temperature, signal } = request;
+
+    if (signal?.aborted) {
+      throw new AIError('aborted', 'Request aborted before send');
+    }
+
+    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+    if (system) chatMessages.push({ role: 'system', content: system });
+    for (const m of messages) {
+      chatMessages.push({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content: m.content,
+      });
+    }
+
+    const baseBody: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
+      model: resolveModel(model, this.defaultModel),
+      messages: chatMessages,
+      stream: true,
+      stream_options: { include_usage: true },
+    };
+    const effectiveThinking = request.thinking ?? this.thinking;
+    if (!effectiveThinking && typeof temperature === 'number') {
+      baseBody.temperature = temperature;
+    }
+
+    const deepseekExtensions = this.thinkingExtension(effectiveThinking);
+
+    try {
+      const stream = await this.client.chat.completions.create(
+        { ...baseBody, ...deepseekExtensions } as OpenAI.Chat.ChatCompletionCreateParamsStreaming,
+        { signal: signal ?? undefined },
+      );
+
+      let usage: AIUsage | undefined;
+      for await (const chunk of stream) {
+        if (signal?.aborted) throw new AIError('aborted', 'Request aborted');
+        if (chunk.usage) {
+          usage = {
+            inputTokens: chunk.usage.prompt_tokens ?? 0,
+            outputTokens: chunk.usage.completion_tokens ?? 0,
+            cachedTokens: undefined,
+          };
+        }
+        const delta = chunk.choices[0]?.delta?.content ?? '';
+        if (delta) yield { delta };
+      }
+
+      yield { delta: '', usage: usage ?? { inputTokens: 0, outputTokens: 0 } };
     } catch (err) {
       throw mapDeepSeekError(err);
     }

@@ -159,19 +159,11 @@ interface SettingsState {
 
   // Copilot (任务自动化, 没有续写)
   /**
-   * Master switch for AUTOMATIC Copilot. When off, Copilot no longer runs on
-   * its own as you write. It does NOT gate manual triggers — ⇧⌘I / the
-   * context-menu Copilot popover keep working regardless, since those are
-   * user-initiated. Pair with copilotAutoTrigger for finer control.
-   */
-  copilotEnabled: boolean;
-  setCopilotEnabled: (on: boolean) => void;
-  /**
-   * Automatic debounced triggering. When false, capabilities never fire on
-   * their own as you type, but manual ⇧⌘I / context-menu triggers still work.
-   * Separate from copilotEnabled so you can keep Copilot enabled (manual
-   * available, summaries on) while silencing the background as-you-type calls.
-   * Effective auto-fire requires copilotEnabled && copilotAutoTrigger.
+   * The single switch for AUTOMATIC Copilot. When on, background tasks run on
+   * their own as you write (debounced capability fire, todo parsing, segment
+   * summaries). When off, nothing fires automatically — but manual triggers
+   * (⇧⌘I / the context-menu Copilot popover) keep working regardless, since
+   * those are user-initiated.
    */
   copilotAutoTrigger: boolean;
   setCopilotAutoTrigger: (on: boolean) => void;
@@ -329,8 +321,6 @@ export const useSettingsStore = create<SettingsState>()(
         '你是一位熟读明清白话小说与近代翻译腔的编辑。优先关注：人物动机的连贯、时间线的隐蔽冲突、语言节奏。避免改动叙述视角；当确实需要时，先给出标记，再让作者决定。',
       setShadowSystemPrompt: (s) => set({ shadowSystemPrompt: s }),
 
-      copilotEnabled: true,
-      setCopilotEnabled: (on) => set({ copilotEnabled: on }),
       copilotAutoTrigger: true,
       setCopilotAutoTrigger: (on) => set({ copilotAutoTrigger: on }),
       copilotMode: 'cloud',

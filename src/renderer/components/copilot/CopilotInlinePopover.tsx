@@ -26,18 +26,21 @@ import {
   applyInlineEdit,
   type InlineEditResult,
 } from '../../lib/copilot/inline-edit';
+import type { DiffChunk } from '../../lib/copilot/text-diff';
+import { runInlineAskStream, type AskTurn } from '../../lib/copilot/inline-ask';
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
 import { events } from '../../lib/events';
+import '../../../styles/copilot-surface.css';
 
 const PANEL_WIDTH = 360;
 const VIEWPORT_MARGIN = 8;
 
-type Phase = 'input' | 'running' | 'result' | 'refused' | 'error';
+type Phase = 'input' | 'running' | 'result' | 'refused' | 'error' | 'chat';
 
 /** One row in the unified action menu. */
 interface Action {
   key: string;
-  kind: 'inline' | 'cap' | 'chapter';
+  kind: 'inline' | 'cap' | 'chapter' | 'ask';
   capId?: string;
   label: string;
   note?: string;
@@ -65,8 +68,18 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   const [chapterBusy, setChapterBusy] = useState(false);
   const [chapterMsg, setChapterMsg] = useState<string | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // Chat (提问/讨论) — multi-turn, streamed, never persisted.
+  const [chatTurns, setChatTurns] = useState<AskTurn[]>([]);
+  const [streamingText, setStreamingText] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  // Mirrors chatTurns synchronously so the async stream loop reads the latest
+  // history without waiting for a re-render.
+  const turnsRef = useRef<AskTurn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // The instruction of the most recent run — lets "本次执行" on a refusal
   // re-run the same ask with the guard lifted for that one call.
@@ -91,6 +104,10 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     setChapterBusy(false);
     setChapterMsg(null);
     setPos(null);
+    setChatTurns([]);
+    setStreamingText('');
+    setChatBusy(false);
+    setChatInput('');
   }
 
   // The unified, grouped action list — depends only on the invocation mode.
@@ -99,6 +116,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     const list: Action[] = [];
     if (ctx.mode === 'selection') {
       list.push({ key: 'inline', kind: 'inline', label: '局部文本修改', group: '对选中的文本触发' });
+      list.push({ key: 'ask', kind: 'ask', label: '问', group: '对选中的文本触发' });
       for (const cap of menuCaps) {
         const off = !taskConfigs[cap.id as keyof typeof taskConfigs]?.enabled;
         list.push({
@@ -112,6 +130,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       }
     } else {
       list.push({ key: 'inline', kind: 'inline', label: '局部修改', group: '在光标处触发' });
+      list.push({ key: 'ask', kind: 'ask', label: '向副手提问（不改稿）', group: '在光标处触发' });
     }
     list.push({ key: 'chapter', kind: 'chapter', label: '生成章节摘要', group: '本章节触发' });
     return list;
@@ -139,16 +158,51 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }));
   }, [visible, ctx, phase, chapterMsg, result, error, actions.length]);
 
-  // Focus the input when the popover opens / returns to input.
+  // Focus the input when the popover opens / returns to input; focus the chat
+  // follow-up box once an answer finishes streaming.
   useEffect(() => {
-    if (visible && phase === 'input') {
+    if (!visible) return;
+    if (phase === 'input') {
       const id = setTimeout(() => textareaRef.current?.focus(), 0);
       return () => clearTimeout(id);
     }
-  }, [visible, ctx, phase]);
+    if (phase === 'chat' && !chatBusy) {
+      const id = setTimeout(() => chatInputRef.current?.focus(), 0);
+      return () => clearTimeout(id);
+    }
+  }, [visible, ctx, phase, chatBusy]);
 
-  // Abort any in-flight call when the popover unmounts.
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // Abort any in-flight call when the popover unmounts OR the invocation
+  // changes (so a stream from a prior selection can't bleed into a new one).
+  useEffect(() => () => abortRef.current?.abort(), [ctx]);
+
+  // Reset the chat-history mirror on each new invocation. Lives in an effect,
+  // not the render-phase reset above, since refs can't be mutated in render.
+  useEffect(() => {
+    turnsRef.current = [];
+  }, [ctx]);
+
+  // Auto-follow the newest tokens as the answer streams — but only while the
+  // user is parked at the bottom. The moment they scroll up to re-read, we stop
+  // yanking them back down; scrolling back to the bottom re-arms the follow.
+  const stickToBottomRef = useRef(true);
+  const onChatScroll = useCallback(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 24;
+  }, []);
+  useEffect(() => {
+    if (phase !== 'chat' || !stickToBottomRef.current) return;
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [phase, streamingText, chatTurns]);
+
+  // Re-arm auto-follow when a new question is sent (the user wants to watch the
+  // fresh answer), independent of where they'd scrolled in the prior answer.
+  useEffect(() => {
+    if (chatBusy) stickToBottomRef.current = true;
+  }, [chatBusy]);
 
   const doClose = useCallback(() => {
     abortRef.current?.abort();
@@ -167,11 +221,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       try {
         const r = await runInlineEdit({
           target: {
+            spanWithinBlock: ctx.spanWithinBlock,
             from: ctx.from,
             to: ctx.to,
             selectedText: ctx.selectedText,
             blockContext: ctx.blockContext,
-            nearbyContext: ctx.nearbyContext || undefined,
+            targetBlocks: ctx.targetBlocks,
+            contextBefore: ctx.contextBefore || undefined,
+            contextAfter: ctx.contextAfter || undefined,
             segmentSummaries: ctx.segmentSummaries.length ? ctx.segmentSummaries : undefined,
           },
           instruction: instr.trim(),
@@ -191,6 +248,56 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       }
     },
     [ctx, allowNewContent],
+  );
+
+  // 提问/讨论: append the question and stream a free-form answer. Multi-turn,
+  // read-only, ephemeral — nothing touches the document or gets persisted.
+  const sendAsk = useCallback(
+    async (question: string) => {
+      const q = question.trim();
+      if (!ctx || !q) return;
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const history: AskTurn[] = [...turnsRef.current, { role: 'user', content: q }];
+      turnsRef.current = history;
+      setChatTurns(history);
+      setChatInput('');
+      setStreamingText('');
+      setChatBusy(true);
+      setError(null);
+      setPhase('chat');
+      try {
+        let acc = '';
+        for await (const delta of runInlineAskStream({
+          history,
+          context: {
+            selectedText: ctx.selectedText,
+            contextBefore: ctx.contextBefore || undefined,
+            contextAfter: ctx.contextAfter || undefined,
+            segmentSummaries: ctx.segmentSummaries.length ? ctx.segmentSummaries : undefined,
+          },
+          projectId: ctx.projectId,
+          signal: controller.signal,
+        })) {
+          if (controller.signal.aborted) return;
+          acc += delta;
+          setStreamingText(acc);
+        }
+        if (controller.signal.aborted) return;
+        const next: AskTurn[] = [...turnsRef.current, { role: 'model', content: acc }];
+        turnsRef.current = next;
+        setChatTurns(next);
+        setStreamingText('');
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase('error');
+      } finally {
+        setChatBusy(false);
+      }
+    },
+    [ctx],
   );
 
   const acceptResult = useCallback(() => {
@@ -249,10 +356,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     (a: Action | undefined) => {
       if (!a) return;
       if (a.kind === 'inline') void runEdit(instruction.trim());
+      else if (a.kind === 'ask') void sendAsk(instruction.trim());
       else if (a.kind === 'cap' && a.capId) runCapability(a.capId);
       else if (a.kind === 'chapter') void handleChapterSummary();
     },
-    [runEdit, runCapability, handleChapterSummary, instruction],
+    [runEdit, sendAsk, runCapability, handleChapterSummary, instruction],
   );
 
   // Esc closes; Enter accepts a ready result.
@@ -300,13 +408,13 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           width: PANEL_WIDTH,
           maxHeight: `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
           overflowY: 'auto',
-          background: '#fffdf9',
-          border: '1px solid rgba(184, 153, 104, 0.4)',
-          borderRadius: 10,
-          boxShadow: '0 12px 32px rgba(60, 40, 20, 0.18)',
+          background: 'var(--copilot-surface)',
+          border: '1px solid var(--copilot-border)',
+          borderRadius: 'var(--copilot-radius)',
+          boxShadow: '0 12px 32px var(--copilot-shadow)',
           padding: 12,
           fontSize: 13,
-          color: '#3a2e22',
+          color: 'var(--copilot-text)',
         }}
       >
         {phase === 'input' && (
@@ -330,31 +438,32 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   triggerAction(actions[selIndex]);
                 }
               }}
-              placeholder="输入修改要求…"
+              placeholder="输入修改要求 / 问题…"
               rows={2}
+              className="copilot-field"
               style={{
                 width: '100%',
                 resize: 'none',
-                border: '1px solid rgba(184, 153, 104, 0.35)',
-                borderRadius: 6,
+                border: '1px solid var(--copilot-border)',
+                borderRadius: 'var(--copilot-radius-sm)',
                 padding: '6px 8px',
                 fontSize: 13,
                 outline: 'none',
-                background: '#fff',
+                background: 'var(--copilot-field-bg)',
                 fontFamily: 'inherit',
               }}
             />
 
-            <div style={{ fontSize: 11, color: '#9a8a72', margin: '7px 2px 2px' }}>
+            <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '7px 2px 2px' }}>
               ↑/↓ 选择 · ⏎ 执行
             </div>
 
             {groups.map((group) => (
               <div
                 key={group.name}
-                style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', marginTop: 8, paddingTop: 7 }}
+                style={{ borderTop: '1px solid var(--copilot-border-soft)', marginTop: 8, paddingTop: 7 }}
               >
-                <div style={{ fontSize: 11, color: '#9a8a72', marginBottom: 3 }}>{group.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', marginBottom: 3 }}>{group.name}</div>
                 {group.items.map(({ action, index }) => {
                   const isChapterBusy = action.kind === 'chapter' && chapterBusy;
                   return (
@@ -366,13 +475,13 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                       disabled={isChapterBusy}
                       style={{
                         ...menuItemStyle,
-                        background: index === selIndex ? 'rgba(184, 153, 104, 0.16)' : 'transparent',
+                        background: index === selIndex ? 'var(--copilot-hover-bg)' : 'transparent',
                         opacity: isChapterBusy ? 0.6 : 1,
                       }}
                     >
                       <span>{action.label}</span>
                       {action.note && (
-                        <span style={{ fontSize: 10, color: '#b0a088' }}>
+                        <span style={{ fontSize: 10, color: 'var(--copilot-text-faint)' }}>
                           {isChapterBusy ? '生成中…' : action.note}
                         </span>
                       )}
@@ -380,7 +489,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   );
                 })}
                 {group.name === '本章节触发' && chapterMsg && (
-                  <div style={{ fontSize: 11, color: '#8a7860', padding: '2px 4px' }}>{chapterMsg}</div>
+                  <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', padding: '2px 4px' }}>{chapterMsg}</div>
                 )}
               </div>
             ))}
@@ -390,44 +499,171 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         {phase === 'running' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px' }}>
             <span style={spinnerStyle} />
-            <span style={{ color: '#6a5b48' }}>正在修改……</span>
+            <span style={{ color: 'var(--copilot-text-dim)' }}>正在修改……</span>
             <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
               取消
             </button>
           </div>
         )}
 
-        {phase === 'result' && result && (
+        {phase === 'chat' && (
           <div>
-            <div style={previewLabel}>原文</div>
-            <div style={{ ...previewBox, color: '#8a7860', textDecoration: 'line-through', opacity: 0.6 }}>
-              {result.originalText}
+            <div
+              ref={chatScrollRef}
+              onScroll={onChatScroll}
+              style={{
+                maxHeight: 320,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                paddingRight: 2,
+              }}
+            >
+              {chatTurns.map((t, i) => (
+                <div key={i} style={t.role === 'user' ? askUserTurn : askModelTurn}>
+                  <div style={askTurnLabel}>{t.role === 'user' ? '你' : '副手'}</div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{t.content}</div>
+                </div>
+              ))}
+              {(chatBusy || streamingText) && (
+                <div style={askModelTurn}>
+                  <div style={askTurnLabel}>副手</div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                    {streamingText ? (
+                      <>
+                        {streamingText}
+                        {chatBusy && <span style={caretStyle} />}
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--copilot-text-dim)' }}>正在思考……</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div style={{ ...previewLabel, marginTop: 6 }}>修改后</div>
-            <div style={{ ...previewBox, background: 'rgba(120, 160, 110, 0.12)' }}>
-              {result.editedText}
-            </div>
-            {result.reason && (
-              <div style={{ fontSize: 11, color: '#8a7860', marginTop: 6 }}>{result.reason}</div>
-            )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button type="button" onClick={acceptResult} style={primaryBtn}>
-                接受 <kbd style={kbdStyle}>↵</kbd>
-              </button>
-              <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
-                重写
-              </button>
+
+            <textarea
+              ref={chatInputRef}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!chatBusy) void sendAsk(chatInput);
+                }
+              }}
+              placeholder={chatBusy ? '回答生成中…' : '追问…（⏎ 发送，⇧⏎ 换行）'}
+              rows={2}
+              disabled={chatBusy}
+              className="copilot-field"
+              style={{
+                width: '100%',
+                resize: 'none',
+                border: '1px solid var(--copilot-border)',
+                borderRadius: 'var(--copilot-radius-sm)',
+                padding: '6px 8px',
+                marginTop: 10,
+                fontSize: 13,
+                outline: 'none',
+                background: chatBusy ? 'var(--copilot-field-bg-off)' : 'var(--copilot-field-bg)',
+                fontFamily: 'inherit',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              {chatBusy ? (
+                <button type="button" onClick={() => abortRef.current?.abort()} style={ghostBtn}>
+                  停止
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void sendAsk(chatInput)}
+                  style={{ ...primaryBtn, opacity: chatInput.trim() ? 1 : 0.5 }}
+                  disabled={!chatInput.trim()}
+                >
+                  发送 <kbd style={kbdStyle}>↵</kbd>
+                </button>
+              )}
               <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                放弃
+                关闭
               </button>
             </div>
           </div>
         )}
 
+        {phase === 'result' &&
+          result &&
+          (() => {
+            const changedBlocks = result.blocks?.filter((b) => b.changed) ?? [];
+            const changeCount = result.span ? 1 : changedBlocks.length;
+            return (
+              <div>
+                {changeCount === 0 ? (
+                  <div style={{ color: 'var(--copilot-text-dim)', padding: '4px 2px' }}>
+                    模型未对所选内容作出修改。
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ ...previewLabel, marginBottom: 6 }}>
+                      {result.span ? '改动预览' : `共 ${changeCount} 处改动`}
+                    </div>
+                    <div
+                      style={{
+                        maxHeight: 280,
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      {result.span ? (
+                        <div style={diffBox}>
+                          <DiffText diff={result.span.diff} />
+                        </div>
+                      ) : (
+                        changedBlocks.map((b) => (
+                          <div key={b.id}>
+                            <div style={diffCardLabel}>
+                              {b.kind === 'heading'
+                                ? '标题'
+                                : `第 ${result.blocks!.indexOf(b) + 1} 段`}
+                            </div>
+                            <div style={diffBox}>
+                              <DiffText diff={b.diff} />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+                {result.reason && (
+                  <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', marginTop: 8 }}>{result.reason}</div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  {changeCount > 0 && (
+                    <button type="button" onClick={acceptResult} style={primaryBtn}>
+                      接受 <kbd style={kbdStyle}>↵</kbd>
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
+                    重写
+                  </button>
+                  <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
+                    放弃
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
         {phase === 'refused' && result && (
           <div>
-            <div style={{ color: '#a65a3a', fontWeight: 600, marginBottom: 4 }}>未执行</div>
-            <div style={{ color: '#6a5b48' }}>{result.reason}</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>未执行</div>
+            <div style={{ color: 'var(--copilot-text-dim)' }}>{result.reason}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button
                 type="button"
@@ -449,8 +685,8 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
         {phase === 'error' && (
           <div>
-            <div style={{ color: '#a65a3a', fontWeight: 600, marginBottom: 4 }}>出错了</div>
-            <div style={{ color: '#6a5b48', wordBreak: 'break-word' }}>{error}</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>出错了</div>
+            <div style={{ color: 'var(--copilot-text-dim)', wordBreak: 'break-word' }}>{error}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
                 重试
@@ -466,10 +702,27 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
   );
 }
 
+/** Renders a char-level diff inline: deletions struck red, insertions green. */
+function DiffText({ diff }: { diff: DiffChunk[] }) {
+  return (
+    <>
+      {diff.map((c, i) =>
+        c.type === 'equal' ? (
+          <span key={i}>{c.text}</span>
+        ) : (
+          <span key={i} style={c.type === 'delete' ? diffDel : diffIns}>
+            {c.text}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
 const kbdStyle: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: 11,
-  background: 'rgba(0,0,0,0.06)',
+  background: 'var(--copilot-kbd-bg)',
   borderRadius: 4,
   padding: '0 4px',
 };
@@ -477,39 +730,79 @@ const kbdStyle: React.CSSProperties = {
 const spinnerStyle: React.CSSProperties = {
   width: 13,
   height: 13,
-  border: '2px solid rgba(184, 153, 104, 0.35)',
-  borderTopColor: '#9a7a4a',
+  border: '2px solid var(--copilot-border)',
+  borderTopColor: 'var(--copilot-accent)',
   borderRadius: '50%',
   display: 'inline-block',
   animation: 'copilot-inline-spin 0.7s linear infinite',
 };
 
-const previewLabel: React.CSSProperties = { fontSize: 11, color: '#9a8a72' };
-const previewBox: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.25)',
-  borderRadius: 6,
-  padding: '5px 8px',
-  marginTop: 2,
+const previewLabel: React.CSSProperties = { fontSize: 11, color: 'var(--copilot-text-dim)' };
+const diffCardLabel: React.CSSProperties = { fontSize: 10, color: 'var(--copilot-text-dim)', marginBottom: 2 };
+const diffBox: React.CSSProperties = {
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
+  padding: '6px 8px',
+  fontSize: 13,
+  lineHeight: 1.7,
   whiteSpace: 'pre-wrap',
-  lineHeight: 1.5,
+  wordBreak: 'break-word',
+  color: 'var(--copilot-text)',
+  background: 'var(--copilot-field-bg)',
+};
+const diffDel: React.CSSProperties = {
+  color: 'var(--copilot-diff-del-fg)',
+  background: 'var(--copilot-diff-del-bg)',
+  textDecoration: 'line-through',
+};
+const diffIns: React.CSSProperties = {
+  color: 'var(--copilot-diff-ins-fg)',
+  background: 'var(--copilot-diff-ins-bg)',
+};
+
+const askTurnLabel: React.CSSProperties = { fontSize: 10, color: 'var(--copilot-text-dim)', marginBottom: 2 };
+const askUserTurn: React.CSSProperties = {
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
+  padding: '6px 8px',
+  background: 'var(--copilot-bubble-bg)',
+  fontSize: 13,
+  color: 'var(--copilot-text)',
+};
+const askModelTurn: React.CSSProperties = {
+  border: '1px solid var(--copilot-border-soft)',
+  borderRadius: 'var(--copilot-radius-sm)',
+  padding: '6px 8px',
+  background: 'var(--copilot-field-bg)',
+  fontSize: 13,
+  color: 'var(--copilot-text)',
+};
+const caretStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: 2,
+  height: '1em',
+  marginLeft: 2,
+  verticalAlign: 'text-bottom',
+  background: 'var(--copilot-accent)',
+  borderRadius: 1,
 };
 
 const primaryBtn: React.CSSProperties = {
   border: 'none',
-  borderRadius: 6,
-  background: '#7a5a3a',
-  color: '#fff',
+  borderRadius: 'var(--copilot-radius-sm)',
+  background: 'var(--copilot-accent)',
+  color: 'var(--copilot-accent-text)',
   padding: '5px 12px',
   fontSize: 12,
   cursor: 'pointer',
 };
 
 const ghostBtn: React.CSSProperties = {
-  border: '1px solid rgba(184, 153, 104, 0.4)',
+  border: '1px solid var(--copilot-border)',
   padding: '5px 10px',
-  borderRadius: 6,
+  borderRadius: 'var(--copilot-radius-sm)',
   background: 'transparent',
-  color: '#5a4a3a',
+  color: 'var(--copilot-text)',
   fontSize: 12,
   cursor: 'pointer',
 };
@@ -520,10 +813,11 @@ const menuItemStyle: React.CSSProperties = {
   alignItems: 'center',
   width: '100%',
   border: 'none',
-  borderRadius: 5,
+  borderRadius: 'var(--copilot-radius-sm)',
   padding: '5px 6px',
   fontSize: 13,
-  color: '#3a2e22',
+  color: 'var(--copilot-text)',
   cursor: 'pointer',
   textAlign: 'left',
+  background: 'transparent',
 };

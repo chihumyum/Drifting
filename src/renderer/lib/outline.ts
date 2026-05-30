@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { uuidv7 } from 'uuidv7';
 import loglevel from 'loglevel';
 
@@ -65,6 +66,54 @@ export function extractOutline(pmJson: string): OutlineItem[] {
     log.error('Failed to extract outline:', error);
     return [];
   }
+}
+
+/**
+ * Extract outline structure by walking a live ProseMirror document directly.
+ *
+ * Equivalent to extractOutline() but skips the getJSON()->stringify->parse
+ * round trip: it reads heading text/level/block-id straight off the PMNode.
+ * Used on the editor hot path (every persist) where the doc is already in
+ * hand — avoids two full-document serializations per call.
+ */
+export function extractOutlineFromDoc(doc: PMNode): OutlineItem[] {
+  const outline: OutlineItem[] = [];
+  let position = 0;
+  let currentHeadingIndex = -1;
+
+  doc.descendants((node) => {
+    const typeName = node.type.name;
+    if (typeName === 'heading') {
+      const level = node.attrs?.level;
+      if (level === 1 || level === 2 || level === 3) {
+        const text = node.textContent;
+        if (text.trim()) {
+          // Prefer the BlockId extension's id so the rendered DOM's
+          // data-block-id matches OutlineItem.id (lets the TOC scroll via a
+          // simple selector); fall back to a generated id otherwise.
+          const blockId = typeof node.attrs?.id === 'string' ? node.attrs.id : null;
+          outline.push({
+            id: blockId ?? `outline_${uuidv7()}_${position}`,
+            level: level as 1 | 2 | 3,
+            text: text.trim(),
+            position: position++,
+            paragraphsAfter: 0,
+          });
+          currentHeadingIndex = outline.length - 1;
+        }
+      }
+      return false; // no need to descend into the heading's inline content
+    }
+    if (typeName === 'paragraph') {
+      if (currentHeadingIndex >= 0) {
+        outline[currentHeadingIndex].paragraphsAfter += 1;
+      }
+      return false; // no need to descend into the paragraph's inline content
+    }
+    return undefined; // descend into container nodes (doc, blockquote, …)
+  });
+
+  return outline;
 }
 
 /**

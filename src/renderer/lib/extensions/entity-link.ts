@@ -1,9 +1,8 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
-import type { Node as PMNode } from '@tiptap/pm/model';
-import { isHistoryTransaction } from '@tiptap/pm/history';
+import type { Node as PMNode, MarkType } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 
 // Re-export from the canonical vocabulary so callers that already import
 // EntityKind from this extension don't need to be rewired. New code should
@@ -101,6 +100,105 @@ function computeDanglingDecorations(doc: PMNode): DecorationSet {
   return DecorationSet.create(doc, decorations);
 }
 
+// ---- Auto-detect (debounced) ------------------------------------------------
+
+// Trailing-debounce window before auto-linking freshly-typed entity names. Keeps
+// the name-matching pass OFF the per-keystroke frame: a typing burst links once,
+// on pause. Copilot context assembly calls flushPendingAutoDetect() to force it
+// synchronously first, so a manual ⇧⌘I right after typing a name still sees it.
+// (Copilot auto-runs are themselves debounced ≥3s, so they always see it too.)
+const AUTO_DETECT_DEBOUNCE_MS = 500;
+
+interface AutoDetectViewState {
+  timer: ReturnType<typeof setTimeout> | null;
+}
+const autoDetectStates = new WeakMap<EditorView, AutoDetectViewState>();
+
+// One precompiled alternation regex over ALL registered names, rebuilt only when
+// the target Map identity changes — the hook swaps in a new Map only when
+// names/aliases/titles actually change, never on content edits. Replaces the old
+// "new RegExp per name per keystroke" loop. Names sorted longest-first so an
+// alias that is a prefix of another ("Mira" vs "Lady Mira") yields the longer
+// match at a position. Matching stays verbatim/case-sensitive — CJK-safe (no
+// word boundaries, which don't exist between CJK chars).
+let cachedMatcherMap: Map<string, AutoDetectTarget> | null = null;
+let cachedMatcher: RegExp | null = null;
+function getMergedMatcher(): RegExp | null {
+  const map = entityLinkConfig.autoDetectTargets;
+  if (cachedMatcherMap === map) return cachedMatcher;
+  cachedMatcherMap = map;
+  const names = Array.from(map.keys())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  cachedMatcher = names.length
+    ? new RegExp(names.map(escapeRegExp).join('|'), 'g')
+    : null;
+  return cachedMatcher;
+}
+
+// Walk the whole doc and link any unlinked run matching a registered name.
+// Idempotent (skips runs already linked to the same target) so re-running is
+// safe. Dispatched addToHistory:false so auto-linking isn't an undo step. Runs
+// off the typing frame (debounced) or on demand (flushPendingAutoDetect). Also
+// clears any pending debounce timer for this view.
+function runAutoDetect(view: EditorView, markType: MarkType): void {
+  const st = autoDetectStates.get(view);
+  if (st?.timer) {
+    clearTimeout(st.timer);
+    st.timer = null;
+  }
+  if (!entityLinkConfig.autoDetectEnabled) return;
+  const matcher = getMergedMatcher();
+  if (!matcher) return;
+
+  const tr = view.state.tr;
+  let modified = false;
+  view.state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    const text = node.text;
+    matcher.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = matcher.exec(text)) !== null) {
+      const name = match[0];
+      const target = entityLinkConfig.autoDetectTargets.get(name);
+      if (!target) continue;
+      // A PM text node is a uniform mark run, so one check covers it: if it
+      // already links to this target, every match inside is already linked.
+      const already = node.marks.some(
+        (m) =>
+          m.type === markType &&
+          m.attrs.targetKind === target.kind &&
+          m.attrs.targetId === target.id,
+      );
+      if (already) continue;
+      const from = pos + match.index;
+      tr.addMark(
+        from,
+        from + name.length,
+        markType.create({ targetKind: target.kind, targetId: target.id, targetBlockId: null }),
+      );
+      modified = true;
+    }
+  });
+  if (!modified) return;
+  tr.setMeta(META_FLAG, true);
+  tr.setMeta('addToHistory', false);
+  view.dispatch(tr);
+}
+
+/**
+ * Force any pending debounced auto-detect to run NOW, synchronously linking
+ * freshly-typed entity names. Copilot context assembly calls this before reading
+ * entityLink marks off the live doc, so a manual ⇧⌘I fired right after typing a
+ * name still sees it as a mentioned element. No-op when nothing new matches.
+ */
+export function flushPendingAutoDetect(editor: Editor): void {
+  if (editor.isDestroyed) return;
+  const markType = editor.schema.marks.entityLink;
+  if (!markType) return;
+  runAutoDetect(editor.view, markType);
+}
+
 export const EntityLink = Mark.create<EntityLinkOptions>({
   name: 'entityLink',
   // Don't extend the mark across new typing past its boundary.
@@ -169,114 +267,34 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
       new Plugin({
         key: EntityLinkPluginKey,
 
-        // Auto-detect entity-name matches (both element names and chapter
-        // titles) in newly-typed text and attach an entityLink mark.
-        // The picker covers manual / non-name-based mentions.
-        appendTransaction(transactions, _oldState, newState) {
-          if (!entityLinkConfig.autoDetectEnabled) return null;
-          if (entityLinkConfig.autoDetectTargets.size === 0) return null;
-          if (!transactions.some((t) => t.docChanged)) return null;
-          // Undo/redo transactions can carry mapped ranges that no longer fit
-          // the post-history document. Auto-detect is only for fresh typing, so
-          // stay out of the history plugin's replay path entirely.
-          if (transactions.some((t) => isHistoryTransaction(t))) return null;
-          // Skip our own auto-detect transactions to avoid recursion.
-          if (transactions.some((t) => t.getMeta(META_FLAG))) return null;
-
-          const tr = newState.tr;
-          let modified = false;
-
-          // Widest registered name — used to expand the search window so a
-          // multi-transaction insert (e.g. CJK IME inserts "米拉" + "·" +
-          // "蓝" as three separate transactions, each with a 1-2 char
-          // modified range) still finds the full name. Without padding, no
-          // single transaction's modified range fits the whole name and the
-          // mark is never added; only a wholesale doc reload (which is one
-          // big transaction) recovers it — that's why refresh "fixes" it.
-          let maxNameLength = 0;
-          entityLinkConfig.autoDetectTargets.forEach((_target, name) => {
-            if (name.length > maxNameLength) maxNameLength = name.length;
-          });
-          const searchPadding = Math.max(0, maxNameLength - 1);
-
-          transactions.forEach((transaction) => {
-            if (!transaction.docChanged) return;
-
-            transaction.steps.forEach((_step, stepIdx) => {
-              const stepMap = transaction.mapping.maps[stepIdx];
-              if (!stepMap) return;
-
-              stepMap.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
-                if (newStart === newEnd) return;
-                const docSize = newState.doc.content.size;
-                const from = Math.max(0, Math.min(newStart, docSize));
-                const to = Math.max(from, Math.min(newEnd, docSize));
-                if (from === to) return;
-
-                newState.doc.nodesBetween(from, to, (node, nodePos) => {
-                  if (!node.isText || !node.text) return;
-
-                  const text = node.text;
-                  const nodeStart = nodePos;
-                  const nodeEnd = nodePos + text.length;
-                  const rangeStart = Math.max(nodeStart, from);
-                  const rangeEnd = Math.min(nodeEnd, to);
-                  if (rangeStart >= rangeEnd) return;
-
-                  // Expand the substring we scan by `searchPadding` chars on
-                  // each side, clamped to the text node's own bounds. This
-                  // lets the regex catch names that straddle the modified
-                  // range (because the user just inserted a middle char).
-                  // The dedup check below (`existing` mark scan) prevents
-                  // re-marking text that's already linked, so re-scanning
-                  // unchanged neighbors is safe.
-                  const searchStartRel = Math.max(0, rangeStart - nodeStart - searchPadding);
-                  const searchEndRel = Math.min(
-                    text.length,
-                    rangeEnd - nodeStart + searchPadding,
-                  );
-                  const searchAbsStart = nodeStart + searchStartRel;
-                  const relevantText = text.substring(searchStartRel, searchEndRel);
-
-                  entityLinkConfig.autoDetectTargets.forEach((target, name) => {
-                    if (!name) return;
-                    const regex = new RegExp(escapeRegExp(name), 'g');
-                    let match: RegExpExecArray | null;
-                    while ((match = regex.exec(relevantText)) !== null) {
-                      const matchStart = searchAbsStart + match.index;
-                      const matchEnd = matchStart + name.length;
-
-                      // Skip if this position already carries an entityLink
-                      // mark pointing at the same target.
-                      const existing = node.marks.find(
-                        (m) =>
-                          m.type === markType &&
-                          m.attrs.targetKind === target.kind &&
-                          m.attrs.targetId === target.id,
-                      );
-                      if (existing) continue;
-
-                      tr.addMark(
-                        matchStart,
-                        matchEnd,
-                        markType.create({
-                          targetKind: target.kind,
-                          targetId: target.id,
-                          targetBlockId: null,
-                        }),
-                      );
-                      modified = true;
-                    }
-                  });
-                });
-              });
-            });
-          });
-
-          if (!modified) return null;
-          tr.setMeta(META_FLAG, true);
-          tr.setMeta('addToHistory', false);
-          return tr;
+        // Auto-detect entity-name matches (element names + chapter titles) and
+        // attach an entityLink mark — DEBOUNCED off the typing frame via the
+        // plugin view below (see runAutoDetect / AUTO_DETECT_DEBOUNCE_MS). A
+        // typing burst links once, on pause, instead of compiling a regex per
+        // entity on every keystroke. The picker covers manual / non-name-based
+        // mentions. (The old per-transaction CJK "searchPadding" hack is gone:
+        // by the time the debounced pass runs, the full name is already in the
+        // doc, so a plain whole-doc scan finds it regardless of how it was typed.)
+        view(editorView) {
+          autoDetectStates.set(editorView, { timer: null });
+          return {
+            update(view, prevState) {
+              // React only to doc changes — cheap identity check (PM mints a new
+              // doc node on any change); skip selection-only updates.
+              if (view.state.doc === prevState.doc) return;
+              if (!entityLinkConfig.autoDetectEnabled) return;
+              if (entityLinkConfig.autoDetectTargets.size === 0) return;
+              const st = autoDetectStates.get(view);
+              if (!st) return;
+              if (st.timer) clearTimeout(st.timer);
+              st.timer = setTimeout(() => runAutoDetect(view, markType), AUTO_DETECT_DEBOUNCE_MS);
+            },
+            destroy() {
+              const st = autoDetectStates.get(editorView);
+              if (st?.timer) clearTimeout(st.timer);
+              autoDetectStates.delete(editorView);
+            },
+          };
         },
 
         props: {
@@ -301,15 +319,28 @@ export const EntityLink = Mark.create<EntityLinkOptions>({
         },
       }),
 
-      // Dangling-link decorations. Kept in plugin state so we only re-walk the
-      // doc when it changes or when the hook forces a refresh (entity deleted
-      // while this doc is open) via a meta-tagged transaction.
+      // Dangling-link decorations. Kept in plugin state so we don't re-walk the
+      // whole doc on every keystroke.
       new Plugin<DecorationSet>({
         key: EntityLinkDanglingPluginKey,
         state: {
           init: (_config, state) => computeDanglingDecorations(state.doc),
           apply(tr, value) {
-            if (tr.docChanged || tr.getMeta(EntityLinkDanglingPluginKey)) {
+            // A link's target liveness (alive / trashed / gone) only changes
+            // when the ENTITY SET changes — never from typing. So on a plain
+            // doc change we just MAP the existing decorations through the step
+            // (O(decorations), cheap); we recompute the whole set ONLY on the
+            // meta-tagged refresh the hook fires when bookElements / bookNodes /
+            // trashedEntityIds change. Freshly-typed marks always point at an
+            // ALIVE target (auto-detect only links alive ones) and
+            // computeDanglingDecorations skips alive targets, so map-not-
+            // recompute never misses a new dangling decoration.
+            //
+            // Caveat (accepted): pasting prose that already carries a link to a
+            // since-deleted entity, or undo restoring one, won't be dimmed until
+            // the next entity-set change triggers a refresh — a minor cosmetic
+            // lag, traded for taking the full-doc walk off the typing frame.
+            if (tr.getMeta(EntityLinkDanglingPluginKey)) {
               return computeDanglingDecorations(tr.doc);
             }
             return value.map(tr.mapping, tr.doc);

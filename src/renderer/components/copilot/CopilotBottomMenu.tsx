@@ -18,6 +18,7 @@ import {
 } from '../../store/settings-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
+import '../../../styles/copilot-surface.css';
 
 const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
   { value: 'auto', label: '跟随手稿' },
@@ -41,8 +42,6 @@ export function CopilotBottomMenu() {
     setOpen((v) => !v);
   };
 
-  const copilotEnabled = useSettingsStore((s) => s.copilotEnabled);
-  const setCopilotEnabled = useSettingsStore((s) => s.setCopilotEnabled);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
@@ -62,13 +61,13 @@ export function CopilotBottomMenu() {
     left: rect ? Math.max(8, rect.right - 248) : 8,
     zIndex: 100000,
     width: 248,
-    background: '#fffdf9',
-    border: '1px solid rgba(184, 153, 104, 0.4)',
-    borderRadius: 10,
-    boxShadow: '0 12px 32px rgba(60, 40, 20, 0.18)',
+    background: 'var(--copilot-surface)',
+    border: '1px solid var(--copilot-border)',
+    borderRadius: 'var(--copilot-radius)',
+    boxShadow: '0 12px 32px var(--copilot-shadow)',
     padding: 10,
     fontSize: 13,
-    color: '#3a2e22',
+    color: 'var(--copilot-text)',
   };
 
   return (
@@ -76,7 +75,7 @@ export function CopilotBottomMenu() {
       <button
         ref={buttonRef}
         type="button"
-        className={`bsb__seg bsb__copilot${copilotEnabled ? ' is-live' : ''}`}
+        className={`bsb__seg bsb__copilot${autoTrigger ? ' is-live' : ''}`}
         onClick={toggleOpen}
         title="Copilot"
         aria-label="Copilot"
@@ -94,17 +93,10 @@ export function CopilotBottomMenu() {
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
           <ToggleRow
-            label="启用 Copilot"
-            desc="关闭后不自动运行；⇧⌘I 手动触发仍可用"
-            checked={copilotEnabled}
-            onChange={setCopilotEnabled}
-          />
-          <ToggleRow
             label="自动触发"
-            desc="编辑时后台自动运行任务"
+            desc="编辑时后台自动运行任务；⇧⌘I 手动触发始终可用"
             checked={autoTrigger}
             onChange={setAutoTrigger}
-            disabled={!copilotEnabled}
           />
 
           {projectId && (
@@ -118,21 +110,22 @@ export function CopilotBottomMenu() {
               }}
             >
               <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 13, color: '#3a2e22' }}>输出语言</span>
-                <span style={{ fontSize: 10.5, color: '#9a8a72', lineHeight: 1.3 }}>
+                <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>输出语言</span>
+                <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>
                   本项目 Copilot 生成语言
                 </span>
               </span>
               <select
                 value={outputLang}
                 onChange={(e) => setOutputLang(projectId, e.target.value as CopilotOutputLang)}
+                className="copilot-field"
                 style={{
                   fontSize: 12,
                   padding: '3px 6px',
-                  borderRadius: 6,
-                  border: '1px solid rgba(184, 153, 104, 0.4)',
-                  background: '#fff',
-                  color: '#3a2e22',
+                  borderRadius: 'var(--copilot-radius-sm)',
+                  border: '1px solid var(--copilot-border)',
+                  background: 'var(--copilot-field-bg)',
+                  color: 'var(--copilot-text)',
                 }}
               >
                 {OUTPUT_LANG_OPTIONS.map((o) => (
@@ -144,8 +137,8 @@ export function CopilotBottomMenu() {
             </div>
           )}
 
-          <div style={{ borderTop: '1px solid rgba(184, 153, 104, 0.25)', margin: '8px 0 6px' }} />
-          <div style={{ fontSize: 11, color: '#9a8a72', margin: '0 2px 4px' }}>任务</div>
+          <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
+          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>任务</div>
           {COPILOT_TASKS.map((t) => (
             <ToggleRow
               key={t.id}
@@ -165,10 +158,10 @@ export function CopilotBottomMenu() {
             style={{
               marginTop: 8,
               width: '100%',
-              border: '1px solid rgba(184, 153, 104, 0.4)',
-              borderRadius: 6,
+              border: '1px solid var(--copilot-border)',
+              borderRadius: 'var(--copilot-radius-sm)',
               background: 'transparent',
-              color: '#5a4a3a',
+              color: 'var(--copilot-text)',
               padding: '5px 8px',
               fontSize: 12,
               cursor: 'pointer',
@@ -217,9 +210,9 @@ function ToggleRow({
       }}
     >
       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span style={{ fontSize: 13, color: '#3a2e22' }}>{label}</span>
+        <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>{label}</span>
         {desc && (
-          <span style={{ fontSize: 10.5, color: '#9a8a72', lineHeight: 1.3 }}>{desc}</span>
+          <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>{desc}</span>
         )}
       </span>
       <span
@@ -228,7 +221,7 @@ function ToggleRow({
           width: 30,
           height: 17,
           borderRadius: 999,
-          background: checked ? '#7a5a3a' : 'rgba(0,0,0,0.18)',
+          background: checked ? 'var(--copilot-accent)' : 'var(--copilot-toggle-off)',
           position: 'relative',
           transition: 'background 0.15s',
         }}
@@ -241,7 +234,7 @@ function ToggleRow({
             width: 13,
             height: 13,
             borderRadius: '50%',
-            background: '#fff',
+            background: 'var(--copilot-knob)',
             transform: checked ? 'translateX(13px)' : 'translateX(0)',
             transition: 'transform 0.15s',
           }}
