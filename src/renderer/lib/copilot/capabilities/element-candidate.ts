@@ -23,7 +23,7 @@
  *     `element:element-created` and open editors link their own docs.
  */
 import loglevel from 'loglevel';
-import { callStructured } from '../../ai/call-structured';
+import { runStructured } from '../../ai/remote/run-structured';
 
 const log = loglevel.getLogger('copilot:element-candidate');
 import { buildElementCandidateContext } from '../../ai/context/element-candidate-context-builder';
@@ -83,9 +83,10 @@ export const elementCandidateCapability: CopilotCapability = {
 
     const priorSectionSummaries = ctx.baseContext.priorSections.map((s) => s.summary);
 
-    const client = await ctx.runtime.getClient();
-    const { candidates } = await callStructured(
-      client,
+    // Phase 2: the prompt is built + run server-side. We send only (promptId,
+    // version, input); no LLM client is constructed in the renderer for this
+    // capability, and the prompt text/output descriptions never ship here.
+    const { candidates } = await runStructured(
       elementCandidatePrompt,
       {
         recentText,
