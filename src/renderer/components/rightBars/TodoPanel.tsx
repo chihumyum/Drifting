@@ -6,9 +6,9 @@ import { useAuthStore } from '../../store/auth';
 import { useComment } from '../../usecase/useComment';
 import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { createPlainCommentDoc } from '../../domain/comment';
-import type { Comment } from '../../domain/comment';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import type { FocusedEntity } from './MemoMaterialPanel';
+import type { RelationTarget } from './EntityRelationPicker';
 import {
   ComposeTodoDialog,
   ResolvedTodoArchive,
@@ -99,7 +99,7 @@ export function TodoPanel({ focused }: Props) {
   }, [todos]);
 
   const handleCreate = useCallback(
-    async (body: string, relations: { kind: EntityKind; id: string }[]) => {
+    async (body: string, relations: RelationTarget[]) => {
       const trimmed = body.trim();
       if (!trimmed) return;
       const created = await commentUsecases.createComment({
