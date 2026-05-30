@@ -19,6 +19,7 @@ import {
   type DateFormat,
   type EditPermission,
   type FinishNotify,
+  type AiMode,
   type FocusLineMode,
   type LineHeight,
   type LocaleCode,
@@ -1655,6 +1656,8 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
   const {
     modelTier,
     setModelTier,
+    aiMode,
+    setAiMode,
     ollamaEndpoint,
     setOllamaEndpoint,
     uploadFullManuscript,
@@ -1669,6 +1672,21 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     { value: 'lite', kicker: 'LITE', name: '轻量', desc: '速度优先。短建议、实体抽取等高吞吐任务。' },
     { value: 'standard', kicker: 'STANDARD', name: '标准', desc: '日常默认。结构、连贯、润色都够用。' },
     { value: 'pro', kicker: 'PRO', name: '深思', desc: '长上下文、长任务推理。慢一点，更稳。' },
+  ];
+
+  const aiModes: { value: AiMode; kicker: string; name: string; desc: string }[] = [
+    {
+      value: 'hosted',
+      kicker: 'HOSTED',
+      name: '托管',
+      desc: '走 Drifting 的通道与额度，开箱即用。Prompt 与密钥都在服务端。',
+    },
+    {
+      value: 'byok',
+      kicker: 'BYOK',
+      name: '自带 Key',
+      desc: '用你自己的 Key 调用（在下方「自带密钥」填入 DeepSeek Key），不计入托管额度。',
+    },
   ];
 
   return (
@@ -1702,7 +1720,32 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="自带密钥 · BYOK" hint="3 PROVIDERS" />
+        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {aiModes.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (aiMode === m.value ? ' set-tier--active' : '')}
+              onClick={() => setAiMode(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="自带密钥 · BYOK" hint="4 PROVIDERS" />
+
+        <ProviderRow
+          provider="deepseek"
+          logoClass="set-provider__logo--deepseek"
+          logoText="D"
+          name="DeepSeek"
+          desc="选「自带 Key」后实际调用的 provider。在此填入你的 DeepSeek Key。"
+        />
 
         <ProviderRow
           provider="anthropic"

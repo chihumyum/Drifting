@@ -561,6 +561,7 @@ html[data-shadow-mode="on"] .set-rail__item:hover { background: hsl(var(--ink-1)
 .set-provider__logo--anthropic { background: #D97757; color: white; border-color: #D97757; font-style: normal; font-weight: 500; }
 .set-provider__logo--openai { background: #0A0A0A; color: white; border-color: #0A0A0A; font-style: normal; }
 .set-provider__logo--google { background: #fff; color: #1A73E8; font-style: normal; font-weight: 600; }
+.set-provider__logo--deepseek { background: #4D6BFE; color: #fff; border-color: #4D6BFE; font-style: normal; font-weight: 600; }
 .set-provider__logo--ollama { background: #111; color: #fff; font-style: normal; }
 .set-provider__main { flex: 1; min-width: 0; }
 .set-provider__name {
