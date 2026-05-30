@@ -27,10 +27,11 @@ import {
   type InlineEditResult,
 } from '../../lib/copilot/inline-edit';
 import { generateChapterSummary } from '../../lib/copilot/reverse-chapter-summary';
+import {
+  getInlinePlaceholders,
+  ensureInlinePlaceholders,
+} from '../../lib/copilot/inline-placeholders';
 import { events } from '../../lib/events';
-
-/** Example instructions surfaced as a random placeholder; empty ⏎ runs one. */
-const EXAMPLE_PROMPTS = ['修复语病', '换个说法', '更准的词', '强化通感', '更精炼', '收紧节奏'];
 
 const PANEL_WIDTH = 360;
 const VIEWPORT_MARGIN = 8;
@@ -122,11 +123,15 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
   const selIndex = Math.min(selectedIndex, Math.max(0, actions.length - 1));
 
-  // Example placeholder — rotated deterministically per open (seeded from the
-  // invocation position, so it varies between opens without an impure
-  // Math.random() in render). Empty ⏎ runs this example.
-  const placeholder =
-    EXAMPLE_PROMPTS[((ctx?.from ?? 0) + (ctx?.clientX ?? 0)) % EXAMPLE_PROMPTS.length]!;
+  // Genre-tailored example placeholder for the current mode (selection vs
+  // bare caret). Rotated deterministically per open (seeded from invocation
+  // position — no impure Math.random() in render). Empty ⏎ runs this example.
+  const examples = ctx
+    ? getInlinePlaceholders(ctx.projectId, ctx.mode === 'selection' ? 'selection' : 'block')
+    : [];
+  const placeholder = examples.length
+    ? examples[((ctx?.from ?? 0) + (ctx?.clientX ?? 0)) % examples.length]!
+    : '';
 
   // Position: anchor below the caret, but if that would overflow the bottom,
   // slide up so the panel's bottom sticks to just above the app edge. Measured
@@ -155,6 +160,12 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       return () => clearTimeout(id);
     }
   }, [visible, ctx, phase]);
+
+  // On open, lazily refresh this project's genre-tailored placeholders
+  // (regenerates weekly; no-op if fresh). Fire-and-forget.
+  useEffect(() => {
+    if (visible && ctx) ensureInlinePlaceholders(ctx.projectId);
+  }, [visible, ctx]);
 
   // Abort any in-flight call when the popover unmounts.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -339,7 +350,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   triggerAction(actions[selIndex]);
                 }
               }}
-              placeholder={`想怎么改？例如「${placeholder}」——直接回车即用此例（不生成新情节）`}
+              placeholder={placeholder}
               rows={2}
               style={{
                 width: '100%',

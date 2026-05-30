@@ -11,6 +11,17 @@ export type CopilotMode = 'local' | 'cloud';
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 /** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';
+
+/**
+ * Cached, model-generated example prompts for the inline-edit input
+ * placeholder, tailored to a project's genre. Two variants: `selection` (text
+ * is selected) and `block` (bare caret). `generatedAt` drives weekly refresh.
+ */
+export interface InlinePlaceholderCache {
+  selection: string[];
+  block: string[];
+  generatedAt: string;
+}
 export type DateFormat = 'cjk' | 'iso' | 'us';
 export type OrbCorner = 'tl' | 'tr' | 'bl' | 'br';
 export type EditPermission = 'suggest' | 'small' | 'all';
@@ -232,6 +243,12 @@ interface SettingsState {
    */
   copilotOutputLangByProject: Record<string, CopilotOutputLang>;
   setCopilotOutputLang: (projectId: string, lang: CopilotOutputLang) => void;
+  /**
+   * Per-project cache of model-generated inline-edit placeholder examples.
+   * Regenerated lazily (weekly) by lib/copilot/inline-placeholders.
+   */
+  copilotInlinePlaceholders: Record<string, InlinePlaceholderCache>;
+  setCopilotInlinePlaceholders: (projectId: string, cache: InlinePlaceholderCache) => void;
 
   // 同步
   wifiOnlySync: boolean;
@@ -372,6 +389,14 @@ export const useSettingsStore = create<SettingsState>()(
           copilotOutputLangByProject: {
             ...state.copilotOutputLangByProject,
             [projectId]: lang,
+          },
+        })),
+      copilotInlinePlaceholders: {},
+      setCopilotInlinePlaceholders: (projectId, cache) =>
+        set((state) => ({
+          copilotInlinePlaceholders: {
+            ...state.copilotInlinePlaceholders,
+            [projectId]: cache,
           },
         })),
 
