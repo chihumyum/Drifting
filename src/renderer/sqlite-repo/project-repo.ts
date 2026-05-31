@@ -26,7 +26,7 @@ function recordToDomain(record: typeof ProjectTable.$inferSelect): Project {
     id: record.id,
     userId: record.userId,
     name: record.name,
-    descriptionJson: record.descriptionJson ?? '{}',
+    summary: record.summary,
     kvJson: record.kvJson ?? '[]',
     storylineTemplateKvJson: record.storylineTemplateKvJson ?? '[]',
     createdAt: record.createdAt,
@@ -70,7 +70,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
       id: input.id,
       userId: input.userId,
       name: input.name,
-      descriptionJson: input.descriptionJson,
+      summary: input.summary,
       kvJson: input.kvJson,
       storylineTemplateKvJson: input.storylineTemplateKvJson,
       createdAt: input.createdAt,
@@ -99,7 +99,7 @@ export function createProjectRepository(currentUserId?: string): ProjectReposito
     };
 
     if (data.name !== undefined) updateValues.name = data.name;
-    if (data.descriptionJson !== undefined) updateValues.descriptionJson = data.descriptionJson;
+    if (data.summary !== undefined) updateValues.summary = data.summary;
     if (data.kvJson !== undefined) updateValues.kvJson = data.kvJson;
     if (data.storylineTemplateKvJson !== undefined)
       updateValues.storylineTemplateKvJson = data.storylineTemplateKvJson;

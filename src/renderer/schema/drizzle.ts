@@ -26,7 +26,7 @@ import { sql } from 'drizzle-orm';
 export const ProjectTable = sqliteTable('project', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  descriptionJson: text('description_json').default('{}'),
+  summary: text('summary').notNull().default(''),
   kvJson: text('kv_json').notNull().default('[]'),
   storylineTemplateKvJson: text('storyline_template_kv_json').notNull().default('[]'),
   userId: text('user_id').notNull(), // should reference to userId in server pg
@@ -72,8 +72,7 @@ export const ElementCategoryTable = sqliteTable(
     // Renamed from `description_json` in migration 0029. Storyline + element
     // category each have one body editor; the column carried the wrong noun
     // for what it stored. New name aligns with element.content_json and
-    // node_content.content_json. project.description_json is unrelated and
-    // kept as-is.
+    // node_content.content_json. Project summary is a separate text column.
   },
   (t) => [
     index('idx_element_category_project').on(t.projectId),

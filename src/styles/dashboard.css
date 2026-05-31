@@ -1010,6 +1010,54 @@
   .dash-plan { grid-template-columns: 1fr; }
 }
 
+/* ───── PROJECT PROFILE ─────────────────────────────────── */
+.dash-profile {
+  padding: 14px 4px 6px;
+}
+.dash-profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.dash-profile__label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-4));
+}
+.dash-profile__textarea {
+  width: 100%;
+  min-width: 0;
+  color: hsl(var(--ink-1));
+  background: transparent;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 120ms, background 120ms;
+}
+.dash-profile__textarea {
+  min-height: 112px;
+  padding: 10px;
+  resize: vertical;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.dash-profile__textarea:focus {
+  border-color: hsl(var(--accent) / 0.62);
+  background: hsl(var(--page) / 0.45);
+}
+.dash-profile__textarea::placeholder {
+  color: hsl(var(--ink-5));
+}
+.dash-profile__hint {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  color: hsl(var(--ink-4));
+}
+
 /* ───── BOTTOM EDITORIAL FOOTER ────────────────────────── */
 .dash-foot {
   margin-top: 32px;

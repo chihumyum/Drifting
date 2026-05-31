@@ -192,14 +192,23 @@ export function ElementCardPopover({
     const estimatedHeight = 240;
     const spaceAbove = anchorRect.top;
     const spaceBelow = vh - (anchorRect.top + anchorRect.height);
-    let top: number;
     if (spaceAbove >= estimatedHeight + POPOVER_GAP || spaceAbove >= spaceBelow) {
-      top = anchorRect.top - estimatedHeight - POPOVER_GAP;
-      top = Math.max(8, top);
-    } else {
-      top = anchorRect.top + anchorRect.height + POPOVER_GAP;
+      return {
+        position: 'fixed',
+        width: POPOVER_WIDTH,
+        left,
+        bottom: vh - anchorRect.top + POPOVER_GAP,
+        maxHeight: Math.max(0, spaceAbove - POPOVER_GAP - 8),
+      };
     }
-    return { position: 'fixed', width: POPOVER_WIDTH, left, top };
+    const top = anchorRect.top + anchorRect.height + POPOVER_GAP;
+    return {
+      position: 'fixed',
+      width: POPOVER_WIDTH,
+      left,
+      top,
+      maxHeight: Math.max(0, vh - top - 8),
+    };
   })();
 
   return (
@@ -324,7 +333,7 @@ export function ElementCardPopover({
               style={{
                 width: '100%',
                 resize: 'none',
-                overflow: 'hidden',
+                overflowY: 'auto',
                 border: 'none',
                 outline: 'none',
                 padding: 12,
@@ -334,6 +343,7 @@ export function ElementCardPopover({
                 lineHeight: 1.5,
                 color: 'hsl(var(--ink-1))',
                 minHeight: 120,
+                maxHeight: 'min(42vh, 320px)',
               }}
             />
             <div
@@ -387,7 +397,7 @@ export function ElementCardPopover({
                 style={{
                   width: '100%',
                   resize: 'none',
-                  overflow: 'hidden',
+                  overflowY: 'auto',
                   border: 'none',
                   outline: 'none',
                   padding: '6px 0',
@@ -398,6 +408,7 @@ export function ElementCardPopover({
                   lineHeight: 1.4,
                   color: 'hsl(var(--ink-3))',
                   borderBottom: '1px dashed hsl(var(--rule))',
+                  maxHeight: 140,
                 }}
               />
             </div>

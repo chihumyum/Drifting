@@ -66,7 +66,7 @@ type ServerProjectSummary = {
   id: string;
   userId: string;
   name: string;
-  descriptionJson?: string | null;
+  summary?: string | null;
   kvJson?: string | null;
   storylineTemplateKvJson?: string | null;
   createdAt: string;
@@ -120,7 +120,7 @@ function normalizeServerProjectSummary(row: ServerProjectSummary, userId: string
     id: row.id,
     userId: row.userId || userId,
     name: row.name,
-    descriptionJson: row.descriptionJson ?? '{}',
+    summary: row.summary ?? '',
     kvJson: row.kvJson ?? '[]',
     storylineTemplateKvJson: row.storylineTemplateKvJson ?? '[]',
     createdAt: normalizeDateText(row.createdAt),
@@ -217,7 +217,7 @@ async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promis
           id: project.id,
           userId: project.userId,
           name: project.name,
-          descriptionJson: project.descriptionJson,
+          summary: project.summary,
           kvJson: project.kvJson,
           storylineTemplateKvJson: project.storylineTemplateKvJson,
           createdAt: project.createdAt,
@@ -228,7 +228,7 @@ async function upsertServerProjectSummaries(summaries: ProjectSummary[]): Promis
           set: {
             userId: project.userId,
             name: project.name,
-            descriptionJson: project.descriptionJson,
+            summary: project.summary,
             kvJson: project.kvJson,
             storylineTemplateKvJson: project.storylineTemplateKvJson,
             createdAt: project.createdAt,
@@ -364,7 +364,7 @@ export function useProject({ userId }: UseProjectContext) {
         id: uuidv7(),
         userId,
         name: input.projectName ?? 'New Project',
-        descriptionJson: '', // TODO: fix to pmJson, or Ydoc
+        summary: '',
         kvJson: seededProjectKvJson,
         storylineTemplateKvJson: '[]',
         createdAt: now,
@@ -382,7 +382,7 @@ export function useProject({ userId }: UseProjectContext) {
       syncProjectCreate(project.id, {
         id: project.id,
         name: project.name,
-        descriptionJson: project.descriptionJson,
+        summary: project.summary,
         kvJson: project.kvJson,
         storylineTemplateKvJson: project.storylineTemplateKvJson,
       });
@@ -402,7 +402,7 @@ export function useProject({ userId }: UseProjectContext) {
       const result = await repo.update(id, {
         userId,
         name: input.name,
-        descriptionJson: input.descriptionJson,
+        summary: input.summary,
         kvJson: input.kvJson,
         storylineTemplateKvJson: input.storylineTemplateKvJson,
         updatedAt: new Date().toISOString(),
@@ -418,7 +418,7 @@ export function useProject({ userId }: UseProjectContext) {
         useProjectStore.getState().updateProjectInList(id, result);
         syncProjectUpdate(id, {
           name: input.name,
-          descriptionJson: input.descriptionJson,
+          summary: input.summary,
           kvJson: input.kvJson,
           storylineTemplateKvJson: input.storylineTemplateKvJson,
         });

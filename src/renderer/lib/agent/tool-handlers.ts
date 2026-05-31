@@ -219,7 +219,7 @@ function getProjectBrief(ctx: AgentToolContext) {
   const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
   return {
     name: project?.name ?? '',
-    description: project ? docToPlainText(project.descriptionJson) : '',
+    description: project?.summary ?? '',
     facts: project ? parseKv(project.kvJson) : [],
     counts: {
       chapters: nodes.filter(isChapter).length,

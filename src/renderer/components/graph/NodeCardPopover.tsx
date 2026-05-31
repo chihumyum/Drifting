@@ -230,18 +230,22 @@ export function NodeCardPopover({
     const estimatedHeight = 220;
     const spaceAbove = anchorRect.top;
     const spaceBelow = vh - (anchorRect.top + anchorRect.height);
-    let top: number;
     if (spaceAbove >= estimatedHeight + POPOVER_GAP || spaceAbove >= spaceBelow) {
-      top = anchorRect.top - estimatedHeight - POPOVER_GAP;
-      top = Math.max(8, top);
-    } else {
-      top = anchorRect.top + anchorRect.height + POPOVER_GAP;
+      return {
+        position: 'fixed',
+        width: POPOVER_WIDTH,
+        left,
+        bottom: vh - anchorRect.top + POPOVER_GAP,
+        maxHeight: Math.max(0, spaceAbove - POPOVER_GAP - 8),
+      };
     }
+    const top = anchorRect.top + anchorRect.height + POPOVER_GAP;
     return {
       position: 'fixed',
       width: POPOVER_WIDTH,
       left,
       top,
+      maxHeight: Math.max(0, vh - top - 8),
     };
   })();
 

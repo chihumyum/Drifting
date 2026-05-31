@@ -4,6 +4,7 @@ import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
 import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
 import { UserAvatar, UserMenu } from '../components/topBars/UserMenu';
+import { parseKv } from '../domain/kv';
 import '../../styles/project-picker.css';
 import loglevel from 'loglevel';
 
@@ -29,12 +30,6 @@ log.setLevel(loglevel.levels.DEBUG);
 type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
-
-interface ProjectMeta {
-  subtitle?: string;
-  summary?: string;
-  genre?: string;
-}
 
 const STATUS_LABEL: Record<Status, string> = {
   writing: '在写',
@@ -101,31 +96,6 @@ function statusFor(iso: string): Status {
   return 'paused';
 }
 
-function parseMeta(descriptionJson: string | null | undefined): ProjectMeta {
-  if (!descriptionJson) return {};
-  try {
-    const parsed = JSON.parse(descriptionJson);
-    if (parsed && typeof parsed === 'object') {
-      return {
-        subtitle: typeof parsed.subtitle === 'string' ? parsed.subtitle : undefined,
-        summary:  typeof parsed.summary  === 'string' ? parsed.summary  : undefined,
-        genre:    typeof parsed.genre    === 'string' ? parsed.genre    : undefined,
-      };
-    }
-  } catch {
-    /* descriptionJson may be free-form text from legacy projects; fall through */
-  }
-  return {};
-}
-
-function stringifyMeta(meta: ProjectMeta): string {
-  const trimmed: ProjectMeta = {};
-  if (meta.subtitle?.trim()) trimmed.subtitle = meta.subtitle.trim();
-  if (meta.summary?.trim())  trimmed.summary  = meta.summary.trim();
-  if (meta.genre?.trim())    trimmed.genre    = meta.genre.trim();
-  return JSON.stringify(trimmed);
-}
-
 function formatWordsK(words: number): string {
   if (words < 1000) return String(words);
   return `${(words / 1000).toFixed(1)}k`;
@@ -133,9 +103,20 @@ function formatWordsK(words: number): string {
 
 interface ProjectFormState {
   name: string;
-  subtitle: string;
   summary: string;
-  genre: string;
+}
+
+interface ProjectDisplayMeta {
+  subtitle?: string;
+  genre?: string;
+}
+
+function displayMetaFor(kvJson: string): ProjectDisplayMeta {
+  const kv = parseKv(kvJson);
+  return {
+    subtitle: kv.find((row) => row.key === '副标题')?.value.trim() || undefined,
+    genre: kv.find((row) => row.key === '体裁')?.value.trim() || undefined,
+  };
 }
 
 export function ProjectPickerView() {
@@ -182,7 +163,7 @@ export function ProjectPickerView() {
 
   const decorated = useMemo(
     () => projects.map((p) => {
-      const meta = parseMeta(p.descriptionJson);
+      const meta = displayMetaFor(p.kvJson);
       const status = statusFor(p.updatedAt);
       return {
         project: p,
@@ -224,14 +205,9 @@ export function ProjectPickerView() {
     try {
       const name = form.name.trim() || 'Untitled Project';
       const project = await createProject({ projectName: name });
-      const meta: ProjectMeta = {
-        subtitle: form.subtitle,
-        summary: form.summary,
-        genre: form.genre,
-      };
-      const description = stringifyMeta(meta);
-      if (description !== '{}') {
-        await updateProject(project.id, { name, descriptionJson: description });
+      const summary = form.summary.trim();
+      if (summary) {
+        await updateProject(project.id, { name, summary });
       }
       setCreateOpen(false);
       navigate(`/project/${project.id}`);
@@ -247,12 +223,7 @@ export function ProjectPickerView() {
     setBusy(true);
     try {
       const name = form.name.trim() || editing.name;
-      const description = stringifyMeta({
-        subtitle: form.subtitle,
-        summary: form.summary,
-        genre: form.genre,
-      });
-      await updateProject(editing.id, { name, descriptionJson: description });
+      await updateProject(editing.id, { name, summary: form.summary.trim() });
       await fetchProjects();
       setEditing(null);
     } catch (e) {
@@ -521,7 +492,7 @@ export function ProjectPickerView() {
 
 interface DecoratedRow {
   project: ProjectSummary;
-  meta: ProjectMeta;
+  meta: ProjectDisplayMeta;
   status: Status;
   colorToken: string;
   glyph: string;
@@ -612,7 +583,7 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         <span className="pp-list__title-sub">{subline}</span>
       </div>
       <div className="pp-list__sub">
-        {meta.summary || meta.subtitle || '—'}
+        {project.summary || meta.subtitle || '—'}
       </div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
@@ -710,12 +681,9 @@ interface ProjectFormModalProps {
 }
 
 function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFormModalProps) {
-  const initialMeta = parseMeta(project?.descriptionJson);
   const [form, setForm] = useState<ProjectFormState>({
-    name:     project?.name ?? '',
-    subtitle: initialMeta.subtitle ?? '',
-    summary:  initialMeta.summary  ?? '',
-    genre:    initialMeta.genre    ?? '',
+    name:    project?.name ?? '',
+    summary: project?.summary ?? '',
   });
 
   const set = <K extends keyof ProjectFormState>(key: K) =>
@@ -760,24 +728,6 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
               value={form.name}
               onChange={set('name')}
               autoFocus
-            />
-          </div>
-          <div className="pp-modal__field">
-            <span className="pp-modal__field-k">副标 · SUBTITLE</span>
-            <input
-              className="pp-modal__input"
-              placeholder="例：多视角长篇 · 一九三七至今"
-              value={form.subtitle}
-              onChange={set('subtitle')}
-            />
-          </div>
-          <div className="pp-modal__field">
-            <span className="pp-modal__field-k">体裁 · GENRE</span>
-            <input
-              className="pp-modal__input"
-              placeholder="长篇 · 文学"
-              value={form.genre}
-              onChange={set('genre')}
             />
           </div>
           <div className="pp-modal__field">

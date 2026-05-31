@@ -5,7 +5,7 @@ export interface Project {
   id: string;
   userId: string;
   name: string;
-  descriptionJson: string;
+  summary: string;
   // Project's own KV facts (book goal / writing style / reference works / …).
   // JSON-stringified Array<{ key: string; value: string }> — see domain/kv.ts.
   kvJson: string;

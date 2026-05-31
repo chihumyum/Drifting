@@ -253,6 +253,13 @@
       "when": 1782000000000,
       "tag": "0035_agent_conversation",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1782100000000,
+      "tag": "0036_project_summary",
+      "breakpoints": true
     }
   ]
 }

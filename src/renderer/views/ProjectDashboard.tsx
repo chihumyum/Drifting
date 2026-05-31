@@ -70,6 +70,38 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+interface ProjectProfileEditorProps {
+  summary: string;
+  onPersist: (nextSummary: string) => void;
+}
+
+function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps) {
+  const [draft, setDraft] = useState(summary);
+
+  const persistDraft = () => {
+    const nextSummary = draft.trim();
+    if (nextSummary !== summary) onPersist(nextSummary);
+  };
+
+  return (
+    <div className="dash-profile">
+      <label className="dash-profile__field">
+        <span className="dash-profile__label">图书简介 · SUMMARY</span>
+        <textarea
+          className="dash-profile__textarea"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={persistDraft}
+          placeholder="写下项目简介、核心命题或故事梗概"
+          rows={5}
+        />
+      </label>
+
+      <span className="dash-profile__hint">失焦后自动保存。副标题、体裁等扩展信息可在本书字段中维护。</span>
+    </div>
+  );
+}
+
 export function ProjectDashboard() {
   const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
@@ -114,7 +146,7 @@ export function ProjectDashboard() {
       if (!currentProject || nextJson === currentProject.kvJson) return;
       void updateProject(currentProject.id, {
         name: currentProject.name,
-        descriptionJson: currentProject.descriptionJson,
+        summary: currentProject.summary,
         kvJson: nextJson,
         storylineTemplateKvJson: currentProject.storylineTemplateKvJson,
       });
@@ -126,10 +158,17 @@ export function ProjectDashboard() {
       if (!currentProject || nextJson === currentProject.storylineTemplateKvJson) return;
       void updateProject(currentProject.id, {
         name: currentProject.name,
-        descriptionJson: currentProject.descriptionJson,
+        summary: currentProject.summary,
         kvJson: currentProject.kvJson,
         storylineTemplateKvJson: nextJson,
       });
+    },
+    [currentProject, updateProject],
+  );
+  const commitProjectSummary = useCallback(
+    (nextSummary: string) => {
+      if (!currentProject || nextSummary === currentProject.summary) return;
+      void updateProject(currentProject.id, { summary: nextSummary });
     },
     [currentProject, updateProject],
   );
@@ -222,6 +261,7 @@ export function ProjectDashboard() {
   // ─── Derived hero meta ─────────────────────────────────
   const heroProjectTitle =
     currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Drifting';
+  const heroProjectSummary = currentProject?.summary;
   const lastTouchedNode = useMemo(() => {
     if (!bookNodes.length) return null;
     return [...bookNodes].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
@@ -287,7 +327,7 @@ export function ProjectDashboard() {
           accent: sl ? resolveColor(sl.color, sl.id) : 'hsl(var(--accent))',
         };
       });
-  }, [chapterNodes, storylines]);
+  }, [chapterNodes, primaryStorylineByNode, storylines]);
 
   return (
     <div className="dash">
@@ -309,10 +349,9 @@ export function ProjectDashboard() {
               {heroProjectTitle}
             </h1>
 
-            {currentProject?.descriptionJson && (
+            {heroProjectSummary && (
               <p className="dash-hero__sub">
-                {/* TODO: descriptionJson is currently raw JSON; render plain summary once parsed. */}
-                {currentProject.descriptionJson.slice(0, 200)}
+                {heroProjectSummary}
               </p>
             )}
 
@@ -846,6 +885,24 @@ export function ProjectDashboard() {
                 </div>
               </div>
             </div>
+          </section>
+        )}
+
+        {/* ════════ PROJECT PROFILE ════════ */}
+        {currentProject && (
+          <section className="dash-section">
+            <div className="dash-section__head">
+              <div className="dash-section__title">
+                <span className="dash-section__title-mark">¶</span>
+                <span className="dash-section__title-cn">本书简介</span>
+                <span className="dash-section__title-en">Project Profile</span>
+              </div>
+            </div>
+            <ProjectProfileEditor
+              key={`project-profile-${currentProject.id}:${currentProject.summary}`}
+              summary={currentProject.summary}
+              onPersist={commitProjectSummary}
+            />
           </section>
         )}
 

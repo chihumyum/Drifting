@@ -76,10 +76,13 @@ html[data-skin='modern'] .super-view-head,
 html[data-skin='modern'] .graph-body,
 html[data-skin='modern'] .super-view-body {
   border-radius: 8px;
-  overflow: hidden;
   box-shadow:
     0 1px 2px hsl(var(--ink-1) / 0.06),
     0 1px 4px hsl(var(--ink-1) / 0.04);
+}
+html[data-skin='modern'] .graph-body,
+html[data-skin='modern'] .super-view-body {
+  overflow: hidden;
 }
 
 /* In classic the header sits on paper-deep (distinct from the page's
@@ -90,6 +93,9 @@ html[data-skin='modern'] .super-view-body {
    paint a full bg (e.g. MaterialMain) would otherwise show wallpaper. */
 html[data-skin='modern'] .super-view-head {
   background: var(--chrome-bg);
+  /* Header popovers (e.g. StoryGraphView's edge menu) must escape the
+     header island and stack over the body island below. */
+  overflow: visible;
   /* Gap below the header replaces the divider that classic uses. */
   border-bottom: none;
 }
@@ -99,6 +105,8 @@ html[data-skin='modern'] .super-view-body {
 }
 
 .super-view-head {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -130,6 +138,7 @@ html[data-skin='modern'] .super-view-body {
   align-items: center;
   gap: 14px;
   min-width: 0;
+  -webkit-app-region: drag;
 }
 
 .super-view-head__right {
@@ -137,6 +146,7 @@ html[data-skin='modern'] .super-view-body {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  -webkit-app-region: drag;
 }
 
 .super-view-head__back {
