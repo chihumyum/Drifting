@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/core';
 import type { BookElement } from '../../domain/book-element';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
+import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('ElementCardPopover');
@@ -52,6 +53,7 @@ export function ElementCardPopover({
   const [mode, setMode] = useState<'default' | 'upgrade'>('default');
   const [nameDraft, setNameDraft] = useState(element.name);
   const [summaryDraft, setSummaryDraft] = useState(element.summary ?? '');
+  const summaryRef = useAutosizeTextArea(summaryDraft);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const activeElementIdRef = useRef(element.id);
 
@@ -306,6 +308,7 @@ export function ElementCardPopover({
         {mode === 'default' ? (
           <>
             <textarea
+              ref={summaryRef}
               value={summaryDraft}
               onChange={(e) => setSummaryDraft(e.target.value)}
               onBlur={() => void commitSummary()}
@@ -317,16 +320,17 @@ export function ElementCardPopover({
                 }
               }}
               placeholder="写一段摘要…"
-              rows={6}
+              rows={1}
               style={{
                 width: '100%',
                 resize: 'none',
+                overflow: 'hidden',
                 border: 'none',
                 outline: 'none',
                 padding: 12,
                 background: 'transparent',
                 fontFamily: 'var(--font-serif)',
-                fontSize: 13,
+                fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
                 lineHeight: 1.5,
                 color: 'hsl(var(--ink-1))',
                 minHeight: 120,
@@ -374,20 +378,22 @@ export function ElementCardPopover({
               }}
             >
               <textarea
+                ref={summaryRef}
                 value={summaryDraft}
                 onChange={(e) => setSummaryDraft(e.target.value)}
                 onBlur={() => void commitSummary()}
                 placeholder="摘要…"
-                rows={2}
+                rows={1}
                 style={{
                   width: '100%',
                   resize: 'none',
+                  overflow: 'hidden',
                   border: 'none',
                   outline: 'none',
                   padding: '6px 0',
                   background: 'transparent',
                   fontFamily: 'var(--font-serif)',
-                  fontSize: 12,
+                  fontSize: 'calc(var(--entity-body-font-size, 16px) - 4px)',
                   fontStyle: 'italic',
                   lineHeight: 1.4,
                   color: 'hsl(var(--ink-3))',

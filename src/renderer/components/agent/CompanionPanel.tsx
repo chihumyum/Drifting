@@ -24,7 +24,10 @@ import {
 } from '../../store/settings-store';
 import { useAgentChatStore } from '../../store/agent-chat-store';
 import { events } from '../../lib/events';
-import type { AgentChatMessage as ChatMsg } from '../../domain/agent-conversation';
+import type {
+  AgentChatMessage as ChatMsg,
+  AgentConversationSummary,
+} from '../../domain/agent-conversation';
 import '../../../styles/agent-panel.css';
 
 interface AuthStatus {
@@ -319,11 +322,18 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const newConversation = useAgentChatStore((s) => s.newConversation);
   const loadConversation = useAgentChatStore((s) => s.loadConversation);
   const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
+  const renameConversation = useAgentChatStore((s) => s.renameConversation);
   const bindProject = useAgentChatStore((s) => s.bindProject);
 
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  // Inline rename: the header edits the active conversation; a history row edits
+  // whichever entry is `editingItemId`.
+  const [editingHeaderId, setEditingHeaderId] = useState<string | null>(null);
+  const [headerDraft, setHeaderDraft] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemDraft, setItemDraft] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
   // Whether to keep pinning the view to the bottom during streaming. The user
   // scrolling up sets this false (breaks free); scrolling back to the bottom
@@ -385,6 +395,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const handleNew = useCallback(() => {
     newConversation();
     setShowHistory(false);
+    setEditingHeaderId(null);
+    setEditingItemId(null);
     stickRef.current = true;
     setAtBottom(true);
   }, [newConversation]);
@@ -393,6 +405,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     (id: string) => {
       void loadConversation(id);
       setShowHistory(false);
+      setEditingHeaderId(null);
+      setEditingItemId(null);
       stickRef.current = true;
       setAtBottom(true);
     },
@@ -405,6 +419,39 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       void deleteConversation(id);
     },
     [deleteConversation],
+  );
+
+  // The active conversation's summary (gives the current session's title). Null
+  // until the first turn persists a row — a fresh chat has no name to rename.
+  const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
+  const sessionName = activeConv ? activeConv.title || '未命名' : '新对话';
+  const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
+
+  const beginHeaderRename = useCallback(() => {
+    if (!activeConv) return;
+    setHeaderDraft(activeConv.title || '');
+    setEditingHeaderId(activeConv.id);
+  }, [activeConv]);
+
+  const commitHeaderRename = useCallback(() => {
+    setEditingHeaderId(null);
+    const text = headerDraft.trim();
+    if (editingHeaderId && text) void renameConversation(editingHeaderId, text);
+  }, [editingHeaderId, headerDraft, renameConversation]);
+
+  const beginItemRename = useCallback((c: AgentConversationSummary, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingItemId(c.id);
+    setItemDraft(c.title || '');
+  }, []);
+
+  const commitItemRename = useCallback(
+    (id: string) => {
+      setEditingItemId(null);
+      const text = itemDraft.trim();
+      if (text) void renameConversation(id, text);
+    },
+    [itemDraft, renameConversation],
   );
 
   if (!api) {
@@ -442,17 +489,49 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     <div style={fillStyle}>
       <style>{panelCss}</style>
       <div style={toolbar}>
-        <button
-          type="button"
-          style={ghostBtn}
-          onClick={() => setShowHistory((s) => !s)}
-          title="历史对话"
-        >
-          ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
-        </button>
-        <button type="button" style={ghostBtn} onClick={handleNew} title="开始新对话">
-          ＋ 新对话
-        </button>
+        {editingHeader ? (
+          <input
+            style={nameInput}
+            value={headerDraft}
+            autoFocus
+            onChange={(e) => setHeaderDraft(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onBlur={commitHeaderRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitHeaderRename();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setEditingHeaderId(null);
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="agt-name"
+            style={sessionNameBtn}
+            onClick={beginHeaderRename}
+            disabled={!activeConv}
+            title={activeConv ? '点击重命名当前对话' : undefined}
+          >
+            {sessionName}
+          </button>
+        )}
+        <div style={toolbarRight}>
+          <button
+            type="button"
+            style={ghostBtn}
+            onClick={() => setShowHistory((s) => !s)}
+            title="历史对话"
+          >
+            ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
+          </button>
+          <button type="button" style={ghostBtn} onClick={handleNew} title="开始新对话">
+            ＋ 新对话
+          </button>
+        </div>
       </div>
 
       {showHistory && (
@@ -460,24 +539,54 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           {convList.length === 0 ? (
             <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无历史对话</div>
           ) : (
-            convList.map((c) => (
-              <div
-                key={c.id}
-                style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
-                onClick={() => handleLoad(c.id)}
-              >
-                <span style={historyTitle}>{c.title || '未命名'}</span>
-                <span style={historyTime}>{relTime(c.updatedAt)}</span>
-                <button
-                  type="button"
-                  style={historyDel}
-                  title="删除对话"
-                  onClick={(e) => handleDelete(c.id, e)}
+            convList.map((c) =>
+              editingItemId === c.id ? (
+                <div key={c.id} style={historyItem} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    style={historyInput}
+                    value={itemDraft}
+                    autoFocus
+                    onChange={(e) => setItemDraft(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => commitItemRename(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitItemRename(c.id);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setEditingItemId(null);
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div
+                  key={c.id}
+                  style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
+                  onClick={() => handleLoad(c.id)}
                 >
-                  ×
-                </button>
-              </div>
-            ))
+                  <span style={historyTitle}>{c.title || '未命名'}</span>
+                  <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                  <button
+                    type="button"
+                    style={historyAct}
+                    title="重命名"
+                    onClick={(e) => beginItemRename(c, e)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    style={historyAct}
+                    title="删除对话"
+                    onClick={(e) => handleDelete(c.id, e)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ),
+            )
           )}
         </div>
       )}
@@ -545,10 +654,49 @@ const fillStyle: React.CSSProperties = {
 const toolbar: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
+  gap: 8,
   padding: '6px 10px',
   borderBottom: '1px solid hsl(var(--rule))',
   flexShrink: 0,
+};
+
+const toolbarRight: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  flexShrink: 0,
+};
+
+const sessionNameBtn: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  background: 'transparent',
+  border: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  fontSize: 13,
+  fontWeight: 600,
+  textAlign: 'left',
+  cursor: 'pointer',
+  padding: '2px 4px',
+  borderRadius: 6,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const nameInput: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  font: 'inherit',
+  fontSize: 13,
+  fontWeight: 600,
+  padding: '2px 4px',
+  border: '1px solid hsl(var(--accent) / 0.5)',
+  borderRadius: 6,
+  background: 'hsl(var(--paper))',
+  color: 'inherit',
+  outline: 'none',
 };
 
 const historyPanel: React.CSSProperties = {
@@ -594,16 +742,29 @@ const historyTime: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const historyDel: React.CSSProperties = {
+const historyAct: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
   color: 'inherit',
   opacity: 0.4,
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: 1,
   padding: '0 2px',
   flexShrink: 0,
+};
+
+const historyInput: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  font: 'inherit',
+  fontSize: 12,
+  padding: '2px 6px',
+  border: '1px solid hsl(var(--accent) / 0.5)',
+  borderRadius: 4,
+  background: 'hsl(var(--paper))',
+  color: 'inherit',
+  outline: 'none',
 };
 
 const logWrap: React.CSSProperties = {
@@ -827,6 +988,9 @@ const hintText: React.CSSProperties = {
 // touches assistant bubbles. Descendant selectors can't be expressed as inline
 // styles, hence a small stylesheet rendered with the panel.
 const panelCss = `
+.agt-name { transition: background 0.12s ease; }
+.agt-name:hover:not(:disabled) { background: hsl(var(--ink-1) / 0.06); }
+.agt-name:disabled { cursor: default; opacity: 0.75; }
 .agent-md > :first-child { margin-top: 0; }
 .agent-md > :last-child { margin-bottom: 0; }
 .agent-md p { margin: 0 0 8px; }

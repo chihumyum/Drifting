@@ -58,7 +58,7 @@ export interface UpdateAgentConversationInput {
   mode?: AgentConvMode;
   messages?: AgentChatMessage[];
   sdkSessionId?: string | null;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface AgentConversationRepository {
@@ -119,13 +119,12 @@ export function createAgentConversationRepository(): AgentConversationRepository
     },
 
     async update(id, patch) {
-      const set: Partial<typeof AgentConversationTable.$inferInsert> = {
-        updatedAt: patch.updatedAt,
-      };
+      const set: Partial<typeof AgentConversationTable.$inferInsert> = {};
       if (patch.title !== undefined) set.title = patch.title;
       if (patch.mode !== undefined) set.mode = patch.mode;
       if (patch.messages !== undefined) set.messagesJson = JSON.stringify(patch.messages);
       if (patch.sdkSessionId !== undefined) set.sdkSessionId = patch.sdkSessionId;
+      if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt;
       await getDb()
         .update(AgentConversationTable)
         .set(set)

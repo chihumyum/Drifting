@@ -5,6 +5,7 @@ import { ChapterEditor } from '../editor/ChapterEditor';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useBookContent } from '../../usecase/useBookContent';
 import { useDataStore } from '../../store/data-store';
+import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('NodeCardPopover');
@@ -41,6 +42,7 @@ export function NodeCardPopover({
 }: NodeCardPopoverProps) {
   const [mode, setMode] = useState<'default' | 'upgrade'>('default');
   const [summaryDraft, setSummaryDraft] = useState(node.summary ?? '');
+  const summaryRef = useAutosizeTextArea(summaryDraft);
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   // Which nodeId the bookContent above corresponds to. Until this matches
   // node.id, the upgrade-state UI shows a loading placeholder. Tracking it
@@ -274,6 +276,7 @@ export function NodeCardPopover({
               </button>
             </div>
             <textarea
+              ref={summaryRef}
               className="node-card__summary"
               value={summaryDraft}
               placeholder="写一段摘要…"
@@ -286,7 +289,7 @@ export function NodeCardPopover({
                   (e.currentTarget as HTMLTextAreaElement).blur();
                 }
               }}
-              rows={6}
+              rows={1}
             />
             <div className="node-card__foot">
               <button

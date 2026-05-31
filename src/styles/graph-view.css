@@ -1251,10 +1251,11 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   border: none;
   outline: none;
   resize: none;
+  overflow: hidden;
   padding: 12px 14px;
   background: transparent;
   font-family: var(--font-serif);
-  font-size: 14px;
+  font-size: calc(var(--editor-font-size, 17.5px) - 4px);
   line-height: 1.55;
   color: hsl(var(--ink-1));
   min-height: 120px;

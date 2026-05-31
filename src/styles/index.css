@@ -1225,7 +1225,7 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 .page__sub {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 16px;
+  font-size: calc(var(--editor-font-size, 17.5px) - 4px);
   color: hsl(var(--ink-3));
   margin: 0 0 28px;
   background: transparent;
@@ -1234,6 +1234,7 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   outline: 0;
   padding: 0;
   resize: none;
+  overflow: hidden;
   line-height: 1.5;
 }
 .page__sub::placeholder { color: hsl(var(--ink-4)); font-style: italic; }
@@ -2205,7 +2206,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .elem-hero__summary {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 14.5px;
+  font-size: calc(var(--entity-body-font-size, 16px) - 4px);
   color: hsl(var(--ink-3));
   margin-top: 10px;
   line-height: 1.55;
@@ -2215,6 +2216,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   padding: 0;
   width: 100%;
   resize: none;
+  overflow: hidden;
 }
 .elem-hero__summary::placeholder { color: hsl(var(--ink-4)); }
 .elem-hero__facts {
@@ -2238,7 +2240,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 /* Long-form body shared by element / storyline / category editors. */
 .elem-body {
   font-family: var(--font-serif);
-  font-size: 16px;
+  font-size: var(--entity-body-font-size, 16px);
   line-height: 1.7;
   color: hsl(var(--ink-1));
   text-wrap: pretty;

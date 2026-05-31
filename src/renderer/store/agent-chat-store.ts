@@ -126,6 +126,7 @@ interface AgentChatState {
   newConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  renameConversation: (id: string, title: string) => Promise<void>;
 }
 
 export const useAgentChatStore = create<AgentChatState>((set, get) => ({
@@ -237,6 +238,19 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     if (get().activeConvId === id) {
       set({ messages: [], activeConvId: null, sdkSessionId: null });
+    }
+    get().refreshList();
+  },
+
+  renameConversation: async (id, title) => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    try {
+      // Renaming isn't conversation activity. Leave updatedAt untouched so it
+      // cannot race with transcript persistence and disturb history ordering.
+      await repo.update(id, { title: trimmed });
+    } catch {
+      /* best-effort */
     }
     get().refreshList();
   },

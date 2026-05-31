@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -232,6 +233,9 @@ export function ElementEditorView({
     const next = curElement.aliases.filter((_, i) => i !== idx);
     await writeAliases(next);
   };
+  // 概要 textarea 自动增高，去掉固定 rows 的裁切
+  const summaryRef = useAutosizeTextArea(summaryValue);
+
   const commitSummary = async () => {
     if (!elementId) return;
     if (summaryValue === curElement?.summary) return;
@@ -537,6 +541,7 @@ export function ElementEditorView({
                   </div>
 
                   <textarea
+                    ref={summaryRef}
                     className="elem-hero__summary"
                     value={summaryValue}
                     onChange={(e) => setSummaryValue(e.target.value)}
@@ -548,7 +553,7 @@ export function ElementEditorView({
                       }
                     }}
                     placeholder="一句话角色说明…"
-                    rows={2}
+                    rows={1}
                   />
 
                   {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)

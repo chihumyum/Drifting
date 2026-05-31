@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { useParams } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -135,6 +136,9 @@ export function StorylineEditorView({
     promoteCurrentTab();
     await storylineUsecases.updateStoryline({ id: storylineId, name: nameDraft });
   };
+  // 概要 textarea 自动增高，去掉固定 rows 的裁切
+  const summaryRef = useAutosizeTextArea(displayedSummary);
+
   const commitSummary = async () => {
     if (!storylineId || summaryDraft === currentSummary) return;
     promoteCurrentTab();
@@ -399,6 +403,7 @@ export function StorylineEditorView({
                   />
 
                   <textarea
+                    ref={summaryRef}
                     className="elem-hero__summary"
                     value={displayedSummary}
                     onFocus={() => { setSummaryDraft(currentSummary); setIsEditingSummary(true); }}
@@ -413,7 +418,7 @@ export function StorylineEditorView({
                       }
                     }}
                     placeholder="一句话概述本线…"
-                    rows={2}
+                    rows={1}
                   />
 
                   <div className="elem-hero__facts">

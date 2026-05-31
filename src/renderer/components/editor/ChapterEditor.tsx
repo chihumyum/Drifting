@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
+import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { OutlineItem } from '../../lib/outline';
@@ -209,6 +210,9 @@ export function ChapterEditor({
     }
   };
 
+  // 概要 textarea 自动增高，去掉固定 rows 的裁切
+  const summaryRef = useAutosizeTextArea(summaryValue);
+
   if (!editor) {
     log.error('Editor not initialized');
     return null;
@@ -285,6 +289,7 @@ export function ChapterEditor({
             <div style={{ flex: literary ? undefined : 1 }}>
               {editableSummary ? (
                 <textarea
+                  ref={summaryRef}
                   value={summaryValue}
                   placeholder={literary ? 'A subtitle, or an epigraph…' : 'Click to add summary...'}
                   onChange={(e) => setSummaryValue(e.target.value)}
@@ -295,14 +300,15 @@ export function ChapterEditor({
                       e.currentTarget.blur();
                     }
                   }}
-                  rows={literary ? 2 : undefined}
+                  rows={1}
                   className={literary ? 'page__sub' : undefined}
                   style={
                     literary
                       ? undefined
                       : {
                           width: '100%',
-                          fontSize: 14,
+                          // 概要比正文小两号，跟随用户字号设置
+                          fontSize: 'calc(var(--editor-font-size, 17.5px) - 4px)',
                           fontWeight: 400,
                           background: 'transparent',
                           color: '#5a4a3a',
