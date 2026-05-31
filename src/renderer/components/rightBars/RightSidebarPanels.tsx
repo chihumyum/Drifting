@@ -177,10 +177,10 @@ export function RightSidebarPanels() {
   }, []);
   const isSplit = panelWidth >= 768;
   // Between the split threshold and a narrow panel, there's still room to lay
-  // ALL tabs flat in one row (no group switch). ~480 fits 5 equal tabs without
+  // ALL tabs flat in one row (no group switch). ~420 fits 5 equal tabs without
   // collapsing labels (the longest, "Companion", needs ~95px/tab). Below it,
   // fall back to the two-group switch.
-  const isFlat = !isSplit && panelWidth >= 480;
+  const isFlat = !isSplit && panelWidth >= 420;
 
   const contentBody = (
     <>

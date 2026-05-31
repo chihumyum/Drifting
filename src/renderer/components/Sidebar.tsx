@@ -25,10 +25,6 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
   const setResizingSidebar = useUiStore((state) => state.setResizingSidebar);
   const [isResizing, setIsResizing] = useState(false);
-  // Hover state for the resize handle so we can paint a visible cue — an
-  // invisible strip is hard to locate, especially when the window moves to a
-  // lower-DPI display where the same CSS width is physically smaller.
-  const [handleHover, setHandleHover] = useState(false);
 
   // Keep children mounted for the duration of the collapse animation so the
   // panel actually appears to slide out — without this they'd unmount the
@@ -182,8 +178,6 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             setIsResizing(true);
             setResizingSidebar(sidebarType);
           }}
-          onMouseEnter={() => setHandleHover(true)}
-          onMouseLeave={() => setHandleHover(false)}
           style={{
             position: 'absolute',
             top: 0,
@@ -203,11 +197,6 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             height: '100%',
             cursor: 'col-resize',
             zIndex: 10,
-            // A faint accent fill on hover / during drag makes the otherwise
-            // invisible handle locatable on any display.
-            background:
-              handleHover || isResizing ? 'hsl(var(--accent) / 0.18)' : 'transparent',
-            transition: 'background 0.12s',
           }}
         />
       )}
