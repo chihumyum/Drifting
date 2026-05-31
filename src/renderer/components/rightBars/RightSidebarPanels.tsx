@@ -133,13 +133,6 @@ export function RightSidebarPanels() {
     return () => window.clearTimeout(id);
   }, [shadowMode]);
 
-  // Defensive: if shadow turned off while the Shadow tab was active, fall back
-  // to Companion (the store setter already does this; this covers rehydration).
-  useEffect(() => {
-    if (!shadowMode && activeAgentPanel === 'shadow') {
-      setActiveAgentPanel('companion');
-    }
-  }, [shadowMode, activeAgentPanel, setActiveAgentPanel]);
 
   const isAgentGroup = rightPanelGroup === 'agent';
   const isFragmentTab =
