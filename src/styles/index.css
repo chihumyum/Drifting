@@ -1225,7 +1225,7 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 .page__sub {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: calc(var(--editor-font-size, 17.5px) - 4px);
+  font-size: calc(var(--editor-font-size, 17.5px) - 2px);
   color: hsl(var(--ink-3));
   margin: 0 0 28px;
   background: transparent;

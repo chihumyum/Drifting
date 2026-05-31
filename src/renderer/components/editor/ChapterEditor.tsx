@@ -308,7 +308,7 @@ export function ChapterEditor({
                       : {
                           width: '100%',
                           // 概要比正文小两号，跟随用户字号设置
-                          fontSize: 'calc(var(--editor-font-size, 17.5px) - 4px)',
+                          fontSize: 'calc(var(--editor-font-size, 17.5px) - 2px)',
                           fontWeight: 400,
                           background: 'transparent',
                           color: '#5a4a3a',
