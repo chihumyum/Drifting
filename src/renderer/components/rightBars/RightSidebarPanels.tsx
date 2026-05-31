@@ -122,8 +122,11 @@ export function RightSidebarPanels() {
   const shadowReviewCount = 0;
 
   // Pulse the Shadow tab the first ~4.5s after the user invokes shadow mode.
+  // Syncing a UI pulse to an external trigger (shadowMode) — the setState is
+  // intentional here, not a derived-render smell.
   useEffect(() => {
     if (!shadowMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShadowJustAppeared(false);
       return;
     }
@@ -193,7 +196,7 @@ export function RightSidebarPanels() {
   );
   const agentBody = (
     <>
-      {activeAgentPanel === 'companion' && <CompanionPanel />}
+      {activeAgentPanel === 'companion' && <CompanionPanel projectId={projectId} />}
       {activeAgentPanel === 'shadow' && <ShadowAgentView />}
     </>
   );

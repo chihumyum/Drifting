@@ -43,6 +43,8 @@ export type AgentEvent =
   /** A tool returned its result, keyed back to the tool_use by id. */
   | { type: 'tool_result'; id: string; ok: boolean; text: string }
   | { type: 'result'; ok: boolean; text: string }
+  /** The SDK session id for this turn — the renderer stores it to resume later. */
+  | { type: 'session'; id: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
@@ -57,8 +59,10 @@ export interface AgentStartInput {
   projectId?: string;
   /** Which credentials to use. Defaults to BYOK (the user's Claude OAuth). */
   mode?: AgentMode;
-  /** Start a fresh conversation (drop the resumed session). */
+  /** Start a fresh conversation (ignore `resume`). */
   newConversation?: boolean;
+  /** SDK session id to resume (continuity within a conversation). */
+  resume?: string;
   /** Model alias; 'default'/undefined lets the SDK pick. */
   model?: AgentModelChoice;
   /** Reasoning effort (SDK default is 'high'). */
@@ -87,9 +91,9 @@ async function resolveAuthEnv(
 
 let activeQuery: Query | null = null;
 let activeAbort: AbortController | null = null;
-// The SDK session of the current conversation, captured from the stream and
-// resumed on the next turn so the chat has continuity. Cleared on "new chat".
-let currentSessionId: string | null = null;
+// Session continuity is owned by the renderer now: it stores each conversation's
+// SDK session id (reported via the 'session' event) and passes it back as
+// `resume` on the next turn. Main holds no cross-turn session state.
 
 const MCP_PREFIX = 'mcp__drifting__';
 
@@ -252,10 +256,9 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
     },
   );
 
-  ipcMain.handle('agent:reset-session', (): { ok: true } => {
-    currentSessionId = null;
-    return { ok: true };
-  });
+  // Session continuity now lives in the renderer (it just stops passing
+  // `resume`). Kept as a no-op so the preload API + older callers don't break.
+  ipcMain.handle('agent:reset-session', (): { ok: true } => ({ ok: true }));
 
   ipcMain.handle(
     'agent:auth-status',
@@ -293,7 +296,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
       ensureClaudeConfig();
 
-      if (input.newConversation) currentSessionId = null;
+      // Resume the conversation the renderer asked for (unless it's a fresh one).
+      const resume = input.newConversation ? undefined : input.resume;
 
       const driftingServer = await createDriftingMcpServer(getWindow);
       const abortController = new AbortController();
@@ -301,8 +305,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
       const options: Options = {
         abortController,
-        // Continue the current conversation across turns; cleared on "new chat".
-        ...(currentSessionId ? { resume: currentSessionId } : {}),
+        // Continue the conversation the renderer is tracking.
+        ...(resume ? { resume } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
           'Inspect the project with: list_project_structure (call this FIRST to discover ids), ' +
@@ -335,10 +339,14 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         const q = query({ prompt: input.prompt, options });
         activeQuery = q;
         const streamState = { sawDelta: false };
+        let reportedSession: string | null = null;
         for await (const msg of q) {
           if (activeQuery !== q) break; // superseded/aborted
           const sid = (msg as { session_id?: string }).session_id;
-          if (typeof sid === 'string' && sid) currentSessionId = sid;
+          if (typeof sid === 'string' && sid && sid !== reportedSession) {
+            reportedSession = sid;
+            emit({ type: 'session', id: sid });
+          }
           for (const event of toEvents(msg, streamState)) emit(event);
         }
         emit({ type: 'done' });

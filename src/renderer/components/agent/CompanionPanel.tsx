@@ -2,40 +2,35 @@
  * Agent panel — the interactive Claude agent, rendered in the right sidebar's
  * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat that
  * streams assistant text token-by-token, renders it as markdown, shows the
- * tool calls the agent makes (read/edit/relationship actions) as collapsible
- * rows, and has a "new conversation" action. The main process keeps
- * conversation continuity across turns (resume); "新对话" starts fresh.
+ * tool calls the agent makes and its extended thinking, and keeps a local
+ * history of past conversations (new / switch / delete).
  *
- * Credential mode (BYOK Claude OAuth vs Hosted) and the actual connect flow
- * live in Settings → 模型与 API (store.agentMode). If the agent isn't set up
- * for the chosen mode, we show a hint that opens Settings.
+ * Persistence (local-only): the rendered transcript is saved to SQLite
+ * (agent_conversation) on each turn's completion; the SDK's own session file is
+ * the source of truth for *resuming* context, tracked here as sdkSessionId and
+ * passed back to the main process as `resume`. The renderer owns conversation
+ * identity — main holds no cross-turn session state.
+ *
+ * Credential mode (BYOK Claude OAuth vs Hosted) and the model / thinking params
+ * live in Settings → 模型与 API. If the agent isn't set up for the chosen mode,
+ * we show a hint that opens Settings.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
+import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
+import { createAgentConversationRepository } from '../../sqlite-repo/agent-conversation-repo';
+import type {
+  AgentChatMessage as ChatMsg,
+  AgentConversationSummary,
+} from '../../domain/agent-conversation';
 import type { AgentEvent } from '../../../main/agent';
 
 interface AuthStatus {
   byokConnected: boolean;
   hostedAvailable: boolean;
 }
-
-// ---- Chat message model ----------------------------------------------------
-
-type ChatMsg =
-  | { kind: 'user'; text: string }
-  | { kind: 'assistant'; text: string; streaming: boolean }
-  | { kind: 'thinking'; text: string; streaming: boolean }
-  | {
-      kind: 'tool';
-      id: string;
-      name: string;
-      input?: unknown;
-      status: 'running' | 'ok' | 'error';
-      result?: string;
-    }
-  | { kind: 'error'; text: string };
 
 /** Mark any trailing still-streaming assistant/thinking message as finished. */
 function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
@@ -86,7 +81,9 @@ function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
     }
     case 'result':
       // A successful result mirrors the last assistant text — only surface failures.
-      return ev.ok ? finalizeStreaming(list) : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
+      return ev.ok
+        ? finalizeStreaming(list)
+        : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
     case 'error':
       return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
     case 'system':
@@ -94,7 +91,26 @@ function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
     case 'done':
       return finalizeStreaming(list);
     default:
-      return list;
+      return list; // 'session' handled separately (stored in a ref)
+  }
+}
+
+/** First user line, condensed, as the conversation title. */
+function deriveTitle(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!t) return '新对话';
+  return t.length > 40 ? `${t.slice(0, 40)}…` : t;
+}
+
+function relTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    return d.toDateString() === now.toDateString()
+      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+  } catch {
+    return '';
   }
 }
 
@@ -201,18 +217,31 @@ function MessageView({ msg }: { msg: ChatMsg }) {
   }
 }
 
-export function CompanionPanel() {
+export function CompanionPanel({ projectId }: { projectId: string }) {
   const api = window.electronAPI?.agent;
   const agentMode = useSettingsStore((s) => s.agentMode);
   const agentModel = useSettingsStore((s) => s.agentModel);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const agentThinking = useSettingsStore((s) => s.agentThinking);
 
+  const repo = useMemo(() => createAgentConversationRepository(), []);
+
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [prompt, setPrompt] = useState('');
   const [running, setRunning] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [convList, setConvList] = useState<AgentConversationSummary[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [doneTick, setDoneTick] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
+
+  // Latest values read inside the once-registered event handler / persistence.
+  // messagesRef is synced via an effect (below); convIdRef + sessionIdRef are
+  // updated imperatively wherever those change (send / load / new / delete).
+  const messagesRef = useRef(messages);
+  const convIdRef = useRef(activeConvId);
+  const sessionIdRef = useRef<string | null>(null);
 
   const refreshStatus = useCallback(() => {
     if (!api) return;
@@ -221,6 +250,13 @@ export function CompanionPanel() {
       .then(setStatus)
       .catch(() => setStatus({ byokConnected: false, hostedAvailable: false }));
   }, [api]);
+
+  const loadList = useCallback(() => {
+    void repo
+      .listByProject(projectId)
+      .then(setConvList)
+      .catch(() => setConvList([]));
+  }, [repo, projectId]);
 
   useEffect(() => {
     refreshStatus();
@@ -232,13 +268,66 @@ export function CompanionPanel() {
     return () => events.off('agent:auth-changed', refreshStatus);
   }, [refreshStatus]);
 
+  // On project switch: load that project's history and reset the live chat.
+  // Done inside an async IIFE so the resets land after the await (not as a
+  // synchronous setState in the effect body).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      let rows: AgentConversationSummary[] = [];
+      try {
+        rows = await repo.listByProject(projectId);
+      } catch {
+        rows = [];
+      }
+      if (cancelled) return;
+      setConvList(rows);
+      setMessages([]);
+      setActiveConvId(null);
+      convIdRef.current = null;
+      sessionIdRef.current = null;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, repo]);
+
   useEffect(() => {
     if (!api) return undefined;
     return api.onEvent((ev) => {
+      if (ev.type === 'session') {
+        sessionIdRef.current = ev.id;
+        return;
+      }
       setMessages((prev) => applyEvent(prev, ev));
-      if (ev.type === 'done') setRunning(false);
+      if (ev.type === 'done') {
+        setRunning(false);
+        setDoneTick((t) => t + 1);
+      }
     });
   }, [api]);
+
+  // Keep messagesRef current. Declared before the persist effect so it runs
+  // first in the same commit — the persist effect then reads the finalized list.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Persist the transcript when a turn finishes. Runs after render, so
+  // messagesRef holds the finalized list (the done event's setMessages applied).
+  useEffect(() => {
+    if (doneTick === 0) return;
+    const convId = convIdRef.current;
+    if (!convId) return;
+    void repo
+      .update(convId, {
+        messages: messagesRef.current,
+        sdkSessionId: sessionIdRef.current,
+        updatedAt: new Date().toISOString(),
+      })
+      .then(() => loadList())
+      .catch(() => {});
+  }, [doneTick, repo, loadList]);
 
   useEffect(() => {
     const el = logRef.current;
@@ -248,6 +337,31 @@ export function CompanionPanel() {
   const send = useCallback(async () => {
     if (!api || !prompt.trim() || running) return;
     const text = prompt.trim();
+    const now = new Date().toISOString();
+
+    // Lazily create the conversation row on the first message so it appears in
+    // history immediately; the transcript is overwritten on `done`.
+    if (!convIdRef.current) {
+      const id = uuidv7();
+      convIdRef.current = id;
+      setActiveConvId(id);
+      try {
+        await repo.create({
+          id,
+          projectId,
+          title: deriveTitle(text),
+          mode: agentMode,
+          messages: [{ kind: 'user', text }],
+          sdkSessionId: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        loadList();
+      } catch {
+        /* persistence is best-effort — chat still works in-memory */
+      }
+    }
+
     setMessages((prev) => [...prev, { kind: 'user', text }]);
     setPrompt('');
     setRunning(true);
@@ -257,21 +371,69 @@ export function CompanionPanel() {
       model: agentModel,
       effort: agentEffort,
       thinking: agentThinking,
+      resume: sessionIdRef.current ?? undefined,
     });
     if (!r.ok) {
       setMessages((prev) => [...prev, { kind: 'error', text: r.error }]);
       setRunning(false);
     }
-  }, [api, prompt, running, agentMode, agentModel, agentEffort, agentThinking]);
+  }, [
+    api,
+    prompt,
+    running,
+    agentMode,
+    agentModel,
+    agentEffort,
+    agentThinking,
+    projectId,
+    repo,
+    loadList,
+  ]);
 
   const abort = useCallback(() => {
     void api?.abort();
   }, [api]);
 
-  const newConversation = useCallback(async () => {
-    await api?.resetSession();
+  const newConversation = useCallback(() => {
+    void api?.resetSession();
     setMessages([]);
+    setActiveConvId(null);
+    convIdRef.current = null;
+    sessionIdRef.current = null;
+    setShowHistory(false);
   }, [api]);
+
+  const loadConversation = useCallback(
+    async (id: string) => {
+      const conv = await repo.get(id);
+      if (!conv) return;
+      setMessages(conv.messages);
+      setActiveConvId(conv.id);
+      convIdRef.current = conv.id;
+      sessionIdRef.current = conv.sdkSessionId;
+      setShowHistory(false);
+    },
+    [repo],
+  );
+
+  const deleteConversation = useCallback(
+    async (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await repo.softDelete(id, new Date().toISOString());
+      } catch {
+        /* ignore */
+      }
+      if (convIdRef.current === id) {
+        setMessages([]);
+        setActiveConvId(null);
+        convIdRef.current = null;
+        sessionIdRef.current = null;
+      }
+      loadList();
+    },
+    [repo, loadList],
+  );
 
   if (!api) {
     return <div style={hintBox}>Agent 不可用。</div>;
@@ -308,13 +470,49 @@ export function CompanionPanel() {
     <div style={fillStyle}>
       <style>{panelCss}</style>
       <div style={toolbar}>
-        <span style={{ fontSize: 11, opacity: 0.6 }}>
-          {agentMode === 'byok' ? '你的 Claude 订阅' : '托管 · 计量'}
-        </span>
+        <button
+          type="button"
+          style={ghostBtn}
+          onClick={() => setShowHistory((s) => !s)}
+          title="历史对话"
+        >
+          ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
+        </button>
         <button type="button" style={ghostBtn} onClick={newConversation} title="开始新对话">
           ＋ 新对话
         </button>
       </div>
+
+      {showHistory && (
+        <div style={historyPanel}>
+          {convList.length === 0 ? (
+            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无历史对话</div>
+          ) : (
+            convList.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  ...historyItem,
+                  ...(c.id === activeConvId ? historyItemActive : null),
+                }}
+                onClick={() => void loadConversation(c.id)}
+              >
+                <span style={historyTitle}>{c.title || '未命名'}</span>
+                <span style={historyTime}>{relTime(c.updatedAt)}</span>
+                <button
+                  type="button"
+                  style={historyDel}
+                  title="删除对话"
+                  onClick={(e) => void deleteConversation(c.id, e)}
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       <div ref={logRef} style={logStyle}>
         {messages.length === 0 ? (
           <div style={{ opacity: 0.5 }}>
@@ -357,6 +555,7 @@ const fillStyle: React.CSSProperties = {
   flexDirection: 'column',
   height: '100%',
   minHeight: 0,
+  position: 'relative',
   color: 'hsl(var(--ink-1))',
 };
 
@@ -366,6 +565,61 @@ const toolbar: React.CSSProperties = {
   justifyContent: 'space-between',
   padding: '6px 10px',
   borderBottom: '1px solid hsl(var(--rule))',
+  flexShrink: 0,
+};
+
+const historyPanel: React.CSSProperties = {
+  position: 'absolute',
+  top: 40,
+  left: 8,
+  right: 8,
+  maxHeight: 280,
+  overflowY: 'auto',
+  background: 'hsl(var(--paper))',
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 8,
+  boxShadow: '0 8px 24px hsl(var(--ink-1) / 0.18)',
+  zIndex: 20,
+  padding: 4,
+};
+
+const historyItem: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 8px',
+  borderRadius: 6,
+  cursor: 'pointer',
+  fontSize: 12,
+};
+
+const historyItemActive: React.CSSProperties = {
+  background: 'hsl(var(--accent) / 0.12)',
+};
+
+const historyTitle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const historyTime: React.CSSProperties = {
+  fontSize: 10.5,
+  opacity: 0.5,
+  flexShrink: 0,
+};
+
+const historyDel: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'inherit',
+  opacity: 0.4,
+  cursor: 'pointer',
+  fontSize: 14,
+  lineHeight: 1,
+  padding: '0 2px',
   flexShrink: 0,
 };
 
