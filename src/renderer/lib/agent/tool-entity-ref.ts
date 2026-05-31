@@ -4,7 +4,7 @@
  * features can't drift apart.
  */
 export type ActivityEntityType = 'node' | 'element' | 'storyline' | 'category';
-export type ActivityOp = 'read' | 'write' | 'create';
+export type ActivityOp = 'read' | 'write' | 'create' | 'delete';
 
 export interface ToolEntityRef {
   entityType: ActivityEntityType;
@@ -31,7 +31,7 @@ const ARG_TOOLS: Record<string, { field: string; entityType: ActivityEntityType;
   read_element: { field: 'elementId', entityType: 'element', op: 'read' },
   get_element_patches: { field: 'elementId', entityType: 'element', op: 'read' },
   update_element: { field: 'elementId', entityType: 'element', op: 'write' },
-  delete_element: { field: 'elementId', entityType: 'element', op: 'write' },
+  delete_element: { field: 'elementId', entityType: 'element', op: 'delete' },
   // storyline
   get_storyline: { field: 'storylineId', entityType: 'storyline', op: 'read' },
   update_storyline: { field: 'storylineId', entityType: 'storyline', op: 'write' },
@@ -69,6 +69,21 @@ export function toolEntityRef(
   resultText?: string,
 ): ToolEntityRef | null {
   const args = (input ?? {}) as Record<string, unknown>;
+  // set_summary is addressed by (targetKind, targetId), not a flat field.
+  if (name === 'set_summary') {
+    const id = typeof args.targetId === 'string' ? args.targetId : '';
+    if (!id) return null;
+    const tk = String(args.targetKind ?? '');
+    const entityType: ActivityEntityType | null =
+      tk === 'element'
+        ? 'element'
+        : tk === 'storyline'
+          ? 'storyline'
+          : tk === 'node' || tk === 'chapter' || tk === 'drift'
+            ? 'node'
+            : null;
+    return entityType ? { entityType, id, op: 'write' } : null;
+  }
   const arg = ARG_TOOLS[name];
   if (arg) {
     const id = args[arg.field];
@@ -107,7 +122,8 @@ export function collectTurnEntityRefs(
     const m = messages[i];
     if (m.kind !== 'tool' || m.status !== 'ok' || !m.name) continue;
     const ref = toolEntityRef(m.name, m.input, m.result);
-    if (!ref || ref.op === 'read') continue;
+    // Reads have nothing to jump to; deletes point at a now-gone entity.
+    if (!ref || ref.op === 'read' || ref.op === 'delete') continue;
     const key = entityKey(ref.entityType, ref.id);
     if (seen.has(key)) continue;
     seen.add(key);

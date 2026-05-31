@@ -345,10 +345,14 @@ function handleEvent(ev: AgentEvent): void {
     return;
   }
   useAgentChatStore.setState((s) => ({ messages: applyEvent(s.messages, ev) }));
-  // Mirror tool activity to the perception store (left-panel pulses + dots).
+  // Mirror tool activity to the perception store (left-panel pulses + dots) —
+  // but only while a turn is actively running, so late events from a turn the
+  // user switched projects away from don't seed marks for foreign entities.
   const activity = useAgentActivityStore.getState();
-  if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
-  else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
+  if (useAgentChatStore.getState().running) {
+    if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
+    else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
+  }
   if (ev.type === 'done') {
     activity.onTurnEnd();
     useAgentChatStore.setState({ running: false });

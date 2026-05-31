@@ -40,6 +40,12 @@ interface AgentActivityState {
 // for create_*, read the new id out of the result). Module-level — not state.
 const pending = new Map<string, { name: string; input: unknown }>();
 
+// Only entity types with a left-panel CELL get a pulse/breathing dot — those are
+// the ones the user can see and click to dismiss. Storylines/categories have no
+// cell, so they're surfaced only as result chips (collectTurnEntityRefs), never
+// as an undismissable tab badge.
+const hasCell = (t: ActivityMark['entityType']): boolean => t === 'node' || t === 'element';
+
 export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   active: {},
   touched: {},
@@ -47,7 +53,7 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
   onToolUse: (id, name, input) => {
     pending.set(id, { name, input });
     const ref = toolEntityRef(name, input);
-    if (!ref) return;
+    if (!ref || !hasCell(ref.entityType)) return;
     const key = entityKey(ref.entityType, ref.id);
     set((s) => ({
       active: { ...s.active, [key]: { entityType: ref.entityType, id: ref.id, op: ref.op } },
@@ -59,7 +65,9 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
     pending.delete(id);
     if (!p || !ok) return;
     const ref = toolEntityRef(p.name, p.input, text);
-    if (!ref || ref.op === 'read') return; // only writes/creates leave a dot
+    // Only writes/creates to a cell-bearing entity leave a breathing dot — not
+    // reads (nothing changed) nor deletes (the entity is gone).
+    if (!ref || ref.op === 'read' || ref.op === 'delete' || !hasCell(ref.entityType)) return;
     const key = entityKey(ref.entityType, ref.id);
     set((s) => ({
       touched: { ...s.touched, [key]: { entityType: ref.entityType, id: ref.id, op: ref.op } },

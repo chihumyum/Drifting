@@ -16,14 +16,12 @@ const FULL_TABS_MIN_WIDTH = 220;
 
 type TabBadge = 'active' | 'touched' | null;
 
-/** Which left panel an agent-touched entity surfaces in. */
+/** Which left panel an agent-touched entity surfaces in. Only node/element are
+ *  tracked (the entity types with a clickable cell — see agent-activity-store). */
 function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): 'nodes' | 'elements' | 'drift' | null {
   switch (m.entityType) {
     case 'element':
-    case 'category':
       return 'elements';
-    case 'storyline':
-      return 'nodes';
     case 'node':
       return nodeKind.get(m.id) === 'drift' ? 'drift' : 'nodes';
     default:
