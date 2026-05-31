@@ -16,8 +16,9 @@
   border: 1px solid hsl(var(--rule-strong));
   border-radius: 10px;
   background: hsl(var(--surface));
-  overflow: hidden;
   transition: border-color 0.15s;
+  /* NOTE: no `overflow: hidden` — it would clip the upward config menu. The
+     children (transparent bg) stay within the rounded border on their own. */
 }
 .agt-composer:focus-within {
   border-color: hsl(var(--accent) / 0.55);
@@ -53,37 +54,29 @@
 .agt-pop {
   position: relative;
 }
+/* A plain icon button — no model/effort text, just opens the menu. */
 .agt-cfg {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: hsl(var(--ink-3));
-  font-size: 11.5px;
-  line-height: 1;
   cursor: pointer;
-  white-space: nowrap;
-  max-width: 100%;
 }
 .agt-cfg:hover {
   background: hsl(var(--ink-1) / 0.06);
   color: hsl(var(--ink-1));
 }
-.agt-cfg__val {
+.agt-cfg--open {
+  background: hsl(var(--ink-1) / 0.08);
   color: hsl(var(--ink-1));
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.agt-cfg__sep {
-  color: hsl(var(--ink-4));
-}
-.agt-cfg__caret {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: hsl(var(--ink-4));
+.agt-cfg svg {
+  display: block;
 }
 
 /* ---- send button --------------------------------------------------------- */

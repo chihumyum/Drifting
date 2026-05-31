@@ -145,11 +145,27 @@ function ComposerConfig() {
 
   return (
     <div className="agt-pop">
-      <button type="button" className="agt-cfg" onClick={() => setOpen((o) => !o)} title="模型与推理">
-        <span className="agt-cfg__val">{modelShort}</span>
-        <span className="agt-cfg__sep">·</span>
-        <span>{agentThinking === 'adaptive' ? `思考 ${effortShort}` : '思考关'}</span>
-        <span className="agt-cfg__caret">▴</span>
+      <button
+        type="button"
+        className={'agt-cfg' + (open ? ' agt-cfg--open' : '')}
+        onClick={() => setOpen((o) => !o)}
+        title="模型与推理"
+        aria-label="模型与推理设置"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <line x1="4" y1="8" x2="20" y2="8" />
+          <circle cx="9" cy="8" r="2.3" fill="currentColor" stroke="none" />
+          <line x1="4" y1="16" x2="20" y2="16" />
+          <circle cx="15" cy="16" r="2.3" fill="currentColor" stroke="none" />
+        </svg>
       </button>
       {open && (
         <>
