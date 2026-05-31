@@ -1,0 +1,276 @@
+/**
+ * Agent chat store (module-level, in-memory).
+ *
+ * Holds the right-sidebar Agent conversation so it survives the panel
+ * unmounting/remounting when the user switches sidebar tabs — the view is a
+ * thin projection of this store. The single agent-event subscription also lives
+ * here (set up once), so streaming keeps flowing and `done` still persists even
+ * while the panel isn't mounted.
+ *
+ * Display transcript is persisted to SQLite (agent_conversation) on each turn's
+ * `done`; the SDK's own session file is the source of truth for *resuming*
+ * context, tracked here as sdkSessionId and passed back as `resume`.
+ */
+import { create } from 'zustand';
+import { v7 as uuidv7 } from 'uuid';
+import { useSettingsStore } from './settings-store';
+import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
+import type {
+  AgentChatMessage as ChatMsg,
+  AgentConversationSummary,
+} from '../domain/agent-conversation';
+import type { AgentEvent } from '../../main/agent';
+
+const repo = createAgentConversationRepository();
+
+// ---- transcript reducer (pure) --------------------------------------------
+
+/** Mark any trailing still-streaming assistant/thinking message as finished. */
+function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
+  const last = list[list.length - 1];
+  if (last && (last.kind === 'assistant' || last.kind === 'thinking') && last.streaming) {
+    const copy = list.slice();
+    copy[copy.length - 1] = { ...last, streaming: false };
+    return copy;
+  }
+  return list;
+}
+
+/** Fold one streamed agent event into the chat transcript. */
+export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
+  switch (ev.type) {
+    case 'assistant_delta': {
+      const last = list[list.length - 1];
+      if (last && last.kind === 'assistant' && last.streaming) {
+        const copy = list.slice();
+        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
+        return copy;
+      }
+      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: true }];
+    }
+    case 'thinking_delta': {
+      const last = list[list.length - 1];
+      if (last && last.kind === 'thinking' && last.streaming) {
+        const copy = list.slice();
+        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
+        return copy;
+      }
+      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: true }];
+    }
+    case 'assistant':
+      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
+    case 'tool_use':
+      return [
+        ...finalizeStreaming(list),
+        { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, status: 'running' },
+      ];
+    case 'tool_result': {
+      const idx = list.findIndex((m) => m.kind === 'tool' && m.id === ev.id);
+      if (idx === -1) return list;
+      const copy = list.slice();
+      const t = copy[idx] as Extract<ChatMsg, { kind: 'tool' }>;
+      copy[idx] = { ...t, status: ev.ok ? 'ok' : 'error', result: ev.text };
+      return copy;
+    }
+    case 'result':
+      // A successful result mirrors the last assistant text — only surface failures.
+      return ev.ok
+        ? finalizeStreaming(list)
+        : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
+    case 'error':
+      return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
+    case 'system':
+      return list; // suppress init / compact breadcrumbs
+    case 'done':
+      return finalizeStreaming(list);
+    default:
+      return list; // 'session' handled separately (stored on the store)
+  }
+}
+
+/** First user line, condensed, as the conversation title. */
+function deriveTitle(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (!t) return '新对话';
+  return t.length > 40 ? `${t.slice(0, 40)}…` : t;
+}
+
+// ---- store -----------------------------------------------------------------
+
+interface AgentChatState {
+  /** The project this conversation belongs to (null before first bind). */
+  boundProjectId: string | null;
+  messages: ChatMsg[];
+  prompt: string;
+  running: boolean;
+  activeConvId: string | null;
+  sdkSessionId: string | null;
+  convList: AgentConversationSummary[];
+
+  setPrompt: (p: string) => void;
+  /** Mount/route hook: load this project's history; reset chat only if the
+   *  project actually changed (so a remount with the same project keeps view). */
+  bindProject: (projectId: string) => void;
+  refreshList: () => void;
+  send: () => Promise<void>;
+  abort: () => void;
+  newConversation: () => void;
+  loadConversation: (id: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
+}
+
+export const useAgentChatStore = create<AgentChatState>((set, get) => ({
+  boundProjectId: null,
+  messages: [],
+  prompt: '',
+  running: false,
+  activeConvId: null,
+  sdkSessionId: null,
+  convList: [],
+
+  setPrompt: (p) => set({ prompt: p }),
+
+  refreshList: () => {
+    const pid = get().boundProjectId;
+    if (!pid) return;
+    void repo
+      .listByProject(pid)
+      .then((rows) => set({ convList: rows }))
+      .catch(() => set({ convList: [] }));
+  },
+
+  bindProject: (projectId) => {
+    ensureSubscription();
+    if (get().boundProjectId === projectId) {
+      // Same project (e.g. a remount) — keep the live transcript, just refresh.
+      get().refreshList();
+      return;
+    }
+    // Project changed — reset the live chat and load that project's history.
+    set({
+      boundProjectId: projectId,
+      messages: [],
+      activeConvId: null,
+      sdkSessionId: null,
+      prompt: '',
+      running: false,
+    });
+    get().refreshList();
+  },
+
+  send: async () => {
+    ensureSubscription();
+    const api = window.electronAPI?.agent;
+    const s = get();
+    if (!api || !s.prompt.trim() || s.running) return;
+    const text = s.prompt.trim();
+    const now = new Date().toISOString();
+    const settings = useSettingsStore.getState();
+    const mode = settings.agentMode;
+
+    // Lazily create the conversation row on the first message so it shows up in
+    // history immediately; the transcript is overwritten on `done`.
+    let convId = s.activeConvId;
+    if (!convId && s.boundProjectId) {
+      convId = uuidv7();
+      try {
+        await repo.create({
+          id: convId,
+          projectId: s.boundProjectId,
+          title: deriveTitle(text),
+          mode,
+          messages: [{ kind: 'user', text }],
+          sdkSessionId: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch {
+        /* persistence is best-effort — chat still works in-memory */
+      }
+      set({ activeConvId: convId });
+      get().refreshList();
+    }
+
+    set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
+    const r = await api.start({
+      prompt: text,
+      mode,
+      model: settings.agentModel,
+      effort: settings.agentEffort,
+      thinking: settings.agentThinking,
+      resume: s.sdkSessionId ?? undefined,
+    });
+    if (!r.ok) {
+      set((st) => ({ messages: [...st.messages, { kind: 'error', text: r.error }], running: false }));
+    }
+  },
+
+  abort: () => {
+    void window.electronAPI?.agent?.abort();
+  },
+
+  newConversation: () => {
+    void window.electronAPI?.agent?.resetSession();
+    set({ messages: [], activeConvId: null, sdkSessionId: null, prompt: '', running: false });
+  },
+
+  loadConversation: async (id) => {
+    const conv = await repo.get(id);
+    if (!conv) return;
+    set({ messages: conv.messages, activeConvId: conv.id, sdkSessionId: conv.sdkSessionId });
+  },
+
+  deleteConversation: async (id) => {
+    try {
+      await repo.softDelete(id, new Date().toISOString());
+    } catch {
+      /* ignore */
+    }
+    if (get().activeConvId === id) {
+      set({ messages: [], activeConvId: null, sdkSessionId: null });
+    }
+    get().refreshList();
+  },
+}));
+
+// ---- persistence + single global event subscription ------------------------
+
+async function persistActive(): Promise<void> {
+  const { activeConvId, messages, sdkSessionId } = useAgentChatStore.getState();
+  if (!activeConvId) return;
+  try {
+    await repo.update(activeConvId, {
+      messages,
+      sdkSessionId,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch {
+    /* best-effort */
+  }
+  useAgentChatStore.getState().refreshList();
+}
+
+function handleEvent(ev: AgentEvent): void {
+  if (ev.type === 'session') {
+    useAgentChatStore.setState({ sdkSessionId: ev.id });
+    return;
+  }
+  useAgentChatStore.setState((s) => ({ messages: applyEvent(s.messages, ev) }));
+  if (ev.type === 'done') {
+    useAgentChatStore.setState({ running: false });
+    // `set` is synchronous, so getState() inside persist sees the finalized
+    // transcript (the done event's applyEvent already applied).
+    void persistActive();
+  }
+}
+
+let subscribed = false;
+/** Subscribe to agent events once for the app's lifetime (never torn down, so
+ *  streaming survives the panel unmounting). Idempotent. */
+function ensureSubscription(): void {
+  if (subscribed) return;
+  const api = window.electronAPI?.agent;
+  if (!api) return;
+  subscribed = true;
+  api.onEvent(handleEvent);
+}

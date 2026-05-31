@@ -2,104 +2,29 @@
  * Agent panel — the interactive Claude agent, rendered in the right sidebar's
  * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat that
  * streams assistant text token-by-token, renders it as markdown, shows the
- * tool calls the agent makes and its extended thinking, and keeps a local
- * history of past conversations (new / switch / delete).
+ * agent's tool calls and extended thinking, keeps a local history of past
+ * conversations, and exposes a quick model / effort / thinking switcher under
+ * the input.
  *
- * Persistence (local-only): the rendered transcript is saved to SQLite
- * (agent_conversation) on each turn's completion; the SDK's own session file is
- * the source of truth for *resuming* context, tracked here as sdkSessionId and
- * passed back to the main process as `resume`. The renderer owns conversation
- * identity — main holds no cross-turn session state.
+ * The conversation state + the agent-event subscription live in a module-level
+ * store (useAgentChatStore), so this view survives the panel unmounting on tab
+ * switches and streaming keeps flowing while it's not mounted. This component is
+ * a thin projection: render + local UI concerns (scroll, history dropdown).
  *
  * Credential mode (BYOK Claude OAuth vs Hosted) and the model / thinking params
- * live in Settings → 模型与 API. If the agent isn't set up for the chosen mode,
- * we show a hint that opens Settings.
+ * live in Settings → 模型与 API; the switcher here writes the same store fields.
+ * If the agent isn't set up for the chosen mode, we show a hint that opens it.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
-import { v7 as uuidv7 } from 'uuid';
-import { useSettingsStore } from '../../store/settings-store';
+import { useSettingsStore, type AgentModel, type AgentEffort } from '../../store/settings-store';
+import { useAgentChatStore } from '../../store/agent-chat-store';
 import { events } from '../../lib/events';
-import { createAgentConversationRepository } from '../../sqlite-repo/agent-conversation-repo';
-import type {
-  AgentChatMessage as ChatMsg,
-  AgentConversationSummary,
-} from '../../domain/agent-conversation';
-import type { AgentEvent } from '../../../main/agent';
+import type { AgentChatMessage as ChatMsg } from '../../domain/agent-conversation';
 
 interface AuthStatus {
   byokConnected: boolean;
   hostedAvailable: boolean;
-}
-
-/** Mark any trailing still-streaming assistant/thinking message as finished. */
-function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
-  const last = list[list.length - 1];
-  if (last && (last.kind === 'assistant' || last.kind === 'thinking') && last.streaming) {
-    const copy = list.slice();
-    copy[copy.length - 1] = { ...last, streaming: false };
-    return copy;
-  }
-  return list;
-}
-
-/** Fold one streamed agent event into the chat transcript. */
-function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
-  switch (ev.type) {
-    case 'assistant_delta': {
-      const last = list[list.length - 1];
-      if (last && last.kind === 'assistant' && last.streaming) {
-        const copy = list.slice();
-        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
-        return copy;
-      }
-      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: true }];
-    }
-    case 'thinking_delta': {
-      const last = list[list.length - 1];
-      if (last && last.kind === 'thinking' && last.streaming) {
-        const copy = list.slice();
-        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
-        return copy;
-      }
-      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: true }];
-    }
-    case 'assistant':
-      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
-    case 'tool_use':
-      return [
-        ...finalizeStreaming(list),
-        { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, status: 'running' },
-      ];
-    case 'tool_result': {
-      const idx = list.findIndex((m) => m.kind === 'tool' && m.id === ev.id);
-      if (idx === -1) return list;
-      const copy = list.slice();
-      const t = copy[idx] as Extract<ChatMsg, { kind: 'tool' }>;
-      copy[idx] = { ...t, status: ev.ok ? 'ok' : 'error', result: ev.text };
-      return copy;
-    }
-    case 'result':
-      // A successful result mirrors the last assistant text — only surface failures.
-      return ev.ok
-        ? finalizeStreaming(list)
-        : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
-    case 'error':
-      return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
-    case 'system':
-      return list; // suppress init / compact breadcrumbs
-    case 'done':
-      return finalizeStreaming(list);
-    default:
-      return list; // 'session' handled separately (stored in a ref)
-  }
-}
-
-/** First user line, condensed, as the conversation title. */
-function deriveTitle(text: string): string {
-  const t = text.replace(/\s+/g, ' ').trim();
-  if (!t) return '新对话';
-  return t.length > 40 ? `${t.slice(0, 40)}…` : t;
 }
 
 function relTime(iso: string): string {
@@ -223,25 +148,33 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const agentModel = useSettingsStore((s) => s.agentModel);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const agentThinking = useSettingsStore((s) => s.agentThinking);
+  const setAgentModel = useSettingsStore((s) => s.setAgentModel);
+  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
 
-  const repo = useMemo(() => createAgentConversationRepository(), []);
+  // Chat state + actions live in the module store so they persist across the
+  // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
+  const messages = useAgentChatStore((s) => s.messages);
+  const prompt = useAgentChatStore((s) => s.prompt);
+  const running = useAgentChatStore((s) => s.running);
+  const convList = useAgentChatStore((s) => s.convList);
+  const activeConvId = useAgentChatStore((s) => s.activeConvId);
+  const setPrompt = useAgentChatStore((s) => s.setPrompt);
+  const send = useAgentChatStore((s) => s.send);
+  const abort = useAgentChatStore((s) => s.abort);
+  const newConversation = useAgentChatStore((s) => s.newConversation);
+  const loadConversation = useAgentChatStore((s) => s.loadConversation);
+  const deleteConversation = useAgentChatStore((s) => s.deleteConversation);
+  const bindProject = useAgentChatStore((s) => s.bindProject);
 
   const [status, setStatus] = useState<AuthStatus | null>(null);
-  const [prompt, setPrompt] = useState('');
-  const [running, setRunning] = useState(false);
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [convList, setConvList] = useState<AgentConversationSummary[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [doneTick, setDoneTick] = useState(0);
+  const [atBottom, setAtBottom] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
-
-  // Latest values read inside the once-registered event handler / persistence.
-  // messagesRef is synced via an effect (below); convIdRef + sessionIdRef are
-  // updated imperatively wherever those change (send / load / new / delete).
-  const messagesRef = useRef(messages);
-  const convIdRef = useRef(activeConvId);
-  const sessionIdRef = useRef<string | null>(null);
+  // Whether to keep pinning the view to the bottom during streaming. The user
+  // scrolling up sets this false (breaks free); scrolling back to the bottom
+  // re-engages it.
+  const stickRef = useRef(true);
 
   const refreshStatus = useCallback(() => {
     if (!api) return;
@@ -250,13 +183,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       .then(setStatus)
       .catch(() => setStatus({ byokConnected: false, hostedAvailable: false }));
   }, [api]);
-
-  const loadList = useCallback(() => {
-    void repo
-      .listByProject(projectId)
-      .then(setConvList)
-      .catch(() => setConvList([]));
-  }, [repo, projectId]);
 
   useEffect(() => {
     refreshStatus();
@@ -268,171 +194,63 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     return () => events.off('agent:auth-changed', refreshStatus);
   }, [refreshStatus]);
 
-  // On project switch: load that project's history and reset the live chat.
-  // Done inside an async IIFE so the resets land after the await (not as a
-  // synchronous setState in the effect body).
+  // Bind the active project: loads its history, and resets the live chat only
+  // if the project actually changed (a remount with the same project keeps it).
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      let rows: AgentConversationSummary[] = [];
-      try {
-        rows = await repo.listByProject(projectId);
-      } catch {
-        rows = [];
-      }
-      if (cancelled) return;
-      setConvList(rows);
-      setMessages([]);
-      setActiveConvId(null);
-      convIdRef.current = null;
-      sessionIdRef.current = null;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, repo]);
+    bindProject(projectId);
+  }, [projectId, bindProject]);
 
+  // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
-    if (!api) return undefined;
-    return api.onEvent((ev) => {
-      if (ev.type === 'session') {
-        sessionIdRef.current = ev.id;
-        return;
-      }
-      setMessages((prev) => applyEvent(prev, ev));
-      if (ev.type === 'done') {
-        setRunning(false);
-        setDoneTick((t) => t + 1);
-      }
-    });
-  }, [api]);
-
-  // Keep messagesRef current. Declared before the persist effect so it runs
-  // first in the same commit — the persist effect then reads the finalized list.
-  useEffect(() => {
-    messagesRef.current = messages;
+    if (stickRef.current && logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
   }, [messages]);
 
-  // Persist the transcript when a turn finishes. Runs after render, so
-  // messagesRef holds the finalized list (the done event's setMessages applied).
-  useEffect(() => {
-    if (doneTick === 0) return;
-    const convId = convIdRef.current;
-    if (!convId) return;
-    void repo
-      .update(convId, {
-        messages: messagesRef.current,
-        sdkSessionId: sessionIdRef.current,
-        updatedAt: new Date().toISOString(),
-      })
-      .then(() => loadList())
-      .catch(() => {});
-  }, [doneTick, repo, loadList]);
+  const onScroll = useCallback(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stickRef.current = bottom;
+    setAtBottom((prev) => (prev === bottom ? prev : bottom));
+  }, []);
 
-  useEffect(() => {
+  const jumpToBottom = useCallback(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    stickRef.current = true;
+    setAtBottom(true);
+  }, []);
 
-  const send = useCallback(async () => {
-    if (!api || !prompt.trim() || running) return;
-    const text = prompt.trim();
-    const now = new Date().toISOString();
+  const handleSend = useCallback(() => {
+    stickRef.current = true; // sending re-engages auto-follow
+    setAtBottom(true);
+    void send();
+  }, [send]);
 
-    // Lazily create the conversation row on the first message so it appears in
-    // history immediately; the transcript is overwritten on `done`.
-    if (!convIdRef.current) {
-      const id = uuidv7();
-      convIdRef.current = id;
-      setActiveConvId(id);
-      try {
-        await repo.create({
-          id,
-          projectId,
-          title: deriveTitle(text),
-          mode: agentMode,
-          messages: [{ kind: 'user', text }],
-          sdkSessionId: null,
-          createdAt: now,
-          updatedAt: now,
-        });
-        loadList();
-      } catch {
-        /* persistence is best-effort — chat still works in-memory */
-      }
-    }
-
-    setMessages((prev) => [...prev, { kind: 'user', text }]);
-    setPrompt('');
-    setRunning(true);
-    const r = await api.start({
-      prompt: text,
-      mode: agentMode,
-      model: agentModel,
-      effort: agentEffort,
-      thinking: agentThinking,
-      resume: sessionIdRef.current ?? undefined,
-    });
-    if (!r.ok) {
-      setMessages((prev) => [...prev, { kind: 'error', text: r.error }]);
-      setRunning(false);
-    }
-  }, [
-    api,
-    prompt,
-    running,
-    agentMode,
-    agentModel,
-    agentEffort,
-    agentThinking,
-    projectId,
-    repo,
-    loadList,
-  ]);
-
-  const abort = useCallback(() => {
-    void api?.abort();
-  }, [api]);
-
-  const newConversation = useCallback(() => {
-    void api?.resetSession();
-    setMessages([]);
-    setActiveConvId(null);
-    convIdRef.current = null;
-    sessionIdRef.current = null;
+  const handleNew = useCallback(() => {
+    newConversation();
     setShowHistory(false);
-  }, [api]);
+    stickRef.current = true;
+    setAtBottom(true);
+  }, [newConversation]);
 
-  const loadConversation = useCallback(
-    async (id: string) => {
-      const conv = await repo.get(id);
-      if (!conv) return;
-      setMessages(conv.messages);
-      setActiveConvId(conv.id);
-      convIdRef.current = conv.id;
-      sessionIdRef.current = conv.sdkSessionId;
+  const handleLoad = useCallback(
+    (id: string) => {
+      void loadConversation(id);
       setShowHistory(false);
+      stickRef.current = true;
+      setAtBottom(true);
     },
-    [repo],
+    [loadConversation],
   );
 
-  const deleteConversation = useCallback(
-    async (id: string, e: React.MouseEvent) => {
+  const handleDelete = useCallback(
+    (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
-      try {
-        await repo.softDelete(id, new Date().toISOString());
-      } catch {
-        /* ignore */
-      }
-      if (convIdRef.current === id) {
-        setMessages([]);
-        setActiveConvId(null);
-        convIdRef.current = null;
-        sessionIdRef.current = null;
-      }
-      loadList();
+      void deleteConversation(id);
     },
-    [repo, loadList],
+    [deleteConversation],
   );
 
   if (!api) {
@@ -478,7 +296,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         >
           ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
         </button>
-        <button type="button" style={ghostBtn} onClick={newConversation} title="开始新对话">
+        <button type="button" style={ghostBtn} onClick={handleNew} title="开始新对话">
           ＋ 新对话
         </button>
       </div>
@@ -491,11 +309,8 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             convList.map((c) => (
               <div
                 key={c.id}
-                style={{
-                  ...historyItem,
-                  ...(c.id === activeConvId ? historyItemActive : null),
-                }}
-                onClick={() => void loadConversation(c.id)}
+                style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
+                onClick={() => handleLoad(c.id)}
               >
                 <span style={historyTitle}>{c.title || '未命名'}</span>
                 <span style={historyTime}>{relTime(c.updatedAt)}</span>
@@ -503,7 +318,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   type="button"
                   style={historyDel}
                   title="删除对话"
-                  onClick={(e) => void deleteConversation(c.id, e)}
+                  onClick={(e) => handleDelete(c.id, e)}
                 >
                   ×
                 </button>
@@ -513,38 +328,81 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div ref={logRef} style={logStyle}>
-        {messages.length === 0 ? (
-          <div style={{ opacity: 0.5 }}>
-            给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。
-          </div>
-        ) : (
-          messages.map((m, i) => <MessageView key={i} msg={m} />)
+      <div style={logWrap}>
+        <div ref={logRef} style={logStyle} onScroll={onScroll}>
+          {messages.length === 0 ? (
+            <div style={{ opacity: 0.5 }}>
+              给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。
+            </div>
+          ) : (
+            messages.map((m, i) => <MessageView key={i} msg={m} />)
+          )}
+        </div>
+        {!atBottom && (
+          <button type="button" style={jumpBtn} onClick={jumpToBottom} title="回到最新">
+            ↓
+          </button>
         )}
       </div>
-      <div style={inputRow}>
+
+      <div style={inputContainer}>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              void send();
+              handleSend();
             }
           }}
           placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
           rows={2}
-          style={{ ...inputStyle, flex: 1, resize: 'none' }}
+          style={textareaStyle}
         />
-        {running ? (
-          <button type="button" style={primaryBtn} onClick={abort}>
-            Stop
-          </button>
-        ) : (
-          <button type="button" style={primaryBtn} onClick={() => void send()}>
-            Send
-          </button>
-        )}
+        <div style={inputControls}>
+          <div style={paramsBar}>
+            <select
+              value={agentModel}
+              onChange={(e) => setAgentModel(e.target.value as AgentModel)}
+              style={paramSelect}
+              title="模型"
+            >
+              <option value="default">默认</option>
+              <option value="opus">Opus</option>
+              <option value="sonnet">Sonnet</option>
+              <option value="haiku">Haiku</option>
+            </select>
+            <button
+              type="button"
+              style={{ ...thinkChip, ...(agentThinking === 'adaptive' ? thinkChipOn : null) }}
+              onClick={() => setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')}
+              title={agentThinking === 'adaptive' ? '扩展思考:开' : '扩展思考:关'}
+            >
+              💭 思考{agentThinking === 'adaptive' ? '' : ' 关'}
+            </button>
+            <select
+              value={agentEffort}
+              onChange={(e) => setAgentEffort(e.target.value as AgentEffort)}
+              style={paramSelect}
+              disabled={agentThinking === 'off'}
+              title="思考强度"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Med</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div style={{ flex: 1 }} />
+          {running ? (
+            <button type="button" style={primaryBtn} onClick={abort}>
+              Stop
+            </button>
+          ) : (
+            <button type="button" style={primaryBtn} onClick={handleSend}>
+              Send
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -623,6 +481,14 @@ const historyDel: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const logWrap: React.CSSProperties = {
+  position: 'relative',
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
 const logStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
@@ -633,6 +499,23 @@ const logStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
+};
+
+const jumpBtn: React.CSSProperties = {
+  position: 'absolute',
+  bottom: 10,
+  right: 12,
+  width: 28,
+  height: 28,
+  borderRadius: '50%',
+  border: '1px solid hsl(var(--rule))',
+  background: 'hsl(var(--paper))',
+  color: 'hsl(var(--ink-1))',
+  cursor: 'pointer',
+  boxShadow: '0 2px 10px hsl(var(--ink-1) / 0.2)',
+  fontSize: 14,
+  lineHeight: 1,
+  zIndex: 10,
 };
 
 const userRow: React.CSSProperties = {
@@ -739,12 +622,13 @@ const toolPre: React.CSSProperties = {
   overflow: 'auto',
 };
 
-const inputRow: React.CSSProperties = {
-  padding: 10,
+const inputContainer: React.CSSProperties = {
+  padding: 8,
   display: 'flex',
+  flexDirection: 'column',
   gap: 6,
-  alignItems: 'flex-end',
   borderTop: '1px solid hsl(var(--rule))',
+  flexShrink: 0,
 };
 
 const inputStyle: React.CSSProperties = {
@@ -755,6 +639,55 @@ const inputStyle: React.CSSProperties = {
   padding: '6px 8px',
   fontSize: 12,
   fontFamily: 'inherit',
+};
+
+const textareaStyle: React.CSSProperties = {
+  ...inputStyle,
+  width: '100%',
+  resize: 'none',
+  boxSizing: 'border-box',
+};
+
+const inputControls: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const paramsBar: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+  minWidth: 0,
+};
+
+const paramSelect: React.CSSProperties = {
+  background: 'hsl(var(--page))',
+  color: 'inherit',
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 6,
+  fontSize: 11,
+  padding: '3px 4px',
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+};
+
+const thinkChip: React.CSSProperties = {
+  background: 'transparent',
+  color: 'inherit',
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 6,
+  fontSize: 11,
+  padding: '3px 8px',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
+
+const thinkChipOn: React.CSSProperties = {
+  background: 'hsl(var(--accent) / 0.16)',
+  border: '1px solid hsl(var(--accent) / 0.45)',
+  color: 'hsl(var(--accent))',
 };
 
 const primaryBtn: React.CSSProperties = {
