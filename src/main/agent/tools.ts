@@ -42,7 +42,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_chapter',
-        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
+        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, an `appears:` line listing the elements/entities mentioned in this chapter (label + kind + id, for finding context), then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
         { nodeId: z.string().describe('Node id from list_project_structure') },
         (args) => run('read_chapter', args),
       ),

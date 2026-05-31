@@ -131,6 +131,27 @@ function listProjectStructure(ctx: AgentToolContext) {
   };
 }
 
+/**
+ * The structural entities (elements / nodes / storylines …) a chapter references
+ * in its prose, deduped by `${kind}:${id}`. Derived from the inline-mention
+ * projection. Shared by read_chapter and get_chapter_context.
+ */
+async function listChapterReferences(
+  s: DataState,
+  nodeId: string,
+): Promise<Array<{ kind: string; id: string; label: string }>> {
+  const mentions = await createInlineMentionRepository().listMentionsFromSource('node', nodeId);
+  const seen = new Set<string>();
+  const references: Array<{ kind: string; id: string; label: string }> = [];
+  for (const m of mentions) {
+    const key = `${m.toKind}:${m.toId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    references.push({ kind: m.toKind, id: m.toId, label: entityLabel(s, m.toKind, m.toId) });
+  }
+  return references;
+}
+
 async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
@@ -140,8 +161,14 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   // Compact numbered rendering — the leading number is the handle for edit_block.
   const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字 · id=${node.id}`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
+  // Which elements/entities appear in this chapter (recorded inline mentions),
+  // so the agent has context without a separate get_chapter_context call.
+  const refs = await listChapterReferences(s, nodeId);
+  const appearsLine = refs.length
+    ? `appears: ${refs.map((r) => `${r.label} (${r.kind} id=${r.id})`).join(', ')}`
+    : 'appears: (none recorded)';
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
-  return `${header}\n${summaryLine}\n\n${body}`;
+  return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
 }
 
 function readElement(ctx: AgentToolContext, elementId: string) {
@@ -320,15 +347,7 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
     .filter(Boolean);
 
   // Elements (and other structural entities) this chapter references in prose.
-  const mentions = await createInlineMentionRepository().listMentionsFromSource('node', nodeId);
-  const seen = new Set<string>();
-  const references: Array<{ kind: string; id: string; label: string }> = [];
-  for (const m of mentions) {
-    const key = `${m.toKind}:${m.toId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    references.push({ kind: m.toKind, id: m.toId, label: entityLabel(s, m.toKind, m.toId) });
-  }
+  const references = await listChapterReferences(s, nodeId);
 
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
   const relations = [

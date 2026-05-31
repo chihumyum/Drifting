@@ -802,6 +802,16 @@ function Layout() {
               <BottomTimeline />
             </div>
           )}
+          {/* In-document Cmd+F find panel — anchored to this editor column
+              (.app-mid is position:relative) so it floats over the text area
+              instead of the viewport's top-right, which used to occlude the
+              right sidebar. */}
+          {findPanelEditor && (
+            <EditorFindPanel
+              editor={findPanelEditor}
+              onClose={() => setFindPanelEditor(null)}
+            />
+          )}
         </main>
         <Sidebar sidebarType="right">
           <div
@@ -845,12 +855,6 @@ function Layout() {
         isOpen={isGlobalSearchOpen}
         onClose={() => setIsGlobalSearchOpen(false)}
       />
-      {findPanelEditor && (
-        <EditorFindPanel
-          editor={findPanelEditor}
-          onClose={() => setFindPanelEditor(null)}
-        />
-      )}
       <SyncStatusHUD />
     </div>
   );

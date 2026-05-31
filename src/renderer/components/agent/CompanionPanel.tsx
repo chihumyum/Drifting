@@ -15,7 +15,7 @@
  * live in Settings → 模型与 API; the switcher here writes the same store fields.
  * If the agent isn't set up for the chosen mode, we show a hint that opens it.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import {
   useSettingsStore,
@@ -34,6 +34,9 @@ interface AuthStatus {
   byokConnected: boolean;
   hostedAvailable: boolean;
 }
+
+/** Max composer height before it stops growing and scrolls internally (~8 lines). */
+const COMPOSER_MAX_PX = 168;
 
 function relTime(iso: string): string {
   try {
@@ -239,7 +242,47 @@ function ComposerConfig() {
   );
 }
 
-function MessageView({ msg }: { msg: ChatMsg }) {
+/**
+ * Assistant bubble. Memoized + the markdown parse is memoized on the text, so a
+ * stable (non-streaming) message never re-runs marked.parse — this is what keeps
+ * typing in the composer responsive even with a long transcript (every keystroke
+ * used to re-parse every assistant message).
+ */
+const AssistantBubble = memo(function AssistantBubble({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming?: boolean;
+}) {
+  const html = useMemo(() => mdToHtml(text), [text]);
+  return (
+    <div
+      className="agent-md"
+      style={assistantBubble}
+      dangerouslySetInnerHTML={{
+        __html: html + (streaming ? '<span class="agent-caret">▌</span>' : ''),
+      }}
+    />
+  );
+});
+
+/** A row indicating the agent is working but nothing is actively streaming yet. */
+function PendingRow() {
+  return (
+    <div className="agt-pending">
+      <span className="agt-pending__dot" />
+      <span className="agt-pending__dot" />
+      <span className="agt-pending__dot" />
+      <span>思考中…</span>
+    </div>
+  );
+}
+
+// Memoized so that re-rendering CompanionPanel (e.g. on every keystroke in the
+// composer) does not re-render/-parse every message — only messages whose `msg`
+// object identity changed (the streaming tail) re-render.
+const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
   switch (msg.kind) {
     case 'user':
       return (
@@ -250,15 +293,7 @@ function MessageView({ msg }: { msg: ChatMsg }) {
     case 'thinking':
       return <ThinkingRow msg={msg} />;
     case 'assistant':
-      return (
-        <div
-          className="agent-md"
-          style={assistantBubble}
-          dangerouslySetInnerHTML={{
-            __html: mdToHtml(msg.text) + (msg.streaming ? '<span class="agent-caret">▌</span>' : ''),
-          }}
-        />
-      );
+      return <AssistantBubble text={msg.text} streaming={msg.streaming} />;
     case 'tool':
       return <ToolRow msg={msg} />;
     case 'todos':
@@ -268,7 +303,7 @@ function MessageView({ msg }: { msg: ChatMsg }) {
     default:
       return null;
   }
-}
+});
 
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
   if (items.length === 0) return null;
@@ -335,6 +370,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemDraft, setItemDraft] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   // Whether to keep pinning the view to the bottom during streaming. The user
   // scrolling up sets this false (breaks free); scrolling back to the bottom
   // re-engages it.
@@ -370,6 +406,16 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-grow the composer from one line up to a cap, then scroll. The bar is
+  // bottom-anchored with the log on flex:1, so growing the textarea pushes the
+  // input area upward (the requested "grow upward" behavior).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_PX)}px`;
+  }, [prompt]);
 
   const onScroll = useCallback(() => {
     const el = logRef.current;
@@ -426,6 +472,16 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
   const sessionName = activeConv ? activeConv.title || '未命名' : '新对话';
   const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
+
+  // Show a "思考中…" placeholder whenever the agent is running but nothing is
+  // actively streaming — i.e. the dead-air gaps (right after send, and between a
+  // tool finishing and the next token), where there was previously no feedback.
+  const lastMsg = messages[messages.length - 1];
+  const busyTail =
+    !!lastMsg &&
+    (((lastMsg.kind === 'assistant' || lastMsg.kind === 'thinking') && lastMsg.streaming) ||
+      (lastMsg.kind === 'tool' && lastMsg.status === 'running'));
+  const waiting = running && !busyTail;
 
   const beginHeaderRename = useCallback(() => {
     if (!activeConv) return;
@@ -600,6 +656,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
+          {waiting && <PendingRow />}
         </div>
         {!atBottom && (
           <button type="button" style={jumpBtn} onClick={jumpToBottom} title="回到最新">
@@ -611,6 +668,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       <div style={inputArea}>
         <div className="agt-composer">
           <textarea
+            ref={taRef}
             className="agt-composer__text"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -621,7 +679,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               }
             }}
             placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
-            rows={2}
+            rows={1}
           />
           <div className="agt-composer__bar">
             <ComposerConfig />
@@ -1006,4 +1064,10 @@ const panelCss = `
 .agent-md th, .agent-md td { border: 1px solid hsl(var(--rule)); padding: 3px 6px; }
 .agent-caret { display: inline-block; width: 0; opacity: 0.6; animation: agentBlink 1s steps(1) infinite; }
 @keyframes agentBlink { 50% { opacity: 0; } }
+.agt-pending { display: flex; align-items: center; gap: 5px; padding: 4px 2px; font-size: 12px; opacity: 0.6; }
+.agt-pending__dot { width: 5px; height: 5px; border-radius: 50%; background: hsl(var(--ink-1)); animation: agtPendingPulse 1.2s ease-in-out infinite; }
+.agt-pending__dot:nth-child(2) { animation-delay: 0.15s; }
+.agt-pending__dot:nth-child(3) { animation-delay: 0.3s; }
+.agt-pending span:last-child { margin-left: 2px; }
+@keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
 `;

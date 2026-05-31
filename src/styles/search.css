@@ -272,9 +272,12 @@
    Editor find panel (in-document Cmd+F)
    ============================================================ */
 .editor-find-panel {
-  position: fixed;
-  top: 56px;
-  right: 24px;
+  /* Anchored inside the central editor column (.app-mid, position:relative)
+     rather than fixed to the viewport, so it no longer overlaps the right
+     sidebar. */
+  position: absolute;
+  top: 12px;
+  right: 16px;
   z-index: 100;
   display: flex;
   align-items: center;
