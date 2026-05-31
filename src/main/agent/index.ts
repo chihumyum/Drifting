@@ -36,6 +36,8 @@ export type AgentEvent =
   | { type: 'assistant'; text: string }
   /** A streamed token chunk of the current assistant text block. */
   | { type: 'assistant_delta'; text: string }
+  /** A streamed token chunk of the model's extended-thinking block. */
+  | { type: 'thinking_delta'; text: string }
   /** The agent invoked a tool (name already stripped of the mcp__drifting__ prefix). */
   | { type: 'tool_use'; id: string; name: string; input?: unknown }
   /** A tool returned its result, keyed back to the tool_use by id. */
@@ -45,6 +47,10 @@ export type AgentEvent =
   | { type: 'done' };
 
 export type AgentMode = 'byok' | 'hosted';
+/** Generation params surfaced from settings; mirror the SDK Options. */
+export type AgentModelChoice = 'default' | 'opus' | 'sonnet' | 'haiku';
+export type AgentEffortChoice = 'low' | 'medium' | 'high';
+export type AgentThinkingChoice = 'adaptive' | 'off';
 
 export interface AgentStartInput {
   prompt: string;
@@ -53,6 +59,12 @@ export interface AgentStartInput {
   mode?: AgentMode;
   /** Start a fresh conversation (drop the resumed session). */
   newConversation?: boolean;
+  /** Model alias; 'default'/undefined lets the SDK pick. */
+  model?: AgentModelChoice;
+  /** Reasoning effort (SDK default is 'high'). */
+  effort?: AgentEffortChoice;
+  /** Extended-thinking mode. */
+  thinking?: AgentThinkingChoice;
 }
 
 /** Resolve the subprocess env for the chosen mode, or an error to surface. */
@@ -127,16 +139,23 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
       // init / compact-boundary / etc. — currently suppressed in the UI.
       return [{ type: 'system', text: (msg as { subtype?: string }).subtype ?? 'system' }];
     case 'stream_event': {
-      const ev = (msg as { event?: { type?: string; delta?: { type?: string; text?: unknown } } })
-        .event;
-      if (
-        ev?.type === 'content_block_delta' &&
-        ev.delta?.type === 'text_delta' &&
-        typeof ev.delta.text === 'string' &&
-        ev.delta.text
-      ) {
-        state.sawDelta = true;
-        return [{ type: 'assistant_delta', text: ev.delta.text }];
+      const ev = (
+        msg as {
+          event?: {
+            type?: string;
+            delta?: { type?: string; text?: unknown; thinking?: unknown };
+          };
+        }
+      ).event;
+      if (ev?.type === 'content_block_delta') {
+        const d = ev.delta;
+        if (d?.type === 'text_delta' && typeof d.text === 'string' && d.text) {
+          state.sawDelta = true;
+          return [{ type: 'assistant_delta', text: d.text }];
+        }
+        if (d?.type === 'thinking_delta' && typeof d.thinking === 'string' && d.thinking) {
+          return [{ type: 'thinking_delta', text: d.thinking }];
+        }
       }
       return [];
     }
@@ -301,6 +320,11 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         permissionMode: 'bypassPermissions',
         // Stream token deltas so the panel can render assistant text live.
         includePartialMessages: true,
+        // User-tunable generation params (Settings → General Agent). 'default'
+        // model omits the field so the SDK/subscription default applies.
+        ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
+        ...(input.effort ? { effort: input.effort } : {}),
+        thinking: input.thinking === 'off' ? { type: 'disabled' } : { type: 'adaptive' },
         env: auth.env,
         pathToClaudeCodeExecutable: resolveClaudeBinary(),
         stderr: (data: string) => console.error('[claude stderr]', data),

@@ -26,6 +26,7 @@ interface AuthStatus {
 type ChatMsg =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string; streaming: boolean }
+  | { kind: 'thinking'; text: string; streaming: boolean }
   | {
       kind: 'tool';
       id: string;
@@ -36,10 +37,10 @@ type ChatMsg =
     }
   | { kind: 'error'; text: string };
 
-/** Mark any trailing still-streaming assistant message as finished. */
+/** Mark any trailing still-streaming assistant/thinking message as finished. */
 function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
   const last = list[list.length - 1];
-  if (last && last.kind === 'assistant' && last.streaming) {
+  if (last && (last.kind === 'assistant' || last.kind === 'thinking') && last.streaming) {
     const copy = list.slice();
     copy[copy.length - 1] = { ...last, streaming: false };
     return copy;
@@ -57,7 +58,16 @@ function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
         copy[copy.length - 1] = { ...last, text: last.text + ev.text };
         return copy;
       }
-      return [...list, { kind: 'assistant', text: ev.text, streaming: true }];
+      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: true }];
+    }
+    case 'thinking_delta': {
+      const last = list[list.length - 1];
+      if (last && last.kind === 'thinking' && last.streaming) {
+        const copy = list.slice();
+        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
+        return copy;
+      }
+      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: true }];
     }
     case 'assistant':
       return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
@@ -138,6 +148,30 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
   );
 }
 
+function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
+  // Open while the model is thinking; auto-collapse once the block finishes.
+  const [open, setOpen] = useState(true);
+  const wasStreaming = useRef(msg.streaming);
+  useEffect(() => {
+    if (wasStreaming.current && !msg.streaming) setOpen(false);
+    wasStreaming.current = msg.streaming;
+  }, [msg.streaming]);
+  return (
+    <details open={open} style={thinkingRow}>
+      <summary
+        style={thinkingSummary}
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((o) => !o);
+        }}
+      >
+        💭 思考{msg.streaming ? '中…' : '过程'}
+      </summary>
+      <div style={thinkingBody}>{msg.text}</div>
+    </details>
+  );
+}
+
 function MessageView({ msg }: { msg: ChatMsg }) {
   switch (msg.kind) {
     case 'user':
@@ -146,6 +180,8 @@ function MessageView({ msg }: { msg: ChatMsg }) {
           <div style={userBubble}>{msg.text}</div>
         </div>
       );
+    case 'thinking':
+      return <ThinkingRow msg={msg} />;
     case 'assistant':
       return (
         <div
@@ -168,6 +204,9 @@ function MessageView({ msg }: { msg: ChatMsg }) {
 export function CompanionPanel() {
   const api = window.electronAPI?.agent;
   const agentMode = useSettingsStore((s) => s.agentMode);
+  const agentModel = useSettingsStore((s) => s.agentModel);
+  const agentEffort = useSettingsStore((s) => s.agentEffort);
+  const agentThinking = useSettingsStore((s) => s.agentThinking);
 
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -212,12 +251,18 @@ export function CompanionPanel() {
     setMessages((prev) => [...prev, { kind: 'user', text }]);
     setPrompt('');
     setRunning(true);
-    const r = await api.start({ prompt: text, mode: agentMode });
+    const r = await api.start({
+      prompt: text,
+      mode: agentMode,
+      model: agentModel,
+      effort: agentEffort,
+      thinking: agentThinking,
+    });
     if (!r.ok) {
       setMessages((prev) => [...prev, { kind: 'error', text: r.error }]);
       setRunning(false);
     }
-  }, [api, prompt, running, agentMode]);
+  }, [api, prompt, running, agentMode, agentModel, agentEffort, agentThinking]);
 
   const abort = useCallback(() => {
     void api?.abort();
@@ -363,6 +408,32 @@ const errorBubble: React.CSSProperties = {
   padding: '6px 10px',
   color: 'hsl(0 70% 60%)',
   whiteSpace: 'pre-wrap',
+};
+
+const thinkingRow: React.CSSProperties = {
+  fontSize: 12,
+  opacity: 0.7,
+};
+
+const thinkingSummary: React.CSSProperties = {
+  cursor: 'pointer',
+  listStyle: 'none',
+  userSelect: 'none',
+  fontSize: 11,
+  letterSpacing: '0.02em',
+  color: 'hsl(var(--ink-3, var(--ink-1)))',
+};
+
+const thinkingBody: React.CSSProperties = {
+  marginTop: 4,
+  paddingLeft: 10,
+  borderLeft: '2px solid hsl(var(--rule))',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  fontStyle: 'italic',
+  fontSize: 11.5,
+  lineHeight: 1.5,
+  opacity: 0.85,
 };
 
 const toolRow: React.CSSProperties = {

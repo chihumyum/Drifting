@@ -16,6 +16,12 @@ export type CopilotMode = 'local' | 'cloud';
  *              the server calls the provider with it. Never persisted server-side.
  */
 export type AiMode = 'hosted' | 'byok';
+/** General-Agent (Claude Agent SDK) model choice. 'default' = let the SDK pick. */
+export type AgentModel = 'default' | 'opus' | 'sonnet' | 'haiku';
+/** Reasoning effort passed to the SDK (`high` is the SDK default). */
+export type AgentEffort = 'low' | 'medium' | 'high';
+/** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
+export type AgentThinking = 'adaptive' | 'off';
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 /** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';
@@ -146,6 +152,13 @@ interface SettingsState {
   // 'byok' = the user's Claude account via OAuth; 'hosted' = our subscription.
   agentMode: AiMode;
   setAgentMode: (m: AiMode) => void;
+  // General Agent (Claude Agent SDK) generation params — passed into query().
+  agentModel: AgentModel;
+  setAgentModel: (m: AgentModel) => void;
+  agentEffort: AgentEffort;
+  setAgentEffort: (e: AgentEffort) => void;
+  agentThinking: AgentThinking;
+  setAgentThinking: (t: AgentThinking) => void;
   uploadFullManuscript: boolean;
   setUploadFullManuscript: (on: boolean) => void;
   allowWebSearch: boolean;
@@ -314,6 +327,12 @@ export const useSettingsStore = create<SettingsState>()(
       setByokProvider: (p) => set({ byokProvider: p }),
       agentMode: 'byok',
       setAgentMode: (m) => set({ agentMode: m }),
+      agentModel: 'default',
+      setAgentModel: (m) => set({ agentModel: m }),
+      agentEffort: 'high',
+      setAgentEffort: (e) => set({ agentEffort: e }),
+      agentThinking: 'adaptive',
+      setAgentThinking: (t) => set({ agentThinking: t }),
       modelTier: 'standard',
       setModelTier: (t) => set({ modelTier: t }),
       uploadFullManuscript: true,

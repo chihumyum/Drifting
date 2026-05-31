@@ -20,6 +20,8 @@ import {
   type EditPermission,
   type FinishNotify,
   type AiMode,
+  type AgentModel,
+  type AgentEffort,
   type FocusLineMode,
   type LineHeight,
   type LocaleCode,
@@ -1660,6 +1662,12 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     setAiMode,
     agentMode,
     setAgentMode,
+    agentModel,
+    setAgentModel,
+    agentEffort,
+    setAgentEffort,
+    agentThinking,
+    setAgentThinking,
     uploadFullManuscript,
     setUploadFullManuscript,
     allowWebSearch,
@@ -1704,6 +1712,13 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
       name: '托管订阅',
       desc: '走 Drifting 的通道与额度，无需你自己的 Claude 账号。',
     },
+  ];
+
+  const agentModelOpts: { value: AgentModel; kicker: string; name: string; desc: string }[] = [
+    { value: 'default', kicker: 'AUTO', name: '默认', desc: '由订阅 / SDK 自动选择，最省心。' },
+    { value: 'opus', kicker: 'OPUS', name: 'Opus', desc: '最强推理。长任务、复杂改写。慢、贵。' },
+    { value: 'sonnet', kicker: 'SONNET', name: 'Sonnet', desc: '均衡。日常对话与编辑的默认之选。' },
+    { value: 'haiku', kicker: 'HAIKU', name: 'Haiku', desc: '最快最省。简单问答、批量小操作。' },
   ];
 
   return (
@@ -1848,6 +1863,52 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <AgentAuthRow mode={agentMode} />
+
+      <div className="set-sec">
+        <SecHead title="模型" hint="MODEL" />
+        <div className="set-tiers">
+          {agentModelOpts.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (agentModel === m.value ? ' set-tier--active' : '')}
+              onClick={() => setAgentModel(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="推理参数" hint="REASONING" />
+        <Row
+          label="扩展思考"
+          desc="开启后模型会先「想」再答，复杂任务更稳；关闭更快更省。思考过程会显示在对话里。"
+          control={
+            <Toggle
+              on={agentThinking === 'adaptive'}
+              onChange={(on) => setAgentThinking(on ? 'adaptive' : 'off')}
+            />
+          }
+        />
+        <Row
+          label="思考强度"
+          desc="思考开启时生效。high 推理最深（默认），low 最快。"
+          control={
+            <Seg<AgentEffort>
+              value={agentEffort}
+              options={[
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
+              ]}
+              onChange={setAgentEffort}
+            />
+          }
+        />
+      </div>
     </section>
   );
 }

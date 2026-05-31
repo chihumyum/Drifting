@@ -58,6 +58,9 @@ type SyncableSlice = {
   aiMode: unknown;
   byokProvider: unknown;
   agentMode: unknown;
+  agentModel: unknown;
+  agentEffort: unknown;
+  agentThinking: unknown;
   uploadFullManuscript: unknown;
   allowWebSearch: unknown;
   requestTimeoutSec: unknown;
@@ -106,6 +109,9 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'aiMode',
   'byokProvider',
   'agentMode',
+  'agentModel',
+  'agentEffort',
+  'agentThinking',
   'uploadFullManuscript',
   'allowWebSearch',
   'requestTimeoutSec',
@@ -236,6 +242,17 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     },
     agentMode: (v) => {
       if (v === 'hosted' || v === 'byok') store.setAgentMode(v);
+    },
+    agentModel: (v) => {
+      if (v === 'default' || v === 'opus' || v === 'sonnet' || v === 'haiku') {
+        store.setAgentModel(v);
+      }
+    },
+    agentEffort: (v) => {
+      if (v === 'low' || v === 'medium' || v === 'high') store.setAgentEffort(v);
+    },
+    agentThinking: (v) => {
+      if (v === 'adaptive' || v === 'off') store.setAgentThinking(v);
     },
     uploadFullManuscript: (v) => store.setUploadFullManuscript(!!v),
     allowWebSearch: (v) => store.setAllowWebSearch(!!v),
