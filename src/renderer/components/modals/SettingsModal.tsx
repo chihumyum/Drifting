@@ -168,8 +168,10 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
     if (!isOpen) return;
     const hasDeepLink = !!initialRailId && RAIL_IDS.has(initialRailId as RailId);
     const target = hasDeepLink ? (initialRailId as RailId) : active;
-    if (hasDeepLink) setActive(target);
     const apply = () => {
+      // Set the rail highlight here (deferred in the rAF, not synchronously in
+      // the effect body) so it lands together with the scroll.
+      if (hasDeepLink) setActive(target);
       const el = panelRefs.current[target];
       const main = mainRef.current;
       if (el && main) main.scrollTo({ top: el.offsetTop - 16, behavior: 'auto' });
@@ -954,6 +956,10 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 
   useEffect(() => {
+    // Mount fetch: reload() flips setLoading(true) then fetches. This is the
+    // legitimate "load on mount" pattern the rule can't infer through the
+    // async callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
   }, [reload]);
 
