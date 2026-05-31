@@ -1,15 +1,15 @@
 /**
  * Agent panel — the interactive Claude agent, rendered in the right sidebar's
  * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat with
- * a "new conversation" action; conversation continuity is kept across turns by
- * the main process (resume), and "新对话" starts fresh.
+ * a "new conversation" action; the main process keeps conversation continuity
+ * across turns (resume), and "新对话" starts fresh.
  *
- * Credential mode (BYOK vs Hosted) is chosen in Settings (store.agentMode), NOT
- * here. If the agent isn't set up for the chosen mode, we show a connect /
- * subscribe hint instead of the chat.
+ * Credential mode (BYOK Claude OAuth vs Hosted) and the actual connect flow
+ * live in Settings → 模型与 API (store.agentMode). If the agent isn't set up
+ * for the chosen mode, we show a hint that opens Settings.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useUiStore } from '../../store/ui-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
 import type { AgentEvent } from '../../../main/agent';
 
@@ -37,16 +37,12 @@ function formatEvent(ev: AgentEvent): string {
 
 export function CompanionPanel() {
   const api = window.electronAPI?.agent;
-  const agentMode = useUiStore((s) => s.agentMode);
+  const agentMode = useSettingsStore((s) => s.agentMode);
 
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [prompt, setPrompt] = useState('');
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  // BYOK connect flow (only shown in the not-connected state).
-  const [awaitingCode, setAwaitingCode] = useState(false);
-  const [code, setCode] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const refreshStatus = useCallback(() => {
@@ -59,6 +55,12 @@ export function CompanionPanel() {
 
   useEffect(() => {
     refreshStatus();
+  }, [refreshStatus]);
+
+  // Re-check after the user connects/disconnects in Settings.
+  useEffect(() => {
+    events.on('agent:auth-changed', refreshStatus);
+    return () => events.off('agent:auth-changed', refreshStatus);
   }, [refreshStatus]);
 
   useEffect(() => {
@@ -96,29 +98,6 @@ export function CompanionPanel() {
     setLog([]);
   }, [api]);
 
-  // ---- BYOK connect flow ----
-  const connect = useCallback(async () => {
-    if (!api) return;
-    setAuthError(null);
-    await api.authPrepare();
-    setAwaitingCode(true);
-  }, [api]);
-
-  const submitCode = useCallback(async () => {
-    if (!api || !code.trim()) return;
-    const r = await api.authSubmitCode(code.trim());
-    if (r.ok) {
-      setAwaitingCode(false);
-      setCode('');
-      setAuthError(null);
-      refreshStatus();
-    } else {
-      setAuthError(r.error);
-    }
-  }, [api, code, refreshStatus]);
-
-  const openExternal = (url: string) => void window.electronAPI?.material?.openExternal(url);
-
   if (!api) {
     return <div style={hintBox}>Agent 不可用。</div>;
   }
@@ -128,67 +107,23 @@ export function CompanionPanel() {
 
   const usable = agentMode === 'byok' ? status.byokConnected : status.hostedAvailable;
 
-  // ---- Not set up: connect (BYOK) or subscribe (Hosted) ----
+  // ---- Not set up → point to Settings (connect / subscribe lives there) ----
   if (!usable) {
-    if (agentMode === 'hosted') {
-      return (
-        <div style={hintBox}>
-          <div style={hintTitle}>托管 Agent 未就绪</div>
-          <div style={hintText}>使用托管订阅的 Agent 需要先登录并订阅 Drifting。</div>
-          <button type="button" style={primaryBtn} onClick={() => events.emit('settings:open', {})}>
-            打开设置 / 订阅
-          </button>
-        </div>
-      );
-    }
-    // BYOK
     return (
       <div style={hintBox}>
-        <div style={hintTitle}>连接 Claude 账号</div>
-        {!awaitingCode ? (
-          <>
-            <div style={hintText}>
-              用你自己的 Claude 账号(Max/Pro)。点击后会打开浏览器授权,把页面上的 code 粘回来。
-            </div>
-            <button type="button" style={primaryBtn} onClick={connect}>
-              连接 Claude
-            </button>
-            <button
-              type="button"
-              style={linkBtn}
-              onClick={() => openExternal('https://claude.ai/upgrade')}
-            >
-              还没有 Claude 订阅?去订阅
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={hintText}>粘贴授权 code:</div>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="authorization code"
-              style={inputStyle}
-              autoFocus
-            />
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" style={primaryBtn} onClick={submitCode}>
-                提交
-              </button>
-              <button
-                type="button"
-                style={ghostBtn}
-                onClick={() => {
-                  setAwaitingCode(false);
-                  setAuthError(null);
-                }}
-              >
-                取消
-              </button>
-            </div>
-          </>
-        )}
-        {authError && <div style={errorText}>{authError}</div>}
+        <div style={hintTitle}>Agent 未连接</div>
+        <div style={hintText}>
+          {agentMode === 'byok'
+            ? '当前为「自带 Claude 账号」模式,但还没连接。前往设置连接你的 Claude 账号(Max/Pro)。'
+            : '当前为「托管订阅」模式,但尚未就绪。前往设置登录并开通订阅。'}
+        </div>
+        <button
+          type="button"
+          style={primaryBtn}
+          onClick={() => events.emit('settings:open', { railId: 'models' })}
+        >
+          前往设置
+        </button>
       </div>
     );
   }
@@ -309,22 +244,13 @@ const ghostBtn: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const linkBtn: React.CSSProperties = {
-  background: 'transparent',
-  color: 'hsl(var(--accent))',
-  border: 'none',
-  padding: 0,
-  fontSize: 11,
-  cursor: 'pointer',
-  textAlign: 'left',
-};
-
 const hintBox: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 10,
   padding: 16,
   fontSize: 12,
+  alignItems: 'flex-start',
 };
 
 const hintTitle: React.CSSProperties = {
@@ -337,11 +263,4 @@ const hintText: React.CSSProperties = {
   fontSize: 12,
   opacity: 0.8,
   lineHeight: 1.6,
-};
-
-const errorText: React.CSSProperties = {
-  fontSize: 11.5,
-  color: 'hsl(var(--danger, 0 70% 50%))',
-  lineHeight: 1.5,
-  whiteSpace: 'pre-wrap',
 };

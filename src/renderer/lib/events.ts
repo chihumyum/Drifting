@@ -82,6 +82,10 @@ export type AppEvents = {
 
   'nodes:changed': void;
 
+  // The agent's credential connection changed (connected/disconnected in
+  // Settings) — the Agent panel listens to refresh its usable state.
+  'agent:auth-changed': void;
+
   // Copilot persisted a suggestion against the given (kind, id) target.
   // Consumed by useEntityMarginNotes to auto-open the comment rail when
   // copilot writes — otherwise suggestions land in a hidden margin and

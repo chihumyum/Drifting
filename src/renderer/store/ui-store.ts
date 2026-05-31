@@ -263,10 +263,6 @@ interface UiState {
   activeAgentPanel: 'companion' | 'shadow';
   setActiveAgentPanel: (panel: 'companion' | 'shadow') => void;
 
-  // Which credentials the Agent uses. Chosen in Settings (not the panel).
-  agentMode: 'byok' | 'hosted';
-  setAgentMode: (mode: 'byok' | 'hosted') => void;
-
   shadowMode: boolean;
   setShadowMode: (active: boolean) => void;
   toggleShadowMode: () => void;
@@ -581,8 +577,6 @@ export const useUiStore = create<UiState>()(
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel, rightPanelGroup: 'content' }),
       activeAgentPanel: 'companion',
       setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel, rightPanelGroup: 'agent' }),
-      agentMode: 'byok',
-      setAgentMode: (mode) => set({ agentMode: mode }),
 
       shadowMode: false,
       setShadowMode: (active) =>
@@ -1249,7 +1243,6 @@ export const useUiStore = create<UiState>()(
         rightPanelGroup: state.rightPanelGroup,
         activeRightPanel: state.activeRightPanel,
         activeAgentPanel: state.activeAgentPanel,
-        agentMode: state.agentMode,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
         shadowMode: state.shadowMode,

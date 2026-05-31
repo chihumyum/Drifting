@@ -142,6 +142,10 @@ interface SettingsState {
   // Which provider the BYOK path uses (the key for it must be in the keychain).
   byokProvider: BYOKProvider;
   setByokProvider: (p: BYOKProvider) => void;
+  // General Agent + Shadow credential mode — independent of copilot's `aiMode`.
+  // 'byok' = the user's Claude account via OAuth; 'hosted' = our subscription.
+  agentMode: AiMode;
+  setAgentMode: (m: AiMode) => void;
   uploadFullManuscript: boolean;
   setUploadFullManuscript: (on: boolean) => void;
   allowWebSearch: boolean;
@@ -308,6 +312,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAiMode: (m) => set({ aiMode: m }),
       byokProvider: 'deepseek',
       setByokProvider: (p) => set({ byokProvider: p }),
+      agentMode: 'byok',
+      setAgentMode: (m) => set({ agentMode: m }),
       modelTier: 'standard',
       setModelTier: (t) => set({ modelTier: t }),
       uploadFullManuscript: true,

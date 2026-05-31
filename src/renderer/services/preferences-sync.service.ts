@@ -52,8 +52,12 @@ type SyncableSlice = {
   manuscriptLocale: unknown;
   spellcheck: unknown;
   dateFormat: unknown;
-  // intelligence (non-secret)
+  // intelligence (non-secret). aiMode/byokProvider = copilot routing;
+  // agentMode = general-agent/shadow routing. The keys themselves never sync.
   modelTier: unknown;
+  aiMode: unknown;
+  byokProvider: unknown;
+  agentMode: unknown;
   uploadFullManuscript: unknown;
   allowWebSearch: unknown;
   requestTimeoutSec: unknown;
@@ -99,6 +103,9 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'spellcheck',
   'dateFormat',
   'modelTier',
+  'aiMode',
+  'byokProvider',
+  'agentMode',
   'uploadFullManuscript',
   'allowWebSearch',
   'requestTimeoutSec',
@@ -219,6 +226,17 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     spellcheck: (v) => store.setSpellcheck(!!v),
     dateFormat: (v) => store.setDateFormat(v as never),
     modelTier: (v) => store.setModelTier(v as never),
+    aiMode: (v) => {
+      if (v === 'hosted' || v === 'byok') store.setAiMode(v);
+    },
+    byokProvider: (v) => {
+      if (v === 'deepseek' || v === 'anthropic' || v === 'openai' || v === 'google') {
+        store.setByokProvider(v);
+      }
+    },
+    agentMode: (v) => {
+      if (v === 'hosted' || v === 'byok') store.setAgentMode(v);
+    },
     uploadFullManuscript: (v) => store.setUploadFullManuscript(!!v),
     allowWebSearch: (v) => store.setAllowWebSearch(!!v),
     requestTimeoutSec: (v) => store.setRequestTimeoutSec(Number(v)),

@@ -41,7 +41,6 @@ export function RightSidebarHeader({
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
   const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
   const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
-  const shadowMode = useUiStore((state) => state.shadowMode);
   // Render modes:
   //  - flat: show ALL tabs (both groups) in one row, no switch (wide panel).
   //  - column: `group` pins one group, no switch (split layout).
@@ -62,7 +61,7 @@ export function RightSidebarHeader({
   const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
     indicatorKey,
     '.app-panel-tab.is-active',
-    [shadowMode, flat, storeGroup, renderGroup],
+    [flat, storeGroup, renderGroup],
   );
   // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
   // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
@@ -81,7 +80,7 @@ export function RightSidebarHeader({
   // With 4 tabs (TODO + Library + Stats + Shadow) the tray gets squeezed
   // earlier than the old 3-tab layout, so compactLabels triggers at a
   // wider threshold than before.
-  const shadowGlyphOnly = shadowMode && trayWidth < 300;
+  const shadowGlyphOnly = trayWidth < 300;
   const compactLabels = trayWidth < 200;
 
   return (
@@ -167,7 +166,7 @@ export function RightSidebarHeader({
               >
                 <span>{compactLabels ? 'AI' : 'Agent'}</span>
               </RightPanelTab>
-              {shadowMode && (
+              {/* Shadow tab always shown — shadow mode is a stub for now. */ (
                 <RightPanelTab
                   id="shadow"
                   accent

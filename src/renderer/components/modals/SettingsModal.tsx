@@ -1658,6 +1658,8 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     setModelTier,
     aiMode,
     setAiMode,
+    agentMode,
+    setAgentMode,
     uploadFullManuscript,
     setUploadFullManuscript,
     allowWebSearch,
@@ -1687,6 +1689,23 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     },
   ];
 
+  // Agent + Shadow routing — independent of copilot's aiMode above. BYOK here
+  // means the user's Claude account via OAuth (not a per-provider API key).
+  const agentModes: { value: AiMode; kicker: string; name: string; desc: string }[] = [
+    {
+      value: 'byok',
+      kicker: 'CLAUDE 账号',
+      name: '自带 Claude',
+      desc: '用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。',
+    },
+    {
+      value: 'hosted',
+      kicker: 'HOSTED',
+      name: '托管订阅',
+      desc: '走 Drifting 的通道与额度，无需你自己的 Claude 账号。',
+    },
+  ];
+
   return (
     <section className="set-panel" ref={registerRef} id="models">
       <PanelHead
@@ -1698,6 +1717,12 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
             <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
           </>
         }
+      />
+
+      <GroupHead
+        label="Copilot"
+        hint="跟随式建议 · 结构化任务"
+        desc="正文里的轻量补全、实体抽取、润色等。支持四个 provider 自带 Key，或走托管。"
       />
 
       <div className="set-sec">
@@ -1798,7 +1823,200 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
       </div>
+
+      <GroupHead
+        label="General Agent · Shadow"
+        hint="对话式 / 跨章节巡查"
+        desc="右栏的 Agent（对话）与 Shadow 共用同一套凭据。可用你的 Claude 账号（OAuth）或托管订阅。"
+      />
+
+      <div className="set-sec">
+        <SecHead title="调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {agentModes.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (agentMode === m.value ? ' set-tier--active' : '')}
+              onClick={() => setAgentMode(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <AgentAuthRow mode={agentMode} />
     </section>
+  );
+}
+
+function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?: string }) {
+  return (
+    <div style={{ margin: '26px 0 6px', paddingTop: 18, borderTop: '1px solid hsl(var(--rule))' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'hsl(var(--ink-1))' }}>{label}</div>
+        {hint && (
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'hsl(var(--ink-4))',
+            }}
+          >
+            {hint}
+          </div>
+        )}
+      </div>
+      {desc && (
+        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4, lineHeight: 1.6 }}>{desc}</div>
+      )}
+    </div>
+  );
+}
+
+/** Connect / status for the Agent's credentials (Claude OAuth or hosted). */
+function AgentAuthRow({ mode }: { mode: AiMode }) {
+  const api = window.electronAPI?.agent;
+  const [status, setStatus] = useState<{ byokConnected: boolean; hostedAvailable: boolean } | null>(
+    null,
+  );
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(() => {
+    if (!api) return;
+    void api
+      .authStatus()
+      .then(setStatus)
+      .catch(() => setStatus({ byokConnected: false, hostedAvailable: false }));
+  }, [api]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  if (!api) return null;
+
+  const connect = async () => {
+    setErr(null);
+    await api.authPrepare();
+    setAwaitingCode(true);
+  };
+  const submit = async () => {
+    if (!code.trim()) return;
+    setBusy(true);
+    const r = await api.authSubmitCode(code.trim());
+    setBusy(false);
+    if (r.ok) {
+      setAwaitingCode(false);
+      setCode('');
+      setErr(null);
+      refresh();
+      events.emit('agent:auth-changed');
+    } else {
+      setErr(r.error);
+    }
+  };
+  const disconnect = async () => {
+    await api.authLogout();
+    refresh();
+    events.emit('agent:auth-changed');
+  };
+
+  if (mode === 'hosted') {
+    const ok = !!status?.hostedAvailable;
+    return (
+      <div className="set-sec">
+        <SecHead title="状态" hint="HOSTED" />
+        <Row
+          label={ok ? '已就绪' : '未登录'}
+          desc={
+            ok
+              ? '已登录 Drifting，可用托管额度调用 Agent。'
+              : '托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。'
+          }
+          control={
+            <span
+              className="set-mono"
+              style={{ color: ok ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))' }}
+            >
+              {ok ? '● 可用' : '○ 未就绪'}
+            </span>
+          }
+        />
+      </div>
+    );
+  }
+
+  const connected = !!status?.byokConnected;
+  return (
+    <div className="set-sec">
+      <SecHead title="Claude 账号 · OAuth" hint="BYOK" />
+      {connected ? (
+        <Row
+          label="已连接"
+          desc="Agent 将用你的 Claude 账号直连 Anthropic。"
+          control={
+            <button className="set-btn set-btn--danger" onClick={disconnect}>
+              断开
+            </button>
+          }
+        />
+      ) : !awaitingCode ? (
+        <Row
+          label="未连接"
+          desc="用你的 Claude 账号（Max/Pro）授权。点击后打开浏览器，把页面上的 code 粘回来。"
+          control={
+            <button className="set-btn set-btn--primary" onClick={connect}>
+              连接 Claude
+            </button>
+          }
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>粘贴授权 code：</div>
+          <input
+            className="set-input set-input--mono"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="authorization code"
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="set-btn set-btn--primary" disabled={busy} onClick={submit}>
+              {busy ? '验证中…' : '提交'}
+            </button>
+            <button
+              className="set-btn"
+              onClick={() => {
+                setAwaitingCode(false);
+                setErr(null);
+              }}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+      {err && (
+        <div
+          style={{
+            fontSize: 11.5,
+            color: 'hsl(var(--danger, 0 70% 50%))',
+            marginTop: 4,
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+          }}
+        >
+          {err}
+        </div>
+      )}
+    </div>
   );
 }
 
