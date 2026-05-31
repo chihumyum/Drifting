@@ -6,9 +6,8 @@
  * it to the renderer over IPC:
  *   - OAuth connect / status / logout
  *   - run a prompt, streaming normalized events back via `agent:event`
+ *     (token deltas, tool_use, tool_result, result)
  *   - abort the running turn
- *
- * P0 scope: chat only (no tools). Entity tools arrive in P1+.
  */
 import { ipcMain, shell, type BrowserWindow } from 'electron';
 import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
@@ -33,7 +32,14 @@ import { createDriftingMcpServer } from './tools';
 /** Normalized, structured-clonable event streamed to the renderer. */
 export type AgentEvent =
   | { type: 'system'; text: string }
+  /** A complete assistant text block (fallback when streaming didn't fire). */
   | { type: 'assistant'; text: string }
+  /** A streamed token chunk of the current assistant text block. */
+  | { type: 'assistant_delta'; text: string }
+  /** The agent invoked a tool (name already stripped of the mcp__drifting__ prefix). */
+  | { type: 'tool_use'; id: string; name: string; input?: unknown }
+  /** A tool returned its result, keyed back to the tool_use by id. */
+  | { type: 'tool_result'; id: string; ok: boolean; text: string }
   | { type: 'result'; ok: boolean; text: string }
   | { type: 'error'; message: string }
   | { type: 'done' };
@@ -73,6 +79,13 @@ let activeAbort: AbortController | null = null;
 // resumed on the next turn so the chat has continuity. Cleared on "new chat".
 let currentSessionId: string | null = null;
 
+const MCP_PREFIX = 'mcp__drifting__';
+
+/** Drop the MCP server prefix so the UI shows e.g. "read_chapter". */
+function stripToolName(name: string): string {
+  return name.startsWith(MCP_PREFIX) ? name.slice(MCP_PREFIX.length) : name;
+}
+
 function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
   const blocks = msg.message?.content;
   if (!Array.isArray(blocks)) return '';
@@ -86,24 +99,99 @@ function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): 
   return text;
 }
 
-function normalize(msg: SDKMessage): AgentEvent | null {
+/** Flatten a tool_result block's content (string | array of text parts) to text. */
+function extractToolResultText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    let text = '';
+    for (const b of content) {
+      if (b && typeof b === 'object' && (b as { type?: string }).type === 'text') {
+        const t = (b as { text?: unknown }).text;
+        if (typeof t === 'string') text += t;
+      }
+    }
+    return text;
+  }
+  return content == null ? '' : JSON.stringify(content);
+}
+
+/**
+ * Translate one SDK message into zero or more normalized, structured-clonable
+ * events. `state.sawDelta` tracks whether the current assistant message's text
+ * was already streamed token-by-token (via stream_event), so the complete
+ * assistant message doesn't re-emit it — it only contributes tool_use blocks.
+ */
+function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
   switch (msg.type) {
     case 'system':
-      // init / compact-boundary / etc. — surface a light breadcrumb only.
-      return { type: 'system', text: (msg as { subtype?: string }).subtype ?? 'system' };
+      // init / compact-boundary / etc. — currently suppressed in the UI.
+      return [{ type: 'system', text: (msg as { subtype?: string }).subtype ?? 'system' }];
+    case 'stream_event': {
+      const ev = (msg as { event?: { type?: string; delta?: { type?: string; text?: unknown } } })
+        .event;
+      if (
+        ev?.type === 'content_block_delta' &&
+        ev.delta?.type === 'text_delta' &&
+        typeof ev.delta.text === 'string' &&
+        ev.delta.text
+      ) {
+        state.sawDelta = true;
+        return [{ type: 'assistant_delta', text: ev.delta.text }];
+      }
+      return [];
+    }
     case 'assistant': {
-      const text = extractAssistantText(msg);
-      return text ? { type: 'assistant', text } : null;
+      const out: AgentEvent[] = [];
+      // If streaming already delivered the text, don't duplicate it.
+      if (!state.sawDelta) {
+        const text = extractAssistantText(msg as Extract<SDKMessage, { type: 'assistant' }>);
+        if (text) out.push({ type: 'assistant', text });
+      }
+      const blocks = (msg as { message?: { content?: unknown } }).message?.content;
+      if (Array.isArray(blocks)) {
+        for (const b of blocks) {
+          if (b && typeof b === 'object' && (b as { type?: string }).type === 'tool_use') {
+            const tu = b as { id?: string; name?: string; input?: unknown };
+            out.push({
+              type: 'tool_use',
+              id: String(tu.id ?? ''),
+              name: stripToolName(String(tu.name ?? '')),
+              input: tu.input,
+            });
+          }
+        }
+      }
+      state.sawDelta = false;
+      return out;
+    }
+    case 'user': {
+      // Tool results come back as user messages with tool_result content blocks.
+      const out: AgentEvent[] = [];
+      const blocks = (msg as { message?: { content?: unknown } }).message?.content;
+      if (Array.isArray(blocks)) {
+        for (const b of blocks) {
+          if (b && typeof b === 'object' && (b as { type?: string }).type === 'tool_result') {
+            const tr = b as { tool_use_id?: string; is_error?: boolean; content?: unknown };
+            out.push({
+              type: 'tool_result',
+              id: String(tr.tool_use_id ?? ''),
+              ok: !tr.is_error,
+              text: extractToolResultText(tr.content),
+            });
+          }
+        }
+      }
+      return out;
     }
     case 'result': {
       const r = msg as Extract<SDKMessage, { type: 'result' }>;
       if (r.subtype === 'success') {
-        return { type: 'result', ok: true, text: r.result };
+        return [{ type: 'result', ok: true, text: r.result }];
       }
-      return { type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` };
+      return [{ type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` }];
     }
     default:
-      return null; // partial/stream/status/etc. ignored in P0
+      return []; // partial/status/etc. ignored
   }
 }
 
@@ -211,7 +299,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         tools: [], // no built-in tools — entities are reached only via the drifting MCP tools
         mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
-        includePartialMessages: false,
+        // Stream token deltas so the panel can render assistant text live.
+        includePartialMessages: true,
         env: auth.env,
         pathToClaudeCodeExecutable: resolveClaudeBinary(),
         stderr: (data: string) => console.error('[claude stderr]', data),
@@ -221,12 +310,12 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         const { query } = await import(/* @vite-ignore */ '@anthropic-ai/claude-agent-sdk');
         const q = query({ prompt: input.prompt, options });
         activeQuery = q;
+        const streamState = { sawDelta: false };
         for await (const msg of q) {
           if (activeQuery !== q) break; // superseded/aborted
           const sid = (msg as { session_id?: string }).session_id;
           if (typeof sid === 'string' && sid) currentSessionId = sid;
-          const event = normalize(msg);
-          if (event) emit(event);
+          for (const event of toEvents(msg, streamState)) emit(event);
         }
         emit({ type: 'done' });
         return { ok: true };

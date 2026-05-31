@@ -1,14 +1,17 @@
 /**
  * Agent panel — the interactive Claude agent, rendered in the right sidebar's
- * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat with
- * a "new conversation" action; the main process keeps conversation continuity
- * across turns (resume), and "新对话" starts fresh.
+ * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat that
+ * streams assistant text token-by-token, renders it as markdown, shows the
+ * tool calls the agent makes (read/edit/relationship actions) as collapsible
+ * rows, and has a "new conversation" action. The main process keeps
+ * conversation continuity across turns (resume); "新对话" starts fresh.
  *
  * Credential mode (BYOK Claude OAuth vs Hosted) and the actual connect flow
  * live in Settings → 模型与 API (store.agentMode). If the agent isn't set up
  * for the chosen mode, we show a hint that opens Settings.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { marked } from 'marked';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
 import type { AgentEvent } from '../../../main/agent';
@@ -18,20 +21,147 @@ interface AuthStatus {
   hostedAvailable: boolean;
 }
 
-function formatEvent(ev: AgentEvent): string {
+// ---- Chat message model ----------------------------------------------------
+
+type ChatMsg =
+  | { kind: 'user'; text: string }
+  | { kind: 'assistant'; text: string; streaming: boolean }
+  | {
+      kind: 'tool';
+      id: string;
+      name: string;
+      input?: unknown;
+      status: 'running' | 'ok' | 'error';
+      result?: string;
+    }
+  | { kind: 'error'; text: string };
+
+/** Mark any trailing still-streaming assistant message as finished. */
+function finalizeStreaming(list: ChatMsg[]): ChatMsg[] {
+  const last = list[list.length - 1];
+  if (last && last.kind === 'assistant' && last.streaming) {
+    const copy = list.slice();
+    copy[copy.length - 1] = { ...last, streaming: false };
+    return copy;
+  }
+  return list;
+}
+
+/** Fold one streamed agent event into the chat transcript. */
+function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
   switch (ev.type) {
-    case 'system':
-      return `· ${ev.text}`;
+    case 'assistant_delta': {
+      const last = list[list.length - 1];
+      if (last && last.kind === 'assistant' && last.streaming) {
+        const copy = list.slice();
+        copy[copy.length - 1] = { ...last, text: last.text + ev.text };
+        return copy;
+      }
+      return [...list, { kind: 'assistant', text: ev.text, streaming: true }];
+    }
     case 'assistant':
-      return ev.text;
+      return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
+    case 'tool_use':
+      return [
+        ...finalizeStreaming(list),
+        { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, status: 'running' },
+      ];
+    case 'tool_result': {
+      const idx = list.findIndex((m) => m.kind === 'tool' && m.id === ev.id);
+      if (idx === -1) return list;
+      const copy = list.slice();
+      const t = copy[idx] as Extract<ChatMsg, { kind: 'tool' }>;
+      copy[idx] = { ...t, status: ev.ok ? 'ok' : 'error', result: ev.text };
+      return copy;
+    }
     case 'result':
-      return ev.ok ? `✓ ${ev.text}` : `⚠ ${ev.text}`;
+      // A successful result mirrors the last assistant text — only surface failures.
+      return ev.ok ? finalizeStreaming(list) : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
     case 'error':
-      return `✗ ${ev.message}`;
+      return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
+    case 'system':
+      return list; // suppress init / compact breadcrumbs
     case 'done':
-      return '— done —';
+      return finalizeStreaming(list);
     default:
-      return '';
+      return list;
+  }
+}
+
+// ---- Markdown (escape raw HTML first, so model output can't inject tags) ----
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+}
+
+function mdToHtml(text: string): string {
+  return marked.parse(escapeHtml(text), { breaks: true, gfm: true, async: false }) as string;
+}
+
+// ---- Components ------------------------------------------------------------
+
+function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
+  const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
+  const inputStr = useMemo(() => {
+    if (msg.input == null) return '';
+    try {
+      return JSON.stringify(msg.input, null, 2);
+    } catch {
+      return String(msg.input);
+    }
+  }, [msg.input]);
+  const hasBody = !!inputStr || !!msg.result;
+  return (
+    <details style={toolRow}>
+      <summary style={toolSummary}>
+        <span style={{ opacity: 0.7, width: 12, display: 'inline-block' }}>{icon}</span>
+        <code style={toolName}>{msg.name}</code>
+        {msg.status === 'running' && <span style={{ opacity: 0.5 }}>…</span>}
+      </summary>
+      {hasBody && (
+        <div style={toolBody}>
+          {inputStr && (
+            <>
+              <div style={toolBodyLabel}>input</div>
+              <pre style={toolPre}>{inputStr}</pre>
+            </>
+          )}
+          {msg.result && (
+            <>
+              <div style={toolBodyLabel}>result</div>
+              <pre style={toolPre}>{msg.result}</pre>
+            </>
+          )}
+        </div>
+      )}
+    </details>
+  );
+}
+
+function MessageView({ msg }: { msg: ChatMsg }) {
+  switch (msg.kind) {
+    case 'user':
+      return (
+        <div style={userRow}>
+          <div style={userBubble}>{msg.text}</div>
+        </div>
+      );
+    case 'assistant':
+      return (
+        <div
+          className="agent-md"
+          style={assistantBubble}
+          dangerouslySetInnerHTML={{
+            __html: mdToHtml(msg.text) + (msg.streaming ? '<span class="agent-caret">▌</span>' : ''),
+          }}
+        />
+      );
+    case 'tool':
+      return <ToolRow msg={msg} />;
+    case 'error':
+      return <div style={errorBubble}>⚠ {msg.text}</div>;
+    default:
+      return null;
   }
 }
 
@@ -42,7 +172,7 @@ export function CompanionPanel() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [prompt, setPrompt] = useState('');
   const [running, setRunning] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
 
   const refreshStatus = useCallback(() => {
@@ -66,7 +196,7 @@ export function CompanionPanel() {
   useEffect(() => {
     if (!api) return undefined;
     return api.onEvent((ev) => {
-      setLog((prev) => [...prev, formatEvent(ev)]);
+      setMessages((prev) => applyEvent(prev, ev));
       if (ev.type === 'done') setRunning(false);
     });
   }, [api]);
@@ -74,17 +204,17 @@ export function CompanionPanel() {
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log]);
+  }, [messages]);
 
   const send = useCallback(async () => {
     if (!api || !prompt.trim() || running) return;
     const text = prompt.trim();
-    setLog((prev) => [...prev, `> ${text}`]);
+    setMessages((prev) => [...prev, { kind: 'user', text }]);
     setPrompt('');
     setRunning(true);
     const r = await api.start({ prompt: text, mode: agentMode });
     if (!r.ok) {
-      setLog((prev) => [...prev, `✗ ${r.error}`]);
+      setMessages((prev) => [...prev, { kind: 'error', text: r.error }]);
       setRunning(false);
     }
   }, [api, prompt, running, agentMode]);
@@ -95,7 +225,7 @@ export function CompanionPanel() {
 
   const newConversation = useCallback(async () => {
     await api?.resetSession();
-    setLog([]);
+    setMessages([]);
   }, [api]);
 
   if (!api) {
@@ -131,6 +261,7 @@ export function CompanionPanel() {
   // ---- Chat ----
   return (
     <div style={fillStyle}>
+      <style>{panelCss}</style>
       <div style={toolbar}>
         <span style={{ fontSize: 11, opacity: 0.6 }}>
           {agentMode === 'byok' ? '你的 Claude 订阅' : '托管 · 计量'}
@@ -140,14 +271,12 @@ export function CompanionPanel() {
         </button>
       </div>
       <div ref={logRef} style={logStyle}>
-        {log.length === 0 ? (
-          <div style={{ opacity: 0.5 }}>给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。</div>
+        {messages.length === 0 ? (
+          <div style={{ opacity: 0.5 }}>
+            给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。
+          </div>
         ) : (
-          log.map((line, i) => (
-            <div key={i} style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>
-              {line}
-            </div>
-          ))
+          messages.map((m, i) => <MessageView key={i} msg={m} />)
         )}
       </div>
       <div style={inputRow}>
@@ -202,6 +331,87 @@ const logStyle: React.CSSProperties = {
   fontSize: 12.5,
   lineHeight: 1.55,
   minHeight: 120,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const userRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+};
+
+const userBubble: React.CSSProperties = {
+  background: 'hsl(var(--accent) / 0.14)',
+  border: '1px solid hsl(var(--accent) / 0.25)',
+  borderRadius: 8,
+  padding: '6px 10px',
+  maxWidth: '85%',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+};
+
+const assistantBubble: React.CSSProperties = {
+  maxWidth: '100%',
+  wordBreak: 'break-word',
+};
+
+const errorBubble: React.CSSProperties = {
+  background: 'hsl(0 70% 50% / 0.1)',
+  border: '1px solid hsl(0 70% 50% / 0.3)',
+  borderRadius: 8,
+  padding: '6px 10px',
+  color: 'hsl(0 70% 60%)',
+  whiteSpace: 'pre-wrap',
+};
+
+const toolRow: React.CSSProperties = {
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 8,
+  background: 'hsl(var(--page))',
+  fontSize: 12,
+};
+
+const toolSummary: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '5px 8px',
+  cursor: 'pointer',
+  listStyle: 'none',
+  userSelect: 'none',
+};
+
+const toolName: React.CSSProperties = {
+  fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+  fontSize: 11.5,
+  opacity: 0.9,
+};
+
+const toolBody: React.CSSProperties = {
+  borderTop: '1px solid hsl(var(--rule))',
+  padding: '6px 8px',
+};
+
+const toolBodyLabel: React.CSSProperties = {
+  fontSize: 10,
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  opacity: 0.5,
+  marginBottom: 2,
+};
+
+const toolPre: React.CSSProperties = {
+  margin: '0 0 6px',
+  padding: 6,
+  background: 'hsl(var(--ink-1) / 0.05)',
+  borderRadius: 4,
+  fontSize: 11,
+  lineHeight: 1.4,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  maxHeight: 220,
+  overflow: 'auto',
 };
 
 const inputRow: React.CSSProperties = {
@@ -264,3 +474,24 @@ const hintText: React.CSSProperties = {
   opacity: 0.8,
   lineHeight: 1.6,
 };
+
+// Markdown element styling + streaming caret. Scoped under .agent-md so it only
+// touches assistant bubbles. Descendant selectors can't be expressed as inline
+// styles, hence a small stylesheet rendered with the panel.
+const panelCss = `
+.agent-md > :first-child { margin-top: 0; }
+.agent-md > :last-child { margin-bottom: 0; }
+.agent-md p { margin: 0 0 8px; }
+.agent-md ul, .agent-md ol { margin: 0 0 8px; padding-left: 20px; }
+.agent-md li { margin: 2px 0; }
+.agent-md h1, .agent-md h2, .agent-md h3, .agent-md h4 { margin: 10px 0 6px; font-size: 13.5px; font-weight: 600; }
+.agent-md code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11.5px; background: hsl(var(--ink-1) / 0.08); padding: 1px 4px; border-radius: 3px; }
+.agent-md pre { margin: 0 0 8px; padding: 8px; background: hsl(var(--ink-1) / 0.06); border-radius: 6px; overflow: auto; }
+.agent-md pre code { background: none; padding: 0; }
+.agent-md blockquote { margin: 0 0 8px; padding-left: 10px; border-left: 2px solid hsl(var(--rule)); opacity: 0.85; }
+.agent-md a { color: hsl(var(--accent)); text-decoration: underline; }
+.agent-md table { border-collapse: collapse; margin: 0 0 8px; }
+.agent-md th, .agent-md td { border: 1px solid hsl(var(--rule)); padding: 3px 6px; }
+.agent-caret { display: inline-block; width: 0; opacity: 0.6; animation: agentBlink 1s steps(1) infinite; }
+@keyframes agentBlink { 50% { opacity: 0; } }
+`;
