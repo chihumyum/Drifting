@@ -62,6 +62,10 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
     }
     case 'assistant':
       return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
+    case 'thinking':
+      // Complete (non-streamed) thinking block — appears all at once after the
+      // model finishes, when thinking_delta events didn't fire.
+      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: false }];
     case 'tool_use':
       return [
         ...finalizeStreaming(list),
@@ -89,6 +93,21 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
       return ev.ok
         ? finalizeStreaming(list)
         : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
+    case 'usage':
+      // Skip empty usage rows (e.g. a turn that produced no tokens).
+      if (!ev.inputTokens && !ev.outputTokens && !ev.costUsd) return list;
+      return [
+        ...finalizeStreaming(list),
+        {
+          kind: 'usage',
+          inputTokens: ev.inputTokens,
+          outputTokens: ev.outputTokens,
+          cacheReadTokens: ev.cacheReadTokens,
+          cacheCreationTokens: ev.cacheCreationTokens,
+          costUsd: ev.costUsd,
+          turns: ev.turns,
+        },
+      ];
     case 'error':
       return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
     case 'system':

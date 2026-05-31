@@ -267,6 +267,28 @@ const AssistantBubble = memo(function AssistantBubble({
   );
 });
 
+/** Compact token count: 1234 → "1.2k", 23000 → "23k". */
+function fmtTokens(n: number): string {
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function fmtCost(usd: number): string {
+  return `$${usd.toFixed(usd > 0 && usd < 0.01 ? 4 : 2)}`;
+}
+
+/** Subtle per-turn token/cost badge appended after each agent turn. */
+function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
+  const inTok = msg.inputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
+  return (
+    <div style={usageRow} title="本轮 token 用量（输入含缓存）/ 费用">
+      ↑{fmtTokens(inTok)} ↓{fmtTokens(msg.outputTokens)}
+      {msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : ''}
+    </div>
+  );
+}
+
 /** A row indicating the agent is working but nothing is actively streaming yet. */
 function PendingRow() {
   return (
@@ -298,6 +320,8 @@ const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
       return <ToolRow msg={msg} />;
     case 'todos':
       return <TodoList items={msg.items} />;
+    case 'usage':
+      return <UsageRow msg={msg} />;
     case 'error':
       return <div style={errorBubble}>⚠ {msg.text}</div>;
     default:
@@ -483,6 +507,25 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       (lastMsg.kind === 'tool' && lastMsg.status === 'running'));
   const waiting = running && !busyTail;
 
+  // Session totals — summed across the conversation's per-turn usage rows (which
+  // persist in the transcript), plus a tool-call count. Drives the footer.
+  const sessionUsage = useMemo(() => {
+    let inTok = 0;
+    let outTok = 0;
+    let cost = 0;
+    let tools = 0;
+    for (const m of messages) {
+      if (m.kind === 'usage') {
+        inTok += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
+        outTok += m.outputTokens;
+        cost += m.costUsd;
+      } else if (m.kind === 'tool') {
+        tools += 1;
+      }
+    }
+    return { inTok, outTok, cost, tools };
+  }, [messages]);
+
   const beginHeaderRename = useCallback(() => {
     if (!activeConv) return;
     setHeaderDraft(activeConv.title || '');
@@ -664,6 +707,17 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           </button>
         )}
       </div>
+
+      {(sessionUsage.outTok > 0 || sessionUsage.tools > 0) && (
+        <div style={usageFooter} title="本会话累计 token / 费用 / 工具调用次数">
+          <span style={{ opacity: 0.7 }}>本会话</span>
+          <span>
+            ↑{fmtTokens(sessionUsage.inTok)} ↓{fmtTokens(sessionUsage.outTok)}
+          </span>
+          {sessionUsage.cost > 0 && <span>{fmtCost(sessionUsage.cost)}</span>}
+          <span>{sessionUsage.tools} 次工具</span>
+        </div>
+      )}
 
       <div style={inputArea}>
         <div className="agt-composer">
@@ -997,6 +1051,26 @@ const toolPre: React.CSSProperties = {
 const inputArea: React.CSSProperties = {
   padding: 10,
   flexShrink: 0,
+};
+
+const usageRow: React.CSSProperties = {
+  fontSize: 10.5,
+  opacity: 0.45,
+  textAlign: 'right',
+  fontVariantNumeric: 'tabular-nums',
+  padding: '0 2px',
+};
+
+const usageFooter: React.CSSProperties = {
+  display: 'flex',
+  gap: 10,
+  alignItems: 'center',
+  padding: '4px 12px',
+  fontSize: 11,
+  opacity: 0.6,
+  flexShrink: 0,
+  borderTop: '1px solid hsl(var(--rule))',
+  fontVariantNumeric: 'tabular-nums',
 };
 
 const primaryBtn: React.CSSProperties = {

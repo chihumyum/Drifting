@@ -9,6 +9,23 @@
 import { useEffect, useRef } from 'react';
 import { runAgentTool, type AgentToolContext, type AgentWriteApi } from './tool-handlers';
 
+/** Compact, low-noise summary of a tool call's key id args for the log. */
+function summarizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const keys = ['nodeId', 'elementId', 'storylineId', 'categoryId', 'blockId', 'kind', 'name'];
+  const out: Record<string, unknown> = {};
+  for (const k of keys) if (args[k] !== undefined) out[k] = args[k];
+  return out;
+}
+
+/** Trace every agent tool call (name, key args, ok/error, latency) to the console. */
+function logToolCall(name: string, args: Record<string, unknown>, ok: boolean, ms: number, err?: unknown): void {
+  console.debug(
+    `[agent tool] ${ok ? '✓' : '✗'} ${name} ${Math.round(ms)}ms`,
+    summarizeArgs(args),
+    err ? (err instanceof Error ? err.message : String(err)) : '',
+  );
+}
+
 export function useAgentToolBridge(projectId: string, write: AgentWriteApi): void {
   const ctxRef = useRef<AgentToolContext>({ projectId, write });
   ctxRef.current = { projectId, write };
@@ -18,10 +35,13 @@ export function useAgentToolBridge(projectId: string, write: AgentWriteApi): voi
     if (!api?.onToolExec) return undefined;
 
     return api.onToolExec(async (req) => {
+      const t0 = performance.now();
       try {
         const data = await runAgentTool(req.name, req.args, ctxRef.current);
+        logToolCall(req.name, req.args, true, performance.now() - t0);
         api.sendToolResult({ id: req.id, ok: true, data });
       } catch (err) {
+        logToolCall(req.name, req.args, false, performance.now() - t0, err);
         api.sendToolResult({
           id: req.id,
           ok: false,

@@ -45,6 +45,8 @@ export type AgentEvent =
   | { type: 'assistant_delta'; text: string }
   /** A streamed token chunk of the model's extended-thinking block. */
   | { type: 'thinking_delta'; text: string }
+  /** A complete extended-thinking block (fallback when it wasn't streamed). */
+  | { type: 'thinking'; text: string }
   /** The agent invoked a tool (name already stripped of the mcp__drifting__ prefix). */
   | { type: 'tool_use'; id: string; name: string; input?: unknown }
   /** The agent updated its working plan (built-in TodoWrite tool). */
@@ -52,6 +54,16 @@ export type AgentEvent =
   /** A tool returned its result, keyed back to the tool_use by id. */
   | { type: 'tool_result'; id: string; ok: boolean; text: string }
   | { type: 'result'; ok: boolean; text: string }
+  /** Token usage + cost for the just-finished turn (from the SDK result message). */
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      costUsd: number;
+      turns: number;
+    }
   /** The SDK session id for this turn — the renderer stores it to resume later. */
   | { type: 'session'; id: string }
   | { type: 'error'; message: string }
@@ -182,6 +194,21 @@ function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): 
   return text;
 }
 
+/** Concatenate any plaintext extended-thinking blocks on a complete assistant
+ *  message (redacted/encrypted thinking has no text and is skipped). */
+function extractThinkingText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
+  const blocks = msg.message?.content;
+  if (!Array.isArray(blocks)) return '';
+  let text = '';
+  for (const block of blocks) {
+    if (block && typeof block === 'object' && (block as { type?: string }).type === 'thinking') {
+      const t = (block as { thinking?: unknown }).thinking;
+      if (typeof t === 'string') text += t;
+    }
+  }
+  return text;
+}
+
 /** Flatten a tool_result block's content (string | array of text parts) to text. */
 function extractToolResultText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -204,7 +231,7 @@ function extractToolResultText(content: unknown): string {
  * was already streamed token-by-token (via stream_event), so the complete
  * assistant message doesn't re-emit it — it only contributes tool_use blocks.
  */
-function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
+function toEvents(msg: SDKMessage, state: { sawDelta: boolean; sawThinking: boolean }): AgentEvent[] {
   switch (msg.type) {
     case 'system':
       // init / compact-boundary / etc. — currently suppressed in the UI.
@@ -225,6 +252,7 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
           return [{ type: 'assistant_delta', text: d.text }];
         }
         if (d?.type === 'thinking_delta' && typeof d.thinking === 'string' && d.thinking) {
+          state.sawThinking = true;
           return [{ type: 'thinking_delta', text: d.thinking }];
         }
       }
@@ -232,6 +260,13 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
     }
     case 'assistant': {
       const out: AgentEvent[] = [];
+      // If extended thinking wasn't streamed token-by-token (adaptive thinking on
+      // newer models returns it on the complete message instead of as
+      // thinking_delta events), surface it here so the 思考 block still renders.
+      if (!state.sawThinking) {
+        const thinking = extractThinkingText(msg as Extract<SDKMessage, { type: 'assistant' }>);
+        if (thinking) out.push({ type: 'thinking', text: thinking });
+      }
       // If streaming already delivered the text, don't duplicate it.
       if (!state.sawDelta) {
         const text = extractAssistantText(msg as Extract<SDKMessage, { type: 'assistant' }>);
@@ -257,6 +292,7 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
         }
       }
       state.sawDelta = false;
+      state.sawThinking = false;
       return out;
     }
     case 'user': {
@@ -280,10 +316,25 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
     }
     case 'result': {
       const r = msg as Extract<SDKMessage, { type: 'result' }>;
+      // The result message (success OR error) carries cumulative usage for the
+      // turn — surface it so the panel can track tokens/cost per turn + session.
+      const u = r.usage;
+      const usageEvent: AgentEvent = {
+        type: 'usage',
+        inputTokens: u?.input_tokens ?? 0,
+        outputTokens: u?.output_tokens ?? 0,
+        cacheReadTokens: u?.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: u?.cache_creation_input_tokens ?? 0,
+        costUsd: r.total_cost_usd ?? 0,
+        turns: r.num_turns ?? 0,
+      };
       if (r.subtype === 'success') {
-        return [{ type: 'result', ok: true, text: r.result }];
+        return [{ type: 'result', ok: true, text: r.result }, usageEvent];
       }
-      return [{ type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` }];
+      return [
+        { type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` },
+        usageEvent,
+      ];
     }
     default:
       return []; // partial/status/etc. ignored
@@ -446,7 +497,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         const { query } = await import(/* @vite-ignore */ '@anthropic-ai/claude-agent-sdk');
         const q = query({ prompt: input.prompt, options });
         activeQuery = q;
-        const streamState = { sawDelta: false };
+        const streamState = { sawDelta: false, sawThinking: false };
         let reportedSession: string | null = null;
         for await (const msg of q) {
           if (activeQuery !== q) break; // superseded/aborted
