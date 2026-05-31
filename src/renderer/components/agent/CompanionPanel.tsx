@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
 import {
   useSettingsStore,
-  type AgentEffort,
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
 } from '../../store/settings-store';
@@ -119,46 +118,101 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
   );
 }
 
-/** A select-style chip that opens an upward popover to pick one option. */
-function ParamChip({
-  label,
-  value,
-  options,
-  onPick,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onPick: (v: string) => void;
-}) {
+/**
+ * The single composer config control: a quiet summary button that opens an
+ * upward menu. The menu adjusts model (a nested option list), extended thinking
+ * (inline toggle), and reasoning effort (an inline 5-dot meter) in place.
+ */
+function ComposerConfig() {
+  const agentModel = useSettingsStore((s) => s.agentModel);
+  const setAgentModel = useSettingsStore((s) => s.setAgentModel);
+  const agentThinking = useSettingsStore((s) => s.agentThinking);
+  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
+  const agentEffort = useSettingsStore((s) => s.agentEffort);
+  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+
   const [open, setOpen] = useState(false);
-  const current = options.find((o) => o.value === value);
+  const [view, setView] = useState<'main' | 'model'>('main');
+
+  const modelShort = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel)?.short ?? agentModel;
+  const effortShort = AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
+  const effortIdx = AGENT_EFFORT_OPTIONS.findIndex((e) => e.value === agentEffort);
+
+  const close = () => {
+    setOpen(false);
+    setView('main');
+  };
+
   return (
     <div className="agt-pop">
-      <button type="button" className="agt-chip" onClick={() => setOpen((o) => !o)}>
-        <span className="agt-chip__key">{label}</span>
-        <span className="agt-chip__val">{current?.label ?? value}</span>
-        <span className="agt-chip__caret">▾</span>
+      <button type="button" className="agt-cfg" onClick={() => setOpen((o) => !o)} title="模型与推理">
+        <span className="agt-cfg__val">{modelShort}</span>
+        <span className="agt-cfg__sep">·</span>
+        <span>{agentThinking === 'adaptive' ? `思考 ${effortShort}` : '思考关'}</span>
+        <span className="agt-cfg__caret">▴</span>
       </button>
       {open && (
         <>
-          <div className="agt-pop__backdrop" onClick={() => setOpen(false)} />
-          <div className="agt-menu" role="listbox">
-            {options.map((o) => (
-              <div
-                key={o.value}
-                role="option"
-                aria-selected={o.value === value}
-                className={'agt-menu__item' + (o.value === value ? ' agt-menu__item--active' : '')}
-                onClick={() => {
-                  onPick(o.value);
-                  setOpen(false);
-                }}
-              >
-                <span>{o.label}</span>
-                {o.value === value && <span className="agt-menu__check">●</span>}
-              </div>
-            ))}
+          <div className="agt-pop__backdrop" onClick={close} />
+          <div className="agt-menu">
+            {view === 'main' ? (
+              <>
+                <div className="agt-menu__sec">模型</div>
+                <div className="agt-menu__row agt-menu__row--btn" onClick={() => setView('model')}>
+                  <span>切换模型</span>
+                  <span className="agt-menu__val">
+                    {modelShort}
+                    <span className="agt-menu__caret">›</span>
+                  </span>
+                </div>
+                <div className="agt-menu__divider" />
+                <div className="agt-menu__sec">推理</div>
+                <div className="agt-menu__row">
+                  <span>扩展思考</span>
+                  <button
+                    type="button"
+                    aria-pressed={agentThinking === 'adaptive'}
+                    className={'agt-tog' + (agentThinking === 'adaptive' ? ' agt-tog--on' : '')}
+                    onClick={() => setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')}
+                  />
+                </div>
+                {agentThinking === 'adaptive' && (
+                  <div className="agt-menu__row">
+                    <span>强度 · {effortShort}</span>
+                    <span className="agt-dots">
+                      {AGENT_EFFORT_OPTIONS.map((o, i) => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          title={o.label}
+                          className={'agt-dot' + (i <= effortIdx ? ' agt-dot--on' : '')}
+                          onClick={() => setAgentEffort(o.value)}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="agt-menu__back" onClick={() => setView('main')}>
+                  ‹ 模型
+                </div>
+                {AGENT_MODEL_OPTIONS.map((m) => (
+                  <div
+                    key={m.value}
+                    className={'agt-menu__opt' + (m.value === agentModel ? ' agt-menu__opt--active' : '')}
+                    onClick={() => {
+                      setAgentModel(m.value);
+                      setView('main');
+                    }}
+                  >
+                    <span>{m.label}</span>
+                    {m.value === agentModel && <span className="agt-menu__check">●</span>}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}
@@ -198,12 +252,6 @@ function MessageView({ msg }: { msg: ChatMsg }) {
 export function CompanionPanel({ projectId }: { projectId: string }) {
   const api = window.electronAPI?.agent;
   const agentMode = useSettingsStore((s) => s.agentMode);
-  const agentModel = useSettingsStore((s) => s.agentModel);
-  const agentEffort = useSettingsStore((s) => s.agentEffort);
-  const agentThinking = useSettingsStore((s) => s.agentThinking);
-  const setAgentModel = useSettingsStore((s) => s.setAgentModel);
-  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
-  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
@@ -398,55 +446,34 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      <div style={inputContainer}>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
-          rows={2}
-          style={textareaStyle}
-        />
-        <div style={inputControls}>
-          <div className="agt-params">
-            <ParamChip
-              label="模型"
-              value={agentModel}
-              options={AGENT_MODEL_OPTIONS.map((m) => ({ value: m.value, label: m.short }))}
-              onPick={setAgentModel}
-            />
-            <button
-              type="button"
-              className={'agt-think' + (agentThinking === 'adaptive' ? ' agt-think--on' : '')}
-              onClick={() => setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')}
-              title={agentThinking === 'adaptive' ? '扩展思考:开' : '扩展思考:关'}
-            >
-              💭 思考
-            </button>
-            {agentThinking === 'adaptive' && (
-              <ParamChip
-                label="强度"
-                value={agentEffort}
-                options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.short }))}
-                onPick={(v) => setAgentEffort(v as AgentEffort)}
-              />
+      <div style={inputArea}>
+        <div className="agt-composer">
+          <textarea
+            className="agt-composer__text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
+            rows={2}
+          />
+          <div className="agt-composer__bar">
+            <ComposerConfig />
+            <div className="agt-composer__spacer" />
+            {running ? (
+              <button type="button" className="agt-send agt-send--stop" onClick={abort}>
+                Stop
+              </button>
+            ) : (
+              <button type="button" className="agt-send" onClick={handleSend}>
+                Send
+              </button>
             )}
           </div>
-          <div style={{ flex: 1 }} />
-          {running ? (
-            <button type="button" style={primaryBtn} onClick={abort}>
-              Stop
-            </button>
-          ) : (
-            <button type="button" style={primaryBtn} onClick={handleSend}>
-              Send
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -667,36 +694,9 @@ const toolPre: React.CSSProperties = {
   overflow: 'auto',
 };
 
-const inputContainer: React.CSSProperties = {
-  padding: 8,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  borderTop: '1px solid hsl(var(--rule))',
+const inputArea: React.CSSProperties = {
+  padding: 10,
   flexShrink: 0,
-};
-
-const inputStyle: React.CSSProperties = {
-  background: 'hsl(var(--page))',
-  color: 'inherit',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 6,
-  padding: '6px 8px',
-  fontSize: 12,
-  fontFamily: 'inherit',
-};
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  width: '100%',
-  resize: 'none',
-  boxSizing: 'border-box',
-};
-
-const inputControls: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const primaryBtn: React.CSSProperties = {

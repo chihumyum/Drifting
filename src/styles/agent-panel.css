@@ -1,119 +1,266 @@
 /*
- * Agent panel — input-footer parameter switcher (model / thinking / effort).
- * Mirrors the app's control vocabulary from settings.css (.set-select chip,
- * .seg, .tog): surface fills, rule-strong borders, mono micro-labels, accent
- * for the active/on state. Quiet by default, lights up on the chosen state.
+ * Agent panel composer — the textarea + control bar read as one input box
+ * (à la the Claude Code VS Code plugin): a single bordered, rounded container
+ * with a hairline divider between the text and the footer controls. The footer
+ * collapses model / thinking / effort into one config button that opens an
+ * upward menu where each item is adjusted in place. Mirrors the app's control
+ * vocabulary from settings.css (surface fills, rule borders, mono micro-labels,
+ * accent for the active/on state).
  */
 
-.agt-params {
+/* ---- unified composer box ------------------------------------------------ */
+
+.agt-composer {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 10px;
+  background: hsl(var(--surface));
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.agt-composer:focus-within {
+  border-color: hsl(var(--accent) / 0.55);
+}
+.agt-composer__text {
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: hsl(var(--ink-1));
+}
+.agt-composer__text::placeholder {
+  color: hsl(var(--ink-4));
+}
+/* The hairline that separates the text from the controls. */
+.agt-composer__bar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid hsl(var(--rule));
+}
+.agt-composer__spacer {
+  flex: 1;
 }
 
-/* A select-style chip (model / effort) — mirrors .set-select, more compact. */
-.agt-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 8px 4px 9px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 4px;
-  background: hsl(var(--surface));
-  color: hsl(var(--ink-1));
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1;
-}
-.agt-chip:hover {
-  border-color: hsl(var(--ink-4));
-}
-.agt-chip__key {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: hsl(var(--ink-4));
-}
-.agt-chip__val {
-  font-size: 11.5px;
-  color: hsl(var(--ink-1));
-}
-.agt-chip__caret {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: hsl(var(--ink-4));
-}
+/* ---- config button (collapses model / thinking / effort) ----------------- */
 
-/* Thinking on/off chip — quiet when off, accent-tinted when on. */
-.agt-think {
+.agt-pop {
+  position: relative;
+}
+.agt-cfg {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 4px;
-  background: hsl(var(--surface));
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: hsl(var(--ink-3));
   font-size: 11.5px;
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
+  max-width: 100%;
 }
-.agt-think:hover {
-  border-color: hsl(var(--ink-4));
-  color: hsl(var(--ink-2));
+.agt-cfg:hover {
+  background: hsl(var(--ink-1) / 0.06);
+  color: hsl(var(--ink-1));
 }
-.agt-think--on {
-  background: hsl(var(--accent) / 0.12);
-  border-color: hsl(var(--accent) / 0.4);
-  color: hsl(var(--accent));
+.agt-cfg__val {
+  color: hsl(var(--ink-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agt-cfg__sep {
+  color: hsl(var(--ink-4));
+}
+.agt-cfg__caret {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
 }
 
-/* Popover menu shared by the chips — opens upward (the bar sits near bottom). */
-.agt-pop {
-  position: relative;
+/* ---- send button --------------------------------------------------------- */
+
+.agt-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: hsl(var(--accent));
+  color: hsl(var(--paper));
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.agt-send:hover {
+  background: hsl(var(--accent) / 0.88);
+}
+.agt-send--stop {
+  background: hsl(var(--ink-3));
+}
+.agt-send--stop:hover {
+  background: hsl(var(--ink-2));
+}
+
+/* ---- upward config menu -------------------------------------------------- */
+
+.agt-pop__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
 }
 .agt-menu {
   position: absolute;
   bottom: calc(100% + 6px);
   left: 0;
-  min-width: 168px;
-  max-height: 300px;
+  width: 244px;
+  max-height: 360px;
   overflow-y: auto;
   z-index: 30;
   background: hsl(var(--paper));
   border: 1px solid hsl(var(--rule));
-  border-radius: 6px;
-  box-shadow: 0 8px 24px hsl(var(--ink-1) / 0.18);
-  padding: 4px;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px hsl(var(--ink-1) / 0.22);
+  padding: 5px;
 }
-.agt-menu__item {
+.agt-menu__sec {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--ink-4));
+  padding: 7px 8px 3px;
+}
+.agt-menu__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 8px;
-  border-radius: 4px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  color: hsl(var(--ink-1));
+}
+.agt-menu__row--btn {
+  cursor: pointer;
+}
+.agt-menu__row--btn:hover {
+  background: hsl(var(--ink-1) / 0.06);
+}
+.agt-menu__val {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: hsl(var(--ink-3));
   font-size: 12px;
+  min-width: 0;
+}
+.agt-menu__caret {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: hsl(var(--ink-4));
+}
+.agt-menu__divider {
+  height: 1px;
+  background: hsl(var(--rule));
+  margin: 4px 2px;
+}
+.agt-menu__back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+}
+.agt-menu__back:hover {
+  background: hsl(var(--ink-1) / 0.06);
+  color: hsl(var(--ink-1));
+}
+.agt-menu__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 12.5px;
   color: hsl(var(--ink-1));
   cursor: pointer;
 }
-.agt-menu__item:hover {
+.agt-menu__opt:hover {
   background: hsl(var(--ink-1) / 0.06);
 }
-.agt-menu__item--active {
+.agt-menu__opt--active {
   color: hsl(var(--accent));
 }
 .agt-menu__check {
   font-size: 9px;
   flex-shrink: 0;
 }
-/* Catches outside clicks to dismiss the open menu. */
-.agt-pop__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 29;
+
+/* ---- inline controls inside the menu ------------------------------------- */
+
+/* effort: a 5-dot strength meter (low→max) */
+.agt-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.agt-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid hsl(var(--rule-strong));
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.agt-dot--on {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+
+/* thinking: a compact toggle (mirrors .tog) */
+.agt-tog {
+  width: 30px;
+  height: 17px;
+  background: hsl(var(--rule-strong));
+  border-radius: 9px;
+  position: relative;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.agt-tog::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: hsl(var(--page));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.agt-tog--on {
+  background: hsl(var(--accent));
+}
+.agt-tog--on::after {
+  transform: translateX(13px);
+  background: hsl(var(--paper));
 }
