@@ -492,43 +492,99 @@ async function setNodeSummary(ctx: AgentToolContext, args: Record<string, unknow
   return { ok: true, id: nodeId };
 }
 
-async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  const text = String(args.text ?? '');
-  if (!nodeId) throw new Error('edit_block requires nodeId');
-  const content = await createBookContentRepository().findByNodeId(nodeId);
-  if (!content) throw new Error(`No content found for node "${nodeId}"`);
-  // Prefer the block number from read_chapter / search_prose; fall back to a
-  // uuid blockId (e.g. from where_does_entity_appear).
-  const hasBlockNum = args.block !== undefined && args.block !== null && args.block !== '';
-  let nextJson: string;
-  let target: string | number;
+// Per-node serialization for prose read-modify-write. Editing a block reads the
+// whole doc, mutates it, and writes it all back; if two such ops on the SAME
+// node interleave (the model can fire parallel tool calls and the bridge runs
+// them concurrently) the second write clobbers the first. We chain ops per
+// nodeId so each one reads the previous one's persisted result.
+const contentWriteChains = new Map<string, Promise<unknown>>();
+function withNodeContentLock<T>(nodeId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = contentWriteChains.get(nodeId) ?? Promise.resolve();
+  // Run fn after the previous op settles (success OR failure — a prior error
+  // must not wedge the chain).
+  const run = prev.then(
+    () => fn(),
+    () => fn(),
+  );
+  // Stored tail swallows errors so the next waiter isn't rejected by this one.
+  contentWriteChains.set(
+    nodeId,
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return run;
+}
+
+/** Apply one block edit to a doc JSON, by 1-based number or by uuid blockId. */
+function applyEditToJson(
+  json: string,
+  edit: { block?: unknown; blockId?: unknown; text?: unknown },
+): { json: string; target: string | number } {
+  const text = String(edit.text ?? '');
+  const hasBlockNum = edit.block !== undefined && edit.block !== null && edit.block !== '';
   if (hasBlockNum) {
-    const idx = Number(args.block);
+    const idx = Number(edit.block);
     if (!Number.isInteger(idx) || idx < 1) {
       throw new Error('block must be a 1-based integer (the number from read_chapter)');
     }
-    nextJson = replaceBlockByIndex(content.contentJson, idx, text);
-    target = idx;
-  } else {
-    const blockId = String(args.blockId ?? '');
-    if (!blockId) throw new Error('edit_block requires block (number) or blockId');
-    nextJson = replaceBlockText(content.contentJson, blockId, text);
-    target = blockId;
+    return { json: replaceBlockByIndex(json, idx, text), target: idx };
   }
-  await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
-  return { ok: true, nodeId, block: target };
+  const blockId = String(edit.blockId ?? '');
+  if (!blockId) throw new Error('edit requires block (number) or blockId');
+  return { json: replaceBlockText(json, blockId, text), target: blockId };
+}
+
+async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('edit_block requires nodeId');
+  return withNodeContentLock(nodeId, async () => {
+    const content = await createBookContentRepository().findByNodeId(nodeId);
+    if (!content) throw new Error(`No content found for node "${nodeId}"`);
+    const { json, target } = applyEditToJson(content.contentJson, args);
+    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
+    return { ok: true, nodeId, block: target };
+  });
+}
+
+/**
+ * Apply several block edits to one chapter atomically — a single
+ * read-modify-write so the edits can't clobber each other and the whole batch
+ * is one IPC round-trip. Block numbers are stable within the batch (edits only
+ * replace text, never add/remove blocks).
+ */
+async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('edit_blocks requires nodeId');
+  const edits = Array.isArray(args.edits) ? (args.edits as Record<string, unknown>[]) : [];
+  if (edits.length === 0) throw new Error('edit_blocks requires a non-empty edits array');
+  return withNodeContentLock(nodeId, async () => {
+    const content = await createBookContentRepository().findByNodeId(nodeId);
+    if (!content) throw new Error(`No content found for node "${nodeId}"`);
+    let json = content.contentJson;
+    const edited: Array<string | number> = [];
+    for (const e of edits) {
+      const r = applyEditToJson(json, e);
+      json = r.json;
+      edited.push(r.target);
+    }
+    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
+    return { ok: true, nodeId, edited };
+  });
 }
 
 async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const text = String(args.text ?? '');
   if (!nodeId || !text) throw new Error('append_paragraph requires nodeId and text');
-  const content = await createBookContentRepository().findByNodeId(nodeId);
-  if (!content) throw new Error(`No content found for node "${nodeId}"`);
-  const nextJson = appendParagraph(content.contentJson, text);
-  await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
-  return { ok: true, nodeId };
+  return withNodeContentLock(nodeId, async () => {
+    const content = await createBookContentRepository().findByNodeId(nodeId);
+    if (!content) throw new Error(`No content found for node "${nodeId}"`);
+    const nextJson = appendParagraph(content.contentJson, text);
+    await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
+    return { ok: true, nodeId };
+  });
 }
 
 // ---- Relationship handlers -------------------------------------------------
@@ -822,6 +878,8 @@ export async function runAgentTool(
       return setNodeSummary(ctx, args);
     case 'edit_block':
       return editBlock(ctx, args);
+    case 'edit_blocks':
+      return editBlocks(ctx, args);
     case 'append_paragraph':
       return appendParagraphTool(ctx, args);
     // relationships

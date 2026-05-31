@@ -168,7 +168,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_block',
-        'Replace the text of one prose block, keeping it in place. Address the block by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
+        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
         {
           nodeId: z.string(),
           block: z.number().optional().describe('1-based block number from read_chapter'),
@@ -176,6 +176,23 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
           text: z.string(),
         },
         (args) => run('edit_block', args),
+      ),
+      tool(
+        'edit_blocks',
+        'Replace the text of SEVERAL prose blocks in one chapter atomically (one read-modify-write — safe against clobbering, one round-trip). Use this instead of multiple edit_block calls on the same chapter. Each edit addresses a block by `block` (number) or `blockId` (uuid). Block numbers refer to read_chapter and stay valid across the batch.',
+        {
+          nodeId: z.string(),
+          edits: z
+            .array(
+              z.object({
+                block: z.number().optional(),
+                blockId: z.string().optional(),
+                text: z.string(),
+              }),
+            )
+            .describe('Blocks to replace, each {block|blockId, text}'),
+        },
+        (args) => run('edit_blocks', args),
       ),
       tool(
         'append_paragraph',
