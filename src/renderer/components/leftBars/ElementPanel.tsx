@@ -3,6 +3,7 @@ import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
 import { useDataStore } from '../../store/data-store';
+import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -47,6 +48,8 @@ export function ElementPanel() {
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedBookElementId = elementUi.selectedId;
+  const agentActive = useAgentActivityStore((s) => s.active);
+  const agentTouched = useAgentActivityStore((s) => s.touched);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -419,6 +422,8 @@ export function ElementPanel() {
 
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
+    const agentBusy = `element:${element.id}` in agentActive;
+    const agentChanged = !agentBusy && `element:${element.id}` in agentTouched;
     // The virtual "未分类" bucket isn't a real category — getCategoryColor
     // would log a not-found warning and return a flickering random color.
     const categoryColor =
@@ -462,6 +467,7 @@ export function ElementPanel() {
           handleRowHoverLeave();
         }}
         onClick={() => {
+          if (agentChanged) useAgentActivityStore.getState().clearTouched('element', element.id);
           openEntity({ entityType: 'element', id: element.id });
         }}
         onDoubleClick={() => {
@@ -543,6 +549,14 @@ export function ElementPanel() {
           </span>
         )}
 
+        {(agentBusy || agentChanged) && (
+          <span
+            aria-hidden
+            className={agentBusy ? 'agent-cell-spark' : 'agent-touch-dot'}
+            style={{ flexShrink: 0, marginLeft: 2 }}
+            title={agentBusy ? 'Agent 正在处理' : 'Agent 刚改动了这里'}
+          />
+        )}
       </div>
     );
   };

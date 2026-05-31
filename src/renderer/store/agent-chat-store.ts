@@ -14,6 +14,10 @@
 import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
+import { useProjectStore } from './project-store';
+import { useAgentActivityStore } from './agent-activity-store';
+import { parseKv } from '../domain/kv';
+import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import type {
   AgentChatMessage as ChatMsg,
@@ -59,6 +63,10 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
     }
     case 'assistant':
       return [...finalizeStreaming(list), { kind: 'assistant', text: ev.text, streaming: false }];
+    case 'thinking':
+      // Complete (non-streamed) thinking block — appears all at once after the
+      // model finishes, when thinking_delta events didn't fire.
+      return [...finalizeStreaming(list), { kind: 'thinking', text: ev.text, streaming: false }];
     case 'tool_use':
       return [
         ...finalizeStreaming(list),
@@ -86,6 +94,21 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
       return ev.ok
         ? finalizeStreaming(list)
         : [...finalizeStreaming(list), { kind: 'error', text: ev.text }];
+    case 'usage':
+      // Skip empty usage rows (e.g. a turn that produced no tokens).
+      if (!ev.inputTokens && !ev.outputTokens && !ev.costUsd) return list;
+      return [
+        ...finalizeStreaming(list),
+        {
+          kind: 'usage',
+          inputTokens: ev.inputTokens,
+          outputTokens: ev.outputTokens,
+          cacheReadTokens: ev.cacheReadTokens,
+          cacheCreationTokens: ev.cacheCreationTokens,
+          costUsd: ev.costUsd,
+          turns: ev.turns,
+        },
+      ];
     case 'error':
       return [...finalizeStreaming(list), { kind: 'error', text: ev.message }];
     case 'system':
@@ -157,6 +180,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       return;
     }
     // Project changed — reset the live chat and load that project's history.
+    useAgentActivityStore.getState().clearAll();
     set({
       boundProjectId: projectId,
       messages: [],
@@ -165,7 +189,27 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       prompt: '',
       running: false,
     });
-    get().refreshList();
+    // Load history, then re-open the conversation the user last had active for
+    // this project (persisted pointer + SQLite transcript), so a reload/restart
+    // doesn't drop them into an empty "新对话".
+    void (async () => {
+      let rows: AgentConversationSummary[] = [];
+      try {
+        rows = await repo.listByProject(projectId);
+      } catch {
+        rows = [];
+      }
+      // The project may have changed again (or a conversation started) while the
+      // async list was in flight — bail rather than clobber newer state.
+      if (get().boundProjectId !== projectId) return;
+      set({ convList: rows });
+      const lastId = useSettingsStore.getState().lastAgentConvByProject[projectId];
+      // Only restore a conversation that still exists (listByProject already
+      // filters soft-deleted rows) and only if the user hasn't started one.
+      if (lastId && !get().activeConvId && rows.some((r) => r.id === lastId)) {
+        await get().loadConversation(lastId);
+      }
+    })();
   },
 
   send: async () => {
@@ -200,6 +244,19 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       set({ activeConvId: convId });
       get().refreshList();
     }
+    // Remember this as the project's last-active conversation so it re-opens on
+    // next launch.
+    if (s.boundProjectId && convId) {
+      useSettingsStore.getState().setLastAgentConv(s.boundProjectId, convId);
+    }
+
+    // Project writing preferences (KV facts) + writing language, injected into
+    // the agent's system prompt so it honors the author's style/POV/length and
+    // writes in the manuscript's language. Empty facts → no style steer.
+    const project = useProjectStore.getState().currentProject;
+    const projectFacts =
+      project && project.id === s.boundProjectId ? parseKv(project.kvJson) : [];
+    const writingLanguage = resolveWritingLanguage(s.boundProjectId);
 
     set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
     const r = await api.start({
@@ -209,6 +266,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       effort: settings.agentEffort,
       thinking: settings.agentThinking,
       resume: s.sdkSessionId ?? undefined,
+      writingLanguage,
+      projectFacts,
     });
     if (!r.ok) {
       set((st) => ({ messages: [...st.messages, { kind: 'error', text: r.error }], running: false }));
@@ -221,6 +280,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   newConversation: () => {
     void window.electronAPI?.agent?.resetSession();
+    const pid = get().boundProjectId;
+    if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
+    useAgentActivityStore.getState().clearAll();
     set({ messages: [], activeConvId: null, sdkSessionId: null, prompt: '', running: false });
   },
 
@@ -228,6 +290,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const conv = await repo.get(id);
     if (!conv) return;
     set({ messages: conv.messages, activeConvId: conv.id, sdkSessionId: conv.sdkSessionId });
+    const pid = get().boundProjectId;
+    if (pid) useSettingsStore.getState().setLastAgentConv(pid, conv.id);
   },
 
   deleteConversation: async (id) => {
@@ -237,6 +301,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       /* ignore */
     }
     if (get().activeConvId === id) {
+      const pid = get().boundProjectId;
+      if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
       set({ messages: [], activeConvId: null, sdkSessionId: null });
     }
     get().refreshList();
@@ -279,7 +345,16 @@ function handleEvent(ev: AgentEvent): void {
     return;
   }
   useAgentChatStore.setState((s) => ({ messages: applyEvent(s.messages, ev) }));
+  // Mirror tool activity to the perception store (left-panel pulses + dots) —
+  // but only while a turn is actively running, so late events from a turn the
+  // user switched projects away from don't seed marks for foreign entities.
+  const activity = useAgentActivityStore.getState();
+  if (useAgentChatStore.getState().running) {
+    if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
+    else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
+  }
   if (ev.type === 'done') {
+    activity.onTurnEnd();
     useAgentChatStore.setState({ running: false });
     // `set` is synchronous, so getState() inside persist sees the finalized
     // transcript (the done event's applyEvent already applied).

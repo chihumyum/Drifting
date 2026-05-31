@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Buffer } from 'buffer';
 import '../styles/index.css';
 import '../styles/settings.css';
+import '../styles/agent-activity.css';
 import './lib/i18n';
 import { installAIDevConsole } from './lib/ai';
 import { registerCopilotCapability } from './lib/copilot/capability';

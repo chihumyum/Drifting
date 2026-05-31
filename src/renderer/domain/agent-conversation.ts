@@ -31,6 +31,17 @@ export type AgentChatMessage =
     }
   // The agent's evolving plan — replaced in place as TodoWrite is called.
   | { kind: 'todos'; items: AgentTodoItem[] }
+  // Per-turn token usage + cost, appended after each turn. Persisted in the
+  // transcript so session totals survive reload (summed across these rows).
+  | {
+      kind: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      costUsd: number;
+      turns: number;
+    }
   | { kind: 'error'; text: string };
 
 export type AgentConvMode = 'byok' | 'hosted';

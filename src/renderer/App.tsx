@@ -61,6 +61,7 @@ import { useElementCategory } from './usecase/useElementCategory';
 import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
 import { useComment } from './usecase/useComment';
+import { useProject } from './usecase/useProject';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
 import { isAuthRequired } from './lib/config';
@@ -208,6 +209,7 @@ function Layout() {
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
+  const projectUsecases = useProject({ userId: userId });
 
   // Bridge the main-process agent's tool calls to renderer-side handlers
   // (reads/writes go through the same store + usecases as manual edits).
@@ -227,6 +229,8 @@ function Layout() {
     createStoryline: storylineUsecases.createStoryline,
     updateStoryline: storylineUsecases.updateStoryline,
     createCategory: categoryUsecases.createCategory,
+    updateCategory: categoryUsecases.updateCategory,
+    updateProject: projectUsecases.updateProject,
     createNode: nodeUsecases.createNode,
     createComment: commentUsecases.createComment,
     deleteComment: commentUsecases.deleteComment,
@@ -802,6 +806,16 @@ function Layout() {
               <BottomTimeline />
             </div>
           )}
+          {/* In-document Cmd+F find panel — anchored to this editor column
+              (.app-mid is position:relative) so it floats over the text area
+              instead of the viewport's top-right, which used to occlude the
+              right sidebar. */}
+          {findPanelEditor && (
+            <EditorFindPanel
+              editor={findPanelEditor}
+              onClose={() => setFindPanelEditor(null)}
+            />
+          )}
         </main>
         <Sidebar sidebarType="right">
           <div
@@ -845,12 +859,6 @@ function Layout() {
         isOpen={isGlobalSearchOpen}
         onClose={() => setIsGlobalSearchOpen(false)}
       />
-      {findPanelEditor && (
-        <EditorFindPanel
-          editor={findPanelEditor}
-          onClose={() => setFindPanelEditor(null)}
-        />
-      )}
       <SyncStatusHUD />
     </div>
   );

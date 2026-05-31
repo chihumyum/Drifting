@@ -22,7 +22,11 @@ import {
 } from '../../usecase/sync-helpers';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
-import { createPlainCommentDoc } from '../../domain/comment';
+import {
+  createPlainCommentDoc,
+  getBlockSnapshotFromAnchor,
+  getSelectedTextFromAnchor,
+} from '../../domain/comment';
 import type { CreateCommentInput } from '../../usecase/useComment';
 import type { NodeContent } from '../../domain/node-content';
 import {
@@ -36,8 +40,12 @@ import type {
   UpdateElementUsecaseInput,
 } from '../../usecase/useBookElement';
 import type { CreateStorylineInput, UpdateStorylineInput } from '../../usecase/useStoryline';
-import type { CreateElementCategoryInput } from '../../usecase/useElementCategory';
+import type {
+  CreateElementCategoryInput,
+  UpdateElementCategoryInput,
+} from '../../usecase/useElementCategory';
 import type { CreateNodeUsecaseInput } from '../../usecase/useBookNode';
+import type { UpdateProjectInput } from '../../usecase/useProject';
 import {
   docToBlocks,
   docToPlainText,
@@ -45,7 +53,35 @@ import {
   replaceBlockByIndex,
   blocksToCompactText,
   appendParagraph,
+  removeBlocks,
+  replaceBlockRange,
+  insertBlocks,
+  findBlocks,
 } from './serialize';
+import {
+  writeChapterProse,
+  getChapterContentJson,
+  yReplaceBlockText,
+  yRemoveBlocks,
+  yReplaceBlockRange,
+  yInsertBlocks,
+  yAppendParagraph,
+} from './chapter-prose';
+
+/**
+ * Merge facts into an existing kv list by key (upsert). Unlike update_element's
+ * replace semantics, project/storyline/category KV is higher-value (style, POV,
+ * goals) so the agent setting one fact must not wipe the author's other facts.
+ */
+function mergeKv(existingJson: string | null | undefined, updates: KvEntry[]): string {
+  const map = new Map<string, string>();
+  for (const e of parseKv(existingJson)) map.set(e.key, e.value);
+  for (const u of updates) {
+    if (!u.key) continue;
+    map.set(u.key, u.value);
+  }
+  return stringifyKv([...map.entries()].map(([key, value]) => ({ key, value })));
+}
 
 /** Coerce a loose facts array (from tool args) to KvEntry[]. */
 function toKvEntries(raw: unknown): KvEntry[] {
@@ -95,6 +131,8 @@ export interface AgentWriteApi {
   createStoryline: (input: CreateStorylineInput) => Promise<unknown>;
   updateStoryline: (input: UpdateStorylineInput) => Promise<unknown>;
   createCategory: (input: CreateElementCategoryInput) => Promise<unknown>;
+  updateCategory: (id: string, updates: UpdateElementCategoryInput) => Promise<unknown>;
+  updateProject: (id: string, updates: UpdateProjectInput) => Promise<unknown>;
   createNode: (input: CreateNodeUsecaseInput) => Promise<unknown>;
   createComment: (input: CreateCommentInput) => Promise<unknown>;
   deleteComment: (id: string) => Promise<unknown>;
@@ -131,17 +169,47 @@ function listProjectStructure(ctx: AgentToolContext) {
   };
 }
 
+/**
+ * The structural entities (elements / nodes / storylines …) a chapter references
+ * in its prose, deduped by `${kind}:${id}`. Derived from the inline-mention
+ * projection. Shared by read_chapter and get_chapter_context.
+ */
+async function listChapterReferences(
+  s: DataState,
+  nodeId: string,
+): Promise<Array<{ kind: string; id: string; label: string }>> {
+  const mentions = await createInlineMentionRepository().listMentionsFromSource('node', nodeId);
+  const seen = new Set<string>();
+  const references: Array<{ kind: string; id: string; label: string }> = [];
+  for (const m of mentions) {
+    const key = `${m.toKind}:${m.toId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    references.push({ kind: m.toKind, id: m.toId, label: entityLabel(s, m.toKind, m.toId) });
+  }
+  return references;
+}
+
 async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
   const content = await createBookContentRepository().findByNodeId(nodeId);
-  const blocks = content ? docToBlocks(content.contentJson) : [];
+  // Read the live Yjs truth (what the editor shows), not just the contentJson
+  // cache, so the numbering the agent edits against matches the open editor.
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  const blocks = docToBlocks(truthJson);
   // Compact numbered rendering — the leading number is the handle for edit_block.
   const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字 · id=${node.id}`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
+  // Which elements/entities appear in this chapter (recorded inline mentions),
+  // so the agent has context without a separate get_chapter_context call.
+  const refs = await listChapterReferences(s, nodeId);
+  const appearsLine = refs.length
+    ? `appears: ${refs.map((r) => `${r.label} (${r.kind} id=${r.id})`).join(', ')}`
+    : 'appears: (none recorded)';
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
-  return `${header}\n${summaryLine}\n\n${body}`;
+  return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
 }
 
 function readElement(ctx: AgentToolContext, elementId: string) {
@@ -180,6 +248,54 @@ function searchProject(ctx: AgentToolContext, query: string) {
     if (sl.name.toLowerCase().includes(q)) matches.push({ kind: 'storyline', id: sl.id, label: sl.name });
   }
   return { matches };
+}
+
+/**
+ * Resolve an entity NAME to its id (exact, case-insensitive) so the agent can
+ * address entities by name instead of long uuids. Names are kept project-unique
+ * per kind (#11), so this normally returns one id; if a name still collides
+ * (e.g. legacy duplicates) it returns `ambiguous` rather than guessing.
+ */
+function resolveEntity(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const kind = String(args.kind ?? '').trim();
+  const name = String(args.name ?? '').trim().toLowerCase();
+  if (!name) throw new Error('resolve_entity requires a name');
+  const s = useDataStore.getState();
+  const matches: Array<{ kind: string; id: string; label: string }> = [];
+  const wantNode = !kind || kind === 'node' || kind === 'chapter' || kind === 'drift';
+
+  if (!kind || kind === 'element') {
+    for (const e of s.bookElements) {
+      if (e.projectId !== ctx.projectId) continue;
+      if ([e.name, ...e.aliases].some((n) => n.trim().toLowerCase() === name)) {
+        matches.push({ kind: 'element', id: e.id, label: e.name });
+      }
+    }
+  }
+  if (wantNode) {
+    for (const n of s.bookNodes) {
+      if (n.projectId !== ctx.projectId) continue;
+      if (n.title.trim().toLowerCase() === name) matches.push({ kind: n.kind, id: n.id, label: n.title });
+    }
+  }
+  if (!kind || kind === 'storyline') {
+    for (const sl of s.storylines) {
+      if (sl.projectId !== ctx.projectId) continue;
+      if (sl.name.trim().toLowerCase() === name) matches.push({ kind: 'storyline', id: sl.id, label: sl.name });
+    }
+  }
+  if (!kind || kind === 'category') {
+    for (const c of s.bookElementCategories) {
+      if (c.projectId !== ctx.projectId) continue;
+      if (c.name.trim().toLowerCase() === name) matches.push({ kind: 'category', id: c.id, label: c.name });
+    }
+  }
+
+  if (matches.length === 0) return { found: false, matches: [] };
+  if (matches.length === 1) {
+    return { found: true, id: matches[0].id, kind: matches[0].kind, label: matches[0].label };
+  }
+  return { found: true, ambiguous: matches };
 }
 
 // ---- Relational / context reads (point → surface) --------------------------
@@ -320,15 +436,7 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
     .filter(Boolean);
 
   // Elements (and other structural entities) this chapter references in prose.
-  const mentions = await createInlineMentionRepository().listMentionsFromSource('node', nodeId);
-  const seen = new Set<string>();
-  const references: Array<{ kind: string; id: string; label: string }> = [];
-  for (const m of mentions) {
-    const key = `${m.toKind}:${m.toId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    references.push({ kind: m.toKind, id: m.toId, label: entityLabel(s, m.toKind, m.toId) });
-  }
+  const references = await listChapterReferences(s, nodeId);
 
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
   const relations = [
@@ -424,23 +532,34 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
       (!id || c.targetId === id),
   );
   return {
-    comments: rows.map((c) => ({
-      id: c.id,
-      kind: c.kind,
-      targetKind: c.targetKind,
-      targetId: c.targetId,
-      author: c.authorName ?? c.authorKind,
-      status: c.status,
-      body: docToPlainText(c.bodyJson),
-    })),
+    comments: rows.map((c) => {
+      // The text the note/TODO is anchored to, so the agent can locate it: the
+      // block snapshot if anchored to a block, else the selected text. For a
+      // block-anchored TODO, read_block(targetId, targetBlockId) gives the LIVE
+      // text (the quote here is a creation-time snapshot and may be stale).
+      const quote =
+        getBlockSnapshotFromAnchor(c.anchorJson)?.blockText ||
+        getSelectedTextFromAnchor(c.anchorJson) ||
+        undefined;
+      return {
+        id: c.id,
+        kind: c.kind,
+        targetKind: c.targetKind,
+        targetId: c.targetId,
+        targetBlockId: c.targetBlockId ?? undefined,
+        author: c.authorName ?? c.authorKind,
+        status: c.status,
+        body: docToPlainText(c.bodyJson),
+        quote,
+      };
+    }),
   };
 }
 
 // ---- Write handlers --------------------------------------------------------
 // All go through ctx.write (the usecases), so edits sync exactly like manual
-// ones. NOTE: prose edits write the SAVED copy; if the chapter is currently
-// open in the editor, the open editor may overwrite the change on its next
-// save — close/save the chapter first.
+// ones. Prose edits go through the chapter's Yjs document (see chapter-prose),
+// so they apply live to an open editor instead of being clobbered by it.
 
 async function updateElement(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.elementId ?? '');
@@ -517,11 +636,12 @@ function withNodeContentLock<T>(nodeId: string, fn: () => Promise<T>): Promise<T
   return run;
 }
 
-/** Apply one block edit to a doc JSON, by 1-based number or by uuid blockId. */
-function applyEditToJson(
-  json: string,
-  edit: { block?: unknown; blockId?: unknown; text?: unknown },
-): { json: string; target: string | number } {
+/** Normalize one block edit's target ({block} number or {blockId} uuid) + text. */
+function parseBlockEdit(edit: {
+  block?: unknown;
+  blockId?: unknown;
+  text?: unknown;
+}): { target: { block?: number; blockId?: string }; text: string; label: string | number } {
   const text = String(edit.text ?? '');
   const hasBlockNum = edit.block !== undefined && edit.block !== null && edit.block !== '';
   if (hasBlockNum) {
@@ -529,48 +649,60 @@ function applyEditToJson(
     if (!Number.isInteger(idx) || idx < 1) {
       throw new Error('block must be a 1-based integer (the number from read_chapter)');
     }
-    return { json: replaceBlockByIndex(json, idx, text), target: idx };
+    return { target: { block: idx }, text, label: idx };
   }
   const blockId = String(edit.blockId ?? '');
   if (!blockId) throw new Error('edit requires block (number) or blockId');
-  return { json: replaceBlockText(json, blockId, text), target: blockId };
+  return { target: { blockId }, text, label: blockId };
 }
 
 async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   if (!nodeId) throw new Error('edit_block requires nodeId');
+  const { target, text, label } = parseBlockEdit(args);
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    const { json, target } = applyEditToJson(content.contentJson, args);
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
-    return { ok: true, nodeId, block: target };
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yReplaceBlockText(frag, target, text),
+      (json) =>
+        target.blockId
+          ? replaceBlockText(json, target.blockId, text)
+          : replaceBlockByIndex(json, target.block as number, text),
+    );
+    return { ok: true, nodeId, block: label };
   });
 }
 
 /**
- * Apply several block edits to one chapter atomically — a single
- * read-modify-write so the edits can't clobber each other and the whole batch
- * is one IPC round-trip. Block numbers are stable within the batch (edits only
- * replace text, never add/remove blocks).
+ * Apply several block edits to one chapter atomically — a single transaction so
+ * the edits can't clobber each other. Block numbers are stable within the batch
+ * (edits only replace text, never add/remove blocks).
  */
 async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   if (!nodeId) throw new Error('edit_blocks requires nodeId');
   const edits = Array.isArray(args.edits) ? (args.edits as Record<string, unknown>[]) : [];
   if (edits.length === 0) throw new Error('edit_blocks requires a non-empty edits array');
+  const parsed = edits.map(parseBlockEdit);
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    let json = content.contentJson;
-    const edited: Array<string | number> = [];
-    for (const e of edits) {
-      const r = applyEditToJson(json, e);
-      json = r.json;
-      edited.push(r.target);
-    }
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
-    return { ok: true, nodeId, edited };
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => {
+        for (const e of parsed) yReplaceBlockText(frag, e.target, e.text);
+      },
+      (json) => {
+        let j = json;
+        for (const e of parsed) {
+          j = e.target.blockId
+            ? replaceBlockText(j, e.target.blockId, e.text)
+            : replaceBlockByIndex(j, e.target.block as number, e.text);
+        }
+        return j;
+      },
+    );
+    return { ok: true, nodeId, edited: parsed.map((e) => e.label) };
   });
 }
 
@@ -579,11 +711,100 @@ async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, u
   const text = String(args.text ?? '');
   if (!nodeId || !text) throw new Error('append_paragraph requires nodeId and text');
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    const nextJson = appendParagraph(content.contentJson, text);
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yAppendParagraph(frag, text),
+      (json) => appendParagraph(json, text),
+    );
     return { ok: true, nodeId };
+  });
+}
+
+// ---- structural block edits (add/remove blocks — id-addressed only) --------
+
+async function readBlock(args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const blockId = String(args.blockId ?? '');
+  if (!nodeId || !blockId) throw new Error('read_block requires nodeId and blockId');
+  const content = await createBookContentRepository().findByNodeId(nodeId);
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  const blocks = docToBlocks(truthJson);
+  const idx = blocks.findIndex((b) => b.blockId === blockId);
+  if (idx < 0) return { nodeId, blockId, found: false };
+  const b = blocks[idx];
+  return { nodeId, blockId, found: true, block: idx + 1, type: b.type, text: b.text };
+}
+
+async function lookupBlock(args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('lookup_block requires nodeId');
+  const ordinalRaw = args.ordinal;
+  const ordinal =
+    ordinalRaw === undefined || ordinalRaw === null || ordinalRaw === ''
+      ? undefined
+      : Number(ordinalRaw);
+  const contains = args.contains === undefined ? undefined : String(args.contains);
+  if (ordinal === undefined && !contains) {
+    throw new Error('lookup_block requires ordinal and/or contains');
+  }
+  const content = await createBookContentRepository().findByNodeId(nodeId);
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  return { nodeId, matches: findBlocks(truthJson, { ordinal, contains }) };
+}
+
+async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('remove_blocks requires nodeId');
+  const blockIds = Array.isArray(args.blockIds) ? args.blockIds.map((b) => String(b)) : [];
+  if (blockIds.length === 0) throw new Error('remove_blocks requires a non-empty blockIds array');
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yRemoveBlocks(frag, blockIds),
+      (json) => removeBlocks(json, blockIds),
+    );
+    return { ok: true, nodeId, removed: blockIds };
+  });
+}
+
+async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const fromBlockId = String(args.fromBlockId ?? '');
+  const toBlockId = String(args.toBlockId ?? '');
+  if (!nodeId || !fromBlockId || !toBlockId) {
+    throw new Error('replace_block_range requires nodeId, fromBlockId and toBlockId');
+  }
+  const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yReplaceBlockRange(frag, fromBlockId, toBlockId, texts),
+      (json) => replaceBlockRange(json, fromBlockId, toBlockId, texts),
+    );
+    return { ok: true, nodeId, replaced: { from: fromBlockId, to: toBlockId, with: texts.length } };
+  });
+}
+
+async function insertBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('insert_blocks requires nodeId');
+  const afterBlockId =
+    args.afterBlockId === undefined || args.afterBlockId === null || args.afterBlockId === ''
+      ? null
+      : String(args.afterBlockId);
+  const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
+  if (texts.length === 0) throw new Error('insert_blocks requires a non-empty blocks array');
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yInsertBlocks(frag, afterBlockId, texts),
+      (json) => insertBlocks(json, afterBlockId, texts),
+    );
+    return { ok: true, nodeId, inserted: texts.length, after: afterBlockId };
   });
 }
 
@@ -661,6 +882,10 @@ async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, u
   const input: UpdateStorylineInput = { id };
   if (typeof args.name === 'string') input.name = args.name;
   if (typeof args.summary === 'string') input.summary = args.summary;
+  if (args.facts !== undefined) {
+    const sl = useDataStore.getState().storylines.find((s) => s.id === id);
+    input.kvJson = mergeKv(sl?.kvJson, toKvEntries(args.facts));
+  }
   await ctx.write.updateStoryline(input);
   return { ok: true, id };
 }
@@ -670,6 +895,33 @@ async function createCategoryTool(ctx: AgentToolContext, args: Record<string, un
   if (typeof args.name === 'string') input.name = args.name;
   const created = await ctx.write.createCategory(input);
   return { ok: true, created };
+}
+
+/** Set/update the project's KV facts (merge by key — preserves the author's other facts). */
+async function updateProjectFacts(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const project = useProjectStore.getState().currentProject;
+  if (!project || project.id !== ctx.projectId) throw new Error('No current project to update');
+  const facts = toKvEntries(args.facts);
+  if (facts.length === 0) throw new Error('update_project_facts requires a non-empty facts array');
+  const kvJson = mergeKv(project.kvJson, facts);
+  await ctx.write.updateProject(project.id, { kvJson });
+  return { ok: true, id: project.id, facts: parseKv(kvJson) };
+}
+
+/**
+ * Set/update a category's element TEMPLATE facts (elementTemplateKvJson) — the
+ * kv seeded into new elements of that category, NOT the category's own metadata.
+ */
+async function updateCategoryTemplate(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.categoryId ?? '');
+  if (!id) throw new Error('update_category requires categoryId');
+  const facts = toKvEntries(args.templateFacts);
+  if (facts.length === 0) throw new Error('update_category requires a non-empty templateFacts array');
+  const cat = useDataStore.getState().bookElementCategories.find((c) => c.id === id);
+  if (!cat || cat.projectId !== ctx.projectId) throw new Error(`No category found with id "${id}"`);
+  const elementTemplateKvJson = mergeKv(cat.elementTemplateKvJson, facts);
+  await ctx.write.updateCategory(id, { elementTemplateKvJson });
+  return { ok: true, id, templateFacts: parseKv(elementTemplateKvJson) };
 }
 
 async function createNodeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -850,6 +1102,8 @@ export async function runAgentTool(
       return readElement(ctx, String(args.elementId ?? ''));
     case 'search_project':
       return searchProject(ctx, String(args.query ?? ''));
+    case 'resolve_entity':
+      return resolveEntity(ctx, args);
     // relational / context reads (point → surface)
     case 'get_project_brief':
       return getProjectBrief(ctx);
@@ -882,6 +1136,16 @@ export async function runAgentTool(
       return editBlocks(ctx, args);
     case 'append_paragraph':
       return appendParagraphTool(ctx, args);
+    case 'read_block':
+      return readBlock(args);
+    case 'lookup_block':
+      return lookupBlock(args);
+    case 'remove_blocks':
+      return removeBlocksTool(ctx, args);
+    case 'replace_block_range':
+      return replaceBlockRangeTool(ctx, args);
+    case 'insert_blocks':
+      return insertBlocksTool(ctx, args);
     // relationships
     case 'link_chapter_to_storyline':
       return linkChapterToStoryline(ctx, args);
@@ -902,6 +1166,10 @@ export async function runAgentTool(
       return updateStorylineTool(ctx, args);
     case 'create_category':
       return createCategoryTool(ctx, args);
+    case 'update_category':
+      return updateCategoryTemplate(ctx, args);
+    case 'update_project_facts':
+      return updateProjectFacts(ctx, args);
     case 'create_node':
       return createNodeTool(ctx, args);
     // summary (reverse-generate)

@@ -45,6 +45,8 @@ export type AgentEvent =
   | { type: 'assistant_delta'; text: string }
   /** A streamed token chunk of the model's extended-thinking block. */
   | { type: 'thinking_delta'; text: string }
+  /** A complete extended-thinking block (fallback when it wasn't streamed). */
+  | { type: 'thinking'; text: string }
   /** The agent invoked a tool (name already stripped of the mcp__drifting__ prefix). */
   | { type: 'tool_use'; id: string; name: string; input?: unknown }
   /** The agent updated its working plan (built-in TodoWrite tool). */
@@ -52,6 +54,16 @@ export type AgentEvent =
   /** A tool returned its result, keyed back to the tool_use by id. */
   | { type: 'tool_result'; id: string; ok: boolean; text: string }
   | { type: 'result'; ok: boolean; text: string }
+  /** Token usage + cost for the just-finished turn (from the SDK result message). */
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheCreationTokens: number;
+      costUsd: number;
+      turns: number;
+    }
   /** The SDK session id for this turn — the renderer stores it to resume later. */
   | { type: 'session'; id: string }
   | { type: 'error'; message: string }
@@ -83,6 +95,43 @@ export interface AgentStartInput {
   effort?: AgentEffortChoice;
   /** Extended-thinking mode. */
   thinking?: AgentThinkingChoice;
+  /**
+   * The manuscript's writing-language name (e.g. "Simplified Chinese (简体中文)").
+   * Injected into the system prompt so the agent writes prose/replies in the
+   * project's language rather than its own default.
+   */
+  writingLanguage?: string;
+  /**
+   * The project's key/value metadata (writing style/文风, POV/写作人称, target
+   * chapter length, goals, reference works, …). Injected as governing prose
+   * constraints. Empty/omitted → no style steer (the model's default voice).
+   */
+  projectFacts?: { key: string; value: string }[];
+}
+
+/**
+ * Build the per-turn system-prompt suffix from the project's writing language +
+ * KV metadata. Empty when neither is set, so a project with no preferences gets
+ * no extra steer (the model's own default voice). Data-driven by design — there
+ * is intentionally NO hardcoded tone default.
+ */
+function buildAgentMeta(input: AgentStartInput): string {
+  const parts: string[] = [];
+  if (input.writingLanguage) {
+    parts.push(`Write all prose and replies in ${input.writingLanguage}.`);
+  }
+  const facts = (input.projectFacts ?? []).filter((f) => f.key || f.value);
+  if (facts.length) {
+    const lines = facts.map((f) => `- ${f.key}: ${f.value}`).join('\n');
+    parts.push(
+      'Project metadata set by the author — e.g. writing style (文风), POV / person ' +
+        '(写作人称), target chapter length, goals, reference works. Treat these as governing ' +
+        'constraints when writing or editing prose: match the stated style and voice, write in the ' +
+        'specified person/POV, and aim chapters at any target word count. Storyline-specific ' +
+        'preferences, when present, live in that storyline’s facts (get_storyline).\n' + lines,
+    );
+  }
+  return parts.length ? '\n\n' + parts.join('\n\n') : '';
 }
 
 /** Resolve the subprocess env for the chosen mode, or an error to surface. */
@@ -145,6 +194,21 @@ function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): 
   return text;
 }
 
+/** Concatenate any plaintext extended-thinking blocks on a complete assistant
+ *  message (redacted/encrypted thinking has no text and is skipped). */
+function extractThinkingText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
+  const blocks = msg.message?.content;
+  if (!Array.isArray(blocks)) return '';
+  let text = '';
+  for (const block of blocks) {
+    if (block && typeof block === 'object' && (block as { type?: string }).type === 'thinking') {
+      const t = (block as { thinking?: unknown }).thinking;
+      if (typeof t === 'string') text += t;
+    }
+  }
+  return text;
+}
+
 /** Flatten a tool_result block's content (string | array of text parts) to text. */
 function extractToolResultText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -167,7 +231,7 @@ function extractToolResultText(content: unknown): string {
  * was already streamed token-by-token (via stream_event), so the complete
  * assistant message doesn't re-emit it — it only contributes tool_use blocks.
  */
-function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
+function toEvents(msg: SDKMessage, state: { sawDelta: boolean; sawThinking: boolean }): AgentEvent[] {
   switch (msg.type) {
     case 'system':
       // init / compact-boundary / etc. — currently suppressed in the UI.
@@ -188,6 +252,7 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
           return [{ type: 'assistant_delta', text: d.text }];
         }
         if (d?.type === 'thinking_delta' && typeof d.thinking === 'string' && d.thinking) {
+          state.sawThinking = true;
           return [{ type: 'thinking_delta', text: d.thinking }];
         }
       }
@@ -195,6 +260,13 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
     }
     case 'assistant': {
       const out: AgentEvent[] = [];
+      // If extended thinking wasn't streamed token-by-token (adaptive thinking on
+      // newer models returns it on the complete message instead of as
+      // thinking_delta events), surface it here so the 思考 block still renders.
+      if (!state.sawThinking) {
+        const thinking = extractThinkingText(msg as Extract<SDKMessage, { type: 'assistant' }>);
+        if (thinking) out.push({ type: 'thinking', text: thinking });
+      }
       // If streaming already delivered the text, don't duplicate it.
       if (!state.sawDelta) {
         const text = extractAssistantText(msg as Extract<SDKMessage, { type: 'assistant' }>);
@@ -220,6 +292,7 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
         }
       }
       state.sawDelta = false;
+      state.sawThinking = false;
       return out;
     }
     case 'user': {
@@ -243,10 +316,25 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
     }
     case 'result': {
       const r = msg as Extract<SDKMessage, { type: 'result' }>;
+      // The result message (success OR error) carries cumulative usage for the
+      // turn — surface it so the panel can track tokens/cost per turn + session.
+      const u = r.usage;
+      const usageEvent: AgentEvent = {
+        type: 'usage',
+        inputTokens: u?.input_tokens ?? 0,
+        outputTokens: u?.output_tokens ?? 0,
+        cacheReadTokens: u?.cache_read_input_tokens ?? 0,
+        cacheCreationTokens: u?.cache_creation_input_tokens ?? 0,
+        costUsd: r.total_cost_usd ?? 0,
+        turns: r.num_turns ?? 0,
+      };
       if (r.subtype === 'success') {
-        return [{ type: 'result', ok: true, text: r.result }];
+        return [{ type: 'result', ok: true, text: r.result }, usageEvent];
       }
-      return [{ type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` }];
+      return [
+        { type: 'result', ok: false, text: `Stopped: ${r.subtype} (turns=${r.num_turns})` },
+        usageEvent,
+      ];
     }
     default:
       return []; // partial/status/etc. ignored
@@ -352,18 +440,29 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
+          'Entity names are project-unique, so you can resolve a name to its id with resolve_entity ' +
+          'instead of carrying long uuids around. ' +
           'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
           'one prose block by its number from read_chapter; use edit_blocks for several blocks ' +
-          'in one chapter — atomic), append_paragraph. ' +
-          'Build structure: create_storyline / update_storyline, create_category, create_node ' +
-          "(a 'chapter' or 'drift'). " +
+          'in one chapter — atomic), append_paragraph. Prose edits apply to the chapter live — no ' +
+          'need to close the editor. To RESTRUCTURE prose (delete a block, replace a range of ' +
+          'blocks with a different number of blocks, or insert blocks mid-chapter) use ' +
+          'remove_blocks / replace_block_range / insert_blocks; these address blocks by their ' +
+          'stable uuid blockId, NOT the read_chapter number (numbers shift after a structural ' +
+          'edit), so call lookup_block first to resolve a number or text snippet to its blockId. ' +
+          'Build structure: create_storyline / update_storyline (incl. facts), create_category / ' +
+          "update_category (element template facts), create_node (a 'chapter' or 'drift'). " +
+          'Record book-level writing preferences (文风 / 写作人称 / 章节目标字数 / 目标 / 对标作品) ' +
+          'with update_project_facts so they persist and steer future writing. ' +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +
           '(node/element/storyline). Track element evolution with create_element_patch / ' +
           'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +
           "(kind 'note' or 'todo'), set_comment_status (resolve/reopen), set_comment_kind " +
-          '(todo↔note), delete_comment. ' +
+          '(todo↔note), delete_comment. For a block-anchored TODO (list_comments returns its ' +
+          'targetId + targetBlockId), call read_block(targetId, targetBlockId) to get the live text, ' +
+          'then act on it and set_comment_status to resolve. ' +
           'Build relationships between entities: link_chapter_to_storyline, ' +
           'unlink_chapter_from_storyline, set_primary_storyline, add_relation (curated story-graph ' +
           'edge — reuse existing kind labels), remove_relation / update_relation_kind (by the ' +
@@ -373,7 +472,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
           'For multi-step tasks, use TodoWrite to lay out a plan and tick items off as you go. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
-          'the request. Be concise.',
+          'the request. Be concise.' +
+          buildAgentMeta(input),
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
         // Only the built-in TodoWrite (internal planning/progress — no side
         // effects); filesystem tools (Read/Edit/Bash/…) stay OFF since entities
@@ -397,7 +497,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         const { query } = await import(/* @vite-ignore */ '@anthropic-ai/claude-agent-sdk');
         const q = query({ prompt: input.prompt, options });
         activeQuery = q;
-        const streamState = { sawDelta: false };
+        const streamState = { sawDelta: false, sawThinking: false };
         let reportedSession: string | null = null;
         for await (const msg of q) {
           if (activeQuery !== q) break; // superseded/aborted

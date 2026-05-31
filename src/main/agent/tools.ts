@@ -42,7 +42,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_chapter',
-        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
+        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, an `appears:` line listing the elements/entities mentioned in this chapter (label + kind + id, for finding context), then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
         { nodeId: z.string().describe('Node id from list_project_structure') },
         (args) => run('read_chapter', args),
       ),
@@ -57,6 +57,18 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Fast metadata search across chapter/drift titles, element names/summaries/aliases, and storyline names (no prose body). Returns matching {kind,id,label}. For searching inside prose text use search_prose.',
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
+      ),
+      tool(
+        'resolve_entity',
+        'Resolve an entity NAME to its id (exact, case-insensitive) so you can address things by name instead of long uuids. Names are kept project-unique, so this returns a single {id,kind,label}; if a name is unexpectedly ambiguous it returns {ambiguous:[…]} — pick by kind. Returns {found:false} if no match.',
+        {
+          name: z.string().describe('The exact entity name/title'),
+          kind: z
+            .string()
+            .optional()
+            .describe('Restrict to a kind: element / node (chapter|drift) / storyline / category'),
+        },
+        (args) => run('resolve_entity', args),
       ),
       // ---- relational / context reads (traverse the graph, don't brute-force) ----
       tool(
@@ -114,12 +126,21 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'list_comments',
-        'Editorial threads and Copilot suggestions. Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns {kind,target,author,status,body}.',
+        "Editorial notes & TODOs (and Copilot suggestions). Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns each as {id, kind (note|todo), targetKind, targetId, targetBlockId, body, quote, status}. For a TODO anchored to a block (targetKind='node' with a targetBlockId), call read_block(targetId, targetBlockId) to get the block's LIVE text (the `quote` is a creation-time snapshot and may be stale); if there's no targetBlockId, search_prose for the `quote` within targetId to relocate the passage.",
         {
           kind: z.string().optional().describe('Target kind to filter by (optional)'),
           id: z.string().optional().describe('Target id to filter by (optional)'),
         },
         (args) => run('list_comments', args),
+      ),
+      tool(
+        'read_block',
+        "Read the CURRENT (live) text of one prose block by its uuid — e.g. a TODO's targetBlockId from list_comments. Returns {found, block (1-based number), type, text} so you can then edit_block it. Returns {found:false} if that block was since deleted.",
+        {
+          nodeId: z.string().describe('The chapter/drift node id (a comment’s targetId)'),
+          blockId: z.string().describe('The block uuid (e.g. a comment’s targetBlockId)'),
+        },
+        (args) => run('read_block', args),
       ),
       // ---- writes ----
       tool(
@@ -168,7 +189,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_block',
-        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
+        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. Edits apply to the chapter live — if it is open in the editor, the change appears immediately.',
         {
           nodeId: z.string(),
           block: z.number().optional().describe('1-based block number from read_chapter'),
@@ -199,6 +220,49 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Append a new paragraph to the end of a chapter/drift node.',
         { nodeId: z.string(), text: z.string() },
         (args) => run('append_paragraph', args),
+      ),
+      tool(
+        'lookup_block',
+        "Find a prose block's stable uuid `blockId` by its 1-based number and/or a substring of its text. Use this to get the blockId needed by the structural tools below (remove_blocks / replace_block_range / insert_blocks), since read_chapter's numbers shift once blocks are added or removed. Returns matches as {blockId, block, type, snippet}.",
+        {
+          nodeId: z.string(),
+          ordinal: z.number().optional().describe('1-based block number from read_chapter'),
+          contains: z.string().optional().describe('case-insensitive substring of the block text'),
+        },
+        (args) => run('lookup_block', args),
+      ),
+      tool(
+        'remove_blocks',
+        'Delete one or more prose blocks from a chapter/drift. Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
+        {
+          nodeId: z.string(),
+          blockIds: z.array(z.string()).describe('uuid block ids to delete'),
+        },
+        (args) => run('remove_blocks', args),
+      ),
+      tool(
+        'replace_block_range',
+        'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids.',
+        {
+          nodeId: z.string(),
+          fromBlockId: z.string().describe('uuid of the first block in the range'),
+          toBlockId: z.string().describe('uuid of the last block in the range (may equal fromBlockId)'),
+          blocks: z.array(z.string()).describe('replacement paragraphs, one string each'),
+        },
+        (args) => run('replace_block_range', args),
+      ),
+      tool(
+        'insert_blocks',
+        'Insert new paragraphs into a chapter/drift after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph.',
+        {
+          nodeId: z.string(),
+          afterBlockId: z
+            .string()
+            .optional()
+            .describe('uuid of the block to insert after; omit to prepend at the start'),
+          blocks: z.array(z.string()).describe('new paragraphs, one string each'),
+        },
+        (args) => run('insert_blocks', args),
       ),
       // ---- relationships ----
       tool(
@@ -252,8 +316,16 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'update_storyline',
-        "Rename a storyline or set its summary.",
-        { storylineId: z.string(), name: z.string().optional(), summary: z.string().optional() },
+        "Rename a storyline, set its summary, or set its kv `facts` (merged by key — e.g. this thread's tone/focus). facts the agent sets are surfaced by get_storyline.",
+        {
+          storylineId: z.string(),
+          name: z.string().optional(),
+          summary: z.string().optional(),
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .optional()
+            .describe('key/value facts to upsert (merged with existing, by key)'),
+        },
         (args) => run('update_storyline', args),
       ),
       tool(
@@ -261,6 +333,27 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Create a new element category (e.g. 人物 / 地点 / 物件). Then create elements under it with create_element.',
         { name: z.string().optional() },
         (args) => run('create_category', args),
+      ),
+      tool(
+        'update_category',
+        "Set/update a category's element TEMPLATE facts (templateFacts) — the kv seeded into NEW elements of this category (e.g. a 人物 template with empty 年龄/外貌 fields). NOT the category's own metadata. Merged by key.",
+        {
+          categoryId: z.string(),
+          templateFacts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .describe('template key/value facts to upsert (merged by key)'),
+        },
+        (args) => run('update_category', args),
+      ),
+      tool(
+        'update_project_facts',
+        "Set/update the PROJECT's key/value facts — the book-level metadata the agent treats as governing constraints (文风/写作风格, 写作人称/POV, 章节目标字数, 本书目标, 对标作品, …). Merged by key, so setting one fact preserves the author's others. Use this to record style/voice/POV decisions you make with the user so they persist and steer future writing.",
+        {
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .describe('key/value facts to upsert (merged with existing project facts, by key)'),
+        },
+        (args) => run('update_project_facts', args),
       ),
       tool(
         'create_node',

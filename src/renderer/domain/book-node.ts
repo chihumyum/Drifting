@@ -116,6 +116,31 @@ export function isDrift(node: BookNode): node is DriftNode {
   return node.kind === 'drift';
 }
 
+/**
+ * A project-unique title for a node (chapters AND drifts share one namespace),
+ * so the writing agent can address a node by title instead of its long uuid.
+ * Case-insensitive; appends " 2", " 3", … until free. `excludeId` is the node
+ * being renamed (so re-saving its own title is a no-op). Empty → "Untitled".
+ */
+export function makeUniqueNodeTitle(
+  baseTitle: string,
+  existingNodes: BookNode[],
+  projectId: string,
+  excludeId?: string,
+): string {
+  const base = (baseTitle ?? '').trim() || 'Untitled';
+  const taken = new Set(
+    existingNodes
+      .filter((n) => n.projectId === projectId && n.id !== excludeId)
+      .map((n) => n.title.trim().toLowerCase()),
+  );
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base} ${i}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
 // Mixed-array sort. Chapters sort by bookOrder ascending; drift rows (which
 // have no order) fall to the tail. Most call sites should `.filter(isChapter)`
 // first and use a plain subtraction — reach for this helper only when an

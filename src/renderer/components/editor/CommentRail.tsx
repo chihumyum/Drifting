@@ -632,6 +632,7 @@ export function CommentRail({
               onClick={() => void runAction(comment.id, () => commentUsecases.revertToNote(comment.id))}
             >
               <ListTodo size={12} />
+              <span>转批注</span>
             </button>
           ) : (
             <button

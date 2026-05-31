@@ -5,6 +5,7 @@ import { initDatabase } from '../lib/db';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
 import { resetCursor, pullUpdates } from '../services/yjs-sync.service';
 import { isSyncEnabled } from '../lib/config';
+import { registerLiveYDoc } from '../lib/yjs-doc-registry';
 
 const log = loglevel.getLogger('useYjsDoc');
 log.setLevel(loglevel.levels.WARN);
@@ -191,6 +192,15 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       });
     };
   }, [docId, isReady, repo, ydoc]);
+
+  // Publish this live Y.Doc so out-of-React callers (the agent's prose tools)
+  // can apply edits to the exact doc an open editor is bound to. Gate on isReady
+  // so it's only exposed once the persistence handler above is attached (an
+  // agent edit before that would otherwise not be saved/pushed).
+  useEffect(() => {
+    if (!isReady) return;
+    return registerLiveYDoc(docId, ydoc);
+  }, [docId, ydoc, isReady]);
 
   useEffect(() => {
     return () => {
