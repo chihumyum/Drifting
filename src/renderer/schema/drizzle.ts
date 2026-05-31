@@ -568,6 +568,38 @@ export const LibraryItemTable = sqliteTable(
   ],
 );
 
+// Agent conversation (local-only chat history for the right-sidebar Agent).
+// Display transcript lives here as a JSON blob; the SDK's own session file is
+// the source of truth for *resuming* context — sdkSessionId points at it.
+// Not synced cross-device (transcripts can be large / contain unpublished
+// prose). Cascade-deletes with the project.
+export const AgentConversationTable = sqliteTable(
+  'agent_conversation',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    // The SDK session to `resume` for context continuity; null until the first
+    // turn reports one. If the SDK's transcript file is gone, resuming starts
+    // fresh — the conversation stays viewable from messagesJson regardless.
+    sdkSessionId: text('sdk_session_id'),
+    // Which credentials the conversation last ran under ('byok' | 'hosted').
+    mode: text('mode').notNull().default('byok'),
+    // Serialized display transcript (AgentChatMessage[] — see domain).
+    messagesJson: text('messages_json').notNull().default('[]'),
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_agent_conversation_project').on(t.projectId),
+    index('idx_agent_conversation_project_updated').on(t.projectId, t.updatedAt),
+    index('idx_agent_conversation_deleted_at').on(t.deletedAt),
+  ],
+);
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {
