@@ -355,7 +355,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
-          'one prose block by its blockId from read_chapter), append_paragraph. ' +
+          'one prose block by its number from read_chapter; use edit_blocks for several blocks ' +
+          'in one chapter — atomic), append_paragraph. ' +
           'Build structure: create_storyline / update_storyline, create_category, create_node ' +
           "(a 'chapter' or 'drift'). " +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +
