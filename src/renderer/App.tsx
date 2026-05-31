@@ -224,11 +224,19 @@ function Layout() {
     removeNodeFromStoryline: storylineUsecases.removeNodeFromStoryline,
     setNodeStorylines: storylineUsecases.setNodeStorylines,
     addRelation: relationUsecases.addRelation,
+    removeRelation: relationUsecases.removeRelation,
+    updateRelationKind: relationUsecases.updateRelationKind,
     removeElement: elementUsecases.removeElement,
+    createStoryline: storylineUsecases.createStoryline,
+    updateStoryline: storylineUsecases.updateStoryline,
+    createCategory: categoryUsecases.createCategory,
+    createNode: nodeUsecases.createNode,
   });
 
-  // Reset ready state when project or user changes
+  // Reset ready state when project or user changes — syncing to an external
+  // trigger (project/user switch), not a derived-render smell.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDbReady(false);
   }, [projectId, userId]);
 

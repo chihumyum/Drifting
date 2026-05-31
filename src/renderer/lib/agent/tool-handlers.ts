@@ -12,7 +12,7 @@ import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { createElementPatchRepository } from '../../sqlite-repo/element-patch-repo';
 import { isChapter, type BookNode } from '../../domain/book-node';
-import { parseKv } from '../../domain/kv';
+import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import type { NodeContent } from '../../domain/node-content';
 import {
   isEntityKind,
@@ -24,7 +24,24 @@ import type {
   CreateBookElementInput,
   UpdateElementUsecaseInput,
 } from '../../usecase/useBookElement';
+import type { CreateStorylineInput, UpdateStorylineInput } from '../../usecase/useStoryline';
+import type { CreateElementCategoryInput } from '../../usecase/useElementCategory';
+import type { CreateNodeUsecaseInput } from '../../usecase/useBookNode';
 import { docToBlocks, docToPlainText, replaceBlockText, appendParagraph } from './serialize';
+
+/** Coerce a loose facts array (from tool args) to KvEntry[]. */
+function toKvEntries(raw: unknown): KvEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: KvEntry[] = [];
+  for (const row of raw) {
+    if (row && typeof row === 'object') {
+      const key = typeof (row as KvEntry).key === 'string' ? (row as KvEntry).key : '';
+      const value = typeof (row as KvEntry).value === 'string' ? (row as KvEntry).value : '';
+      if (key || value) out.push({ key, value });
+    }
+  }
+  return out;
+}
 
 /**
  * The subset of renderer usecase functions the agent's write tools call.
@@ -54,7 +71,13 @@ export interface AgentWriteApi {
     toId: string,
     options?: { kind?: string | null },
   ) => Promise<unknown>;
+  removeRelation: (id: string) => Promise<unknown>;
+  updateRelationKind: (id: string, kind: string | null) => Promise<unknown>;
   removeElement: (id: string) => Promise<unknown>;
+  createStoryline: (input: CreateStorylineInput) => Promise<unknown>;
+  updateStoryline: (input: UpdateStorylineInput) => Promise<unknown>;
+  createCategory: (input: CreateElementCategoryInput) => Promise<unknown>;
+  createNode: (input: CreateNodeUsecaseInput) => Promise<unknown>;
 }
 
 export interface AgentToolContext {
@@ -222,10 +245,10 @@ function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
   const outgoing = rels
     .filter((r) => r.fromKind === kind && r.fromId === id)
-    .map((r) => ({ relation: r.kind, toKind: r.toKind, toId: r.toId, toLabel: entityLabel(s, r.toKind, r.toId) }));
+    .map((r) => ({ relationId: r.id, relation: r.kind, toKind: r.toKind, toId: r.toId, toLabel: entityLabel(s, r.toKind, r.toId) }));
   const incoming = rels
     .filter((r) => r.toKind === kind && r.toId === id)
-    .map((r) => ({ relation: r.kind, fromKind: r.fromKind, fromId: r.fromId, fromLabel: entityLabel(s, r.fromKind, r.fromId) }));
+    .map((r) => ({ relationId: r.id, relation: r.kind, fromKind: r.fromKind, fromId: r.fromId, fromLabel: entityLabel(s, r.fromKind, r.fromId) }));
   return { entity: { kind, id, label: entityLabel(s, kind, id) }, outgoing, incoming };
 }
 
@@ -405,6 +428,9 @@ async function updateElement(ctx: AgentToolContext, args: Record<string, unknown
     updates.aliases = args.aliases.filter((a): a is string => typeof a === 'string');
   }
   if (typeof args.groupName === 'string') updates.groupName = args.groupName;
+  // Re-categorize (element↔category relationship) + structured KV facts.
+  if (typeof args.categoryId === 'string') updates.categoryId = args.categoryId;
+  if (args.facts !== undefined) updates.kvJson = stringifyKv(toKvEntries(args.facts));
   await ctx.write.updateElement(id, updates);
   return { ok: true, id };
 }
@@ -419,6 +445,11 @@ async function createElement(ctx: AgentToolContext, args: Record<string, unknown
     input.aliases = args.aliases.filter((a): a is string => typeof a === 'string');
   }
   const created = await ctx.write.createElement(input);
+  // CreateBookElementInput has no kv field — set facts in a follow-up update.
+  const createdId = (created as { id?: string })?.id;
+  if (createdId && args.facts !== undefined) {
+    await ctx.write.updateElement(createdId, { kvJson: stringifyKv(toKvEntries(args.facts)) });
+  }
   return { ok: true, created };
 }
 
@@ -505,6 +536,64 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
   return { ok: true, relation };
 }
 
+async function removeRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const relationId = String(args.relationId ?? '');
+  if (!relationId) throw new Error('remove_relation requires relationId (from get_entity_relations)');
+  await ctx.write.removeRelation(relationId);
+  return { ok: true, relationId };
+}
+
+async function updateRelationKind(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const relationId = String(args.relationId ?? '');
+  if (!relationId) throw new Error('update_relation_kind requires relationId');
+  const kind = typeof args.kind === 'string' ? args.kind : null;
+  await ctx.write.updateRelationKind(relationId, kind);
+  return { ok: true, relationId, kind };
+}
+
+async function createStorylineTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const input: CreateStorylineInput = {};
+  if (typeof args.name === 'string') input.name = args.name;
+  if (typeof args.summary === 'string') input.summary = args.summary;
+  const created = await ctx.write.createStoryline(input);
+  return { ok: true, created };
+}
+
+async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.storylineId ?? '');
+  if (!id) throw new Error('update_storyline requires storylineId');
+  const input: UpdateStorylineInput = { id };
+  if (typeof args.name === 'string') input.name = args.name;
+  if (typeof args.summary === 'string') input.summary = args.summary;
+  await ctx.write.updateStoryline(input);
+  return { ok: true, id };
+}
+
+async function createCategoryTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const input: CreateElementCategoryInput = {};
+  if (typeof args.name === 'string') input.name = args.name;
+  const created = await ctx.write.createCategory(input);
+  return { ok: true, created };
+}
+
+async function createNodeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const kind = args.kind === 'chapter' ? 'chapter' : args.kind === 'drift' ? 'drift' : null;
+  if (!kind) throw new Error("create_node requires kind: 'chapter' or 'drift'");
+  const input: CreateNodeUsecaseInput = { kind };
+  if (typeof args.title === 'string') input.title = args.title;
+  if (kind === 'chapter') {
+    if (typeof args.storylineId === 'string') input.mainStorylineId = args.storylineId;
+    // Chapters sit on the reading axis — append after the current last chapter.
+    const s = useDataStore.getState();
+    const maxOrder = s.bookNodes
+      .filter((n) => n.projectId === ctx.projectId && n.kind === 'chapter')
+      .reduce((max, n) => Math.max(max, n.bookOrder ?? 0), 0);
+    input.bookOrder = maxOrder + 1;
+  }
+  const created = await ctx.write.createNode(input);
+  return { ok: true, created };
+}
+
 async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.elementId ?? '');
   if (!id) throw new Error('delete_element requires elementId');
@@ -575,6 +664,19 @@ export async function runAgentTool(
       return setPrimaryStoryline(ctx, args);
     case 'add_relation':
       return addRelation(ctx, args);
+    case 'remove_relation':
+      return removeRelation(ctx, args);
+    case 'update_relation_kind':
+      return updateRelationKind(ctx, args);
+    // entity creation (containers to relate into)
+    case 'create_storyline':
+      return createStorylineTool(ctx, args);
+    case 'update_storyline':
+      return updateStorylineTool(ctx, args);
+    case 'create_category':
+      return createCategoryTool(ctx, args);
+    case 'create_node':
+      return createNodeTool(ctx, args);
     // destructive
     case 'delete_element':
       return deleteElement(ctx, args);

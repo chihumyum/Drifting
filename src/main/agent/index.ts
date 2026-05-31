@@ -323,11 +323,17 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
           'Read full detail only when needed: read_chapter, read_element. ' +
-          'You can also edit: update_element, create_element, rename_chapter, set_node_summary, ' +
-          'edit_block (replace one prose block by its blockId from read_chapter), append_paragraph. ' +
-          'Manage relationships: link_chapter_to_storyline, unlink_chapter_from_storyline, ' +
-          'set_primary_storyline, add_relation (curated story-graph edge), and delete_element ' +
-          '(the user is asked to confirm). ' +
+          'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
+          'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
+          'one prose block by its blockId from read_chapter), append_paragraph. ' +
+          'Build structure: create_storyline / update_storyline, create_category, create_node ' +
+          "(a 'chapter' or 'drift'). " +
+          'Build relationships between entities: link_chapter_to_storyline, ' +
+          'unlink_chapter_from_storyline, set_primary_storyline, add_relation (curated story-graph ' +
+          'edge — reuse existing kind labels), remove_relation / update_relation_kind (by the ' +
+          'relationId from get_entity_relations), and delete_element (the user is asked to confirm). ' +
+          'To relate things that do not exist yet, create the storyline/category/element first, ' +
+          'then link them. ' +
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
           'the request. Be concise.',

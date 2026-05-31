@@ -122,24 +122,33 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- writes ----
       tool(
         'update_element',
-        'Update an element\'s fields. Only provided fields change.',
+        "Update an element's fields. Only provided fields change. Pass categoryId to move the element to another category; pass facts to replace its structured key/value facts.",
         {
           elementId: z.string(),
           name: z.string().optional(),
           summary: z.string().optional(),
           aliases: z.array(z.string()).optional(),
           groupName: z.string().optional(),
+          categoryId: z.string().optional().describe('Move the element to this category'),
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .optional()
+            .describe('Replaces the element\'s structured facts (kv)'),
         },
         (args) => run('update_element', args),
       ),
       tool(
         'create_element',
-        'Create a new element under a category. categoryId is required (get it from list_project_structure).',
+        'Create a new element (character / place / item) under a category. categoryId is required (get it from list_project_structure, or create_category first).',
         {
           categoryId: z.string(),
           name: z.string().optional(),
           summary: z.string().optional(),
           aliases: z.array(z.string()).optional(),
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .optional()
+            .describe('Structured key/value facts for the new element'),
         },
         (args) => run('create_element', args),
       ),
@@ -188,15 +197,56 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'add_relation',
-        'Create a curated cross-entity relation (story-graph edge). fromKind is one of node/element/patch/category/storyline/comment/library_item; toKind must be structural (node/element/patch/category/storyline). Optional free-form "kind" label.',
+        'Create a curated cross-entity relation (story-graph edge), e.g. ally-of / belongs-to / located-in. fromKind is one of node/element/patch/category/storyline/comment/library_item; toKind must be structural (node/element/patch/category/storyline). Reuse an existing "kind" label (see get_entity_relations) for consistency.',
         {
           fromKind: z.string(),
           fromId: z.string(),
           toKind: z.string(),
           toId: z.string(),
-          kind: z.string().optional(),
+          kind: z.string().optional().describe('Free-form relation label (reuse existing ones)'),
         },
         (args) => run('add_relation', args),
+      ),
+      tool(
+        'remove_relation',
+        'Delete a curated relation edge by its relationId (from get_entity_relations).',
+        { relationId: z.string() },
+        (args) => run('remove_relation', args),
+      ),
+      tool(
+        'update_relation_kind',
+        'Relabel a curated relation edge (by relationId). Pass kind = null/"" to clear the label.',
+        { relationId: z.string(), kind: z.string().optional() },
+        (args) => run('update_relation_kind', args),
+      ),
+      // ---- entity creation (containers to relate into) ----
+      tool(
+        'create_storyline',
+        'Create a new storyline (plot thread). Then link chapters to it with link_chapter_to_storyline / set_primary_storyline.',
+        { name: z.string().optional(), summary: z.string().optional() },
+        (args) => run('create_storyline', args),
+      ),
+      tool(
+        'update_storyline',
+        "Rename a storyline or set its summary.",
+        { storylineId: z.string(), name: z.string().optional(), summary: z.string().optional() },
+        (args) => run('update_storyline', args),
+      ),
+      tool(
+        'create_category',
+        'Create a new element category (e.g. 人物 / 地点 / 物件). Then create elements under it with create_element.',
+        { name: z.string().optional() },
+        (args) => run('create_category', args),
+      ),
+      tool(
+        'create_node',
+        "Create a new chapter or drift node. kind is 'chapter' (sits on the reading order, optionally linked to a storyline) or 'drift' (free-floating note).",
+        {
+          kind: z.string().describe("'chapter' or 'drift'"),
+          title: z.string().optional(),
+          storylineId: z.string().optional().describe('For chapters: the primary storyline to link'),
+        },
+        (args) => run('create_node', args),
       ),
       // ---- destructive (asks the user to confirm in the app) ----
       tool(
