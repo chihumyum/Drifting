@@ -19,7 +19,9 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "claude:fetch-binary": "node scripts/fetch-claude-binary.mjs",
+    "postinstall": "node scripts/fetch-claude-binary.mjs"
   },
   "keywords": [
     "electron",
