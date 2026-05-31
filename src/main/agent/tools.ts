@@ -248,6 +248,72 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         },
         (args) => run('create_node', args),
       ),
+      // ---- summary (reverse-generate: read the content yourself, then write) ----
+      tool(
+        'set_summary',
+        "Write a summary onto an entity. To (re)generate a summary, read the content first (get_chapter_context / read_chapter / read_element) then call this. targetKind is node (chapter/drift) / element / storyline.",
+        {
+          targetKind: z.string().describe('node / element / storyline'),
+          targetId: z.string(),
+          summary: z.string(),
+        },
+        (args) => run('set_summary', args),
+      ),
+      // ---- element patches (a character/place/item's per-chapter state change) ----
+      tool(
+        'create_element_patch',
+        "Record a state-change patch for an element (how it changes at a point in the story). body is the patch prose; optionally anchor it to the chapter where the change happens via sourceNodeId.",
+        {
+          elementId: z.string(),
+          title: z.string().optional(),
+          body: z.string().optional().describe('The patch text'),
+          sourceNodeId: z.string().optional().describe('Chapter where this change occurs'),
+        },
+        (args) => run('create_element_patch', args),
+      ),
+      tool(
+        'update_element_patch',
+        'Update an element patch (by patchId from get_element_patches). Only provided fields change.',
+        { patchId: z.string(), title: z.string().optional(), body: z.string().optional() },
+        (args) => run('update_element_patch', args),
+      ),
+      tool(
+        'delete_element_patch',
+        'Delete an element patch by patchId.',
+        { patchId: z.string() },
+        (args) => run('delete_element_patch', args),
+      ),
+      // ---- comments / TODOs (a TODO is a comment with kind='todo') ----
+      tool(
+        'create_comment',
+        "Create a comment or TODO. kind='note' is an editor annotation, kind='todo' shows in the right-sidebar TODO list. Attach it to an entity via targetKind/targetId (and targetBlockId for a specific prose block), or omit all targets for a floating project-level TODO.",
+        {
+          body: z.string().describe('The comment / TODO text'),
+          kind: z.string().optional().describe("'note' (default) or 'todo'"),
+          targetKind: z.string().optional().describe('node / element / storyline / …'),
+          targetId: z.string().optional(),
+          targetBlockId: z.string().optional(),
+        },
+        (args) => run('create_comment', args),
+      ),
+      tool(
+        'delete_comment',
+        'Delete a comment / TODO by commentId (from list_comments).',
+        { commentId: z.string() },
+        (args) => run('delete_comment', args),
+      ),
+      tool(
+        'set_comment_status',
+        "Resolve or reopen a comment / TODO. status is 'resolved' or 'open'.",
+        { commentId: z.string(), status: z.string() },
+        (args) => run('set_comment_status', args),
+      ),
+      tool(
+        'set_comment_kind',
+        "Convert a comment between a note and a TODO. kind is 'todo' or 'note'.",
+        { commentId: z.string(), kind: z.string() },
+        (args) => run('set_comment_kind', args),
+      ),
       // ---- destructive (asks the user to confirm in the app) ----
       tool(
         'delete_element',

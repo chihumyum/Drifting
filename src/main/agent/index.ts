@@ -328,6 +328,11 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'one prose block by its blockId from read_chapter), append_paragraph. ' +
           'Build structure: create_storyline / update_storyline, create_category, create_node ' +
           "(a 'chapter' or 'drift'). " +
+          'Summaries: to (re)generate a summary, read the content then call set_summary ' +
+          '(node/element/storyline). Track element evolution with create_element_patch / ' +
+          'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +
+          "(kind 'note' or 'todo'), set_comment_status (resolve/reopen), set_comment_kind " +
+          '(todo↔note), delete_comment. ' +
           'Build relationships between entities: link_chapter_to_storyline, ' +
           'unlink_chapter_from_storyline, set_primary_storyline, add_relation (curated story-graph ' +
           'edge — reuse existing kind labels), remove_relation / update_relation_kind (by the ' +

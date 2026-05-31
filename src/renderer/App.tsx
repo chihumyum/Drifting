@@ -231,6 +231,12 @@ function Layout() {
     updateStoryline: storylineUsecases.updateStoryline,
     createCategory: categoryUsecases.createCategory,
     createNode: nodeUsecases.createNode,
+    createComment: commentUsecases.createComment,
+    deleteComment: commentUsecases.deleteComment,
+    resolveComment: commentUsecases.resolveComment,
+    reopenComment: commentUsecases.reopenComment,
+    convertToTodo: commentUsecases.convertToTodo,
+    revertToNote: commentUsecases.revertToNote,
   });
 
   // Reset ready state when project or user changes — syncing to an external

@@ -10,9 +10,20 @@ import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
-import { createElementPatchRepository } from '../../sqlite-repo/element-patch-repo';
+import {
+  createElementPatchRepository,
+  type CreatePatchInput,
+  type UpdatePatchInput,
+} from '../../sqlite-repo/element-patch-repo';
+import {
+  syncElementPatchCreate,
+  syncElementPatchUpdate,
+  syncElementPatchDelete,
+} from '../../usecase/sync-helpers';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
+import { createPlainCommentDoc } from '../../domain/comment';
+import type { CreateCommentInput } from '../../usecase/useComment';
 import type { NodeContent } from '../../domain/node-content';
 import {
   isEntityKind,
@@ -78,6 +89,12 @@ export interface AgentWriteApi {
   updateStoryline: (input: UpdateStorylineInput) => Promise<unknown>;
   createCategory: (input: CreateElementCategoryInput) => Promise<unknown>;
   createNode: (input: CreateNodeUsecaseInput) => Promise<unknown>;
+  createComment: (input: CreateCommentInput) => Promise<unknown>;
+  deleteComment: (id: string) => Promise<unknown>;
+  resolveComment: (id: string) => Promise<unknown>;
+  reopenComment: (id: string) => Promise<unknown>;
+  convertToTodo: (id: string) => Promise<unknown>;
+  revertToNote: (id: string) => Promise<unknown>;
 }
 
 export interface AgentToolContext {
@@ -609,6 +626,135 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
   return { ok: true, id };
 }
 
+// ---- Summary (reverse-generate: read elsewhere, write here) ----------------
+
+async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const targetKind = String(args.targetKind ?? '');
+  const targetId = String(args.targetId ?? '');
+  const summary = String(args.summary ?? '');
+  if (!targetId) throw new Error('set_summary requires targetId');
+  switch (targetKind) {
+    case 'node':
+    case 'chapter':
+    case 'drift':
+      await ctx.write.updateNode(targetId, { summary });
+      break;
+    case 'element':
+      await ctx.write.updateElement(targetId, { summary });
+      break;
+    case 'storyline':
+      await ctx.write.updateStoryline({ id: targetId, summary });
+      break;
+    default:
+      throw new Error(`set_summary targetKind must be node/element/storyline, got "${targetKind}"`);
+  }
+  return { ok: true, targetKind, targetId };
+}
+
+// ---- Element patches (direct repo + sync, mirroring the app's UI path) ------
+
+/** Sync payload shape shared by patch create/update (mirrors PatchesSection). */
+function patchSyncPayload(p: {
+  id: string;
+  elementId: string;
+  sourceNodeId: string | null;
+  sourceBlockId: string | null;
+  sourceBlockText: string | null;
+  title: string | null;
+  contentJson: string;
+  orderKey: number;
+}): Record<string, unknown> {
+  return {
+    id: p.id,
+    elementId: p.elementId,
+    sourceNodeId: p.sourceNodeId,
+    sourceBlockId: p.sourceBlockId,
+    sourceBlockText: p.sourceBlockText,
+    title: p.title,
+    contentJson: p.contentJson,
+    orderKey: p.orderKey,
+  };
+}
+
+async function createElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const elementId = String(args.elementId ?? '');
+  if (!elementId) throw new Error('create_element_patch requires elementId');
+  const input: CreatePatchInput = { projectId: ctx.projectId, elementId };
+  if (typeof args.title === 'string') input.title = args.title;
+  if (typeof args.body === 'string' && args.body.trim()) {
+    input.contentJson = createPlainCommentDoc(args.body);
+  }
+  if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
+  const created = await createElementPatchRepository().create(input);
+  syncElementPatchCreate(created.id, ctx.projectId, patchSyncPayload(created));
+  return { ok: true, created: { id: created.id, elementId, title: created.title } };
+}
+
+async function updateElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const patchId = String(args.patchId ?? '');
+  if (!patchId) throw new Error('update_element_patch requires patchId');
+  const updates: UpdatePatchInput = {};
+  if (typeof args.title === 'string') updates.title = args.title;
+  if (typeof args.body === 'string') updates.contentJson = createPlainCommentDoc(args.body);
+  const updated = await createElementPatchRepository().update(patchId, updates);
+  if (!updated) throw new Error(`No patch found with id "${patchId}"`);
+  syncElementPatchUpdate(updated.id, ctx.projectId, patchSyncPayload(updated));
+  return { ok: true, id: patchId };
+}
+
+async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const patchId = String(args.patchId ?? '');
+  if (!patchId) throw new Error('delete_element_patch requires patchId');
+  await createElementPatchRepository().delete(patchId);
+  syncElementPatchDelete(patchId, ctx.projectId);
+  return { ok: true, id: patchId };
+}
+
+// ---- Comments / TODOs (a TODO is a comment with kind='todo') ----------------
+
+async function createComment(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const body = String(args.body ?? '').trim();
+  if (!body) throw new Error('create_comment requires body');
+  const input: CreateCommentInput = {
+    kind: args.kind === 'todo' ? 'todo' : 'note',
+    bodyJson: createPlainCommentDoc(body),
+  };
+  if (typeof args.targetKind === 'string') {
+    input.targetKind = args.targetKind as CreateCommentInput['targetKind'];
+  }
+  if (typeof args.targetId === 'string') input.targetId = args.targetId;
+  if (typeof args.targetBlockId === 'string') input.targetBlockId = args.targetBlockId;
+  const created = await ctx.write.createComment(input);
+  return { ok: true, created };
+}
+
+async function deleteCommentTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.commentId ?? '');
+  if (!id) throw new Error('delete_comment requires commentId');
+  await ctx.write.deleteComment(id);
+  return { ok: true, id };
+}
+
+async function setCommentStatus(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.commentId ?? '');
+  const status = String(args.status ?? '');
+  if (!id) throw new Error('set_comment_status requires commentId');
+  if (status === 'resolved') await ctx.write.resolveComment(id);
+  else if (status === 'open') await ctx.write.reopenComment(id);
+  else throw new Error(`status must be 'resolved' or 'open', got "${status}"`);
+  return { ok: true, id, status };
+}
+
+async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.commentId ?? '');
+  const kind = String(args.kind ?? '');
+  if (!id) throw new Error('set_comment_kind requires commentId');
+  if (kind === 'todo') await ctx.write.convertToTodo(id);
+  else if (kind === 'note') await ctx.write.revertToNote(id);
+  else throw new Error(`kind must be 'todo' or 'note', got "${kind}"`);
+  return { ok: true, id, kind };
+}
+
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
 export async function runAgentTool(
   name: string,
@@ -677,6 +823,25 @@ export async function runAgentTool(
       return createCategoryTool(ctx, args);
     case 'create_node':
       return createNodeTool(ctx, args);
+    // summary (reverse-generate)
+    case 'set_summary':
+      return setSummary(ctx, args);
+    // element patches
+    case 'create_element_patch':
+      return createElementPatch(ctx, args);
+    case 'update_element_patch':
+      return updateElementPatch(ctx, args);
+    case 'delete_element_patch':
+      return deleteElementPatch(ctx, args);
+    // comments / todos
+    case 'create_comment':
+      return createComment(ctx, args);
+    case 'delete_comment':
+      return deleteCommentTool(ctx, args);
+    case 'set_comment_status':
+      return setCommentStatus(ctx, args);
+    case 'set_comment_kind':
+      return setCommentKind(ctx, args);
     // destructive
     case 'delete_element':
       return deleteElement(ctx, args);
