@@ -1,0 +1,60 @@
+/*
+ * Agent activity perception (#17): pulse while the agent is touching an entity,
+ * a breathing dot after it changed one, and an aggregate badge on the left tab
+ * switcher so activity in a non-visible panel still registers.
+ */
+.agent-cell-spark,
+.agent-touch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+  display: inline-block;
+}
+.agent-cell-spark {
+  animation: agentSpark 0.9s ease-in-out infinite;
+}
+.agent-touch-dot {
+  animation: agentBreathe 1.8s ease-in-out infinite;
+}
+@keyframes agentSpark {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+    box-shadow: 0 0 4px hsl(var(--accent) / 0.6);
+  }
+}
+@keyframes agentBreathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* Aggregate badge overlaid on a left tab-switcher button. */
+.agent-tab-badge {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+  pointer-events: none;
+}
+.agent-tab-badge--active {
+  animation: agentSpark 0.9s ease-in-out infinite;
+}
+.agent-tab-badge--touched {
+  animation: agentBreathe 1.8s ease-in-out infinite;
+}

@@ -1,6 +1,8 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
 import { useDataStore } from '../../store/data-store';
+import { useAgentActivityStore } from '../../store/agent-activity-store';
+import type { ActivityMark } from '../../store/agent-activity-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
@@ -12,6 +14,23 @@ import { useStoryline } from '../../usecase/useStoryline';
 // white-space:nowrap 也只是阻止换行，宽度不够时字会被裁），统一走 glyph-only。
 const FULL_TABS_MIN_WIDTH = 220;
 
+type TabBadge = 'active' | 'touched' | null;
+
+/** Which left panel an agent-touched entity surfaces in. */
+function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): 'nodes' | 'elements' | 'drift' | null {
+  switch (m.entityType) {
+    case 'element':
+    case 'category':
+      return 'elements';
+    case 'storyline':
+      return 'nodes';
+    case 'node':
+      return nodeKind.get(m.id) === 'drift' ? 'drift' : 'nodes';
+    default:
+      return null;
+  }
+}
+
 // Hover-out grace period for the chapter tab dropdown — gives the user a
 // moment to slide from the tab onto the menu without it vanishing.
 const DROPDOWN_HOVER_LEAVE_DELAY_MS = 120;
@@ -19,6 +38,30 @@ const DROPDOWN_HOVER_LEAVE_DELAY_MS = 120;
 export function LeftSidebarHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
+
+  // Aggregate agent-activity badge per tab, so work in a panel the user isn't
+  // looking at still registers. Suppressed on the active panel (its cells show
+  // the indicators directly).
+  const agentActive = useAgentActivityStore((s) => s.active);
+  const agentTouched = useAgentActivityStore((s) => s.touched);
+  const bookNodes = useDataStore((s) => s.bookNodes);
+  const badges = useMemo(() => {
+    const nodeKind = new Map(bookNodes.map((n) => [n.id, n.kind]));
+    const res: Record<'nodes' | 'elements' | 'drift', TabBadge> = {
+      nodes: null,
+      elements: null,
+      drift: null,
+    };
+    for (const m of Object.values(agentActive)) {
+      const p = panelForMark(m, nodeKind);
+      if (p) res[p] = 'active';
+    }
+    for (const m of Object.values(agentTouched)) {
+      const p = panelForMark(m, nodeKind);
+      if (p && res[p] !== 'active') res[p] = res[p] ?? 'touched';
+    }
+    return res;
+  }, [agentActive, agentTouched, bookNodes]);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
@@ -76,6 +119,7 @@ export function LeftSidebarHeader() {
         <ChapterPanelTab
           compact={compact}
           isActive={activeLeftPanel === 'nodes'}
+          badge={activeLeftPanel === 'nodes' ? null : badges.nodes}
           onClick={() => setActiveLeftPanel('nodes')}
         />
         <PanelTab
@@ -83,6 +127,7 @@ export function LeftSidebarHeader() {
           glyph="◆"
           compact={compact}
           isActive={activeLeftPanel === 'elements'}
+          badge={activeLeftPanel === 'elements' ? null : badges.elements}
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
@@ -90,6 +135,7 @@ export function LeftSidebarHeader() {
           glyph="✺"
           compact={compact}
           isActive={activeLeftPanel === 'drift'}
+          badge={activeLeftPanel === 'drift' ? null : badges.drift}
           onClick={() => setActiveLeftPanel('drift')}
         />
       </div>
@@ -115,10 +161,12 @@ export function LeftSidebarHeader() {
 function ChapterPanelTab({
   compact,
   isActive,
+  badge,
   onClick,
 }: {
   compact: boolean;
   isActive: boolean;
+  badge?: TabBadge;
   onClick: () => void;
 }) {
   const viewMode = useUiStore((s) => s.chapterPanelViewMode);
@@ -189,6 +237,7 @@ function ChapterPanelTab({
         glyph="§"
         compact={compact}
         isActive={isActive}
+        badge={badge}
         onClick={onClick}
       />
 
@@ -309,12 +358,14 @@ function PanelTab({
   glyph,
   compact,
   isActive,
+  badge,
   onClick,
 }: {
   label: string;
   glyph?: string;
   compact: boolean;
   isActive: boolean;
+  badge?: TabBadge;
   onClick: () => void;
 }) {
   return (
@@ -324,6 +375,7 @@ function PanelTab({
         glyph={glyph}
         compact={compact}
         isActive={isActive}
+        badge={badge}
         onClick={onClick}
       />
     </div>
@@ -335,12 +387,14 @@ function PanelTabButton({
   glyph,
   compact,
   isActive,
+  badge,
   onClick,
 }: {
   label: string;
   glyph?: string;
   compact: boolean;
   isActive: boolean;
+  badge?: TabBadge;
   onClick: () => void;
 }) {
   // Always pill (both skins). Classic: button paints its own surface bg on
@@ -406,6 +460,7 @@ function PanelTabButton({
         </span>
       )}
       {!compact && <span>{label}</span>}
+      {badge && <span aria-hidden className={`agent-tab-badge agent-tab-badge--${badge}`} />}
     </button>
   );
 }

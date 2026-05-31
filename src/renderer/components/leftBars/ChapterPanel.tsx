@@ -8,6 +8,7 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';
+import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -51,6 +52,9 @@ export function ChapterPanel() {
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
+  // Agent activity: which nodes the agent is touching (pulse) / just changed (dot).
+  const agentActive = useAgentActivityStore((s) => s.active);
+  const agentTouched = useAgentActivityStore((s) => s.touched);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -262,6 +266,8 @@ export function ChapterPanel() {
   // unaffiliated chapters per the "未归属 chapter 不加颜色" spec.
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
+    const agentBusy = `node:${node.id}` in agentActive;
+    const agentChanged = !agentBusy && `node:${node.id}` in agentTouched;
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? 'transparent';
@@ -293,6 +299,7 @@ export function ChapterPanel() {
           }
         }}
         onClick={() => {
+          if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           openEntity({ entityType: 'node', id: node.id });
         }}
         onDoubleClick={() => {
@@ -363,6 +370,15 @@ export function ChapterPanel() {
           >
             {formatShortDate(node.updatedAt)}
           </span>
+        )}
+
+        {(agentBusy || agentChanged) && (
+          <span
+            aria-hidden
+            className={agentBusy ? 'agent-cell-spark' : 'agent-touch-dot'}
+            style={{ flexShrink: 0, marginLeft: 2 }}
+            title={agentBusy ? 'Agent 正在处理' : 'Agent 刚改动了这里'}
+          />
         )}
       </div>
     );

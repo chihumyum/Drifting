@@ -15,6 +15,7 @@ import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
 import { useProjectStore } from './project-store';
+import { useAgentActivityStore } from './agent-activity-store';
 import { parseKv } from '../domain/kv';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
@@ -179,6 +180,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       return;
     }
     // Project changed — reset the live chat and load that project's history.
+    useAgentActivityStore.getState().clearAll();
     set({
       boundProjectId: projectId,
       messages: [],
@@ -280,6 +282,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     void window.electronAPI?.agent?.resetSession();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
+    useAgentActivityStore.getState().clearAll();
     set({ messages: [], activeConvId: null, sdkSessionId: null, prompt: '', running: false });
   },
 
@@ -342,7 +345,12 @@ function handleEvent(ev: AgentEvent): void {
     return;
   }
   useAgentChatStore.setState((s) => ({ messages: applyEvent(s.messages, ev) }));
+  // Mirror tool activity to the perception store (left-panel pulses + dots).
+  const activity = useAgentActivityStore.getState();
+  if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
+  else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
   if (ev.type === 'done') {
+    activity.onTurnEnd();
     useAgentChatStore.setState({ running: false });
     // `set` is synchronous, so getState() inside persist sees the finalized
     // transcript (the done event's applyEvent already applied).

@@ -23,6 +23,14 @@ import {
   AGENT_EFFORT_OPTIONS,
 } from '../../store/settings-store';
 import { useAgentChatStore } from '../../store/agent-chat-store';
+import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useDataStore } from '../../store/data-store';
+import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import {
+  collectTurnEntityRefs,
+  type ActivityEntityType,
+  type ToolEntityRef,
+} from '../../lib/agent/tool-entity-ref';
 import { events } from '../../lib/events';
 import type {
   AgentChatMessage as ChatMsg,
@@ -289,6 +297,49 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
   );
 }
 
+const ENTITY_GLYPH: Record<ActivityEntityType, string> = {
+  node: '§',
+  element: '◆',
+  storyline: '◈',
+  category: '▣',
+};
+
+function entityRefName(
+  s: ReturnType<typeof useDataStore.getState>,
+  ref: ToolEntityRef,
+): string {
+  switch (ref.entityType) {
+    case 'node':
+      return s.bookNodes.find((n) => n.id === ref.id)?.title || '（已删除）';
+    case 'element':
+      return s.bookElements.find((e) => e.id === ref.id)?.name || '（已删除）';
+    case 'storyline':
+      return s.storylines.find((sl) => sl.id === ref.id)?.name || '（已删除）';
+    case 'category':
+      return s.bookElementCategories.find((c) => c.id === ref.id)?.name || '（已删除）';
+    default:
+      return ref.id;
+  }
+}
+
+/** A clickable pill for an entity the agent created/edited — jumps to its tab. */
+function EntityLinkChip({
+  refItem,
+  onOpen,
+}: {
+  refItem: ToolEntityRef;
+  onOpen: (ref: ToolEntityRef) => void;
+}) {
+  const name = useDataStore((s) => entityRefName(s, refItem));
+  return (
+    <button type="button" className="agt-entity-chip" onClick={() => onOpen(refItem)}>
+      <span className="agt-entity-chip__glyph">{ENTITY_GLYPH[refItem.entityType]}</span>
+      <span>{name}</span>
+      <span className="agt-entity-chip__op">{refItem.op === 'create' ? '新建' : '已改'}</span>
+    </button>
+  );
+}
+
 /** A row indicating the agent is working but nothing is actively streaming yet. */
 function PendingRow() {
   return (
@@ -526,6 +577,17 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     return { inTok, outTok, cost, tools };
   }, [messages]);
 
+  // Entities the agent created/edited this turn → clickable "本轮改动" links.
+  const { openEntity } = useProjectNavigation();
+  const turnRefs = useMemo(() => (running ? [] : collectTurnEntityRefs(messages)), [messages, running]);
+  const openRef = useCallback(
+    (ref: ToolEntityRef) => {
+      openEntity({ entityType: ref.entityType, id: ref.id });
+      useAgentActivityStore.getState().clearTouched(ref.entityType, ref.id);
+    },
+    [openEntity],
+  );
+
   const beginHeaderRename = useCallback(() => {
     if (!activeConv) return;
     setHeaderDraft(activeConv.title || '');
@@ -700,6 +762,14 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             messages.map((m, i) => <MessageView key={i} msg={m} />)
           )}
           {waiting && <PendingRow />}
+          {turnRefs.length > 0 && (
+            <div className="agt-entity-links">
+              <span style={{ opacity: 0.55, fontSize: 11 }}>本轮改动</span>
+              {turnRefs.map((r) => (
+                <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} />
+              ))}
+            </div>
+          )}
         </div>
         {!atBottom && (
           <button type="button" style={jumpBtn} onClick={jumpToBottom} title="回到最新">
@@ -1144,4 +1214,9 @@ const panelCss = `
 .agt-pending__dot:nth-child(3) { animation-delay: 0.3s; }
 .agt-pending span:last-child { margin-left: 2px; }
 @keyframes agtPendingPulse { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+.agt-entity-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 2px 2px; }
+.agt-entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid hsl(var(--rule)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--ink-1)); font-size: 11.5px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
+.agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-serif); font-style: italic; }
+.agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
 `;
