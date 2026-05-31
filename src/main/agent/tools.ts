@@ -52,9 +52,72 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'search_project',
-        'Case-insensitive search across chapter/drift titles, element names/summaries/aliases, and storyline names. Returns matching {kind,id,label}.',
+        'Fast metadata search across chapter/drift titles, element names/summaries/aliases, and storyline names (no prose body). Returns matching {kind,id,label}. For searching inside prose text use search_prose.',
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
+      ),
+      // ---- relational / context reads (traverse the graph, don't brute-force) ----
+      tool(
+        'get_project_brief',
+        "The book's premise: project name, description, the author's key/value facts (goal, style, premise, references) and structure counts. Call this FIRST to orient before diving in.",
+        {},
+        () => run('get_project_brief', {}),
+      ),
+      tool(
+        'where_does_entity_appear',
+        'Find every chapter/drift (and other source) where a structural entity is mentioned in prose — its appearances/backlinks. The fastest way to go from one character/place/item to all the scenes involving it. Returns appearances grouped by source with blockIds.',
+        {
+          kind: z
+            .string()
+            .describe('Target kind: element / node / storyline / category / patch'),
+          id: z.string().describe('Target entity id'),
+        },
+        (args) => run('where_does_entity_appear', args),
+      ),
+      tool(
+        'get_entity_relations',
+        'List the curated cross-entity relation edges touching an entity, both directions (outgoing + incoming), e.g. ally-of / belongs-to / located-in. Use to walk the author-defined story graph.',
+        {
+          kind: z.string().describe('Entity kind (element/node/storyline/category/...)'),
+          id: z.string().describe('Entity id'),
+        },
+        (args) => run('get_entity_relations', args),
+      ),
+      tool(
+        'get_storyline',
+        "A storyline's summary, key/value facts, and its member chapters in reading order (with which one is primary).",
+        { storylineId: z.string().describe('Storyline id from list_project_structure') },
+        (args) => run('get_storyline', args),
+      ),
+      tool(
+        'get_chapter_context',
+        "Cheap overview of a chapter WITHOUT its full prose: title, summary, word count, status, rolling block-section summaries, the elements it references, the storylines it belongs to, and its relations. Call this before read_chapter — only read the full prose if you still need it.",
+        { nodeId: z.string().describe('Chapter/drift node id') },
+        (args) => run('get_chapter_context', args),
+      ),
+      tool(
+        'search_prose',
+        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind,id,title,blockId,snippet} with a short context snippet around each hit. Heavier than search_project — use it to find scenes/passages by content.',
+        {
+          query: z.string().describe('Text to find in the prose'),
+          limit: z.number().optional().describe('Max matches (default 30, cap 100)'),
+        },
+        (args) => run('search_prose', args),
+      ),
+      tool(
+        'get_element_patches',
+        "An element's accepted state-change patches across chapters (how a character/place/item evolves over the book), each with its source chapter and body text.",
+        { elementId: z.string().describe('Element id') },
+        (args) => run('get_element_patches', args),
+      ),
+      tool(
+        'list_comments',
+        'Editorial threads and Copilot suggestions. Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns {kind,target,author,status,body}.',
+        {
+          kind: z.string().optional().describe('Target kind to filter by (optional)'),
+          id: z.string().optional().describe('Target id to filter by (optional)'),
+        },
+        (args) => run('list_comments', args),
       ),
       // ---- writes ----
       tool(

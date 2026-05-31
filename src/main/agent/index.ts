@@ -309,13 +309,21 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         ...(resume ? { resume } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'Inspect the project with: list_project_structure (call this FIRST to discover ids), ' +
-          'read_chapter, read_element, search_project. ' +
+          'Orient first with get_project_brief, then list_project_structure to discover ids. ' +
+          'Gather context by TRAVERSING the graph instead of reading every chapter: ' +
+          'where_does_entity_appear (all scenes mentioning a character/place/item), ' +
+          'get_entity_relations (curated story-graph edges, both directions), ' +
+          'get_storyline (a storyline + its chapters), get_chapter_context (a chapter overview — ' +
+          'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
+          'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
+          'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
+          'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element, create_element, rename_chapter, set_node_summary, ' +
           'edit_block (replace one prose block by its blockId from read_chapter), append_paragraph. ' +
           'Manage relationships: link_chapter_to_storyline, unlink_chapter_from_storyline, ' +
           'set_primary_storyline, add_relation (curated story-graph edge), and delete_element ' +
           '(the user is asked to confirm). ' +
+          'Prefer the cheap overview/traversal tools before pulling full prose. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
           'the request. Be concise.',
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
