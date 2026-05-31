@@ -252,8 +252,16 @@ interface UiState {
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
 
-  activeRightPanel: 'todo' | 'library' | 'stats' | 'shadow';
-  setActiveRightPanel: (panel: 'todo' | 'library' | 'stats' | 'shadow') => void;
+  // The right sidebar splits its tabs into two groups, toggled by a switch at
+  // the right end of the tab row. Each group remembers its own active tab.
+  rightPanelGroup: 'content' | 'agent';
+  setRightPanelGroup: (group: 'content' | 'agent') => void;
+  // Content group.
+  activeRightPanel: 'todo' | 'library' | 'stats';
+  setActiveRightPanel: (panel: 'todo' | 'library' | 'stats') => void;
+  // Agent group. 'shadow' only appears when shadowMode is on.
+  activeAgentPanel: 'companion' | 'shadow';
+  setActiveAgentPanel: (panel: 'companion' | 'shadow') => void;
 
   shadowMode: boolean;
   setShadowMode: (active: boolean) => void;
@@ -560,29 +568,35 @@ export const useUiStore = create<UiState>()(
         set({ chapterStorylineInnerSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
+      rightPanelGroup: 'content',
+      setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
       activeRightPanel: 'library',
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
+      activeAgentPanel: 'companion',
+      setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel }),
 
       shadowMode: false,
       setShadowMode: (active) =>
         set((state) => {
-          // Auto-focus the Shadow tab when entering shadow mode; restore the
-          // default tab if the user leaves shadow mode while on Shadow.
+          // Entering shadow jumps to the agent group + Shadow tab. Leaving it
+          // falls back to Companion (stay in the agent group).
           if (active) {
-            return { shadowMode: true, activeRightPanel: 'shadow' };
+            return { shadowMode: true, rightPanelGroup: 'agent', activeAgentPanel: 'shadow' };
           }
           return {
             shadowMode: false,
-            activeRightPanel: state.activeRightPanel === 'shadow' ? 'library' : state.activeRightPanel,
+            activeAgentPanel: state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
           };
         }),
       toggleShadowMode: () =>
         set((state) => {
           const next = !state.shadowMode;
-          if (next) return { shadowMode: true, activeRightPanel: 'shadow' };
+          if (next) {
+            return { shadowMode: true, rightPanelGroup: 'agent', activeAgentPanel: 'shadow' };
+          }
           return {
             shadowMode: false,
-            activeRightPanel: state.activeRightPanel === 'shadow' ? 'library' : state.activeRightPanel,
+            activeAgentPanel: state.activeAgentPanel === 'shadow' ? 'companion' : state.activeAgentPanel,
           };
         }),
 
@@ -1223,7 +1237,9 @@ export const useUiStore = create<UiState>()(
         sidebars: state.sidebars,
         activeLeftPanel: state.activeLeftPanel,
         chapterPanelViewMode: state.chapterPanelViewMode,
+        rightPanelGroup: state.rightPanelGroup,
         activeRightPanel: state.activeRightPanel,
+        activeAgentPanel: state.activeAgentPanel,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
         shadowMode: state.shadowMode,
@@ -1287,12 +1303,26 @@ export const useUiStore = create<UiState>()(
       // view was clarified.
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<UiState>) };
+        // 'shadow' used to be a right-panel tab; it now lives in the agent
+        // group. Migrate an old 'shadow' selection into the new model.
+        if ((merged.activeRightPanel as string) === 'shadow') {
+          merged.activeRightPanel = 'library';
+          merged.activeAgentPanel = 'shadow';
+          merged.rightPanelGroup = 'agent';
+        }
         if ((merged.activeRightPanel as string) === 'fragments') {
           merged.activeRightPanel = 'library';
         }
-        const allowed = new Set(['todo', 'library', 'stats', 'shadow']);
+        const allowed = new Set(['todo', 'library', 'stats']);
         if (!allowed.has(merged.activeRightPanel as string)) {
           merged.activeRightPanel = 'library';
+        }
+        const allowedAgent = new Set(['companion', 'shadow']);
+        if (!allowedAgent.has(merged.activeAgentPanel as string)) {
+          merged.activeAgentPanel = 'companion';
+        }
+        if (merged.rightPanelGroup !== 'agent' && merged.rightPanelGroup !== 'content') {
+          merged.rightPanelGroup = 'content';
         }
         const allowedSuper = new Set(['none', 'element', 'graph', 'memo-material']);
         if ((merged.activeSuperView as string) === 'reference') {

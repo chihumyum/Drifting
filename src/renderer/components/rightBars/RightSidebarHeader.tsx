@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 
-type RightPanelId = 'todo' | 'library' | 'stats' | 'shadow';
+type RightPanelId = 'todo' | 'library' | 'stats' | 'companion' | 'shadow';
 
 interface RightSidebarHeaderProps {
   shadowReviewCount: number;
@@ -26,16 +26,21 @@ export function RightSidebarHeader({
   shadowJustAppeared,
   hideTitleBlock,
 }: RightSidebarHeaderProps) {
+  const rightPanelGroup = useUiStore((state) => state.rightPanelGroup);
+  const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
+  const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
+  const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
   const shadowMode = useUiStore((state) => state.shadowMode);
   // Sliding pill — same pattern as the left sidebar. Classic hides the
   // indicator via CSS and each pill button paints its own static surface
-  // bg on active.
+  // bg on active. Keyed on the active tab of the *current group*.
+  const activeId = rightPanelGroup === 'content' ? activeRightPanel : activeAgentPanel;
   const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
-    activeRightPanel,
+    activeId,
     '.app-panel-tab.is-active',
-    [shadowMode],
+    [shadowMode, rightPanelGroup],
   );
   // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
   // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
@@ -96,64 +101,101 @@ export function RightSidebarHeader({
           }}
         >
           <div className="tab-indicator" style={indicatorStyle} />
-          <RightPanelTab
-            id="todo"
-            active={activeRightPanel === 'todo'}
-            onClick={() => setActiveRightPanel('todo')}
-          >
-            <span
-              style={
-                {
-                  whiteSpace: 'nowrap',
-                  animation: fragmentCountFlash ? 'insp-tab-count-pulse 700ms ease' : undefined,
-                  display: 'inline-block',
-                } as React.CSSProperties
-              }
-            >
-              {compactLabels ? 'TD' : 'TODO'}
-            </span>
-          </RightPanelTab>
-          <RightPanelTab
-            id="library"
-            active={activeRightPanel === 'library'}
-            onClick={() => setActiveRightPanel('library')}
-          >
-            <span>{compactLabels ? 'LIB' : '素材库'}</span>
-          </RightPanelTab>
-          <RightPanelTab
-            id="stats"
-            active={activeRightPanel === 'stats'}
-            onClick={() => setActiveRightPanel('stats')}
-          >
-            <span>{compactLabels ? 'SS' : 'Stats'}</span>
-          </RightPanelTab>
-          {shadowMode && (
-            <RightPanelTab
-              id="shadow"
-              accent
-              active={activeRightPanel === 'shadow'}
-              onClick={() => setActiveRightPanel('shadow')}
-              extraStyle={
-                shadowJustAppeared
-                  ? { animation: 'insp-shadow-tab-pulse 1.4s ease-in-out 3' }
-                  : undefined
-              }
-            >
-              <span
-                style={{
-                  fontFamily: 'var(--font-serif)',
-                  fontStyle: 'italic',
-                  fontSize: 13,
-                }}
+          {rightPanelGroup === 'content' ? (
+            <>
+              <RightPanelTab
+                id="todo"
+                active={activeRightPanel === 'todo'}
+                onClick={() => setActiveRightPanel('todo')}
               >
-                ◐
-              </span>
-              {!shadowGlyphOnly && <span>Shadow</span>}
-              {!shadowGlyphOnly && (
-                <span style={{ color: 'hsl(var(--ink-4))', fontSize: 9.5 }}>{shadowReviewCount}</span>
+                <span
+                  style={
+                    {
+                      whiteSpace: 'nowrap',
+                      animation: fragmentCountFlash ? 'insp-tab-count-pulse 700ms ease' : undefined,
+                      display: 'inline-block',
+                    } as React.CSSProperties
+                  }
+                >
+                  {compactLabels ? 'TD' : 'TODO'}
+                </span>
+              </RightPanelTab>
+              <RightPanelTab
+                id="library"
+                active={activeRightPanel === 'library'}
+                onClick={() => setActiveRightPanel('library')}
+              >
+                <span>{compactLabels ? 'LIB' : '素材库'}</span>
+              </RightPanelTab>
+              <RightPanelTab
+                id="stats"
+                active={activeRightPanel === 'stats'}
+                onClick={() => setActiveRightPanel('stats')}
+              >
+                <span>{compactLabels ? 'SS' : 'Stats'}</span>
+              </RightPanelTab>
+            </>
+          ) : (
+            <>
+              <RightPanelTab
+                id="companion"
+                active={activeAgentPanel === 'companion'}
+                onClick={() => setActiveAgentPanel('companion')}
+              >
+                <span>{compactLabels ? 'AI' : 'Companion'}</span>
+              </RightPanelTab>
+              {shadowMode && (
+                <RightPanelTab
+                  id="shadow"
+                  accent
+                  active={activeAgentPanel === 'shadow'}
+                  onClick={() => setActiveAgentPanel('shadow')}
+                  extraStyle={
+                    shadowJustAppeared
+                      ? { animation: 'insp-shadow-tab-pulse 1.4s ease-in-out 3' }
+                      : undefined
+                  }
+                >
+                  <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13 }}>
+                    ◐
+                  </span>
+                  {!shadowGlyphOnly && <span>Shadow</span>}
+                  {!shadowGlyphOnly && (
+                    <span style={{ color: 'hsl(var(--ink-4))', fontSize: 9.5 }}>
+                      {shadowReviewCount}
+                    </span>
+                  )}
+                </RightPanelTab>
               )}
-            </RightPanelTab>
+            </>
           )}
+        </div>
+        {/* Group switch: content panels ⇆ AI agent. Fixed at the right end. */}
+        <div
+          className="rightbar-group-switch"
+          style={{
+            display: 'flex',
+            flexShrink: 0,
+            gap: 0,
+            background: 'hsl(var(--paper-deep))',
+            borderRadius: 4,
+            padding: 2,
+          }}
+        >
+          <GroupSeg
+            active={rightPanelGroup === 'content'}
+            onClick={() => setRightPanelGroup('content')}
+            label="内容面板"
+          >
+            ☰
+          </GroupSeg>
+          <GroupSeg
+            active={rightPanelGroup === 'agent'}
+            onClick={() => setRightPanelGroup('agent')}
+            label="AI Agent"
+          >
+            ✦
+          </GroupSeg>
         </div>
       </div>
 
@@ -194,6 +236,47 @@ export function RightSidebarHeader({
         </div>
       )}
     </>
+  );
+}
+
+function GroupSeg({
+  active,
+  onClick,
+  label,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      title={label}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 24,
+        height: 24,
+        fontSize: 13,
+        cursor: 'pointer',
+        borderRadius: 3,
+        color: active ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
+        background: active ? 'hsl(var(--surface))' : 'transparent',
+        boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
+        transition: 'background 0.15s, color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.color = 'hsl(var(--ink-2))';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.color = 'hsl(var(--ink-4))';
+      }}
+    >
+      {children}
+    </div>
   );
 }
 

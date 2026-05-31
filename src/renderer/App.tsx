@@ -33,7 +33,6 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
-import { AgentPanel } from './components/agent/AgentPanel';
 import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
@@ -842,7 +841,6 @@ function Layout() {
         />
       )}
       <SyncStatusHUD />
-      <AgentPanel />
     </div>
   );
 }

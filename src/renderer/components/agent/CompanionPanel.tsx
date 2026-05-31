@@ -1,12 +1,9 @@
 /**
- * Claude Agent panel.
- *
- * Two credential modes, switchable at the top:
- *  - BYOK   — your own Claude subscription (OAuth connect, talks to Anthropic
- *             directly; we never see the traffic).
- *  - Hosted — our subscription, metered: the SDK is routed through the server
- *             proxy using your Drifting login.
- * Both modes share the same tools, event stream, and UI below.
+ * Companion — the interactive Claude agent, rendered inside the right sidebar's
+ * "agent" tab group (replaces the old floating overlay). Two credential modes:
+ *  - BYOK   — your own Claude subscription (OAuth; talks to Anthropic directly).
+ *  - Hosted — our metered subscription via the server proxy (uses your login).
+ * Both share the same tools / event stream / chat UI.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentEvent } from '../../../main/agent';
@@ -34,10 +31,9 @@ function formatEvent(ev: AgentEvent): string {
   }
 }
 
-export function AgentPanel() {
+export function CompanionPanel() {
   const api = window.electronAPI?.agent;
 
-  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('byok');
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [awaitingCode, setAwaitingCode] = useState(false);
@@ -112,38 +108,16 @@ export function AgentPanel() {
     void api?.abort();
   }, [api]);
 
-  if (!api) return null;
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{ ...btnStyle, position: 'fixed', right: 16, bottom: 48, zIndex: 9999 }}
-      >
-        Agent
-      </button>
-    );
+  if (!api) {
+    return <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>Agent 不可用。</div>;
   }
 
   return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>
-        <strong style={{ fontSize: 13 }}>Claude Agent</strong>
-        <button type="button" onClick={() => setOpen(false)} style={smallBtn}>
-          ✕
-        </button>
-      </div>
-
+    <div style={fillStyle}>
       {/* Mode toggle */}
-      <div style={{ display: 'flex', gap: 4, padding: '8px 10px 0' }}>
+      <div style={{ display: 'flex', gap: 4, padding: '10px 12px 6px' }}>
         {(['byok', 'hosted'] as Mode[]).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            style={mode === m ? segActive : segIdle}
-          >
+          <button key={m} type="button" onClick={() => setMode(m)} style={mode === m ? segActive : segIdle}>
             {m === 'byok' ? 'BYOK (Claude)' : '托管订阅'}
           </button>
         ))}
@@ -155,7 +129,7 @@ export function AgentPanel() {
         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {!awaitingCode ? (
             <>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>
+              <div style={{ fontSize: 12, opacity: 0.8, lineHeight: 1.5 }}>
                 用你自己的 Claude 账号(Max/Pro)。会打开浏览器授权,然后把页面上的 code 粘回来。
               </div>
               <button type="button" onClick={connect} style={btnStyle}>
@@ -183,12 +157,20 @@ export function AgentPanel() {
           )}
         </div>
       ) : mode === 'hosted' && !status.hostedAvailable ? (
-        <div style={{ padding: 12, fontSize: 12, opacity: 0.8 }}>
+        <div style={{ padding: 12, fontSize: 12, opacity: 0.8, lineHeight: 1.5 }}>
           托管订阅需要先登录 Drifting 账号。请登录后重试。
         </div>
       ) : (
         <>
-          <div style={{ padding: '6px 10px 0', display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.6 }}>
+          <div
+            style={{
+              padding: '4px 12px 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              opacity: 0.6,
+            }}
+          >
             <span>{mode === 'byok' ? '直连 Anthropic(你的订阅)' : '经服务器计量(托管)'}</span>
             {mode === 'byok' && status.byokConnected && (
               <button type="button" onClick={logout} style={{ ...smallBtn, padding: '0 6px' }}>
@@ -198,7 +180,7 @@ export function AgentPanel() {
           </div>
           <div ref={logRef} style={logStyle}>
             {log.length === 0 ? (
-              <div style={{ opacity: 0.5 }}>Send a message to begin.</div>
+              <div style={{ opacity: 0.5 }}>给 agent 发条消息开始。</div>
             ) : (
               log.map((line, i) => (
                 <div key={i} style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>
@@ -207,7 +189,7 @@ export function AgentPanel() {
               ))
             )}
           </div>
-          <div style={{ padding: 8, display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+          <div style={{ padding: 10, display: 'flex', gap: 6, alignItems: 'flex-end', borderTop: '1px solid hsl(var(--rule))' }}>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -237,44 +219,27 @@ export function AgentPanel() {
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  right: 16,
-  bottom: 48,
-  zIndex: 9999,
-  width: 360,
-  maxHeight: 480,
+const fillStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  background: 'hsl(var(--surface))',
-  color: 'hsl(var(--foreground))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: 10,
-  boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
-  overflow: 'hidden',
-};
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 10px',
-  borderBottom: '1px solid hsl(var(--border))',
+  height: '100%',
+  minHeight: 0,
+  color: 'hsl(var(--ink-1))',
 };
 
 const logStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  padding: 10,
-  fontSize: 12,
-  lineHeight: 1.5,
-  minHeight: 160,
+  padding: 12,
+  fontSize: 12.5,
+  lineHeight: 1.55,
+  minHeight: 120,
 };
 
 const inputStyle: React.CSSProperties = {
   background: 'hsl(var(--page))',
   color: 'inherit',
-  border: '1px solid hsl(var(--border))',
+  border: '1px solid hsl(var(--rule))',
   borderRadius: 6,
   padding: '6px 8px',
   fontSize: 12,
@@ -282,19 +247,20 @@ const inputStyle: React.CSSProperties = {
 };
 
 const btnStyle: React.CSSProperties = {
-  background: 'hsl(var(--accent, 220 90% 56%))',
+  background: 'hsl(var(--accent))',
   color: 'white',
   border: 'none',
   borderRadius: 6,
   padding: '6px 12px',
   fontSize: 12,
   cursor: 'pointer',
+  whiteSpace: 'nowrap',
 };
 
 const smallBtn: React.CSSProperties = {
   background: 'transparent',
   color: 'inherit',
-  border: '1px solid hsl(var(--border))',
+  border: '1px solid hsl(var(--rule))',
   borderRadius: 6,
   padding: '2px 8px',
   fontSize: 12,
@@ -303,19 +269,18 @@ const smallBtn: React.CSSProperties = {
 
 const segIdle: React.CSSProperties = {
   flex: 1,
-  background: 'transparent',
-  color: 'inherit',
-  border: '1px solid hsl(var(--border))',
+  background: 'hsl(var(--paper-deep))',
+  color: 'hsl(var(--ink-4))',
+  border: '1px solid hsl(var(--rule))',
   borderRadius: 6,
   padding: '4px 8px',
   fontSize: 12,
   cursor: 'pointer',
-  opacity: 0.6,
 };
 
 const segActive: React.CSSProperties = {
   ...segIdle,
-  opacity: 1,
-  borderColor: 'hsl(var(--accent, 220 90% 56%))',
+  color: 'hsl(var(--accent))',
+  borderColor: 'hsl(var(--accent))',
   fontWeight: 600,
 };

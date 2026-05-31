@@ -6,6 +6,7 @@ import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
 import { LibraryPanel, type FocusedEntity } from './MemoMaterialPanel';
 import { TodoPanel } from './TodoPanel';
+import { CompanionPanel } from '../agent/CompanionPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
 interface ResolvedTarget {
@@ -19,8 +20,10 @@ interface ResolvedTarget {
 export function RightSidebarPanels() {
   const { projectId } = useProjectNavigation();
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
+  const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
   const activeRightPanel = useUiStore((s) => s.activeRightPanel);
-  const setActiveRightPanel = useUiStore((s) => s.setActiveRightPanel);
+  const activeAgentPanel = useUiStore((s) => s.activeAgentPanel);
+  const setActiveAgentPanel = useUiStore((s) => s.setActiveAgentPanel);
   const shadowMode = useUiStore((s) => s.shadowMode);
 
   const {
@@ -130,31 +133,33 @@ export function RightSidebarPanels() {
     return () => window.clearTimeout(id);
   }, [shadowMode]);
 
-  // If we land on the right panel with shadow off and stale "shadow" selection
-  // (defensive — store should already coerce), step it back to fragments.
+  // Defensive: if shadow turned off while the Shadow tab was active, fall back
+  // to Companion (the store setter already does this; this covers rehydration).
   useEffect(() => {
-    if (!shadowMode && activeRightPanel === 'shadow') {
-      setActiveRightPanel('library');
+    if (!shadowMode && activeAgentPanel === 'shadow') {
+      setActiveAgentPanel('companion');
     }
-  }, [shadowMode, activeRightPanel, setActiveRightPanel]);
+  }, [shadowMode, activeAgentPanel, setActiveAgentPanel]);
 
-  const isFragmentTab = activeRightPanel === 'todo' || activeRightPanel === 'library';
-  const headerKicker =
-    activeRightPanel === 'shadow'
-      ? 'Shadow Agent · 跨章节任务'
-      : activeRightPanel === 'stats'
-        ? target.kicker.replace('片段与材料', '详细统计')
-        : activeRightPanel === 'todo'
-          ? '全项目 · TODO'
-          : '全项目 · 素材库';
-  const headerTitle =
-    activeRightPanel === 'shadow'
-      ? '全书 · 跨章节'
+  const isAgentGroup = rightPanelGroup === 'agent';
+  const isFragmentTab =
+    !isAgentGroup && (activeRightPanel === 'todo' || activeRightPanel === 'library');
+  // Agent panels render their own headers, so hide the kicker/title block there.
+  const hideTitleBlock = isAgentGroup || isFragmentTab;
+  const headerKicker = isAgentGroup
+    ? ''
+    : activeRightPanel === 'stats'
+      ? target.kicker.replace('片段与材料', '详细统计')
       : activeRightPanel === 'todo'
-        ? 'TODO'
-        : activeRightPanel === 'library'
-          ? '素材库'
-          : target.title;
+        ? '全项目 · TODO'
+        : '全项目 · 素材库';
+  const headerTitle = isAgentGroup
+    ? ''
+    : activeRightPanel === 'todo'
+      ? 'TODO'
+      : activeRightPanel === 'library'
+        ? '素材库'
+        : target.title;
 
   return (
     <div
@@ -172,24 +177,33 @@ export function RightSidebarPanels() {
         title={headerTitle}
         fragmentCountFlash={fragmentCountFlash}
         shadowJustAppeared={shadowJustAppeared}
-        hideTitleBlock={isFragmentTab}
+        hideTitleBlock={hideTitleBlock}
       />
 
       <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
-        {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
-        {activeRightPanel === 'stats' && (
-          <StatsView
-            target={target}
-            bookNodes={bookNodes}
-            bookElements={bookElements}
-            storylines={storylines}
-            categories={bookElementCategories}
-            storylineNodeMapping={storylineNodeMapping}
-            primaryStorylineByNode={primaryStorylineByNode}
-          />
+        {rightPanelGroup === 'content' && (
+          <>
+            {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
+            {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
+            {activeRightPanel === 'stats' && (
+              <StatsView
+                target={target}
+                bookNodes={bookNodes}
+                bookElements={bookElements}
+                storylines={storylines}
+                categories={bookElementCategories}
+                storylineNodeMapping={storylineNodeMapping}
+                primaryStorylineByNode={primaryStorylineByNode}
+              />
+            )}
+          </>
         )}
-        {activeRightPanel === 'shadow' && <ShadowAgentView />}
+        {rightPanelGroup === 'agent' && (
+          <>
+            {activeAgentPanel === 'companion' && <CompanionPanel />}
+            {activeAgentPanel === 'shadow' && <ShadowAgentView />}
+          </>
+        )}
       </div>
     </div>
   );
