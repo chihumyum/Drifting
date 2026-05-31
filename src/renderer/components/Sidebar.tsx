@@ -47,7 +47,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
       // 对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）。
       const minWidth = 140;
-      const maxWidth = window.innerWidth * 0.3;
+      // Right sidebar gets a wider cap so it can reach the ~850px split
+      // threshold (two columns) on roomy screens; left stays at 30%.
+      const maxWidth = window.innerWidth * (sidebarType === 'right' ? 0.6 : 0.3);
 
       if (newWidth < minWidth) newWidth = minWidth;
       if (newWidth > maxWidth) newWidth = maxWidth;
@@ -187,7 +189,11 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             // classic loses nothing visible (handle was transparent).
             right: sidebarType === 'left' ? 0 : 'auto',
             left: sidebarType === 'right' ? 0 : 'auto',
-            width: 6,
+            // Hit zone (transparent). Widened from 6→12 for an easier grab; it
+            // extends inward from the inside edge (root is overflow:hidden, so
+            // it can't straddle outward — the modern skin's 6px gutter adds a
+            // little more reachable area on the outside).
+            width: 12,
             height: '100%',
             cursor: 'col-resize',
             zIndex: 10,

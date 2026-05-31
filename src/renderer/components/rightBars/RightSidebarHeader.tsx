@@ -16,6 +16,10 @@ interface RightSidebarHeaderProps {
    *  TODO + Library tabs where the tab label itself already describes the
    *  surface and the project-wide list doesn't need a per-entity title. */
   hideTitleBlock?: boolean;
+  /** Force a single group's tabs and hide the group switch — used by the
+   *  wide-screen split where each column owns one group. Omit for the normal
+   *  single-column mode (renders the store's active group + the switch). */
+  group?: 'content' | 'agent';
 }
 
 export function RightSidebarHeader({
@@ -25,22 +29,25 @@ export function RightSidebarHeader({
   fragmentCountFlash,
   shadowJustAppeared,
   hideTitleBlock,
+  group,
 }: RightSidebarHeaderProps) {
-  const rightPanelGroup = useUiStore((state) => state.rightPanelGroup);
+  const storeGroup = useUiStore((state) => state.rightPanelGroup);
   const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
   const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
   const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
   const shadowMode = useUiStore((state) => state.shadowMode);
-  // Sliding pill — same pattern as the left sidebar. Classic hides the
-  // indicator via CSS and each pill button paints its own static surface
-  // bg on active. Keyed on the active tab of the *current group*.
-  const activeId = rightPanelGroup === 'content' ? activeRightPanel : activeAgentPanel;
+  // `group` (split columns) pins the rendered group and hides the switch;
+  // otherwise follow the store's active group and show the switch.
+  const renderGroup = group ?? storeGroup;
+  const showSwitch = group == null;
+  // Sliding pill — keyed on the active tab of the rendered group.
+  const activeId = renderGroup === 'content' ? activeRightPanel : activeAgentPanel;
   const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
     activeId,
     '.app-panel-tab.is-active',
-    [shadowMode, rightPanelGroup],
+    [shadowMode, renderGroup],
   );
   // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
   // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
@@ -101,7 +108,7 @@ export function RightSidebarHeader({
           }}
         >
           <div className="tab-indicator" style={indicatorStyle} />
-          {rightPanelGroup === 'content' ? (
+          {renderGroup === 'content' ? (
             <>
               <RightPanelTab
                 id="todo"
@@ -170,33 +177,30 @@ export function RightSidebarHeader({
             </>
           )}
         </div>
-        {/* Group switch: content panels ⇆ AI agent. Fixed at the right end. */}
-        <div
-          className="rightbar-group-switch"
-          style={{
-            display: 'flex',
-            flexShrink: 0,
-            gap: 0,
-            background: 'hsl(var(--paper-deep))',
-            borderRadius: 4,
-            padding: 2,
-          }}
-        >
-          <GroupSeg
-            active={rightPanelGroup === 'content'}
-            onClick={() => setRightPanelGroup('content')}
-            label="内容面板"
+        {/* Group switch: a single bare icon that flips between the content
+            panels and the AI agent. The glyph shows where a click takes you. */}
+        {showSwitch && (
+          <div
+            onClick={() => setRightPanelGroup(storeGroup === 'content' ? 'agent' : 'content')}
+            title={storeGroup === 'content' ? '切换到 AI Agent' : '切换到内容面板'}
+            style={{
+              flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 24,
+              height: 24,
+              fontSize: 15,
+              cursor: 'pointer',
+              color: 'hsl(var(--ink-4))',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-1))')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-4))')}
           >
-            ☰
-          </GroupSeg>
-          <GroupSeg
-            active={rightPanelGroup === 'agent'}
-            onClick={() => setRightPanelGroup('agent')}
-            label="AI Agent"
-          >
-            ✦
-          </GroupSeg>
-        </div>
+            {storeGroup === 'content' ? '✦' : '☰'}
+          </div>
+        )}
       </div>
 
       {!hideTitleBlock && (
@@ -236,47 +240,6 @@ export function RightSidebarHeader({
         </div>
       )}
     </>
-  );
-}
-
-function GroupSeg({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      onClick={onClick}
-      title={label}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 24,
-        height: 24,
-        fontSize: 13,
-        cursor: 'pointer',
-        borderRadius: 3,
-        color: active ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
-        background: active ? 'hsl(var(--surface))' : 'transparent',
-        boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
-        transition: 'background 0.15s, color 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.color = 'hsl(var(--ink-2))';
-      }}
-      onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.color = 'hsl(var(--ink-4))';
-      }}
-    >
-      {children}
-    </div>
   );
 }
 

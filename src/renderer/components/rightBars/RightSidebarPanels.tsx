@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
 import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
@@ -161,50 +161,111 @@ export function RightSidebarPanels() {
         ? '素材库'
         : target.title;
 
+  // Wide right panel → show both groups side by side. Triggered by the panel's
+  // own rendered width (not the screen width). Below the threshold it collapses
+  // back to a single column + the group switch.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState(Number.POSITIVE_INFINITY);
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    const update = () => setPanelWidth(node.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+  const isSplit = panelWidth >= 850;
+
+  const contentBody = (
+    <>
+      {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
+      {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
+      {activeRightPanel === 'stats' && (
+        <StatsView
+          target={target}
+          bookNodes={bookNodes}
+          bookElements={bookElements}
+          storylines={storylines}
+          categories={bookElementCategories}
+          storylineNodeMapping={storylineNodeMapping}
+          primaryStorylineByNode={primaryStorylineByNode}
+        />
+      )}
+    </>
+  );
+  const agentBody = (
+    <>
+      {activeAgentPanel === 'companion' && <CompanionPanel />}
+      {activeAgentPanel === 'shadow' && <ShadowAgentView />}
+    </>
+  );
+
   return (
     <div
+      ref={rootRef}
       style={{
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: isSplit ? 'row' : 'column',
         height: '100%',
         minHeight: 0,
         background: 'hsl(var(--paper))',
       }}
     >
-      <RightSidebarHeader
-        shadowReviewCount={shadowReviewCount}
-        kicker={headerKicker}
-        title={headerTitle}
-        fragmentCountFlash={fragmentCountFlash}
-        shadowJustAppeared={shadowJustAppeared}
-        hideTitleBlock={hideTitleBlock}
-      />
-
-      <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {rightPanelGroup === 'content' && (
-          <>
-            {activeRightPanel === 'todo' && <TodoPanel focused={focusedForPanel} />}
-            {activeRightPanel === 'library' && <LibraryPanel focused={focusedForPanel} />}
-            {activeRightPanel === 'stats' && (
-              <StatsView
-                target={target}
-                bookNodes={bookNodes}
-                bookElements={bookElements}
-                storylines={storylines}
-                categories={bookElementCategories}
-                storylineNodeMapping={storylineNodeMapping}
-                primaryStorylineByNode={primaryStorylineByNode}
-              />
-            )}
-          </>
-        )}
-        {rightPanelGroup === 'agent' && (
-          <>
-            {activeAgentPanel === 'companion' && <CompanionPanel />}
-            {activeAgentPanel === 'shadow' && <ShadowAgentView />}
-          </>
-        )}
-      </div>
+      {isSplit ? (
+        <>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderRight: '1px solid hsl(var(--rule))',
+            }}
+          >
+            <RightSidebarHeader
+              group="content"
+              shadowReviewCount={shadowReviewCount}
+              kicker=""
+              title=""
+              hideTitleBlock
+            />
+            <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              {contentBody}
+            </div>
+          </div>
+          <div
+            style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+          >
+            <RightSidebarHeader
+              group="agent"
+              shadowReviewCount={shadowReviewCount}
+              shadowJustAppeared={shadowJustAppeared}
+              kicker=""
+              title=""
+              hideTitleBlock
+            />
+            <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              {agentBody}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <RightSidebarHeader
+            shadowReviewCount={shadowReviewCount}
+            kicker={headerKicker}
+            title={headerTitle}
+            fragmentCountFlash={fragmentCountFlash}
+            shadowJustAppeared={shadowJustAppeared}
+            hideTitleBlock={hideTitleBlock}
+          />
+          <div className="scroll-no-bar" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {rightPanelGroup === 'content' ? contentBody : agentBody}
+          </div>
+        </>
+      )}
     </div>
   );
 }
