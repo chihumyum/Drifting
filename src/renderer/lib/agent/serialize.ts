@@ -63,6 +63,51 @@ export function replaceBlockText(contentJson: string, blockId: string, newText: 
   return JSON.stringify({ ...doc, content: next });
 }
 
+/**
+ * Replace the text of the Nth top-level block (1-based, matching docToBlocks
+ * order — the numbering the agent sees from read_chapter). Lossy on inline
+ * marks, same as replaceBlockText. Throws if the index is out of range.
+ */
+export function replaceBlockByIndex(contentJson: string, index: number, newText: string): string {
+  const doc = parseTiptapDocJson(contentJson);
+  const blocks = doc.content ?? [];
+  const i = index - 1;
+  if (!Number.isInteger(i) || i < 0 || i >= blocks.length) {
+    throw new Error(`Block #${index} out of range (1..${blocks.length})`);
+  }
+  const next: JSONContent[] = blocks.map((node, idx) =>
+    idx === i ? { ...node, content: newText ? [{ type: 'text', text: newText }] : [] } : node,
+  );
+  return JSON.stringify({ ...doc, content: next });
+}
+
+// Non-paragraph block types get a short prefix so the agent can tell them apart
+// without a verbose `type` field. Paragraphs (the overwhelming majority) get none.
+const TYPE_PREFIX: Record<string, string> = {
+  heading: '# ',
+  blockquote: '> ',
+  codeBlock: '` ',
+  listItem: '- ',
+  bulletList: '- ',
+  orderedList: '1. ',
+};
+
+/**
+ * Render blocks as a compact numbered list — one block per line, `<n>\t<text>`,
+ * with a type prefix only for non-paragraph blocks. The number is the handle
+ * the agent passes to edit_block. Far cheaper than per-block {blockId,type,text}
+ * JSON (no uuid, no repeated keys, no pretty-print).
+ */
+export function blocksToCompactText(blocks: DocBlock[]): string {
+  return blocks
+    .map((b, i) => {
+      const prefix = b.type === 'paragraph' ? '' : TYPE_PREFIX[b.type] ?? `[${b.type}] `;
+      const text = b.text.replace(/\s*\n\s*/g, ' ');
+      return `${i + 1}\t${prefix}${text}`;
+    })
+    .join('\n');
+}
+
 /** Append a new paragraph (with a fresh block id) to the end of the doc. */
 export function appendParagraph(contentJson: string, text: string): string {
   const doc = parseTiptapDocJson(contentJson);

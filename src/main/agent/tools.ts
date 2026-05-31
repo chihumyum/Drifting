@@ -12,7 +12,9 @@ import { callRenderer } from './bridge';
 type ToolContent = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
 function asText(data: unknown): ToolContent {
-  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  // Compact JSON (no pretty-print) — the model doesn't need indentation, and it
+  // saves the whitespace tokens on every read. Strings pass through verbatim.
+  const text = typeof data === 'string' ? data : JSON.stringify(data);
   return { content: [{ type: 'text', text }] };
 }
 
@@ -40,7 +42,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_chapter',
-        "Read a chapter or drift node's prose, returned block-by-block (each block has a blockId you can later target for edits) plus its title and summary.",
+        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
         { nodeId: z.string().describe('Node id from list_project_structure') },
         (args) => run('read_chapter', args),
       ),
@@ -97,7 +99,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'search_prose',
-        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind,id,title,blockId,snippet} with a short context snippet around each hit. Heavier than search_project — use it to find scenes/passages by content.',
+        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind,id,title,block,snippet} where block is the 1-based block number (pass it to edit_block / read_chapter). Heavier than search_project — use it to find scenes/passages by content.',
         {
           query: z.string().describe('Text to find in the prose'),
           limit: z.number().optional().describe('Max matches (default 30, cap 100)'),
@@ -166,8 +168,13 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_block',
-        'Replace the text of one prose block (by blockId from read_chapter), keeping the block in place. Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
-        { nodeId: z.string(), blockId: z.string(), text: z.string() },
+        'Replace the text of one prose block, keeping it in place. Address the block by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
+        {
+          nodeId: z.string(),
+          block: z.number().optional().describe('1-based block number from read_chapter'),
+          blockId: z.string().optional().describe('uuid block id (alternative to block)'),
+          text: z.string(),
+        },
         (args) => run('edit_block', args),
       ),
       tool(

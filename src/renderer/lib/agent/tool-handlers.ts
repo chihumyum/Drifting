@@ -38,7 +38,14 @@ import type {
 import type { CreateStorylineInput, UpdateStorylineInput } from '../../usecase/useStoryline';
 import type { CreateElementCategoryInput } from '../../usecase/useElementCategory';
 import type { CreateNodeUsecaseInput } from '../../usecase/useBookNode';
-import { docToBlocks, docToPlainText, replaceBlockText, appendParagraph } from './serialize';
+import {
+  docToBlocks,
+  docToPlainText,
+  replaceBlockText,
+  replaceBlockByIndex,
+  blocksToCompactText,
+  appendParagraph,
+} from './serialize';
 
 /** Coerce a loose facts array (from tool args) to KvEntry[]. */
 function toKvEntries(raw: unknown): KvEntry[] {
@@ -130,13 +137,11 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
   const content = await createBookContentRepository().findByNodeId(nodeId);
   const blocks = content ? docToBlocks(content.contentJson) : [];
-  return {
-    id: node.id,
-    title: node.title,
-    kind: node.kind,
-    summary: node.summary,
-    blocks: blocks.map((b) => ({ blockId: b.blockId, type: b.type, text: b.text })),
-  };
+  // Compact numbered rendering — the leading number is the handle for edit_block.
+  const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字 · id=${node.id}`;
+  const summaryLine = `summary: ${node.summary || '(none)'}`;
+  const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
+  return `${header}\n${summaryLine}\n\n${body}`;
 }
 
 function readElement(ctx: AgentToolContext, elementId: string) {
@@ -355,7 +360,7 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
   const q = String(args.query ?? '').trim().toLowerCase();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
-  const matches: Array<{ kind: string; id: string; title: string; blockId?: string; snippet: string }> = [];
+  const matches: Array<{ kind: string; id: string; title: string; block?: number; snippet: string }> = [];
   if (!q) return { matches };
 
   const s = useDataStore.getState();
@@ -377,10 +382,12 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
   for (const n of nodes) {
     const content = await contentRepo.findByNodeId(n.id);
     if (!content) continue;
-    for (const b of docToBlocks(content.contentJson)) {
+    const blocks = docToBlocks(content.contentJson);
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
       const idx = b.text.toLowerCase().indexOf(q);
       if (idx !== -1) {
-        matches.push({ kind: n.kind, id: n.id, title: n.title, blockId: b.blockId ?? undefined, snippet: snippetAround(b.text, idx, q.length) });
+        matches.push({ kind: n.kind, id: n.id, title: n.title, block: i + 1, snippet: snippetAround(b.text, idx, q.length) });
         if (matches.length >= limit) return { matches, truncated: true };
         break; // one hit per chapter is enough for discovery — agent can read_chapter for the rest
       }
@@ -487,14 +494,30 @@ async function setNodeSummary(ctx: AgentToolContext, args: Record<string, unknow
 
 async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
-  const blockId = String(args.blockId ?? '');
   const text = String(args.text ?? '');
-  if (!nodeId || !blockId) throw new Error('edit_block requires nodeId and blockId');
+  if (!nodeId) throw new Error('edit_block requires nodeId');
   const content = await createBookContentRepository().findByNodeId(nodeId);
   if (!content) throw new Error(`No content found for node "${nodeId}"`);
-  const nextJson = replaceBlockText(content.contentJson, blockId, text);
+  // Prefer the block number from read_chapter / search_prose; fall back to a
+  // uuid blockId (e.g. from where_does_entity_appear).
+  const hasBlockNum = args.block !== undefined && args.block !== null && args.block !== '';
+  let nextJson: string;
+  let target: string | number;
+  if (hasBlockNum) {
+    const idx = Number(args.block);
+    if (!Number.isInteger(idx) || idx < 1) {
+      throw new Error('block must be a 1-based integer (the number from read_chapter)');
+    }
+    nextJson = replaceBlockByIndex(content.contentJson, idx, text);
+    target = idx;
+  } else {
+    const blockId = String(args.blockId ?? '');
+    if (!blockId) throw new Error('edit_block requires block (number) or blockId');
+    nextJson = replaceBlockText(content.contentJson, blockId, text);
+    target = blockId;
+  }
   await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
-  return { ok: true, nodeId, blockId };
+  return { ok: true, nodeId, block: target };
 }
 
 async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, unknown>) {
