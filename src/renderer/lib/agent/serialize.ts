@@ -112,10 +112,94 @@ export function blocksToCompactText(blocks: DocBlock[]): string {
 export function appendParagraph(contentJson: string, text: string): string {
   const doc = parseTiptapDocJson(contentJson);
   const blocks: JSONContent[] = doc.content ? [...doc.content] : [];
-  blocks.push({
+  blocks.push(makeParagraphBlock(text));
+  return JSON.stringify({ ...doc, content: blocks });
+}
+
+// ---- structural (block count changes) — id-addressed only ------------------
+//
+// These add/remove top-level blocks, so ordinal numbers shift the moment one
+// runs. They therefore address blocks by their stable uuid `id`, never by the
+// 1-based number from read_chapter (which is only safe for in-place text swaps).
+
+/** A fresh plain paragraph block with a new uuid id. */
+export function makeParagraphBlock(text: string): JSONContent {
+  return {
     type: 'paragraph',
     attrs: { id: uuidv7() },
     content: text ? [{ type: 'text', text }] : [],
+  };
+}
+
+function indexOfBlockId(blocks: JSONContent[], blockId: string): number {
+  return blocks.findIndex((n) => n.attrs && n.attrs.id === blockId);
+}
+
+/** Remove the listed blocks (by uuid). Throws if none matched. */
+export function removeBlocks(contentJson: string, blockIds: string[]): string {
+  const doc = parseTiptapDocJson(contentJson);
+  const blocks = doc.content ?? [];
+  const ids = new Set(blockIds);
+  const next = blocks.filter((n) => !(n.attrs && ids.has(n.attrs.id as string)));
+  if (next.length === blocks.length) {
+    throw new Error(`No blocks matched ids: ${blockIds.join(', ')}`);
+  }
+  return JSON.stringify({ ...doc, content: next });
+}
+
+/**
+ * Replace the inclusive range of blocks [fromBlockId … toBlockId] with new
+ * paragraphs (one per string). Pass an empty array to just delete the range.
+ */
+export function replaceBlockRange(
+  contentJson: string,
+  fromBlockId: string,
+  toBlockId: string,
+  texts: string[],
+): string {
+  const doc = parseTiptapDocJson(contentJson);
+  const blocks = doc.content ?? [];
+  const fi = indexOfBlockId(blocks, fromBlockId);
+  const ti = indexOfBlockId(blocks, toBlockId);
+  if (fi < 0) throw new Error(`from block "${fromBlockId}" not found`);
+  if (ti < 0) throw new Error(`to block "${toBlockId}" not found`);
+  if (fi > ti) throw new Error('fromBlockId must be at or before toBlockId in the chapter');
+  const next = [...blocks.slice(0, fi), ...texts.map(makeParagraphBlock), ...blocks.slice(ti + 1)];
+  return JSON.stringify({ ...doc, content: next });
+}
+
+/**
+ * Insert new paragraphs after `afterBlockId` (or at the very start when null).
+ */
+export function insertBlocks(
+  contentJson: string,
+  afterBlockId: string | null,
+  texts: string[],
+): string {
+  const doc = parseTiptapDocJson(contentJson);
+  const blocks = doc.content ?? [];
+  let at = 0;
+  if (afterBlockId) {
+    const i = indexOfBlockId(blocks, afterBlockId);
+    if (i < 0) throw new Error(`after block "${afterBlockId}" not found`);
+    at = i + 1;
+  }
+  const next = [...blocks.slice(0, at), ...texts.map(makeParagraphBlock), ...blocks.slice(at)];
+  return JSON.stringify({ ...doc, content: next });
+}
+
+/** Look up blocks by 1-based ordinal and/or a case-insensitive content match. */
+export function findBlocks(
+  contentJson: string,
+  opts: { ordinal?: number; contains?: string },
+): Array<{ blockId: string | null; block: number; type: string; snippet: string }> {
+  const needle = opts.contains?.trim().toLowerCase();
+  const out: Array<{ blockId: string | null; block: number; type: string; snippet: string }> = [];
+  docToBlocks(contentJson).forEach((b, i) => {
+    const block = i + 1;
+    if (opts.ordinal != null && block !== opts.ordinal) return;
+    if (needle && !b.text.toLowerCase().includes(needle)) return;
+    out.push({ blockId: b.blockId, block, type: b.type, snippet: b.text.slice(0, 100) });
   });
-  return JSON.stringify({ ...doc, content: blocks });
+  return out;
 }

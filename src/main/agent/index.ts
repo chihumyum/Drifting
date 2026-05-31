@@ -356,7 +356,12 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
           'one prose block by its number from read_chapter; use edit_blocks for several blocks ' +
-          'in one chapter — atomic), append_paragraph. ' +
+          'in one chapter — atomic), append_paragraph. Prose edits apply to the chapter live — no ' +
+          'need to close the editor. To RESTRUCTURE prose (delete a block, replace a range of ' +
+          'blocks with a different number of blocks, or insert blocks mid-chapter) use ' +
+          'remove_blocks / replace_block_range / insert_blocks; these address blocks by their ' +
+          'stable uuid blockId, NOT the read_chapter number (numbers shift after a structural ' +
+          'edit), so call lookup_block first to resolve a number or text snippet to its blockId. ' +
           'Build structure: create_storyline / update_storyline, create_category, create_node ' +
           "(a 'chapter' or 'drift'). " +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +

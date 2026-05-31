@@ -45,7 +45,20 @@ import {
   replaceBlockByIndex,
   blocksToCompactText,
   appendParagraph,
+  removeBlocks,
+  replaceBlockRange,
+  insertBlocks,
+  findBlocks,
 } from './serialize';
+import {
+  writeChapterProse,
+  getChapterContentJson,
+  yReplaceBlockText,
+  yRemoveBlocks,
+  yReplaceBlockRange,
+  yInsertBlocks,
+  yAppendParagraph,
+} from './chapter-prose';
 
 /** Coerce a loose facts array (from tool args) to KvEntry[]. */
 function toKvEntries(raw: unknown): KvEntry[] {
@@ -157,7 +170,10 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
   const content = await createBookContentRepository().findByNodeId(nodeId);
-  const blocks = content ? docToBlocks(content.contentJson) : [];
+  // Read the live Yjs truth (what the editor shows), not just the contentJson
+  // cache, so the numbering the agent edits against matches the open editor.
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  const blocks = docToBlocks(truthJson);
   // Compact numbered rendering — the leading number is the handle for edit_block.
   const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字 · id=${node.id}`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
@@ -536,11 +552,12 @@ function withNodeContentLock<T>(nodeId: string, fn: () => Promise<T>): Promise<T
   return run;
 }
 
-/** Apply one block edit to a doc JSON, by 1-based number or by uuid blockId. */
-function applyEditToJson(
-  json: string,
-  edit: { block?: unknown; blockId?: unknown; text?: unknown },
-): { json: string; target: string | number } {
+/** Normalize one block edit's target ({block} number or {blockId} uuid) + text. */
+function parseBlockEdit(edit: {
+  block?: unknown;
+  blockId?: unknown;
+  text?: unknown;
+}): { target: { block?: number; blockId?: string }; text: string; label: string | number } {
   const text = String(edit.text ?? '');
   const hasBlockNum = edit.block !== undefined && edit.block !== null && edit.block !== '';
   if (hasBlockNum) {
@@ -548,48 +565,60 @@ function applyEditToJson(
     if (!Number.isInteger(idx) || idx < 1) {
       throw new Error('block must be a 1-based integer (the number from read_chapter)');
     }
-    return { json: replaceBlockByIndex(json, idx, text), target: idx };
+    return { target: { block: idx }, text, label: idx };
   }
   const blockId = String(edit.blockId ?? '');
   if (!blockId) throw new Error('edit requires block (number) or blockId');
-  return { json: replaceBlockText(json, blockId, text), target: blockId };
+  return { target: { blockId }, text, label: blockId };
 }
 
 async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   if (!nodeId) throw new Error('edit_block requires nodeId');
+  const { target, text, label } = parseBlockEdit(args);
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    const { json, target } = applyEditToJson(content.contentJson, args);
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
-    return { ok: true, nodeId, block: target };
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yReplaceBlockText(frag, target, text),
+      (json) =>
+        target.blockId
+          ? replaceBlockText(json, target.blockId, text)
+          : replaceBlockByIndex(json, target.block as number, text),
+    );
+    return { ok: true, nodeId, block: label };
   });
 }
 
 /**
- * Apply several block edits to one chapter atomically — a single
- * read-modify-write so the edits can't clobber each other and the whole batch
- * is one IPC round-trip. Block numbers are stable within the batch (edits only
- * replace text, never add/remove blocks).
+ * Apply several block edits to one chapter atomically — a single transaction so
+ * the edits can't clobber each other. Block numbers are stable within the batch
+ * (edits only replace text, never add/remove blocks).
  */
 async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   if (!nodeId) throw new Error('edit_blocks requires nodeId');
   const edits = Array.isArray(args.edits) ? (args.edits as Record<string, unknown>[]) : [];
   if (edits.length === 0) throw new Error('edit_blocks requires a non-empty edits array');
+  const parsed = edits.map(parseBlockEdit);
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    let json = content.contentJson;
-    const edited: Array<string | number> = [];
-    for (const e of edits) {
-      const r = applyEditToJson(json, e);
-      json = r.json;
-      edited.push(r.target);
-    }
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: json });
-    return { ok: true, nodeId, edited };
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => {
+        for (const e of parsed) yReplaceBlockText(frag, e.target, e.text);
+      },
+      (json) => {
+        let j = json;
+        for (const e of parsed) {
+          j = e.target.blockId
+            ? replaceBlockText(j, e.target.blockId, e.text)
+            : replaceBlockByIndex(j, e.target.block as number, e.text);
+        }
+        return j;
+      },
+    );
+    return { ok: true, nodeId, edited: parsed.map((e) => e.label) };
   });
 }
 
@@ -598,11 +627,87 @@ async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, u
   const text = String(args.text ?? '');
   if (!nodeId || !text) throw new Error('append_paragraph requires nodeId and text');
   return withNodeContentLock(nodeId, async () => {
-    const content = await createBookContentRepository().findByNodeId(nodeId);
-    if (!content) throw new Error(`No content found for node "${nodeId}"`);
-    const nextJson = appendParagraph(content.contentJson, text);
-    await ctx.write.updateContentByNodeId(nodeId, { contentJson: nextJson });
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yAppendParagraph(frag, text),
+      (json) => appendParagraph(json, text),
+    );
     return { ok: true, nodeId };
+  });
+}
+
+// ---- structural block edits (add/remove blocks — id-addressed only) --------
+
+async function lookupBlock(args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('lookup_block requires nodeId');
+  const ordinalRaw = args.ordinal;
+  const ordinal =
+    ordinalRaw === undefined || ordinalRaw === null || ordinalRaw === ''
+      ? undefined
+      : Number(ordinalRaw);
+  const contains = args.contains === undefined ? undefined : String(args.contains);
+  if (ordinal === undefined && !contains) {
+    throw new Error('lookup_block requires ordinal and/or contains');
+  }
+  const content = await createBookContentRepository().findByNodeId(nodeId);
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  return { nodeId, matches: findBlocks(truthJson, { ordinal, contains }) };
+}
+
+async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('remove_blocks requires nodeId');
+  const blockIds = Array.isArray(args.blockIds) ? args.blockIds.map((b) => String(b)) : [];
+  if (blockIds.length === 0) throw new Error('remove_blocks requires a non-empty blockIds array');
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yRemoveBlocks(frag, blockIds),
+      (json) => removeBlocks(json, blockIds),
+    );
+    return { ok: true, nodeId, removed: blockIds };
+  });
+}
+
+async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  const fromBlockId = String(args.fromBlockId ?? '');
+  const toBlockId = String(args.toBlockId ?? '');
+  if (!nodeId || !fromBlockId || !toBlockId) {
+    throw new Error('replace_block_range requires nodeId, fromBlockId and toBlockId');
+  }
+  const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yReplaceBlockRange(frag, fromBlockId, toBlockId, texts),
+      (json) => replaceBlockRange(json, fromBlockId, toBlockId, texts),
+    );
+    return { ok: true, nodeId, replaced: { from: fromBlockId, to: toBlockId, with: texts.length } };
+  });
+}
+
+async function insertBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const nodeId = String(args.nodeId ?? '');
+  if (!nodeId) throw new Error('insert_blocks requires nodeId');
+  const afterBlockId =
+    args.afterBlockId === undefined || args.afterBlockId === null || args.afterBlockId === ''
+      ? null
+      : String(args.afterBlockId);
+  const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
+  if (texts.length === 0) throw new Error('insert_blocks requires a non-empty blocks array');
+  return withNodeContentLock(nodeId, async () => {
+    await writeChapterProse(
+      ctx,
+      nodeId,
+      (frag) => yInsertBlocks(frag, afterBlockId, texts),
+      (json) => insertBlocks(json, afterBlockId, texts),
+    );
+    return { ok: true, nodeId, inserted: texts.length, after: afterBlockId };
   });
 }
 
@@ -901,6 +1006,14 @@ export async function runAgentTool(
       return editBlocks(ctx, args);
     case 'append_paragraph':
       return appendParagraphTool(ctx, args);
+    case 'lookup_block':
+      return lookupBlock(args);
+    case 'remove_blocks':
+      return removeBlocksTool(ctx, args);
+    case 'replace_block_range':
+      return replaceBlockRangeTool(ctx, args);
+    case 'insert_blocks':
+      return insertBlocksTool(ctx, args);
     // relationships
     case 'link_chapter_to_storyline':
       return linkChapterToStoryline(ctx, args);

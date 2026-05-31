@@ -165,7 +165,27 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       prompt: '',
       running: false,
     });
-    get().refreshList();
+    // Load history, then re-open the conversation the user last had active for
+    // this project (persisted pointer + SQLite transcript), so a reload/restart
+    // doesn't drop them into an empty "新对话".
+    void (async () => {
+      let rows: AgentConversationSummary[] = [];
+      try {
+        rows = await repo.listByProject(projectId);
+      } catch {
+        rows = [];
+      }
+      // The project may have changed again (or a conversation started) while the
+      // async list was in flight — bail rather than clobber newer state.
+      if (get().boundProjectId !== projectId) return;
+      set({ convList: rows });
+      const lastId = useSettingsStore.getState().lastAgentConvByProject[projectId];
+      // Only restore a conversation that still exists (listByProject already
+      // filters soft-deleted rows) and only if the user hasn't started one.
+      if (lastId && !get().activeConvId && rows.some((r) => r.id === lastId)) {
+        await get().loadConversation(lastId);
+      }
+    })();
   },
 
   send: async () => {
@@ -200,6 +220,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       set({ activeConvId: convId });
       get().refreshList();
     }
+    // Remember this as the project's last-active conversation so it re-opens on
+    // next launch.
+    if (s.boundProjectId && convId) {
+      useSettingsStore.getState().setLastAgentConv(s.boundProjectId, convId);
+    }
 
     set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
     const r = await api.start({
@@ -221,6 +246,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
   newConversation: () => {
     void window.electronAPI?.agent?.resetSession();
+    const pid = get().boundProjectId;
+    if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
     set({ messages: [], activeConvId: null, sdkSessionId: null, prompt: '', running: false });
   },
 
@@ -228,6 +255,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const conv = await repo.get(id);
     if (!conv) return;
     set({ messages: conv.messages, activeConvId: conv.id, sdkSessionId: conv.sdkSessionId });
+    const pid = get().boundProjectId;
+    if (pid) useSettingsStore.getState().setLastAgentConv(pid, conv.id);
   },
 
   deleteConversation: async (id) => {
@@ -237,6 +266,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       /* ignore */
     }
     if (get().activeConvId === id) {
+      const pid = get().boundProjectId;
+      if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
       set({ messages: [], activeConvId: null, sdkSessionId: null });
     }
     get().refreshList();

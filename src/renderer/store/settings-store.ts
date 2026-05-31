@@ -289,6 +289,16 @@ interface SettingsState {
   /** Replace the whole per-project map — used by cross-device preferences sync. */
   setCopilotOutputLangByProject: (map: Record<string, CopilotOutputLang>) => void;
 
+  /**
+   * Last-active Agent conversation id per project. Persisted so the Agent panel
+   * re-opens the session the user was in after a reload/restart (the transcript
+   * itself lives in SQLite agent_conversation). Cleared when a conversation is
+   * started fresh or deleted while active.
+   */
+  lastAgentConvByProject: Record<string, string>;
+  setLastAgentConv: (projectId: string, convId: string) => void;
+  clearLastAgentConv: (projectId: string) => void;
+
   // 同步
   wifiOnlySync: boolean;
   setWifiOnlySync: (on: boolean) => void;
@@ -439,6 +449,19 @@ export const useSettingsStore = create<SettingsState>()(
           },
         })),
       setCopilotOutputLangByProject: (map) => set({ copilotOutputLangByProject: map }),
+
+      lastAgentConvByProject: {},
+      setLastAgentConv: (projectId, convId) =>
+        set((state) => ({
+          lastAgentConvByProject: { ...state.lastAgentConvByProject, [projectId]: convId },
+        })),
+      clearLastAgentConv: (projectId) =>
+        set((state) => {
+          if (!(projectId in state.lastAgentConvByProject)) return {};
+          const next = { ...state.lastAgentConvByProject };
+          delete next[projectId];
+          return { lastAgentConvByProject: next };
+        }),
 
       wifiOnlySync: true,
       setWifiOnlySync: (on) => set({ wifiOnlySync: on }),

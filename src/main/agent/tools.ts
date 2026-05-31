@@ -168,7 +168,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_block',
-        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. If the chapter is open in the editor, save/close it first.',
+        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. Edits apply to the chapter live — if it is open in the editor, the change appears immediately.',
         {
           nodeId: z.string(),
           block: z.number().optional().describe('1-based block number from read_chapter'),
@@ -199,6 +199,49 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Append a new paragraph to the end of a chapter/drift node.',
         { nodeId: z.string(), text: z.string() },
         (args) => run('append_paragraph', args),
+      ),
+      tool(
+        'lookup_block',
+        "Find a prose block's stable uuid `blockId` by its 1-based number and/or a substring of its text. Use this to get the blockId needed by the structural tools below (remove_blocks / replace_block_range / insert_blocks), since read_chapter's numbers shift once blocks are added or removed. Returns matches as {blockId, block, type, snippet}.",
+        {
+          nodeId: z.string(),
+          ordinal: z.number().optional().describe('1-based block number from read_chapter'),
+          contains: z.string().optional().describe('case-insensitive substring of the block text'),
+        },
+        (args) => run('lookup_block', args),
+      ),
+      tool(
+        'remove_blocks',
+        'Delete one or more prose blocks from a chapter/drift. Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
+        {
+          nodeId: z.string(),
+          blockIds: z.array(z.string()).describe('uuid block ids to delete'),
+        },
+        (args) => run('remove_blocks', args),
+      ),
+      tool(
+        'replace_block_range',
+        'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids.',
+        {
+          nodeId: z.string(),
+          fromBlockId: z.string().describe('uuid of the first block in the range'),
+          toBlockId: z.string().describe('uuid of the last block in the range (may equal fromBlockId)'),
+          blocks: z.array(z.string()).describe('replacement paragraphs, one string each'),
+        },
+        (args) => run('replace_block_range', args),
+      ),
+      tool(
+        'insert_blocks',
+        'Insert new paragraphs into a chapter/drift after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph.',
+        {
+          nodeId: z.string(),
+          afterBlockId: z
+            .string()
+            .optional()
+            .describe('uuid of the block to insert after; omit to prepend at the start'),
+          blocks: z.array(z.string()).describe('new paragraphs, one string each'),
+        },
+        (args) => run('insert_blocks', args),
       ),
       // ---- relationships ----
       tool(
