@@ -20,6 +20,9 @@ interface RightSidebarHeaderProps {
    *  wide-screen split where each column owns one group. Omit for the normal
    *  single-column mode (renders the store's active group + the switch). */
   group?: 'content' | 'agent';
+  /** Lay ALL tabs (both groups) flat in one row, no switch — used when the
+   *  panel is wide enough to fit them without collapsing. */
+  flat?: boolean;
 }
 
 export function RightSidebarHeader({
@@ -30,6 +33,7 @@ export function RightSidebarHeader({
   shadowJustAppeared,
   hideTitleBlock,
   group,
+  flat,
 }: RightSidebarHeaderProps) {
   const storeGroup = useUiStore((state) => state.rightPanelGroup);
   const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
@@ -38,16 +42,27 @@ export function RightSidebarHeader({
   const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
   const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
   const shadowMode = useUiStore((state) => state.shadowMode);
-  // `group` (split columns) pins the rendered group and hides the switch;
-  // otherwise follow the store's active group and show the switch.
+  // Render modes:
+  //  - flat: show ALL tabs (both groups) in one row, no switch (wide panel).
+  //  - column: `group` pins one group, no switch (split layout).
+  //  - single: the store's active group + the switch (narrow panel).
   const renderGroup = group ?? storeGroup;
-  const showSwitch = group == null;
-  // Sliding pill — keyed on the active tab of the rendered group.
-  const activeId = renderGroup === 'content' ? activeRightPanel : activeAgentPanel;
+  const showSwitch = !flat && group == null;
+  const activeOf = (g: 'content' | 'agent') =>
+    g === 'content' ? activeRightPanel : activeAgentPanel;
+  // In flat mode the one active tab is (storeGroup, that group's active);
+  // otherwise it's the rendered group's active tab.
+  const isActive = (g: 'content' | 'agent', id: string) =>
+    flat ? storeGroup === g && activeOf(g) === id : activeOf(renderGroup) === id;
+  const onSelect = (g: 'content' | 'agent', id: string) => {
+    if (g === 'content') setActiveRightPanel(id as 'todo' | 'library' | 'stats');
+    else setActiveAgentPanel(id as 'companion' | 'shadow');
+  };
+  const indicatorKey = flat ? `${storeGroup}:${activeOf(storeGroup)}` : activeOf(renderGroup);
   const [trayRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
-    activeId,
+    indicatorKey,
     '.app-panel-tab.is-active',
-    [shadowMode, renderGroup],
+    [shadowMode, flat, storeGroup, renderGroup],
   );
   // 两级折叠阈值（基于 tray 实际宽度，不是 sidebar 宽度）：
   // - shadowGlyphOnly：shadow 模式下，三等分让 "◐ SHADOW 0" 放不下时只剩 ◐
@@ -108,12 +123,12 @@ export function RightSidebarHeader({
           }}
         >
           <div className="tab-indicator" style={indicatorStyle} />
-          {renderGroup === 'content' ? (
+          {(flat || renderGroup === 'content') && (
             <>
               <RightPanelTab
                 id="todo"
-                active={activeRightPanel === 'todo'}
-                onClick={() => setActiveRightPanel('todo')}
+                active={isActive('content', 'todo')}
+                onClick={() => onSelect('content', 'todo')}
               >
                 <span
                   style={
@@ -129,25 +144,26 @@ export function RightSidebarHeader({
               </RightPanelTab>
               <RightPanelTab
                 id="library"
-                active={activeRightPanel === 'library'}
-                onClick={() => setActiveRightPanel('library')}
+                active={isActive('content', 'library')}
+                onClick={() => onSelect('content', 'library')}
               >
                 <span>{compactLabels ? 'LIB' : '素材库'}</span>
               </RightPanelTab>
               <RightPanelTab
                 id="stats"
-                active={activeRightPanel === 'stats'}
-                onClick={() => setActiveRightPanel('stats')}
+                active={isActive('content', 'stats')}
+                onClick={() => onSelect('content', 'stats')}
               >
                 <span>{compactLabels ? 'SS' : 'Stats'}</span>
               </RightPanelTab>
             </>
-          ) : (
+          )}
+          {(flat || renderGroup === 'agent') && (
             <>
               <RightPanelTab
                 id="companion"
-                active={activeAgentPanel === 'companion'}
-                onClick={() => setActiveAgentPanel('companion')}
+                active={isActive('agent', 'companion')}
+                onClick={() => onSelect('agent', 'companion')}
               >
                 <span>{compactLabels ? 'AI' : 'Companion'}</span>
               </RightPanelTab>
@@ -155,8 +171,8 @@ export function RightSidebarHeader({
                 <RightPanelTab
                   id="shadow"
                   accent
-                  active={activeAgentPanel === 'shadow'}
-                  onClick={() => setActiveAgentPanel('shadow')}
+                  active={isActive('agent', 'shadow')}
+                  onClick={() => onSelect('agent', 'shadow')}
                   extraStyle={
                     shadowJustAppeared
                       ? { animation: 'insp-shadow-tab-pulse 1.4s ease-in-out 3' }

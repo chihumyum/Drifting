@@ -570,10 +570,13 @@ export const useUiStore = create<UiState>()(
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
       rightPanelGroup: 'content',
       setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
+      // Selecting a tab also marks its group current — so in flat mode (all
+      // tabs in one row) the single active tab is well-defined, and collapsing
+      // back to the switch lands on the group you last touched.
       activeRightPanel: 'library',
-      setActiveRightPanel: (panel) => set({ activeRightPanel: panel }),
+      setActiveRightPanel: (panel) => set({ activeRightPanel: panel, rightPanelGroup: 'content' }),
       activeAgentPanel: 'companion',
-      setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel }),
+      setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel, rightPanelGroup: 'agent' }),
 
       shadowMode: false,
       setShadowMode: (active) =>

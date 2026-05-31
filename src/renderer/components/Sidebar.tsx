@@ -25,6 +25,10 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
   const setResizingSidebar = useUiStore((state) => state.setResizingSidebar);
   const [isResizing, setIsResizing] = useState(false);
+  // Hover state for the resize handle so we can paint a visible cue — an
+  // invisible strip is hard to locate, especially when the window moves to a
+  // lower-DPI display where the same CSS width is physically smaller.
+  const [handleHover, setHandleHover] = useState(false);
 
   // Keep children mounted for the duration of the collapse animation so the
   // panel actually appears to slide out — without this they'd unmount the
@@ -47,7 +51,7 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
       let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
       // 对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）。
       const minWidth = 140;
-      // Right sidebar gets a wider cap so it can reach the ~850px split
+      // Right sidebar gets a wider cap so it can reach the ~768px split
       // threshold (two columns) on roomy screens; left stays at 30%.
       const maxWidth = window.innerWidth * (sidebarType === 'right' ? 0.6 : 0.3);
 
@@ -178,6 +182,8 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             setIsResizing(true);
             setResizingSidebar(sidebarType);
           }}
+          onMouseEnter={() => setHandleHover(true)}
+          onMouseLeave={() => setHandleHover(false)}
           style={{
             position: 'absolute',
             top: 0,
@@ -189,15 +195,19 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
             // classic loses nothing visible (handle was transparent).
             right: sidebarType === 'left' ? 0 : 'auto',
             left: sidebarType === 'right' ? 0 : 'auto',
-            // Hit zone (transparent). Widened from 6→12 for an easier grab; it
-            // extends inward from the inside edge (root is overflow:hidden, so
-            // it can't straddle outward — the modern skin's 6px gutter adds a
-            // little more reachable area on the outside).
-            width: 12,
+            // Hit zone (transparent until hovered). Widened to 16 for an easier
+            // grab — it extends inward from the inside edge (root is
+            // overflow:hidden, so it can't straddle outward; the modern skin's
+            // 6px gutter adds a little reachable area on the outside).
+            width: 16,
             height: '100%',
             cursor: 'col-resize',
             zIndex: 10,
-            // background: 'rgba(0,0,0,0.1)', // debug
+            // A faint accent fill on hover / during drag makes the otherwise
+            // invisible handle locatable on any display.
+            background:
+              handleHover || isResizing ? 'hsl(var(--accent) / 0.18)' : 'transparent',
+            transition: 'background 0.12s',
           }}
         />
       )}
