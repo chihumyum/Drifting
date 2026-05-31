@@ -26,6 +26,7 @@ import {
 import { useAgentChatStore } from '../../store/agent-chat-store';
 import { events } from '../../lib/events';
 import type { AgentChatMessage as ChatMsg } from '../../domain/agent-conversation';
+import '../../../styles/agent-panel.css';
 
 interface AuthStatus {
   byokConnected: boolean;
@@ -115,6 +116,53 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
       </summary>
       <div style={thinkingBody}>{msg.text}</div>
     </details>
+  );
+}
+
+/** A select-style chip that opens an upward popover to pick one option. */
+function ParamChip({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onPick: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value);
+  return (
+    <div className="agt-pop">
+      <button type="button" className="agt-chip" onClick={() => setOpen((o) => !o)}>
+        <span className="agt-chip__key">{label}</span>
+        <span className="agt-chip__val">{current?.label ?? value}</span>
+        <span className="agt-chip__caret">▾</span>
+      </button>
+      {open && (
+        <>
+          <div className="agt-pop__backdrop" onClick={() => setOpen(false)} />
+          <div className="agt-menu" role="listbox">
+            {options.map((o) => (
+              <div
+                key={o.value}
+                role="option"
+                aria-selected={o.value === value}
+                className={'agt-menu__item' + (o.value === value ? ' agt-menu__item--active' : '')}
+                onClick={() => {
+                  onPick(o.value);
+                  setOpen(false);
+                }}
+              >
+                <span>{o.label}</span>
+                {o.value === value && <span className="agt-menu__check">●</span>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -365,40 +413,29 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           style={textareaStyle}
         />
         <div style={inputControls}>
-          <div style={paramsBar}>
-            <select
+          <div className="agt-params">
+            <ParamChip
+              label="模型"
               value={agentModel}
-              onChange={(e) => setAgentModel(e.target.value)}
-              style={paramSelect}
-              title="模型"
-            >
-              {AGENT_MODEL_OPTIONS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.short}
-                </option>
-              ))}
-            </select>
+              options={AGENT_MODEL_OPTIONS.map((m) => ({ value: m.value, label: m.short }))}
+              onPick={setAgentModel}
+            />
             <button
               type="button"
-              style={{ ...thinkChip, ...(agentThinking === 'adaptive' ? thinkChipOn : null) }}
+              className={'agt-think' + (agentThinking === 'adaptive' ? ' agt-think--on' : '')}
               onClick={() => setAgentThinking(agentThinking === 'adaptive' ? 'off' : 'adaptive')}
               title={agentThinking === 'adaptive' ? '扩展思考:开' : '扩展思考:关'}
             >
-              💭 思考{agentThinking === 'adaptive' ? '' : ' 关'}
+              💭 思考
             </button>
-            <select
-              value={agentEffort}
-              onChange={(e) => setAgentEffort(e.target.value as AgentEffort)}
-              style={paramSelect}
-              disabled={agentThinking === 'off'}
-              title="思考强度"
-            >
-              {AGENT_EFFORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.short}
-                </option>
-              ))}
-            </select>
+            {agentThinking === 'adaptive' && (
+              <ParamChip
+                label="强度"
+                value={agentEffort}
+                options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.short }))}
+                onPick={(v) => setAgentEffort(v as AgentEffort)}
+              />
+            )}
           </div>
           <div style={{ flex: 1 }} />
           {running ? (
@@ -660,42 +697,6 @@ const inputControls: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-};
-
-const paramsBar: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  flexWrap: 'wrap',
-  minWidth: 0,
-};
-
-const paramSelect: React.CSSProperties = {
-  background: 'hsl(var(--page))',
-  color: 'inherit',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 6,
-  fontSize: 11,
-  padding: '3px 4px',
-  fontFamily: 'inherit',
-  cursor: 'pointer',
-};
-
-const thinkChip: React.CSSProperties = {
-  background: 'transparent',
-  color: 'inherit',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 6,
-  fontSize: 11,
-  padding: '3px 8px',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-};
-
-const thinkChipOn: React.CSSProperties = {
-  background: 'hsl(var(--accent) / 0.16)',
-  border: '1px solid hsl(var(--accent) / 0.45)',
-  color: 'hsl(var(--accent))',
 };
 
 const primaryBtn: React.CSSProperties = {
