@@ -25,11 +25,13 @@ export function getStoredTokens(): ClaudeTokens | null {
   }
 }
 
-export function setStoredTokens(tokens: ClaudeTokens): void {
+export function setStoredTokens(tokens: ClaudeTokens): boolean {
   try {
     entry().setPassword(JSON.stringify(tokens));
+    return true;
   } catch (err) {
     console.error('[agent] failed to persist Claude tokens', err);
+    return false;
   }
 }
 

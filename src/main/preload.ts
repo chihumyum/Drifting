@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     authLogout: () => ipcRenderer.invoke('agent:auth-logout'),
     start: (input: AgentStartInput) => ipcRenderer.invoke('agent:start', input),
     abort: () => ipcRenderer.invoke('agent:abort'),
+    resetSession: () => ipcRenderer.invoke('agent:reset-session'),
     onEvent: (callback: (event: AgentEvent) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, event: AgentEvent) => callback(event);
       ipcRenderer.on('agent:event', handler);
@@ -164,6 +165,7 @@ export interface ElectronAPI {
       input: AgentStartInput,
     ) => Promise<{ ok: true } | { ok: false; error: string }>;
     abort: () => Promise<{ ok: true }>;
+    resetSession: () => Promise<{ ok: true }>;
     onEvent: (callback: (event: AgentEvent) => void) => () => void;
     onToolExec: (callback: (req: ToolExecRequest) => void) => () => void;
     sendToolResult: (result: ToolExecResult) => void;

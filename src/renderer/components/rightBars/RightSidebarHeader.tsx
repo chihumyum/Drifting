@@ -165,7 +165,7 @@ export function RightSidebarHeader({
                 active={isActive('agent', 'companion')}
                 onClick={() => onSelect('agent', 'companion')}
               >
-                <span>{compactLabels ? 'AI' : 'Companion'}</span>
+                <span>{compactLabels ? 'AI' : 'Agent'}</span>
               </RightPanelTab>
               {shadowMode && (
                 <RightPanelTab

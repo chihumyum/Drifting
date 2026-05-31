@@ -45,6 +45,8 @@ export interface AgentStartInput {
   projectId?: string;
   /** Which credentials to use. Defaults to BYOK (the user's Claude OAuth). */
   mode?: AgentMode;
+  /** Start a fresh conversation (drop the resumed session). */
+  newConversation?: boolean;
 }
 
 /** Resolve the subprocess env for the chosen mode, or an error to surface. */
@@ -67,6 +69,9 @@ async function resolveAuthEnv(
 
 let activeQuery: Query | null = null;
 let activeAbort: AbortController | null = null;
+// The SDK session of the current conversation, captured from the stream and
+// resumed on the next turn so the chat has continuity. Cleared on "new chat".
+let currentSessionId: string | null = null;
 
 function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
   const blocks = msg.message?.content;
@@ -126,13 +131,24 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
     async (_e, code: string): Promise<{ ok: true } | { ok: false; error: string }> => {
       try {
         const tokens = await exchangeClaudeCode(code);
-        setStoredTokens(tokens);
+        const saved = setStoredTokens(tokens);
+        if (!saved || !isAuthenticated()) {
+          return {
+            ok: false,
+            error: '已获取授权，但凭据未能写入系统钥匙串（请检查 keychain 访问权限）。',
+          };
+        }
         return { ok: true };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     },
   );
+
+  ipcMain.handle('agent:reset-session', (): { ok: true } => {
+    currentSessionId = null;
+    return { ok: true };
+  });
 
   ipcMain.handle(
     'agent:auth-status',
@@ -170,12 +186,16 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
       ensureClaudeConfig();
 
+      if (input.newConversation) currentSessionId = null;
+
       const driftingServer = await createDriftingMcpServer(getWindow);
       const abortController = new AbortController();
       activeAbort = abortController;
 
       const options: Options = {
         abortController,
+        // Continue the current conversation across turns; cleared on "new chat".
+        ...(currentSessionId ? { resume: currentSessionId } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
           'Inspect the project with: list_project_structure (call this FIRST to discover ids), ' +
@@ -203,6 +223,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         activeQuery = q;
         for await (const msg of q) {
           if (activeQuery !== q) break; // superseded/aborted
+          const sid = (msg as { session_id?: string }).session_id;
+          if (typeof sid === 'string' && sid) currentSessionId = sid;
           const event = normalize(msg);
           if (event) emit(event);
         }

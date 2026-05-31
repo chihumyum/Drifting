@@ -1,14 +1,18 @@
 /**
- * Companion — the interactive Claude agent, rendered inside the right sidebar's
- * "agent" tab group (replaces the old floating overlay). Two credential modes:
- *  - BYOK   — your own Claude subscription (OAuth; talks to Anthropic directly).
- *  - Hosted — our metered subscription via the server proxy (uses your login).
- * Both share the same tools / event stream / chat UI.
+ * Agent panel — the interactive Claude agent, rendered in the right sidebar's
+ * "agent" tab group. Styled after the VS Code Claude Code plugin: a chat with
+ * a "new conversation" action; conversation continuity is kept across turns by
+ * the main process (resume), and "新对话" starts fresh.
+ *
+ * Credential mode (BYOK vs Hosted) is chosen in Settings (store.agentMode), NOT
+ * here. If the agent isn't set up for the chosen mode, we show a connect /
+ * subscribe hint instead of the chat.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useUiStore } from '../../store/ui-store';
+import { events } from '../../lib/events';
 import type { AgentEvent } from '../../../main/agent';
 
-type Mode = 'byok' | 'hosted';
 interface AuthStatus {
   byokConnected: boolean;
   hostedAvailable: boolean;
@@ -33,14 +37,16 @@ function formatEvent(ev: AgentEvent): string {
 
 export function CompanionPanel() {
   const api = window.electronAPI?.agent;
+  const agentMode = useUiStore((s) => s.agentMode);
 
-  const [mode, setMode] = useState<Mode>('byok');
   const [status, setStatus] = useState<AuthStatus | null>(null);
-  const [awaitingCode, setAwaitingCode] = useState(false);
-  const [code, setCode] = useState('');
   const [prompt, setPrompt] = useState('');
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  // BYOK connect flow (only shown in the not-connected state).
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const refreshStatus = useCallback(() => {
@@ -68,8 +74,32 @@ export function CompanionPanel() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [log]);
 
+  const send = useCallback(async () => {
+    if (!api || !prompt.trim() || running) return;
+    const text = prompt.trim();
+    setLog((prev) => [...prev, `> ${text}`]);
+    setPrompt('');
+    setRunning(true);
+    const r = await api.start({ prompt: text, mode: agentMode });
+    if (!r.ok) {
+      setLog((prev) => [...prev, `✗ ${r.error}`]);
+      setRunning(false);
+    }
+  }, [api, prompt, running, agentMode]);
+
+  const abort = useCallback(() => {
+    void api?.abort();
+  }, [api]);
+
+  const newConversation = useCallback(async () => {
+    await api?.resetSession();
+    setLog([]);
+  }, [api]);
+
+  // ---- BYOK connect flow ----
   const connect = useCallback(async () => {
     if (!api) return;
+    setAuthError(null);
     await api.authPrepare();
     setAwaitingCode(true);
   }, [api]);
@@ -80,141 +110,135 @@ export function CompanionPanel() {
     if (r.ok) {
       setAwaitingCode(false);
       setCode('');
+      setAuthError(null);
       refreshStatus();
     } else {
-      setLog((prev) => [...prev, `✗ auth: ${r.error}`]);
+      setAuthError(r.error);
     }
   }, [api, code, refreshStatus]);
 
-  const logout = useCallback(async () => {
-    await api?.authLogout();
-    refreshStatus();
-  }, [api, refreshStatus]);
-
-  const send = useCallback(async () => {
-    if (!api || !prompt.trim() || running) return;
-    const text = prompt.trim();
-    setLog((prev) => [...prev, `> ${text}`]);
-    setPrompt('');
-    setRunning(true);
-    const r = await api.start({ prompt: text, mode });
-    if (!r.ok) {
-      setLog((prev) => [...prev, `✗ ${r.error}`]);
-      setRunning(false);
-    }
-  }, [api, prompt, running, mode]);
-
-  const abort = useCallback(() => {
-    void api?.abort();
-  }, [api]);
+  const openExternal = (url: string) => void window.electronAPI?.material?.openExternal(url);
 
   if (!api) {
-    return <div style={{ padding: 16, fontSize: 12, opacity: 0.6 }}>Agent 不可用。</div>;
+    return <div style={hintBox}>Agent 不可用。</div>;
+  }
+  if (status === null) {
+    return <div style={hintBox}>Checking…</div>;
   }
 
+  const usable = agentMode === 'byok' ? status.byokConnected : status.hostedAvailable;
+
+  // ---- Not set up: connect (BYOK) or subscribe (Hosted) ----
+  if (!usable) {
+    if (agentMode === 'hosted') {
+      return (
+        <div style={hintBox}>
+          <div style={hintTitle}>托管 Agent 未就绪</div>
+          <div style={hintText}>使用托管订阅的 Agent 需要先登录并订阅 Drifting。</div>
+          <button type="button" style={primaryBtn} onClick={() => events.emit('settings:open', {})}>
+            打开设置 / 订阅
+          </button>
+        </div>
+      );
+    }
+    // BYOK
+    return (
+      <div style={hintBox}>
+        <div style={hintTitle}>连接 Claude 账号</div>
+        {!awaitingCode ? (
+          <>
+            <div style={hintText}>
+              用你自己的 Claude 账号(Max/Pro)。点击后会打开浏览器授权,把页面上的 code 粘回来。
+            </div>
+            <button type="button" style={primaryBtn} onClick={connect}>
+              连接 Claude
+            </button>
+            <button
+              type="button"
+              style={linkBtn}
+              onClick={() => openExternal('https://claude.ai/upgrade')}
+            >
+              还没有 Claude 订阅?去订阅
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={hintText}>粘贴授权 code:</div>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="authorization code"
+              style={inputStyle}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" style={primaryBtn} onClick={submitCode}>
+                提交
+              </button>
+              <button
+                type="button"
+                style={ghostBtn}
+                onClick={() => {
+                  setAwaitingCode(false);
+                  setAuthError(null);
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </>
+        )}
+        {authError && <div style={errorText}>{authError}</div>}
+      </div>
+    );
+  }
+
+  // ---- Chat ----
   return (
     <div style={fillStyle}>
-      {/* Mode toggle */}
-      <div style={{ display: 'flex', gap: 4, padding: '10px 12px 6px' }}>
-        {(['byok', 'hosted'] as Mode[]).map((m) => (
-          <button key={m} type="button" onClick={() => setMode(m)} style={mode === m ? segActive : segIdle}>
-            {m === 'byok' ? 'BYOK (Claude)' : '托管订阅'}
-          </button>
-        ))}
+      <div style={toolbar}>
+        <span style={{ fontSize: 11, opacity: 0.6 }}>
+          {agentMode === 'byok' ? '你的 Claude 订阅' : '托管 · 计量'}
+        </span>
+        <button type="button" style={ghostBtn} onClick={newConversation} title="开始新对话">
+          ＋ 新对话
+        </button>
       </div>
-
-      {status === null ? (
-        <div style={{ padding: 12, fontSize: 12 }}>Checking…</div>
-      ) : mode === 'byok' && !status.byokConnected ? (
-        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {!awaitingCode ? (
-            <>
-              <div style={{ fontSize: 12, opacity: 0.8, lineHeight: 1.5 }}>
-                用你自己的 Claude 账号(Max/Pro)。会打开浏览器授权,然后把页面上的 code 粘回来。
-              </div>
-              <button type="button" onClick={connect} style={btnStyle}>
-                Connect Claude
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>粘贴授权 code:</div>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="authorization code"
-                style={inputStyle}
-              />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" onClick={submitCode} style={btnStyle}>
-                  Submit
-                </button>
-                <button type="button" onClick={() => setAwaitingCode(false)} style={smallBtn}>
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      ) : mode === 'hosted' && !status.hostedAvailable ? (
-        <div style={{ padding: 12, fontSize: 12, opacity: 0.8, lineHeight: 1.5 }}>
-          托管订阅需要先登录 Drifting 账号。请登录后重试。
-        </div>
-      ) : (
-        <>
-          <div
-            style={{
-              padding: '4px 12px 0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 11,
-              opacity: 0.6,
-            }}
-          >
-            <span>{mode === 'byok' ? '直连 Anthropic(你的订阅)' : '经服务器计量(托管)'}</span>
-            {mode === 'byok' && status.byokConnected && (
-              <button type="button" onClick={logout} style={{ ...smallBtn, padding: '0 6px' }}>
-                断开
-              </button>
-            )}
-          </div>
-          <div ref={logRef} style={logStyle}>
-            {log.length === 0 ? (
-              <div style={{ opacity: 0.5 }}>给 agent 发条消息开始。</div>
-            ) : (
-              log.map((line, i) => (
-                <div key={i} style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>
-                  {line}
-                </div>
-              ))
-            )}
-          </div>
-          <div style={{ padding: 10, display: 'flex', gap: 6, alignItems: 'flex-end', borderTop: '1px solid hsl(var(--rule))' }}>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
-              rows={2}
-              style={{ ...inputStyle, flex: 1, resize: 'none' }}
-            />
-            {running ? (
-              <button type="button" onClick={abort} style={btnStyle}>
-                Stop
-              </button>
-            ) : (
-              <button type="button" onClick={send} style={btnStyle}>
-                Send
-              </button>
-            )}
-          </div>
-        </>
-      )}
+      <div ref={logRef} style={logStyle}>
+        {log.length === 0 ? (
+          <div style={{ opacity: 0.5 }}>给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。</div>
+        ) : (
+          log.map((line, i) => (
+            <div key={i} style={{ whiteSpace: 'pre-wrap', marginBottom: 4 }}>
+              {line}
+            </div>
+          ))
+        )}
+      </div>
+      <div style={inputRow}>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
+          rows={2}
+          style={{ ...inputStyle, flex: 1, resize: 'none' }}
+        />
+        {running ? (
+          <button type="button" style={primaryBtn} onClick={abort}>
+            Stop
+          </button>
+        ) : (
+          <button type="button" style={primaryBtn} onClick={() => void send()}>
+            Send
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -227,6 +251,15 @@ const fillStyle: React.CSSProperties = {
   color: 'hsl(var(--ink-1))',
 };
 
+const toolbar: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '6px 10px',
+  borderBottom: '1px solid hsl(var(--rule))',
+  flexShrink: 0,
+};
+
 const logStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
@@ -234,6 +267,14 @@ const logStyle: React.CSSProperties = {
   fontSize: 12.5,
   lineHeight: 1.55,
   minHeight: 120,
+};
+
+const inputRow: React.CSSProperties = {
+  padding: 10,
+  display: 'flex',
+  gap: 6,
+  alignItems: 'flex-end',
+  borderTop: '1px solid hsl(var(--rule))',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -246,7 +287,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 };
 
-const btnStyle: React.CSSProperties = {
+const primaryBtn: React.CSSProperties = {
   background: 'hsl(var(--accent))',
   color: 'white',
   border: 'none',
@@ -257,30 +298,50 @@ const btnStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const smallBtn: React.CSSProperties = {
+const ghostBtn: React.CSSProperties = {
   background: 'transparent',
   color: 'inherit',
   border: '1px solid hsl(var(--rule))',
   borderRadius: 6,
-  padding: '2px 8px',
+  padding: '4px 10px',
   fontSize: 12,
   cursor: 'pointer',
+  whiteSpace: 'nowrap',
 };
 
-const segIdle: React.CSSProperties = {
-  flex: 1,
-  background: 'hsl(var(--paper-deep))',
-  color: 'hsl(var(--ink-4))',
-  border: '1px solid hsl(var(--rule))',
-  borderRadius: 6,
-  padding: '4px 8px',
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const segActive: React.CSSProperties = {
-  ...segIdle,
+const linkBtn: React.CSSProperties = {
+  background: 'transparent',
   color: 'hsl(var(--accent))',
-  borderColor: 'hsl(var(--accent))',
+  border: 'none',
+  padding: 0,
+  fontSize: 11,
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+
+const hintBox: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  padding: 16,
+  fontSize: 12,
+};
+
+const hintTitle: React.CSSProperties = {
+  fontSize: 14,
   fontWeight: 600,
+  color: 'hsl(var(--ink-1))',
+};
+
+const hintText: React.CSSProperties = {
+  fontSize: 12,
+  opacity: 0.8,
+  lineHeight: 1.6,
+};
+
+const errorText: React.CSSProperties = {
+  fontSize: 11.5,
+  color: 'hsl(var(--danger, 0 70% 50%))',
+  lineHeight: 1.5,
+  whiteSpace: 'pre-wrap',
 };
