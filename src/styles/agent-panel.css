@@ -37,6 +37,15 @@
 .agt-composer__text::placeholder {
   color: hsl(var(--ink-4));
 }
+/* The composer signals focus via its own :focus-within border. Suppress the
+   global modern-skin form focus ring (index.css adds a 3px box-shadow to
+   textarea:focus-visible) so it doesn't draw a sharp rectangle inside the
+   rounded box. Selector is specific enough (class·class·pseudo) to win. */
+.agt-composer .agt-composer__text:focus,
+.agt-composer .agt-composer__text:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 /* The hairline that separates the text from the controls. */
 .agt-composer__bar {
   display: flex;
