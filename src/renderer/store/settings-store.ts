@@ -16,12 +16,45 @@ export type CopilotMode = 'local' | 'cloud';
  *              the server calls the provider with it. Never persisted server-side.
  */
 export type AiMode = 'hosted' | 'byok';
-/** General-Agent (Claude Agent SDK) model choice. 'default' = let the SDK pick. */
-export type AgentModel = 'default' | 'opus' | 'sonnet' | 'haiku';
-/** Reasoning effort passed to the SDK (`high` is the SDK default). */
-export type AgentEffort = 'low' | 'medium' | 'high';
+/**
+ * General-Agent (Claude Agent SDK) model. The SDK's `model` is a free string:
+ * a tier alias ('opus'/'sonnet'/'haiku', resolves to the latest of that tier),
+ * a pinned full model id ('claude-opus-4-8', …), or 'default' = inherit the
+ * CLI/subscription default (we omit the field). See AGENT_MODEL_OPTIONS.
+ */
+export type AgentModel = string;
+/**
+ * Reasoning effort passed to the SDK. Full range per the TS SDK docs
+ * (low|medium|high|xhigh|max); 'high' is the default. xhigh/max are only
+ * supported by some Opus versions — the SDK falls back / errors otherwise.
+ */
+export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
+
+/**
+ * The model picker's catalog (shared by Settings and the input-bar switcher).
+ * `short` is the compact label for the narrow in-panel picker. Tier aliases
+ * track the latest of each family; pinned ids name an exact version.
+ */
+export const AGENT_MODEL_OPTIONS: { value: string; label: string; short: string }[] = [
+  { value: 'default', label: '默认 · 跟随订阅 / CLI', short: '默认' },
+  { value: 'opus', label: 'Opus · 跟随最新', short: 'Opus' },
+  { value: 'sonnet', label: 'Sonnet · 跟随最新', short: 'Sonnet' },
+  { value: 'haiku', label: 'Haiku · 跟随最新', short: 'Haiku' },
+  { value: 'claude-opus-4-8', label: 'Claude Opus 4.8', short: 'Opus 4.8' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
+];
+
+/** Effort levels for the pickers, with compact labels. */
+export const AGENT_EFFORT_OPTIONS: { value: AgentEffort; label: string; short: string }[] = [
+  { value: 'low', label: 'Low', short: 'Low' },
+  { value: 'medium', label: 'Medium', short: 'Med' },
+  { value: 'high', label: 'High', short: 'High' },
+  { value: 'xhigh', label: 'X-High', short: 'XHigh' },
+  { value: 'max', label: 'Max', short: 'Max' },
+];
 export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 /** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';

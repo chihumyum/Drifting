@@ -244,12 +244,12 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
       if (v === 'hosted' || v === 'byok') store.setAgentMode(v);
     },
     agentModel: (v) => {
-      if (v === 'default' || v === 'opus' || v === 'sonnet' || v === 'haiku') {
-        store.setAgentModel(v);
-      }
+      if (typeof v === 'string' && v) store.setAgentModel(v);
     },
     agentEffort: (v) => {
-      if (v === 'low' || v === 'medium' || v === 'high') store.setAgentEffort(v);
+      if (v === 'low' || v === 'medium' || v === 'high' || v === 'xhigh' || v === 'max') {
+        store.setAgentEffort(v);
+      }
     },
     agentThinking: (v) => {
       if (v === 'adaptive' || v === 'off') store.setAgentThinking(v);

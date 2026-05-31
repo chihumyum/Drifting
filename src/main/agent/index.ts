@@ -49,9 +49,14 @@ export type AgentEvent =
   | { type: 'done' };
 
 export type AgentMode = 'byok' | 'hosted';
-/** Generation params surfaced from settings; mirror the SDK Options. */
-export type AgentModelChoice = 'default' | 'opus' | 'sonnet' | 'haiku';
-export type AgentEffortChoice = 'low' | 'medium' | 'high';
+/**
+ * Generation params surfaced from settings; mirror the SDK Options.
+ *  - model: free string per the SDK — tier alias ('opus'/'sonnet'/'haiku'),
+ *    pinned id ('claude-opus-4-8', …), or 'default' (omit → CLI default).
+ *  - effort: full EffortLevel range (xhigh/max are Opus-only; SDK handles it).
+ */
+export type AgentModelChoice = string;
+export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgentThinkingChoice = 'adaptive' | 'off';
 
 export interface AgentStartInput {
@@ -63,7 +68,7 @@ export interface AgentStartInput {
   newConversation?: boolean;
   /** SDK session id to resume (continuity within a conversation). */
   resume?: string;
-  /** Model alias; 'default'/undefined lets the SDK pick. */
+  /** Model alias or full id; 'default'/undefined lets the SDK pick. */
   model?: AgentModelChoice;
   /** Reasoning effort (SDK default is 'high'). */
   effort?: AgentEffortChoice;

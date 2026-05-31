@@ -17,7 +17,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
-import { useSettingsStore, type AgentModel, type AgentEffort } from '../../store/settings-store';
+import {
+  useSettingsStore,
+  type AgentEffort,
+  AGENT_MODEL_OPTIONS,
+  AGENT_EFFORT_OPTIONS,
+} from '../../store/settings-store';
 import { useAgentChatStore } from '../../store/agent-chat-store';
 import { events } from '../../lib/events';
 import type { AgentChatMessage as ChatMsg } from '../../domain/agent-conversation';
@@ -363,14 +368,15 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           <div style={paramsBar}>
             <select
               value={agentModel}
-              onChange={(e) => setAgentModel(e.target.value as AgentModel)}
+              onChange={(e) => setAgentModel(e.target.value)}
               style={paramSelect}
               title="模型"
             >
-              <option value="default">默认</option>
-              <option value="opus">Opus</option>
-              <option value="sonnet">Sonnet</option>
-              <option value="haiku">Haiku</option>
+              {AGENT_MODEL_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.short}
+                </option>
+              ))}
             </select>
             <button
               type="button"
@@ -387,9 +393,11 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               disabled={agentThinking === 'off'}
               title="思考强度"
             >
-              <option value="low">Low</option>
-              <option value="medium">Med</option>
-              <option value="high">High</option>
+              {AGENT_EFFORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.short}
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ flex: 1 }} />

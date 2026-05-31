@@ -20,8 +20,9 @@ import {
   type EditPermission,
   type FinishNotify,
   type AiMode,
-  type AgentModel,
   type AgentEffort,
+  AGENT_MODEL_OPTIONS,
+  AGENT_EFFORT_OPTIONS,
   type FocusLineMode,
   type LineHeight,
   type LocaleCode,
@@ -1720,13 +1721,6 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
     },
   ];
 
-  const agentModelOpts: { value: AgentModel; kicker: string; name: string; desc: string }[] = [
-    { value: 'default', kicker: 'AUTO', name: '默认', desc: '由订阅 / SDK 自动选择，最省心。' },
-    { value: 'opus', kicker: 'OPUS', name: 'Opus', desc: '最强推理。长任务、复杂改写。慢、贵。' },
-    { value: 'sonnet', kicker: 'SONNET', name: 'Sonnet', desc: '均衡。日常对话与编辑的默认之选。' },
-    { value: 'haiku', kicker: 'HAIKU', name: 'Haiku', desc: '最快最省。简单问答、批量小操作。' },
-  ];
-
   return (
     <section className="set-panel" ref={registerRef} id="models">
       <PanelHead
@@ -1872,19 +1866,24 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
 
       <div className="set-sec">
         <SecHead title="模型" hint="MODEL" />
-        <div className="set-tiers">
-          {agentModelOpts.map((m) => (
-            <button
-              key={m.value}
-              className={'set-tier' + (agentModel === m.value ? ' set-tier--active' : '')}
-              onClick={() => setAgentModel(m.value)}
+        <Row
+          label="对话模型"
+          desc="「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给订阅 / CLI。"
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 220 }}
+              value={agentModel}
+              onChange={(e) => setAgentModel(e.target.value)}
             >
-              <div className="set-tier__kicker">{m.kicker}</div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
-            </button>
-          ))}
-        </div>
+              {AGENT_MODEL_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
       </div>
 
       <div className="set-sec">
@@ -1901,15 +1900,11 @@ function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
         />
         <Row
           label="思考强度"
-          desc="思考开启时生效。high 推理最深（默认），low 最快。"
+          desc="思考开启时生效。high 推理最深（默认），low 最快；xhigh / max 仅部分 Opus 版本支持。"
           control={
             <Seg<AgentEffort>
               value={agentEffort}
-              options={[
-                { value: 'low', label: 'Low' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'high', label: 'High' },
-              ]}
+              options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
               onChange={setAgentEffort}
             />
           }
