@@ -1,10 +1,9 @@
 interface MainTopBarProps {
   children?: React.ReactNode;
   leftContent?: React.ReactNode;
-  rightContent?: React.ReactNode;
 }
 
-export function MainTopBar({ children, leftContent, rightContent }: MainTopBarProps) {
+export function MainTopBar({ children, leftContent }: MainTopBarProps) {
   const isMac = navigator.userAgent.includes('Mac');
 
   if (!isMac) {
@@ -55,18 +54,6 @@ export function MainTopBar({ children, leftContent, rightContent }: MainTopBarPr
         }}
       >
         {children}
-      </div>
-
-      {/* Right content */}
-      <div
-        style={{
-          pointerEvents: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          WebkitAppRegion: 'no-drag',
-        }}
-      >
-        {rightContent}
       </div>
     </div>
   );

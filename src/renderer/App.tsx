@@ -188,9 +188,6 @@ function Layout() {
     throw new Error('User must be authenticated');
   }
   const isEditorRoute = location.pathname.includes('/editor');
-  const isProjectDashboardHome = Boolean(
-    projectId && location.pathname === `/project/${projectId}/home`,
-  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTargetRail, setSettingsTargetRail] = useState<string | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -736,7 +733,7 @@ function Layout() {
       }}
     >
       {/* 2. 中间主要区域：水平排列 (侧边栏 + 主内容) */}
-      <AppTopbar hideNewEntityButton={isProjectDashboardHome} />
+      <AppTopbar />
       {/* flex: 1 让它占据除底部时间轴外的所有垂直空间 */}
       <div className="app-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left Sidebar */}

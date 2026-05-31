@@ -1,14 +1,9 @@
 import { LeftSidebarTopBar } from '../components/topBars/LeftSidebarTopBar';
 import { MainTopBar } from '../components/topBars/MainTopBar';
 import { RightSidebarTopBar } from '../components/topBars/RightSidebarTopBar';
-import { NewEntityButton } from '../components/topBars/TopTimeline/NewEntityButton';
 import { TopTimeline } from '../components/topBars/TopTimeline/TopTimeline';
 
-interface AppTopbarProps {
-  hideNewEntityButton?: boolean;
-}
-
-export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
+export function AppTopbar() {
   // Topbar side sections always size to the minimum needed for their content,
   // regardless of whether the sidebars below them are open or wide. Earlier
   // the side sections matched the sidebar widths "for alignment", but with
@@ -45,7 +40,7 @@ export function AppTopbar({ hideNewEntityButton = false }: AppTopbarProps) {
 
       {/* Middle Section */}
       <div style={{ flex: 1, minWidth: 0, overflow: 'visible' }}>
-        <MainTopBar rightContent={hideNewEntityButton ? undefined : <NewEntityButton />}>
+        <MainTopBar>
           <TopTimeline />
         </MainTopBar>
       </div>
