@@ -19,7 +19,14 @@ import {
   isAuthenticated,
   getValidAccessToken,
 } from './token-store';
-import { resolveClaudeBinary, ensureClaudeConfig, buildAgentEnv } from './runtime';
+import {
+  resolveClaudeBinary,
+  ensureClaudeConfig,
+  buildByokEnv,
+  buildHostedEnv,
+  getApiBaseUrl,
+  getDriftingSessionToken,
+} from './runtime';
 import { registerToolResultListener } from './bridge';
 import { createDriftingMcpServer } from './tools';
 
@@ -31,9 +38,31 @@ export type AgentEvent =
   | { type: 'error'; message: string }
   | { type: 'done' };
 
+export type AgentMode = 'byok' | 'hosted';
+
 export interface AgentStartInput {
   prompt: string;
   projectId?: string;
+  /** Which credentials to use. Defaults to BYOK (the user's Claude OAuth). */
+  mode?: AgentMode;
+}
+
+/** Resolve the subprocess env for the chosen mode, or an error to surface. */
+async function resolveAuthEnv(
+  mode: AgentMode,
+): Promise<{ env: Record<string, string> } | { error: string }> {
+  if (mode === 'hosted') {
+    const token = await getDriftingSessionToken();
+    if (!token) {
+      return { error: '未登录 Drifting，无法使用托管订阅。请先登录账号。' };
+    }
+    return { env: buildHostedEnv(token, getApiBaseUrl()) };
+  }
+  const token = await getValidAccessToken();
+  if (!token) {
+    return { error: '尚未连接 Claude（BYOK）。请先连接，或切换到托管订阅。' };
+  }
+  return { env: buildByokEnv(token) };
 }
 
 let activeQuery: Query | null = null;
@@ -105,9 +134,13 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
     },
   );
 
-  ipcMain.handle('agent:auth-status', (): { authenticated: boolean } => {
-    return { authenticated: isAuthenticated() };
-  });
+  ipcMain.handle(
+    'agent:auth-status',
+    async (): Promise<{ byokConnected: boolean; hostedAvailable: boolean }> => {
+      const hostedToken = await getDriftingSessionToken();
+      return { byokConnected: isAuthenticated(), hostedAvailable: !!hostedToken };
+    },
+  );
 
   ipcMain.handle('agent:auth-logout', (): { ok: true } => {
     clearStoredTokens();
@@ -119,9 +152,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(
     'agent:start',
     async (_e, input: AgentStartInput): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const token = await getValidAccessToken();
-      if (!token) {
-        return { ok: false, error: 'Not connected to Claude. Connect first.' };
+      const mode: AgentMode = input.mode ?? 'byok';
+      const auth = await resolveAuthEnv(mode);
+      if ('error' in auth) {
+        return { ok: false, error: auth.error };
       }
 
       // Only one turn at a time — interrupt any prior run.
@@ -158,7 +192,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
         includePartialMessages: false,
-        env: buildAgentEnv(token),
+        env: auth.env,
         pathToClaudeCodeExecutable: resolveClaudeBinary(),
         stderr: (data: string) => console.error('[claude stderr]', data),
       };

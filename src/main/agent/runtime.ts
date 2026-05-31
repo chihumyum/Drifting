@@ -9,7 +9,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { app } from 'electron';
+import { app, session } from 'electron';
 
 function platformPkg(): string | null {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
@@ -88,17 +88,56 @@ export function ensureClaudeConfig(): void {
   }
 }
 
-/**
- * Build the subprocess env for the Claude binary. Forces the OAuth path by
- * removing any API key and injecting the OAuth token.
- */
-export function buildAgentEnv(oauthToken: string): Record<string, string> {
+function cloneProcessEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (typeof v === 'string') env[k] = v;
   }
   delete env.ANTHROPIC_API_KEY;
-  env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+  delete env.ANTHROPIC_BASE_URL;
+  delete env.CLAUDE_CODE_OAUTH_TOKEN;
   env.CLAUDE_AGENT_SDK_CLIENT_APP = 'drifting/1.0';
   return env;
+}
+
+/**
+ * BYOK env: the user's own Claude subscription. The SDK talks to Anthropic
+ * directly with the OAuth token; our servers never see it.
+ */
+export function buildByokEnv(oauthToken: string): Record<string, string> {
+  const env = cloneProcessEnv();
+  env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
+  return env;
+}
+
+/**
+ * Hosted env: route the SDK through our server's metering proxy. The SDK sends
+ * the Drifting session token as x-api-key; the server swaps in its own
+ * Anthropic key and meters usage. (See private-service/src/routes/agent-proxy.)
+ */
+export function buildHostedEnv(sessionToken: string, apiBaseUrl: string): Record<string, string> {
+  const env = cloneProcessEnv();
+  env.ANTHROPIC_API_KEY = sessionToken;
+  env.ANTHROPIC_BASE_URL = `${apiBaseUrl.replace(/\/$/, '')}/api/agent/anthropic`;
+  return env;
+}
+
+/** Public API base URL of the Drifting server (where the proxy lives). */
+export function getApiBaseUrl(): string {
+  return (process.env.API_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+}
+
+/**
+ * The Drifting (better-auth) session token from Electron's cookie jar, set
+ * during the app's own login. Used to authenticate the hosted proxy.
+ */
+export async function getDriftingSessionToken(): Promise<string | null> {
+  try {
+    const cookies = await session.defaultSession.cookies.get({
+      name: 'better-auth.session_token',
+    });
+    return cookies[0]?.value ?? null;
+  } catch {
+    return null;
+  }
 }
