@@ -5,7 +5,7 @@ import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode } from '../domain/book-node.ts';
-import { compareBookOrder, isChapter } from '../domain/book-node.ts';
+import { compareBookOrder, isChapter, makeUniqueNodeTitle } from '../domain/book-node.ts';
 import { initDatabase, getDb } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
@@ -111,7 +111,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       const now = new Date().toISOString();
       const baseFields = {
         id: uuidv7(),
-        title: input.title ?? 'New Node',
+        // Project-unique title so the node is addressable by name (see #11).
+        title: makeUniqueNodeTitle(input.title ?? 'New Node', prevNodes, activeProjectId),
         projectId: activeProjectId,
         narrativeOrder: input.narrativeOrder ?? null,
         summary: '',
@@ -236,14 +237,16 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       const existing = prevNodes.find((node) => node.id === id);
       if (!existing) throw new Error(`Book node ${id} not found`);
 
+      // Keep titles project-unique so nodes stay addressable by name (#11).
+      const uniqueTitle = makeUniqueNodeTitle(title, prevNodes, activeProjectId, id);
       const updatedAt = new Date().toISOString();
       return withOptimisticUpdate({
-        apply: () => updateNodeState(id, { title, updatedAt }),
+        apply: () => updateNodeState(id, { title: uniqueTitle, updatedAt }),
         rollback: () => setNodesState(prevNodes),
         effect: async () => {
-          await nodeRepo.update(id, { title, updatedAt });
+          await nodeRepo.update(id, { title: uniqueTitle, updatedAt });
         },
-        sync: () => syncNodeUpdate(id, activeProjectId, { title }),
+        sync: () => syncNodeUpdate(id, activeProjectId, { title: uniqueTitle }),
       });
     },
     [nodeRepo, ensureDb, getNodesState, updateNodeState, setNodesState, activeProjectId],

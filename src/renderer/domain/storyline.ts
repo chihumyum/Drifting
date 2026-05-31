@@ -22,3 +22,27 @@ export interface Storyline {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * A project-unique storyline name so the writing agent can address a storyline
+ * by name instead of its uuid. Case-insensitive; appends " 2", " 3", … until
+ * free. `excludeId` is the storyline being renamed. Empty → "New Storyline".
+ */
+export function makeUniqueStorylineName(
+  baseName: string,
+  existing: Storyline[],
+  projectId: string,
+  excludeId?: string,
+): string {
+  const base = (baseName ?? '').trim() || 'New Storyline';
+  const taken = new Set(
+    existing
+      .filter((s) => s.projectId === projectId && s.id !== excludeId)
+      .map((s) => s.name.trim().toLowerCase()),
+  );
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base} ${i}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}

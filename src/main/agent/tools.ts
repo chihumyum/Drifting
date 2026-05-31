@@ -58,6 +58,18 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
       ),
+      tool(
+        'resolve_entity',
+        'Resolve an entity NAME to its id (exact, case-insensitive) so you can address things by name instead of long uuids. Names are kept project-unique, so this returns a single {id,kind,label}; if a name is unexpectedly ambiguous it returns {ambiguous:[…]} — pick by kind. Returns {found:false} if no match.',
+        {
+          name: z.string().describe('The exact entity name/title'),
+          kind: z
+            .string()
+            .optional()
+            .describe('Restrict to a kind: element / node (chapter|drift) / storyline / category'),
+        },
+        (args) => run('resolve_entity', args),
+      ),
       // ---- relational / context reads (traverse the graph, don't brute-force) ----
       tool(
         'get_project_brief',
@@ -114,12 +126,21 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'list_comments',
-        'Editorial threads and Copilot suggestions. Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns {kind,target,author,status,body}.',
+        "Editorial notes & TODOs (and Copilot suggestions). Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns each as {id, kind (note|todo), targetKind, targetId, targetBlockId, body, quote, status}. For a TODO anchored to a block (targetKind='node' with a targetBlockId), call read_block(targetId, targetBlockId) to get the block's LIVE text (the `quote` is a creation-time snapshot and may be stale); if there's no targetBlockId, search_prose for the `quote` within targetId to relocate the passage.",
         {
           kind: z.string().optional().describe('Target kind to filter by (optional)'),
           id: z.string().optional().describe('Target id to filter by (optional)'),
         },
         (args) => run('list_comments', args),
+      ),
+      tool(
+        'read_block',
+        "Read the CURRENT (live) text of one prose block by its uuid — e.g. a TODO's targetBlockId from list_comments. Returns {found, block (1-based number), type, text} so you can then edit_block it. Returns {found:false} if that block was since deleted.",
+        {
+          nodeId: z.string().describe('The chapter/drift node id (a comment’s targetId)'),
+          blockId: z.string().describe('The block uuid (e.g. a comment’s targetBlockId)'),
+        },
+        (args) => run('read_block', args),
       ),
       // ---- writes ----
       tool(
@@ -295,8 +316,16 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'update_storyline',
-        "Rename a storyline or set its summary.",
-        { storylineId: z.string(), name: z.string().optional(), summary: z.string().optional() },
+        "Rename a storyline, set its summary, or set its kv `facts` (merged by key — e.g. this thread's tone/focus). facts the agent sets are surfaced by get_storyline.",
+        {
+          storylineId: z.string(),
+          name: z.string().optional(),
+          summary: z.string().optional(),
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .optional()
+            .describe('key/value facts to upsert (merged with existing, by key)'),
+        },
         (args) => run('update_storyline', args),
       ),
       tool(
@@ -304,6 +333,27 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Create a new element category (e.g. 人物 / 地点 / 物件). Then create elements under it with create_element.',
         { name: z.string().optional() },
         (args) => run('create_category', args),
+      ),
+      tool(
+        'update_category',
+        "Set/update a category's element TEMPLATE facts (templateFacts) — the kv seeded into NEW elements of this category (e.g. a 人物 template with empty 年龄/外貌 fields). NOT the category's own metadata. Merged by key.",
+        {
+          categoryId: z.string(),
+          templateFacts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .describe('template key/value facts to upsert (merged by key)'),
+        },
+        (args) => run('update_category', args),
+      ),
+      tool(
+        'update_project_facts',
+        "Set/update the PROJECT's key/value facts — the book-level metadata the agent treats as governing constraints (文风/写作风格, 写作人称/POV, 章节目标字数, 本书目标, 对标作品, …). Merged by key, so setting one fact preserves the author's others. Use this to record style/voice/POV decisions you make with the user so they persist and steer future writing.",
+        {
+          facts: z
+            .array(z.object({ key: z.string(), value: z.string() }))
+            .describe('key/value facts to upsert (merged with existing project facts, by key)'),
+        },
+        (args) => run('update_project_facts', args),
       ),
       tool(
         'create_node',

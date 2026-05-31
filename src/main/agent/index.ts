@@ -83,6 +83,43 @@ export interface AgentStartInput {
   effort?: AgentEffortChoice;
   /** Extended-thinking mode. */
   thinking?: AgentThinkingChoice;
+  /**
+   * The manuscript's writing-language name (e.g. "Simplified Chinese (简体中文)").
+   * Injected into the system prompt so the agent writes prose/replies in the
+   * project's language rather than its own default.
+   */
+  writingLanguage?: string;
+  /**
+   * The project's key/value metadata (writing style/文风, POV/写作人称, target
+   * chapter length, goals, reference works, …). Injected as governing prose
+   * constraints. Empty/omitted → no style steer (the model's default voice).
+   */
+  projectFacts?: { key: string; value: string }[];
+}
+
+/**
+ * Build the per-turn system-prompt suffix from the project's writing language +
+ * KV metadata. Empty when neither is set, so a project with no preferences gets
+ * no extra steer (the model's own default voice). Data-driven by design — there
+ * is intentionally NO hardcoded tone default.
+ */
+function buildAgentMeta(input: AgentStartInput): string {
+  const parts: string[] = [];
+  if (input.writingLanguage) {
+    parts.push(`Write all prose and replies in ${input.writingLanguage}.`);
+  }
+  const facts = (input.projectFacts ?? []).filter((f) => f.key || f.value);
+  if (facts.length) {
+    const lines = facts.map((f) => `- ${f.key}: ${f.value}`).join('\n');
+    parts.push(
+      'Project metadata set by the author — e.g. writing style (文风), POV / person ' +
+        '(写作人称), target chapter length, goals, reference works. Treat these as governing ' +
+        'constraints when writing or editing prose: match the stated style and voice, write in the ' +
+        'specified person/POV, and aim chapters at any target word count. Storyline-specific ' +
+        'preferences, when present, live in that storyline’s facts (get_storyline).\n' + lines,
+    );
+  }
+  return parts.length ? '\n\n' + parts.join('\n\n') : '';
 }
 
 /** Resolve the subprocess env for the chosen mode, or an error to surface. */
@@ -352,6 +389,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
+          'Entity names are project-unique, so you can resolve a name to its id with resolve_entity ' +
+          'instead of carrying long uuids around. ' +
           'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
@@ -362,13 +401,17 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'remove_blocks / replace_block_range / insert_blocks; these address blocks by their ' +
           'stable uuid blockId, NOT the read_chapter number (numbers shift after a structural ' +
           'edit), so call lookup_block first to resolve a number or text snippet to its blockId. ' +
-          'Build structure: create_storyline / update_storyline, create_category, create_node ' +
-          "(a 'chapter' or 'drift'). " +
+          'Build structure: create_storyline / update_storyline (incl. facts), create_category / ' +
+          "update_category (element template facts), create_node (a 'chapter' or 'drift'). " +
+          'Record book-level writing preferences (文风 / 写作人称 / 章节目标字数 / 目标 / 对标作品) ' +
+          'with update_project_facts so they persist and steer future writing. ' +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +
           '(node/element/storyline). Track element evolution with create_element_patch / ' +
           'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +
           "(kind 'note' or 'todo'), set_comment_status (resolve/reopen), set_comment_kind " +
-          '(todo↔note), delete_comment. ' +
+          '(todo↔note), delete_comment. For a block-anchored TODO (list_comments returns its ' +
+          'targetId + targetBlockId), call read_block(targetId, targetBlockId) to get the live text, ' +
+          'then act on it and set_comment_status to resolve. ' +
           'Build relationships between entities: link_chapter_to_storyline, ' +
           'unlink_chapter_from_storyline, set_primary_storyline, add_relation (curated story-graph ' +
           'edge — reuse existing kind labels), remove_relation / update_relation_kind (by the ' +
@@ -378,7 +421,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
           'For multi-step tasks, use TodoWrite to lay out a plan and tick items off as you go. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
-          'the request. Be concise.',
+          'the request. Be concise.' +
+          buildAgentMeta(input),
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
         // Only the built-in TodoWrite (internal planning/progress — no side
         // effects); filesystem tools (Read/Edit/Bash/…) stay OFF since entities

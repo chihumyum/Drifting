@@ -14,6 +14,9 @@
 import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
+import { useProjectStore } from './project-store';
+import { parseKv } from '../domain/kv';
+import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import type {
   AgentChatMessage as ChatMsg,
@@ -226,6 +229,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       useSettingsStore.getState().setLastAgentConv(s.boundProjectId, convId);
     }
 
+    // Project writing preferences (KV facts) + writing language, injected into
+    // the agent's system prompt so it honors the author's style/POV/length and
+    // writes in the manuscript's language. Empty facts → no style steer.
+    const project = useProjectStore.getState().currentProject;
+    const projectFacts =
+      project && project.id === s.boundProjectId ? parseKv(project.kvJson) : [];
+    const writingLanguage = resolveWritingLanguage(s.boundProjectId);
+
     set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
     const r = await api.start({
       prompt: text,
@@ -234,6 +245,8 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       effort: settings.agentEffort,
       thinking: settings.agentThinking,
       resume: s.sdkSessionId ?? undefined,
+      writingLanguage,
+      projectFacts,
     });
     if (!r.ok) {
       set((st) => ({ messages: [...st.messages, { kind: 'error', text: r.error }], running: false }));

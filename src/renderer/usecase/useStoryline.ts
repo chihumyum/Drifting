@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import type { Storyline } from '../domain/storyline';
+import { makeUniqueStorylineName } from '../domain/storyline';
 import { createStorylineRepository } from '../sqlite-repo/storyline-repo';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo';
 import { useDataStore } from '../store/data-store';
@@ -170,7 +171,8 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       const newStoryline: Storyline = {
         id: uuidv7(),
         projectId: activeProjectId,
-        name: input.name?.trim() || 'New Storyline',
+        // Project-unique name so the storyline is addressable by name (#11).
+        name: makeUniqueStorylineName(input.name ?? '', existing, activeProjectId),
         color: input.color ?? randomColor(),
         summary: input.summary ?? '',
         orderKey,
@@ -283,7 +285,10 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
 
       const updated: Storyline = {
         ...existing,
-        name: input.name ?? existing.name,
+        name:
+          input.name !== undefined
+            ? makeUniqueStorylineName(input.name, prevStorylines, activeProjectId, input.id)
+            : existing.name,
         color: input.color ?? existing.color,
         summary: input.summary ?? existing.summary,
         orderKey: input.orderKey ?? existing.orderKey,
