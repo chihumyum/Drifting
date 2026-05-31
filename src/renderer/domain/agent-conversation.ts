@@ -7,6 +7,16 @@
  * transient UI flag (true only while a block streams) — persisted rows are
  * always finalized.
  */
+export type AgentTodoStatus = 'pending' | 'in_progress' | 'completed';
+
+/** One item in the agent's working plan (from the built-in TodoWrite tool). */
+export interface AgentTodoItem {
+  content: string;
+  status: AgentTodoStatus;
+  /** Present-continuous form shown while the item is in progress. */
+  activeForm?: string;
+}
+
 export type AgentChatMessage =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string; streaming?: boolean }
@@ -19,6 +29,8 @@ export type AgentChatMessage =
       status: 'running' | 'ok' | 'error';
       result?: string;
     }
+  // The agent's evolving plan — replaced in place as TodoWrite is called.
+  | { kind: 'todos'; items: AgentTodoItem[] }
   | { kind: 'error'; text: string };
 
 export type AgentConvMode = 'byok' | 'hosted';

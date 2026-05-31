@@ -29,6 +29,13 @@ import {
 import { registerToolResultListener } from './bridge';
 import { createDriftingMcpServer } from './tools';
 
+/** One item in the agent's working plan (built-in TodoWrite tool). */
+export interface AgentTodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+}
+
 /** Normalized, structured-clonable event streamed to the renderer. */
 export type AgentEvent =
   | { type: 'system'; text: string }
@@ -40,6 +47,8 @@ export type AgentEvent =
   | { type: 'thinking_delta'; text: string }
   /** The agent invoked a tool (name already stripped of the mcp__drifting__ prefix). */
   | { type: 'tool_use'; id: string; name: string; input?: unknown }
+  /** The agent updated its working plan (built-in TodoWrite tool). */
+  | { type: 'todos'; items: AgentTodoItem[] }
   /** A tool returned its result, keyed back to the tool_use by id. */
   | { type: 'tool_result'; id: string; ok: boolean; text: string }
   | { type: 'result'; ok: boolean; text: string }
@@ -105,6 +114,22 @@ const MCP_PREFIX = 'mcp__drifting__';
 /** Drop the MCP server prefix so the UI shows e.g. "read_chapter". */
 function stripToolName(name: string): string {
   return name.startsWith(MCP_PREFIX) ? name.slice(MCP_PREFIX.length) : name;
+}
+
+/** Parse the built-in TodoWrite tool input into a plain todo list. */
+function parseTodos(input: unknown): AgentTodoItem[] {
+  const todos = (input as { todos?: unknown })?.todos;
+  if (!Array.isArray(todos)) return [];
+  return todos.map((t) => {
+    const o = (t ?? {}) as { content?: unknown; status?: unknown; activeForm?: unknown };
+    const status: AgentTodoItem['status'] =
+      o.status === 'in_progress' || o.status === 'completed' ? o.status : 'pending';
+    return {
+      content: typeof o.content === 'string' ? o.content : '',
+      status,
+      ...(typeof o.activeForm === 'string' ? { activeForm: o.activeForm } : {}),
+    };
+  });
 }
 
 function extractAssistantText(msg: Extract<SDKMessage, { type: 'assistant' }>): string {
@@ -180,6 +205,11 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean }): AgentEvent[] {
         for (const b of blocks) {
           if (b && typeof b === 'object' && (b as { type?: string }).type === 'tool_use') {
             const tu = b as { id?: string; name?: string; input?: unknown };
+            // The built-in TodoWrite tool drives the plan UI, not a tool row.
+            if (tu.name === 'TodoWrite') {
+              out.push({ type: 'todos', items: parseTodos(tu.input) });
+              continue;
+            }
             out.push({
               type: 'tool_use',
               id: String(tu.id ?? ''),
@@ -340,10 +370,14 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'To relate things that do not exist yet, create the storyline/category/element first, ' +
           'then link them. ' +
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
+          'For multi-step tasks, use TodoWrite to lay out a plan and tick items off as you go. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
           'the request. Be concise.',
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
-        tools: [], // no built-in tools — entities are reached only via the drifting MCP tools
+        // Only the built-in TodoWrite (internal planning/progress — no side
+        // effects); filesystem tools (Read/Edit/Bash/…) stay OFF since entities
+        // are reached solely via the drifting MCP tools.
+        tools: ['TodoWrite'],
         mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
         // Stream token deltas so the panel can render assistant text live.

@@ -258,11 +258,48 @@ function MessageView({ msg }: { msg: ChatMsg }) {
       );
     case 'tool':
       return <ToolRow msg={msg} />;
+    case 'todos':
+      return <TodoList items={msg.items} />;
     case 'error':
       return <div style={errorBubble}>⚠ {msg.text}</div>;
     default:
       return null;
   }
+}
+
+function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
+  if (items.length === 0) return null;
+  const done = items.filter((t) => t.status === 'completed').length;
+  return (
+    <div style={todoBox}>
+      <div style={todoHead}>
+        <span>计划</span>
+        <span style={{ opacity: 0.7 }}>
+          {done}/{items.length}
+        </span>
+      </div>
+      {items.map((t, i) => {
+        const icon = t.status === 'completed' ? '☑' : t.status === 'in_progress' ? '▸' : '☐';
+        const label = t.status === 'in_progress' && t.activeForm ? t.activeForm : t.content;
+        return (
+          <div key={i} style={todoItem}>
+            <span style={{ width: 14, flexShrink: 0, opacity: t.status === 'completed' ? 0.5 : 0.85 }}>
+              {icon}
+            </span>
+            <span
+              style={{
+                textDecoration: t.status === 'completed' ? 'line-through' : 'none',
+                opacity: t.status === 'completed' ? 0.55 : 1,
+                fontWeight: t.status === 'in_progress' ? 600 : 400,
+              }}
+            >
+              {label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function CompanionPanel({ projectId }: { projectId: string }) {
@@ -659,6 +696,34 @@ const thinkingBody: React.CSSProperties = {
   fontSize: 11.5,
   lineHeight: 1.5,
   opacity: 0.85,
+};
+
+const todoBox: React.CSSProperties = {
+  border: '1px solid hsl(var(--rule))',
+  borderRadius: 8,
+  background: 'hsl(var(--page))',
+  padding: '8px 10px',
+  fontSize: 12,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+};
+
+const todoHead: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  fontSize: 10.5,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  opacity: 0.6,
+  marginBottom: 3,
+};
+
+const todoItem: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  alignItems: 'baseline',
+  lineHeight: 1.5,
 };
 
 const toolRow: React.CSSProperties = {

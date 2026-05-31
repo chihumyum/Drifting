@@ -64,6 +64,15 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
         ...finalizeStreaming(list),
         { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, status: 'running' },
       ];
+    case 'todos': {
+      // The plan is replaced in place — keep a single todos block at its
+      // original position and refresh its items as TodoWrite is re-called.
+      const idx = list.findIndex((m) => m.kind === 'todos');
+      if (idx === -1) return [...finalizeStreaming(list), { kind: 'todos', items: ev.items }];
+      const copy = list.slice();
+      copy[idx] = { kind: 'todos', items: ev.items };
+      return copy;
+    }
     case 'tool_result': {
       const idx = list.findIndex((m) => m.kind === 'tool' && m.id === ev.id);
       if (idx === -1) return list;
