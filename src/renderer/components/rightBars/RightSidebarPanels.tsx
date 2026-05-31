@@ -23,7 +23,6 @@ export function RightSidebarPanels() {
   const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
   const activeRightPanel = useUiStore((s) => s.activeRightPanel);
   const activeAgentPanel = useUiStore((s) => s.activeAgentPanel);
-  const setActiveAgentPanel = useUiStore((s) => s.setActiveAgentPanel);
   const shadowMode = useUiStore((s) => s.shadowMode);
 
   const {
