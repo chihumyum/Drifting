@@ -260,18 +260,24 @@ function resolveByKind(ctx: AgentToolContext, kind: string, ref: string): string
   return k ? resolveRef(ctx, k, ref) : ref;
 }
 
-/** Resolve the standard entity-ref arg fields (name-or-id → id) before dispatch. */
+/**
+ * Resolve the entity-ref args (a NAME — or an id — the agent passed) to a real
+ * id BEFORE dispatch. The agent-facing params are the clear names
+ * `chapter`/`element`/`storyline`/`category`; the handlers still read the
+ * internal *Id fields, so we resolve the external name and write the internal id
+ * (legacy *Id args are also accepted, for robustness).
+ */
 function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): Record<string, unknown> {
   const out = { ...args };
-  const fields: Array<[string, 'node' | 'element' | 'storyline' | 'category']> = [
-    ['nodeId', 'node'],
-    ['elementId', 'element'],
-    ['storylineId', 'storyline'],
-    ['categoryId', 'category'],
+  const map: Array<{ ext: string; internal: string; kind: 'node' | 'element' | 'storyline' | 'category' }> = [
+    { ext: 'chapter', internal: 'nodeId', kind: 'node' },
+    { ext: 'element', internal: 'elementId', kind: 'element' },
+    { ext: 'storyline', internal: 'storylineId', kind: 'storyline' },
+    { ext: 'category', internal: 'categoryId', kind: 'category' },
   ];
-  for (const [field, kind] of fields) {
-    const v = out[field];
-    if (typeof v === 'string' && v.trim()) out[field] = resolveRef(ctx, kind, v);
+  for (const { ext, internal, kind } of map) {
+    const raw = out[ext] ?? out[internal];
+    if (typeof raw === 'string' && raw.trim()) out[internal] = resolveRef(ctx, kind, raw);
   }
   return out;
 }

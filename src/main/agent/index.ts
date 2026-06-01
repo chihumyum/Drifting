@@ -464,9 +464,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
-          'Entity names are project-unique: every id arg (nodeId / elementId / storylineId / ' +
-          'categoryId, and kind+id pairs) ACCEPTS THE ENTITY NAME directly — prefer names, you ' +
-          'rarely need ids. resolve_entity is there if a name is ever ambiguous. ' +
+          'Entity reference args are NAMES (project-unique), not ids: pass the entity by name via ' +
+          'the chapter / element / storyline / category arg — e.g. read_chapter({chapter:"第三章"}), ' +
+          'update_element({element:"林夏"}). An id still works, and kind+id tools accept the name in ' +
+          'their id field too. resolve_entity is there if a name is ever ambiguous. ' +
           'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +

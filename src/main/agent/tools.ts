@@ -36,26 +36,26 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
     tools: [
       tool(
         'list_chapters',
-        "List the project's storylines (name + summary), chapters (name · status · words · storyline), and drift notes — BY NAME. Names are project-unique, so use them directly as the `nodeId`/`storylineId` arg of the read/edit tools (no ids needed). Call this to see the manuscript's structure.",
+        "List the project's storylines (name + summary), chapters (name · status · words · storyline), and drift notes — BY NAME. Names are project-unique, so use them directly as the `chapter`/`storyline` arg of the read/edit tools (no ids needed). Call this to see the manuscript's structure.",
         {},
         () => run('list_chapters', {}),
       ),
       tool(
         'list_elements',
-        "List the project's element categories and elements (character / setting / item) BY NAME (name · category · summary). Names are project-unique, so use them directly as the `elementId`/`categoryId` arg of the read/edit tools. Use this instead of list_chapters when you only need elements.",
+        "List the project's element categories and elements (character / setting / item) BY NAME (name · category · summary). Names are project-unique, so use them directly as the `element`/`category` arg of the read/edit tools. Use this instead of list_chapters when you only need elements.",
         {},
         () => run('list_elements', {}),
       ),
       tool(
         'read_chapter',
         "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, an `appears:` line naming the elements/entities mentioned in this chapter, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
-        { nodeId: z.string().describe('Chapter/drift NAME (preferred) or id') },
+        { chapter: z.string().describe('Chapter/drift NAME (or id)') },
         (args) => run('read_chapter', args),
       ),
       tool(
         'read_element',
         'Read an element (character / setting / item): its name, summary, aliases, group, and body text.',
-        { elementId: z.string().describe('Element NAME (preferred) or id') },
+        { element: z.string().describe('Element NAME (or id)') },
         (args) => run('read_element', args),
       ),
       tool(
@@ -106,18 +106,18 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'get_storyline',
         "A storyline's summary, key/value facts, and its member chapters in reading order (with which one is primary).",
-        { storylineId: z.string().describe('Storyline NAME (preferred) or id') },
+        { storyline: z.string().describe('Storyline NAME (or id)') },
         (args) => run('get_storyline', args),
       ),
       tool(
         'get_chapter_context',
         "Cheap overview of a chapter WITHOUT its full prose: title, summary, word count, status, rolling block-section summaries, the elements it references, the storylines it belongs to, and its relations. Call this before read_chapter — only read the full prose if you still need it.",
-        { nodeId: z.string().describe('Chapter/drift NAME (preferred) or id') },
+        { chapter: z.string().describe('Chapter/drift NAME (or id)') },
         (args) => run('get_chapter_context', args),
       ),
       tool(
         'search_prose',
-        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind, title, block, snippet} where title is the (unique) name — pass it as nodeId/elementId — and block is the 1-based block number (pass it to edit_block / read_chapter). Heavier than search_project — use it to find scenes/passages by content.',
+        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind, title, block, snippet} where title is the (unique) name — pass it as the chapter/element arg — and block is the 1-based block number (pass it to edit_block / read_chapter). Heavier than search_project — use it to find scenes/passages by content.',
         {
           query: z.string().describe('Text to find in the prose'),
           limit: z.number().optional().describe('Max matches (default 30, cap 100)'),
@@ -127,7 +127,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'get_element_patches',
         "An element's accepted state-change patches across chapters (how a character/place/item evolves over the book), each with its source chapter and body text.",
-        { elementId: z.string().describe('Element NAME (preferred) or id') },
+        { element: z.string().describe('Element NAME (or id)') },
         (args) => run('get_element_patches', args),
       ),
       tool(
@@ -143,7 +143,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'read_block',
         "Read the CURRENT (live) text of one prose block by its uuid — e.g. a TODO's targetBlockId from list_comments. Returns {found, block (1-based number), type, text} so you can then edit_block it. Returns {found:false} if that block was since deleted.",
         {
-          nodeId: z.string().describe('The chapter/drift node id (a comment’s targetId)'),
+          chapter: z.string().describe('The chapter/drift NAME or id (a comment’s targetId)'),
           blockId: z.string().describe('The block uuid (e.g. a comment’s targetBlockId)'),
         },
         (args) => run('read_block', args),
@@ -151,14 +151,14 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- writes ----
       tool(
         'update_element',
-        "Update an element's fields. Only provided fields change. Pass categoryId to move the element to another category; pass facts to replace its structured key/value facts.",
+        "Update an element's fields. Only provided fields change. Pass category to move the element to another category; pass facts to replace its structured key/value facts.",
         {
-          elementId: z.string(),
+          element: z.string(),
           name: z.string().optional(),
           summary: z.string().optional(),
           aliases: z.array(z.string()).optional(),
           groupName: z.string().optional(),
-          categoryId: z.string().optional().describe('Move the element to this category'),
+          category: z.string().optional().describe('Move the element to this category (NAME or id)'),
           facts: z
             .array(z.object({ key: z.string(), value: z.string() }))
             .optional()
@@ -168,9 +168,9 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'create_element',
-        'Create a new element (character / place / item) under a category. categoryId is required — pass the category NAME (from list_elements) or create_category first.',
+        'Create a new element (character / place / item) under a category. The category arg is required — pass the category NAME (from list_elements) or create_category first.',
         {
-          categoryId: z.string(),
+          category: z.string(),
           name: z.string().optional(),
           summary: z.string().optional(),
           aliases: z.array(z.string()).optional(),
@@ -184,20 +184,20 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'rename_chapter',
         'Rename a chapter or drift node.',
-        { nodeId: z.string(), title: z.string() },
+        { chapter: z.string(), title: z.string() },
         (args) => run('rename_chapter', args),
       ),
       tool(
         'set_node_summary',
         "Set a chapter/drift node's summary.",
-        { nodeId: z.string(), summary: z.string() },
+        { chapter: z.string(), summary: z.string() },
         (args) => run('set_node_summary', args),
       ),
       tool(
         'edit_block',
         'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_chapter / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same chapter, use edit_blocks instead (atomic). Inline formatting in that block is dropped. Edits apply to the chapter live — if it is open in the editor, the change appears immediately.',
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           block: z.number().optional().describe('1-based block number from read_chapter'),
           blockId: z.string().optional().describe('uuid block id (alternative to block)'),
           text: z.string(),
@@ -208,7 +208,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'edit_blocks',
         'Replace the text of SEVERAL prose blocks in one chapter atomically (one read-modify-write — safe against clobbering, one round-trip). Use this instead of multiple edit_block calls on the same chapter. Each edit addresses a block by `block` (number) or `blockId` (uuid). Block numbers refer to read_chapter and stay valid across the batch.',
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           edits: z
             .array(
               z.object({
@@ -224,14 +224,14 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'append_paragraph',
         'Append a new paragraph to the end of a chapter/drift node.',
-        { nodeId: z.string(), text: z.string() },
+        { chapter: z.string(), text: z.string() },
         (args) => run('append_paragraph', args),
       ),
       tool(
         'lookup_block',
         "Find a prose block's stable uuid `blockId` by its 1-based number and/or a substring of its text. Use this to get the blockId needed by the structural tools below (remove_blocks / replace_block_range / insert_blocks), since read_chapter's numbers shift once blocks are added or removed. Returns matches as {blockId, block, type, snippet}.",
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           ordinal: z.number().optional().describe('1-based block number from read_chapter'),
           contains: z.string().optional().describe('case-insensitive substring of the block text'),
         },
@@ -241,7 +241,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'remove_blocks',
         'Delete one or more prose blocks from a chapter/drift. Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           blockIds: z.array(z.string()).describe('uuid block ids to delete'),
         },
         (args) => run('remove_blocks', args),
@@ -250,7 +250,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'replace_block_range',
         'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids.',
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           fromBlockId: z.string().describe('uuid of the first block in the range'),
           toBlockId: z.string().describe('uuid of the last block in the range (may equal fromBlockId)'),
           blocks: z.array(z.string()).describe('replacement paragraphs, one string each'),
@@ -261,7 +261,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'insert_blocks',
         'Insert new paragraphs into a chapter/drift after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph.',
         {
-          nodeId: z.string(),
+          chapter: z.string(),
           afterBlockId: z
             .string()
             .optional()
@@ -274,19 +274,19 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'link_chapter_to_storyline',
         'Add a chapter (node) as a member of a storyline.',
-        { nodeId: z.string(), storylineId: z.string() },
+        { chapter: z.string(), storyline: z.string() },
         (args) => run('link_chapter_to_storyline', args),
       ),
       tool(
         'unlink_chapter_from_storyline',
         'Remove a chapter (node) from a storyline.',
-        { nodeId: z.string(), storylineId: z.string() },
+        { chapter: z.string(), storyline: z.string() },
         (args) => run('unlink_chapter_from_storyline', args),
       ),
       tool(
         'set_primary_storyline',
         "Make a storyline the chapter's primary storyline (adds membership if needed).",
-        { nodeId: z.string(), storylineId: z.string() },
+        { chapter: z.string(), storyline: z.string() },
         (args) => run('set_primary_storyline', args),
       ),
       tool(
@@ -324,7 +324,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'update_storyline',
         "Rename a storyline, set its summary, or set its kv `facts` (merged by key — e.g. this thread's tone/focus). facts the agent sets are surfaced by get_storyline.",
         {
-          storylineId: z.string(),
+          storyline: z.string(),
           name: z.string().optional(),
           summary: z.string().optional(),
           facts: z
@@ -344,7 +344,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'update_category',
         "Set/update a category's element TEMPLATE facts (templateFacts) — the kv seeded into NEW elements of this category (e.g. a 人物 template with empty 年龄/外貌 fields). NOT the category's own metadata. Merged by key.",
         {
-          categoryId: z.string(),
+          category: z.string(),
           templateFacts: z
             .array(z.object({ key: z.string(), value: z.string() }))
             .describe('template key/value facts to upsert (merged by key)'),
@@ -367,7 +367,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         {
           kind: z.string().describe("'chapter' or 'drift'"),
           title: z.string().optional(),
-          storylineId: z.string().optional().describe('For chapters: the primary storyline to link'),
+          storyline: z.string().optional().describe('For chapters: link to this storyline (NAME or id)'),
         },
         (args) => run('create_node', args),
       ),
@@ -387,7 +387,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'create_element_patch',
         "Record a state-change patch for an element (how it changes at a point in the story). body is the patch prose; optionally anchor it to the chapter where the change happens via sourceNodeId.",
         {
-          elementId: z.string(),
+          element: z.string(),
           title: z.string().optional(),
           body: z.string().optional().describe('The patch text'),
           sourceNodeId: z.string().optional().describe('Chapter where this change occurs'),
@@ -441,7 +441,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'delete_element',
         'Delete an element. The app will ask the user to confirm before deleting; returns {declined:true} if they refuse.',
-        { elementId: z.string() },
+        { element: z.string() },
         (args) => run('delete_element', args),
       ),
     ],

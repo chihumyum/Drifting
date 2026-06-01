@@ -18,32 +18,49 @@ export interface ToolEntityRef {
   op: ActivityOp;
 }
 
-/** Tools whose target id is a plain arg field. */
-const ARG_TOOLS: Record<string, { field: string; entityType: ActivityEntityType; op: ActivityOp }> = {
+/** Tools whose target is a single entity, keyed by tool name → {entityType, op}. */
+const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp }> = {
   // node (chapter / drift)
-  read_chapter: { field: 'nodeId', entityType: 'node', op: 'read' },
-  get_chapter_context: { field: 'nodeId', entityType: 'node', op: 'read' },
-  read_block: { field: 'nodeId', entityType: 'node', op: 'read' },
-  lookup_block: { field: 'nodeId', entityType: 'node', op: 'read' },
-  rename_chapter: { field: 'nodeId', entityType: 'node', op: 'write' },
-  set_node_summary: { field: 'nodeId', entityType: 'node', op: 'write' },
-  edit_block: { field: 'nodeId', entityType: 'node', op: 'write' },
-  edit_blocks: { field: 'nodeId', entityType: 'node', op: 'write' },
-  append_paragraph: { field: 'nodeId', entityType: 'node', op: 'write' },
-  remove_blocks: { field: 'nodeId', entityType: 'node', op: 'write' },
-  replace_block_range: { field: 'nodeId', entityType: 'node', op: 'write' },
-  insert_blocks: { field: 'nodeId', entityType: 'node', op: 'write' },
+  read_chapter: { entityType: 'node', op: 'read' },
+  get_chapter_context: { entityType: 'node', op: 'read' },
+  read_block: { entityType: 'node', op: 'read' },
+  lookup_block: { entityType: 'node', op: 'read' },
+  rename_chapter: { entityType: 'node', op: 'write' },
+  set_node_summary: { entityType: 'node', op: 'write' },
+  edit_block: { entityType: 'node', op: 'write' },
+  edit_blocks: { entityType: 'node', op: 'write' },
+  append_paragraph: { entityType: 'node', op: 'write' },
+  remove_blocks: { entityType: 'node', op: 'write' },
+  replace_block_range: { entityType: 'node', op: 'write' },
+  insert_blocks: { entityType: 'node', op: 'write' },
   // element
-  read_element: { field: 'elementId', entityType: 'element', op: 'read' },
-  get_element_patches: { field: 'elementId', entityType: 'element', op: 'read' },
-  update_element: { field: 'elementId', entityType: 'element', op: 'write' },
-  delete_element: { field: 'elementId', entityType: 'element', op: 'delete' },
+  read_element: { entityType: 'element', op: 'read' },
+  get_element_patches: { entityType: 'element', op: 'read' },
+  update_element: { entityType: 'element', op: 'write' },
+  delete_element: { entityType: 'element', op: 'delete' },
   // storyline
-  get_storyline: { field: 'storylineId', entityType: 'storyline', op: 'read' },
-  update_storyline: { field: 'storylineId', entityType: 'storyline', op: 'write' },
+  get_storyline: { entityType: 'storyline', op: 'read' },
+  update_storyline: { entityType: 'storyline', op: 'write' },
   // category
-  update_category: { field: 'categoryId', entityType: 'category', op: 'write' },
+  update_category: { entityType: 'category', op: 'write' },
 };
+
+// The arg field that carries an entity's name-or-id, by entity kind. Accepts the
+// new clear names (chapter/element/…) and the legacy *Id names, so it's robust
+// to either tool-schema spelling.
+const REF_FIELDS: Record<ActivityEntityType, string[]> = {
+  node: ['chapter', 'nodeId'],
+  element: ['element', 'elementId'],
+  storyline: ['storyline', 'storylineId'],
+  category: ['category', 'categoryId'],
+};
+function refValue(entityType: ActivityEntityType, args: Record<string, unknown>): string | undefined {
+  for (const f of REF_FIELDS[entityType]) {
+    const v = args[f];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return undefined;
+}
 
 /** create_* tools — the new entity's id comes from the result, not the args. */
 const CREATE_TOOLS: Record<string, ActivityEntityType> = {
@@ -134,8 +151,8 @@ export function toolEntityRef(
   }
   const arg = ARG_TOOLS[name];
   if (arg) {
-    const raw = args[arg.field];
-    if (typeof raw === 'string' && raw) {
+    const raw = refValue(arg.entityType, args);
+    if (raw) {
       const id = resolveEntityId(arg.entityType, raw);
       if (id) return { entityType: arg.entityType, id, op: arg.op };
     }
