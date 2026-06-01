@@ -220,7 +220,11 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const text = s.prompt.trim();
     const now = new Date().toISOString();
     const settings = useSettingsStore.getState();
-    const mode = settings.agentMode;
+    const auth = settings.agentAuth;
+    // The conversation row records only hosted vs byok-ish; oauth/apikey both
+    // collapse to 'byok' for that coarse label. The real auth method goes to
+    // the SDK via api.start({ mode }).
+    const convMode: 'hosted' | 'byok' = auth === 'hosted' ? 'hosted' : 'byok';
 
     // Lazily create the conversation row on the first message so it shows up in
     // history immediately; the transcript is overwritten on `done`.
@@ -232,7 +236,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
           id: convId,
           projectId: s.boundProjectId,
           title: deriveTitle(text),
-          mode,
+          mode: convMode,
           messages: [{ kind: 'user', text }],
           sdkSessionId: null,
           createdAt: now,
@@ -261,7 +265,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
     const r = await api.start({
       prompt: text,
-      mode,
+      mode: auth,
       model: settings.agentModel,
       effort: settings.agentEffort,
       thinking: settings.agentThinking,

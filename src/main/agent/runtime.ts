@@ -10,6 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { app, session } from 'electron';
+import { Entry } from '@napi-rs/keyring';
 
 function platformPkg(): string | null {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
@@ -108,6 +109,34 @@ export function buildByokEnv(oauthToken: string): Record<string, string> {
   const env = cloneProcessEnv();
   env.CLAUDE_CODE_OAUTH_TOKEN = oauthToken;
   return env;
+}
+
+/**
+ * BYOK env (API key): a plain Anthropic API key (pay-as-you-go). The SDK talks
+ * to Anthropic directly with ANTHROPIC_API_KEY; our servers never see it. No
+ * base-URL override — that's reserved for the hosted proxy path below.
+ */
+export function buildByokApiKeyEnv(apiKey: string): Record<string, string> {
+  const env = cloneProcessEnv();
+  env.ANTHROPIC_API_KEY = apiKey;
+  return env;
+}
+
+/**
+ * The keychain id for the General Agent's Anthropic API key. Must match
+ * `AGENT_API_KEY_ID` in the renderer's `lib/byok-keychain.ts` and the service
+ * name in `keyring-ipc.ts`.
+ */
+const AGENT_API_KEY_ID = 'byok.agent.anthropic';
+const KEYRING_SERVICE = 'Drifting';
+
+/** Read the stored Anthropic API key from the OS keychain (main process). */
+export function readAgentApiKey(): string | null {
+  try {
+    return new Entry(KEYRING_SERVICE, AGENT_API_KEY_ID).getPassword();
+  } catch {
+    return null;
+  }
 }
 
 /**

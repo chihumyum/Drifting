@@ -21,16 +21,16 @@ import { byokKeychain } from '../../byok-keychain';
  * keychain read crosses to the main process.
  */
 export async function aiByokHeaders(): Promise<Record<string, string>> {
-  const { aiMode, byokProvider } = useSettingsStore.getState();
-  if (aiMode !== 'byok') return {};
-  const key = await byokKeychain.get(byokProvider);
+  const { copilotAiMode, copilotByokProvider } = useSettingsStore.getState();
+  if (copilotAiMode !== 'byok') return {};
+  const key = await byokKeychain.get(copilotByokProvider);
   if (!key) {
     // BYOK selected but the chosen provider has no key — fall back to the hosted
     // path rather than failing the call (surfaced in the UI as a warning).
     console.warn(
-      `[ai] ai_mode=byok but no "${byokProvider}" key in keychain — falling back to hosted`,
+      `[ai] copilotAiMode=byok but no "${copilotByokProvider}" key in keychain — falling back to hosted`,
     );
     return {};
   }
-  return { 'X-AI-Provider': byokProvider, 'X-AI-Provider-Key': key };
+  return { 'X-AI-Provider': copilotByokProvider, 'X-AI-Provider-Key': key };
 }

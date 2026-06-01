@@ -52,28 +52,16 @@ type SyncableSlice = {
   manuscriptLocale: unknown;
   spellcheck: unknown;
   dateFormat: unknown;
-  // intelligence (non-secret). aiMode/byokProvider = copilot routing;
-  // agentMode = general-agent/shadow routing. The keys themselves never sync.
-  modelTier: unknown;
-  aiMode: unknown;
-  byokProvider: unknown;
-  agentMode: unknown;
+  // intelligence (non-secret). copilot* = copilot routing/tier/provider;
+  // agentAuth = general-agent credential method. The keys themselves never sync.
+  copilotTier: unknown;
+  copilotAiMode: unknown;
+  copilotByokProvider: unknown;
+  copilotByokModel: unknown;
+  agentAuth: unknown;
   agentModel: unknown;
   agentEffort: unknown;
   agentThinking: unknown;
-  uploadFullManuscript: unknown;
-  allowWebSearch: unknown;
-  requestTimeoutSec: unknown;
-  // shadow agent
-  orbCorner: unknown;
-  surfaceMode: unknown;
-  finishNotify: unknown;
-  editPermission: unknown;
-  agentCreateElements: unknown;
-  agentEditTimeline: unknown;
-  agentWebSearch: unknown;
-  shadowVoice: unknown;
-  shadowSystemPrompt: unknown;
   // copilot tasks
   copilotAutoTrigger: unknown;
   copilotMode: unknown;
@@ -105,25 +93,14 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'manuscriptLocale',
   'spellcheck',
   'dateFormat',
-  'modelTier',
-  'aiMode',
-  'byokProvider',
-  'agentMode',
+  'copilotTier',
+  'copilotAiMode',
+  'copilotByokProvider',
+  'copilotByokModel',
+  'agentAuth',
   'agentModel',
   'agentEffort',
   'agentThinking',
-  'uploadFullManuscript',
-  'allowWebSearch',
-  'requestTimeoutSec',
-  'orbCorner',
-  'surfaceMode',
-  'finishNotify',
-  'editPermission',
-  'agentCreateElements',
-  'agentEditTimeline',
-  'agentWebSearch',
-  'shadowVoice',
-  'shadowSystemPrompt',
   'copilotAutoTrigger',
   'copilotMode',
   'copilotTaskConfigs',
@@ -231,17 +208,20 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     manuscriptLocale: (v) => store.setManuscriptLocale(v as never),
     spellcheck: (v) => store.setSpellcheck(!!v),
     dateFormat: (v) => store.setDateFormat(v as never),
-    modelTier: (v) => store.setModelTier(v as never),
-    aiMode: (v) => {
-      if (v === 'hosted' || v === 'byok') store.setAiMode(v);
+    copilotTier: (v) => store.setCopilotTier(v as never),
+    copilotAiMode: (v) => {
+      if (v === 'hosted' || v === 'byok') store.setCopilotAiMode(v);
     },
-    byokProvider: (v) => {
+    copilotByokProvider: (v) => {
       if (v === 'deepseek' || v === 'anthropic' || v === 'openai' || v === 'google') {
-        store.setByokProvider(v);
+        store.setCopilotByokProvider(v);
       }
     },
-    agentMode: (v) => {
-      if (v === 'hosted' || v === 'byok') store.setAgentMode(v);
+    copilotByokModel: (v) => {
+      if (typeof v === 'string') store.setCopilotByokModel(v);
+    },
+    agentAuth: (v) => {
+      if (v === 'hosted' || v === 'oauth' || v === 'apikey') store.setAgentAuth(v);
     },
     agentModel: (v) => {
       if (typeof v === 'string' && v) store.setAgentModel(v);
@@ -254,18 +234,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     agentThinking: (v) => {
       if (v === 'adaptive' || v === 'off') store.setAgentThinking(v);
     },
-    uploadFullManuscript: (v) => store.setUploadFullManuscript(!!v),
-    allowWebSearch: (v) => store.setAllowWebSearch(!!v),
-    requestTimeoutSec: (v) => store.setRequestTimeoutSec(Number(v)),
-    orbCorner: (v) => store.setOrbCorner(v as never),
-    surfaceMode: (v) => store.setSurfaceMode(v as never),
-    finishNotify: (v) => store.setFinishNotify(v as never),
-    editPermission: (v) => store.setEditPermission(v as never),
-    agentCreateElements: (v) => store.setAgentCreateElements(!!v),
-    agentEditTimeline: (v) => store.setAgentEditTimeline(!!v),
-    agentWebSearch: (v) => store.setAgentWebSearch(!!v),
-    shadowVoice: (v) => store.setShadowVoice(v as never),
-    shadowSystemPrompt: (v) => store.setShadowSystemPrompt(String(v)),
     copilotAutoTrigger: (v) => store.setCopilotAutoTrigger(!!v),
     copilotMode: (v) => store.setCopilotMode(v as never),
     copilotTaskConfigs: (v) => {

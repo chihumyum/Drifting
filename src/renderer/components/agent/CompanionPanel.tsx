@@ -40,6 +40,7 @@ import '../../../styles/agent-panel.css';
 
 interface AuthStatus {
   byokConnected: boolean;
+  apiKeyConnected: boolean;
   hostedAvailable: boolean;
 }
 
@@ -417,7 +418,7 @@ function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items
 
 export function CompanionPanel({ projectId }: { projectId: string }) {
   const api = window.electronAPI?.agent;
-  const agentMode = useSettingsStore((s) => s.agentMode);
+  const agentAuth = useSettingsStore((s) => s.agentAuth);
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
@@ -456,7 +457,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     void api
       .authStatus()
       .then(setStatus)
-      .catch(() => setStatus({ byokConnected: false, hostedAvailable: false }));
+      .catch(() =>
+        setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
+      );
   }, [api]);
 
   useEffect(() => {
@@ -622,22 +625,29 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     return <div style={hintBox}>Checking…</div>;
   }
 
-  const usable = agentMode === 'byok' ? status.byokConnected : status.hostedAvailable;
+  const usable =
+    agentAuth === 'hosted'
+      ? status.hostedAvailable
+      : agentAuth === 'apikey'
+        ? status.apiKeyConnected
+        : status.byokConnected;
 
   // ---- Not set up → point to Settings (connect / subscribe lives there) ----
   if (!usable) {
+    const notConnectedText =
+      agentAuth === 'hosted'
+        ? '当前为「托管订阅」模式,但尚未就绪。前往设置登录并开通订阅。'
+        : agentAuth === 'apikey'
+          ? '当前为「Anthropic API Key」模式,但还没填写密钥。前往设置填入你的 API Key。'
+          : '当前为「自带 Claude 账号」模式,但还没连接。前往设置连接你的 Claude 账号(Max/Pro)。';
     return (
       <div style={hintBox}>
         <div style={hintTitle}>Agent 未连接</div>
-        <div style={hintText}>
-          {agentMode === 'byok'
-            ? '当前为「自带 Claude 账号」模式,但还没连接。前往设置连接你的 Claude 账号(Max/Pro)。'
-            : '当前为「托管订阅」模式,但尚未就绪。前往设置登录并开通订阅。'}
-        </div>
+        <div style={hintText}>{notConnectedText}</div>
         <button
           type="button"
           style={primaryBtn}
-          onClick={() => events.emit('settings:open', { railId: 'models' })}
+          onClick={() => events.emit('settings:open', { railId: 'agent' })}
         >
           前往设置
         </button>

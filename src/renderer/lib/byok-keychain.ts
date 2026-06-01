@@ -30,6 +30,30 @@ export const byokKeychain = {
 };
 
 /**
+ * The General Agent (Claude Agent SDK) Anthropic API key — pay-as-you-go,
+ * separate from copilot's per-provider `byok.<provider>` keys. The SDK reads
+ * it as ANTHROPIC_API_KEY (resolved in the main process; see
+ * `main/agent/runtime.ts`). Kept under its own id so it never collides with
+ * copilot's anthropic BYOK key.
+ */
+export const AGENT_API_KEY_ID = 'byok.agent.anthropic';
+
+export const agentApiKeychain = {
+  async get(): Promise<string | null> {
+    if (!window.electronAPI?.keychain) return null;
+    return window.electronAPI.keychain.get(AGENT_API_KEY_ID);
+  },
+  async set(value: string): Promise<boolean> {
+    if (!window.electronAPI?.keychain) return false;
+    return window.electronAPI.keychain.set(AGENT_API_KEY_ID, value);
+  },
+  async clear(): Promise<boolean> {
+    if (!window.electronAPI?.keychain) return false;
+    return window.electronAPI.keychain.delete(AGENT_API_KEY_ID);
+  },
+};
+
+/**
  * Mask helper — UI-only. Renders the last 4 chars so users can confirm
  * which key they actually saved.
  */

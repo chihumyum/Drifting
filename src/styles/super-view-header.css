@@ -105,8 +105,17 @@ html[data-skin='modern'] .super-view-body {
 }
 
 .super-view-head {
+  /* position:relative without z-index keeps this a positioning anchor
+     WITHOUT establishing a stacking context. Earlier this carried
+     `z-index: 2`, which trapped the header's floating popovers (e.g. the
+     graph view's edge-kind manager / unplaced drawer, both z-index: 270)
+     inside a level-2 context — so body content like graph tiles (z-index:
+     3) and the sticky narrative axis (z-index: 25) painted OVER them. The
+     header bar never overlaps the body except through those popovers, so
+     it needs no z-index of its own; letting the popovers resolve against
+     the overlay's stacking context (z-index: 250) puts them above the
+     canvas as designed. */
   position: relative;
-  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;

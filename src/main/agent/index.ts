@@ -22,9 +22,11 @@ import {
   resolveClaudeBinary,
   ensureClaudeConfig,
   buildByokEnv,
+  buildByokApiKeyEnv,
   buildHostedEnv,
   getApiBaseUrl,
   getDriftingSessionToken,
+  readAgentApiKey,
 } from './runtime';
 import { registerToolResultListener } from './bridge';
 import { createDriftingMcpServer } from './tools';
@@ -69,7 +71,13 @@ export type AgentEvent =
   | { type: 'error'; message: string }
   | { type: 'done' };
 
-export type AgentMode = 'byok' | 'hosted';
+/**
+ * Credential method for an Agent turn:
+ *  - 'oauth':  the user's Claude account (OAuth token) — direct, unmetered.
+ *  - 'apikey': a plain Anthropic API key (from the keychain) — pay-as-you-go.
+ *  - 'hosted': route through Drifting's metering proxy (subscription).
+ */
+export type AgentMode = 'oauth' | 'apikey' | 'hosted';
 /**
  * Generation params surfaced from settings; mirror the SDK Options.
  *  - model: free string per the SDK — tier alias ('opus'/'sonnet'/'haiku'),
@@ -83,7 +91,7 @@ export type AgentThinkingChoice = 'adaptive' | 'off';
 export interface AgentStartInput {
   prompt: string;
   projectId?: string;
-  /** Which credentials to use. Defaults to BYOK (the user's Claude OAuth). */
+  /** Which credentials to use. Defaults to 'oauth' (the user's Claude account). */
   mode?: AgentMode;
   /** Start a fresh conversation (ignore `resume`). */
   newConversation?: boolean;
@@ -145,9 +153,16 @@ async function resolveAuthEnv(
     }
     return { env: buildHostedEnv(token, getApiBaseUrl()) };
   }
+  if (mode === 'apikey') {
+    const key = readAgentApiKey();
+    if (!key) {
+      return { error: '尚未填写 Anthropic API Key。请在设置中填入，或切换到其它方式。' };
+    }
+    return { env: buildByokApiKeyEnv(key) };
+  }
   const token = await getValidAccessToken();
   if (!token) {
-    return { error: '尚未连接 Claude（BYOK）。请先连接，或切换到托管订阅。' };
+    return { error: '尚未连接 Claude 账号（OAuth）。请先连接，或切换到其它方式。' };
   }
   return { env: buildByokEnv(token) };
 }
@@ -385,9 +400,17 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle(
     'agent:auth-status',
-    async (): Promise<{ byokConnected: boolean; hostedAvailable: boolean }> => {
+    async (): Promise<{
+      byokConnected: boolean;
+      apiKeyConnected: boolean;
+      hostedAvailable: boolean;
+    }> => {
       const hostedToken = await getDriftingSessionToken();
-      return { byokConnected: isAuthenticated(), hostedAvailable: !!hostedToken };
+      return {
+        byokConnected: isAuthenticated(),
+        apiKeyConnected: readAgentApiKey() !== null,
+        hostedAvailable: !!hostedToken,
+      };
     },
   );
 
@@ -401,7 +424,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle(
     'agent:start',
     async (_e, input: AgentStartInput): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const mode: AgentMode = input.mode ?? 'byok';
+      const mode: AgentMode = input.mode ?? 'oauth';
       const auth = await resolveAuthEnv(mode);
       if ('error' in auth) {
         return { ok: false, error: auth.error };
@@ -472,15 +495,20 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'To relate things that do not exist yet, create the storyline/category/element first, ' +
           'then link them. ' +
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
+          'For real-world facts the manuscript cannot supply (history, geography, science, ' +
+          '风物 考据), use WebSearch to verify and WebFetch to read a source — then state what ' +
+          'you found and where. Do not invent facts you could have looked up. ' +
           'For multi-step tasks, use TodoWrite to lay out a plan and tick items off as you go. ' +
           'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
           'the request. Be concise.' +
           buildAgentMeta(input),
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
-        // Only the built-in TodoWrite (internal planning/progress — no side
-        // effects); filesystem tools (Read/Edit/Bash/…) stay OFF since entities
-        // are reached solely via the drifting MCP tools.
-        tools: ['TodoWrite'],
+        // Built-in tools we allow: TodoWrite (internal planning/progress) and
+        // WebSearch/WebFetch (real-world fact-checking — history, geography,
+        // 风物 考据). Filesystem tools (Read/Edit/Bash/…) stay OFF since the
+        // manuscript is reached solely via the drifting MCP tools. WebSearch is
+        // a hosted Anthropic tool and is billed against whatever auth path runs.
+        tools: ['TodoWrite', 'WebSearch', 'WebFetch'],
         mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
         // Stream token deltas so the panel can render assistant text live.

@@ -159,7 +159,11 @@ export interface ElectronAPI {
     authSubmitCode: (
       code: string,
     ) => Promise<{ ok: true } | { ok: false; error: string }>;
-    authStatus: () => Promise<{ byokConnected: boolean; hostedAvailable: boolean }>;
+    authStatus: () => Promise<{
+      byokConnected: boolean;
+      apiKeyConnected: boolean;
+      hostedAvailable: boolean;
+    }>;
     authLogout: () => Promise<{ ok: true }>;
     start: (
       input: AgentStartInput,

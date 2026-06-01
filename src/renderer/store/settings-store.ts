@@ -17,6 +17,15 @@ export type CopilotMode = 'local' | 'cloud';
  */
 export type AiMode = 'hosted' | 'byok';
 /**
+ * General-Agent (Claude Agent SDK) credential method. Unlike copilot's binary
+ * hosted/BYOK, the Agent SDK speaks Claude only, so BYOK splits into two:
+ *  - 'hosted': route through Drifting's metered proxy (subscription).
+ *  - 'oauth':  the user's Claude account via OAuth (Max/Pro) — direct, unmetered.
+ *  - 'apikey': a plain Anthropic API key (pay-as-you-go), stored in the keychain
+ *              as `byok.agent.anthropic`. The SDK reads it as ANTHROPIC_API_KEY.
+ */
+export type AgentAuth = 'hosted' | 'oauth' | 'apikey';
+/**
  * General-Agent (Claude Agent SDK) model. The SDK's `model` is a free string:
  * a tier alias ('opus'/'sonnet'/'haiku', resolves to the latest of that tier),
  * a pinned full model id ('claude-opus-4-8', …), or 'default' = inherit the
@@ -59,11 +68,6 @@ export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 /** Per-project Copilot/Shadow output language. 'auto' = follow manuscriptLocale. */
 export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
-export type OrbCorner = 'tl' | 'tr' | 'bl' | 'br';
-export type EditPermission = 'suggest' | 'small' | 'all';
-export type SurfaceMode = 'never' | 'keyMoments' | 'all';
-export type FinishNotify = 'silent' | 'stack' | 'system';
-export type ShadowVoice = 'restrained' | 'direct' | 'sharp';
 
 export type CopilotTaskId =
   | 'continuityCheck'
@@ -170,21 +174,28 @@ interface SettingsState {
   dateFormat: DateFormat;
   setDateFormat: (f: DateFormat) => void;
 
-  // 模型与 API — note: API keys are NOT here. They live in the OS keychain
-  // via `byok-keychain.ts`. Storing them in this persisted store would put
-  // them in plaintext localStorage. Only non-secret config belongs here.
-  modelTier: ModelTier;
-  setModelTier: (t: ModelTier) => void;
+  // Copilot (跟随式副手) provider config — note: API keys are NOT here. They
+  // live in the OS keychain via `byok-keychain.ts`. Storing them in this
+  // persisted store would put them in plaintext localStorage. Only non-secret
+  // config belongs here.
+  // Hosted tier: a coarse capability档 (the server maps it to a concrete model).
+  copilotTier: ModelTier;
+  setCopilotTier: (t: ModelTier) => void;
   // 'hosted' (server key, metered) vs 'byok' (user's own key, sent per-request).
-  aiMode: AiMode;
-  setAiMode: (m: AiMode) => void;
+  copilotAiMode: AiMode;
+  setCopilotAiMode: (m: AiMode) => void;
   // Which provider the BYOK path uses (the key for it must be in the keychain).
-  byokProvider: BYOKProvider;
-  setByokProvider: (p: BYOKProvider) => void;
-  // General Agent + Shadow credential mode — independent of copilot's `aiMode`.
-  // 'byok' = the user's Claude account via OAuth; 'hosted' = our subscription.
-  agentMode: AiMode;
-  setAgentMode: (m: AiMode) => void;
+  copilotByokProvider: BYOKProvider;
+  setCopilotByokProvider: (p: BYOKProvider) => void;
+  // The concrete model id within the BYOK provider ('' = let the server pick the
+  // provider default). Only meaningful when copilotAiMode === 'byok'.
+  copilotByokModel: string;
+  setCopilotByokModel: (m: string) => void;
+  // General Agent (Claude Agent SDK) credential method — independent of copilot.
+  // hosted = our metered proxy; oauth = user's Claude account; apikey = a plain
+  // Anthropic API key (kept in the keychain). See AgentAuth.
+  agentAuth: AgentAuth;
+  setAgentAuth: (a: AgentAuth) => void;
   // General Agent (Claude Agent SDK) generation params — passed into query().
   agentModel: AgentModel;
   setAgentModel: (m: AgentModel) => void;
@@ -192,32 +203,6 @@ interface SettingsState {
   setAgentEffort: (e: AgentEffort) => void;
   agentThinking: AgentThinking;
   setAgentThinking: (t: AgentThinking) => void;
-  uploadFullManuscript: boolean;
-  setUploadFullManuscript: (on: boolean) => void;
-  allowWebSearch: boolean;
-  setAllowWebSearch: (on: boolean) => void;
-  requestTimeoutSec: number;
-  setRequestTimeoutSec: (s: number) => void;
-
-  // Shadow Agent
-  orbCorner: OrbCorner;
-  setOrbCorner: (c: OrbCorner) => void;
-  surfaceMode: SurfaceMode;
-  setSurfaceMode: (m: SurfaceMode) => void;
-  finishNotify: FinishNotify;
-  setFinishNotify: (m: FinishNotify) => void;
-  editPermission: EditPermission;
-  setEditPermission: (p: EditPermission) => void;
-  agentCreateElements: boolean;
-  setAgentCreateElements: (on: boolean) => void;
-  agentEditTimeline: boolean;
-  setAgentEditTimeline: (on: boolean) => void;
-  agentWebSearch: boolean;
-  setAgentWebSearch: (on: boolean) => void;
-  shadowVoice: ShadowVoice;
-  setShadowVoice: (v: ShadowVoice) => void;
-  shadowSystemPrompt: string;
-  setShadowSystemPrompt: (s: string) => void;
 
   // Copilot (任务自动化, 没有续写)
   /**
@@ -364,46 +349,22 @@ export const useSettingsStore = create<SettingsState>()(
       dateFormat: 'cjk',
       setDateFormat: (f) => set({ dateFormat: f }),
 
-      aiMode: 'hosted',
-      setAiMode: (m) => set({ aiMode: m }),
-      byokProvider: 'deepseek',
-      setByokProvider: (p) => set({ byokProvider: p }),
-      agentMode: 'byok',
-      setAgentMode: (m) => set({ agentMode: m }),
+      copilotAiMode: 'hosted',
+      setCopilotAiMode: (m) => set({ copilotAiMode: m }),
+      copilotByokProvider: 'deepseek',
+      setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
+      copilotByokModel: '',
+      setCopilotByokModel: (m) => set({ copilotByokModel: m }),
+      agentAuth: 'oauth',
+      setAgentAuth: (a) => set({ agentAuth: a }),
       agentModel: 'default',
       setAgentModel: (m) => set({ agentModel: m }),
       agentEffort: 'high',
       setAgentEffort: (e) => set({ agentEffort: e }),
       agentThinking: 'adaptive',
       setAgentThinking: (t) => set({ agentThinking: t }),
-      modelTier: 'standard',
-      setModelTier: (t) => set({ modelTier: t }),
-      uploadFullManuscript: true,
-      setUploadFullManuscript: (on) => set({ uploadFullManuscript: on }),
-      allowWebSearch: true,
-      setAllowWebSearch: (on) => set({ allowWebSearch: on }),
-      requestTimeoutSec: 90,
-      setRequestTimeoutSec: (s) => set({ requestTimeoutSec: clamp(s, 10, 600, 90) }),
-
-      orbCorner: 'br',
-      setOrbCorner: (c) => set({ orbCorner: c }),
-      surfaceMode: 'keyMoments',
-      setSurfaceMode: (m) => set({ surfaceMode: m }),
-      finishNotify: 'stack',
-      setFinishNotify: (m) => set({ finishNotify: m }),
-      editPermission: 'suggest',
-      setEditPermission: (p) => set({ editPermission: p }),
-      agentCreateElements: true,
-      setAgentCreateElements: (on) => set({ agentCreateElements: on }),
-      agentEditTimeline: false,
-      setAgentEditTimeline: (on) => set({ agentEditTimeline: on }),
-      agentWebSearch: true,
-      setAgentWebSearch: (on) => set({ agentWebSearch: on }),
-      shadowVoice: 'direct',
-      setShadowVoice: (v) => set({ shadowVoice: v }),
-      shadowSystemPrompt:
-        '你是一位熟读明清白话小说与近代翻译腔的编辑。优先关注：人物动机的连贯、时间线的隐蔽冲突、语言节奏。避免改动叙述视角；当确实需要时，先给出标记，再让作者决定。',
-      setShadowSystemPrompt: (s) => set({ shadowSystemPrompt: s }),
+      copilotTier: 'standard',
+      setCopilotTier: (t) => set({ copilotTier: t }),
 
       copilotAutoTrigger: true,
       setCopilotAutoTrigger: (on) => set({ copilotAutoTrigger: on }),
@@ -480,7 +441,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 10,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -489,6 +450,11 @@ export const useSettingsStore = create<SettingsState>()(
           animationsEnabled?: boolean;
           copilotTasks?: CopilotTaskId[];
           copilotDebounceMs?: number;
+          // v8→v9 legacy AI keys (renamed/removed below).
+          modelTier?: ModelTier;
+          aiMode?: AiMode;
+          byokProvider?: BYOKProvider;
+          agentMode?: AiMode;
         };
         let next: Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -497,6 +463,10 @@ export const useSettingsStore = create<SettingsState>()(
           animationsEnabled?: boolean;
           copilotTasks?: CopilotTaskId[];
           copilotDebounceMs?: number;
+          modelTier?: ModelTier;
+          aiMode?: AiMode;
+          byokProvider?: BYOKProvider;
+          agentMode?: AiMode;
         } = state;
         if (version < 2) {
           // manuscriptSans is subsumed by appearanceSkin = 'modern' (which
@@ -589,6 +559,57 @@ export const useSettingsStore = create<SettingsState>()(
             if (!configs[id]) configs[id] = defaults[id];
           }
           next = { ...next, copilotTaskConfigs: configs };
+        }
+        if (version < 9) {
+          // AI settings reorg by subsystem. (1) Copilot's generic field names
+          // get a `copilot` prefix to disambiguate from the General Agent's
+          // routing. (2) `agentMode` (binary hosted/byok-OAuth) becomes the
+          // 3-way `agentAuth` — BYOK now splits into 'oauth' and 'apikey'. (3)
+          // The never-wired Shadow scaffolding (orb/surface/notify/permissions/
+          // voice/prompt) is dropped; no runtime ever consumed it. Each user's
+          // prior choices are preserved across the renames.
+          const legacy = next;
+          if (legacy.modelTier !== undefined && next.copilotTier === undefined) {
+            next.copilotTier = legacy.modelTier;
+          }
+          if (legacy.aiMode !== undefined && next.copilotAiMode === undefined) {
+            next.copilotAiMode = legacy.aiMode;
+          }
+          if (legacy.byokProvider !== undefined && next.copilotByokProvider === undefined) {
+            next.copilotByokProvider = legacy.byokProvider;
+          }
+          if (next.agentAuth === undefined) {
+            // Old 'byok' meant the Claude OAuth path; map it to 'oauth'.
+            next.agentAuth = legacy.agentMode === 'hosted' ? 'hosted' : 'oauth';
+          }
+          const drop = next as Record<string, unknown>;
+          for (const k of [
+            'modelTier',
+            'aiMode',
+            'byokProvider',
+            'agentMode',
+            'orbCorner',
+            'surfaceMode',
+            'finishNotify',
+            'editPermission',
+            'agentCreateElements',
+            'agentEditTimeline',
+            'agentWebSearch',
+            'shadowVoice',
+            'shadowSystemPrompt',
+          ]) {
+            delete drop[k];
+          }
+        }
+        if (version < 10) {
+          // Dropped three knobs the user never needed to control: manuscript
+          // upload, request timeout, and the model-web-search toggle. None were
+          // ever consumed by a runtime; the General Agent now搜网 unconditionally
+          // via the SDK's built-in WebSearch/WebFetch tools.
+          const drop = next as Record<string, unknown>;
+          for (const k of ['uploadFullManuscript', 'allowWebSearch', 'requestTimeoutSec']) {
+            delete drop[k];
+          }
         }
         return next;
       },

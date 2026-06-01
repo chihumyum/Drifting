@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { byokKeychain, maskBYOK, type BYOKProvider } from '../../lib/byok-keychain';
+import {
+  byokKeychain,
+  agentApiKeychain,
+  maskBYOK,
+  type BYOKProvider,
+} from '../../lib/byok-keychain';
 import { apiClient } from '../../lib/axios-config';
 import { getCopilotCapability } from '../../lib/copilot/capability';
 import { events } from '../../lib/events';
@@ -17,9 +22,8 @@ import {
   useSettingsStore,
   type CopilotTaskId,
   type DateFormat,
-  type EditPermission,
-  type FinishNotify,
   type AiMode,
+  type AgentAuth,
   type AgentEffort,
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
@@ -27,10 +31,7 @@ import {
   type LineHeight,
   type LocaleCode,
   type ModelTier,
-  type OrbCorner,
   type ParagraphIndent,
-  type ShadowVoice,
-  type SurfaceMode,
   type ThemeMode,
 } from '../../store/settings-store';
 import { useAuthStore } from '../../store/auth';
@@ -64,10 +65,9 @@ type RailId =
   | 'appearance'
   | 'editor'
   | 'language'
-  | 'models'
-  | 'shadow'
   | 'copilot'
-  | 'agent-usage'
+  | 'shadow'
+  | 'agent'
   | 'keys'
   | 'sync'
   | 'privacy'
@@ -91,10 +91,9 @@ const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
   { id: 'appearance', group: '偏好', glyph: '☀', label: '外观' },
   { id: 'editor', group: '偏好', glyph: '§', label: '编辑器' },
   { id: 'language', group: '偏好', glyph: '文', label: '语言' },
-  { id: 'models', group: '智能', glyph: '✦', label: '模型与 API' },
+  { id: 'copilot', group: '智能', glyph: '⌁', label: 'Copilot · 副手' },
   { id: 'shadow', group: '智能', glyph: '◐', label: 'Shadow Agent' },
-  { id: 'copilot', group: '智能', glyph: '⌁', label: 'Copilot · 任务' },
-  { id: 'agent-usage', group: '智能', glyph: '∑', label: 'Agent 用量' },
+  { id: 'agent', group: '智能', glyph: '✦', label: 'General Agent' },
   { id: 'keys', group: '控制', glyph: '⌨', label: '快捷键' },
   { id: 'sync', group: '控制', glyph: '⇅', label: '同步与数据' },
   { id: 'privacy', group: '关于', glyph: '⚷', label: '隐私' },
@@ -109,10 +108,9 @@ const RAIL_IDS = new Set<RailId>([
   'appearance',
   'editor',
   'language',
-  'models',
-  'shadow',
   'copilot',
-  'agent-usage',
+  'shadow',
+  'agent',
   'keys',
   'sync',
   'privacy',
@@ -230,12 +228,11 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           />
           <EditorPanel registerRef={(el) => (panelRefs.current.editor = el ?? undefined)} />
           <LanguagePanel registerRef={(el) => (panelRefs.current.language = el ?? undefined)} />
-          <ModelsPanel registerRef={(el) => (panelRefs.current.models = el ?? undefined)} />
-          <ShadowPanel registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)} />
           <CopilotPanel registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)} />
-          <AgentUsagePanel
+          <ShadowPanel registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)} />
+          <AgentPanel
             open={isOpen}
-            registerRef={(el) => (panelRefs.current['agent-usage'] = el ?? undefined)}
+            registerRef={(el) => (panelRefs.current.agent = el ?? undefined)}
           />
           <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
           <SyncPanel registerRef={(el) => (panelRefs.current.sync = el ?? undefined)} />
@@ -302,7 +299,7 @@ function SetRail({
   onSelect: (id: RailId) => void;
 }) {
   const user = useAuthStore((s) => s.user);
-  const tier = useSettingsStore((s) => s.modelTier);
+  const tier = useSettingsStore((s) => s.copilotTier);
   const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
   const groups: { name: string; items: RailDef[] }[] = [];
   for (const r of items) {
@@ -1673,258 +1670,6 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 }
 
-function ModelsPanel({ registerRef }: { registerRef: RegisterRef }) {
-  const {
-    modelTier,
-    setModelTier,
-    aiMode,
-    setAiMode,
-    agentMode,
-    setAgentMode,
-    agentModel,
-    setAgentModel,
-    agentEffort,
-    setAgentEffort,
-    agentThinking,
-    setAgentThinking,
-    uploadFullManuscript,
-    setUploadFullManuscript,
-    allowWebSearch,
-    setAllowWebSearch,
-    requestTimeoutSec,
-    setRequestTimeoutSec,
-  } = useSettingsStore();
-
-  const tiers: { value: ModelTier; kicker: string; name: string; desc: string }[] = [
-    { value: 'lite', kicker: 'LITE', name: '轻量', desc: '速度优先。短建议、实体抽取等高吞吐任务。' },
-    { value: 'standard', kicker: 'STANDARD', name: '标准', desc: '日常默认。结构、连贯、润色都够用。' },
-    { value: 'pro', kicker: 'PRO', name: '深思', desc: '长上下文、长任务推理。慢一点，更稳。' },
-  ];
-
-  const aiModes: { value: AiMode; kicker: string; name: string; desc: string }[] = [
-    {
-      value: 'hosted',
-      kicker: 'HOSTED',
-      name: '托管',
-      desc: '走 Drifting 的通道与额度，开箱即用。Prompt 与密钥都在服务端。',
-    },
-    {
-      value: 'byok',
-      kicker: 'BYOK',
-      name: '自带 Key',
-      desc: '用你自己的 Key 调用（在下方「自带密钥」填入 DeepSeek Key），不计入托管额度。',
-    },
-  ];
-
-  // Agent + Shadow routing — independent of copilot's aiMode above. BYOK here
-  // means the user's Claude account via OAuth (not a per-provider API key).
-  const agentModes: { value: AiMode; kicker: string; name: string; desc: string }[] = [
-    {
-      value: 'byok',
-      kicker: 'CLAUDE 账号',
-      name: '自带 Claude',
-      desc: '用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。',
-    },
-    {
-      value: 'hosted',
-      kicker: 'HOSTED',
-      name: '托管订阅',
-      desc: '走 Drifting 的通道与额度，无需你自己的 Claude 账号。',
-    },
-  ];
-
-  return (
-    <section className="set-panel" ref={registerRef} id="models">
-      <PanelHead
-        kicker="模型与 API · MODELS"
-        title="让谁来读你的草稿。"
-        sub={
-          <>
-            Drifting 把任务分成几个能力档位。默认走我们维护的通道，也可以接入你自己的 API。
-            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
-          </>
-        }
-      />
-
-      <GroupHead
-        label="Copilot"
-        hint="跟随式建议 · 结构化任务"
-        desc="正文里的轻量补全、实体抽取、润色等。支持四个 provider 自带 Key，或走托管。"
-      />
-
-      <div className="set-sec">
-        <SecHead title="能力档位" hint="DEFAULT TIER" />
-        <div className="set-tiers">
-          {tiers.map((t) => (
-            <button
-              key={t.value}
-              className={'set-tier' + (modelTier === t.value ? ' set-tier--active' : '')}
-              onClick={() => setModelTier(t.value)}
-            >
-              <div className="set-tier__kicker">{t.kicker}</div>
-              <div className="set-tier__name">{t.name}</div>
-              <div className="set-tier__desc">{t.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="AI 调用方式" hint="ROUTING" />
-        <div className="set-tiers">
-          {aiModes.map((m) => (
-            <button
-              key={m.value}
-              className={'set-tier' + (aiMode === m.value ? ' set-tier--active' : '')}
-              onClick={() => setAiMode(m.value)}
-            >
-              <div className="set-tier__kicker">{m.kicker}</div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="自带密钥 · BYOK" hint="4 PROVIDERS" />
-
-        <ProviderRow
-          provider="deepseek"
-          logoClass="set-provider__logo--deepseek"
-          logoText="D"
-          name="DeepSeek"
-          desc="选「自带 Key」后实际调用的 provider。在此填入你的 DeepSeek Key。"
-        />
-
-        <ProviderRow
-          provider="anthropic"
-          logoClass="set-provider__logo--anthropic"
-          logoText="A"
-          name="Anthropic"
-          desc="Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。"
-        />
-
-        <ProviderRow
-          provider="openai"
-          logoClass="set-provider__logo--openai"
-          logoText="O"
-          name="OpenAI"
-          desc="GPT 系列模型。"
-        />
-
-        <ProviderRow
-          provider="google"
-          logoClass="set-provider__logo--google"
-          logoText="G"
-          name="Google"
-          desc="Gemini 2.5 Pro / Flash · 长上下文场景。"
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="高级" hint="ADVANCED" />
-        <Row
-          label="允许稿件全文上传"
-          desc="关闭时，只发送相关段落与摘要——更慢但更稳妥。"
-          control={<Toggle on={uploadFullManuscript} onChange={setUploadFullManuscript} />}
-        />
-        <Row
-          label="允许模型联网"
-          desc="仅对支持 web 工具的模型生效。"
-          control={<Toggle on={allowWebSearch} onChange={setAllowWebSearch} />}
-        />
-        <Row
-          label="请求超时"
-          desc="单次 LLM 调用最长等待时间。"
-          control={
-            <input
-              className="set-input set-input--mono"
-              style={{ minWidth: 90 }}
-              value={`${requestTimeoutSec} s`}
-              onChange={(e) => {
-                const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                if (Number.isFinite(n)) setRequestTimeoutSec(n);
-              }}
-            />
-          }
-        />
-      </div>
-
-      <GroupHead
-        label="General Agent · Shadow"
-        hint="对话式 / 跨章节巡查"
-        desc="右栏的 Agent（对话）与 Shadow 共用同一套凭据。可用你的 Claude 账号（OAuth）或托管订阅。"
-      />
-
-      <div className="set-sec">
-        <SecHead title="调用方式" hint="ROUTING" />
-        <div className="set-tiers">
-          {agentModes.map((m) => (
-            <button
-              key={m.value}
-              className={'set-tier' + (agentMode === m.value ? ' set-tier--active' : '')}
-              onClick={() => setAgentMode(m.value)}
-            >
-              <div className="set-tier__kicker">{m.kicker}</div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <AgentAuthRow mode={agentMode} />
-
-      <div className="set-sec">
-        <SecHead title="模型" hint="MODEL" />
-        <Row
-          label="对话模型"
-          desc="「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给订阅 / CLI。"
-          control={
-            <select
-              className="set-input"
-              style={{ minWidth: 220 }}
-              value={agentModel}
-              onChange={(e) => setAgentModel(e.target.value)}
-            >
-              {AGENT_MODEL_OPTIONS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          }
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="推理参数" hint="REASONING" />
-        <Row
-          label="扩展思考"
-          desc="开启后模型会先「想」再答，复杂任务更稳；关闭更快更省。思考过程会显示在对话里。"
-          control={
-            <Toggle
-              on={agentThinking === 'adaptive'}
-              onChange={(on) => setAgentThinking(on ? 'adaptive' : 'off')}
-            />
-          }
-        />
-        <Row
-          label="思考强度"
-          desc="思考开启时生效。high 推理最深（默认），low 最快；xhigh / max 仅部分 Opus 版本支持。"
-          control={
-            <Seg<AgentEffort>
-              value={agentEffort}
-              options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-              onChange={setAgentEffort}
-            />
-          }
-        />
-      </div>
-    </section>
-  );
-}
 
 function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?: string }) {
   return (
@@ -1953,26 +1698,43 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
 }
 
 /** Connect / status for the Agent's credentials (Claude OAuth or hosted). */
-function AgentAuthRow({ mode }: { mode: AiMode }) {
+function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const api = window.electronAPI?.agent;
-  const [status, setStatus] = useState<{ byokConnected: boolean; hostedAvailable: boolean } | null>(
-    null,
-  );
+  const [status, setStatus] = useState<{
+    byokConnected: boolean;
+    apiKeyConnected: boolean;
+    hostedAvailable: boolean;
+  } | null>(null);
   const [awaitingCode, setAwaitingCode] = useState(false);
   const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // API-key path state (the key lives only in the keychain — see agentApiKeychain).
+  const [keyStored, setKeyStored] = useState<string | null>(null);
+  const [keyEditing, setKeyEditing] = useState(false);
+  const [keyDraft, setKeyDraft] = useState('');
 
   const refresh = useCallback(() => {
     if (!api) return;
     void api
       .authStatus()
       .then(setStatus)
-      .catch(() => setStatus({ byokConnected: false, hostedAvailable: false }));
+      .catch(() =>
+        setStatus({ byokConnected: false, apiKeyConnected: false, hostedAvailable: false }),
+      );
   }, [api]);
   useEffect(() => {
     refresh();
   }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+    void agentApiKeychain.get().then((v) => {
+      if (!cancelled) setKeyStored(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!api) return null;
 
@@ -2002,7 +1764,28 @@ function AgentAuthRow({ mode }: { mode: AiMode }) {
     events.emit('agent:auth-changed');
   };
 
-  if (mode === 'hosted') {
+  const saveKey = async () => {
+    const v = keyDraft.trim();
+    if (!v) {
+      await agentApiKeychain.clear();
+      setKeyStored(null);
+    } else {
+      await agentApiKeychain.set(v);
+      setKeyStored(v);
+    }
+    setKeyDraft('');
+    setKeyEditing(false);
+    refresh();
+    events.emit('agent:auth-changed');
+  };
+  const clearKey = async () => {
+    await agentApiKeychain.clear();
+    setKeyStored(null);
+    refresh();
+    events.emit('agent:auth-changed');
+  };
+
+  if (auth === 'hosted') {
     const ok = !!status?.hostedAvailable;
     return (
       <div className="set-sec">
@@ -2023,6 +1806,68 @@ function AgentAuthRow({ mode }: { mode: AiMode }) {
             </span>
           }
         />
+      </div>
+    );
+  }
+
+  if (auth === 'apikey') {
+    const hasKey = !!keyStored;
+    return (
+      <div className="set-sec">
+        <SecHead title="Anthropic API Key" hint="PAY-AS-YOU-GO" />
+        {keyEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>粘贴 Anthropic API Key（sk-ant-…）：</div>
+            <input
+              className="set-input set-input--mono"
+              style={{ minWidth: 320 }}
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              placeholder="sk-ant-..."
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="set-btn set-btn--primary" onClick={saveKey}>
+                保存
+              </button>
+              <button
+                className="set-btn"
+                onClick={() => {
+                  setKeyDraft('');
+                  setKeyEditing(false);
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : hasKey ? (
+          <Row
+            label="已填写"
+            desc="Agent 将用你的 Anthropic API Key（按量付费）直连 Anthropic。密钥仅存于本机 Keychain。"
+            control={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <code className="set-mono">{maskBYOK(keyStored)}</code>
+                <button className="set-btn" onClick={() => setKeyEditing(true)}>
+                  编辑
+                </button>
+                <button className="set-btn set-btn--danger" onClick={clearKey}>
+                  删除
+                </button>
+              </div>
+            }
+          />
+        ) : (
+          <Row
+            label="未填写"
+            desc="使用 Anthropic Console 的 API Key（按量付费，无需订阅 / OAuth）。"
+            control={
+              <button className="set-btn set-btn--primary" onClick={() => setKeyEditing(true)}>
+                填入 Key
+              </button>
+            }
+          />
+        )}
       </div>
     );
   }
@@ -2129,9 +1974,9 @@ function ProviderRow({
   const connected = !!stored;
   const masked = useMemo(() => maskBYOK(stored), [stored]);
 
-  const aiMode = useSettingsStore((s) => s.aiMode);
-  const activeProvider = useSettingsStore((s) => s.byokProvider);
-  const setByokProvider = useSettingsStore((s) => s.setByokProvider);
+  const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
+  const activeProvider = useSettingsStore((s) => s.copilotByokProvider);
+  const setCopilotByokProvider = useSettingsStore((s) => s.setCopilotByokProvider);
   const isActive = activeProvider === provider;
 
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
@@ -2263,13 +2108,13 @@ function ProviderRow({
             >
               编辑密钥
             </button>
-            {aiMode === 'byok' &&
+            {copilotAiMode === 'byok' &&
               (isActive ? (
                 <span className="set-mono" style={{ color: '#4D6BFE', fontWeight: 600 }}>
                   ✓ 当前 BYOK
                 </span>
               ) : (
-                <button className="set-btn" onClick={() => setByokProvider(provider)}>
+                <button className="set-btn" onClick={() => setCopilotByokProvider(provider)}>
                   设为当前
                 </button>
               ))}
@@ -2294,155 +2139,43 @@ function ProviderRow({
   );
 }
 
+// Shadow Agent is not built yet — only this placeholder tab is shown. The old
+// scaffolding controls (orb / surface / permissions / voice / system prompt)
+// were removed since no runtime ever consumed them. When Shadow ships it will
+// share Copilot's provider model (hosted tier OR BYOK provider + key), per the
+// product decision; wire its config here then.
 function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
-  const {
-    orbCorner,
-    setOrbCorner,
-    surfaceMode,
-    setSurfaceMode,
-    finishNotify,
-    setFinishNotify,
-    editPermission,
-    setEditPermission,
-    agentCreateElements,
-    setAgentCreateElements,
-    agentEditTimeline,
-    setAgentEditTimeline,
-    agentWebSearch,
-    setAgentWebSearch,
-    shadowVoice,
-    setShadowVoice,
-    shadowSystemPrompt,
-    setShadowSystemPrompt,
-  } = useSettingsStore();
-
   return (
     <section className="set-panel" ref={registerRef} id="shadow">
       <PanelHead
         kicker="SHADOW AGENT · 影"
-        title="影怎么进出你的稿子。"
-        sub="Shadow 在背景里读你的稿子，它何时浮现、能动什么——都在这里决定。"
+        title="影，还在路上。"
+        sub="后台巡查你的稿子、在关键处主动浮现的「影」尚未上线。它将与 Copilot 共用同一套调用方式（托管档位或自带 Key），上线后这里会出现它的触发、权限与语气设置。"
       />
-
-      <div className="set-sec">
-        <SecHead title="触发与浮现" hint="INVOCATION" />
-        <Row
-          label="墨珠位置"
-          desc="墨珠停靠的屏幕角落。"
-          control={
-            <Seg<OrbCorner>
-              value={orbCorner}
-              options={[
-                { value: 'bl', label: '左下' },
-                { value: 'tl', label: '左上' },
-                { value: 'tr', label: '右上' },
-                { value: 'br', label: '右下' },
-              ]}
-              onChange={setOrbCorner}
-            />
-          }
-        />
-        <Row
-          label="主动浮现"
-          desc="Shadow 发现重要建议时短暂闪现。"
-          control={
-            <Seg<SurfaceMode>
-              value={surfaceMode}
-              options={[
-                { value: 'never', label: '从不' },
-                { value: 'keyMoments', label: '关键时刻' },
-                { value: 'all', label: '所有更新' },
-              ]}
-              onChange={setSurfaceMode}
-            />
-          }
-        />
-        <Row
-          label="完成时通知"
-          desc="长任务完成时的提示形式。"
-          control={
-            <Seg<FinishNotify>
-              value={finishNotify}
-              options={[
-                { value: 'silent', label: '无声' },
-                { value: 'stack', label: '堆叠' },
-                { value: 'system', label: '系统通知' },
-              ]}
-              onChange={setFinishNotify}
-            />
-          }
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="能动什么" hint="PERMISSIONS" />
-        <Row
-          label="直接编辑稿件"
-          desc="关闭时，Shadow 只能写建议、不能改字。"
-          control={
-            <Seg<EditPermission>
-              value={editPermission}
-              options={[
-                { value: 'suggest', label: '仅建议' },
-                { value: 'small', label: '小改' },
-                { value: 'all', label: '允许全改' },
-              ]}
-              onChange={setEditPermission}
-            />
-          }
-        />
-        <Row
-          label="创建新元素"
-          desc="提到新名字时自动建档。"
-          control={<Toggle on={agentCreateElements} onChange={setAgentCreateElements} />}
-        />
-        <Row
-          label="修改时间线"
-          desc="Shadow 可在时间线上调整章节锚点位置。"
-          control={<Toggle on={agentEditTimeline} onChange={setAgentEditTimeline} />}
-        />
-        <Row
-          label="联网检索"
-          desc="用于历史 / 地理 / 风物考据。"
-          control={<Toggle on={agentWebSearch} onChange={setAgentWebSearch} />}
-        />
-      </div>
-
-      <div className="set-sec">
-        <SecHead title="语气" hint="VOICE" />
-        <Row
-          label="编辑语气"
-          desc="Shadow 给批注的语气强度。"
-          control={
-            <Seg<ShadowVoice>
-              value={shadowVoice}
-              options={[
-                { value: 'restrained', label: '克制' },
-                { value: 'direct', label: '直率' },
-                { value: 'sharp', label: '尖锐' },
-              ]}
-              onChange={setShadowVoice}
-            />
-          }
-        />
-        <Row
-          stack
-          label={
-            <>
-              系统提示 <em>SYSTEM PROMPT</em>
-            </>
-          }
-          desc="追加在每次任务前的指令，定义 Shadow 看你稿子的角度。"
-          control={
-            <textarea
-              className="set-input set-input--mono"
-              rows={4}
-              value={shadowSystemPrompt}
-              onChange={(e) => setShadowSystemPrompt(e.target.value)}
-              style={{ minWidth: '100%', lineHeight: 1.55, fontFamily: 'var(--font-mono)' }}
-            />
-          }
-        />
+      <div
+        style={{
+          marginTop: 8,
+          padding: '20px 22px',
+          border: '1px dashed hsl(var(--rule))',
+          borderRadius: 6,
+          color: 'hsl(var(--ink-3))',
+          fontSize: 13,
+          lineHeight: 1.7,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            textTransform: 'uppercase',
+            letterSpacing: '0.14em',
+            color: 'hsl(var(--ink-4))',
+            marginBottom: 6,
+          }}
+        >
+          COMING SOON
+        </div>
+        敬请期待。
       </div>
     </section>
   );
@@ -2548,7 +2281,34 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
   );
 }
 
+const COPILOT_TIERS: { value: ModelTier; kicker: string; name: string; desc: string }[] = [
+  { value: 'lite', kicker: 'LITE', name: '轻量', desc: '速度优先。短建议、实体抽取等高吞吐任务。' },
+  { value: 'standard', kicker: 'STANDARD', name: '标准', desc: '日常默认。结构、连贯、润色都够用。' },
+  { value: 'pro', kicker: 'PRO', name: '深思', desc: '长上下文、长任务推理。慢一点，更稳。' },
+];
+
+const COPILOT_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
+  {
+    value: 'hosted',
+    kicker: 'HOSTED',
+    name: '托管',
+    desc: '走 Drifting 的通道与额度，开箱即用。只需在上方选一个能力档位。',
+  },
+  {
+    value: 'byok',
+    kicker: 'BYOK',
+    name: '自带 Key',
+    desc: '用你自己的 Key 调用（在下方选 provider、填模型与 Key），不计入托管额度。',
+  },
+];
+
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const copilotTier = useSettingsStore((s) => s.copilotTier);
+  const setCopilotTier = useSettingsStore((s) => s.setCopilotTier);
+  const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
+  const setCopilotAiMode = useSettingsStore((s) => s.setCopilotAiMode);
+  const copilotByokModel = useSettingsStore((s) => s.copilotByokModel);
+  const setCopilotByokModel = useSettingsStore((s) => s.setCopilotByokModel);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
@@ -2561,10 +2321,103 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="copilot">
       <PanelHead
-        kicker="COPILOT · 任务"
+        kicker="COPILOT · 副手"
         title="把琐事交给一个安静的副手。"
-        sub="每个任务独立配置——什么时候触发、要不要开。它不会替你写正文。"
+        sub={
+          <>
+            正文里的轻量补全、实体抽取、润色等结构化任务。托管模式只需选能力档位；自带 Key
+            可指定 provider 与模型。
+            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+          </>
+        }
       />
+
+      <div className="set-sec">
+        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {COPILOT_AI_MODES.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (copilotAiMode === m.value ? ' set-tier--active' : '')}
+              onClick={() => setCopilotAiMode(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {copilotAiMode === 'hosted' ? (
+        <div className="set-sec">
+          <SecHead title="能力档位" hint="TIER" />
+          <div className="set-tiers">
+            {COPILOT_TIERS.map((t) => (
+              <button
+                key={t.value}
+                className={'set-tier' + (copilotTier === t.value ? ' set-tier--active' : '')}
+                onClick={() => setCopilotTier(t.value)}
+              >
+                <div className="set-tier__kicker">{t.kicker}</div>
+                <div className="set-tier__name">{t.name}</div>
+                <div className="set-tier__desc">{t.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="set-sec">
+            <SecHead title="自带密钥 · BYOK" hint="4 PROVIDERS" />
+            <ProviderRow
+              provider="deepseek"
+              logoClass="set-provider__logo--deepseek"
+              logoText="D"
+              name="DeepSeek"
+              desc="选「自带 Key」后实际调用的 provider。在此填入你的 DeepSeek Key。"
+            />
+            <ProviderRow
+              provider="anthropic"
+              logoClass="set-provider__logo--anthropic"
+              logoText="A"
+              name="Anthropic"
+              desc="Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。"
+            />
+            <ProviderRow
+              provider="openai"
+              logoClass="set-provider__logo--openai"
+              logoText="O"
+              name="OpenAI"
+              desc="GPT 系列模型。"
+            />
+            <ProviderRow
+              provider="google"
+              logoClass="set-provider__logo--google"
+              logoText="G"
+              name="Google"
+              desc="Gemini 2.5 Pro / Flash · 长上下文场景。"
+            />
+          </div>
+
+          <div className="set-sec">
+            <SecHead title="模型" hint="MODEL" />
+            <Row
+              label="指定模型"
+              desc="当前 provider 下要用的具体模型 id（留空 = 由服务端选该 provider 的默认模型）。"
+              control={
+                <input
+                  className="set-input set-input--mono"
+                  style={{ minWidth: 220 }}
+                  placeholder="留空 = provider 默认"
+                  value={copilotByokModel}
+                  onChange={(e) => setCopilotByokModel(e.target.value)}
+                />
+              }
+            />
+          </div>
+        </>
+      )}
 
       <div className="set-sec">
         <SecHead title="开关" hint="ENABLE" />
@@ -2641,7 +2494,7 @@ const fmtUsageTok = (n: number): string =>
       : String(n);
 const fmtUsageUsd = (n: number): string => `$${n.toFixed(n > 0 && n < 0.01 ? 4 : 2)}`;
 
-function AgentUsagePanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
+function AgentUsageSection({ open }: { open: boolean }) {
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [rows, setRows] = useState<AgentConversationUsage[]>([]);
 
@@ -2722,11 +2575,11 @@ function AgentUsagePanel({ open, registerRef }: { open: boolean; registerRef: Re
   );
 
   return (
-    <section className="set-panel" ref={registerRef} id="agent-usage">
-      <PanelHead
-        kicker="Agent 用量 · USAGE"
-        title="本项目里，Agent 用了多少 token。"
-        sub="统计自每轮返回的用量（输入含缓存读取）。BYOK 模式下为自付额；数据保存在本地。"
+    <>
+      <GroupHead
+        label="用量"
+        hint="USAGE"
+        desc="本项目里 Agent 用了多少 token。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。"
       />
 
       {!projectId ? (
@@ -2812,6 +2665,122 @@ function AgentUsagePanel({ open, registerRef }: { open: boolean; registerRef: Re
           </div>
         </>
       )}
+    </>
+  );
+}
+
+const AGENT_AUTH_OPTIONS: { value: AgentAuth; kicker: string; name: string; desc: string }[] = [
+  {
+    value: 'oauth',
+    kicker: 'CLAUDE 账号',
+    name: '自带 Claude',
+    desc: '用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。',
+  },
+  {
+    value: 'apikey',
+    kicker: 'API KEY',
+    name: 'Anthropic Key',
+    desc: '用 Anthropic Console 的 API Key（按量付费），无需订阅。密钥仅存于本机 Keychain。',
+  },
+  {
+    value: 'hosted',
+    kicker: 'HOSTED',
+    name: '托管订阅',
+    desc: '走 Drifting 的通道与额度，无需你自己的 Claude 账号或 Key。',
+  },
+];
+
+function AgentPanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
+  const agentAuth = useSettingsStore((s) => s.agentAuth);
+  const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
+  const agentModel = useSettingsStore((s) => s.agentModel);
+  const setAgentModel = useSettingsStore((s) => s.setAgentModel);
+  const agentEffort = useSettingsStore((s) => s.agentEffort);
+  const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+  const agentThinking = useSettingsStore((s) => s.agentThinking);
+  const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
+
+  return (
+    <section className="set-panel" ref={registerRef} id="agent">
+      <PanelHead
+        kicker="GENERAL AGENT · 对话"
+        title="右栏那位能动手的 Agent。"
+        sub={
+          <>
+            对话式、能读写整本稿子的 Agent（Claude Agent SDK）。可用你的 Claude 账号、Anthropic
+            API Key，或走托管订阅；模型与推理强度可细调。
+            <span className="set-italic"> 凭据仅存于本机，不上传服务器。</span>
+          </>
+        }
+      />
+
+      <div className="set-sec">
+        <SecHead title="调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {AGENT_AUTH_OPTIONS.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (agentAuth === m.value ? ' set-tier--active' : '')}
+              onClick={() => setAgentAuth(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <AgentAuthRow auth={agentAuth} />
+
+      <div className="set-sec">
+        <SecHead title="模型" hint="MODEL" />
+        <Row
+          label="对话模型"
+          desc="「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给订阅 / CLI。"
+          control={
+            <select
+              className="set-input"
+              style={{ minWidth: 220 }}
+              value={agentModel}
+              onChange={(e) => setAgentModel(e.target.value)}
+            >
+              {AGENT_MODEL_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="推理参数" hint="REASONING" />
+        <Row
+          label="扩展思考"
+          desc="开启后模型会先「想」再答，复杂任务更稳；关闭更快更省。思考过程会显示在对话里。"
+          control={
+            <Toggle
+              on={agentThinking === 'adaptive'}
+              onChange={(on) => setAgentThinking(on ? 'adaptive' : 'off')}
+            />
+          }
+        />
+        <Row
+          label="思考强度"
+          desc="思考开启时生效。high 推理最深（默认），low 最快；xhigh / max 仅部分 Opus 版本支持。"
+          control={
+            <Seg<AgentEffort>
+              value={agentEffort}
+              options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              onChange={setAgentEffort}
+            />
+          }
+        />
+      </div>
+
+      <AgentUsageSection open={open} />
     </section>
   );
 }
