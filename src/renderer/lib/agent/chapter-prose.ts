@@ -29,6 +29,7 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { makeDocId } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
+import { useDataStore } from '../../store/data-store';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { countWordsInPmJson } from '../word-count';
@@ -130,19 +131,32 @@ export function yAppendParagraph(frag: Y.XmlFragment, text: string): void {
   frag.insert(frag.length, [newParagraph(text)]);
 }
 
+/** Replace the ENTIRE body with a fresh set of paragraphs (whole-doc rewrite). */
+export function yReplaceAllParagraphs(frag: Y.XmlFragment, texts: string[]): void {
+  if (frag.length > 0) frag.delete(0, frag.length);
+  // Always leave at least one (possibly empty) paragraph so the editor schema
+  // stays valid — an empty doc with zero blocks can break the bound editor.
+  const paras = texts.length > 0 ? texts : [''];
+  frag.insert(0, paras.map(newParagraph));
+}
+
 // ---- read / write through the truth representation -------------------------
+//
+// Both chapters (docId `node-content:<id>`) and elements (`element:<id>`) store
+// their body as a Yjs doc with a `contentJson` projection cache. The core
+// read/write below is entity-agnostic — it talks only in docIds and a
+// fallback-json reader; the chapter/element wrappers add the right docId and
+// cache-refresh (chapters also keep wordCount in sync).
 
 /**
- * The chapter's CURRENT prose as a contentJson string, read from the Yjs truth
- * (live editor doc, else a transient doc rehydrated from SQLite) so the agent
- * sees exactly what the editor shows. Falls back to the contentJson cache when
- * the chapter has no Yjs state yet.
+ * Read a Yjs-backed body as a contentJson string, from the live editor doc when
+ * one is open, else a transient doc rehydrated from SQLite, else the supplied
+ * fallback (the projection cache) when the entity has no Yjs state yet.
  */
-export async function getChapterContentJson(
-  nodeId: string,
-  fallbackContentJson: string | null,
+async function readProseContentJson(
+  docId: string,
+  readFallbackJson: () => Promise<string>,
 ): Promise<string> {
-  const docId = makeDocId('node-content', nodeId);
   const { yDocToProsemirrorJSON } = await import('y-prosemirror');
 
   const live = getLiveYDoc(docId);
@@ -162,14 +176,77 @@ export async function getChapterContentJson(
       doc.destroy();
     }
   }
-  return fallbackContentJson ?? '{}';
+  return readFallbackJson();
 }
 
 /**
- * Apply a prose edit to a chapter through its Yjs document when one exists, and
- * keep the contentJson cache + wordCount in sync. `yMutate` expresses the edit
- * on the Y.XmlFragment; `jsonMutate` is the equivalent on a contentJson string,
- * used only when the chapter has no Yjs state yet. Returns the resulting JSON.
+ * Apply a body edit through the Yjs document when one exists, returning the
+ * resulting contentJson. `yMutate` expresses the edit on the Y.XmlFragment;
+ * `jsonMutate` is the equivalent on a contentJson string, used only when the
+ * entity has no Yjs state yet (the editor seeds Yjs from contentJson on first
+ * open). Does NOT touch the projection cache — callers refresh it.
+ */
+async function writeProseDoc(
+  docId: string,
+  yMutate: (frag: Y.XmlFragment) => void,
+  jsonMutate: (currentJson: string) => string,
+  readFallbackJson: () => Promise<string>,
+): Promise<string> {
+  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
+  const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
+
+  const live = getLiveYDoc(docId);
+  if (live) {
+    // Mutate the open editor's doc — it updates the page live and the editor's
+    // own update/sync handlers persist + push it.
+    live.transact(() => yMutate(live.getXmlFragment('default')), AGENT_ORIGIN);
+    return toJson(live);
+  }
+
+  const yrepo = createYjsRepository();
+  if (await yrepo.hasDocState(docId)) {
+    const doc = new Y.Doc();
+    try {
+      const snap = await yrepo.getSnapshot(docId);
+      if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
+      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+
+      // Collect the diff this edit produces so we can append it for sync.
+      const diff: Uint8Array[] = [];
+      const onUpdate = (u: Uint8Array, origin: unknown) => {
+        if (origin === AGENT_ORIGIN) diff.push(new Uint8Array(u));
+      };
+      doc.on('update', onUpdate);
+      doc.transact(() => yMutate(doc.getXmlFragment('default')), AGENT_ORIGIN);
+      doc.off('update', onUpdate);
+
+      for (const u of diff) await yrepo.appendUpdate(docId, u);
+      await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+      return toJson(doc);
+    } finally {
+      doc.destroy();
+    }
+  }
+
+  // No Yjs state yet — edit the contentJson the editor will seed Yjs from.
+  return jsonMutate(await readFallbackJson());
+}
+
+/**
+ * The chapter's CURRENT prose as contentJson, read from the Yjs truth so the
+ * agent sees exactly what the editor shows. Falls back to the contentJson cache
+ * when the chapter has no Yjs state yet.
+ */
+export async function getChapterContentJson(
+  nodeId: string,
+  fallbackContentJson: string | null,
+): Promise<string> {
+  return readProseContentJson(makeDocId('node-content', nodeId), async () => fallbackContentJson ?? '{}');
+}
+
+/**
+ * Apply a prose edit to a chapter through its Yjs document, keeping the
+ * contentJson cache + wordCount in sync. See {@link writeProseDoc}.
  */
 export async function writeChapterProse(
   ctx: AgentToolContext,
@@ -177,54 +254,56 @@ export async function writeChapterProse(
   yMutate: (frag: Y.XmlFragment) => void,
   jsonMutate: (currentJson: string) => string,
 ): Promise<{ contentJson: string }> {
-  const docId = makeDocId('node-content', nodeId);
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
-  const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
-
-  let contentJson: string;
-  const live = getLiveYDoc(docId);
-
-  if (live) {
-    // Mutate the open editor's doc — it updates the page live and the editor's
-    // own update/sync handlers persist + push it.
-    live.transact(() => yMutate(live.getXmlFragment('default')), AGENT_ORIGIN);
-    contentJson = toJson(live);
-  } else {
-    const yrepo = createYjsRepository();
-    if (await yrepo.hasDocState(docId)) {
-      const doc = new Y.Doc();
-      try {
-        const snap = await yrepo.getSnapshot(docId);
-        if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-        for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
-
-        // Collect the diff this edit produces so we can append it for sync.
-        const diff: Uint8Array[] = [];
-        const onUpdate = (u: Uint8Array, origin: unknown) => {
-          if (origin === AGENT_ORIGIN) diff.push(new Uint8Array(u));
-        };
-        doc.on('update', onUpdate);
-        doc.transact(() => yMutate(doc.getXmlFragment('default')), AGENT_ORIGIN);
-        doc.off('update', onUpdate);
-
-        for (const u of diff) await yrepo.appendUpdate(docId, u);
-        await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
-        contentJson = toJson(doc);
-      } finally {
-        doc.destroy();
-      }
-    } else {
-      // No Yjs state — the editor will seed Yjs from contentJson on first open.
-      const current = await createBookContentRepository().findByNodeId(nodeId);
-      contentJson = jsonMutate(current?.contentJson ?? '{}');
-    }
-  }
+  const contentJson = await writeProseDoc(
+    makeDocId('node-content', nodeId),
+    yMutate,
+    jsonMutate,
+    async () => (await createBookContentRepository().findByNodeId(nodeId))?.contentJson ?? '{}',
+  );
 
   // Refresh the materialized cache + word count so every other reader stays
   // consistent (the live editor also does this on a debounce; a redundant write
   // of the same value is harmless).
   await ctx.write.updateContentByNodeId(nodeId, { contentJson });
   await ctx.write.updateNode(nodeId, { wordCount: countWordsInPmJson(contentJson) });
+
+  return { contentJson };
+}
+
+/**
+ * The element's CURRENT body as contentJson, read from the Yjs truth (elements
+ * have a live editor doc too — see ElementEditorView). Falls back to the
+ * element's contentJson cache from the data store when it has no Yjs state yet.
+ */
+export async function getElementContentJson(elementId: string): Promise<string> {
+  return readProseContentJson(makeDocId('element', elementId), async () => {
+    const el = useDataStore.getState().bookElements.find((e) => e.id === elementId);
+    return el?.contentJson ?? '{}';
+  });
+}
+
+/**
+ * Apply a body edit to an element through its Yjs document, keeping the
+ * element's contentJson cache in sync. Mirrors {@link writeChapterProse} but
+ * elements carry no wordCount, so only the projection cache is refreshed.
+ */
+export async function writeElementProse(
+  ctx: AgentToolContext,
+  elementId: string,
+  yMutate: (frag: Y.XmlFragment) => void,
+  jsonMutate: (currentJson: string) => string,
+): Promise<{ contentJson: string }> {
+  const contentJson = await writeProseDoc(
+    makeDocId('element', elementId),
+    yMutate,
+    jsonMutate,
+    async () => {
+      const el = useDataStore.getState().bookElements.find((e) => e.id === elementId);
+      return el?.contentJson ?? '{}';
+    },
+  );
+
+  await ctx.write.updateElement(elementId, { contentJson });
 
   return { contentJson };
 }

@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { AgentCountBadge } from './AgentCountBadge';
+
 // Single source for the left-sidebar group-header cell. Storyline groups in
 // ChapterPanel and category groups in ElementPanel both render the same
 // row: [chevron] [color dot] [NAME · count] [hover-revealed + button].
@@ -32,6 +34,11 @@ export interface GroupHeaderCellProps {
   sticky?: boolean;
   // Optional extra slot rendered between the count and the + button.
   rightExtra?: ReactNode;
+  // Agent activity bubbled up from this group's child cells (#17). When a child
+  // is busy the color dot blinks accent; once a run leaves unviewed changes the
+  // dot is replaced by `agentDoneCount` (blinking if a fresh run is still busy).
+  agentBusy?: boolean;
+  agentDoneCount?: number;
 }
 
 export function GroupHeaderCell({
@@ -47,6 +54,8 @@ export function GroupHeaderCell({
   onAdd,
   sticky = false,
   rightExtra,
+  agentBusy = false,
+  agentDoneCount = 0,
 }: GroupHeaderCellProps) {
   return (
     <div
@@ -118,16 +127,28 @@ export function GroupHeaderCell({
             <ChevronDown size={11} strokeWidth={2} />
           )}
         </button>
-        <span
-          aria-hidden
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: 2,
-            background: color,
-            flexShrink: 0,
-          }}
-        />
+        {agentDoneCount > 0 ? (
+          <AgentCountBadge
+            count={agentDoneCount}
+            busy={agentBusy}
+            title="未查看的 Agent 改动"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className={agentBusy ? 'agent-glyph-busy' : undefined}
+            title={agentBusy ? 'Agent 正在处理' : undefined}
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: 2,
+              // Busy overrides the group color with accent so the glow reads;
+              // at rest it keeps the storyline/category color.
+              background: agentBusy ? 'hsl(var(--accent))' : color,
+              flexShrink: 0,
+            }}
+          />
+        )}
         <span
           style={{
             fontFamily: 'var(--font-mono)',

@@ -6,9 +6,12 @@ import type { BookNode } from '../../domain/book-node';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { AgentCountBadge } from './AgentCountBadge';
+import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -390,6 +393,15 @@ export function ChapterPanel() {
   const hasNodes = bookNodes.length > 0;
   const hasStorylines = storylines.length > 0;
 
+  // Agent activity rolled up over the unaffiliated bucket — surfaced on the
+  // footer header so changes hidden inside the (default-collapsed) drawer still
+  // register (#17).
+  const unaffiliatedActivity = aggregateActivity(
+    agentActive,
+    agentTouched,
+    unaffiliatedChapters.map((n) => entityKey('node', n.id)),
+  );
+
   return (
     <div
       ref={containerRef}
@@ -435,6 +447,13 @@ export function ChapterPanel() {
             const sNodes = nodesByStoryline[storyline.id] ?? [];
             const collapsed = collapsedStorylineIds.has(storyline.id);
             const color = storyline.color || 'hsl(var(--ink-4))';
+            // Bubble agent activity from this storyline's chapters up to its
+            // group header (#17).
+            const activity = aggregateActivity(
+              agentActive,
+              agentTouched,
+              sNodes.map((n) => entityKey('node', n.id)),
+            );
             return (
               <div
                 key={storyline.id}
@@ -460,6 +479,8 @@ export function ChapterPanel() {
                   }}
                   addButtonTitle="New chapter in this storyline"
                   onAdd={() => void handleCreateNode(storyline.id)}
+                  agentBusy={activity.busy}
+                  agentDoneCount={activity.doneCount}
                 />
 
                 {!collapsed && sNodes.map((node) => renderNodeCard(node))}
@@ -553,6 +574,28 @@ export function ChapterPanel() {
               <span style={{ color: 'hsl(var(--ink-4))' }}>
                 {unaffiliatedChapters.length}
               </span>
+              {unaffiliatedActivity.doneCount > 0 ? (
+                <AgentCountBadge
+                  count={unaffiliatedActivity.doneCount}
+                  busy={unaffiliatedActivity.busy}
+                  title="未查看的 Agent 改动"
+                />
+              ) : (
+                unaffiliatedActivity.busy && (
+                  <span
+                    aria-hidden
+                    className="agent-glyph-busy"
+                    title="Agent 正在处理"
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 2,
+                      background: 'hsl(var(--accent))',
+                      flexShrink: 0,
+                    }}
+                  />
+                )
+              )}
             </span>
             <ChevronUp
               size={12}

@@ -12,7 +12,9 @@ import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
+import { entityKey } from '../../lib/agent/tool-entity-ref';
 import type { EditorType } from '../editor/EditorTopBar';
 
 const log = loglevel.getLogger('ElementPanel');
@@ -588,6 +590,15 @@ export function ElementPanel() {
         >
           {categoryIds.map((categoryId) => {
             const isUncategorized = categoryId === UNCATEGORIZED_ID;
+            // Bubble agent activity from this category's elements up to its
+            // group header (#17).
+            const activity = aggregateActivity(
+              agentActive,
+              agentTouched,
+              (elementsByCategory[categoryId] ?? []).map((el) =>
+                entityKey('element', el.id),
+              ),
+            );
             return (
             <div
               key={categoryId}
@@ -637,6 +648,8 @@ export function ElementPanel() {
                   isUncategorized ? undefined : () => void handleCreateElement(categoryId)
                 }
                 sticky
+                agentBusy={activity.busy}
+                agentDoneCount={activity.doneCount}
               />
 
               {!collapsedCategoryIds.has(categoryId) &&

@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useBookElement } from '../usecase/useBookElement';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { useDataStore } from '../store/data-store';
+import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
@@ -52,7 +53,7 @@ export function CategoryEditorView({
   if (!projectId) throw new Error('Project ID is required');
   if (!userId) throw new Error('User must be authenticated');
 
-  const { bookElementCategories, bookElements, comments } = useDataStore();
+  const { bookElementCategories, bookElements, comments, entityRelations } = useDataStore();
   useBookElement({ projectId, userId });
   const categoryUsecases = useElementCategory({ projectId, userId });
   const { leaveDeletedEntity, navigateToElement, navigateToCategory } = useProjectNavigation();
@@ -83,16 +84,21 @@ export function CategoryEditorView({
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
+  // Counts via target_* OR a relation edge, so the rail opens for relation-only
+  // notes too (mirrors CommentRail's loose filter).
+  const relatedCommentIds = useMemo(
+    () => commentIdsRelatedToEntity(entityRelations, projectId, 'category', categoryId ?? ''),
+    [entityRelations, projectId, categoryId],
+  );
   const commentCount = useMemo(
     () =>
       comments.filter(
         (comment) =>
           comment.projectId === projectId &&
-          comment.targetKind === 'category' &&
-          comment.targetId === (categoryId ?? '') &&
-          comment.status !== 'converted',
+          comment.status !== 'converted' &&
+          commentBelongsToEntity(comment, 'category', categoryId ?? '', relatedCommentIds),
       ).length,
-    [categoryId, comments, projectId],
+    [categoryId, comments, projectId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

@@ -7,6 +7,8 @@ import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { useStoryline } from '../../usecase/useStoryline';
+import { AgentCountBadge } from './AgentCountBadge';
+import { type GroupActivity } from './agentActivityBubble';
 
 // 三个带标签的 tab 平分整条 header 宽度所需的最小值。低于此值切到 glyph-only。
 // 实测：每个 tab 需要 glyph(13) + gap(6) + label(~28) + padding(20) ≈ 67px，
@@ -14,11 +16,11 @@ import { useStoryline } from '../../usecase/useStoryline';
 // white-space:nowrap 也只是阻止换行，宽度不够时字会被裁），统一走 glyph-only。
 const FULL_TABS_MIN_WIDTH = 220;
 
-type TabBadge = 'active' | 'touched' | null;
+type TabPanel = 'nodes' | 'elements' | 'drift';
 
 /** Which left panel an agent-touched entity surfaces in. Only node/element are
  *  tracked (the entity types with a clickable cell — see agent-activity-store). */
-function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): 'nodes' | 'elements' | 'drift' | null {
+function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): TabPanel | null {
   switch (m.entityType) {
     case 'element':
       return 'elements';
@@ -37,26 +39,28 @@ export function LeftSidebarHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
-  // Aggregate agent-activity badge per tab, so work in a panel the user isn't
-  // looking at still registers. Suppressed on the active panel (its cells show
-  // the indicators directly).
+  // Aggregate agent activity per tab — the top of the cell → group → tab
+  // bubble (#17). A tab blinks its glyph while a panel cell is busy; once a run
+  // leaves unviewed changes the glyph is replaced by the count of those cells
+  // (blinking if a fresh run is still working), reverting to the glyph only
+  // once the user has opened them all (count → 0).
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   const bookNodes = useDataStore((s) => s.bookNodes);
-  const badges = useMemo(() => {
+  const tabActivity = useMemo(() => {
     const nodeKind = new Map(bookNodes.map((n) => [n.id, n.kind]));
-    const res: Record<'nodes' | 'elements' | 'drift', TabBadge> = {
-      nodes: null,
-      elements: null,
-      drift: null,
+    const res: Record<TabPanel, GroupActivity> = {
+      nodes: { busy: false, doneCount: 0 },
+      elements: { busy: false, doneCount: 0 },
+      drift: { busy: false, doneCount: 0 },
     };
     for (const m of Object.values(agentActive)) {
       const p = panelForMark(m, nodeKind);
-      if (p) res[p] = 'active';
+      if (p) res[p].busy = true;
     }
     for (const m of Object.values(agentTouched)) {
       const p = panelForMark(m, nodeKind);
-      if (p && res[p] !== 'active') res[p] = res[p] ?? 'touched';
+      if (p) res[p].doneCount += 1;
     }
     return res;
   }, [agentActive, agentTouched, bookNodes]);
@@ -117,7 +121,7 @@ export function LeftSidebarHeader() {
         <ChapterPanelTab
           compact={compact}
           isActive={activeLeftPanel === 'nodes'}
-          badge={badges.nodes}
+          activity={tabActivity.nodes}
           onClick={() => setActiveLeftPanel('nodes')}
         />
         <PanelTab
@@ -125,7 +129,7 @@ export function LeftSidebarHeader() {
           glyph="◆"
           compact={compact}
           isActive={activeLeftPanel === 'elements'}
-          badge={badges.elements}
+          activity={tabActivity.elements}
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
@@ -133,7 +137,7 @@ export function LeftSidebarHeader() {
           glyph="✺"
           compact={compact}
           isActive={activeLeftPanel === 'drift'}
-          badge={badges.drift}
+          activity={tabActivity.drift}
           onClick={() => setActiveLeftPanel('drift')}
         />
       </div>
@@ -159,12 +163,12 @@ export function LeftSidebarHeader() {
 function ChapterPanelTab({
   compact,
   isActive,
-  badge,
+  activity,
   onClick,
 }: {
   compact: boolean;
   isActive: boolean;
-  badge?: TabBadge;
+  activity?: GroupActivity;
   onClick: () => void;
 }) {
   const viewMode = useUiStore((s) => s.chapterPanelViewMode);
@@ -235,7 +239,7 @@ function ChapterPanelTab({
         glyph="§"
         compact={compact}
         isActive={isActive}
-        badge={badge}
+        activity={activity}
         onClick={onClick}
       />
 
@@ -356,14 +360,14 @@ function PanelTab({
   glyph,
   compact,
   isActive,
-  badge,
+  activity,
   onClick,
 }: {
   label: string;
   glyph?: string;
   compact: boolean;
   isActive: boolean;
-  badge?: TabBadge;
+  activity?: GroupActivity;
   onClick: () => void;
 }) {
   return (
@@ -373,7 +377,7 @@ function PanelTab({
         glyph={glyph}
         compact={compact}
         isActive={isActive}
-        badge={badge}
+        activity={activity}
         onClick={onClick}
       />
     </div>
@@ -385,16 +389,18 @@ function PanelTabButton({
   glyph,
   compact,
   isActive,
-  badge,
+  activity,
   onClick,
 }: {
   label: string;
   glyph?: string;
   compact: boolean;
   isActive: boolean;
-  badge?: TabBadge;
+  activity?: GroupActivity;
   onClick: () => void;
 }) {
+  const busy = activity?.busy ?? false;
+  const doneCount = activity?.doneCount ?? 0;
   // Always pill (both skins). Classic: button paints its own surface bg on
   // active — static, no animation. Modern: sliding indicator (sibling of
   // these buttons) carries the active visual; modern CSS overrides the
@@ -443,22 +449,30 @@ function PanelTabButton({
         if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-3))';
       }}
     >
-      {glyph && (
-        <span
-          aria-hidden
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 12.5,
-            color: isActive ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
-            lineHeight: 1,
-          }}
-        >
-          {glyph}
-        </span>
+      {/* Glyph slot — once the agent leaves unviewed changes in this panel the
+          glyph is replaced by their count (cell → group → tab bubble, #17);
+          while a run is working the glyph (or the count) blinks in accent. */}
+      {doneCount > 0 ? (
+        <AgentCountBadge count={doneCount} busy={busy} title="未查看的 Agent 改动" />
+      ) : (
+        glyph && (
+          <span
+            aria-hidden
+            className={busy ? 'agent-glyph-busy' : undefined}
+            title={busy ? 'Agent 正在处理' : undefined}
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              fontSize: 12.5,
+              color: busy || isActive ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
+              lineHeight: 1,
+            }}
+          >
+            {glyph}
+          </span>
+        )
       )}
       {!compact && <span>{label}</span>}
-      {badge && <span aria-hidden className={`agent-tab-badge agent-tab-badge--${badge}`} />}
     </button>
   );
 }

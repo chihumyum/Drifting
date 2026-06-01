@@ -4,6 +4,7 @@ import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
+import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
@@ -49,6 +50,7 @@ export function ElementEditorView({
   const bookElements = useDataStore((s) => s.bookElements);
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
   const comments = useDataStore((s) => s.comments);
+  const entityRelations = useDataStore((s) => s.entityRelations);
 
   const elementUsecases = useBookElement({
     projectId: projectId ?? '',
@@ -91,16 +93,21 @@ export function ElementEditorView({
     }
   }, [elementId, navigate]);
 
+  // Counts via target_* OR a relation edge, so the rail opens for relation-only
+  // notes too (mirrors CommentRail's loose filter).
+  const relatedCommentIds = useMemo(
+    () => commentIdsRelatedToEntity(entityRelations, projectId ?? '', 'element', elementId ?? ''),
+    [entityRelations, projectId, elementId],
+  );
   const commentCount = useMemo(
     () =>
       comments.filter(
         (comment) =>
           comment.projectId === (projectId ?? '') &&
-          comment.targetKind === 'element' &&
-          comment.targetId === (elementId ?? '') &&
-          comment.status !== 'converted',
+          comment.status !== 'converted' &&
+          commentBelongsToEntity(comment, 'element', elementId ?? '', relatedCommentIds),
       ).length,
-    [elementId, comments, projectId],
+    [elementId, comments, projectId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

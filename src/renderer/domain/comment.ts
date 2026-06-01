@@ -88,6 +88,64 @@ export interface CommentBlockSnapshot {
   to: number;
 }
 
+// A comment can be tied to an entity two ways: its own target_* columns
+// (single, can reach block granularity), or a curated entity_relation edge
+// (`comment:<id> → kind:id`, many, entity-level — the right-sidebar TODO path).
+// Any surface answering "which comments are about this entity" must consider
+// BOTH, or the two paths disagree (e.g. the editor's comment count showing 0
+// while the TodoPanel shows TODOs linked to the same chapter).
+
+export interface EntityRelationRef {
+  projectId: string;
+  fromKind: string;
+  fromId: string;
+  toKind: string;
+  toId: string;
+}
+
+/**
+ * Ids of comments carrying a relation edge that points AT (targetKind,
+ * targetId). Empty when the target is unset. See note above.
+ */
+export function commentIdsRelatedToEntity(
+  relations: EntityRelationRef[],
+  projectId: string,
+  targetKind: CommentTargetKind | null,
+  targetId: string | null,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!targetKind || !targetId) return ids;
+  for (const r of relations) {
+    if (
+      r.projectId === projectId &&
+      r.fromKind === 'comment' &&
+      r.toKind === targetKind &&
+      r.toId === targetId
+    ) {
+      ids.add(r.fromId);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Whether a comment is "about" (targetKind, targetId) via EITHER its target_*
+ * columns or a relation edge (relatedIds from {@link commentIdsRelatedToEntity}).
+ * Block anchoring is orthogonal — callers wanting only entity-level (loose)
+ * comments additionally check `targetBlockId === null`.
+ */
+export function commentBelongsToEntity(
+  comment: Comment,
+  targetKind: CommentTargetKind,
+  targetId: string,
+  relatedIds: Set<string>,
+): boolean {
+  return (
+    (comment.targetKind === targetKind && comment.targetId === targetId) ||
+    relatedIds.has(comment.id)
+  );
+}
+
 export function createPlainCommentDoc(text: string): string {
   const trimmed = text.trim();
   const paragraphs = trimmed.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);

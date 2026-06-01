@@ -132,10 +132,15 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'list_comments',
-        "Editorial notes & TODOs (and Copilot suggestions). Pass a target (kind,id) to scope to one entity, or omit both for all comments in the project. Returns each as {id, kind (note|todo), targetKind, targetId, targetBlockId, body, quote, status}. For a TODO anchored to a block (targetKind='node' with a targetBlockId), call read_block(targetId, targetBlockId) to get the block's LIVE text (the `quote` is a creation-time snapshot and may be stale); if there's no targetBlockId, search_prose for the `quote` within targetId to relocate the passage.",
+        "Editorial notes & TODOs (and Copilot suggestions). Scope to one entity by passing (kind, id) — id may be the entity NAME or its id; scoping matches BOTH comments anchored via the target fields AND comments linked to that entity by a relation edge (e.g. TODOs created from the right sidebar). Omit both to list every comment. Optional filters: onlyTodos (just kind='todo') and status ('open'/'resolved') — use these to pull the open TODO worklist. Returns each as {id, kind (note|todo), targetKind, targetId, targetBlockId, relatedTo, body, quote, status}. `relatedTo` names the entities the comment is linked to (this is how a floating TODO tells you which chapter/element it's about). For a TODO anchored to a block (targetKind='node' with a targetBlockId), call read_block(targetId, targetBlockId) for the block's LIVE text (the `quote` is a creation-time snapshot, may be stale); if there's no targetBlockId, use `relatedTo` or search_prose for the `quote` to locate the passage. Resolve/close a TODO with set_comment_status.",
         {
-          kind: z.string().optional().describe('Target kind to filter by (optional)'),
-          id: z.string().optional().describe('Target id to filter by (optional)'),
+          kind: z
+            .string()
+            .optional()
+            .describe('Scope target kind: node (chapter/drift) / element / storyline / category'),
+          id: z.string().optional().describe('Scope target entity NAME or id'),
+          onlyTodos: z.boolean().optional().describe("Only return TODOs (kind='todo')"),
+          status: z.string().optional().describe("Filter by status: 'open' or 'resolved'"),
         },
         (args) => run('list_comments', args),
       ),
@@ -165,6 +170,15 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
             .describe('Replaces the element\'s structured facts (kv)'),
         },
         (args) => run('update_element', args),
+      ),
+      tool(
+        'set_element_body',
+        "Replace an element's BODY/profile prose (the long-form description under a character / place / item — distinct from its one-line `summary` and its kv `facts`). Pass the full new body as plain text; blank lines separate paragraphs. Read the current body first with read_element. Inline formatting is dropped; this overwrites the whole body, so include everything you want to keep.",
+        {
+          element: z.string().describe('Element NAME (or id)'),
+          body: z.string().describe('The full new body text (replaces the existing body)'),
+        },
+        (args) => run('set_element_body', args),
       ),
       tool(
         'create_element',
@@ -409,13 +423,13 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- comments / TODOs (a TODO is a comment with kind='todo') ----
       tool(
         'create_comment',
-        "Create a comment or TODO. kind='note' is an editor annotation, kind='todo' shows in the right-sidebar TODO list. Attach it to an entity via targetKind/targetId (and targetBlockId for a specific prose block), or omit all targets for a floating project-level TODO.",
+        "Create a comment or TODO. kind='note' is an editor annotation, kind='todo' shows in the right-sidebar TODO list. Attach it to an entity via targetKind + targetId; targetId may be the entity NAME (resolved automatically) or its id. Add targetBlockId to anchor to a specific prose block, or omit it to attach to the whole chapter/element — an entity-level note shows in a stack at the bottom of that entity's editor. Omit all targets for a floating project-level TODO.",
         {
           body: z.string().describe('The comment / TODO text'),
           kind: z.string().optional().describe("'note' (default) or 'todo'"),
-          targetKind: z.string().optional().describe('node / element / storyline / …'),
-          targetId: z.string().optional(),
-          targetBlockId: z.string().optional(),
+          targetKind: z.string().optional().describe('node (chapter/drift) / element / storyline / …'),
+          targetId: z.string().optional().describe('Entity NAME or id (matched to targetKind)'),
+          targetBlockId: z.string().optional().describe('Prose block uuid to anchor to (optional)'),
         },
         (args) => run('create_comment', args),
       ),

@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Check, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
+  commentBelongsToEntity,
+  commentIdsRelatedToEntity,
   createPlainCommentDoc,
   extractTextFromCommentBody,
   getBlockSnapshotFromAnchor,
@@ -138,6 +140,7 @@ export function CommentRail({
   const userId = useAuthStore((state) => state.user?.id);
   const effectiveUserId = userId ?? 'local';
   const comments = useDataStore((state) => state.comments);
+  const entityRelations = useDataStore((state) => state.entityRelations);
   const commentUsecases = useComment({ projectId, userId: effectiveUserId });
   const { createElement } = useBookElement({ projectId, userId: effectiveUserId });
   const services = useMemo<CopilotServices>(() => ({ createElement }), [createElement]);
@@ -190,6 +193,36 @@ export function CommentRail({
         .sort(commentSort),
     [comments, projectId, targetKind, targetId],
   );
+
+  // Comment ids carrying a curated entity_relation edge pointing at THIS entity
+  // (the right-sidebar TodoPanel path). Unioned with the target_* match below so
+  // those TODOs surface in the editor too. See domain/comment.
+  const relatedCommentIds = useMemo(
+    () => commentIdsRelatedToEntity(entityRelations, projectId, targetKind, targetId),
+    [entityRelations, projectId, targetKind, targetId],
+  );
+
+  // Entity-level notes/TODOs — about this chapter/element but NOT anchored to a
+  // prose block (targetBlockId === null). They have nothing to anchor to, so
+  // instead of floating they collect in a stack pinned to the bottom of the
+  // rail (see renderLooseStack). "About this entity" = target_* match OR a
+  // relation edge. Purely floating project TODOs (neither) stay in the TodoPanel.
+  const looseComments = useMemo(
+    () =>
+      comments
+        .filter(
+          (comment) =>
+            comment.projectId === projectId &&
+            comment.targetBlockId === null &&
+            comment.status !== 'converted' &&
+            commentBelongsToEntity(comment, targetKind, targetId, relatedCommentIds),
+        )
+        .sort(commentSort),
+    [comments, projectId, targetKind, targetId, relatedCommentIds],
+  );
+  // The stack starts collapsed (an iOS-notification-style deck); clicking it
+  // fans the cards out into a flat list. Session-local; not persisted.
+  const [stackExpanded, setStackExpanded] = useState(false);
 
   const relevantPending =
     pendingRequest &&
@@ -552,21 +585,27 @@ export function CommentRail({
     );
   };
 
-  const renderManualCard = (comment: Comment) => {
+  // `loose` cards have no prose block to anchor to (entity-level notes/TODOs),
+  // so they render flat inside the bottom stack rather than floating: no leader
+  // line, no collapse-to-chip (the whole stack collapses instead), no block
+  // quote/orphan affordance.
+  const renderManualCard = (comment: Comment, opts?: { loose?: boolean }) => {
+    const loose = opts?.loose ?? false;
     const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
     const fallbackQuote = snapshot ? '' : getSelectedTextFromAnchor(comment.anchorJson);
     const body = extractTextFromCommentBody(comment.bodyJson);
     const isResolved = comment.status === 'resolved';
-    const isOrphan = orphanIds.has(comment.id);
+    const isOrphan = !loose && orphanIds.has(comment.id);
     const isTodo = comment.kind === 'todo';
     const busy = busyId === comment.id;
     const classes = ['mnote', 'mnote--manual'];
     if (isResolved) classes.push('mnote--resolved');
     if (isOrphan) classes.push('mnote--orphan');
     if (isTodo) classes.push('mnote--todo');
+    if (loose) classes.push('mnote--loose');
     return (
       <div className={classes.join(' ')} data-comment-id={comment.id}>
-        {!isOrphan && <div className="mnote__leader" aria-hidden="true" />}
+        {!isOrphan && !loose && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
             <span className="mnote__head-glyph">{isTodo ? '☐' : '§'}</span>
@@ -574,33 +613,36 @@ export function CommentRail({
           </span>
           <span className="mnote__head-r">
             <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
-            <button
-              type="button"
-              className="mnote__icon-btn"
-              onClick={() => collapseToChip(comment.id)}
-              aria-label="折叠"
-              title="折叠为 chip"
-            >
-              <Minimize2 size={11} />
-            </button>
+            {!loose && (
+              <button
+                type="button"
+                className="mnote__icon-btn"
+                onClick={() => collapseToChip(comment.id)}
+                aria-label="折叠"
+                title="折叠为 chip"
+              >
+                <Minimize2 size={11} />
+              </button>
+            )}
           </span>
         </div>
         <div className="mnote__title">{body || '空批注'}</div>
-        {isOrphan ? (
-          <button
-            type="button"
-            className="mnote__tag"
-            onClick={() => snapshot && setSnapshotForId(comment.id)}
-            disabled={!snapshot}
-            title={snapshot ? '查看原文快照' : '无原文快照'}
-          >
-            原文已删除
-          </button>
-        ) : snapshot ? (
-          <div className="mnote__quote">{renderQuoteExcerpt(snapshot)}</div>
-        ) : (
-          fallbackQuote && <div className="mnote__quote">{fallbackQuote}</div>
-        )}
+        {!loose &&
+          (isOrphan ? (
+            <button
+              type="button"
+              className="mnote__tag"
+              onClick={() => snapshot && setSnapshotForId(comment.id)}
+              disabled={!snapshot}
+              title={snapshot ? '查看原文快照' : '无原文快照'}
+            >
+              原文已删除
+            </button>
+          ) : snapshot ? (
+            <div className="mnote__quote">{renderQuoteExcerpt(snapshot)}</div>
+          ) : (
+            fallbackQuote && <div className="mnote__quote">{fallbackQuote}</div>
+          ))}
         <div className="mnote__actions">
           {isResolved ? (
             <button
@@ -745,6 +787,51 @@ export function CommentRail({
     );
   };
 
+  // ─── block-less notes/TODOs (entity-level) ────────────────────────────
+  // Collapsed to a single chip at the bottom of the rail (like a normal comment's
+  // collapsed state) with a count; click to lay the cards out directly in a
+  // floating column, which a small button collapses back.
+  const renderLooseStack = () => {
+    if (looseComments.length === 0) return null;
+    const total = looseComments.length;
+
+    if (!stackExpanded) {
+      return (
+        <div className="mnote-stack mnote-stack--collapsed">
+          <button
+            type="button"
+            className="mnote-stack__ball"
+            onClick={() => setStackExpanded(true)}
+            aria-label={`${total} 条本章备注`}
+            title={`${total} 条本章备注`}
+          >
+            <MessageSquare size={11} />
+            {total > 1 && <span className="mnote-stack__ball-count">{total}</span>}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mnote-stack mnote-stack--open">
+        <button
+          type="button"
+          className="mnote-stack__collapse"
+          onClick={() => setStackExpanded(false)}
+          aria-label="收起"
+          title="收起"
+        >
+          <Minimize2 size={11} />
+        </button>
+        <div className="mnote-stack__list">
+          {looseComments.map((comment) => (
+            <Fragment key={comment.id}>{renderManualCard(comment, { loose: true })}</Fragment>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const snapshotComment =
     snapshotForId !== null
       ? visibleComments.find((c) => c.id === snapshotForId) ?? null
@@ -764,6 +851,7 @@ export function CommentRail({
           <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
         ))}
         {renderComposer()}
+        {renderLooseStack()}
       </aside>
       {snapshotPayload && (
         <SnapshotModal snapshot={snapshotPayload} onClose={() => setSnapshotForId(null)} />

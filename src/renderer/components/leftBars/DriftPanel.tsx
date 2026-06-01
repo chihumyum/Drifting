@@ -7,7 +7,10 @@ import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { AgentCountBadge } from './AgentCountBadge';
+import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
+import { entityKey } from '../../lib/agent/tool-entity-ref';
 
 // 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
 const DATE_HIDE_WIDTH = 200;
@@ -271,6 +274,14 @@ export function DriftPanel() {
   const footerHeight = restingExpanded ? restingHeight : RESTING_HEADER_HEIGHT;
   const totalDrift = driftingNodes.length + restingNodes.length;
 
+  // Agent activity rolled up over resting drifts — surfaced on the footer
+  // header so changes hidden inside the (default-collapsed) drawer register (#17).
+  const restingActivity = aggregateActivity(
+    agentActive,
+    agentTouched,
+    restingNodes.map((n) => entityKey('node', n.id)),
+  );
+
   return (
     <div
       style={{
@@ -374,6 +385,28 @@ export function DriftPanel() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>休眠</span>
               <span style={{ color: 'hsl(var(--ink-4))' }}>{restingNodes.length}</span>
+              {restingActivity.doneCount > 0 ? (
+                <AgentCountBadge
+                  count={restingActivity.doneCount}
+                  busy={restingActivity.busy}
+                  title="未查看的 Agent 改动"
+                />
+              ) : (
+                restingActivity.busy && (
+                  <span
+                    aria-hidden
+                    className="agent-glyph-busy"
+                    title="Agent 正在处理"
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: 2,
+                      background: 'hsl(var(--accent))',
+                      flexShrink: 0,
+                    }}
+                  />
+                )
+              )}
             </span>
             <ChevronUp
               size={12}

@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/core';
 import { useStoryline } from '../usecase/useStoryline';
 import { useAuthStore } from '../store/auth';
 import { useDataStore } from '../store/data-store';
+import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
@@ -53,7 +54,7 @@ export function StorylineEditorView({
 
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const canPromoteOnEdit = useCanPromoteOnEdit(storylineId);
-  const { storylines, bookNodes, storylineNodeMapping, comments } = useDataStore();
+  const { storylines, bookNodes, storylineNodeMapping, comments, entityRelations } = useDataStore();
   const { navigateToStoryline, leaveDeletedEntity, navigateToNode } = useProjectNavigation();
   const storylineUsecases = useStoryline({ projectId, userId: user.id });
 
@@ -89,16 +90,21 @@ export function StorylineEditorView({
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
+  // Counts via target_* OR a relation edge, so the rail opens for relation-only
+  // notes too (mirrors CommentRail's loose filter).
+  const relatedCommentIds = useMemo(
+    () => commentIdsRelatedToEntity(entityRelations, projectId, 'storyline', storylineId ?? ''),
+    [entityRelations, projectId, storylineId],
+  );
   const commentCount = useMemo(
     () =>
       comments.filter(
         (comment) =>
           comment.projectId === projectId &&
-          comment.targetKind === 'storyline' &&
-          comment.targetId === (storylineId ?? '') &&
-          comment.status !== 'converted',
+          comment.status !== 'converted' &&
+          commentBelongsToEntity(comment, 'storyline', storylineId ?? '', relatedCommentIds),
       ).length,
-    [comments, projectId, storylineId],
+    [comments, projectId, storylineId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;

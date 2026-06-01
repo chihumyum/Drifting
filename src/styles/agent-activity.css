@@ -7,8 +7,14 @@
  *     ring, a still marker the user can scan for at a glance.
  * Glyph color (accent for busy, strongest ink for done) is set inline by each
  * panel so it overrides the glyph's own category/storyline color; these classes
- * add only the animation / glow. The left tab switcher shows an aggregate badge
- * so activity in a panel the user isn't looking at still registers.
+ * add only the animation / glow.
+ *
+ * The same signal bubbles UP two layers — cell → group (storyline/category)
+ * header → left tab switcher. A parent layer blinks its own glyph while a child
+ * is busy; once the run leaves unviewed changes, the glyph is REPLACED by the
+ * count of changed-but-unopened children (`.agent-count`). The count blinks in
+ * accent if a fresh run is still working, and only reverts to the glyph once
+ * the user has reviewed everything (count → 0). See agentActivityBubble.tsx.
  */
 
 /* Working: the glyph pulses opacity and an accent glow. drop-shadow follows the
@@ -45,29 +51,50 @@
   }
 }
 
-/* Aggregate badge overlaid on a left tab-switcher button. */
-.agent-tab-badge {
-  position: absolute;
-  top: 3px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--accent));
+/* Count badge — replaces a layer's glyph (group dot / tab glyph) once the agent
+   has left unviewed changes beneath it. The number is how many changed children
+   the user hasn't opened yet; clicking each cell decrements it back toward the
+   glyph. At rest it's still, high-contrast monochrome (matching .agent-glyph-done);
+   --busy turns it accent and blinks (a fresh run working over pending changes). */
+.agent-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  color: hsl(var(--paper));
+  background: hsl(var(--ink-1));
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
   pointer-events: none;
 }
-.agent-tab-badge--active {
-  animation: agentBadgePulse 1.4s ease-in-out infinite;
+.agent-count--busy {
+  background: hsl(var(--accent));
+  animation: agentCountBusy 1.3s ease-in-out infinite;
+  will-change: opacity, box-shadow;
 }
-/* agent-tab-badge--touched: static (no animation). */
-@keyframes agentBadgePulse {
+@keyframes agentCountBusy {
   0%,
   100% {
-    opacity: 0.4;
-    transform: scale(0.8);
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 hsl(var(--accent) / 0);
   }
   50% {
     opacity: 1;
-    transform: scale(1.15);
+    box-shadow: 0 0 6px 0 hsl(var(--accent) / 0.85);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-count--busy {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 4px hsl(var(--accent) / 0.7);
   }
 }

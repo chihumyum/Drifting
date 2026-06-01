@@ -1700,6 +1700,116 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 /* ============================================================
+   Block-less comment / TODO stack
+   ============================================================ */
+/* Entity-level notes (no prose block to anchor to) live at the bottom of the
+   rail. Collapsed to a single chip (like a normal comment's collapsed state);
+   click to lay the cards out directly in a floating column — no wrapper box, no
+   header. Anchored at the bottom so the expanded column grows UPWARD. */
+/* left/right: 0 so loose cards span the same width as block-anchored cards
+   (.mnote, also left/right:0) — otherwise the stack's inset made them narrower. */
+.mnote-stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  pointer-events: auto;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- collapsed: a single chip, sized + placed to match .comment-chip --- */
+.mnote-stack__ball {
+  position: relative;
+  align-self: flex-end;
+  margin-right: 8px; /* matches .comment-chip { right: 8px } */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+  color: hsl(var(--story-4));
+  cursor: pointer;
+  box-shadow: 0 1px 4px hsl(var(--ink-1) / 0.1);
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.mnote-stack__ball:hover {
+  background: hsl(var(--story-4) / 0.1);
+  border-color: hsl(var(--story-4));
+  box-shadow: 0 6px 16px -8px hsl(var(--ink-1) / 0.28);
+}
+.mnote-stack__ball-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: hsl(var(--story-4));
+  color: hsl(var(--ink-1) / 0.85);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.2);
+  pointer-events: none;
+}
+
+/* --- expanded: floating column of full cards, no wrapper/header --- */
+.mnote-stack--open {
+  max-height: 64%;
+  animation: mnote-stack-rise 0.14s ease;
+}
+@keyframes mnote-stack-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mnote-stack__collapse {
+  align-self: flex-end;
+  margin-right: 8px; /* aligns with the collapsed ball's column */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  border: 1px solid hsl(var(--rule-strong));
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-3));
+  cursor: pointer;
+  box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.1);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mnote-stack__collapse:hover {
+  background: hsl(var(--accent) / 0.1);
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+.mnote-stack__list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Loose cards flow in the stack instead of floating to a block position. */
+.mnote-stack .mnote--loose {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+}
+
+/* ============================================================
    Copilot active / stale states
    ============================================================ */
 /* Stale = past the 5s Tab-accept window. Visually receded, but mouse still

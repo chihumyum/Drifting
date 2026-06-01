@@ -23,6 +23,7 @@ import {
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import {
+  commentIdsRelatedToEntity,
   createPlainCommentDoc,
   getBlockSnapshotFromAnchor,
   getSelectedTextFromAnchor,
@@ -57,15 +58,19 @@ import {
   replaceBlockRange,
   insertBlocks,
   findBlocks,
+  makeParagraphBlock,
 } from './serialize';
 import {
   writeChapterProse,
   getChapterContentJson,
+  writeElementProse,
+  getElementContentJson,
   yReplaceBlockText,
   yRemoveBlocks,
   yReplaceBlockRange,
   yInsertBlocks,
   yAppendParagraph,
+  yReplaceAllParagraphs,
 } from './chapter-prose';
 
 /**
@@ -326,10 +331,13 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
 }
 
-function readElement(ctx: AgentToolContext, elementId: string) {
+async function readElement(ctx: AgentToolContext, elementId: string) {
   const s = useDataStore.getState();
   const el = s.bookElements.find((e) => e.id === elementId && e.projectId === ctx.projectId);
   if (!el) throw new Error(`No element found with id "${elementId}"`);
+  // Read the live Yjs body (what the editor shows), not just the contentJson
+  // cache, so the agent sees in-flight user edits — mirrors readChapter.
+  const bodyJson = await getElementContentJson(elementId);
   return {
     id: el.id,
     name: el.name,
@@ -338,7 +346,7 @@ function readElement(ctx: AgentToolContext, elementId: string) {
     groupName: el.groupName,
     categoryId: el.categoryId,
     facts: parseKv(el.kvJson),
-    body: docToPlainText(el.contentJson),
+    body: docToPlainText(bodyJson),
   };
 }
 
@@ -640,15 +648,52 @@ async function getElementPatches(_ctx: AgentToolContext, elementId: string) {
 
 /** Editorial threads / Copilot suggestions attached to an entity (or all). */
 function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const kind = String(args.kind ?? '');
-  const id = String(args.id ?? '');
+  // Canonicalize the scope kind (chapter/drift → node) and resolve a NAME → id,
+  // so scoping behaves like the other tools.
+  const rawKind = String(args.kind ?? '').trim();
+  const scopeKind = rawKind ? normalizeEntityKind(rawKind) ?? rawKind : '';
+  const rawId = String(args.id ?? '').trim();
+  const scopeId = rawId && rawKind ? resolveByKind(ctx, rawKind, rawId) : rawId;
+  const onlyTodos = args.onlyTodos === true || args.onlyTodos === 'true';
+  const statusFilter = typeof args.status === 'string' ? args.status.trim() : '';
+
   const s = useDataStore.getState();
-  const rows = s.comments.filter(
-    (c) =>
-      c.projectId === ctx.projectId &&
-      (!kind || c.targetKind === kind) &&
-      (!id || c.targetId === id),
-  );
+
+  // Comment → entity relation edges (the right-sidebar TODO association). Build a
+  // per-comment map once for the output, and the scope set via the shared helper
+  // so it matches the editor's CommentRail exactly.
+  const relByComment = new Map<string, Array<{ kind: string; id: string }>>();
+  for (const r of s.entityRelations) {
+    if (r.projectId === ctx.projectId && r.fromKind === 'comment') {
+      const list = relByComment.get(r.fromId) ?? [];
+      list.push({ kind: r.toKind, id: r.toId });
+      relByComment.set(r.fromId, list);
+    }
+  }
+  const relatedIds =
+    scopeKind && scopeId
+      ? commentIdsRelatedToEntity(
+          s.entityRelations,
+          ctx.projectId,
+          scopeKind as Parameters<typeof commentIdsRelatedToEntity>[2],
+          scopeId,
+        )
+      : new Set<string>();
+
+  const rows = s.comments.filter((c) => {
+    if (c.projectId !== ctx.projectId) return false;
+    if (onlyTodos && c.kind !== 'todo') return false;
+    if (statusFilter && c.status !== statusFilter) return false;
+    // Scope (when a target is given): match the target_* columns OR a relation
+    // edge pointing at the entity — so right-sidebar TODOs scope correctly too.
+    if (scopeKind || scopeId) {
+      const targetMatch =
+        (!scopeKind || c.targetKind === scopeKind) && (!scopeId || c.targetId === scopeId);
+      if (!targetMatch && !relatedIds.has(c.id)) return false;
+    }
+    return true;
+  });
+
   return {
     comments: rows.map((c) => {
       // The text the note/TODO is anchored to, so the agent can locate it: the
@@ -659,12 +704,19 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
         getBlockSnapshotFromAnchor(c.anchorJson)?.blockText ||
         getSelectedTextFromAnchor(c.anchorJson) ||
         undefined;
+      // Entities this comment is linked to via relation edges, by name — how a
+      // floating TODO (no target_*) tells the agent which chapter it's about.
+      const relatedTo = (relByComment.get(c.id) ?? []).map((e) => ({
+        kind: e.kind,
+        label: entityLabel(s, e.kind, e.id),
+      }));
       return {
         id: c.id,
         kind: c.kind,
         targetKind: c.targetKind,
         targetId: c.targetId,
         targetBlockId: c.targetBlockId ?? undefined,
+        relatedTo: relatedTo.length ? relatedTo : undefined,
         author: c.authorName ?? c.authorKind,
         status: c.status,
         body: docToPlainText(c.bodyJson),
@@ -712,6 +764,33 @@ async function createElement(ctx: AgentToolContext, args: Record<string, unknown
     await ctx.write.updateElement(createdId, { kvJson: stringifyKv(toKvEntries(args.facts)) });
   }
   return { ok: true, created };
+}
+
+/**
+ * Replace an element's body/profile prose wholesale. Elements expose their body
+ * as a single plain-text blob (read_element has no block numbering), so the
+ * agent rewrites the whole thing rather than block-addressing it. Goes through
+ * the live Yjs doc (see writeElementProse) so an open element editor reflects it
+ * immediately instead of clobbering it. Blank lines split paragraphs.
+ */
+async function setElementBody(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.elementId ?? '');
+  if (!id) throw new Error('set_element_body requires element');
+  const paras = String(args.body ?? '')
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  await writeElementProse(
+    ctx,
+    id,
+    (frag) => yReplaceAllParagraphs(frag, paras),
+    () =>
+      JSON.stringify({
+        type: 'doc',
+        content: (paras.length ? paras : ['']).map(makeParagraphBlock),
+      }),
+  );
+  return { ok: true, id };
 }
 
 async function renameChapter(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1170,11 +1249,27 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
     kind: args.kind === 'todo' ? 'todo' : 'note',
     bodyJson: createPlainCommentDoc(body),
   };
-  if (typeof args.targetKind === 'string') {
-    input.targetKind = args.targetKind as CreateCommentInput['targetKind'];
+  // Unlike the *Id args, targetKind/targetId aren't touched by resolveArgsRefs,
+  // so resolve them here: the agent passes entity NAMES everywhere else, and the
+  // editor/rail filter by the canonical kind ('node', not 'chapter') + the real
+  // id. Without this the comment "saves" but anchors to a name string that
+  // matches no entity, so it never surfaces. (Reported: agent comments not
+  // associating to their entity.)
+  if (typeof args.targetKind === 'string' && args.targetKind.trim()) {
+    const rawKind = args.targetKind.trim();
+    // normalizeEntityKind maps chapter/drift→node; unknown kinds (e.g. 'patch')
+    // pass through unchanged, matching CommentTargetKind.
+    input.targetKind = (normalizeEntityKind(rawKind) ?? rawKind) as CreateCommentInput['targetKind'];
+    if (typeof args.targetId === 'string' && args.targetId.trim()) {
+      input.targetId = resolveByKind(ctx, rawKind, args.targetId.trim());
+    }
+  } else if (typeof args.targetId === 'string' && args.targetId.trim()) {
+    // No kind to resolve against — store the id verbatim.
+    input.targetId = args.targetId.trim();
   }
-  if (typeof args.targetId === 'string') input.targetId = args.targetId;
-  if (typeof args.targetBlockId === 'string') input.targetBlockId = args.targetBlockId;
+  if (typeof args.targetBlockId === 'string' && args.targetBlockId.trim()) {
+    input.targetBlockId = args.targetBlockId.trim();
+  }
   const created = await ctx.write.createComment(input);
   return { ok: true, created };
 }
@@ -1248,6 +1343,8 @@ export async function runAgentTool(
     // writes
     case 'update_element':
       return updateElement(ctx, args);
+    case 'set_element_body':
+      return setElementBody(ctx, args);
     case 'create_element':
       return createElement(ctx, args);
     case 'rename_chapter':

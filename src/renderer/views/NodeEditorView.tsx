@@ -29,6 +29,7 @@ import {
 import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
+import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
 import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
@@ -96,6 +97,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     nodeStorylineMapping,
     storylineNodeMapping,
     comments,
+    entityRelations,
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStore();
@@ -113,16 +115,23 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     () => setEntityLinkInteractive(!entityLinkInteractive),
     [entityLinkInteractive, setEntityLinkInteractive],
   );
+  // Count comments about this chapter via EITHER mechanism (target_* columns or
+  // a relation edge), so the toolbar button enables + the rail opens even when
+  // the only notes are right-sidebar TODOs linked by relation. Mirrors
+  // CommentRail's loose filter.
+  const relatedCommentIds = useMemo(
+    () => commentIdsRelatedToEntity(entityRelations, activeProjectId, 'node', nodeId ?? ''),
+    [entityRelations, activeProjectId, nodeId],
+  );
   const commentCount = useMemo(
     () =>
       comments.filter(
         (comment) =>
           comment.projectId === activeProjectId &&
-          comment.targetKind === 'node' &&
-          comment.targetId === (nodeId ?? '') &&
-          comment.status !== 'converted',
+          comment.status !== 'converted' &&
+          commentBelongsToEntity(comment, 'node', nodeId ?? '', relatedCommentIds),
       ).length,
-    [activeProjectId, comments, nodeId],
+    [activeProjectId, comments, nodeId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
     if (!marginNotes && commentCount === 0) return;
