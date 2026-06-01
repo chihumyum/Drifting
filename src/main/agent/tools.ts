@@ -35,26 +35,32 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
     name: 'drifting',
     tools: [
       tool(
-        'list_project_structure',
-        "List the project's chapters, drift notes, storylines, element categories, and elements (ids + names). Call this FIRST to discover ids before reading anything.",
+        'list_chapters',
+        "List the project's storylines (name + summary), chapters (name · status · words · storyline), and drift notes — BY NAME. Names are project-unique, so use them directly as the `nodeId`/`storylineId` arg of the read/edit tools (no ids needed). Call this to see the manuscript's structure.",
         {},
-        () => run('list_project_structure', {}),
+        () => run('list_chapters', {}),
+      ),
+      tool(
+        'list_elements',
+        "List the project's element categories and elements (character / setting / item) BY NAME (name · category · summary). Names are project-unique, so use them directly as the `elementId`/`categoryId` arg of the read/edit tools. Use this instead of list_chapters when you only need elements.",
+        {},
+        () => run('list_elements', {}),
       ),
       tool(
         'read_chapter',
-        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, an `appears:` line listing the elements/entities mentioned in this chapter (label + kind + id, for finding context), then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
-        { nodeId: z.string().describe('Node id from list_project_structure') },
+        "Read a chapter/drift's prose as a compact numbered list: a header line (title · status · words · id), a summary line, an `appears:` line naming the elements/entities mentioned in this chapter, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
+        { nodeId: z.string().describe('Chapter/drift NAME (preferred) or id') },
         (args) => run('read_chapter', args),
       ),
       tool(
         'read_element',
         'Read an element (character / setting / item): its name, summary, aliases, group, and body text.',
-        { elementId: z.string().describe('Element id from list_project_structure') },
+        { elementId: z.string().describe('Element NAME (preferred) or id') },
         (args) => run('read_element', args),
       ),
       tool(
         'search_project',
-        'Fast metadata search across chapter/drift titles, element names/summaries/aliases, and storyline names (no prose body). Returns matching {kind,id,label}. For searching inside prose text use search_prose.',
+        'Fast metadata search across chapter/drift titles, element names/summaries/aliases, and storyline names (no prose body). Returns matching {kind, label} where label is the (unique) name — pass it straight to the read/edit tools. For searching inside prose text use search_prose.',
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
       ),
@@ -100,18 +106,18 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'get_storyline',
         "A storyline's summary, key/value facts, and its member chapters in reading order (with which one is primary).",
-        { storylineId: z.string().describe('Storyline id from list_project_structure') },
+        { storylineId: z.string().describe('Storyline NAME (preferred) or id') },
         (args) => run('get_storyline', args),
       ),
       tool(
         'get_chapter_context',
         "Cheap overview of a chapter WITHOUT its full prose: title, summary, word count, status, rolling block-section summaries, the elements it references, the storylines it belongs to, and its relations. Call this before read_chapter — only read the full prose if you still need it.",
-        { nodeId: z.string().describe('Chapter/drift node id') },
+        { nodeId: z.string().describe('Chapter/drift NAME (preferred) or id') },
         (args) => run('get_chapter_context', args),
       ),
       tool(
         'search_prose',
-        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind,id,title,block,snippet} where block is the 1-based block number (pass it to edit_block / read_chapter). Heavier than search_project — use it to find scenes/passages by content.',
+        'Case-insensitive full-text search INSIDE chapter/drift prose and element bodies. Returns {kind, title, block, snippet} where title is the (unique) name — pass it as nodeId/elementId — and block is the 1-based block number (pass it to edit_block / read_chapter). Heavier than search_project — use it to find scenes/passages by content.',
         {
           query: z.string().describe('Text to find in the prose'),
           limit: z.number().optional().describe('Max matches (default 30, cap 100)'),
@@ -121,7 +127,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       tool(
         'get_element_patches',
         "An element's accepted state-change patches across chapters (how a character/place/item evolves over the book), each with its source chapter and body text.",
-        { elementId: z.string().describe('Element id') },
+        { elementId: z.string().describe('Element NAME (preferred) or id') },
         (args) => run('get_element_patches', args),
       ),
       tool(
@@ -162,7 +168,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'create_element',
-        'Create a new element (character / place / item) under a category. categoryId is required (get it from list_project_structure, or create_category first).',
+        'Create a new element (character / place / item) under a category. categoryId is required — pass the category NAME (from list_elements) or create_category first.',
         {
           categoryId: z.string(),
           name: z.string().optional(),

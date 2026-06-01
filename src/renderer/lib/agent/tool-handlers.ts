@@ -147,26 +147,133 @@ export interface AgentToolContext {
   write: AgentWriteApi;
 }
 
-function listProjectStructure(ctx: AgentToolContext) {
+// Names are project-unique, so the list/read tools return NAMES (not long
+// uuids) and the read/edit tools accept a name OR an id — see resolveRef. This
+// keeps the agent's context lean.
+
+function listChapters(ctx: AgentToolContext) {
   const s = useDataStore.getState();
   const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
+  const storylineName = (id: string | null) =>
+    id ? (s.storylines.find((sl) => sl.id === id)?.name ?? undefined) : undefined;
   return {
-    chapters: nodes
-      .filter(isChapter)
-      .map((n) => ({ id: n.id, title: n.title, status: n.writingStatus, wordCount: n.wordCount })),
-    drifts: nodes
-      .filter((n) => n.kind === 'drift')
-      .map((n) => ({ id: n.id, title: n.title })),
     storylines: s.storylines
       .filter((sl) => sl.projectId === ctx.projectId)
-      .map((sl) => ({ id: sl.id, name: sl.name })),
-    elementCategories: s.bookElementCategories
+      .map((sl) => ({ name: sl.name, summary: sl.summary || undefined })),
+    chapters: nodes.filter(isChapter).map((n) => ({
+      name: n.title,
+      status: n.writingStatus,
+      words: n.wordCount,
+      storyline: storylineName(s.primaryStorylineByNode[n.id] ?? null),
+    })),
+    drifts: nodes
+      .filter((n) => n.kind === 'drift')
+      .map((n) => ({ name: n.title, status: n.writingStatus })),
+  };
+}
+
+function listElements(ctx: AgentToolContext) {
+  const s = useDataStore.getState();
+  const catName = (id: string | null) =>
+    id ? (s.bookElementCategories.find((c) => c.id === id)?.name ?? undefined) : undefined;
+  return {
+    categories: s.bookElementCategories
       .filter((c) => c.projectId === ctx.projectId)
-      .map((c) => ({ id: c.id, name: c.name })),
+      .map((c) => ({ name: c.name })),
     elements: s.bookElements
       .filter((e) => e.projectId === ctx.projectId)
-      .map((e) => ({ id: e.id, name: e.name, categoryId: e.categoryId, summary: e.summary })),
+      .map((e) => ({
+        name: e.name,
+        category: catName(e.categoryId),
+        summary: e.summary || undefined,
+      })),
   };
+}
+
+/**
+ * Resolve a name-or-id to a concrete id within a kind (names are project-unique
+ * — see #11). An exact id passes through; otherwise it's matched by name
+ * (case-insensitive; elements also match aliases). Throws a helpful error on
+ * not-found or (legacy) ambiguity so the agent can fall back to an id.
+ */
+function resolveRef(
+  ctx: AgentToolContext,
+  kind: 'node' | 'element' | 'storyline' | 'category',
+  ref: string,
+): string {
+  const r = (ref ?? '').trim();
+  if (!r) throw new Error(`missing ${kind} reference (name or id)`);
+  const s = useDataStore.getState();
+  const low = r.toLowerCase();
+  const fail = (label: string, matches: { id: string }[]): never => {
+    if (matches.length === 0) throw new Error(`No ${label} named "${r}"`);
+    throw new Error(
+      `"${r}" matches ${matches.length} ${label}s — pass one of these ids: ${matches
+        .map((m) => m.id)
+        .join(', ')}`,
+    );
+  };
+  if (kind === 'node') {
+    const nodes = s.bookNodes.filter((n) => n.projectId === ctx.projectId);
+    if (nodes.some((n) => n.id === r)) return r;
+    const m = nodes.filter((n) => n.title.trim().toLowerCase() === low);
+    return m.length === 1 ? m[0].id : fail('chapter/drift', m);
+  }
+  if (kind === 'element') {
+    const els = s.bookElements.filter((e) => e.projectId === ctx.projectId);
+    if (els.some((e) => e.id === r)) return r;
+    const m = els.filter((e) => [e.name, ...e.aliases].some((n) => n.trim().toLowerCase() === low));
+    return m.length === 1 ? m[0].id : fail('element', m);
+  }
+  if (kind === 'storyline') {
+    const sls = s.storylines.filter((x) => x.projectId === ctx.projectId);
+    if (sls.some((x) => x.id === r)) return r;
+    const m = sls.filter((x) => x.name.trim().toLowerCase() === low);
+    return m.length === 1 ? m[0].id : fail('storyline', m);
+  }
+  const cats = s.bookElementCategories.filter((x) => x.projectId === ctx.projectId);
+  if (cats.some((x) => x.id === r)) return r;
+  const m = cats.filter((x) => x.name.trim().toLowerCase() === low);
+  return m.length === 1 ? m[0].id : fail('category', m);
+}
+
+function normalizeEntityKind(kind: string): 'node' | 'element' | 'storyline' | 'category' | null {
+  switch (kind) {
+    case 'node':
+    case 'chapter':
+    case 'drift':
+      return 'node';
+    case 'element':
+      return 'element';
+    case 'storyline':
+      return 'storyline';
+    case 'category':
+      return 'category';
+    default:
+      return null;
+  }
+}
+
+/** Resolve a (kind, name-or-id) pair; unknown kinds (e.g. 'patch') pass through. */
+function resolveByKind(ctx: AgentToolContext, kind: string, ref: string): string {
+  const k = normalizeEntityKind(kind);
+  return k ? resolveRef(ctx, k, ref) : ref;
+}
+
+/** Resolve the standard entity-ref arg fields (name-or-id → id) before dispatch. */
+function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...args };
+  const fields: Array<[string, 'node' | 'element' | 'storyline' | 'category']> = [
+    ['nodeId', 'node'],
+    ['elementId', 'element'],
+    ['storylineId', 'storyline'],
+    ['categoryId', 'category'],
+  ];
+  for (const [field, kind] of fields) {
+    const v = out[field];
+    if (typeof v === 'string' && v.trim()) out[field] = resolveRef(ctx, kind, v);
+  }
+  return out;
 }
 
 /**
@@ -200,13 +307,14 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
   const blocks = docToBlocks(truthJson);
   // Compact numbered rendering — the leading number is the handle for edit_block.
-  const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字 · id=${node.id}`;
+  const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
   // Which elements/entities appear in this chapter (recorded inline mentions),
   // so the agent has context without a separate get_chapter_context call.
   const refs = await listChapterReferences(s, nodeId);
+  // Names are project-unique, so list appearances by name+kind (no long ids).
   const appearsLine = refs.length
-    ? `appears: ${refs.map((r) => `${r.label} (${r.kind} id=${r.id})`).join(', ')}`
+    ? `appears: ${refs.map((r) => `${r.label} (${r.kind})`).join(', ')}`
     : 'appears: (none recorded)';
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
@@ -230,22 +338,24 @@ function readElement(ctx: AgentToolContext, elementId: string) {
 
 function searchProject(ctx: AgentToolContext, query: string) {
   const q = query.trim().toLowerCase();
-  const matches: Array<{ kind: string; id: string; label: string }> = [];
+  // `label` is the project-unique name — pass it straight back as the entity
+  // ref (no long id emitted).
+  const matches: Array<{ kind: string; label: string }> = [];
   if (!q) return { matches };
 
   const s = useDataStore.getState();
   for (const n of s.bookNodes) {
     if (n.projectId !== ctx.projectId) continue;
-    if (n.title.toLowerCase().includes(q)) matches.push({ kind: n.kind, id: n.id, label: n.title });
+    if (n.title.toLowerCase().includes(q)) matches.push({ kind: n.kind, label: n.title });
   }
   for (const e of s.bookElements) {
     if (e.projectId !== ctx.projectId) continue;
     const hay = [e.name, e.summary, ...e.aliases].join(' ').toLowerCase();
-    if (hay.includes(q)) matches.push({ kind: 'element', id: e.id, label: e.name });
+    if (hay.includes(q)) matches.push({ kind: 'element', label: e.name });
   }
   for (const sl of s.storylines) {
     if (sl.projectId !== ctx.projectId) continue;
-    if (sl.name.toLowerCase().includes(q)) matches.push({ kind: 'storyline', id: sl.id, label: sl.name });
+    if (sl.name.toLowerCase().includes(q)) matches.push({ kind: 'storyline', label: sl.name });
   }
   return { matches };
 }
@@ -348,13 +458,13 @@ function getProjectBrief(ctx: AgentToolContext) {
 }
 
 /** Where a structural entity is mentioned in prose (its appearances/backlinks). */
-async function whereDoesEntityAppear(_ctx: AgentToolContext, args: Record<string, unknown>) {
+async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string, unknown>) {
   const kind = String(args.kind ?? '');
-  const id = String(args.id ?? '');
   if (!isStructuralEntityKind(kind)) {
     throw new Error(`kind must be structural (node/element/storyline/category/patch), got "${kind}"`);
   }
-  if (!id) throw new Error('where_does_entity_appear requires id');
+  if (!args.id) throw new Error('where_does_entity_appear requires id');
+  const id = resolveByKind(ctx, kind, String(args.id ?? ''));
   const s = useDataStore.getState();
   const backlinks = await createInlineMentionRepository().listBacklinksToTarget(kind, id);
   // Group by source entity (one source can mention the target in many blocks).
@@ -377,8 +487,8 @@ async function whereDoesEntityAppear(_ctx: AgentToolContext, args: Record<string
 /** The curated cross-entity relation edges touching an entity, both directions. */
 function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>) {
   const kind = String(args.kind ?? '');
-  const id = String(args.id ?? '');
-  if (!kind || !id) throw new Error('get_entity_relations requires kind and id');
+  if (!kind || !args.id) throw new Error('get_entity_relations requires kind and id');
+  const id = resolveByKind(ctx, kind, String(args.id ?? ''));
   const s = useDataStore.getState();
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
   const outgoing = rels
@@ -468,7 +578,9 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
   const q = String(args.query ?? '').trim().toLowerCase();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
-  const matches: Array<{ kind: string; id: string; title: string; block?: number; snippet: string }> = [];
+  // title is the project-unique name — the agent passes it straight back as the
+  // nodeId/elementId arg, so no long id is emitted here.
+  const matches: Array<{ kind: string; title: string; block?: number; snippet: string }> = [];
   if (!q) return { matches };
 
   const s = useDataStore.getState();
@@ -479,7 +591,7 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
     const text = docToPlainText(e.contentJson);
     const idx = text.toLowerCase().indexOf(q);
     if (idx !== -1) {
-      matches.push({ kind: 'element', id: e.id, title: e.name, snippet: snippetAround(text, idx, q.length) });
+      matches.push({ kind: 'element', title: e.name, snippet: snippetAround(text, idx, q.length) });
       if (matches.length >= limit) return { matches, truncated: true };
     }
   }
@@ -495,7 +607,7 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
       const b = blocks[i];
       const idx = b.text.toLowerCase().indexOf(q);
       if (idx !== -1) {
-        matches.push({ kind: n.kind, id: n.id, title: n.title, block: i + 1, snippet: snippetAround(b.text, idx, q.length) });
+        matches.push({ kind: n.kind, title: n.title, block: i + 1, snippet: snippetAround(b.text, idx, q.length) });
         if (matches.length >= limit) return { matches, truncated: true };
         break; // one hit per chapter is enough for discovery — agent can read_chapter for the rest
       }
@@ -848,8 +960,10 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
     throw new Error(`Invalid toKind "${toKind}" (must be node/element/patch/category/storyline)`);
   }
   if (!fromId || !toId) throw new Error('add_relation requires fromId and toId');
+  const resolvedFrom = resolveByKind(ctx, fromKind, fromId);
+  const resolvedTo = resolveByKind(ctx, toKind, toId);
   const kind = typeof args.kind === 'string' ? args.kind : undefined;
-  const relation = await ctx.write.addRelation(fromKind, fromId, toKind, toId, { kind });
+  const relation = await ctx.write.addRelation(fromKind, resolvedFrom, toKind, resolvedTo, { kind });
   return { ok: true, relation };
 }
 
@@ -961,9 +1075,9 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
 
 async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) {
   const targetKind = String(args.targetKind ?? '');
-  const targetId = String(args.targetId ?? '');
   const summary = String(args.summary ?? '');
-  if (!targetId) throw new Error('set_summary requires targetId');
+  if (!args.targetId) throw new Error('set_summary requires targetId');
+  const targetId = resolveByKind(ctx, targetKind, String(args.targetId ?? ''));
   switch (targetKind) {
     case 'node':
     case 'chapter':
@@ -1089,13 +1203,17 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
 export async function runAgentTool(
   name: string,
-  args: Record<string, unknown>,
+  rawArgs: Record<string, unknown>,
   ctx: AgentToolContext,
 ): Promise<unknown> {
+  // Accept entity NAMES (project-unique) anywhere an id arg is expected.
+  const args = resolveArgsRefs(ctx, rawArgs);
   switch (name) {
     // reads
-    case 'list_project_structure':
-      return listProjectStructure(ctx);
+    case 'list_chapters':
+      return listChapters(ctx);
+    case 'list_elements':
+      return listElements(ctx);
     case 'read_chapter':
       return readChapter(ctx, String(args.nodeId ?? ''));
     case 'read_element':
