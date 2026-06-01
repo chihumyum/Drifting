@@ -504,11 +504,21 @@ export function ElementPanel() {
             across panels. */}
         <span
           aria-hidden
+          className={
+            agentBusy ? 'agent-glyph-busy' : agentChanged ? 'agent-glyph-done' : undefined
+          }
+          title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
             fontFamily: 'var(--font-serif)',
             fontStyle: 'italic',
             fontSize: 11,
-            color: categoryColor,
+            // Agent status overrides the category color: accent (lit) while
+            // working, strongest ink (monochrome, high-contrast) once done.
+            color: agentBusy
+              ? 'hsl(var(--accent))'
+              : agentChanged
+                ? 'hsl(var(--ink-1))'
+                : categoryColor,
             flexShrink: 0,
             lineHeight: 1,
             width: 12,
@@ -520,8 +530,6 @@ export function ElementPanel() {
 
         {/* Name */}
         <div
-          className={agentChanged ? 'agent-name-done' : undefined}
-          title={agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
             flex: 1,
             minWidth: 0,
@@ -550,8 +558,6 @@ export function ElementPanel() {
             {formatShortDate(element.updatedAt)}
           </span>
         )}
-
-        {agentBusy && <span aria-hidden className="agent-busy-line" title="Agent 正在处理" />}
       </div>
     );
   };

@@ -271,6 +271,14 @@ export function ChapterPanel() {
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? 'transparent';
+    // Agent status rides the leading stripe: accent (lit) while working, strong
+    // ink (monochrome, high-contrast) once done. Falls back to the storyline
+    // color when the agent isn't touching this chapter.
+    const stripeBg = agentBusy
+      ? 'hsl(var(--accent))'
+      : agentChanged
+        ? 'hsl(var(--ink-1))'
+        : stripeColor;
 
     return (
       <div
@@ -334,18 +342,20 @@ export function ChapterPanel() {
 
         <span
           aria-hidden
+          className={
+            agentBusy ? 'agent-glyph-busy' : agentChanged ? 'agent-glyph-done' : undefined
+          }
+          title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
             width: 12,
             height: 3,
             borderRadius: 1,
-            background: stripeColor,
+            background: stripeBg,
             flexShrink: 0,
           }}
         />
 
         <div
-          className={agentChanged ? 'agent-name-done' : undefined}
-          title={agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
             flex: 1,
             minWidth: 0,
@@ -373,8 +383,6 @@ export function ChapterPanel() {
             {formatShortDate(node.updatedAt)}
           </span>
         )}
-
-        {agentBusy && <span aria-hidden className="agent-busy-line" title="Agent 正在处理" />}
       </div>
     );
   };

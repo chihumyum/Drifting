@@ -1,49 +1,48 @@
 /*
- * Agent activity perception (#17). All cell styling is consolidated under the
- * entity's NAME so it never shifts the row's other content (e.g. the date):
- *   - working → a soft accent line that slowly stretches rightward under the
- *     name (starts as a dot, eases out to a line, and back).
- *   - done    → a subtle static underline on the name text.
- * The left tab switcher shows an aggregate badge so activity in a panel the
- * user isn't looking at still registers.
+ * Agent activity perception (#17). Status lives on the entity's leading GLYPH
+ * (the chapter stripe / element diamond / drift mark to the left of the name),
+ * so it reads as "this entity" and never shifts the row's other content:
+ *   - working → the glyph blinks and glows in the accent color.
+ *   - done    → the glyph turns high-contrast monochrome with a faint static
+ *     ring, a still marker the user can scan for at a glance.
+ * Glyph color (accent for busy, strongest ink for done) is set inline by each
+ * panel so it overrides the glyph's own category/storyline color; these classes
+ * add only the animation / glow. The left tab switcher shows an aggregate badge
+ * so activity in a panel the user isn't looking at still registers.
  */
 
-/* Working: a gentle dot → line under the name. Positioned against the cell (which
-   is position:relative and not clipped), aligned under the name column. */
-.agent-busy-line {
-  position: absolute;
-  left: 42px;
-  right: 14px;
-  bottom: 4px;
-  height: 2px;
-  border-radius: 2px;
-  background: hsl(var(--accent) / 0.4);
-  transform: scaleX(0.05);
-  transform-origin: left center;
-  animation: agentBusyLine 2.8s ease-in-out infinite;
-  pointer-events: none;
+/* Working: the glyph pulses opacity and an accent glow. drop-shadow follows the
+   glyph's rendered shape, so it works for both the text marks and the stripe. */
+.agent-glyph-busy {
+  animation: agentGlyphBusy 1.3s ease-in-out infinite;
+  will-change: opacity, filter;
 }
-@keyframes agentBusyLine {
-  0% {
-    transform: scaleX(0.05);
-    opacity: 0.3;
-  }
-  55% {
-    transform: scaleX(1);
-    opacity: 0.8;
-  }
+@keyframes agentGlyphBusy {
+  0%,
   100% {
-    transform: scaleX(0.05);
-    opacity: 0.3;
+    opacity: 0.4;
+    filter: drop-shadow(0 0 1px hsl(var(--accent) / 0.3));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px hsl(var(--accent) / 0.95));
   }
 }
 
-/* Done: a subtle underline on the name text — no extra element, no layout shift. */
-.agent-name-done {
-  text-decoration: underline;
-  text-decoration-color: hsl(var(--accent) / 0.6);
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 2px;
+/* Done: a still, high-contrast glyph. The monochrome color is set inline; this
+   adds a soft ring so the marker stands out without animating. */
+.agent-glyph-done {
+  filter: drop-shadow(0 0 2px hsl(var(--ink-1) / 0.45));
+}
+
+/* Respect reduced-motion: keep the glyph lit (via inline accent color) but stop
+   the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-glyph-busy {
+    animation: none;
+    opacity: 1;
+    filter: drop-shadow(0 0 3px hsl(var(--accent) / 0.8));
+  }
 }
 
 /* Aggregate badge overlaid on a left tab-switcher button. */
