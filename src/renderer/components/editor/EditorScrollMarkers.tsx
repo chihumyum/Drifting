@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
-import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
+import type { AgentBlockChange } from '../../lib/agent/block-diff';
 
 /**
  * VSCode-style overview ruler for the manuscript (#comments / #agent-changes).
@@ -51,22 +52,23 @@ export function EditorScrollMarkers({
   targetId,
 }: EditorScrollMarkersProps) {
   const comments = useDataStore((s) => s.comments);
-  // Unread agent-changed blocks for this entity (node only — elements track
-  // coarsely as structural, with no per-block ticks). A tick drops once its
-  // block has been read, matching the gutter fade in useAgentChangeMarks.
-  const touched = useAgentActivityStore((s) => s.touched);
-  const agentEntry = targetKind === 'node' ? touched[entityKey('node', targetId)] : undefined;
-  // Stable key (block uuids carry no commas) so the array identity only changes
-  // when the unread set does — keeps the recompute effect from churning.
-  const agentBlocksKey = agentEntry
-    ? [...agentEntry.spots.blocks]
-        .filter((b) => !agentEntry.seen.blocks.has(b))
-        .sort()
-        .join(',')
-    : '';
-  const agentBlocks = useMemo(
-    () => (agentBlocksKey ? agentBlocksKey.split(',') : []),
-    [agentBlocksKey],
+  // Agent-changed blocks for this entity (node only). Colored by op — new
+  // (green) / changed (blue) / deleted (red). Shown in BOTH modes so pending
+  // edits are findable in a long chapter: in auto a tick drops once its reveal
+  // has played; in approve once the block is approved/rejected — either way when
+  // the edit-store entry clears.
+  const pending = useAgentEditStore((s) => s.pending);
+  const agentEntry = targetKind === 'node' ? pending[entityKey('node', targetId)] : undefined;
+  const showAgentTicks = !!agentEntry;
+  // Stable key so the recompute effect only churns when the change set shifts.
+  const agentKey =
+    showAgentTicks && agentEntry
+      ? agentEntry.changes.map((c) => `${c.op}:${c.blockId}:${c.afterPrevId ?? ''}`).join('|')
+      : '';
+  const agentChanges = useMemo<AgentBlockChange[]>(
+    () => (showAgentTicks && agentEntry ? agentEntry.changes : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentKey],
   );
 
   const [ticks, setTicks] = useState<Tick[]>([]);
@@ -117,18 +119,23 @@ export function EditorScrollMarkers({
       });
     }
 
-    if (agentBlocks) {
-      for (const blockId of agentBlocks) {
-        const block = scrollEl.querySelector(blockSelector(blockId)) as HTMLElement | null;
+    for (const c of agentChanges) {
+      // Deletions have no surviving block — hang their tick on the nearest
+      // surviving predecessor (or the very top when they led the chapter).
+      const anchorId = c.op === 'deleted' ? c.afterPrevId : c.blockId;
+      let frac = 0;
+      if (anchorId) {
+        const block = scrollEl.querySelector(blockSelector(anchorId)) as HTMLElement | null;
         if (!block) continue;
-        next.push({
-          key: `a:${blockId}`,
-          frac: fracOf(block),
-          cls: 'editor__scrollmap-tick--agent',
-          blockId,
-          title: '跳到改动处',
-        });
+        frac = fracOf(block);
       }
+      const cls =
+        c.op === 'new'
+          ? 'editor__scrollmap-tick--agent-new'
+          : c.op === 'deleted'
+            ? 'editor__scrollmap-tick--agent-deleted'
+            : 'editor__scrollmap-tick--agent-changed';
+      next.push({ key: `a:${c.op}:${c.blockId}`, frac, cls, blockId: anchorId ?? '', title: '跳到改动处' });
     }
 
     next.sort((a, b) => a.frac - b.frac);
@@ -136,7 +143,7 @@ export function EditorScrollMarkers({
       ticksRef.current = next;
       setTicks(next);
     }
-  }, [scrollEl, comments, projectId, targetKind, targetId, agentBlocks]);
+  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges]);
 
   // Recompute on data change + layout change. Fractions are scroll-independent,
   // so we don't listen to `scroll` — only resize and content-height changes.

@@ -235,6 +235,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     }
     // `runs` (keyed by convId) is intentionally preserved across the switch so an
     // already-finished conversation re-opens instantly without a DB round-trip.
+    // Activity (pulses / "M") is session-scoped, so reset it on project switch.
+    // The edit-review store is NOT cleared here: it's persisted so unapproved
+    // edits survive a reload/navigation (clearing it would silently accept them).
     useAgentActivityStore.getState().clearAll();
     set({ boundProjectId: projectId, activeConvId: null, prompt: '' });
     // Load history, then re-open the conversation the user last had active for

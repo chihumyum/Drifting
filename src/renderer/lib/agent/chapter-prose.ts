@@ -30,9 +30,12 @@ import { v7 as uuidv7 } from 'uuid';
 import { makeDocId } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { countWordsInPmJson } from '../word-count';
+import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import type { AgentToolContext } from './tool-handlers';
 
 // Update origin: anything other than 'load'/'remote'/'seed'/'restore' is treated
@@ -208,19 +211,22 @@ async function writeProseDoc(
   yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
   readFallbackJson: () => Promise<string>,
-): Promise<{ contentJson: string; blockIds: string[] }> {
+): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
   const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
 
   const live = getLiveYDoc(docId);
   if (live) {
     // Mutate the open editor's doc — it updates the page live and the editor's
-    // own update/sync handlers persist + push it.
+    // own update/sync handlers persist + push it. Snapshot before/after so the
+    // change indicators (#4) can diff exactly which blocks moved.
+    const beforeJson = toJson(live);
     let blockIds: string[] = [];
     live.transact(() => {
       blockIds = yMutate(live.getXmlFragment('default'));
     }, AGENT_ORIGIN);
-    return { contentJson: toJson(live), blockIds };
+    const contentJson = toJson(live);
+    return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
   }
 
   const yrepo = createYjsRepository();
@@ -230,6 +236,7 @@ async function writeProseDoc(
       const snap = await yrepo.getSnapshot(docId);
       if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
       for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const beforeJson = toJson(doc);
 
       // Collect the diff this edit produces so we can append it for sync.
       const diff: Uint8Array[] = [];
@@ -245,16 +252,19 @@ async function writeProseDoc(
 
       for (const u of diff) await yrepo.appendUpdate(docId, u);
       await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
-      return { contentJson: toJson(doc), blockIds };
+      const contentJson = toJson(doc);
+      return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
     } finally {
       doc.destroy();
     }
   }
 
   // No Yjs state yet — edit the contentJson the editor will seed Yjs from. The
-  // JSON path can't surface stable block uuids, so the change is reported with
-  // no blockIds (the tracker falls back to a coarse "structural" change).
-  return { contentJson: jsonMutate(await readFallbackJson()), blockIds: [] };
+  // JSON path can't surface stable block uuids from Yjs, but serialize.ts keeps
+  // them, so block changes are still diffable.
+  const beforeJson = await readFallbackJson();
+  const contentJson = jsonMutate(beforeJson);
+  return { contentJson, blockIds: [], changes: computeBlockChanges(beforeJson, contentJson) };
 }
 
 /**
@@ -278,8 +288,8 @@ export async function writeChapterProse(
   nodeId: string,
   yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
-): Promise<{ contentJson: string; blockIds: string[] }> {
-  const { contentJson, blockIds } = await writeProseDoc(
+): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
+  const { contentJson, blockIds, changes } = await writeProseDoc(
     makeDocId('node-content', nodeId),
     yMutate,
     jsonMutate,
@@ -292,7 +302,16 @@ export async function writeChapterProse(
   await ctx.write.updateContentByNodeId(nodeId, { contentJson });
   await ctx.write.updateNode(nodeId, { wordCount: countWordsInPmJson(contentJson) });
 
-  return { contentJson, blockIds };
+  // Seed the prose-edit review state synchronously — before the tool result
+  // round-trips back to the agent — so the colored ticks / reveal animation /
+  // approve cards are ready the instant the edit lands (#3/#4).
+  if (changes.length) {
+    useAgentEditStore
+      .getState()
+      .record('node', nodeId, changes, useSettingsStore.getState().agentEditMode);
+  }
+
+  return { contentJson, blockIds, changes };
 }
 
 /**
@@ -331,4 +350,56 @@ export async function writeElementProse(
   await ctx.write.updateElement(elementId, { contentJson });
 
   return { contentJson, blockIds };
+}
+
+/**
+ * Undo a single agent block change on a chapter (approve-mode "reject"). Applies
+ * the inverse edit through the Yjs doc with a NON-agent origin, so it persists +
+ * syncs like an ordinary user edit and does NOT re-record into the edit store:
+ *   - changed → restore the block's old text
+ *   - new     → remove the block
+ *   - deleted → re-insert the old text after its anchor (fresh id, text restored)
+ * Live doc when the chapter is open (the usual case while reviewing); else a
+ * transient doc rehydrated from SQLite.
+ */
+const REVERT_ORIGIN = 'agent-revert';
+export async function revertNodeBlock(nodeId: string, change: AgentBlockChange): Promise<void> {
+  const docId = makeDocId('node-content', nodeId);
+  const mutate = (frag: Y.XmlFragment) => {
+    if (change.op === 'changed') {
+      yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);
+    } else if (change.op === 'new') {
+      yRemoveBlocks(frag, [change.blockId]);
+    } else {
+      yInsertBlocks(frag, change.afterPrevId, [change.oldText]);
+    }
+  };
+
+  const live = getLiveYDoc(docId);
+  if (live) {
+    // The live editor's own update/sync handlers persist + push it.
+    live.transact(() => mutate(live.getXmlFragment('default')), REVERT_ORIGIN);
+    return;
+  }
+
+  const yrepo = createYjsRepository();
+  if (await yrepo.hasDocState(docId)) {
+    const doc = new Y.Doc();
+    try {
+      const snap = await yrepo.getSnapshot(docId);
+      if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
+      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const diff: Uint8Array[] = [];
+      const onUpdate = (u: Uint8Array, origin: unknown) => {
+        if (origin === REVERT_ORIGIN) diff.push(new Uint8Array(u));
+      };
+      doc.on('update', onUpdate);
+      doc.transact(() => mutate(doc.getXmlFragment('default')), REVERT_ORIGIN);
+      doc.off('update', onUpdate);
+      for (const u of diff) await yrepo.appendUpdate(docId, u);
+      await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+    } finally {
+      doc.destroy();
+    }
+  }
 }

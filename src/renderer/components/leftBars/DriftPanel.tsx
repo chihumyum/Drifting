@@ -4,6 +4,7 @@ import { ChevronUp } from 'lucide-react';
 import { isDrift, type BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
@@ -42,6 +43,8 @@ export function DriftPanel() {
   const selectedNodeId = nodeUi.selectedId;
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
+  // Persisted pending agent edits — keeps "M" visible after a reload.
+  const agentPending = useAgentEditStore((s) => s.pending);
 
   // Split drift nodes by DriftStatus. Anything that isn't explicitly
   // 'resting' falls into the active list — that includes 'drifting' plus
@@ -135,7 +138,8 @@ export function DriftPanel() {
   const renderNodeCard = (node: BookNode, opts?: { muted?: boolean }) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
-    const agentChanged = !agentBusy && `node:${node.id}` in agentTouched;
+    const agentChanged =
+      !agentBusy && (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
     const muted = opts?.muted ?? false;
     return (
       <div

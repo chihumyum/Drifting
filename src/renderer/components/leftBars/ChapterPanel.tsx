@@ -11,6 +11,7 @@ import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
@@ -58,6 +59,9 @@ export function ChapterPanel() {
   // Agent activity: which nodes the agent is touching (pulse) / just changed (dot).
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
+  // Persisted pending agent edits (approve/auto review) — survives reload, so a
+  // chapter with unreviewed edits still shows "M" after a refresh.
+  const agentPending = useAgentEditStore((s) => s.pending);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -270,7 +274,8 @@ export function ChapterPanel() {
   const renderNodeCard = (node: BookNode) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
-    const agentChanged = !agentBusy && `node:${node.id}` in agentTouched;
+    const agentChanged =
+      !agentBusy && (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? 'transparent';

@@ -102,6 +102,10 @@ export function useAgentChangeMarks(
       });
       io = observer;
 
+      // Prose-block reveals + their seen-tracking are owned by AgentEditAnimator
+      // now (it plays the diff animation, then clears the spot — so the tick /
+      // "M" drop only AFTER the reveal). Here we just paint the static gutter
+      // highlight, with NO IntersectionObserver, so a mere glance won't clear it.
       entry.spots.blocks.forEach((blockId) => {
         const el = scrollEl.querySelector(blockSel(blockId));
         if (!el) return;
@@ -109,10 +113,6 @@ export function useAgentChangeMarks(
         el.classList.add('agent-change-block');
         if (seen) el.classList.add('agent-change-block--seen');
         appliedEls.push(el);
-        if (!seen) {
-          tracked.set(el, { block: blockId });
-          observer.observe(el);
-        }
       });
 
       if (entry.spots.summary) {
@@ -158,11 +158,8 @@ export function useAgentChangeMarks(
         if (entry.spots.summary && !entry.seen.summary && !scrollEl.querySelector(SUMMARY_SEL)) {
           markSpotSeen(entityType, id, { summary: true });
         }
-        entry.spots.blocks.forEach((blockId) => {
-          if (!entry.seen.blocks.has(blockId) && !scrollEl.querySelector(blockSel(blockId))) {
-            markSpotSeen(entityType, id, { block: blockId });
-          }
-        });
+        // Prose blocks are cleared by AgentEditAnimator (which has its own
+        // unanchorable grace), so they're intentionally not fallen back here.
       }, FALLBACK_MS);
       apply();
     };

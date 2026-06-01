@@ -150,6 +150,8 @@ function ComposerConfig() {
   const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
   const agentEffort = useSettingsStore((s) => s.agentEffort);
   const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
+  const agentEditMode = useSettingsStore((s) => s.agentEditMode);
+  const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'main' | 'model'>('main');
@@ -228,6 +230,17 @@ function ComposerConfig() {
                     </span>
                   </div>
                 )}
+                <div className="agt-menu__divider" />
+                <div className="agt-menu__sec">改动</div>
+                <div className="agt-menu__row" title="开启后，agent 对正文的每处改动都需要你逐块批准；关闭则自动应用并以动画揭示。">
+                  <span>改动需批准</span>
+                  <button
+                    type="button"
+                    aria-pressed={agentEditMode === 'approve'}
+                    className={'agt-tog' + (agentEditMode === 'approve' ? ' agt-tog--on' : '')}
+                    onClick={() => setAgentEditMode(agentEditMode === 'approve' ? 'auto' : 'approve')}
+                  />
+                </div>
               </>
             ) : (
               <>
@@ -346,14 +359,26 @@ function EntityLinkChip({
   );
 }
 
-/** A row indicating the agent is working but nothing is actively streaming yet. */
+/**
+ * A row indicating the agent is working but nothing is actively streaming yet —
+ * i.e. it's reasoning. The OAuth path returns no plaintext thinking, so instead
+ * of content we show an elapsed-seconds counter that grows while we wait, so the
+ * user has live feedback that the model is busy. Remounts each thinking gap, so
+ * the count starts fresh whenever the model drops back into思考.
+ */
 function PendingRow() {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const t = window.setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => window.clearInterval(t);
+  }, []);
   return (
     <div className="agt-pending">
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
-      <span>思考中…</span>
+      <span>{secs > 0 ? `思考中 · ${secs}s` : '思考中…'}</span>
     </div>
   );
 }

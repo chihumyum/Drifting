@@ -13,7 +13,15 @@ import type * as Y from 'yjs';
 import loglevel from 'loglevel';
 
 import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../lib/outline';
+import { DecorationSet } from '@tiptap/pm/view';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
+import {
+  AgentDiffDecoration,
+  AgentDiffPluginKey,
+  buildAgentDiffDecorations,
+} from '../lib/extensions/agent-diff-decoration';
+import { useAgentEditStore } from '../store/agent-edit-store';
+import { entityKey } from '../lib/agent/tool-entity-ref';
 import {
   EntityLink,
   EntityLinkDanglingPluginKey,
@@ -769,6 +777,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // edits, never a peer's.
         ...(ydoc ? [Collaboration.configure({ document: ydoc, field: 'default' })] : []),
         BlockId,
+        // In-place agent-edit diff decorations (approve mode). Inert until
+        // useEntityEditor pushes a DecorationSet for node editors (below).
+        AgentDiffDecoration,
         // These callbacks are registered with ProseMirror and execute later,
         // outside React render. They intentionally read latest-value refs.
         // eslint-disable-next-line react-hooks/refs
@@ -998,6 +1009,39 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       editor.view.dispatch(editor.state.tr.setMeta(EntityLinkDanglingPluginKey, true));
     }
   }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, trashedEntityIds, editor]);
+
+  // Agent-edit diff decorations (#3, approve mode). Node editors only. Recomputed
+  // from the edit store + edit-mode setting and pushed into the doc via meta, so
+  // the diff renders IN PLACE (reflows + scrolls with the prose, no overlay). The
+  // `update` listener re-runs it after content load and after any edit (positions
+  // shift); a meta-only dispatch makes no doc change, so it can't loop.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || sourceKind !== 'node') return undefined;
+    const nodeId = sourceId;
+    const recompute = () => {
+      if (editor.isDestroyed) return;
+      try {
+        const mode = useSettingsStore.getState().agentEditMode;
+        const entry = useAgentEditStore.getState().pending[entityKey('node', nodeId)];
+        const set =
+          mode === 'approve' && entry && entry.changes.length
+            ? buildAgentDiffDecorations(editor.state.doc, entry.changes)
+            : DecorationSet.empty;
+        editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, set));
+      } catch (error) {
+        log.warn('Failed to build agent diff decorations:', error);
+      }
+    };
+    recompute();
+    const unsubEdit = useAgentEditStore.subscribe(recompute);
+    const unsubSettings = useSettingsStore.subscribe(recompute);
+    editor.on('update', recompute);
+    return () => {
+      unsubEdit();
+      unsubSettings();
+      editor.off('update', recompute);
+    };
+  }, [editor, sourceKind, sourceId]);
 
   // Retroactively link prose that mentioned an element before it was created.
   // Auto-detect only fires on freshly-typed text, so an element created after

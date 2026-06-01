@@ -40,6 +40,15 @@ export type AgentModel = string;
 export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
+/**
+ * How the agent's prose edits surface in the editor:
+ *  - 'auto':    edits apply silently; the editor shows colored scrollbar ticks
+ *               and plays a reveal animation as each changed block scrolls in.
+ *  - 'approve': each changed block gets inline accept/reject — approving plays
+ *               the reveal animation, rejecting undoes the block via Yjs.
+ * The change always lands in the doc first either way (soft approval).
+ */
+export type AgentEditMode = 'auto' | 'approve';
 
 /**
  * The model picker's catalog (shared by Settings and the input-bar switcher).
@@ -203,6 +212,9 @@ interface SettingsState {
   setAgentEffort: (e: AgentEffort) => void;
   agentThinking: AgentThinking;
   setAgentThinking: (t: AgentThinking) => void;
+  // How the agent's prose edits surface (auto reveal vs manual approve). See AgentEditMode.
+  agentEditMode: AgentEditMode;
+  setAgentEditMode: (m: AgentEditMode) => void;
 
   // Copilot (任务自动化, 没有续写)
   /**
@@ -363,6 +375,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentEffort: (e) => set({ agentEffort: e }),
       agentThinking: 'adaptive',
       setAgentThinking: (t) => set({ agentThinking: t }),
+      agentEditMode: 'auto',
+      setAgentEditMode: (m) => set({ agentEditMode: m }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
 

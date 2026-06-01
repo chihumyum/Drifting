@@ -1863,7 +1863,19 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   opacity: 0.55;
 }
 .editor__scrollmap-tick--agent {
-  background: hsl(var(--story-3)); /* 苔绿 — unread agent change */
+  background: hsl(var(--story-3)); /* 苔绿 — unread agent change (legacy) */
+}
+/* Agent-edit ticks, colored by op (auto mode only): new = 苔绿 moss green,
+   changed = 群青 ink blue, deleted = 朱砂 oxblood red. Each drops once its
+   block's reveal animation has played. */
+.editor__scrollmap-tick--agent-new {
+  background: hsl(var(--story-3));
+}
+.editor__scrollmap-tick--agent-changed {
+  background: hsl(var(--story-2));
+}
+.editor__scrollmap-tick--agent-deleted {
+  background: hsl(var(--story-1));
 }
 
 /* ============================================================
@@ -1881,6 +1893,135 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .agent-change-summary--seen {
   background-color: transparent;
   box-shadow: none;
+}
+
+/* ============================================================
+   Agent-edit reveal (#4) — the agent's edit already landed in the doc;
+   this overlay crossfades the OLD text (deletions tinted red) into the
+   NEW text (insertions tinted green) over the real block, then fades to
+   reveal it. Plus the approve-mode inline ✓ / ✗ controls (#3).
+   ============================================================ */
+.agent-edit-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.agent-reveal {
+  display: block;
+  z-index: 61;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  transition: opacity 0.3s ease;
+}
+.agent-reveal--fade {
+  opacity: 0;
+}
+/* Deleted chars erase off a red ground (struck so they read as removed);
+   inserted chars type onto a green one. */
+.agent-reveal__del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.18);
+  border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+}
+.agent-reveal__ins {
+  color: hsl(var(--story-3));
+  background: hsl(var(--story-3) / 0.18);
+  border-radius: 2px;
+}
+/* Blinking typewriter caret at the active edit point. */
+.agent-reveal__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: hsl(var(--ink-2));
+  animation: agentRevealCaret 0.9s steps(1) infinite;
+}
+@keyframes agentRevealCaret {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.agent-approve {
+  z-index: 62;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 3px;
+  border-radius: 7px;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule));
+  box-shadow: 0 2px 8px hsl(0 0% 0% / 0.14);
+  pointer-events: auto;
+}
+.agent-approve__tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-3));
+  padding: 0 3px;
+}
+.agent-approve__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  background: transparent;
+  color: hsl(var(--ink-2));
+}
+.agent-approve__btn--ok:hover {
+  background: hsl(var(--story-3) / 0.18);
+  color: hsl(var(--story-3));
+}
+.agent-approve__btn--no:hover {
+  background: hsl(var(--story-1) / 0.18);
+  color: hsl(var(--story-1));
+}
+
+/* ============================================================
+   Agent-edit IN-PLACE diff (#3 approve mode) — real editor decorations, so the
+   diff reflows + scrolls with the prose (no overlay): insertions inline green,
+   deletions a red struck widget, plus whole-block fallbacks.
+   ============================================================ */
+.agent-diff-ins {
+  background: hsl(var(--story-3) / 0.18);
+  color: hsl(var(--story-3));
+  border-radius: 2px;
+}
+.agent-diff-del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.18);
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+  border-radius: 2px;
+}
+.agent-diff-changed {
+  background: hsl(var(--story-2) / 0.12);
+  border-radius: 2px;
+}
+.agent-diff-deleted-block {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.1);
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.6);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin: 2px 0;
+  opacity: 0.85;
 }
 
 /* ============================================================

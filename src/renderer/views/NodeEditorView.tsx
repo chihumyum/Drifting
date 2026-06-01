@@ -15,6 +15,7 @@ import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
+import { AgentEditAnimator } from '../components/editor/AgentEditAnimator';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
@@ -139,11 +140,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     [activeProjectId, comments, nodeId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
-    if (!marginNotes && commentCount === 0) return;
+    // The rail can always be toggled — with no comments it just shows an empty
+    // column, so the user can open it to add the first note.
     const next = !marginNotes;
     setMarginNotes(next);
     if (!next) setPendingComment(null);
-  }, [commentCount, marginNotes, setMarginNotes]);
+  }, [marginNotes, setMarginNotes]);
   const handleAddCommentRequest = useCallback(
     (request: EditorCommentRequest) => {
       setMarginNotes(true);
@@ -631,7 +633,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             commentToggle={{
               enabled: marginNotes,
               count: commentCount,
-              disabled: !marginNotes && commentCount === 0,
+              disabled: false,
               onToggle: toggleComments,
             }}
             right={
@@ -794,6 +796,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               targetId={nodeId ?? ''}
               scrollEl={scrollEl}
             />
+            <AgentEditAnimator scrollEl={scrollEl} entityType="node" id={nodeId} />
           </div>
         </>
       )}

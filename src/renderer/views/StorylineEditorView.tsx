@@ -108,11 +108,12 @@ export function StorylineEditorView({
     [comments, projectId, storylineId, relatedCommentIds],
   );
   const toggleComments = useCallback(() => {
-    if (!marginNotes && commentCount === 0) return;
+    // The rail can always be toggled — with no comments it just shows an empty
+    // column, so the user can open it to add the first note.
     const next = !marginNotes;
     setMarginNotes(next);
     if (!next) setPendingComment(null);
-  }, [commentCount, marginNotes, setMarginNotes]);
+  }, [marginNotes, setMarginNotes]);
   const handleAddCommentRequest = useCallback(
     (request: EditorCommentRequest) => {
       setMarginNotes(true);
@@ -310,7 +311,7 @@ export function StorylineEditorView({
         commentToggle={{
           enabled: marginNotes,
           count: commentCount,
-          disabled: !marginNotes && commentCount === 0,
+          disabled: false,
           onToggle: toggleComments,
         }}
         right={
