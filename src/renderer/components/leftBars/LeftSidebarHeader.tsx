@@ -117,7 +117,7 @@ export function LeftSidebarHeader() {
         <ChapterPanelTab
           compact={compact}
           isActive={activeLeftPanel === 'nodes'}
-          badge={activeLeftPanel === 'nodes' ? null : badges.nodes}
+          badge={badges.nodes}
           onClick={() => setActiveLeftPanel('nodes')}
         />
         <PanelTab
@@ -125,7 +125,7 @@ export function LeftSidebarHeader() {
           glyph="◆"
           compact={compact}
           isActive={activeLeftPanel === 'elements'}
-          badge={activeLeftPanel === 'elements' ? null : badges.elements}
+          badge={badges.elements}
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
@@ -133,7 +133,7 @@ export function LeftSidebarHeader() {
           glyph="✺"
           compact={compact}
           isActive={activeLeftPanel === 'drift'}
-          badge={activeLeftPanel === 'drift' ? null : badges.drift}
+          badge={badges.drift}
           onClick={() => setActiveLeftPanel('drift')}
         />
       </div>

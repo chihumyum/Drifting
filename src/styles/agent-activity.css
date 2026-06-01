@@ -6,9 +6,12 @@
  * panel the user isn't looking at still registers.
  */
 
-/* Working: a sweeping gradient glow across the whole cell. The ::before sits
-   behind the cell's text content (which paints after it) but over the cell's
-   own background. */
+/* Working: a subtle accent outline + a sweeping gradient glow across the whole
+   cell. The ::before sits behind the cell's text content (which paints after it)
+   but over the cell's own background. */
+.agent-cell-glow {
+  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.35);
+}
 .agent-cell-glow::before {
   content: '';
   position: absolute;
@@ -17,19 +20,19 @@
   border-radius: inherit;
   background: linear-gradient(
     100deg,
-    transparent 20%,
-    hsl(var(--accent) / 0.16) 50%,
-    transparent 80%
+    transparent 10%,
+    hsl(var(--accent) / 0.24) 50%,
+    transparent 90%
   );
   background-size: 220% 100%;
-  animation: agentCellGlow 1.7s ease-in-out infinite;
+  animation: agentCellGlow 1.6s ease-in-out infinite;
 }
 @keyframes agentCellGlow {
   0% {
-    background-position: 160% 0;
+    background-position: 170% 0;
   }
   100% {
-    background-position: -160% 0;
+    background-position: -170% 0;
   }
 }
 

@@ -2,7 +2,13 @@
  * Map an agent tool call to the entity it touched — the single source of truth
  * shared by the activity indicators (#17) and the result links (#18), so the two
  * features can't drift apart.
+ *
+ * The agent addresses entities by NAME now, so the raw tool input carries a name
+ * (or an id) — we resolve it to the real entity id here so the activity store
+ * and the result chips (which key/look-up by id) match.
  */
+import { useDataStore } from '../../store/data-store';
+
 export type ActivityEntityType = 'node' | 'element' | 'storyline' | 'category';
 export type ActivityOp = 'read' | 'write' | 'create' | 'delete';
 
@@ -47,6 +53,46 @@ const CREATE_TOOLS: Record<string, ActivityEntityType> = {
   create_category: 'category',
 };
 
+/**
+ * Resolve the value the agent passed (a NAME or an id) to the real entity id,
+ * by matching against the current project's entities. Returns null if unknown
+ * (e.g. a just-deleted entity).
+ */
+function resolveEntityId(entityType: ActivityEntityType, nameOrId: string): string | null {
+  const r = nameOrId.trim();
+  if (!r) return null;
+  const low = r.toLowerCase();
+  const s = useDataStore.getState();
+  switch (entityType) {
+    case 'node': {
+      const m =
+        s.bookNodes.find((n) => n.id === r) ??
+        s.bookNodes.find((n) => n.title.trim().toLowerCase() === low);
+      return m?.id ?? null;
+    }
+    case 'element': {
+      const m =
+        s.bookElements.find((e) => e.id === r) ??
+        s.bookElements.find((e) => [e.name, ...e.aliases].some((x) => x.trim().toLowerCase() === low));
+      return m?.id ?? null;
+    }
+    case 'storyline': {
+      const m =
+        s.storylines.find((x) => x.id === r) ??
+        s.storylines.find((x) => x.name.trim().toLowerCase() === low);
+      return m?.id ?? null;
+    }
+    case 'category': {
+      const m =
+        s.bookElementCategories.find((x) => x.id === r) ??
+        s.bookElementCategories.find((x) => x.name.trim().toLowerCase() === low);
+      return m?.id ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
 /** Pull `created.id` (or `id`) out of a tool result's JSON text. */
 function idFromResult(resultText: string | undefined): string | null {
   if (!resultText) return null;
@@ -69,10 +115,10 @@ export function toolEntityRef(
   resultText?: string,
 ): ToolEntityRef | null {
   const args = (input ?? {}) as Record<string, unknown>;
-  // set_summary is addressed by (targetKind, targetId), not a flat field.
+  // set_summary is addressed by (targetKind, targetId/target), not a flat field.
   if (name === 'set_summary') {
-    const id = typeof args.targetId === 'string' ? args.targetId : '';
-    if (!id) return null;
+    const raw = typeof args.target === 'string' ? args.target : String(args.targetId ?? '');
+    if (!raw) return null;
     const tk = String(args.targetKind ?? '');
     const entityType: ActivityEntityType | null =
       tk === 'element'
@@ -82,12 +128,17 @@ export function toolEntityRef(
           : tk === 'node' || tk === 'chapter' || tk === 'drift'
             ? 'node'
             : null;
-    return entityType ? { entityType, id, op: 'write' } : null;
+    if (!entityType) return null;
+    const id = resolveEntityId(entityType, raw);
+    return id ? { entityType, id, op: 'write' } : null;
   }
   const arg = ARG_TOOLS[name];
   if (arg) {
-    const id = args[arg.field];
-    if (typeof id === 'string' && id) return { entityType: arg.entityType, id, op: arg.op };
+    const raw = args[arg.field];
+    if (typeof raw === 'string' && raw) {
+      const id = resolveEntityId(arg.entityType, raw);
+      if (id) return { entityType: arg.entityType, id, op: arg.op };
+    }
     return null;
   }
   const createKind = CREATE_TOOLS[name];
