@@ -34,9 +34,9 @@ export interface GroupHeaderCellProps {
   sticky?: boolean;
   // Optional extra slot rendered between the count and the + button.
   rightExtra?: ReactNode;
-  // Agent activity bubbled up from this group's child cells (#17). When a child
-  // is busy the color dot blinks accent; once a run leaves unviewed changes the
-  // dot is replaced by `agentDoneCount` (blinking if a fresh run is still busy).
+  // Agent activity bubbled up from this group's child cells (#17). While a child
+  // is busy the color dot blinks accent; once the run finishes and leaves
+  // unviewed changes the dot is replaced by the plain `agentDoneCount`.
   agentBusy?: boolean;
   agentDoneCount?: number;
 }
@@ -127,12 +127,8 @@ export function GroupHeaderCell({
             <ChevronDown size={11} strokeWidth={2} />
           )}
         </button>
-        {agentDoneCount > 0 ? (
-          <AgentCountBadge
-            count={agentDoneCount}
-            busy={agentBusy}
-            title="未查看的 Agent 改动"
-          />
+        {!agentBusy && agentDoneCount > 0 ? (
+          <AgentCountBadge count={agentDoneCount} title="未查看的 Agent 改动" />
         ) : (
           <span
             aria-hidden

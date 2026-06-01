@@ -208,20 +208,21 @@ export function DriftPanel() {
             different glyph. */}
         <span
           aria-hidden
-          className={
-            agentBusy ? 'agent-glyph-busy' : agentChanged ? 'agent-glyph-done' : undefined
-          }
+          className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 11,
+            // Done swaps the ❦ mark for a plain mono "M" marker; working/rest
+            // keep the italic serif mark.
+            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
+            fontStyle: agentChanged ? 'normal' : 'italic',
+            fontSize: agentChanged ? 10 : 11,
+            fontWeight: agentChanged ? 600 : undefined,
             // Agent status overrides the mark's resting tint: accent (lit) while
-            // working, strongest ink (monochrome, high-contrast) once done.
+            // working, muted ink for the done "M". At rest, the ❦ tint.
             color: agentBusy
               ? 'hsl(var(--accent))'
               : agentChanged
-                ? 'hsl(var(--ink-1))'
+                ? 'hsl(var(--ink-2))'
                 : muted
                   ? 'hsl(var(--ink-4))'
                   : 'hsl(var(--ink-3))',
@@ -231,7 +232,7 @@ export function DriftPanel() {
             textAlign: 'center',
           }}
         >
-          ❦
+          {agentChanged ? 'M' : '❦'}
         </span>
 
         <div
@@ -385,10 +386,9 @@ export function DriftPanel() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>休眠</span>
               <span style={{ color: 'hsl(var(--ink-4))' }}>{restingNodes.length}</span>
-              {restingActivity.doneCount > 0 ? (
+              {!restingActivity.busy && restingActivity.doneCount > 0 ? (
                 <AgentCountBadge
                   count={restingActivity.doneCount}
-                  busy={restingActivity.busy}
                   title="未查看的 Agent 改动"
                 />
               ) : (

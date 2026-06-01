@@ -40,10 +40,10 @@ export function LeftSidebarHeader() {
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
   // Aggregate agent activity per tab — the top of the cell → group → tab
-  // bubble (#17). A tab blinks its glyph while a panel cell is busy; once a run
-  // leaves unviewed changes the glyph is replaced by the count of those cells
-  // (blinking if a fresh run is still working), reverting to the glyph only
-  // once the user has opened them all (count → 0).
+  // bubble (#17). A tab blinks its glyph while a panel cell is busy; only once
+  // the run finishes and leaves unviewed changes is the glyph replaced by a
+  // plain count of those cells, reverting to the glyph once the user has opened
+  // them all (count → 0).
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -449,11 +449,11 @@ function PanelTabButton({
         if (!isActive) e.currentTarget.style.color = 'hsl(var(--ink-3))';
       }}
     >
-      {/* Glyph slot — once the agent leaves unviewed changes in this panel the
-          glyph is replaced by their count (cell → group → tab bubble, #17);
-          while a run is working the glyph (or the count) blinks in accent. */}
-      {doneCount > 0 ? (
-        <AgentCountBadge count={doneCount} busy={busy} title="未查看的 Agent 改动" />
+      {/* Glyph slot — while a run is working over this panel the glyph blinks in
+          accent; only once it finishes and leaves unviewed changes is the glyph
+          replaced by their plain count (cell → group → tab bubble, #17). */}
+      {!busy && doneCount > 0 ? (
+        <AgentCountBadge count={doneCount} title="未查看的 Agent 改动" />
       ) : (
         glyph && (
           <span

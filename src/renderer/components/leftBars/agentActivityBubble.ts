@@ -4,13 +4,13 @@
  *
  * Every layer above a cell renders the same little state machine over the cells
  * beneath it:
- *   - busy (a child cell is being touched right now) → blink/glow in accent.
- *   - doneCount > 0 (children with unviewed changes)  → the leading glyph is
- *     REPLACED by that count (how many changed cells the user hasn't opened).
- *   - both → the count shows, but blinks (a new run is working while changes
- *     from the last one are still unviewed). We never fall back to the glyph
- *     while doneCount > 0 — only once the user has reviewed everything (count
- *     hits 0) does the glyph return.
+ *   - busy (a child cell is being touched right now) → the layer keeps its
+ *     glyph and blinks/glows it in accent.
+ *   - not busy + doneCount > 0 (children with unviewed changes) → the leading
+ *     glyph is REPLACED by a plain count (how many changed cells the user hasn't
+ *     opened). The count returns to the glyph once they've reviewed all (→ 0).
+ *   - both → busy wins: the glyph blinks and the count stays hidden until the
+ *     run finishes, so a working layer never shows a static number.
  *
  * `aggregateActivity` does the roll-up; <AgentCountBadge> (its own file, so this
  * stays a logic-only module) paints the count.

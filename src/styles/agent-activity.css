@@ -1,20 +1,18 @@
 /*
  * Agent activity perception (#17). Status lives on the entity's leading GLYPH
- * (the chapter stripe / element diamond / drift mark to the left of the name),
- * so it reads as "this entity" and never shifts the row's other content:
+ * (the chapter stripe / element diamond / drift mark to the left of the name):
  *   - working → the glyph blinks and glows in the accent color.
- *   - done    → the glyph turns high-contrast monochrome with a faint static
- *     ring, a still marker the user can scan for at a glance.
- * Glyph color (accent for busy, strongest ink for done) is set inline by each
- * panel so it overrides the glyph's own category/storyline color; these classes
- * add only the animation / glow.
+ *   - done    → the cell glyph is replaced by a plain "M" (modified) marker in
+ *     muted ink — a still, low-key sign the agent touched this entity, no
+ *     high-contrast recolor (set inline by each panel).
  *
  * The same signal bubbles UP two layers — cell → group (storyline/category)
- * header → left tab switcher. A parent layer blinks its own glyph while a child
- * is busy; once the run leaves unviewed changes, the glyph is REPLACED by the
- * count of changed-but-unopened children (`.agent-count`). The count blinks in
- * accent if a fresh run is still working, and only reverts to the glyph once
- * the user has reviewed everything (count → 0). See agentActivityBubble.tsx.
+ * header → left tab switcher. While a child is busy the parent keeps its own
+ * glyph and blinks it in accent; only once the run finishes and leaves unviewed
+ * changes (busy is false) is the glyph REPLACED by a plain count of the
+ * changed-but-unopened children (`.agent-count`). The count reverts to the
+ * glyph once the user has reviewed everything (count → 0). See
+ * agentActivityBubble.ts.
  */
 
 /* Working: the glyph pulses opacity and an accent glow. drop-shadow follows the
@@ -35,12 +33,6 @@
   }
 }
 
-/* Done: a still, high-contrast glyph. The monochrome color is set inline; this
-   adds a soft ring so the marker stands out without animating. */
-.agent-glyph-done {
-  filter: drop-shadow(0 0 2px hsl(var(--ink-1) / 0.45));
-}
-
 /* Respect reduced-motion: keep the glyph lit (via inline accent color) but stop
    the pulse. */
 @media (prefers-reduced-motion: reduce) {
@@ -51,50 +43,22 @@
   }
 }
 
-/* Count badge — replaces a layer's glyph (group dot / tab glyph) once the agent
-   has left unviewed changes beneath it. The number is how many changed children
-   the user hasn't opened yet; clicking each cell decrements it back toward the
-   glyph. At rest it's still, high-contrast monochrome (matching .agent-glyph-done);
-   --busy turns it accent and blinks (a fresh run working over pending changes). */
+/* Count — replaces a layer's glyph (group dot / tab glyph) once a run has
+   finished and left unviewed changes beneath it. The number is how many changed
+   children the user hasn't opened yet; clicking each cell decrements it back
+   toward the glyph. It's a plain, low-key number (no pill, no blink) — as quiet
+   as the glyph it stands in for, matching the cell-level "M" marker. While a run
+   is still working the parent shows its blinking glyph instead, never this. */
 .agent-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  box-sizing: border-box;
-  border-radius: 7px;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: hsl(var(--paper));
-  background: hsl(var(--ink-1));
+  color: hsl(var(--ink-2));
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   pointer-events: none;
-}
-.agent-count--busy {
-  background: hsl(var(--accent));
-  animation: agentCountBusy 1.3s ease-in-out infinite;
-  will-change: opacity, box-shadow;
-}
-@keyframes agentCountBusy {
-  0%,
-  100% {
-    opacity: 0.6;
-    box-shadow: 0 0 0 0 hsl(var(--accent) / 0);
-  }
-  50% {
-    opacity: 1;
-    box-shadow: 0 0 6px 0 hsl(var(--accent) / 0.85);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .agent-count--busy {
-    animation: none;
-    opacity: 1;
-    box-shadow: 0 0 4px hsl(var(--accent) / 0.7);
-  }
 }

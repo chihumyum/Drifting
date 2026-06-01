@@ -506,20 +506,21 @@ export function ElementPanel() {
             across panels. */}
         <span
           aria-hidden
-          className={
-            agentBusy ? 'agent-glyph-busy' : agentChanged ? 'agent-glyph-done' : undefined
-          }
+          className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 11,
+            // Done swaps the diamond for a plain mono "M" marker; working/rest
+            // keep the italic serif diamond.
+            fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
+            fontStyle: agentChanged ? 'normal' : 'italic',
+            fontSize: agentChanged ? 10 : 11,
+            fontWeight: agentChanged ? 600 : undefined,
             // Agent status overrides the category color: accent (lit) while
-            // working, strongest ink (monochrome, high-contrast) once done.
+            // working, muted ink for the done "M". At rest, the category color.
             color: agentBusy
               ? 'hsl(var(--accent))'
               : agentChanged
-                ? 'hsl(var(--ink-1))'
+                ? 'hsl(var(--ink-2))'
                 : categoryColor,
             flexShrink: 0,
             lineHeight: 1,
@@ -527,7 +528,7 @@ export function ElementPanel() {
             textAlign: 'center',
           }}
         >
-          ◆
+          {agentChanged ? 'M' : '◆'}
         </span>
 
         {/* Name */}

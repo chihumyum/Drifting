@@ -274,14 +274,10 @@ export function ChapterPanel() {
     const primaryId = primaryStorylineByNode[node.id] ?? null;
     const storyline = primaryId ? storylineById.get(primaryId) : undefined;
     const stripeColor = storyline?.color ?? 'transparent';
-    // Agent status rides the leading stripe: accent (lit) while working, strong
-    // ink (monochrome, high-contrast) once done. Falls back to the storyline
-    // color when the agent isn't touching this chapter.
-    const stripeBg = agentBusy
-      ? 'hsl(var(--accent))'
-      : agentChanged
-        ? 'hsl(var(--ink-1))'
-        : stripeColor;
+    // Agent status rides the leading stripe while working — accent (lit) and
+    // blinking. Once the run is done the stripe is swapped for a plain "M"
+    // marker (below); at rest it keeps the storyline color.
+    const stripeBg = agentBusy ? 'hsl(var(--accent))' : stripeColor;
 
     return (
       <div
@@ -343,20 +339,37 @@ export function ChapterPanel() {
           />
         )}
 
-        <span
-          aria-hidden
-          className={
-            agentBusy ? 'agent-glyph-busy' : agentChanged ? 'agent-glyph-done' : undefined
-          }
-          title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
-          style={{
-            width: 12,
-            height: 3,
-            borderRadius: 1,
-            background: stripeBg,
-            flexShrink: 0,
-          }}
-        />
+        {agentChanged ? (
+          <span
+            aria-hidden
+            title="Agent 刚改动了这里"
+            style={{
+              width: 12,
+              flexShrink: 0,
+              textAlign: 'center',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 600,
+              lineHeight: 1,
+              color: 'hsl(var(--ink-2))',
+            }}
+          >
+            M
+          </span>
+        ) : (
+          <span
+            aria-hidden
+            className={agentBusy ? 'agent-glyph-busy' : undefined}
+            title={agentBusy ? 'Agent 正在处理' : undefined}
+            style={{
+              width: 12,
+              height: 3,
+              borderRadius: 1,
+              background: stripeBg,
+              flexShrink: 0,
+            }}
+          />
+        )}
 
         <div
           style={{
@@ -574,10 +587,9 @@ export function ChapterPanel() {
               <span style={{ color: 'hsl(var(--ink-4))' }}>
                 {unaffiliatedChapters.length}
               </span>
-              {unaffiliatedActivity.doneCount > 0 ? (
+              {!unaffiliatedActivity.busy && unaffiliatedActivity.doneCount > 0 ? (
                 <AgentCountBadge
                   count={unaffiliatedActivity.doneCount}
-                  busy={unaffiliatedActivity.busy}
                   title="未查看的 Agent 改动"
                 />
               ) : (
