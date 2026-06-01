@@ -22,7 +22,12 @@ import {
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
 } from '../../store/settings-store';
-import { useAgentChatStore } from '../../store/agent-chat-store';
+import {
+  useAgentChatStore,
+  selectMessages,
+  selectRunning,
+  selectOtherRunning,
+} from '../../store/agent-chat-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -422,9 +427,13 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
 
   // Chat state + actions live in the module store so they persist across the
   // panel unmounting (tab switches) and streaming keeps flowing while unmounted.
-  const messages = useAgentChatStore((s) => s.messages);
+  const messages = useAgentChatStore(selectMessages);
   const prompt = useAgentChatStore((s) => s.prompt);
-  const running = useAgentChatStore((s) => s.running);
+  // `running` = the displayed conversation has the in-flight turn. `otherRunning`
+  // = a turn is running, but in a different conversation than the one shown.
+  const running = useAgentChatStore(selectRunning);
+  const otherRunning = useAgentChatStore(selectOtherRunning);
+  const runningConvId = useAgentChatStore((s) => s.runningConvId);
   const convList = useAgentChatStore((s) => s.convList);
   const activeConvId = useAgentChatStore((s) => s.activeConvId);
   const setPrompt = useAgentChatStore((s) => s.setPrompt);
@@ -549,6 +558,11 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // until the first turn persists a row — a fresh chat has no name to rename.
   const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
   const sessionName = activeConv ? activeConv.title || '未命名' : '新对话';
+  // Title of the conversation whose turn is running in the background (if any),
+  // for the "switch to the running conversation" banner.
+  const runningConv = otherRunning
+    ? convList.find((c) => c.id === runningConvId) ?? null
+    : null;
   const editingHeader = editingHeaderId !== null && editingHeaderId === activeConvId;
 
   // Show a "思考中…" placeholder whenever the agent is running but nothing is
@@ -800,6 +814,19 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       )}
 
       <div style={inputArea}>
+        {otherRunning && runningConvId && (
+          <button
+            type="button"
+            className="agt-otherrun"
+            onClick={() => handleLoad(runningConvId)}
+            title="切换到正在运行的对话"
+          >
+            <span className="agt-otherrun__dot" />
+            <span className="agt-otherrun__text">
+              Agent 正在「{runningConv?.title || '另一个对话'}」中工作 · 查看
+            </span>
+          </button>
+        )}
         <div className="agt-composer">
           <textarea
             ref={taRef}
@@ -821,6 +848,16 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             {running ? (
               <button type="button" className="agt-send agt-send--stop" onClick={abort}>
                 Stop
+              </button>
+            ) : otherRunning ? (
+              <button
+                type="button"
+                className="agt-send"
+                disabled
+                style={{ opacity: 0.45, cursor: 'not-allowed' }}
+                title="Agent 正在另一个对话中工作,完成后可继续"
+              >
+                Send
               </button>
             ) : (
               <button type="button" className="agt-send" onClick={handleSend}>
@@ -1229,4 +1266,9 @@ const panelCss = `
 .agt-entity-chip:hover { background: hsl(var(--accent) / 0.08); border-color: hsl(var(--accent) / 0.5); }
 .agt-entity-chip__glyph { color: hsl(var(--accent)); font-family: var(--font-serif); font-style: italic; }
 .agt-entity-chip__op { font-size: 9.5px; opacity: 0.55; }
+.agt-otherrun { display: flex; align-items: center; gap: 7px; width: 100%; margin: 0 0 8px; padding: 6px 10px; border: 1px solid hsl(var(--accent) / 0.3); border-radius: 8px; background: hsl(var(--accent) / 0.06); color: hsl(var(--ink-2)); font-size: 11.5px; cursor: pointer; text-align: left; transition: background 0.12s, border-color 0.12s; }
+.agt-otherrun:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
+.agt-otherrun__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agt-otherrun__dot { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); flex-shrink: 0; animation: agtOtherRunPulse 1.4s ease-in-out infinite; }
+@keyframes agtOtherRunPulse { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
 `;

@@ -11,10 +11,12 @@ import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
+import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
+import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
 import loglevel from 'loglevel';
@@ -73,6 +75,9 @@ export function ElementEditorView({
   const [groupNameInput, setGroupNameInput] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  // Clear the cell's "M" once the user opens this element (coarse — element
+  // writes arrive as structural changes; see useAgentChangeMarks).
+  useAgentChangeMarks(scrollEl, 'element', elementId);
   const [marginNotes, setMarginNotes] = useEntityMarginNotes('element', elementId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
@@ -616,6 +621,12 @@ export function ElementEditorView({
           )}
           </div>
         </div>
+        <EditorScrollMarkers
+          projectId={projectId ?? curElement.projectId}
+          targetKind="element"
+          targetId={elementId}
+          scrollEl={scrollEl}
+        />
       </div>
 
       {/* Category picker (triggered from 3-dot menu) */}

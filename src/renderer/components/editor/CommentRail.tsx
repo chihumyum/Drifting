@@ -249,12 +249,17 @@ export function CommentRail({
 
     const anchored: Array<{ id: string; top: number }> = [];
     const orphans: string[] = [];
+    // Only transient copilot suggestions keep the top-of-page orphan stack.
+    // Manual notes/TODOs whose block was deleted drop into the bottom stack
+    // (renderLooseStack) as entity-level cards — see isStackOrphan below.
+    const copilotOrphans: string[] = [];
     visibleComments.forEach((comment) => {
       const block = scrollEl.querySelector(
         blockSelector(comment.targetBlockId),
       ) as HTMLElement | null;
       if (!block) {
         orphans.push(comment.id);
+        if (comment.source === 'copilot') copilotOrphans.push(comment.id);
         return;
       }
       const blockRect = block.getBoundingClientRect();
@@ -263,17 +268,18 @@ export function CommentRail({
       anchored.push({ id: comment.id, top: blockRect.top - marginRect.top - 4 });
     });
 
-    // Orphan anchor point: top of .page (the manuscript container). Falls
-    // back to a small fixed offset if the page hasn't mounted yet.
+    // Copilot-orphan anchor point: top of .page (the manuscript container).
+    // Falls back to a small fixed offset if the page hasn't mounted yet.
     const page = scrollEl.querySelector('.page') as HTMLElement | null;
     const pageRect = page?.getBoundingClientRect();
     const orphanBase = pageRect ? pageRect.top - marginRect.top - 4 : 4;
 
     const next: Record<string, number> = {};
-    // Orphans first — chronological order, stacked downward from the
-    // manuscript top with a ~108px stride. They scroll with the page.
+    // Copilot orphans first — chronological order, stacked downward from the
+    // manuscript top with a ~108px stride. They scroll with the page. (Manual
+    // orphans are NOT positioned here — they render statically in the stack.)
     let oCursor = orphanBase;
-    orphans.forEach((id) => {
+    copilotOrphans.forEach((id) => {
       next[id] = oCursor;
       oCursor += 108;
     });
@@ -561,6 +567,14 @@ export function CommentRail({
     }
   };
 
+  // A manual comment whose anchor block was deleted. These leave the floating
+  // margin and collect in the bottom stack as entity-level cards (copilot
+  // orphans stay on the top stack — see applyPositions).
+  const isStackOrphan = useCallback(
+    (comment: Comment) => orphanIds.has(comment.id) && comment.source !== 'copilot',
+    [orphanIds],
+  );
+
   // ─── card renderers ───────────────────────────────────────────────────
   const renderCopilotCard = (comment: Comment) => {
     const isOrphan = orphanIds.has(comment.id);
@@ -595,7 +609,9 @@ export function CommentRail({
     const fallbackQuote = snapshot ? '' : getSelectedTextFromAnchor(comment.anchorJson);
     const body = extractTextFromCommentBody(comment.bodyJson);
     const isResolved = comment.status === 'resolved';
-    const isOrphan = !loose && orphanIds.has(comment.id);
+    // Orphan affordance shows whether the card floats or sits in the bottom
+    // stack — a deleted block has no anchor in either place.
+    const isOrphan = orphanIds.has(comment.id);
     const isTodo = comment.kind === 'todo';
     const busy = busyId === comment.id;
     const classes = ['mnote', 'mnote--manual'];
@@ -627,22 +643,23 @@ export function CommentRail({
           </span>
         </div>
         <div className="mnote__title">{body || '空批注'}</div>
-        {!loose &&
-          (isOrphan ? (
-            <button
-              type="button"
-              className="mnote__tag"
-              onClick={() => snapshot && setSnapshotForId(comment.id)}
-              disabled={!snapshot}
-              title={snapshot ? '查看原文快照' : '无原文快照'}
-            >
-              原文已删除
-            </button>
-          ) : snapshot ? (
+        {isOrphan ? (
+          <button
+            type="button"
+            className="mnote__tag"
+            onClick={() => snapshot && setSnapshotForId(comment.id)}
+            disabled={!snapshot}
+            title={snapshot ? '查看原文快照' : '无原文快照'}
+          >
+            原文已删除
+          </button>
+        ) : !loose ? (
+          snapshot ? (
             <div className="mnote__quote">{renderQuoteExcerpt(snapshot)}</div>
           ) : (
             fallbackQuote && <div className="mnote__quote">{fallbackQuote}</div>
-          ))}
+          )
+        ) : null}
         <div className="mnote__actions">
           {isResolved ? (
             <button
@@ -792,8 +809,14 @@ export function CommentRail({
   // collapsed state) with a count; click to lay the cards out directly in a
   // floating column, which a small button collapses back.
   const renderLooseStack = () => {
-    if (looseComments.length === 0) return null;
-    const total = looseComments.length;
+    // Entity-level notes/TODOs (no block anchor) + manual orphans (anchor block
+    // deleted) share the bottom stack. Both render as flat, statically-placed
+    // cards; orphans keep their "原文已删除 / 快照" affordance via renderManualCard.
+    const stackComments = [...looseComments, ...visibleComments.filter(isStackOrphan)].sort(
+      commentSort,
+    );
+    if (stackComments.length === 0) return null;
+    const total = stackComments.length;
 
     if (!stackExpanded) {
       return (
@@ -824,7 +847,7 @@ export function CommentRail({
           <Minimize2 size={11} />
         </button>
         <div className="mnote-stack__list">
-          {looseComments.map((comment) => (
+          {stackComments.map((comment) => (
             <Fragment key={comment.id}>{renderManualCard(comment, { loose: true })}</Fragment>
           ))}
         </div>
@@ -847,9 +870,11 @@ export function CommentRail({
         className="editor__margin"
         aria-label="Manuscript comments"
       >
-        {visibleComments.map((comment) => (
-          <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
-        ))}
+        {visibleComments
+          .filter((comment) => !isStackOrphan(comment))
+          .map((comment) => (
+            <Fragment key={comment.id}>{renderCard(comment)}</Fragment>
+          ))}
         {renderComposer()}
         {renderLooseStack()}
       </aside>

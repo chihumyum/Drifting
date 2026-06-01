@@ -1,15 +1,22 @@
 /**
  * Agent chat store (module-level, in-memory).
  *
- * Holds the right-sidebar Agent conversation so it survives the panel
- * unmounting/remounting when the user switches sidebar tabs — the view is a
- * thin projection of this store. The single agent-event subscription also lives
- * here (set up once), so streaming keeps flowing and `done` still persists even
- * while the panel isn't mounted.
+ * Holds the right-sidebar Agent conversations so they survive the panel
+ * unmounting/remounting when the user switches sidebar tabs — the view is a thin
+ * projection of this store. The single agent-event subscription also lives here
+ * (set up once), so streaming keeps flowing and `done` still persists even while
+ * the panel isn't mounted.
+ *
+ * Per-conversation live state lives in `runs` (keyed by convId), which decouples
+ * "which conversation is displayed" (`activeConvId`) from "which conversation a
+ * streamed event belongs to" (resolved from the event's turnId via `turnConv`).
+ * That decoupling is what lets a turn keep running in the background: switching
+ * conversation or project changes only the displayed `runs` entry; the in-flight
+ * turn keeps folding into — and on `done` persists to — its OWN conversation.
  *
  * Display transcript is persisted to SQLite (agent_conversation) on each turn's
  * `done`; the SDK's own session file is the source of truth for *resuming*
- * context, tracked here as sdkSessionId and passed back as `resume`.
+ * context, tracked per run as sdkSessionId and passed back as `resume`.
  */
 import { create } from 'zustand';
 import { v7 as uuidv7 } from 'uuid';
@@ -23,7 +30,7 @@ import type {
   AgentChatMessage as ChatMsg,
   AgentConversationSummary,
 } from '../domain/agent-conversation';
-import type { AgentEvent } from '../../main/agent';
+import type { AgentEvent, AgentEventEnvelope } from '../../main/agent';
 
 const repo = createAgentConversationRepository();
 
@@ -129,19 +136,41 @@ function deriveTitle(text: string): string {
 
 // ---- store -----------------------------------------------------------------
 
-interface AgentChatState {
-  /** The project this conversation belongs to (null before first bind). */
-  boundProjectId: string | null;
+/** Stable empty transcript so selectors never return a fresh array (which would
+ *  re-render on every state change). */
+const EMPTY_MESSAGES: ChatMsg[] = [];
+
+/**
+ * Live state for one conversation opened (or running) this session. Keyed by
+ * convId in `runs`, this is what decouples "which conversation is displayed"
+ * from "which conversation a streamed event belongs to": a background turn keeps
+ * folding into its own RunState even while the user views another conversation.
+ */
+interface RunState {
+  /** Owning project — so a background turn doesn't pulse another project's cells. */
+  projectId: string;
   messages: ChatMsg[];
-  prompt: string;
-  running: boolean;
-  activeConvId: string | null;
+  /** SDK session to resume context; null until the first turn reports one. */
   sdkSessionId: string | null;
+}
+
+interface AgentChatState {
+  /** The project whose history is currently displayed (null before first bind). */
+  boundProjectId: string | null;
+  /** Which conversation is displayed (null = a fresh, unsaved chat). */
+  activeConvId: string | null;
+  /** convId → live transcript/session, for every conversation touched this run. */
+  runs: Record<string, RunState>;
+  prompt: string;
   convList: AgentConversationSummary[];
+  /** The single in-flight turn (main runs one at a time); null when idle. */
+  runningTurnId: string | null;
+  /** The conversation that in-flight turn belongs to; null when idle. */
+  runningConvId: string | null;
 
   setPrompt: (p: string) => void;
-  /** Mount/route hook: load this project's history; reset chat only if the
-   *  project actually changed (so a remount with the same project keeps view). */
+  /** Mount/route hook: switch to this project's history. Background runs and the
+   *  in-flight turn are preserved across the switch. */
   bindProject: (projectId: string) => void;
   refreshList: () => void;
   send: () => Promise<void>;
@@ -152,14 +181,29 @@ interface AgentChatState {
   renameConversation: (id: string, title: string) => Promise<void>;
 }
 
+/** The displayed conversation's transcript (stable empty ref when none). */
+export const selectMessages = (s: AgentChatState): ChatMsg[] =>
+  s.activeConvId ? s.runs[s.activeConvId]?.messages ?? EMPTY_MESSAGES : EMPTY_MESSAGES;
+/** Is the displayed conversation the one with the in-flight turn? */
+export const selectRunning = (s: AgentChatState): boolean =>
+  s.runningConvId !== null && s.runningConvId === s.activeConvId;
+/** A turn is running, but in a DIFFERENT conversation than the one displayed. */
+export const selectOtherRunning = (s: AgentChatState): boolean =>
+  s.runningConvId !== null && s.runningConvId !== s.activeConvId;
+
+// Maps an in-flight turn id → the conversation that owns it, so streamed events
+// route to that conversation even after the user navigates elsewhere. A turn not
+// in this map is foreign (e.g. left over from before a reload) and is ignored.
+const turnConv = new Map<string, string>();
+
 export const useAgentChatStore = create<AgentChatState>((set, get) => ({
   boundProjectId: null,
-  messages: [],
-  prompt: '',
-  running: false,
   activeConvId: null,
-  sdkSessionId: null,
+  runs: {},
+  prompt: '',
   convList: [],
+  runningTurnId: null,
+  runningConvId: null,
 
   setPrompt: (p) => set({ prompt: p }),
 
@@ -179,16 +223,20 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       get().refreshList();
       return;
     }
-    // Project changed — reset the live chat and load that project's history.
+    // Switching CONVERSATIONS within a project keeps a background turn alive, but
+    // switching PROJECTS cannot: the tool bridge (useAgentToolBridge) is bound to
+    // the currently-viewed project, so a background turn's tool calls would run
+    // against the wrong project's data. Until the bridge is turn/project-aware
+    // (the prerequisite for true concurrency), abort an in-flight turn on a real
+    // project change. The tagged `done` it triggers persists its partial
+    // transcript and clears the running pointers.
+    if (get().runningConvId) {
+      void window.electronAPI?.agent?.abort();
+    }
+    // `runs` (keyed by convId) is intentionally preserved across the switch so an
+    // already-finished conversation re-opens instantly without a DB round-trip.
     useAgentActivityStore.getState().clearAll();
-    set({
-      boundProjectId: projectId,
-      messages: [],
-      activeConvId: null,
-      sdkSessionId: null,
-      prompt: '',
-      running: false,
-    });
+    set({ boundProjectId: projectId, activeConvId: null, prompt: '' });
     // Load history, then re-open the conversation the user last had active for
     // this project (persisted pointer + SQLite transcript), so a reload/restart
     // doesn't drop them into an empty "新对话".
@@ -199,13 +247,13 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       } catch {
         rows = [];
       }
-      // The project may have changed again (or a conversation started) while the
+      // The project may have changed again (or a conversation opened) while the
       // async list was in flight — bail rather than clobber newer state.
       if (get().boundProjectId !== projectId) return;
       set({ convList: rows });
       const lastId = useSettingsStore.getState().lastAgentConvByProject[projectId];
       // Only restore a conversation that still exists (listByProject already
-      // filters soft-deleted rows) and only if the user hasn't started one.
+      // filters soft-deleted rows) and only if the user hasn't opened one.
       if (lastId && !get().activeConvId && rows.some((r) => r.id === lastId)) {
         await get().loadConversation(lastId);
       }
@@ -216,7 +264,10 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     ensureSubscription();
     const api = window.electronAPI?.agent;
     const s = get();
-    if (!api || !s.prompt.trim() || s.running) return;
+    // One turn at a time (main runs a single query): refuse if one is in flight,
+    // even if it's a background turn in another conversation.
+    if (!api || !s.prompt.trim() || !s.boundProjectId || s.runningConvId) return;
+    const projectId = s.boundProjectId;
     const text = s.prompt.trim();
     const now = new Date().toISOString();
     const settings = useSettingsStore.getState();
@@ -229,12 +280,12 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // Lazily create the conversation row on the first message so it shows up in
     // history immediately; the transcript is overwritten on `done`.
     let convId = s.activeConvId;
-    if (!convId && s.boundProjectId) {
+    if (!convId) {
       convId = uuidv7();
       try {
         await repo.create({
           id: convId,
-          projectId: s.boundProjectId,
+          projectId,
           title: deriveTitle(text),
           mode: convMode,
           messages: [{ kind: 'user', text }],
@@ -245,36 +296,69 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       } catch {
         /* persistence is best-effort — chat still works in-memory */
       }
-      set({ activeConvId: convId });
-      get().refreshList();
     }
+    const cid = convId;
+
+    // Append the user message into this conversation's live run state (seeding a
+    // fresh entry if it isn't loaded yet).
+    const prevRun = get().runs[cid];
+    const run: RunState = {
+      projectId,
+      messages: [...(prevRun?.messages ?? []), { kind: 'user', text }],
+      sdkSessionId: prevRun?.sdkSessionId ?? null,
+    };
+
+    const turnId = uuidv7();
+    turnConv.set(turnId, cid);
+    set((st) => ({
+      runs: { ...st.runs, [cid]: run },
+      activeConvId: cid,
+      prompt: '',
+      runningTurnId: turnId,
+      runningConvId: cid,
+    }));
     // Remember this as the project's last-active conversation so it re-opens on
     // next launch.
-    if (s.boundProjectId && convId) {
-      useSettingsStore.getState().setLastAgentConv(s.boundProjectId, convId);
-    }
+    useSettingsStore.getState().setLastAgentConv(projectId, cid);
+    get().refreshList();
 
     // Project writing preferences (KV facts) + writing language, injected into
     // the agent's system prompt so it honors the author's style/POV/length and
     // writes in the manuscript's language. Empty facts → no style steer.
     const project = useProjectStore.getState().currentProject;
-    const projectFacts =
-      project && project.id === s.boundProjectId ? parseKv(project.kvJson) : [];
-    const writingLanguage = resolveWritingLanguage(s.boundProjectId);
+    const projectFacts = project && project.id === projectId ? parseKv(project.kvJson) : [];
+    const writingLanguage = resolveWritingLanguage(projectId);
 
-    set((st) => ({ messages: [...st.messages, { kind: 'user', text }], prompt: '', running: true }));
     const r = await api.start({
       prompt: text,
       mode: auth,
       model: settings.agentModel,
       effort: settings.agentEffort,
       thinking: settings.agentThinking,
-      resume: s.sdkSessionId ?? undefined,
+      resume: run.sdkSessionId ?? undefined,
       writingLanguage,
       projectFacts,
+      turnId,
     });
+    // !ok only fires for pre-flight failures (e.g. auth) that emitted no events
+    // for this turn — a turn that started surfaces its own errors via the tagged
+    // 'error'/'done' stream. So surface this one and clear the in-flight turn.
     if (!r.ok) {
-      set((st) => ({ messages: [...st.messages, { kind: 'error', text: r.error }], running: false }));
+      turnConv.delete(turnId);
+      set((st) => {
+        const cur = st.runs[cid];
+        const runs = cur
+          ? {
+              ...st.runs,
+              [cid]: { ...cur, messages: [...cur.messages, { kind: 'error' as const, text: r.error }] },
+            }
+          : st.runs;
+        const clearing = st.runningTurnId === turnId;
+        return {
+          runs,
+          ...(clearing ? { runningTurnId: null, runningConvId: null } : {}),
+        };
+      });
     }
   },
 
@@ -286,28 +370,57 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     void window.electronAPI?.agent?.resetSession();
     const pid = get().boundProjectId;
     if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
-    useAgentActivityStore.getState().clearAll();
-    set({ messages: [], activeConvId: null, sdkSessionId: null, prompt: '', running: false });
+    // Switch the view to a fresh, empty chat. A background turn (if any) keeps
+    // running in its own conversation — we don't abort it here.
+    set({ activeConvId: null, prompt: '' });
   },
 
   loadConversation: async (id) => {
-    const conv = await repo.get(id);
-    if (!conv) return;
-    set({ messages: conv.messages, activeConvId: conv.id, sdkSessionId: conv.sdkSessionId });
+    // Don't clobber a conversation that's live in memory (it may be running in
+    // the background) with a stale DB snapshot — only hydrate if not loaded.
+    if (!get().runs[id]) {
+      const conv = await repo.get(id);
+      if (!conv) return;
+      set((st) => ({
+        runs: {
+          ...st.runs,
+          [id]: {
+            projectId: conv.projectId,
+            messages: conv.messages,
+            sdkSessionId: conv.sdkSessionId,
+          },
+        },
+      }));
+    }
+    set({ activeConvId: id });
     const pid = get().boundProjectId;
-    if (pid) useSettingsStore.getState().setLastAgentConv(pid, conv.id);
+    if (pid) useSettingsStore.getState().setLastAgentConv(pid, id);
   },
 
   deleteConversation: async (id) => {
+    // Abort + clear the in-flight turn if it belongs to the conversation we're
+    // deleting (main runs a single query, so abort targets exactly this turn).
+    if (get().runningConvId === id) {
+      void window.electronAPI?.agent?.abort();
+      const tid = get().runningTurnId;
+      if (tid) turnConv.delete(tid);
+      set({ runningTurnId: null, runningConvId: null });
+    }
     try {
       await repo.softDelete(id, new Date().toISOString());
     } catch {
       /* ignore */
     }
+    set((st) => {
+      if (!(id in st.runs)) return st;
+      const runs = { ...st.runs };
+      delete runs[id];
+      return { runs };
+    });
     if (get().activeConvId === id) {
       const pid = get().boundProjectId;
       if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
-      set({ messages: [], activeConvId: null, sdkSessionId: null });
+      set({ activeConvId: null });
     }
     get().refreshList();
   },
@@ -328,13 +441,15 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
 
 // ---- persistence + single global event subscription ------------------------
 
-async function persistActive(): Promise<void> {
-  const { activeConvId, messages, sdkSessionId } = useAgentChatStore.getState();
-  if (!activeConvId) return;
+/** Persist one conversation's live transcript + session id to SQLite. Keyed by
+ *  the turn's OWNING conversation, never the displayed one. */
+async function persistConv(convId: string): Promise<void> {
+  const run = useAgentChatStore.getState().runs[convId];
+  if (!run) return;
   try {
-    await repo.update(activeConvId, {
-      messages,
-      sdkSessionId,
+    await repo.update(convId, {
+      messages: run.messages,
+      sdkSessionId: run.sdkSessionId,
       updatedAt: new Date().toISOString(),
     });
   } catch {
@@ -343,26 +458,45 @@ async function persistActive(): Promise<void> {
   useAgentChatStore.getState().refreshList();
 }
 
-function handleEvent(ev: AgentEvent): void {
+function handleEvent(env: AgentEventEnvelope): void {
+  const { turnId, event: ev } = env;
+  const convId = turnConv.get(turnId);
+  if (!convId) return; // foreign / stale turn (e.g. from before a reload) — ignore
+
   if (ev.type === 'session') {
-    useAgentChatStore.setState({ sdkSessionId: ev.id });
+    useAgentChatStore.setState((s) => {
+      const run = s.runs[convId];
+      return run ? { runs: { ...s.runs, [convId]: { ...run, sdkSessionId: ev.id } } } : s;
+    });
     return;
   }
-  useAgentChatStore.setState((s) => ({ messages: applyEvent(s.messages, ev) }));
-  // Mirror tool activity to the perception store (left-panel pulses + dots) —
-  // but only while a turn is actively running, so late events from a turn the
-  // user switched projects away from don't seed marks for foreign entities.
-  const activity = useAgentActivityStore.getState();
-  if (useAgentChatStore.getState().running) {
+
+  // Fold the event into the OWNING conversation's transcript (not the displayed
+  // one) — this is what lets a background turn keep streaming after navigation.
+  useAgentChatStore.setState((s) => {
+    const run = s.runs[convId];
+    return run ? { runs: { ...s.runs, [convId]: { ...run, messages: applyEvent(run.messages, ev) } } } : s;
+  });
+
+  // Mirror tool activity to the perception store (left-panel pulses + dots) only
+  // when the running conversation belongs to the project currently displayed, so
+  // a background turn in another project doesn't pulse foreign cells.
+  const st = useAgentChatStore.getState();
+  const run = st.runs[convId];
+  if (run && run.projectId === st.boundProjectId && st.runningConvId === convId) {
+    const activity = useAgentActivityStore.getState();
     if (ev.type === 'tool_use') activity.onToolUse(ev.id, ev.name, ev.input);
     else if (ev.type === 'tool_result') activity.onToolResult(ev.id, ev.ok, ev.text);
   }
+
   if (ev.type === 'done') {
-    activity.onTurnEnd();
-    useAgentChatStore.setState({ running: false });
-    // `set` is synchronous, so getState() inside persist sees the finalized
-    // transcript (the done event's applyEvent already applied).
-    void persistActive();
+    turnConv.delete(turnId);
+    useAgentActivityStore.getState().onTurnEnd();
+    useAgentChatStore.setState((s) =>
+      s.runningTurnId === turnId ? { runningTurnId: null, runningConvId: null } : s,
+    );
+    // setState is synchronous, so persistConv sees the finalized transcript.
+    void persistConv(convId);
   }
 }
 

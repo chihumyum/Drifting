@@ -274,8 +274,13 @@ function resolveByKind(ctx: AgentToolContext, kind: string, ref: string): string
  */
 function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): Record<string, unknown> {
   const out = { ...args };
+  // `node` is the neutral name for chapter|drift (they share one namespace);
+  // `chapter` is the chapter-only spelling — both resolve to nodeId. `legacy`
+  // marks the pre-rename *Id spellings we still accept for robustness.
   const map: Array<{ ext: string; internal: string; kind: 'node' | 'element' | 'storyline' | 'category' }> = [
+    { ext: 'node', internal: 'nodeId', kind: 'node' },
     { ext: 'chapter', internal: 'nodeId', kind: 'node' },
+    { ext: 'sourceChapter', internal: 'sourceNodeId', kind: 'node' },
     { ext: 'element', internal: 'elementId', kind: 'element' },
     { ext: 'storyline', internal: 'storylineId', kind: 'storyline' },
     { ext: 'category', internal: 'categoryId', kind: 'category' },
@@ -290,7 +295,7 @@ function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): 
 /**
  * The structural entities (elements / nodes / storylines …) a chapter references
  * in its prose, deduped by `${kind}:${id}`. Derived from the inline-mention
- * projection. Shared by read_chapter and get_chapter_context.
+ * projection. Shared by read_node and get_node_context.
  */
 async function listChapterReferences(
   s: DataState,
@@ -321,7 +326,7 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
   // Which elements/entities appear in this chapter (recorded inline mentions),
-  // so the agent has context without a separate get_chapter_context call.
+  // so the agent has context without a separate get_node_context call.
   const refs = await listChapterReferences(s, nodeId);
   // Names are project-unique, so list appearances by name+kind (no long ids).
   const appearsLine = refs.length
@@ -339,12 +344,11 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
   // cache, so the agent sees in-flight user edits — mirrors readChapter.
   const bodyJson = await getElementContentJson(elementId);
   return {
-    id: el.id,
     name: el.name,
     summary: el.summary,
     aliases: el.aliases,
     groupName: el.groupName,
-    categoryId: el.categoryId,
+    category: el.categoryId ? entityLabel(s, 'category', el.categoryId) : undefined,
     facts: parseKv(el.kvJson),
     body: docToPlainText(bodyJson),
   };
@@ -477,41 +481,41 @@ async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string,
   if (!isStructuralEntityKind(kind)) {
     throw new Error(`kind must be structural (node/element/storyline/category/patch), got "${kind}"`);
   }
-  if (!args.id) throw new Error('where_does_entity_appear requires id');
-  const id = resolveByKind(ctx, kind, String(args.id ?? ''));
+  const ref = String(args.name ?? args.id ?? '');
+  if (!ref) throw new Error('where_does_entity_appear requires name');
+  const id = resolveByKind(ctx, kind, ref);
   const s = useDataStore.getState();
   const backlinks = await createInlineMentionRepository().listBacklinksToTarget(kind, id);
   // Group by source entity (one source can mention the target in many blocks).
-  const bySource = new Map<
-    string,
-    { fromKind: string; fromId: string; fromTitle: string; blockIds: string[] }
-  >();
+  // Sources are surfaced by name (`from`), not id.
+  const bySource = new Map<string, { fromKind: string; from: string; blockIds: string[] }>();
   for (const b of backlinks) {
     const key = `${b.fromKind}:${b.fromId}`;
-    const cur =
-      bySource.get(key) ??
-      { fromKind: b.fromKind, fromId: b.fromId, fromTitle: b.fromTitle, blockIds: [] };
+    const cur = bySource.get(key) ?? { fromKind: b.fromKind, from: b.fromTitle, blockIds: [] };
     cur.blockIds.push(b.fromBlockId);
     bySource.set(key, cur);
   }
   const appearances = [...bySource.values()].map((a) => ({ ...a, mentionCount: a.blockIds.length }));
-  return { target: { kind, id, label: entityLabel(s, kind, id) }, appearances };
+  return { target: { kind, name: entityLabel(s, kind, id) }, appearances };
 }
 
 /** The curated cross-entity relation edges touching an entity, both directions. */
 function getEntityRelations(ctx: AgentToolContext, args: Record<string, unknown>) {
   const kind = String(args.kind ?? '');
-  if (!kind || !args.id) throw new Error('get_entity_relations requires kind and id');
-  const id = resolveByKind(ctx, kind, String(args.id ?? ''));
+  const ref = String(args.name ?? args.id ?? '');
+  if (!kind || !ref) throw new Error('get_entity_relations requires kind and name');
+  const id = resolveByKind(ctx, kind, ref);
   const s = useDataStore.getState();
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
+  // relationId stays — it's the opaque handle for remove_relation /
+  // update_relation_kind (relations have no name). Endpoints are by name.
   const outgoing = rels
     .filter((r) => r.fromKind === kind && r.fromId === id)
-    .map((r) => ({ relationId: r.id, relation: r.kind, toKind: r.toKind, toId: r.toId, toLabel: entityLabel(s, r.toKind, r.toId) }));
+    .map((r) => ({ relationId: r.id, relation: r.kind, toKind: r.toKind, to: entityLabel(s, r.toKind, r.toId) }));
   const incoming = rels
     .filter((r) => r.toKind === kind && r.toId === id)
-    .map((r) => ({ relationId: r.id, relation: r.kind, fromKind: r.fromKind, fromId: r.fromId, fromLabel: entityLabel(s, r.fromKind, r.fromId) }));
-  return { entity: { kind, id, label: entityLabel(s, kind, id) }, outgoing, incoming };
+    .map((r) => ({ relationId: r.id, relation: r.kind, fromKind: r.fromKind, from: entityLabel(s, r.fromKind, r.fromId) }));
+  return { entity: { kind, name: entityLabel(s, kind, id) }, outgoing, incoming };
 }
 
 /** A storyline's facts plus its member chapters in reading order. */
@@ -526,7 +530,6 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
       const n = s.bookNodes.find((x) => x.id === nid);
       if (!n) return null;
       return {
-        id: n.id,
         title: n.title,
         bookOrder: n.bookOrder,
         isPrimary: s.primaryStorylineByNode[nid] === storylineId,
@@ -534,23 +537,22 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
     .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0));
-  return { id: sl.id, name: sl.name, summary: sl.summary, facts: parseKv(sl.kvJson), chapters };
+  return { name: sl.name, summary: sl.summary, facts: parseKv(sl.kvJson), chapters };
 }
 
 /**
  * Cheap "what is this chapter about + what it connects to" — summary, rolling
  * block-section summaries, referenced elements, storylines and relations —
- * WITHOUT pulling the full prose. Call this before read_chapter.
+ * WITHOUT pulling the full prose. Call this before read_node.
  */
 async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
-  if (!nodeId) throw new Error('get_chapter_context requires nodeId');
+  if (!nodeId) throw new Error('get_node_context requires node');
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
 
   const storylineIds = s.nodeStorylineMapping[nodeId] ?? [];
   const storylines = storylineIds.map((id) => ({
-    id,
     name: entityLabel(s, 'storyline', id),
     primary: s.primaryStorylineByNode[nodeId] === id,
   }));
@@ -559,21 +561,23 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
     .map((b) => b.summary)
     .filter(Boolean);
 
-  // Elements (and other structural entities) this chapter references in prose.
-  const references = await listChapterReferences(s, nodeId);
+  // Elements (and other structural entities) this node references in prose, by name.
+  const references = (await listChapterReferences(s, nodeId)).map((r) => ({
+    kind: r.kind,
+    name: r.label,
+  }));
 
   const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
   const relations = [
     ...rels
       .filter((r) => r.fromKind === 'node' && r.fromId === nodeId)
-      .map((r) => ({ dir: 'out' as const, relation: r.kind, kind: r.toKind, id: r.toId, label: entityLabel(s, r.toKind, r.toId) })),
+      .map((r) => ({ dir: 'out' as const, relation: r.kind, kind: r.toKind, name: entityLabel(s, r.toKind, r.toId) })),
     ...rels
       .filter((r) => r.toKind === 'node' && r.toId === nodeId)
-      .map((r) => ({ dir: 'in' as const, relation: r.kind, kind: r.fromKind, id: r.fromId, label: entityLabel(s, r.fromKind, r.fromId) })),
+      .map((r) => ({ dir: 'in' as const, relation: r.kind, kind: r.fromKind, name: entityLabel(s, r.fromKind, r.fromId) })),
   ];
 
   return {
-    id: node.id,
     title: node.title,
     kind: node.kind,
     summary: node.summary,
@@ -623,7 +627,7 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
       if (idx !== -1) {
         matches.push({ kind: n.kind, title: n.title, block: i + 1, snippet: snippetAround(b.text, idx, q.length) });
         if (matches.length >= limit) return { matches, truncated: true };
-        break; // one hit per chapter is enough for discovery — agent can read_chapter for the rest
+        break; // one hit per chapter is enough for discovery — agent can read_node for the rest
       }
     }
   }
@@ -636,10 +640,9 @@ async function getElementPatches(_ctx: AgentToolContext, elementId: string) {
   const patches = await createElementPatchRepository().listByElement(elementId);
   return {
     patches: patches.map((p) => ({
-      id: p.id,
+      patchId: p.id,
       title: p.title,
       sourceChapter: p.sourceNodeTitle,
-      sourceChapterId: p.sourceNodeId,
       body: docToPlainText(p.contentJson),
       createdAt: p.createdAt,
     })),
@@ -652,7 +655,7 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
   // so scoping behaves like the other tools.
   const rawKind = String(args.kind ?? '').trim();
   const scopeKind = rawKind ? normalizeEntityKind(rawKind) ?? rawKind : '';
-  const rawId = String(args.id ?? '').trim();
+  const rawId = String(args.entity ?? args.id ?? '').trim();
   const scopeId = rawId && rawKind ? resolveByKind(ctx, rawKind, rawId) : rawId;
   const onlyTodos = args.onlyTodos === true || args.onlyTodos === 'true';
   const statusFilter = typeof args.status === 'string' ? args.status.trim() : '';
@@ -711,10 +714,13 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
         label: entityLabel(s, e.kind, e.id),
       }));
       return {
+        // id is the commentId — the handle for set_comment_status / _kind / delete.
         id: c.id,
         kind: c.kind,
         targetKind: c.targetKind,
-        targetId: c.targetId,
+        // The anchored entity by name (not its uuid). targetBlockId stays a uuid
+        // (blocks have no name) — read_block(node=target, blockId) reads it live.
+        target: c.targetId ? entityLabel(s, c.targetKind ?? '', c.targetId) : undefined,
         targetBlockId: c.targetBlockId ?? undefined,
         relatedTo: relatedTo.length ? relatedTo : undefined,
         author: c.authorName ?? c.authorKind,
@@ -745,7 +751,7 @@ async function updateElement(ctx: AgentToolContext, args: Record<string, unknown
   if (typeof args.categoryId === 'string') updates.categoryId = args.categoryId;
   if (args.facts !== undefined) updates.kvJson = stringifyKv(toKvEntries(args.facts));
   await ctx.write.updateElement(id, updates);
-  return { ok: true, id };
+  return { ok: true, element: entityLabel(useDataStore.getState(), 'element', id) };
 }
 
 async function createElement(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -763,7 +769,11 @@ async function createElement(ctx: AgentToolContext, args: Record<string, unknown
   if (createdId && args.facts !== undefined) {
     await ctx.write.updateElement(createdId, { kvJson: stringifyKv(toKvEntries(args.facts)) });
   }
-  return { ok: true, created };
+  // Return the actual (uniqueness-deduped) name, not the requested one.
+  const name = createdId
+    ? entityLabel(useDataStore.getState(), 'element', createdId)
+    : (input.name ?? '');
+  return { ok: true, element: name };
 }
 
 /**
@@ -790,22 +800,23 @@ async function setElementBody(ctx: AgentToolContext, args: Record<string, unknow
         content: (paras.length ? paras : ['']).map(makeParagraphBlock),
       }),
   );
-  return { ok: true, id };
+  return { ok: true, element: entityLabel(useDataStore.getState(), 'element', id) };
 }
 
 async function renameChapter(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const title = String(args.title ?? '');
-  if (!nodeId || !title) throw new Error('rename_chapter requires nodeId and title');
+  if (!nodeId || !title) throw new Error('rename_node requires node and title');
   await ctx.write.renameNode(nodeId, title);
-  return { ok: true, id: nodeId };
+  // The stored title may be uniqueness-deduped — report the actual one.
+  return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId) };
 }
 
 async function setNodeSummary(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('set_node_summary requires nodeId');
+  if (!nodeId) throw new Error('set_node_summary requires node');
   await ctx.write.updateNode(nodeId, { summary: String(args.summary ?? '') });
-  return { ok: true, id: nodeId };
+  return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId) };
 }
 
 // Per-node serialization for prose read-modify-write. Editing a block reads the
@@ -844,7 +855,7 @@ function parseBlockEdit(edit: {
   if (hasBlockNum) {
     const idx = Number(edit.block);
     if (!Number.isInteger(idx) || idx < 1) {
-      throw new Error('block must be a 1-based integer (the number from read_chapter)');
+      throw new Error('block must be a 1-based integer (the number from read_node)');
     }
     return { target: { block: idx }, text, label: idx };
   }
@@ -858,16 +869,16 @@ async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
   if (!nodeId) throw new Error('edit_block requires nodeId');
   const { target, text, label } = parseBlockEdit(args);
   return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+    const { blockIds } = await writeChapterProse(
       ctx,
       nodeId,
-      (frag) => yReplaceBlockText(frag, target, text),
+      (frag) => [yReplaceBlockText(frag, target, text)],
       (json) =>
         target.blockId
           ? replaceBlockText(json, target.blockId, text)
           : replaceBlockByIndex(json, target.block as number, text),
     );
-    return { ok: true, nodeId, block: label };
+    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), block: label, blockIds };
   });
 }
 
@@ -883,12 +894,10 @@ async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) 
   if (edits.length === 0) throw new Error('edit_blocks requires a non-empty edits array');
   const parsed = edits.map(parseBlockEdit);
   return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+    const { blockIds } = await writeChapterProse(
       ctx,
       nodeId,
-      (frag) => {
-        for (const e of parsed) yReplaceBlockText(frag, e.target, e.text);
-      },
+      (frag) => parsed.map((e) => yReplaceBlockText(frag, e.target, e.text)),
       (json) => {
         let j = json;
         for (const e of parsed) {
@@ -899,22 +908,27 @@ async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) 
         return j;
       },
     );
-    return { ok: true, nodeId, edited: parsed.map((e) => e.label) };
+    return {
+      ok: true,
+      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      edited: parsed.map((e) => e.label),
+      blockIds,
+    };
   });
 }
 
 async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const text = String(args.text ?? '');
-  if (!nodeId || !text) throw new Error('append_paragraph requires nodeId and text');
+  if (!nodeId || !text) throw new Error('append_paragraph requires node and text');
   return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+    const { blockIds } = await writeChapterProse(
       ctx,
       nodeId,
-      (frag) => yAppendParagraph(frag, text),
+      (frag) => [yAppendParagraph(frag, text)],
       (json) => appendParagraph(json, text),
     );
-    return { ok: true, nodeId };
+    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), blockIds };
   });
 }
 
@@ -923,19 +937,19 @@ async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, u
 async function readBlock(args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const blockId = String(args.blockId ?? '');
-  if (!nodeId || !blockId) throw new Error('read_block requires nodeId and blockId');
+  if (!nodeId || !blockId) throw new Error('read_block requires node and blockId');
   const content = await createBookContentRepository().findByNodeId(nodeId);
   const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
   const blocks = docToBlocks(truthJson);
   const idx = blocks.findIndex((b) => b.blockId === blockId);
-  if (idx < 0) return { nodeId, blockId, found: false };
+  if (idx < 0) return { blockId, found: false };
   const b = blocks[idx];
-  return { nodeId, blockId, found: true, block: idx + 1, type: b.type, text: b.text };
+  return { blockId, found: true, block: idx + 1, type: b.type, text: b.text };
 }
 
 async function lookupBlock(args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('lookup_block requires nodeId');
+  if (!nodeId) throw new Error('lookup_block requires node');
   const ordinalRaw = args.ordinal;
   const ordinal =
     ordinalRaw === undefined || ordinalRaw === null || ordinalRaw === ''
@@ -947,7 +961,10 @@ async function lookupBlock(args: Record<string, unknown>) {
   }
   const content = await createBookContentRepository().findByNodeId(nodeId);
   const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
-  return { nodeId, matches: findBlocks(truthJson, { ordinal, contains }) };
+  return {
+    node: entityLabel(useDataStore.getState(), 'node', nodeId),
+    matches: findBlocks(truthJson, { ordinal, contains }),
+  };
 }
 
 async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -959,10 +976,13 @@ async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unkn
     await writeChapterProse(
       ctx,
       nodeId,
-      (frag) => yRemoveBlocks(frag, blockIds),
+      (frag) => {
+        yRemoveBlocks(frag, blockIds);
+        return []; // removed blocks have no surviving anchor — tracked as structural
+      },
       (json) => removeBlocks(json, blockIds),
     );
-    return { ok: true, nodeId, removed: blockIds };
+    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), removed: blockIds };
   });
 }
 
@@ -975,13 +995,18 @@ async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string,
   }
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
   return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+    const { blockIds } = await writeChapterProse(
       ctx,
       nodeId,
       (frag) => yReplaceBlockRange(frag, fromBlockId, toBlockId, texts),
       (json) => replaceBlockRange(json, fromBlockId, toBlockId, texts),
     );
-    return { ok: true, nodeId, replaced: { from: fromBlockId, to: toBlockId, with: texts.length } };
+    return {
+      ok: true,
+      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      replaced: { from: fromBlockId, to: toBlockId, with: texts.length },
+      blockIds,
+    };
   });
 }
 
@@ -995,61 +1020,98 @@ async function insertBlocksTool(ctx: AgentToolContext, args: Record<string, unkn
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
   if (texts.length === 0) throw new Error('insert_blocks requires a non-empty blocks array');
   return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+    const { blockIds } = await writeChapterProse(
       ctx,
       nodeId,
       (frag) => yInsertBlocks(frag, afterBlockId, texts),
       (json) => insertBlocks(json, afterBlockId, texts),
     );
-    return { ok: true, nodeId, inserted: texts.length, after: afterBlockId };
+    return {
+      ok: true,
+      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      inserted: texts.length,
+      after: afterBlockId,
+      blockIds,
+    };
   });
 }
 
 // ---- Relationship handlers -------------------------------------------------
 
+/**
+ * Throw if a node is a drift — storyline membership / reading order are
+ * chapter-only axes (see book-node.ts). Drifts are free-floating notes.
+ */
+function assertChapter(nodeId: string): void {
+  const node = useDataStore.getState().bookNodes.find((n) => n.id === nodeId);
+  if (node && node.kind !== 'chapter') {
+    throw new Error(
+      `"${node.title}" is a drift, not a chapter — only chapters can belong to a storyline`,
+    );
+  }
+}
+
 async function linkChapterToStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const storylineId = String(args.storylineId ?? '');
-  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  if (!nodeId || !storylineId) throw new Error('requires chapter and storyline');
+  assertChapter(nodeId);
   await ctx.write.addNodeToStoryline(nodeId, storylineId);
-  return { ok: true, nodeId, storylineId };
+  const s = useDataStore.getState();
+  return { ok: true, chapter: entityLabel(s, 'node', nodeId), storyline: entityLabel(s, 'storyline', storylineId) };
 }
 
 async function unlinkChapterFromStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const storylineId = String(args.storylineId ?? '');
-  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  if (!nodeId || !storylineId) throw new Error('requires chapter and storyline');
+  assertChapter(nodeId);
   await ctx.write.removeNodeFromStoryline(nodeId, storylineId);
-  return { ok: true, nodeId, storylineId };
+  const s = useDataStore.getState();
+  return { ok: true, chapter: entityLabel(s, 'node', nodeId), storyline: entityLabel(s, 'storyline', storylineId) };
 }
 
 async function setPrimaryStoryline(ctx: AgentToolContext, args: Record<string, unknown>) {
   const nodeId = String(args.nodeId ?? '');
   const storylineId = String(args.storylineId ?? '');
-  if (!nodeId || !storylineId) throw new Error('requires nodeId and storylineId');
+  if (!nodeId || !storylineId) throw new Error('requires chapter and storyline');
+  assertChapter(nodeId);
   // Ensure membership, then mark it primary — setNodeStorylines replaces the
   // full set, so include the current memberships plus this one.
   const current = useDataStore.getState().nodeStorylineMapping[nodeId] ?? [];
   const ids = current.includes(storylineId) ? current : [...current, storylineId];
   await ctx.write.setNodeStorylines(nodeId, ids, { primaryStorylineId: storylineId });
-  return { ok: true, nodeId, primaryStorylineId: storylineId };
+  const s = useDataStore.getState();
+  return {
+    ok: true,
+    chapter: entityLabel(s, 'node', nodeId),
+    primaryStoryline: entityLabel(s, 'storyline', storylineId),
+  };
 }
 
 async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
   const fromKind = String(args.fromKind ?? '');
-  const fromId = String(args.fromId ?? '');
+  const fromRef = String(args.from ?? args.fromId ?? '');
   const toKind = String(args.toKind ?? '');
-  const toId = String(args.toId ?? '');
+  const toRef = String(args.to ?? args.toId ?? '');
   if (!isEntityKind(fromKind)) throw new Error(`Invalid fromKind "${fromKind}"`);
   if (!isStructuralEntityKind(toKind)) {
     throw new Error(`Invalid toKind "${toKind}" (must be node/element/patch/category/storyline)`);
   }
-  if (!fromId || !toId) throw new Error('add_relation requires fromId and toId');
-  const resolvedFrom = resolveByKind(ctx, fromKind, fromId);
-  const resolvedTo = resolveByKind(ctx, toKind, toId);
+  if (!fromRef || !toRef) throw new Error('add_relation requires from and to');
+  const resolvedFrom = resolveByKind(ctx, fromKind, fromRef);
+  const resolvedTo = resolveByKind(ctx, toKind, toRef);
   const kind = typeof args.kind === 'string' ? args.kind : undefined;
   const relation = await ctx.write.addRelation(fromKind, resolvedFrom, toKind, resolvedTo, { kind });
-  return { ok: true, relation };
+  const s = useDataStore.getState();
+  // relationId is the handle for remove_relation / update_relation_kind.
+  return {
+    ok: true,
+    relationId: (relation as { id?: string })?.id,
+    from: entityLabel(s, fromKind, resolvedFrom),
+    to: entityLabel(s, toKind, resolvedTo),
+    relation: kind,
+  };
 }
 
 async function removeRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1072,12 +1134,16 @@ async function createStorylineTool(ctx: AgentToolContext, args: Record<string, u
   if (typeof args.name === 'string') input.name = args.name;
   if (typeof args.summary === 'string') input.summary = args.summary;
   const created = await ctx.write.createStoryline(input);
-  return { ok: true, created };
+  const id = (created as { id?: string })?.id;
+  return {
+    ok: true,
+    storyline: id ? entityLabel(useDataStore.getState(), 'storyline', id) : (input.name ?? ''),
+  };
 }
 
 async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.storylineId ?? '');
-  if (!id) throw new Error('update_storyline requires storylineId');
+  if (!id) throw new Error('update_storyline requires storyline');
   const input: UpdateStorylineInput = { id };
   if (typeof args.name === 'string') input.name = args.name;
   if (typeof args.summary === 'string') input.summary = args.summary;
@@ -1086,14 +1152,18 @@ async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, u
     input.kvJson = mergeKv(sl?.kvJson, toKvEntries(args.facts));
   }
   await ctx.write.updateStoryline(input);
-  return { ok: true, id };
+  return { ok: true, storyline: entityLabel(useDataStore.getState(), 'storyline', id) };
 }
 
 async function createCategoryTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const input: CreateElementCategoryInput = {};
   if (typeof args.name === 'string') input.name = args.name;
   const created = await ctx.write.createCategory(input);
-  return { ok: true, created };
+  const id = (created as { id?: string })?.id;
+  return {
+    ok: true,
+    category: id ? entityLabel(useDataStore.getState(), 'category', id) : (input.name ?? ''),
+  };
 }
 
 /** Set/update the project's KV facts (merge by key — preserves the author's other facts). */
@@ -1104,7 +1174,7 @@ async function updateProjectFacts(ctx: AgentToolContext, args: Record<string, un
   if (facts.length === 0) throw new Error('update_project_facts requires a non-empty facts array');
   const kvJson = mergeKv(project.kvJson, facts);
   await ctx.write.updateProject(project.id, { kvJson });
-  return { ok: true, id: project.id, facts: parseKv(kvJson) };
+  return { ok: true, facts: parseKv(kvJson) };
 }
 
 /**
@@ -1120,7 +1190,11 @@ async function updateCategoryTemplate(ctx: AgentToolContext, args: Record<string
   if (!cat || cat.projectId !== ctx.projectId) throw new Error(`No category found with id "${id}"`);
   const elementTemplateKvJson = mergeKv(cat.elementTemplateKvJson, facts);
   await ctx.write.updateCategory(id, { elementTemplateKvJson });
-  return { ok: true, id, templateFacts: parseKv(elementTemplateKvJson) };
+  return {
+    ok: true,
+    category: entityLabel(useDataStore.getState(), 'category', id),
+    templateFacts: parseKv(elementTemplateKvJson),
+  };
 }
 
 async function createNodeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1138,7 +1212,12 @@ async function createNodeTool(ctx: AgentToolContext, args: Record<string, unknow
     input.bookOrder = maxOrder + 1;
   }
   const created = await ctx.write.createNode(input);
-  return { ok: true, created };
+  const id = (created as { id?: string })?.id;
+  return {
+    ok: true,
+    node: id ? entityLabel(useDataStore.getState(), 'node', id) : (input.title ?? ''),
+    kind,
+  };
 }
 
 async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1153,7 +1232,7 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
       : false;
   if (!confirmed) return { ok: false, declined: true };
   await ctx.write.removeElement(id);
-  return { ok: true, id };
+  return { ok: true, element: label };
 }
 
 // ---- Summary (reverse-generate: read elsewhere, write here) ----------------
@@ -1161,8 +1240,9 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
 async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) {
   const targetKind = String(args.targetKind ?? '');
   const summary = String(args.summary ?? '');
-  if (!args.targetId) throw new Error('set_summary requires targetId');
-  const targetId = resolveByKind(ctx, targetKind, String(args.targetId ?? ''));
+  const ref = String(args.target ?? args.targetId ?? '');
+  if (!ref) throw new Error('set_summary requires target');
+  const targetId = resolveByKind(ctx, targetKind, ref);
   switch (targetKind) {
     case 'node':
     case 'chapter':
@@ -1178,7 +1258,8 @@ async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) 
     default:
       throw new Error(`set_summary targetKind must be node/element/storyline, got "${targetKind}"`);
   }
-  return { ok: true, targetKind, targetId };
+  const nk = normalizeEntityKind(targetKind) ?? targetKind;
+  return { ok: true, targetKind, target: entityLabel(useDataStore.getState(), nk, targetId) };
 }
 
 // ---- Element patches (direct repo + sync, mirroring the app's UI path) ------
@@ -1214,10 +1295,17 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
   if (typeof args.body === 'string' && args.body.trim()) {
     input.contentJson = createPlainCommentDoc(args.body);
   }
+  // sourceChapter (a node NAME) was resolved to sourceNodeId by resolveArgsRefs.
   if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
   const created = await createElementPatchRepository().create(input);
   syncElementPatchCreate(created.id, ctx.projectId, patchSyncPayload(created));
-  return { ok: true, created: { id: created.id, elementId, title: created.title } };
+  // patchId is the handle for update_element_patch / delete_element_patch.
+  return {
+    ok: true,
+    patchId: created.id,
+    element: entityLabel(useDataStore.getState(), 'element', elementId),
+    title: created.title,
+  };
 }
 
 async function updateElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1229,7 +1317,7 @@ async function updateElementPatch(ctx: AgentToolContext, args: Record<string, un
   const updated = await createElementPatchRepository().update(patchId, updates);
   if (!updated) throw new Error(`No patch found with id "${patchId}"`);
   syncElementPatchUpdate(updated.id, ctx.projectId, patchSyncPayload(updated));
-  return { ok: true, id: patchId };
+  return { ok: true, patchId };
 }
 
 async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1237,7 +1325,7 @@ async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, un
   if (!patchId) throw new Error('delete_element_patch requires patchId');
   await createElementPatchRepository().delete(patchId);
   syncElementPatchDelete(patchId, ctx.projectId);
-  return { ok: true, id: patchId };
+  return { ok: true, patchId };
 }
 
 // ---- Comments / TODOs (a TODO is a comment with kind='todo') ----------------
@@ -1255,30 +1343,33 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
   // id. Without this the comment "saves" but anchors to a name string that
   // matches no entity, so it never surfaces. (Reported: agent comments not
   // associating to their entity.)
+  // The agent passes the entity NAME via `target` (legacy `targetId` accepted).
+  const targetRef =
+    (typeof args.target === 'string' && args.target.trim()) ||
+    (typeof args.targetId === 'string' && args.targetId.trim()) ||
+    '';
   if (typeof args.targetKind === 'string' && args.targetKind.trim()) {
     const rawKind = args.targetKind.trim();
     // normalizeEntityKind maps chapter/drift→node; unknown kinds (e.g. 'patch')
     // pass through unchanged, matching CommentTargetKind.
     input.targetKind = (normalizeEntityKind(rawKind) ?? rawKind) as CreateCommentInput['targetKind'];
-    if (typeof args.targetId === 'string' && args.targetId.trim()) {
-      input.targetId = resolveByKind(ctx, rawKind, args.targetId.trim());
-    }
-  } else if (typeof args.targetId === 'string' && args.targetId.trim()) {
-    // No kind to resolve against — store the id verbatim.
-    input.targetId = args.targetId.trim();
+    if (targetRef) input.targetId = resolveByKind(ctx, rawKind, targetRef);
+  } else if (targetRef) {
+    // No kind to resolve against — store the ref verbatim.
+    input.targetId = targetRef;
   }
   if (typeof args.targetBlockId === 'string' && args.targetBlockId.trim()) {
     input.targetBlockId = args.targetBlockId.trim();
   }
   const created = await ctx.write.createComment(input);
-  return { ok: true, created };
+  return { ok: true, commentId: (created as { id?: string })?.id };
 }
 
 async function deleteCommentTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.commentId ?? '');
   if (!id) throw new Error('delete_comment requires commentId');
   await ctx.write.deleteComment(id);
-  return { ok: true, id };
+  return { ok: true, commentId: id };
 }
 
 async function setCommentStatus(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1288,7 +1379,7 @@ async function setCommentStatus(ctx: AgentToolContext, args: Record<string, unkn
   if (status === 'resolved') await ctx.write.resolveComment(id);
   else if (status === 'open') await ctx.write.reopenComment(id);
   else throw new Error(`status must be 'resolved' or 'open', got "${status}"`);
-  return { ok: true, id, status };
+  return { ok: true, commentId: id, status };
 }
 
 async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1298,7 +1389,7 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
   if (kind === 'todo') await ctx.write.convertToTodo(id);
   else if (kind === 'note') await ctx.write.revertToNote(id);
   else throw new Error(`kind must be 'todo' or 'note', got "${kind}"`);
-  return { ok: true, id, kind };
+  return { ok: true, commentId: id, kind };
 }
 
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
@@ -1311,11 +1402,11 @@ export async function runAgentTool(
   const args = resolveArgsRefs(ctx, rawArgs);
   switch (name) {
     // reads
-    case 'list_chapters':
+    case 'list_nodes':
       return listChapters(ctx);
     case 'list_elements':
       return listElements(ctx);
-    case 'read_chapter':
+    case 'read_node':
       return readChapter(ctx, String(args.nodeId ?? ''));
     case 'read_element':
       return readElement(ctx, String(args.elementId ?? ''));
@@ -1332,7 +1423,7 @@ export async function runAgentTool(
       return getEntityRelations(ctx, args);
     case 'get_storyline':
       return getStoryline(ctx, String(args.storylineId ?? ''));
-    case 'get_chapter_context':
+    case 'get_node_context':
       return getChapterContext(ctx, String(args.nodeId ?? ''));
     case 'search_prose':
       return searchProse(ctx, args);
@@ -1347,7 +1438,7 @@ export async function runAgentTool(
       return setElementBody(ctx, args);
     case 'create_element':
       return createElement(ctx, args);
-    case 'rename_chapter':
+    case 'rename_node':
       return renameChapter(ctx, args);
     case 'set_node_summary':
       return setNodeSummary(ctx, args);

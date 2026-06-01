@@ -12,20 +12,36 @@ import { useDataStore } from '../../store/data-store';
 export type ActivityEntityType = 'node' | 'element' | 'storyline' | 'category';
 export type ActivityOp = 'read' | 'write' | 'create' | 'delete';
 
+/**
+ * Which part of the entity a write touched, so the agent-change indicator (#17)
+ * can highlight it and clear once the user has actually read THAT spot:
+ *   - summary    → the entity's summary field changed
+ *   - blocks     → these prose block uuids were edited/created (viewable anchors)
+ *   - structural → a change with no single viewable anchor (blocks removed, a
+ *                  whole-body rewrite, a rename, or a fresh create) — cleared
+ *                  when the entity is simply opened.
+ */
+export interface ChangeSpots {
+  summary?: boolean;
+  blocks?: string[];
+  structural?: boolean;
+}
+
 export interface ToolEntityRef {
   entityType: ActivityEntityType;
   id: string;
   op: ActivityOp;
+  spots?: ChangeSpots;
 }
 
 /** Tools whose target is a single entity, keyed by tool name → {entityType, op}. */
 const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp }> = {
   // node (chapter / drift)
-  read_chapter: { entityType: 'node', op: 'read' },
-  get_chapter_context: { entityType: 'node', op: 'read' },
+  read_node: { entityType: 'node', op: 'read' },
+  get_node_context: { entityType: 'node', op: 'read' },
   read_block: { entityType: 'node', op: 'read' },
   lookup_block: { entityType: 'node', op: 'read' },
-  rename_chapter: { entityType: 'node', op: 'write' },
+  rename_node: { entityType: 'node', op: 'write' },
   set_node_summary: { entityType: 'node', op: 'write' },
   edit_block: { entityType: 'node', op: 'write' },
   edit_blocks: { entityType: 'node', op: 'write' },
@@ -45,11 +61,11 @@ const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp
   update_category: { entityType: 'category', op: 'write' },
 };
 
-// The arg field that carries an entity's name-or-id, by entity kind. Accepts the
-// new clear names (chapter/element/…) and the legacy *Id names, so it's robust
-// to either tool-schema spelling.
+// The arg field that carries an entity's name, by entity kind. `node` is the
+// neutral spelling (chapter|drift); `chapter` is the chapter-only spelling.
+// Legacy *Id names are accepted last so it's robust to any tool-schema spelling.
 const REF_FIELDS: Record<ActivityEntityType, string[]> = {
-  node: ['chapter', 'nodeId'],
+  node: ['node', 'chapter', 'nodeId'],
   element: ['element', 'elementId'],
   storyline: ['storyline', 'storylineId'],
   category: ['category', 'categoryId'],
@@ -60,6 +76,47 @@ function refValue(entityType: ActivityEntityType, args: Record<string, unknown>)
     if (typeof v === 'string' && v.trim()) return v;
   }
   return undefined;
+}
+
+// Tools that change the entity summary (not block prose).
+const SUMMARY_TOOLS = new Set(['set_node_summary', 'set_summary']);
+// Tools that edit/create viewable prose blocks — their result carries blockIds.
+const BLOCK_EDIT_TOOLS = new Set([
+  'edit_block',
+  'edit_blocks',
+  'append_paragraph',
+  'insert_blocks',
+  'replace_block_range',
+]);
+
+/** Pull the resolved/created block uuids a prose handler reports in its result. */
+function blockIdsFromResult(resultText: string | undefined): string[] {
+  if (!resultText) return [];
+  try {
+    const parsed = JSON.parse(resultText) as { blockIds?: unknown };
+    if (Array.isArray(parsed.blockIds)) {
+      return parsed.blockIds.filter((b): b is string => typeof b === 'string' && b.length > 0);
+    }
+  } catch {
+    /* not JSON / no blockIds */
+  }
+  return [];
+}
+
+/**
+ * Which spot(s) a write/create touched. Reads/deletes get none (no breathing
+ * dot). Block edits whose result lacks usable uuids (the no-Yjs JSON fallback)
+ * degrade to `structural`, as do removals, rewrites, renames and creates — they
+ * have no single anchor, so the dot clears when the entity is opened.
+ */
+function deriveSpots(name: string, op: ActivityOp, resultText?: string): ChangeSpots | undefined {
+  if (op === 'read' || op === 'delete') return undefined;
+  if (SUMMARY_TOOLS.has(name)) return { summary: true };
+  if (BLOCK_EDIT_TOOLS.has(name)) {
+    const blocks = blockIdsFromResult(resultText);
+    return blocks.length ? { blocks } : { structural: true };
+  }
+  return { structural: true };
 }
 
 /** create_* tools — the new entity's id comes from the result, not the args. */
@@ -110,13 +167,22 @@ function resolveEntityId(entityType: ActivityEntityType, nameOrId: string): stri
   }
 }
 
-/** Pull `created.id` (or `id`) out of a tool result's JSON text. */
-function idFromResult(resultText: string | undefined): string | null {
+/**
+ * Pull the created entity's NAME out of a create tool's result, then resolve it
+ * to an id. create_* tools return the new entity by name keyed on its kind —
+ * e.g. create_node → {node:"…"}, create_element → {element:"…"} — matching the
+ * name-only tool contract; we resolve it here for the id-keyed activity store.
+ */
+function createdIdFromResult(
+  resultText: string | undefined,
+  entityType: ActivityEntityType,
+): string | null {
   if (!resultText) return null;
   try {
-    const parsed = JSON.parse(resultText) as { created?: { id?: unknown }; id?: unknown };
-    const id = parsed.created?.id ?? parsed.id;
-    return typeof id === 'string' && id ? id : null;
+    const parsed = JSON.parse(resultText) as Record<string, unknown>;
+    const name = parsed[entityType];
+    if (typeof name !== 'string' || !name) return null;
+    return resolveEntityId(entityType, name);
   } catch {
     return null;
   }
@@ -147,21 +213,23 @@ export function toolEntityRef(
             : null;
     if (!entityType) return null;
     const id = resolveEntityId(entityType, raw);
-    return id ? { entityType, id, op: 'write' } : null;
+    return id ? { entityType, id, op: 'write', spots: deriveSpots(name, 'write', resultText) } : null;
   }
   const arg = ARG_TOOLS[name];
   if (arg) {
     const raw = refValue(arg.entityType, args);
     if (raw) {
       const id = resolveEntityId(arg.entityType, raw);
-      if (id) return { entityType: arg.entityType, id, op: arg.op };
+      if (id) {
+        return { entityType: arg.entityType, id, op: arg.op, spots: deriveSpots(name, arg.op, resultText) };
+      }
     }
     return null;
   }
   const createKind = CREATE_TOOLS[name];
   if (createKind) {
-    const id = idFromResult(resultText);
-    if (id) return { entityType: createKind, id, op: 'create' };
+    const id = createdIdFromResult(resultText, createKind);
+    if (id) return { entityType: createKind, id, op: 'create', spots: deriveSpots(name, 'create', resultText) };
   }
   return null;
 }

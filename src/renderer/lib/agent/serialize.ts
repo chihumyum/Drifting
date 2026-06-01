@@ -65,7 +65,7 @@ export function replaceBlockText(contentJson: string, blockId: string, newText: 
 
 /**
  * Replace the text of the Nth top-level block (1-based, matching docToBlocks
- * order — the numbering the agent sees from read_chapter). Lossy on inline
+ * order — the numbering the agent sees from read_node). Lossy on inline
  * marks, same as replaceBlockText. Throws if the index is out of range.
  */
 export function replaceBlockByIndex(contentJson: string, index: number, newText: string): string {
@@ -120,7 +120,7 @@ export function appendParagraph(contentJson: string, text: string): string {
 //
 // These add/remove top-level blocks, so ordinal numbers shift the moment one
 // runs. They therefore address blocks by their stable uuid `id`, never by the
-// 1-based number from read_chapter (which is only safe for in-place text swaps).
+// 1-based number from read_node (which is only safe for in-place text swaps).
 
 /** A fresh plain paragraph block with a new uuid id. */
 export function makeParagraphBlock(text: string): JSONContent {

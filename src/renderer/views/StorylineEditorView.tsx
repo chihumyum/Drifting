@@ -10,6 +10,7 @@ import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/com
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
+import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
@@ -357,7 +358,6 @@ export function StorylineEditorView({
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
           onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
-          footRight={`${(totalWc / 1000).toFixed(1)}k 字`}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
@@ -583,6 +583,12 @@ export function StorylineEditorView({
           )}
           </div>
         </div>
+        <EditorScrollMarkers
+          projectId={projectId}
+          targetKind="storyline"
+          targetId={currentStoryline.id}
+          scrollEl={scrollEl}
+        />
       </div>
     </div>
   );

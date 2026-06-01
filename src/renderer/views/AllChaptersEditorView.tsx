@@ -463,8 +463,6 @@ export function AllChaptersEditorView() {
           activeId={activeNodeId}
           onItemClick={handleOutlineClick}
           onToggleExpand={toggleExpand}
-          footLeft={`${orderedNodes.length} 章`}
-          footRight={`${(totalWordCount / 1000).toFixed(1)}k 字`}
           emptyHint="— 尚无章节 —"
         />
         <div className="editor-scroll" ref={scrollRef}>

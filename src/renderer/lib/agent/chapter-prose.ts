@@ -17,7 +17,7 @@
  *     apply, persist the diff + a snapshot so the next open shows it.
  *   - never opened (no Yjs yet)   → write contentJson; the editor seeds Yjs from
  *     it on first open (with its own pull-first protection).
- * In every case the contentJson cache + wordCount are refreshed so read_chapter
+ * In every case the contentJson cache + wordCount are refreshed so read_node
  * / search_prose / the dashboard stay consistent.
  *
  * Edits are applied IN PLACE on the Y.XmlFragment (only the touched blocks
@@ -63,12 +63,15 @@ function newParagraph(text: string): Y.XmlElement {
   return el;
 }
 
-/** Replace one block's text in place (by uuid blockId or 1-based number). */
+/**
+ * Replace one block's text in place (by uuid blockId or 1-based number).
+ * Returns the block's stable uuid — the agent-change tracker keys on it (#17).
+ */
 export function yReplaceBlockText(
   frag: Y.XmlFragment,
   target: { block?: number; blockId?: string },
   text: string,
-): void {
+): string {
   let idx: number;
   if (target.blockId) {
     idx = blockIndexInFrag(frag, target.blockId);
@@ -83,6 +86,7 @@ export function yReplaceBlockText(
   const el = frag.toArray()[idx];
   if (!(el instanceof Y.XmlElement)) throw new Error('Target block is not an element');
   setBlockText(el, text);
+  return el.getAttribute('id') ?? '';
 }
 
 export function yRemoveBlocks(frag: Y.XmlFragment, blockIds: string[]): void {
@@ -98,46 +102,59 @@ export function yRemoveBlocks(frag: Y.XmlFragment, blockIds: string[]): void {
   for (const i of indices) frag.delete(i, 1);
 }
 
+/** Replace a block range with fresh paragraphs; returns the new blocks' uuids. */
 export function yReplaceBlockRange(
   frag: Y.XmlFragment,
   fromBlockId: string,
   toBlockId: string,
   texts: string[],
-): void {
+): string[] {
   const fi = blockIndexInFrag(frag, fromBlockId);
   const ti = blockIndexInFrag(frag, toBlockId);
   if (fi < 0) throw new Error(`from block "${fromBlockId}" not found`);
   if (ti < 0) throw new Error(`to block "${toBlockId}" not found`);
   if (fi > ti) throw new Error('fromBlockId must be at or before toBlockId in the chapter');
   frag.delete(fi, ti - fi + 1);
-  frag.insert(fi, texts.map(newParagraph));
+  const paras = texts.map(newParagraph);
+  frag.insert(fi, paras);
+  return paras.map((p) => p.getAttribute('id') ?? '');
 }
 
+/** Insert fresh paragraphs; returns the new blocks' uuids. */
 export function yInsertBlocks(
   frag: Y.XmlFragment,
   afterBlockId: string | null,
   texts: string[],
-): void {
+): string[] {
   let at = 0;
   if (afterBlockId) {
     const i = blockIndexInFrag(frag, afterBlockId);
     if (i < 0) throw new Error(`after block "${afterBlockId}" not found`);
     at = i + 1;
   }
-  frag.insert(at, texts.map(newParagraph));
+  const paras = texts.map(newParagraph);
+  frag.insert(at, paras);
+  return paras.map((p) => p.getAttribute('id') ?? '');
 }
 
-export function yAppendParagraph(frag: Y.XmlFragment, text: string): void {
-  frag.insert(frag.length, [newParagraph(text)]);
+/** Append one paragraph; returns its new uuid. */
+export function yAppendParagraph(frag: Y.XmlFragment, text: string): string {
+  const para = newParagraph(text);
+  frag.insert(frag.length, [para]);
+  return para.getAttribute('id') ?? '';
 }
 
-/** Replace the ENTIRE body with a fresh set of paragraphs (whole-doc rewrite). */
-export function yReplaceAllParagraphs(frag: Y.XmlFragment, texts: string[]): void {
+/**
+ * Replace the ENTIRE body with a fresh set of paragraphs (whole-doc rewrite).
+ * Returns the new blocks' uuids.
+ */
+export function yReplaceAllParagraphs(frag: Y.XmlFragment, texts: string[]): string[] {
   if (frag.length > 0) frag.delete(0, frag.length);
   // Always leave at least one (possibly empty) paragraph so the editor schema
   // stays valid — an empty doc with zero blocks can break the bound editor.
-  const paras = texts.length > 0 ? texts : [''];
-  frag.insert(0, paras.map(newParagraph));
+  const paras = (texts.length > 0 ? texts : ['']).map(newParagraph);
+  frag.insert(0, paras);
+  return paras.map((p) => p.getAttribute('id') ?? '');
 }
 
 // ---- read / write through the truth representation -------------------------
@@ -188,10 +205,10 @@ async function readProseContentJson(
  */
 async function writeProseDoc(
   docId: string,
-  yMutate: (frag: Y.XmlFragment) => void,
+  yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
   readFallbackJson: () => Promise<string>,
-): Promise<string> {
+): Promise<{ contentJson: string; blockIds: string[] }> {
   const { yDocToProsemirrorJSON } = await import('y-prosemirror');
   const toJson = (doc: Y.Doc) => JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
 
@@ -199,8 +216,11 @@ async function writeProseDoc(
   if (live) {
     // Mutate the open editor's doc — it updates the page live and the editor's
     // own update/sync handlers persist + push it.
-    live.transact(() => yMutate(live.getXmlFragment('default')), AGENT_ORIGIN);
-    return toJson(live);
+    let blockIds: string[] = [];
+    live.transact(() => {
+      blockIds = yMutate(live.getXmlFragment('default'));
+    }, AGENT_ORIGIN);
+    return { contentJson: toJson(live), blockIds };
   }
 
   const yrepo = createYjsRepository();
@@ -217,19 +237,24 @@ async function writeProseDoc(
         if (origin === AGENT_ORIGIN) diff.push(new Uint8Array(u));
       };
       doc.on('update', onUpdate);
-      doc.transact(() => yMutate(doc.getXmlFragment('default')), AGENT_ORIGIN);
+      let blockIds: string[] = [];
+      doc.transact(() => {
+        blockIds = yMutate(doc.getXmlFragment('default'));
+      }, AGENT_ORIGIN);
       doc.off('update', onUpdate);
 
       for (const u of diff) await yrepo.appendUpdate(docId, u);
       await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
-      return toJson(doc);
+      return { contentJson: toJson(doc), blockIds };
     } finally {
       doc.destroy();
     }
   }
 
-  // No Yjs state yet — edit the contentJson the editor will seed Yjs from.
-  return jsonMutate(await readFallbackJson());
+  // No Yjs state yet — edit the contentJson the editor will seed Yjs from. The
+  // JSON path can't surface stable block uuids, so the change is reported with
+  // no blockIds (the tracker falls back to a coarse "structural" change).
+  return { contentJson: jsonMutate(await readFallbackJson()), blockIds: [] };
 }
 
 /**
@@ -251,10 +276,10 @@ export async function getChapterContentJson(
 export async function writeChapterProse(
   ctx: AgentToolContext,
   nodeId: string,
-  yMutate: (frag: Y.XmlFragment) => void,
+  yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
-): Promise<{ contentJson: string }> {
-  const contentJson = await writeProseDoc(
+): Promise<{ contentJson: string; blockIds: string[] }> {
+  const { contentJson, blockIds } = await writeProseDoc(
     makeDocId('node-content', nodeId),
     yMutate,
     jsonMutate,
@@ -267,7 +292,7 @@ export async function writeChapterProse(
   await ctx.write.updateContentByNodeId(nodeId, { contentJson });
   await ctx.write.updateNode(nodeId, { wordCount: countWordsInPmJson(contentJson) });
 
-  return { contentJson };
+  return { contentJson, blockIds };
 }
 
 /**
@@ -290,10 +315,10 @@ export async function getElementContentJson(elementId: string): Promise<string> 
 export async function writeElementProse(
   ctx: AgentToolContext,
   elementId: string,
-  yMutate: (frag: Y.XmlFragment) => void,
+  yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
-): Promise<{ contentJson: string }> {
-  const contentJson = await writeProseDoc(
+): Promise<{ contentJson: string; blockIds: string[] }> {
+  const { contentJson, blockIds } = await writeProseDoc(
     makeDocId('element', elementId),
     yMutate,
     jsonMutate,
@@ -305,5 +330,5 @@ export async function writeElementProse(
 
   await ctx.write.updateElement(elementId, { contentJson });
 
-  return { contentJson };
+  return { contentJson, blockIds };
 }

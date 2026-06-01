@@ -9,6 +9,7 @@
  *     (token deltas, tool_use, tool_result, result)
  *   - abort the running turn
  */
+import { randomUUID } from 'node:crypto';
 import { ipcMain, shell, type BrowserWindow } from 'electron';
 import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { prepareClaudeOAuth, exchangeClaudeCode } from './oauth';
@@ -72,6 +73,16 @@ export type AgentEvent =
   | { type: 'done' };
 
 /**
+ * IPC envelope: every emitted event is tagged with the turn that produced it, so
+ * the renderer can route a background turn's stream to the conversation that owns
+ * it — even after the user has navigated to a different conversation or project.
+ */
+export interface AgentEventEnvelope {
+  turnId: string;
+  event: AgentEvent;
+}
+
+/**
  * Credential method for an Agent turn:
  *  - 'oauth':  the user's Claude account (OAuth token) — direct, unmetered.
  *  - 'apikey': a plain Anthropic API key (from the keychain) — pay-as-you-go.
@@ -97,6 +108,12 @@ export interface AgentStartInput {
   newConversation?: boolean;
   /** SDK session id to resume (continuity within a conversation). */
   resume?: string;
+  /**
+   * Renderer-generated id for this turn, echoed on every emitted event so the
+   * renderer can route a background turn's stream to its conversation even after
+   * the user navigates away. Generated here if omitted.
+   */
+  turnId?: string;
   /** Model alias or full id; 'default'/undefined lets the SDK pick. */
   model?: AgentModelChoice;
   /** Reasoning effort (SDK default is 'high'). */
@@ -175,7 +192,7 @@ let activeAbort: AbortController | null = null;
 
 const MCP_PREFIX = 'mcp__drifting__';
 
-/** Drop the MCP server prefix so the UI shows e.g. "read_chapter". */
+/** Drop the MCP server prefix so the UI shows e.g. "read_node". */
 function stripToolName(name: string): string {
   return name.startsWith(MCP_PREFIX) ? name.slice(MCP_PREFIX.length) : name;
 }
@@ -359,10 +376,10 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean; sawThinking: bool
 export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
   registerToolResultListener();
 
-  const emit = (event: AgentEvent): void => {
+  const emit = (turnId: string, event: AgentEvent): void => {
     const win = getWindow();
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-      win.webContents.send('agent:event', event);
+      win.webContents.send('agent:event', { turnId, event } satisfies AgentEventEnvelope);
     }
   };
 
@@ -442,6 +459,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
 
       ensureClaudeConfig();
 
+      // Tag every event for this turn so the renderer routes the stream to the
+      // owning conversation (background turns survive navigation).
+      const turnId = input.turnId ?? randomUUID();
+
       // Resume the conversation the renderer asked for (unless it's a fresh one).
       const resume = input.newConversation ? undefined : input.resume;
 
@@ -455,28 +476,31 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         ...(resume ? { resume } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'Orient first with get_project_brief, then list_chapters (storylines + chapters + drifts) ' +
+          'Orient first with get_project_brief, then list_nodes (storylines + chapters + drifts) ' +
           'and/or list_elements (categories + elements) to see the manuscript — both list BY NAME. ' +
-          'Gather context by TRAVERSING the graph instead of reading every chapter: ' +
+          "A 'node' is a chapter OR a drift (free-floating note); they share one name space. " +
+          'Gather context by TRAVERSING the graph instead of reading every node: ' +
           'where_does_entity_appear (all scenes mentioning a character/place/item), ' +
           'get_entity_relations (curated story-graph edges, both directions), ' +
-          'get_storyline (a storyline + its chapters), get_chapter_context (a chapter overview — ' +
+          'get_storyline (a storyline + its chapters), get_node_context (a node overview — ' +
           'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
-          'Entity reference args are NAMES (project-unique), not ids: pass the entity by name via ' +
-          'the chapter / element / storyline / category arg — e.g. read_chapter({chapter:"第三章"}), ' +
-          'update_element({element:"林夏"}). An id still works, and kind+id tools accept the name in ' +
-          'their id field too. resolve_entity is there if a name is ever ambiguous. ' +
-          'Read full detail only when needed: read_chapter, read_element. ' +
-          'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
-          'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +
-          'one prose block by its number from read_chapter; use edit_blocks for several blocks ' +
-          'in one chapter — atomic), append_paragraph. Prose edits apply to the chapter live — no ' +
+          'Entity reference args are NAMES (project-unique) — never ids: pass the entity by name via ' +
+          'the node / element / storyline / category arg (or, for kind+name tools, the name arg) — ' +
+          'e.g. read_node({node:"第三章"}), update_element({element:"林夏"}). Tool RESULTS are by name ' +
+          'too. The only opaque handles are for things with no name — blockId (prose blocks), ' +
+          'commentId, relationId, patchId — and you only ever copy those back from the read tool ' +
+          'that returned them. resolve_entity is a rarely-needed fallback for an ambiguous name. ' +
+          'Read full detail only when needed: read_node, read_element. ' +
+          'You can also edit: update_element (incl. category to recategorize, facts to set ' +
+          'structured kv), create_element, rename_node, set_node_summary, edit_block (replace ' +
+          'one prose block by its number from read_node; use edit_blocks for several blocks ' +
+          'in one node — atomic), append_paragraph. Prose edits apply to the node live — no ' +
           'need to close the editor. To RESTRUCTURE prose (delete a block, replace a range of ' +
-          'blocks with a different number of blocks, or insert blocks mid-chapter) use ' +
+          'blocks with a different number of blocks, or insert blocks mid-node) use ' +
           'remove_blocks / replace_block_range / insert_blocks; these address blocks by their ' +
-          'stable uuid blockId, NOT the read_chapter number (numbers shift after a structural ' +
+          'stable uuid blockId, NOT the read_node number (numbers shift after a structural ' +
           'edit), so call lookup_block first to resolve a number or text snippet to its blockId. ' +
           'Build structure: create_storyline / update_storyline (incl. facts), create_category / ' +
           "update_category (element template facts), create_node (a 'chapter' or 'drift'). " +
@@ -487,12 +511,13 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +
           "(kind 'note' or 'todo'), set_comment_status (resolve/reopen), set_comment_kind " +
           '(todo↔note), delete_comment. For a block-anchored TODO (list_comments returns its ' +
-          'targetId + targetBlockId), call read_block(targetId, targetBlockId) to get the live text, ' +
-          'then act on it and set_comment_status to resolve. ' +
+          'target + targetBlockId), call read_block(node=target, blockId=targetBlockId) to get the ' +
+          'live text, then act on it and set_comment_status to resolve. ' +
           'Build relationships between entities: link_chapter_to_storyline, ' +
-          'unlink_chapter_from_storyline, set_primary_storyline, add_relation (curated story-graph ' +
-          'edge — reuse existing kind labels), remove_relation / update_relation_kind (by the ' +
-          'relationId from get_entity_relations), and delete_element (the user is asked to confirm). ' +
+          'unlink_chapter_from_storyline, set_primary_storyline (chapters only — drifts cannot ' +
+          'belong to a storyline), add_relation (curated story-graph edge — reuse existing kind ' +
+          'labels), remove_relation / update_relation_kind (by the relationId from ' +
+          'get_entity_relations), and delete_element (the user is asked to confirm). ' +
           'To relate things that do not exist yet, create the storyline/category/element first, ' +
           'then link them. ' +
           'Prefer the cheap overview/traversal tools before pulling full prose. ' +
@@ -500,7 +525,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           '风物 考据), use WebSearch to verify and WebFetch to read a source — then state what ' +
           'you found and where. Do not invent facts you could have looked up. ' +
           'For multi-step tasks, use TodoWrite to lay out a plan and tick items off as you go. ' +
-          'Always read before you edit, and confirm ids. Make the smallest change that satisfies ' +
+          'Always read before you edit. Make the smallest change that satisfies ' +
           'the request. Be concise.' +
           buildAgentMeta(input),
         settingSources: [], // don't inherit the user's ~/.claude project settings / CLAUDE.md
@@ -535,22 +560,23 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           const sid = (msg as { session_id?: string }).session_id;
           if (typeof sid === 'string' && sid && sid !== reportedSession) {
             reportedSession = sid;
-            emit({ type: 'session', id: sid });
+            emit(turnId, { type: 'session', id: sid });
           }
-          for (const event of toEvents(msg, streamState)) emit(event);
+          for (const event of toEvents(msg, streamState)) emit(turnId, event);
         }
-        emit({ type: 'done' });
+        emit(turnId, { type: 'done' });
         return { ok: true };
       } catch (err) {
-        if (abortController.signal.aborted) {
-          // User-initiated stop — not an error.
-          emit({ type: 'done' });
-          return { ok: true };
+        // The turn was already in flight. Surface any failure as a tagged
+        // 'error' event (the renderer routes it to the owning conversation) and
+        // report ok:true — the renderer's !ok branch is reserved for pre-flight
+        // failures (e.g. auth) that never emitted anything for this turn.
+        if (!abortController.signal.aborted) {
+          const message = err instanceof Error ? err.message : String(err);
+          emit(turnId, { type: 'error', message });
         }
-        const message = err instanceof Error ? err.message : String(err);
-        emit({ type: 'error', message });
-        emit({ type: 'done' });
-        return { ok: false, error: message };
+        emit(turnId, { type: 'done' });
+        return { ok: true };
       } finally {
         activeQuery = null;
         if (activeAbort === abortController) activeAbort = null;

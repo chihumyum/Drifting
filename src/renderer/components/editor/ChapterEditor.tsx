@@ -286,7 +286,7 @@ export function ChapterEditor({
 
           {/* Summary */}
           {showSummary && (
-            <div style={{ flex: literary ? undefined : 1 }}>
+            <div data-agent-summary style={{ flex: literary ? undefined : 1 }}>
               {editableSummary ? (
                 <textarea
                   ref={summaryRef}

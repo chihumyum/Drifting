@@ -20,20 +20,53 @@ export interface ActivityMark {
   op: ToolEntityRef['op'];
 }
 
+/** A resolved set of change spots (block uuids materialized into a Set). */
+interface SpotSet {
+  summary: boolean;
+  blocks: Set<string>;
+  structural: boolean;
+}
+
+/**
+ * A written/created entity, plus WHERE it changed (`spots`) and which of those
+ * the user has since viewed (`seen`). The breathing dot ("M") auto-clears when
+ * `seen` covers every `spot` — i.e. the user read each change in place — so the
+ * dot reflects "unread agent changes," not merely "not yet clicked."
+ */
+export interface TouchedMark extends ActivityMark {
+  spots: SpotSet;
+  seen: SpotSet;
+}
+
+/** One spot the user just viewed, fed to markSpotSeen. */
+export type SeenSpot = { summary: true } | { block: string } | { structural: true };
+
 interface AgentActivityState {
   /** entityKey → mark, for tools running right now (pulse). */
   active: Record<string, ActivityMark>;
   /** entityKey → mark, for entities written/created this run (breathing dot). */
-  touched: Record<string, ActivityMark>;
+  touched: Record<string, TouchedMark>;
 
   onToolUse: (id: string, name: string, input: unknown) => void;
   onToolResult: (id: string, ok: boolean, text: string) => void;
   /** A turn finished — stop all pulses (leave the breathing dots). */
   onTurnEnd: () => void;
-  /** The user opened/looked at an entity — clear its breathing dot. */
+  /** The user viewed one changed spot — clears the dot once all spots are seen. */
+  markSpotSeen: (entityType: ActivityMark['entityType'], id: string, spot: SeenSpot) => void;
+  /** The user opened/looked at an entity — clear its breathing dot outright. */
   clearTouched: (entityType: ActivityMark['entityType'], id: string) => void;
   /** New prompt / fresh conversation — clear all markers. */
   clearAll: () => void;
+}
+
+const emptySpots = (): SpotSet => ({ summary: false, blocks: new Set(), structural: false });
+
+/** Has every changed spot been viewed? (empty spots → nothing to read). */
+function allSeen(spots: SpotSet, seen: SpotSet): boolean {
+  if (spots.summary && !seen.summary) return false;
+  if (spots.structural && !seen.structural) return false;
+  for (const b of spots.blocks) if (!seen.blocks.has(b)) return false;
+  return true;
 }
 
 // Pending tool calls by tool-use id, so onToolResult can recover the args (and,
@@ -69,14 +102,49 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
     // reads (nothing changed) nor deletes (the entity is gone).
     if (!ref || ref.op === 'read' || ref.op === 'delete' || !hasCell(ref.entityType)) return;
     const key = entityKey(ref.entityType, ref.id);
-    set((s) => ({
-      touched: { ...s.touched, [key]: { entityType: ref.entityType, id: ref.id, op: ref.op } },
-    }));
+    const incoming = ref.spots ?? { structural: true };
+    set((s) => {
+      const prev = s.touched[key];
+      // Accumulate spots across the run (block A then B → both tracked); a fresh
+      // entry starts with nothing seen.
+      const spots: SpotSet = {
+        summary: (prev?.spots.summary ?? false) || incoming.summary === true,
+        blocks: new Set([...(prev?.spots.blocks ?? []), ...(incoming.blocks ?? [])]),
+        structural: (prev?.spots.structural ?? false) || incoming.structural === true,
+      };
+      const mark: TouchedMark = {
+        entityType: ref.entityType,
+        id: ref.id,
+        op: ref.op,
+        spots,
+        seen: prev?.seen ?? emptySpots(),
+      };
+      return { touched: { ...s.touched, [key]: mark } };
+    });
   },
 
   onTurnEnd: () => {
     pending.clear();
     set((s) => (Object.keys(s.active).length ? { active: {} } : s));
+  },
+
+  markSpotSeen: (entityType, id, spot) => {
+    const key = entityKey(entityType, id);
+    set((s) => {
+      const entry = s.touched[key];
+      if (!entry) return s;
+      const seen: SpotSet = {
+        summary: entry.seen.summary || 'summary' in spot,
+        blocks: 'block' in spot ? new Set([...entry.seen.blocks, spot.block]) : entry.seen.blocks,
+        structural: entry.seen.structural || 'structural' in spot,
+      };
+      if (allSeen(entry.spots, seen)) {
+        const next = { ...s.touched };
+        delete next[key];
+        return { touched: next };
+      }
+      return { touched: { ...s.touched, [key]: { ...entry, seen } } };
+    });
   },
 
   clearTouched: (entityType, id) => {

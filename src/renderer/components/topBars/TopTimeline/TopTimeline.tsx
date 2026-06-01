@@ -155,10 +155,19 @@ export function TopTimeline() {
   // pass: after dropping a dragged tab, the active tab's DOM position may
   // have changed even though the count and the active key didn't, and the
   // pill needs to slide to the new spot.
+  //
+  // Also pass the entity collections: renaming the active entity grows its
+  // tab box (`tabWidths` re-measures the longer label) without changing
+  // `activeTabKey`, `openTabs`, or the container's own size — so neither the
+  // measure pass nor the container ResizeObserver would otherwise re-fire,
+  // and the pill would keep its stale width. These arrays change reference
+  // on any title edit, re-triggering the measure pass to re-read the now
+  // wider active tab. (`activeTabKey` is unchanged, so this takes the snap
+  // path — the pill resizes in place rather than sliding.)
   const [containerRef, indicatorStyle] = useSlidingIndicator<HTMLDivElement>(
     activeTabKey,
     '.app-tab.is-active',
-    [openTabs],
+    [openTabs, bookNodes, storylines, bookElements, bookElementCategories],
   );
   const [containerWidth, setContainerWidth] = useState(0);
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);

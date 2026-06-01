@@ -954,6 +954,15 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   letter-spacing: 0.08em;
   color: hsl(var(--ink-3));
 }
+/* Left group: outline toggle + breadcrumb, kept together at the bar's left
+   edge (the bar itself is space-between, pinning this group left and the
+   right slot right). min-width:0 lets long crumbs truncate. */
+.editor-bar__left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .editor-bar__right {
   display: inline-flex;
   align-items: center;
@@ -1810,6 +1819,71 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 /* ============================================================
+   Scroll overview ruler (VSCode-style) — ticks on the right edge
+   marking where comments and unread agent edits sit in the document.
+   Lives in .editor-body (non-scrolling), so it stays put while the
+   manuscript scrolls. Container passes pointer events through; only
+   the ticks are clickable (jump-to-block).
+   ============================================================ */
+.editor__scrollmap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 8;
+  pointer-events: none;
+}
+.editor__scrollmap-tick {
+  position: absolute;
+  right: 2px;
+  width: 8px;
+  height: 3px;
+  margin-top: -1.5px; /* center the tick on its fractional position */
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0.82;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+.editor__scrollmap-tick:hover {
+  width: 12px;
+  opacity: 1;
+}
+.editor__scrollmap-tick--note {
+  background: hsl(var(--story-2)); /* 群青 — note */
+}
+.editor__scrollmap-tick--todo {
+  background: hsl(var(--story-4)); /* 赭黄 — todo */
+}
+.editor__scrollmap-tick--resolved {
+  background: hsl(var(--rule-strong));
+  opacity: 0.55;
+}
+.editor__scrollmap-tick--agent {
+  background: hsl(var(--story-3)); /* 苔绿 — unread agent change */
+}
+
+/* ============================================================
+   Agent-change gutter — a git-style left bar + faint tint on blocks
+   (and the summary) the agent edited, fading once the user reads them.
+   ============================================================ */
+.agent-change-block,
+.agent-change-summary {
+  background-color: hsl(var(--story-3) / 0.07);
+  box-shadow: inset 3px 0 0 0 hsl(var(--story-3) / 0.85);
+  border-radius: 3px;
+  transition: background-color 0.5s ease, box-shadow 0.5s ease;
+}
+.agent-change-block--seen,
+.agent-change-summary--seen {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* ============================================================
    Copilot active / stale states
    ============================================================ */
 /* Stale = past the 5s Tab-accept window. Visually receded, but mouse still
@@ -1978,14 +2052,14 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   pointer-events: none;
 }
 
-/* Expanded panel. Anchored to the tab's right edge; spans the full body
-   height (because the rail box does too, even though only its tab is
-   visible). When the panel would spill onto the manuscript, the
-   `--over-manuscript` modifier swaps the solid background for a gradient
-   that fades the trailing edge slightly, signalling the overlay state. */
+/* The panel. Sits flush at the rail's (= body's) left edge and spans the
+   full body height (the rail box does too). When the panel would spill onto
+   the manuscript, the `--over-manuscript` modifier swaps the solid
+   background for a gradient that fades the trailing edge slightly,
+   signalling the overlay state. */
 .editor__toc-overlay {
   position: absolute;
-  left: 100%;
+  left: 0;
   top: 0;
   bottom: 0;
   width: 200px;
@@ -2021,73 +2095,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
 }
 .toc-head__count { color: hsl(var(--ink-5)); font-size: 9px; }
-.toc-head__right { display: inline-flex; align-items: center; gap: 6px; }
-
-/* Inline collapse chevron in the head — small, low-contrast affordance to
-   fold the panel back into the slim rail. */
-.toc-toggle {
-  display: inline-flex;
-  align-items: center; justify-content: center;
-  width: 14px; height: 14px;
-  border-radius: 2px;
-  color: hsl(var(--ink-4));
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font-serif);
-  font-size: 13px;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.toc-toggle:hover {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--rule) / 0.6);
-}
-
-/* Rail toggle — the small "tab" button at the top of the (otherwise
-   transparent) rail. Vertical "OUTLINE" label + chevron that flips '›'
-   (collapsed) ↔ '‹' (expanded). Since the rail itself is now invisible,
-   this button carries the visible surface + dotted edges that mark the
-   outline's home position. */
-.toc-toggle--rail {
-  width: 100%;
-  min-height: 120px;
-  padding: 14px 0;
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  background: hsl(var(--surface));
-  border: 1px dotted hsl(var(--rule));
-  border-left: 0;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  color: hsl(var(--ink-4));
-  pointer-events: auto;
-  transition: background 0.12s, color 0.12s;
-}
-.toc-toggle--rail:hover {
-  background: hsl(var(--rule) / 0.45);
-  color: hsl(var(--ink-1));
-}
-.toc-toggle__chevron {
-  font-family: var(--font-serif);
-  font-size: 16px;
-  color: hsl(var(--ink-3));
-  line-height: 1;
-}
-.toc-toggle__label {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  color: hsl(var(--ink-4));
-}
-.toc-toggle--rail:hover .toc-toggle__chevron,
-.toc-toggle--rail:hover .toc-toggle__label { color: hsl(var(--ink-1)); }
 
 /* Thin divider between the static framework block and the dynamic body
    outline block. No label, no count — the rule alone signals "second TOC". */
@@ -2155,17 +2162,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   color: hsl(var(--ink-5));
   text-transform: uppercase;
   letter-spacing: 0.1em;
-}
-.toc-foot {
-  margin-top: 12px;
-  padding: 8px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: hsl(var(--ink-4));
-  display: flex; gap: 8px; justify-content: space-between;
-  border-top: 1px dotted hsl(var(--rule));
 }
 
 /* Scene + Beat headers — render inside .page__body for non-chapter editors,

@@ -22,8 +22,6 @@ interface Props {
   // Fires when the user clicks the chevron on an entry with children. The
   // caller owns expansion state and updates `isExpanded` on the next pass.
   onToggleExpand?: (id: string) => void;
-  footLeft?: string;
-  footRight?: string;
   emptyHint?: string;
   // Optional second outline group (typically body markdown headings rendered
   // below the static section framework). Separated by a thin horizontal rule
@@ -35,34 +33,28 @@ interface Props {
 // Width of the expanded TOC panel.
 const OVERLAY_WIDTH = 200;
 
-// Outline rail shared by all entity editors. The rail is rendered as an
-// absolutely-positioned child of `.editor-body` and pinned to its top-left
-// (just under the breadcrumb bar) — never in flex flow. Only the toggle
-// button at the top is visually styled (the rest of the rail box is
-// transparent and just exists as the panel's positioning anchor), so the
-// outline reads as a small "tab" peeking out of the left edge.
+// Outline panel shared by all entity editors. Rendered as an
+// absolutely-positioned child of `.editor-body`, pinned to its top-left
+// (just under the breadcrumb bar) and flush against the body's left edge —
+// never in flex flow.
 //
-// Two render modes:
-//   • collapsed → tab only.
-//   • expanded  → tab + 200px panel anchored to the tab's right edge.
-//                 If the panel would overlap the manuscript, its
+// Visibility is driven by the global `outlineCollapsed` UI flag, toggled by
+// the outline button in the editor top bar (mirror of the comment-rail
+// toggle on the right). There is no in-panel toggle:
+//   • collapsed → renders nothing.
+//   • expanded  → 200px panel. If it would overlap the manuscript, its
 //                 background switches to a slight gradient to signal the
 //                 overlay; otherwise it stays solid and reads as in-flow.
-//
-// The rail itself never moves — the only animation is the panel sliding in.
 export function EditorOutlinePanel({
   title,
   items,
   activeId,
   onItemClick,
   onToggleExpand,
-  footLeft,
-  footRight,
   emptyHint = '— 暂无标题 —',
   secondaryItems,
 }: Props) {
   const collapsed = useUiStore((s) => s.outlineCollapsed);
-  const toggleCollapsed = useUiStore((s) => s.toggleOutlineCollapsed);
 
   // Track both the rail element (to measure its current x-position) and
   // the .editor-body ancestor (to observe width changes that move the
@@ -75,11 +67,11 @@ export function EditorOutlinePanel({
     setBodyEl((prev) => (prev === ancestor ? prev : ancestor));
   }, []);
 
-  // Whether the expanded panel would overlap the manuscript. We use this
-  // only to pick the background: solid when the panel sits cleanly in the
-  // body's left margin, gradient when it spills onto the manuscript. The
-  // panel's position itself never changes — it's always anchored to the
-  // tab's right edge.
+  // Whether the panel would overlap the manuscript. We use this only to
+  // pick the background: solid when the panel sits cleanly in the body's
+  // left margin, gradient when it spills onto the manuscript. The panel's
+  // position itself never changes — it's always flush at the body's left
+  // edge.
   const [coversManuscript, setCoversManuscript] = useState(false);
   useEffect(() => {
     if (!bodyEl) return;
@@ -89,7 +81,10 @@ export function EditorOutlinePanel({
       if (!rail || !manuscript) return;
       const railRect = rail.getBoundingClientRect();
       const manuscriptRect = manuscript.getBoundingClientRect();
-      setCoversManuscript(railRect.right + OVERLAY_WIDTH > manuscriptRect.left);
+      // Expanded panel sits flush at the rail's left edge, so its right edge
+      // is railRect.left + OVERLAY_WIDTH — that's what must clear the
+      // manuscript to avoid the overlay gradient.
+      setCoversManuscript(railRect.left + OVERLAY_WIDTH > manuscriptRect.left);
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -174,18 +169,7 @@ export function EditorOutlinePanel({
     <>
       <div className="toc-head">
         <span>{title}</span>
-        <span className="toc-head__right">
-          {items.length > 0 && <span className="toc-head__count">{items.length} 节</span>}
-          <button
-            type="button"
-            className="toc-toggle"
-            onClick={toggleCollapsed}
-            title="收起大纲"
-            aria-label="收起大纲"
-          >
-            ‹
-          </button>
-        </span>
+        {items.length > 0 && <span className="toc-head__count">{items.length} 节</span>}
       </div>
 
       {items.length === 0 ? (
@@ -200,49 +184,15 @@ export function EditorOutlinePanel({
           {secondaryItems!.map((item) => renderItem(item))}
         </>
       )}
-
-      {(footLeft || footRight) && (
-        <div className="toc-foot">
-          <span>{footLeft ?? ''}</span>
-          <span>{footRight ?? ''}</span>
-        </div>
-      )}
     </>
   );
 
-  // Collapsed: slim rail only.
-  if (collapsed) {
-    return (
-      <nav className="editor__toc-rail" ref={attachRoot} aria-label="Outline rail">
-        <button
-          type="button"
-          className="toc-toggle--rail"
-          onClick={toggleCollapsed}
-          title="展开大纲"
-          aria-label="展开大纲"
-          aria-expanded={false}
-        >
-          <span className="toc-toggle__chevron" aria-hidden="true">›</span>
-          <span className="toc-toggle__label">OUTLINE</span>
-        </button>
-      </nav>
-    );
-  }
+  // Collapsed: nothing is rendered — the toggle lives in the editor top bar.
+  if (collapsed) return null;
 
-  // Expanded: tab stays put, panel slides out to its right.
+  // Expanded: the panel sits flush at the body's left edge.
   return (
-    <nav className="editor__toc-rail" ref={attachRoot} aria-label="Outline rail">
-      <button
-        type="button"
-        className="toc-toggle--rail"
-        onClick={toggleCollapsed}
-        title="收起大纲"
-        aria-label="收起大纲"
-        aria-expanded={true}
-      >
-        <span className="toc-toggle__chevron" aria-hidden="true">‹</span>
-        <span className="toc-toggle__label">OUTLINE</span>
-      </button>
+    <nav className="editor__toc-rail" ref={attachRoot} aria-label="Outline">
       <div
         className={`editor__toc-overlay${coversManuscript ? ' editor__toc-overlay--over-manuscript' : ''}`}
         role="dialog"

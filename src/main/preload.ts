@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AgentEvent, AgentStartInput } from './agent';
+import type { AgentEventEnvelope, AgentStartInput } from './agent';
 import type { ToolExecRequest, ToolExecResult } from './agent/bridge';
 
 // Expose protected methods that allow the renderer process to use
@@ -113,8 +113,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     start: (input: AgentStartInput) => ipcRenderer.invoke('agent:start', input),
     abort: () => ipcRenderer.invoke('agent:abort'),
     resetSession: () => ipcRenderer.invoke('agent:reset-session'),
-    onEvent: (callback: (event: AgentEvent) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, event: AgentEvent) => callback(event);
+    onEvent: (callback: (env: AgentEventEnvelope) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, env: AgentEventEnvelope) => callback(env);
       ipcRenderer.on('agent:event', handler);
       return () => ipcRenderer.removeListener('agent:event', handler);
     },
@@ -170,7 +170,7 @@ export interface ElectronAPI {
     ) => Promise<{ ok: true } | { ok: false; error: string }>;
     abort: () => Promise<{ ok: true }>;
     resetSession: () => Promise<{ ok: true }>;
-    onEvent: (callback: (event: AgentEvent) => void) => () => void;
+    onEvent: (callback: (env: AgentEventEnvelope) => void) => () => void;
     onToolExec: (callback: (req: ToolExecRequest) => void) => () => void;
     sendToolResult: (result: ToolExecResult) => void;
   };

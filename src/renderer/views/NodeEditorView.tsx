@@ -14,9 +14,11 @@ import {
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { CommentRail } from '../components/editor/CommentRail';
+import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
+import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import type { OutlineItem } from '../lib/outline';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import {
@@ -108,6 +110,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  // Highlight agent-changed blocks/summary and clear the cell's "M" as the user
+  // reads each spot in place (#17).
+  useAgentChangeMarks(scrollEl, 'node', nodeId);
   const [marginNotes, setMarginNotes] = useEntityMarginNotes('node', nodeId);
   const entityLinkInteractive = useSettingsStore((state) => state.entityLinkInteractive);
   const setEntityLinkInteractive = useSettingsStore((state) => state.setEntityLinkInteractive);
@@ -717,7 +722,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               }))}
               activeId={activeOutlineId}
               onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
-              footRight={`${curNode.wordCount.toLocaleString()} 字`}
               emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
@@ -784,6 +788,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 onPendingRequestChange={setPendingComment}
               />
             )}
+            <EditorScrollMarkers
+              projectId={activeProjectId}
+              targetKind="node"
+              targetId={nodeId ?? ''}
+              scrollEl={scrollEl}
+            />
           </div>
         </>
       )}

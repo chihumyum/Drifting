@@ -1,4 +1,4 @@
-import { Check, Link2, MessageSquare, MoreVertical } from 'lucide-react';
+import { Check, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -13,6 +13,7 @@ import {
   DRIFT_STATUSES,
   type WritingStatus,
 } from '../../domain/book-node';
+import { useUiStore } from '../../store/ui-store';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
 
@@ -39,7 +40,9 @@ export const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
 
 /*
   Shared editor top bar:
-  - Breadcrumb area on the left, built from <EditorCrumb> children
+  - Outline toggle pinned at the far left (mirror of the comment-rail toggle
+    on the right), driving the global `outlineCollapsed` UI flag
+  - Breadcrumb area next to it, built from <EditorCrumb> children
   - Free-form right slot (word count, counts, etc.)
   - Integrated three-dot menu driven by `editorType` + `onMenuAction`
 */
@@ -79,10 +82,23 @@ export function EditorTopBar({
 }: EditorTopBarProps) {
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
+  const outlineCollapsed = useUiStore((s) => s.outlineCollapsed);
+  const toggleOutline = useUiStore((s) => s.toggleOutlineCollapsed);
 
   return (
     <div className="editor-bar">
-      <div className="editor-crumbs">{crumbs}</div>
+      <div className="editor-bar__left">
+        <button
+          type="button"
+          className={`editor-bar__icon editor-bar__icon--outline${outlineCollapsed ? '' : ' editor-bar__icon--active'}`}
+          title={outlineCollapsed ? '显示大纲' : '隐藏大纲'}
+          aria-pressed={!outlineCollapsed}
+          onClick={toggleOutline}
+        >
+          <ListTree size={14} />
+        </button>
+        <div className="editor-crumbs">{crumbs}</div>
+      </div>
       <div className="editor-bar__right">
         {right}
         {referenceLinkToggle && (
