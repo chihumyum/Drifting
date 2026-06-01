@@ -1,48 +1,49 @@
 /*
- * Agent activity perception (#17). While the agent is working a node/element,
- * its whole left-panel cell gets a sweeping gradient glow; once it has changed
- * one, the cell keeps a small STATIC dot. The left tab switcher shows an
- * aggregate badge (animated while working, static once done) so activity in a
- * panel the user isn't looking at still registers.
+ * Agent activity perception (#17). All cell styling is consolidated under the
+ * entity's NAME so it never shifts the row's other content (e.g. the date):
+ *   - working → a soft accent line that slowly stretches rightward under the
+ *     name (starts as a dot, eases out to a line, and back).
+ *   - done    → a subtle static underline on the name text.
+ * The left tab switcher shows an aggregate badge so activity in a panel the
+ * user isn't looking at still registers.
  */
 
-/* Working: a subtle accent outline + a sweeping gradient glow across the whole
-   cell. The ::before sits behind the cell's text content (which paints after it)
-   but over the cell's own background. */
-.agent-cell-glow {
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.35);
-}
-.agent-cell-glow::before {
-  content: '';
+/* Working: a gentle dot → line under the name. Positioned against the cell (which
+   is position:relative and not clipped), aligned under the name column. */
+.agent-busy-line {
   position: absolute;
-  inset: 0;
+  left: 42px;
+  right: 14px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: hsl(var(--accent) / 0.4);
+  transform: scaleX(0.05);
+  transform-origin: left center;
+  animation: agentBusyLine 2.8s ease-in-out infinite;
   pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(
-    100deg,
-    transparent 10%,
-    hsl(var(--accent) / 0.24) 50%,
-    transparent 90%
-  );
-  background-size: 220% 100%;
-  animation: agentCellGlow 1.6s ease-in-out infinite;
 }
-@keyframes agentCellGlow {
+@keyframes agentBusyLine {
   0% {
-    background-position: 170% 0;
+    transform: scaleX(0.05);
+    opacity: 0.3;
+  }
+  55% {
+    transform: scaleX(1);
+    opacity: 0.8;
   }
   100% {
-    background-position: -170% 0;
+    transform: scaleX(0.05);
+    opacity: 0.3;
   }
 }
 
-/* Done: a small static accent dot (no animation). */
-.agent-touch-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--accent));
-  display: inline-block;
+/* Done: a subtle underline on the name text — no extra element, no layout shift. */
+.agent-name-done {
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--accent) / 0.6);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
 }
 
 /* Aggregate badge overlaid on a left tab-switcher button. */
@@ -57,7 +58,7 @@
   pointer-events: none;
 }
 .agent-tab-badge--active {
-  animation: agentBadgePulse 1.1s ease-in-out infinite;
+  animation: agentBadgePulse 1.4s ease-in-out infinite;
 }
 /* agent-tab-badge--touched: static (no animation). */
 @keyframes agentBadgePulse {

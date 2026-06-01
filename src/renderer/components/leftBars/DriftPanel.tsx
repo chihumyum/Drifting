@@ -137,7 +137,6 @@ export function DriftPanel() {
     return (
       <div
         key={node.id}
-        className={agentBusy ? 'agent-cell-glow' : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -221,6 +220,8 @@ export function DriftPanel() {
         </span>
 
         <div
+          className={agentChanged ? 'agent-name-done' : undefined}
+          title={agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
             flex: 1,
             minWidth: 0,
@@ -249,14 +250,7 @@ export function DriftPanel() {
           </span>
         )}
 
-        {agentChanged && (
-          <span
-            aria-hidden
-            className="agent-touch-dot"
-            style={{ flexShrink: 0, marginLeft: 2 }}
-            title="Agent 刚改动了这里"
-          />
-        )}
+        {agentBusy && <span aria-hidden className="agent-busy-line" title="Agent 正在处理" />}
       </div>
     );
   };
