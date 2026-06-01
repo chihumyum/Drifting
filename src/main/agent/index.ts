@@ -432,7 +432,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         ...(resume ? { resume } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'Orient first with get_project_brief, then list_project_structure to discover ids. ' +
+          'Orient first with get_project_brief, then list_chapters (storylines + chapters + drifts) ' +
+          'and/or list_elements (categories + elements) to see the manuscript — both list BY NAME. ' +
           'Gather context by TRAVERSING the graph instead of reading every chapter: ' +
           'where_does_entity_appear (all scenes mentioning a character/place/item), ' +
           'get_entity_relations (curated story-graph edges, both directions), ' +
@@ -440,8 +441,9 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
-          'Entity names are project-unique, so you can resolve a name to its id with resolve_entity ' +
-          'instead of carrying long uuids around. ' +
+          'Entity names are project-unique: every id arg (nodeId / elementId / storylineId / ' +
+          'categoryId, and kind+id pairs) ACCEPTS THE ENTITY NAME directly — prefer names, you ' +
+          'rarely need ids. resolve_entity is there if a name is ever ambiguous. ' +
           'Read full detail only when needed: read_chapter, read_element. ' +
           'You can also edit: update_element (incl. categoryId to recategorize, facts to set ' +
           'structured kv), create_element, rename_chapter, set_node_summary, edit_block (replace ' +

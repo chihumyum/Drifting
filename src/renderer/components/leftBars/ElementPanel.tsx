@@ -434,6 +434,7 @@ export function ElementPanel() {
         key={element.id}
         data-category-id={categoryId}
         data-element-index={elementIndex}
+        className={agentBusy ? 'agent-cell-glow' : undefined}
         style={{
           // Aligned with ChapterPanel renderNodeCard so all three left-bar
           // entity cells share the same row metrics — only the leading
@@ -549,12 +550,12 @@ export function ElementPanel() {
           </span>
         )}
 
-        {(agentBusy || agentChanged) && (
+        {agentChanged && (
           <span
             aria-hidden
-            className={agentBusy ? 'agent-cell-spark' : 'agent-touch-dot'}
+            className="agent-touch-dot"
             style={{ flexShrink: 0, marginLeft: 2 }}
-            title={agentBusy ? 'Agent 正在处理' : 'Agent 刚改动了这里'}
+            title="Agent 刚改动了这里"
           />
         )}
       </div>
