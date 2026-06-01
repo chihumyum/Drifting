@@ -263,6 +263,14 @@ interface UiState {
   activeAgentPanel: 'companion' | 'shadow';
   setActiveAgentPanel: (panel: 'companion' | 'shadow') => void;
 
+  // When the right sidebar is wide enough to show both groups side by side,
+  // this is the width fraction given to the content (left) column; the agent
+  // (right) column gets the remainder. Dragged via the divider between the two
+  // columns. Clamped to [0.2, 0.8] so neither column collapses. Persisted
+  // globally (the dual-column layout itself isn't per-project).
+  rightPanelSplitRatio: number;
+  setRightPanelSplitRatio: (ratio: number) => void;
+
   shadowMode: boolean;
   setShadowMode: (active: boolean) => void;
   toggleShadowMode: () => void;
@@ -577,6 +585,10 @@ export const useUiStore = create<UiState>()(
       setActiveRightPanel: (panel) => set({ activeRightPanel: panel, rightPanelGroup: 'content' }),
       activeAgentPanel: 'companion',
       setActiveAgentPanel: (panel) => set({ activeAgentPanel: panel, rightPanelGroup: 'agent' }),
+
+      rightPanelSplitRatio: 0.5,
+      setRightPanelSplitRatio: (ratio) =>
+        set({ rightPanelSplitRatio: Math.max(0.2, Math.min(0.8, ratio)) }),
 
       shadowMode: false,
       setShadowMode: (active) =>
@@ -1243,6 +1255,7 @@ export const useUiStore = create<UiState>()(
         rightPanelGroup: state.rightPanelGroup,
         activeRightPanel: state.activeRightPanel,
         activeAgentPanel: state.activeAgentPanel,
+        rightPanelSplitRatio: state.rightPanelSplitRatio,
         activeSuperView: state.activeSuperView,
         lastActiveSuperView: state.lastActiveSuperView,
         shadowMode: state.shadowMode,

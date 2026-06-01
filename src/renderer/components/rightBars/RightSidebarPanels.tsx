@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
 import { isDrift } from '../../domain/book-node';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
@@ -24,6 +24,8 @@ export function RightSidebarPanels() {
   const activeRightPanel = useUiStore((s) => s.activeRightPanel);
   const activeAgentPanel = useUiStore((s) => s.activeAgentPanel);
   const shadowMode = useUiStore((s) => s.shadowMode);
+  const splitRatio = useUiStore((s) => s.rightPanelSplitRatio);
+  const setSplitRatio = useUiStore((s) => s.setRightPanelSplitRatio);
 
   const {
     bookNodes,
@@ -170,12 +172,42 @@ export function RightSidebarPanels() {
     ro.observe(node);
     return () => ro.disconnect();
   }, []);
-  const isSplit = panelWidth >= 768;
+  const isSplit = panelWidth >= 600;
   // Between the split threshold and a narrow panel, there's still room to lay
   // ALL tabs flat in one row (no group switch). ~420 fits 5 equal tabs without
   // collapsing labels (the longest, "Companion", needs ~95px/tab). Below it,
   // fall back to the two-group switch.
   const isFlat = !isSplit && panelWidth >= 420;
+
+  // Drag the divider between the two columns to reallocate width. Mirrors the
+  // editor split-pane divider (EditorMainArea/SplitView): ref-tracked rect so
+  // the move listener never reads a stale closure, and the store setter clamps
+  // the ratio to keep both columns usable. The ratio persists via the store.
+  const draggingRef = useRef(false);
+  const onDividerMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      draggingRef.current = true;
+      const onMove = (e: MouseEvent) => {
+        if (!draggingRef.current) return;
+        const el = rootRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        setSplitRatio((e.clientX - rect.left) / rect.width);
+      };
+      const onUp = () => {
+        draggingRef.current = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    [setSplitRatio],
+  );
+  const leftColWidth = `${Math.round(splitRatio * 100)}%`;
+  const rightColWidth = `${100 - Math.round(splitRatio * 100)}%`;
 
   const contentBody = (
     <>
@@ -216,12 +248,11 @@ export function RightSidebarPanels() {
         <>
           <div
             style={{
-              flex: 1,
+              width: leftColWidth,
               minWidth: 0,
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
-              borderRight: '1px solid hsl(var(--rule))',
             }}
           >
             <RightSidebarHeader
@@ -235,8 +266,15 @@ export function RightSidebarPanels() {
               {contentBody}
             </div>
           </div>
+          <ColumnDivider onMouseDown={onDividerMouseDown} />
           <div
-            style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+            style={{
+              width: rightColWidth,
+              minWidth: 0,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
           >
             <RightSidebarHeader
               group="agent"
@@ -644,6 +682,37 @@ function ShadowAgentView() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Small shared bits
+
+// Draggable separator between the content / agent columns in dual-column mode.
+// Visually just a 1px hairline (same weight as a normal column border, no
+// filled bar / backdrop). The element is wider for a comfortable grab target
+// but transparent, with negative margins so it nets ~1px of layout width —
+// the columns sit flush against the hairline.
+function ColumnDivider({
+  onMouseDown,
+}: {
+  onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      role="separator"
+      aria-orientation="vertical"
+      style={{
+        width: 7,
+        marginLeft: -3,
+        marginRight: -3,
+        flexShrink: 0,
+        cursor: 'col-resize',
+        display: 'flex',
+        justifyContent: 'center',
+        background: 'transparent',
+      }}
+    >
+      <div style={{ width: 1, height: '100%', background: 'hsl(var(--rule))' }} />
+    </div>
+  );
+}
 
 function StatsSection({
   title,
