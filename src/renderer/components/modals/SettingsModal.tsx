@@ -34,6 +34,11 @@ import {
   type ThemeMode,
 } from '../../store/settings-store';
 import { useAuthStore } from '../../store/auth';
+import { useProjectStore } from '../../store/project-store';
+import {
+  createAgentConversationRepository,
+  type AgentConversationUsage,
+} from '../../sqlite-repo/agent-conversation-repo';
 import { authClient } from '../../lib/auth-client';
 import { TrashPanel } from '../TrashPanel';
 import { refreshFeatureAccess, useFeatureAccessStore } from '../../lib/feature-access';
@@ -62,6 +67,7 @@ type RailId =
   | 'models'
   | 'shadow'
   | 'copilot'
+  | 'agent-usage'
   | 'keys'
   | 'sync'
   | 'privacy'
@@ -88,6 +94,7 @@ const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
   { id: 'models', group: '智能', glyph: '✦', label: '模型与 API' },
   { id: 'shadow', group: '智能', glyph: '◐', label: 'Shadow Agent' },
   { id: 'copilot', group: '智能', glyph: '⌁', label: 'Copilot · 任务' },
+  { id: 'agent-usage', group: '智能', glyph: '∑', label: 'Agent 用量' },
   { id: 'keys', group: '控制', glyph: '⌨', label: '快捷键' },
   { id: 'sync', group: '控制', glyph: '⇅', label: '同步与数据' },
   { id: 'privacy', group: '关于', glyph: '⚷', label: '隐私' },
@@ -105,6 +112,7 @@ const RAIL_IDS = new Set<RailId>([
   'models',
   'shadow',
   'copilot',
+  'agent-usage',
   'keys',
   'sync',
   'privacy',
@@ -225,6 +233,10 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           <ModelsPanel registerRef={(el) => (panelRefs.current.models = el ?? undefined)} />
           <ShadowPanel registerRef={(el) => (panelRefs.current.shadow = el ?? undefined)} />
           <CopilotPanel registerRef={(el) => (panelRefs.current.copilot = el ?? undefined)} />
+          <AgentUsagePanel
+            open={isOpen}
+            registerRef={(el) => (panelRefs.current['agent-usage'] = el ?? undefined)}
+          />
           <KeysPanel registerRef={(el) => (panelRefs.current.keys = el ?? undefined)} />
           <SyncPanel registerRef={(el) => (panelRefs.current.sync = el ?? undefined)} />
           <PrivacyPanel registerRef={(el) => (panelRefs.current.privacy = el ?? undefined)} />
@@ -2617,6 +2629,189 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
           <CopilotTaskRow key={t.id} taskId={t.id} label={t.label} desc={t.desc} />
         ))}
       </div>
+    </section>
+  );
+}
+
+const fmtUsageTok = (n: number): string =>
+  n >= 1_000_000
+    ? `${(n / 1_000_000).toFixed(1)}M`
+    : n >= 1000
+      ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`
+      : String(n);
+const fmtUsageUsd = (n: number): string => `$${n.toFixed(n > 0 && n < 0.01 ? 4 : 2)}`;
+
+function AgentUsagePanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
+  const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
+  const [rows, setRows] = useState<AgentConversationUsage[]>([]);
+
+  // Reload each time Settings opens (the modal stays mounted while closed). All
+  // setState happens in the async callbacks, never synchronously in the effect.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    void createAgentConversationRepository()
+      .usageByProject(projectId)
+      .then((u) => {
+        if (!cancelled) setRows(u);
+      })
+      .catch(() => {
+        if (!cancelled) setRows([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  const totals = rows.reduce(
+    (a, r) => ({
+      input: a.input + r.inputTokens,
+      output: a.output + r.outputTokens,
+      cost: a.cost + r.costUsd,
+      turns: a.turns + r.turns,
+    }),
+    { input: 0, output: 0, cost: 0, turns: 0 },
+  );
+  const withUsage = rows.filter((r) => r.inputTokens + r.outputTokens > 0);
+
+  const card = (label: string, value: string, sub?: string) => (
+    <div
+      style={{
+        flex: 1,
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 5,
+        background: 'hsl(var(--surface))',
+        padding: '14px 16px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9.5,
+          textTransform: 'uppercase',
+          letterSpacing: '0.14em',
+          color: 'hsl(var(--ink-4))',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-serif)',
+          fontSize: 30,
+          color: 'hsl(var(--ink-1))',
+          marginTop: 6,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'hsl(var(--ink-4))',
+            marginTop: 2,
+          }}
+        >
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <section className="set-panel" ref={registerRef} id="agent-usage">
+      <PanelHead
+        kicker="Agent 用量 · USAGE"
+        title="本项目里，Agent 用了多少 token。"
+        sub="统计自每轮返回的用量（输入含缓存读取）。BYOK 模式下为自付额；数据保存在本地。"
+      />
+
+      {!projectId ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后查看其 Agent 用量。</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {card(
+              '累计 Token',
+              fmtUsageTok(totals.input + totals.output),
+              `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
+            )}
+            {card('累计费用', fmtUsageUsd(totals.cost))}
+            {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <SecHead title="按对话" hint={`${withUsage.length} 个有用量的对话`} />
+            {withUsage.length === 0 ? (
+              <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
+                还没有用量记录 — 给 Agent 发一条消息试试。
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 5,
+                  overflow: 'hidden',
+                }}
+              >
+                {withUsage.map((r, i) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      borderTop: i === 0 ? 'none' : '1px solid hsl(var(--rule))',
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        color: 'hsl(var(--ink-1))',
+                      }}
+                    >
+                      {r.title || '未命名'}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        color: 'hsl(var(--ink-3))',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      ↑{fmtUsageTok(r.inputTokens)} ↓{fmtUsageTok(r.outputTokens)}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        color: 'hsl(var(--ink-4))',
+                        minWidth: 56,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {r.costUsd > 0 ? fmtUsageUsd(r.costUsd) : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </section>
   );
 }

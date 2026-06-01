@@ -61,12 +61,25 @@ export interface UpdateAgentConversationInput {
   updatedAt?: string;
 }
 
+/** Per-conversation token/cost totals, summed from its transcript usage rows. */
+export interface AgentConversationUsage {
+  id: string;
+  title: string;
+  updatedAt: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  turns: number;
+}
+
 export interface AgentConversationRepository {
   listByProject(projectId: string): Promise<AgentConversationSummary[]>;
   get(id: string): Promise<AgentConversation | null>;
   create(input: CreateAgentConversationInput): Promise<void>;
   update(id: string, patch: UpdateAgentConversationInput): Promise<void>;
   softDelete(id: string, deletedAt: string): Promise<void>;
+  /** Per-conversation token/cost usage for a project (most-recent first). */
+  usageByProject(projectId: string): Promise<AgentConversationUsage[]>;
 }
 
 export function createAgentConversationRepository(): AgentConversationRepository {
@@ -93,6 +106,39 @@ export function createAgentConversationRepository(): AgentConversationRepository
         mode: coerceMode(r.mode),
         updatedAt: r.updatedAt,
       }));
+    },
+
+    async usageByProject(projectId) {
+      const rows = await getDb()
+        .select({
+          id: AgentConversationTable.id,
+          title: AgentConversationTable.title,
+          updatedAt: AgentConversationTable.updatedAt,
+          messagesJson: AgentConversationTable.messagesJson,
+        })
+        .from(AgentConversationTable)
+        .where(
+          and(
+            eq(AgentConversationTable.projectId, projectId),
+            isNull(AgentConversationTable.deletedAt),
+          ),
+        )
+        .orderBy(desc(AgentConversationTable.updatedAt));
+      return rows.map((r) => {
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let costUsd = 0;
+        let turns = 0;
+        for (const m of parseMessages(r.messagesJson)) {
+          if (m.kind === 'usage') {
+            inputTokens += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
+            outputTokens += m.outputTokens;
+            costUsd += m.costUsd;
+            turns += m.turns;
+          }
+        }
+        return { id: r.id, title: r.title, updatedAt: r.updatedAt, inputTokens, outputTokens, costUsd, turns };
+      });
     },
 
     async get(id) {
