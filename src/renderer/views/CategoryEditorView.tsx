@@ -14,6 +14,8 @@ import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
+import { FieldReviewStrip } from '../components/editor/FieldReview';
+import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -174,6 +176,20 @@ export function CategoryEditorView({
       });
     },
     [curCategory, categoryUsecases, promoteCurrentTab],
+  );
+
+  // Review of the agent's template-kv edits (the only non-prose field the agent
+  // writes on a category). Reject writes the old value back via the usecase.
+  const fieldReview = useFieldReview(
+    'category',
+    categoryId,
+    projectId,
+    { templateKvJson: curCategory?.elementTemplateKvJson },
+    {
+      templateKvJson: (v) => {
+        if (curCategory) void categoryUsecases.updateCategory(curCategory.id, { elementTemplateKvJson: v });
+      },
+    },
   );
 
   const { ydoc } = useEntityYjsDoc({
@@ -436,11 +452,17 @@ export function CategoryEditorView({
               <span className="page__scene-meta">新元素的默认字段</span>
             </h2>
             <div className="elem-body">
+              <FieldReviewStrip
+                changes={fieldReview.templateKvChanges}
+                onAccept={fieldReview.accept}
+                onReject={fieldReview.reject}
+              />
               <KvEditor
                 key={`cat-tpl-kv-${curCategory.id}`}
                 valueJson={curCategory.elementTemplateKvJson}
                 onPersist={commitTemplateKv}
                 variant="template"
+                suppressKeys={new Set(fieldReview.templateKvChanges.map((c) => c.field?.key ?? ''))}
                 emptyHint="— 尚未定义模版字段。可添加如 别名 / 阵营 / 首次出场 等键名 —"
               />
             </div>

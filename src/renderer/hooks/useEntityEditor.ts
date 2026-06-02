@@ -1027,8 +1027,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // Only APPROVE-mode changes render the in-place diff (per-change mode);
         // auto changes reveal + apply via AgentEditAnimator instead. No global-mode
         // dependency — switching the toggle never reclassifies existing changes.
+        // Prose blocks only — `field:*` (summary/kv) changes are reviewed by the
+        // in-page field affordances, not these ProseMirror decorations.
         const approveChanges =
-          entry?.changes.filter((c) => (c.mode ?? 'approve') === 'approve') ?? [];
+          entry?.changes.filter((c) => !c.field && (c.mode ?? 'approve') === 'approve') ?? [];
         const set = approveChanges.length
           ? buildAgentDiffDecorations(editor.state.doc, approveChanges)
           : DecorationSet.empty;

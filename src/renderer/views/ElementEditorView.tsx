@@ -14,6 +14,8 @@ import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
+import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
+import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
@@ -265,6 +267,23 @@ export function ElementEditorView({
     [elementId, curElement?.kvJson, updateElement, promoteCurrentTab],
   );
 
+  // Review of the agent's non-prose field edits (summary + kv). Reject writes the
+  // old value back through the same usecase as a manual edit.
+  const fieldReview = useFieldReview(
+    'element',
+    elementId,
+    projectId ?? '',
+    { kvJson: curElement?.kvJson },
+    {
+      summary: (v) => {
+        if (elementId) void updateElement(elementId, { summary: v });
+      },
+      kvJson: (v) => {
+        if (elementId) void updateElement(elementId, { kvJson: v });
+      },
+    },
+  );
+
   const handleCreateNewCategory = async () => {
     if (!newCategoryName.trim() || !elementId) return;
     const created = await createCategory({ name: newCategoryName.trim() });
@@ -369,6 +388,9 @@ export function ElementEditorView({
 
   const currentCategory = bookElementCategories.find((cat) => cat.id === curElement.categoryId);
   const categoryColor = currentCategory?.color || 'hsl(var(--accent))';
+  // Element's summary buffer is local + only re-seeds on id change, so sync it
+  // explicitly when a summary review resolves (accept → new, reject → old).
+  const summaryReviewChange = fieldReview.summaryChange;
 
   return (
     <div className="editor-shell" style={{ height: '100%', position: 'relative' }}>
@@ -553,21 +575,35 @@ export function ElementEditorView({
                     />
                   </div>
 
-                  <textarea
-                    ref={summaryRef}
-                    className="elem-hero__summary"
-                    value={summaryValue}
-                    onChange={(e) => setSummaryValue(e.target.value)}
-                    onBlur={() => void commitSummary()}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setSummaryValue(curElement.summary || '');
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder="一句话角色说明…"
-                    rows={1}
-                  />
+                  {summaryReviewChange ? (
+                    <FieldReview
+                      change={summaryReviewChange}
+                      onAccept={() => {
+                        fieldReview.accept(summaryReviewChange);
+                        setSummaryValue(summaryReviewChange.newText);
+                      }}
+                      onReject={() => {
+                        fieldReview.reject(summaryReviewChange);
+                        setSummaryValue(summaryReviewChange.oldText);
+                      }}
+                    />
+                  ) : (
+                    <textarea
+                      ref={summaryRef}
+                      className="elem-hero__summary"
+                      value={summaryValue}
+                      onChange={(e) => setSummaryValue(e.target.value)}
+                      onBlur={() => void commitSummary()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSummaryValue(curElement.summary || '');
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder="一句话角色说明…"
+                      rows={1}
+                    />
+                  )}
 
                   {/* DEFERRED: KV facts list (alias / 类目 / 生年 / 首次出场 …)
                       Needs schema migration to add typed fields per category, plus
@@ -585,10 +621,16 @@ export function ElementEditorView({
               <span className="page__scene-meta">alias / 类目 / 生年 / 首次出场 …</span>
             </h2>
             <div className="elem-body">
+              <FieldReviewStrip
+                changes={fieldReview.kvChanges}
+                onAccept={fieldReview.accept}
+                onReject={fieldReview.reject}
+              />
               <KvEditor
                 key={`el-kv-${curElement.id}`}
                 valueJson={curElement.kvJson}
                 onPersist={commitKv}
+                suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
                 emptyHint="— 尚无字段。新建元素时若类目模版已定义，会自动填充 —"
               />
             </div>

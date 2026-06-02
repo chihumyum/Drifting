@@ -15,6 +15,8 @@ import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
+import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
+import { useFieldReview } from '../hooks/useFieldReview';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -169,6 +171,23 @@ export function StorylineEditorView({
       void storylineUsecases.updateStoryline({ id: storylineId, kvJson: nextJson });
     },
     [storylineId, currentStoryline?.kvJson, storylineUsecases, promoteCurrentTab],
+  );
+
+  // Review of the agent's non-prose field edits (summary + kv). The summary
+  // textarea reads currentSummary live when unfocused, so no buffer sync needed.
+  const fieldReview = useFieldReview(
+    'storyline',
+    storylineId,
+    projectId,
+    { kvJson: currentStoryline?.kvJson },
+    {
+      summary: (v) => {
+        if (storylineId) void storylineUsecases.updateStoryline({ id: storylineId, summary: v });
+      },
+      kvJson: (v) => {
+        if (storylineId) void storylineUsecases.updateStoryline({ id: storylineId, kvJson: v });
+      },
+    },
   );
 
   // Node-content template: TipTap doc seeded into new nodes under this
@@ -412,24 +431,32 @@ export function StorylineEditorView({
                     placeholder="Untitled storyline"
                   />
 
-                  <textarea
-                    ref={summaryRef}
-                    className="elem-hero__summary"
-                    value={displayedSummary}
-                    onFocus={() => { setSummaryDraft(currentSummary); setIsEditingSummary(true); }}
-                    onChange={(e) => setSummaryDraft(e.target.value)}
-                    onCompositionStart={() => setIsComposingSummary(true)}
-                    onCompositionEnd={(e) => { setIsComposingSummary(false); setSummaryDraft(e.currentTarget.value); }}
-                    onBlur={() => { setIsEditingSummary(false); if (!isComposingSummary) void commitSummary(); }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setSummaryDraft(currentSummary);
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    placeholder="一句话概述本线…"
-                    rows={1}
-                  />
+                  {fieldReview.summaryChange ? (
+                    <FieldReview
+                      change={fieldReview.summaryChange}
+                      onAccept={() => fieldReview.accept(fieldReview.summaryChange!)}
+                      onReject={() => fieldReview.reject(fieldReview.summaryChange!)}
+                    />
+                  ) : (
+                    <textarea
+                      ref={summaryRef}
+                      className="elem-hero__summary"
+                      value={displayedSummary}
+                      onFocus={() => { setSummaryDraft(currentSummary); setIsEditingSummary(true); }}
+                      onChange={(e) => setSummaryDraft(e.target.value)}
+                      onCompositionStart={() => setIsComposingSummary(true)}
+                      onCompositionEnd={(e) => { setIsComposingSummary(false); setSummaryDraft(e.currentTarget.value); }}
+                      onBlur={() => { setIsEditingSummary(false); if (!isComposingSummary) void commitSummary(); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSummaryDraft(currentSummary);
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder="一句话概述本线…"
+                      rows={1}
+                    />
+                  )}
 
                   <div className="elem-hero__facts">
                     <div className="elem-hero__fact-k">色标</div>
@@ -463,10 +490,16 @@ export function StorylineEditorView({
               <span className="page__scene-meta">本线的 key/value 备忘</span>
             </h2>
             <div className="elem-body">
+              <FieldReviewStrip
+                changes={fieldReview.kvChanges}
+                onAccept={fieldReview.accept}
+                onReject={fieldReview.reject}
+              />
               <KvEditor
                 key={`sl-kv-${currentStoryline.id}`}
                 valueJson={currentStoryline.kvJson}
                 onPersist={commitKv}
+                suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
                 emptyHint="— 尚无字段。新建故事线时若项目模版已定义，会自动填充 —"
               />
             </div>

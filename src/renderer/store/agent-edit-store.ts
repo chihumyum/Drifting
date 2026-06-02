@@ -23,7 +23,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { entityKey, type ActivityEntityType } from '../lib/agent/tool-entity-ref';
-import { mergeBlockChanges, type AgentBlockChange } from '../lib/agent/block-diff';
+import { mergeBlockChanges, type AgentBlockChange, type AgentFieldRef } from '../lib/agent/block-diff';
 
 export type AgentEditMode = 'auto' | 'approve';
 
@@ -53,6 +53,9 @@ export interface RevertRecord {
   /** The text the block was restored TO ('' when the rejected edit was a brand-new
    *  block that got removed). */
   restoredText: string;
+  /** Present when the rejected edit was a NON-PROSE field (summary / kv / …), so
+   *  the agent-facing revert note can name the field instead of "a paragraph". */
+  field?: AgentFieldRef;
 }
 
 interface AgentEditState {
@@ -132,7 +135,15 @@ export const useAgentEditStore = create<AgentEditState>()(
         set((s) => ({
           pendingReverts: [
             ...s.pendingReverts,
-            { projectId, entityType, id, blockId: change.blockId, op: change.op, restoredText: change.oldText },
+            {
+              projectId,
+              entityType,
+              id,
+              blockId: change.blockId,
+              op: change.op,
+              restoredText: change.oldText,
+              field: change.field,
+            },
           ],
         }));
       },

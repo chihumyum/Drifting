@@ -11,6 +11,8 @@ import {
   type EditorPersistDerived,
 } from '../../hooks/useEntityEditor';
 import { useEntityYjsDoc } from '../../hooks/useEntityYjsDoc';
+import { useFieldReview } from '../../hooks/useFieldReview';
+import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
 import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
@@ -213,6 +215,17 @@ export function ChapterEditor({
   // 概要 textarea 自动增高，去掉固定 rows 的裁切
   const summaryRef = useAutosizeTextArea(summaryValue);
 
+  // Agent summary edits surface for review here (the prop re-syncs summaryValue on
+  // accept/reject, so the textarea always reflects the store).
+  const nodeFieldReview = useFieldReview(
+    'node',
+    nodeId,
+    projectId,
+    {},
+    { summary: (v) => onSummaryUpdate?.(nodeId, v) },
+  );
+  const nodeSummaryChange = nodeFieldReview.summaryChange;
+
   if (!editor) {
     log.error('Editor not initialized');
     return null;
@@ -287,7 +300,13 @@ export function ChapterEditor({
           {/* Summary */}
           {showSummary && (
             <div data-agent-summary style={{ flex: literary ? undefined : 1 }}>
-              {editableSummary ? (
+              {nodeSummaryChange ? (
+                <FieldReview
+                  change={nodeSummaryChange}
+                  onAccept={() => nodeFieldReview.accept(nodeSummaryChange)}
+                  onReject={() => nodeFieldReview.reject(nodeSummaryChange)}
+                />
+              ) : editableSummary ? (
                 <textarea
                   ref={summaryRef}
                   value={summaryValue}

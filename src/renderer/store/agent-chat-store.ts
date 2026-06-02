@@ -162,6 +162,24 @@ function buildRevertNote(reverts: RevertRecord[]): string {
   const clamp = (t: string): string => (t.length > 200 ? `${t.slice(0, 200)}…` : t);
   const lines = reverts.map((rv) => {
     const name = `《${entityDisplayName(rv.entityType, rv.id)}》`;
+    // Non-prose field edits (summary / kv / template kv) name the field.
+    if (rv.field) {
+      const f = rv.field;
+      const fieldLabel =
+        f.kind === 'summary'
+          ? '摘要'
+          : f.kind === 'group'
+            ? '分组'
+            : f.kind === 'kv'
+              ? `字段「${f.key ?? ''}」`
+              : f.kind === 'templatekv'
+                ? `模版字段「${f.key ?? ''}」`
+                : '字段';
+      if (rv.op === 'new') return `- 你为${name}新增的${fieldLabel}已被用户撤销（删除）。`;
+      if (rv.op === 'deleted')
+        return `- 你删除的${name}的${fieldLabel}已被用户恢复为：「${clamp(rv.restoredText)}」。`;
+      return `- 你对${name}的${fieldLabel}的修改已被用户拒绝，已恢复为：「${clamp(rv.restoredText)}」。`;
+    }
     if (rv.op === 'new') return `- 你在${name}中新增的一个段落已被用户撤销（删除）。`;
     if (rv.op === 'deleted') return `- 你在${name}中删除的段落已被用户恢复为原文：「${clamp(rv.restoredText)}」。`;
     return `- 你在${name}中的一处改写已被用户拒绝，已恢复为原文：「${clamp(rv.restoredText)}」。`;

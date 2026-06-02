@@ -23,6 +23,10 @@ interface Props {
   // Whether the user can edit values. Defaults to true; pass false for
   // read-only contexts (e.g. preview of an inherited template).
   readOnly?: boolean;
+  // Keys whose rows are currently under agent-edit review (rendered as a diff in
+  // the FieldReviewStrip above) — hidden here so the diff and the applied row
+  // aren't both on screen. The row reappears once its change resolves.
+  suppressKeys?: Set<string>;
 }
 
 // Lightweight key/value table editor used wherever an entity (or template)
@@ -40,6 +44,7 @@ export function KvEditor({
   valuePlaceholder,
   emptyHint,
   readOnly = false,
+  suppressKeys,
 }: Props) {
   const initialList = parseKv(valueJson);
   const [rows, setRows] = useState<KvList>(initialList);
@@ -104,19 +109,24 @@ export function KvEditor({
       {rows.length === 0 && <div className="kv-editor__empty">{resolvedEmptyHint}</div>}
       {rows.length > 0 && (
         <div className="kv-editor__list" role="list">
-          {rows.map((row, idx) => (
-            <KvRow
-              key={idx}
-              row={row}
-              keyPlaceholder={resolvedKeyPlaceholder}
-              valuePlaceholder={resolvedValuePlaceholder}
-              readOnly={readOnly}
-              onKeyChange={(key) => handleChangeKey(idx, key)}
-              onValueChange={(value) => handleChangeValue(idx, value)}
-              onBlur={handleBlur}
-              onRemove={() => handleRemove(idx)}
-            />
-          ))}
+          {rows.map((row, idx) =>
+            // Hidden while under agent-edit review — shown as a diff in the strip
+            // above; reappears here once accepted/rejected. Index is preserved
+            // (map still walks every row) so the edit handlers stay correct.
+            suppressKeys?.has(row.key) ? null : (
+              <KvRow
+                key={idx}
+                row={row}
+                keyPlaceholder={resolvedKeyPlaceholder}
+                valuePlaceholder={resolvedValuePlaceholder}
+                readOnly={readOnly}
+                onKeyChange={(key) => handleChangeKey(idx, key)}
+                onValueChange={(value) => handleChangeValue(idx, value)}
+                onBlur={handleBlur}
+                onRemove={() => handleRemove(idx)}
+              />
+            ),
+          )}
         </div>
       )}
       {!readOnly && (

@@ -76,6 +76,11 @@ import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { eventBus } from '../events';
 import { requestAgentConfirm } from '../../store/agent-confirm-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
+import { useSettingsStore } from '../../store/settings-store';
+import type { AgentBlockChange } from './block-diff';
+import type { ActivityEntityType } from './tool-entity-ref';
+import { summaryFieldChange, kvFieldChanges } from './field-diff';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -90,6 +95,24 @@ function mergeKv(existingJson: string | null | undefined, updates: KvEntry[]): s
     map.set(u.key, u.value);
   }
   return stringifyKv([...map.entries()].map(([key, value]) => ({ key, value })));
+}
+
+/**
+ * Seed the edit-review store with the agent's NON-PROSE field edits (summary /
+ * kv / template kv), so they surface for review exactly like prose edits do
+ * (soft-approval: the write already landed; this just records what changed).
+ * Stamps the current global mode so auto/approve is frozen per-change. No-op
+ * when nothing actually changed.
+ */
+function recordFieldChanges(
+  entityType: ActivityEntityType,
+  id: string,
+  changes: AgentBlockChange[],
+): void {
+  if (changes.length === 0) return;
+  useAgentEditStore
+    .getState()
+    .record(entityType, id, changes, useSettingsStore.getState().agentEditMode);
 }
 
 /** Coerce a loose facts array (from tool args) to KvEntry[]. */
@@ -817,6 +840,8 @@ function listComments(ctx: AgentToolContext, args: Record<string, unknown>) {
 async function updateElement(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.elementId ?? '');
   if (!id) throw new Error('update_element requires elementId');
+  // Snapshot before-values so summary/kv edits can surface for review.
+  const before = useDataStore.getState().bookElements.find((e) => e.id === id);
   const updates: UpdateElementUsecaseInput = {};
   if (typeof args.name === 'string') updates.name = args.name;
   if (typeof args.summary === 'string') updates.summary = args.summary;
@@ -828,6 +853,17 @@ async function updateElement(ctx: AgentToolContext, args: Record<string, unknown
   if (typeof args.categoryId === 'string') updates.categoryId = args.categoryId;
   if (args.facts !== undefined) updates.kvJson = stringifyKv(toKvEntries(args.facts));
   await ctx.write.updateElement(id, updates);
+  // Surface summary + kv edits for in-editor review (name/aliases/category stay
+  // direct for now — the high-value canon fields are summary + facts).
+  const changes: AgentBlockChange[] = [];
+  if (updates.summary !== undefined) {
+    const c = summaryFieldChange(before?.summary, updates.summary);
+    if (c) changes.push(c);
+  }
+  if (updates.kvJson !== undefined) {
+    changes.push(...kvFieldChanges('kv', before?.kvJson, updates.kvJson));
+  }
+  recordFieldChanges('element', id, changes);
   return { ok: true, element: entityLabel(useDataStore.getState(), 'element', id) };
 }
 
@@ -1229,14 +1265,23 @@ async function createStorylineTool(ctx: AgentToolContext, args: Record<string, u
 async function updateStorylineTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.storylineId ?? '');
   if (!id) throw new Error('update_storyline requires storyline');
+  const before = useDataStore.getState().storylines.find((s) => s.id === id);
   const input: UpdateStorylineInput = { id };
   if (typeof args.name === 'string') input.name = args.name;
   if (typeof args.summary === 'string') input.summary = args.summary;
   if (args.facts !== undefined) {
-    const sl = useDataStore.getState().storylines.find((s) => s.id === id);
-    input.kvJson = mergeKv(sl?.kvJson, toKvEntries(args.facts));
+    input.kvJson = mergeKv(before?.kvJson, toKvEntries(args.facts));
   }
   await ctx.write.updateStoryline(input);
+  const changes: AgentBlockChange[] = [];
+  if (input.summary !== undefined) {
+    const c = summaryFieldChange(before?.summary, input.summary);
+    if (c) changes.push(c);
+  }
+  if (input.kvJson !== undefined) {
+    changes.push(...kvFieldChanges('kv', before?.kvJson, input.kvJson));
+  }
+  recordFieldChanges('storyline', id, changes);
   return { ok: true, storyline: entityLabel(useDataStore.getState(), 'storyline', id) };
 }
 
@@ -1275,6 +1320,11 @@ async function updateCategoryTemplate(ctx: AgentToolContext, args: Record<string
   if (!cat || cat.projectId !== ctx.projectId) throw new Error(`No category found with id "${id}"`);
   const elementTemplateKvJson = mergeKv(cat.elementTemplateKvJson, facts);
   await ctx.write.updateCategory(id, { elementTemplateKvJson });
+  recordFieldChanges(
+    'category',
+    id,
+    kvFieldChanges('templatekv', cat.elementTemplateKvJson, elementTemplateKvJson),
+  );
   return {
     ok: true,
     category: entityLabel(useDataStore.getState(), 'category', id),
@@ -1327,20 +1377,33 @@ async function setSummary(ctx: AgentToolContext, args: Record<string, unknown>) 
   const ref = String(args.target ?? args.targetId ?? '');
   if (!ref) throw new Error('set_summary requires target');
   const targetId = resolveByKind(ctx, targetKind, ref);
+  const ds = useDataStore.getState();
+  let entityType: ActivityEntityType | null = null;
+  let beforeSummary = '';
   switch (targetKind) {
     case 'node':
     case 'chapter':
     case 'drift':
+      entityType = 'node';
+      beforeSummary = ds.bookNodes.find((n) => n.id === targetId)?.summary ?? '';
       await ctx.write.updateNode(targetId, { summary });
       break;
     case 'element':
+      entityType = 'element';
+      beforeSummary = ds.bookElements.find((e) => e.id === targetId)?.summary ?? '';
       await ctx.write.updateElement(targetId, { summary });
       break;
     case 'storyline':
+      entityType = 'storyline';
+      beforeSummary = ds.storylines.find((s) => s.id === targetId)?.summary ?? '';
       await ctx.write.updateStoryline({ id: targetId, summary });
       break;
     default:
       throw new Error(`set_summary targetKind must be node/element/storyline, got "${targetKind}"`);
+  }
+  if (entityType) {
+    const c = summaryFieldChange(beforeSummary, summary);
+    if (c) recordFieldChanges(entityType, targetId, [c]);
   }
   const nk = normalizeEntityKind(targetKind) ?? targetKind;
   return { ok: true, targetKind, target: entityLabel(useDataStore.getState(), nk, targetId) };

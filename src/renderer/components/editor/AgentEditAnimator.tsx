@@ -344,7 +344,11 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // 'approve' change shows ✓/✗ — even after the toggle flips. No global read here.
   const pending = useAgentEditStore((s) => s.pending);
   const entry = id ? pending[entityKey(entityType, id)] : undefined;
-  const changes = entry?.changes ?? EMPTY;
+  const allChanges = entry?.changes ?? EMPTY;
+  // Field (summary/kv) changes are reviewed by the in-page field affordances, not
+  // this prose overlay — exclude them so we never try to anchor a `field:*` id as
+  // a prose block (which would silently grace-net-resolve it unseen).
+  const changes = useMemo(() => allChanges.filter((c) => !c.field), [allChanges]);
   const changesKey = changes.map(keyOf).join('|');
   // Default to 'approve' for an unstamped (legacy) change — safer to ask than to
   // silently auto-apply something the user never reviewed.

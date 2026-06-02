@@ -2084,6 +2084,85 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 
 /* ============================================================
+   Agent NON-PROSE field review (#3 fields) — summary / kv / template kv edits.
+   A form field can't carry ProseMirror decorations, so the change renders as a
+   PLAIN diff line (no card/border) where the field would be — red/green token
+   diff sharing the prose-reveal palette, plus a small ✓/✗ in approve mode. The
+   diff itself carries the meaning (a new kv reads as a green "key：value"), so
+   there's no explanatory label. auto mode lingers briefly then types in.
+   ============================================================ */
+.field-review-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 6px;
+}
+.field-review {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.field-review__body {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: hsl(var(--ink-2));
+}
+.field-review__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.field-review__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  color: hsl(var(--ink-4));
+}
+.field-review__btn--ok:hover {
+  background: hsl(var(--story-3) / 0.16);
+  color: hsl(var(--story-3));
+}
+.field-review__btn--no:hover {
+  background: hsl(var(--story-1) / 0.16);
+  color: hsl(var(--story-1));
+}
+/* The kv key prefix (neutral when the value merely changed; the op class tints
+   it green/red for new/deleted so the whole "key：value" reads as one diff). */
+.field-kv-key {
+  color: hsl(var(--ink-3));
+}
+/* Token diff — same red(del)/green(ins) language as the prose reveal. */
+.field-diff {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.field-diff__del {
+  color: hsl(var(--story-1));
+  background: hsl(var(--story-1) / 0.14);
+  border-radius: 2px;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.7);
+}
+.field-diff__ins {
+  color: hsl(var(--story-3));
+  background: hsl(var(--story-3) / 0.14);
+  border-radius: 2px;
+  text-decoration: none;
+}
+
+/* ============================================================
    Copilot active / stale states
    ============================================================ */
 /* Stale = past the 5s Tab-accept window. Visually receded, but mouse still

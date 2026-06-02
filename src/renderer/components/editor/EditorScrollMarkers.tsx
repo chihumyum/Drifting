@@ -67,7 +67,9 @@ export function EditorScrollMarkers({
       ? agentEntry.changes.map((c) => `${c.op}:${c.blockId}:${c.afterPrevId ?? ''}`).join('|')
       : '';
   const agentChanges = useMemo<AgentBlockChange[]>(
-    () => (showAgentTicks && agentEntry ? agentEntry.changes : []),
+    // Prose blocks only — `field:*` (summary/kv) changes have no prose anchor, so
+    // they get no scroll tick (a deleted one would otherwise pin a tick at top).
+    () => (showAgentTicks && agentEntry ? agentEntry.changes.filter((c) => !c.field) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [agentKey],
   );

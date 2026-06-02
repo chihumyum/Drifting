@@ -17,6 +17,20 @@ import { docToBlocks } from './serialize';
 
 export type AgentBlockChangeOp = 'new' | 'changed' | 'deleted';
 
+/** The structured (non-prose) field an agent edit targeted. Carried on
+ *  {@link AgentBlockChange.field} so the prose surfaces (reveal animator /
+ *  in-place decorations / scroll ticks) skip these, and the in-page field-review
+ *  affordance renders only them. When set, `blockId` is a synthetic key
+ *  (`field:summary`, `field:kv:<key>`) — never a real prose block uuid. */
+export type AgentFieldKind = 'summary' | 'kv' | 'templatekv' | 'group';
+export interface AgentFieldRef {
+  kind: AgentFieldKind;
+  /** For kv / templatekv: the row key. Undefined for summary / group. */
+  key?: string;
+  /** Human label for the review affordance header, e.g. "摘要" / a kv key. */
+  label: string;
+}
+
 export interface AgentBlockChange {
   /** Stable uuid of the block (for new blocks: the freshly minted id). */
   blockId: string;
@@ -39,6 +53,12 @@ export interface AgentBlockChange {
    * switching to approve. Absent on freshly-diffed changes (stamped on record).
    */
   mode?: 'auto' | 'approve';
+  /**
+   * Set when this change targets a structured NON-PROSE field (summary / kv /
+   * template kv), not a prose block. Prose surfaces ignore changes with `field`
+   * set; the field-review surface renders only these. See {@link AgentFieldRef}.
+   */
+  field?: AgentFieldRef;
 }
 
 /**
