@@ -10,7 +10,8 @@ import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/com
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
-import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
+import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
@@ -250,6 +251,8 @@ export function StorylineEditorView({
     text: h.text,
   }));
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  // Surface agent edits to this storyline's body (ticks + reveal/approve).
+  useAgentChangeMarks(scrollEl, 'storyline', storylineId);
   const activeOutlineId = useOutlineScrollspy(
     scrollEl,
     [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
@@ -584,10 +587,10 @@ export function StorylineEditorView({
           )}
           </div>
         </div>
-        <EditorScrollMarkers
+        <EditorReviewLayer
           projectId={projectId}
-          targetKind="storyline"
-          targetId={currentStoryline.id}
+          entityType="storyline"
+          id={currentStoryline.id}
           scrollEl={scrollEl}
         />
       </div>

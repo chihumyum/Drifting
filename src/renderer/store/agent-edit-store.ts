@@ -30,10 +30,9 @@ export type AgentEditMode = 'auto' | 'approve';
 export interface PendingEntityEdits {
   entityType: ActivityEntityType;
   id: string;
-  /** The mode in effect when these edits were recorded (so flipping the global
-   *  setting mid-run doesn't retro-reclassify edits already on screen). */
-  mode: AgentEditMode;
-  /** Outstanding (not-yet-revealed / not-yet-approved) block changes, merged. */
+  /** Outstanding (not-yet-revealed / not-yet-approved) block changes, merged.
+   *  Each change carries its OWN `mode` (stamped at record time), so flipping the
+   *  global toggle only governs future edits — see {@link AgentBlockChange.mode}. */
   changes: AgentBlockChange[];
 }
 
@@ -97,19 +96,21 @@ export const useAgentEditStore = create<AgentEditState>()(
       record: (entityType, id, changes, mode) => {
         if (changes.length === 0) return;
         const key = entityKey(entityType, id);
+        // Stamp EACH change with the mode in effect right now, so it keeps that
+        // mode for the rest of its life regardless of later toggle flips. Merging
+        // a re-edited block keeps the latest edit's mode (mergeBlockChanges spreads
+        // the incoming change).
+        const stamped = changes.map((c) => ({ ...c, mode }));
         set((s) => {
           const prev = s.pending[key];
-          const merged = prev ? mergeBlockChanges(prev.changes, changes) : changes;
+          const merged = prev ? mergeBlockChanges(prev.changes, stamped) : stamped;
           if (merged.length === 0) {
             if (!prev) return s;
             const next = { ...s.pending };
             delete next[key];
             return { pending: next };
           }
-          // Keep the mode from the first record of this run (stable through the turn).
-          return {
-            pending: { ...s.pending, [key]: { entityType, id, mode: prev?.mode ?? mode, changes: merged } },
-          };
+          return { pending: { ...s.pending, [key]: { entityType, id, changes: merged } } };
         });
       },
 

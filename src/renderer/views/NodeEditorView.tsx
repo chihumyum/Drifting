@@ -14,8 +14,7 @@ import {
 import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { CommentRail } from '../components/editor/CommentRail';
-import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
-import { AgentEditAnimator } from '../components/editor/AgentEditAnimator';
+import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
@@ -790,13 +789,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 onPendingRequestChange={setPendingComment}
               />
             )}
-            <EditorScrollMarkers
+            <EditorReviewLayer
               projectId={activeProjectId}
-              targetKind="node"
-              targetId={nodeId ?? ''}
+              entityType="node"
+              id={nodeId}
               scrollEl={scrollEl}
             />
-            <AgentEditAnimator scrollEl={scrollEl} projectId={activeProjectId} entityType="node" id={nodeId} />
           </div>
         </>
       )}

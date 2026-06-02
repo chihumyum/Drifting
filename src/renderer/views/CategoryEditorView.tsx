@@ -9,7 +9,8 @@ import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/com
 import { useSettingsStore } from '../store/settings-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
-import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
+import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
@@ -234,6 +235,8 @@ export function CategoryEditorView({
     text: h.text,
   }));
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  // Surface agent edits to this category's body (ticks + reveal/approve).
+  useAgentChangeMarks(scrollEl, 'category', categoryId);
   const activeOutlineId = useOutlineScrollspy(
     scrollEl,
     [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
@@ -529,10 +532,10 @@ export function CategoryEditorView({
           )}
           </div>
         </div>
-        <EditorScrollMarkers
+        <EditorReviewLayer
           projectId={projectId}
-          targetKind="category"
-          targetId={curCategory.id}
+          entityType="category"
+          id={curCategory.id}
           scrollEl={scrollEl}
         />
       </div>

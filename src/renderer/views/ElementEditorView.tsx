@@ -11,7 +11,7 @@ import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
-import { EditorScrollMarkers } from '../components/editor/EditorScrollMarkers';
+import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
@@ -622,10 +622,10 @@ export function ElementEditorView({
           )}
           </div>
         </div>
-        <EditorScrollMarkers
+        <EditorReviewLayer
           projectId={projectId ?? curElement.projectId}
-          targetKind="element"
-          targetId={elementId}
+          entityType="element"
+          id={elementId}
           scrollEl={scrollEl}
         />
       </div>

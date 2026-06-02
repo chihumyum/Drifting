@@ -27,7 +27,7 @@
 import * as Y from 'yjs';
 import { v7 as uuidv7 } from 'uuid';
 
-import { makeDocId } from '../yjs-doc-id';
+import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
@@ -295,40 +295,97 @@ async function writeProseDoc(
   return { contentJson, blockIds: [], changes: computeBlockChanges(beforeJson, contentJson) };
 }
 
+/** The per-entity contentJson projection cache (the seed the editor reads on an
+ *  empty doc). The node body lives in a SQLite row; element/storyline/category
+ *  bodies are on the in-memory data store. Returns null when absent. */
+async function readBodyFromStore(entityType: ProseEntityType, id: string): Promise<string | null> {
+  switch (entityType) {
+    case 'node':
+      return (await createBookContentRepository().findByNodeId(id))?.contentJson ?? null;
+    case 'element':
+      return useDataStore.getState().bookElements.find((e) => e.id === id)?.contentJson ?? null;
+    case 'storyline':
+      return useDataStore.getState().storylines.find((s) => s.id === id)?.contentJson ?? null;
+    case 'category':
+      return useDataStore.getState().bookElementCategories.find((c) => c.id === id)?.contentJson ?? null;
+  }
+}
+
 /**
- * The chapter's CURRENT prose as contentJson, read from the Yjs truth so the
- * agent sees exactly what the editor shows. Falls back to the contentJson cache
- * when the chapter has no Yjs state yet.
+ * Any prose entity's CURRENT body as contentJson, read from the Yjs truth so the
+ * agent sees exactly what the editor shows. Falls back to the supplied
+ * `fallbackContentJson` (when the caller already has it) and then the projection
+ * cache, when the entity has no Yjs state yet.
  */
+export async function getEntityContentJson(
+  entityType: ProseEntityType,
+  id: string,
+  fallbackContentJson?: string | null,
+): Promise<string> {
+  return readProseContentJson(
+    proseDocId(entityType, id),
+    async () => fallbackContentJson ?? (await readBodyFromStore(entityType, id)) ?? '{}',
+  );
+}
+
+/** Chapter (node) read — thin shim over {@link getEntityContentJson}. */
 export async function getChapterContentJson(
   nodeId: string,
   fallbackContentJson: string | null,
 ): Promise<string> {
-  return readProseContentJson(makeDocId('node-content', nodeId), async () => fallbackContentJson ?? '{}');
+  return getEntityContentJson('node', nodeId, fallbackContentJson);
 }
 
 /**
- * Apply a prose edit to a chapter through its Yjs document, keeping the
- * contentJson cache + wordCount in sync. See {@link writeProseDoc}.
+ * Refresh the materialized contentJson cache (and, for chapters, the word count)
+ * after a write, so every other reader stays consistent. Each entity type
+ * persists through its own usecase — note updateStoryline takes an OBJECT arg
+ * `{id, contentJson}`, unlike the others' `(id, updates)`.
  */
-export async function writeChapterProse(
+async function persistBody(
   ctx: AgentToolContext,
-  nodeId: string,
+  entityType: ProseEntityType,
+  id: string,
+  contentJson: string,
+): Promise<void> {
+  switch (entityType) {
+    case 'node':
+      await ctx.write.updateContentByNodeId(id, { contentJson });
+      await ctx.write.updateNode(id, { wordCount: countWordsInPmJson(contentJson) });
+      return;
+    case 'element':
+      await ctx.write.updateElement(id, { contentJson });
+      return;
+    case 'storyline':
+      await ctx.write.updateStoryline({ id, contentJson });
+      return;
+    case 'category':
+      await ctx.write.updateCategory(id, { contentJson });
+      return;
+  }
+}
+
+/**
+ * Apply a prose edit to ANY prose entity through its Yjs document, keeping the
+ * contentJson cache in sync (chapters also keep wordCount) and seeding the
+ * prose-edit review state. See {@link writeProseDoc}. This is the ONE place the
+ * heterogeneous per-entity cache dispatch + the edit-store record() live.
+ */
+export async function writeEntityProse(
+  ctx: AgentToolContext,
+  entityType: ProseEntityType,
+  id: string,
   yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
 ): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
   const { contentJson, blockIds, changes } = await writeProseDoc(
-    makeDocId('node-content', nodeId),
+    proseDocId(entityType, id),
     yMutate,
     jsonMutate,
-    async () => (await createBookContentRepository().findByNodeId(nodeId))?.contentJson ?? '{}',
+    async () => (await readBodyFromStore(entityType, id)) ?? '{}',
   );
 
-  // Refresh the materialized cache + word count so every other reader stays
-  // consistent (the live editor also does this on a debounce; a redundant write
-  // of the same value is harmless).
-  await ctx.write.updateContentByNodeId(nodeId, { contentJson });
-  await ctx.write.updateNode(nodeId, { wordCount: countWordsInPmJson(contentJson) });
+  await persistBody(ctx, entityType, id, contentJson);
 
   // Seed the prose-edit review state synchronously — before the tool result
   // round-trips back to the agent — so the colored ticks / reveal animation /
@@ -336,64 +393,64 @@ export async function writeChapterProse(
   if (changes.length) {
     useAgentEditStore
       .getState()
-      .record('node', nodeId, changes, useSettingsStore.getState().agentEditMode);
+      .record(entityType, id, changes, useSettingsStore.getState().agentEditMode);
   }
 
   return { contentJson, blockIds, changes };
 }
 
 /**
- * The element's CURRENT body as contentJson, read from the Yjs truth (elements
- * have a live editor doc too — see ElementEditorView). Falls back to the
- * element's contentJson cache from the data store when it has no Yjs state yet.
+ * Apply a prose edit to a chapter — thin shim over {@link writeEntityProse}.
  */
+export async function writeChapterProse(
+  ctx: AgentToolContext,
+  nodeId: string,
+  yMutate: (frag: Y.XmlFragment) => string[],
+  jsonMutate: (currentJson: string) => string,
+): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
+  return writeEntityProse(ctx, 'node', nodeId, yMutate, jsonMutate);
+}
+
+/** The element's CURRENT body as contentJson — thin shim over
+ *  {@link getEntityContentJson}. */
 export async function getElementContentJson(elementId: string): Promise<string> {
-  return readProseContentJson(makeDocId('element', elementId), async () => {
-    const el = useDataStore.getState().bookElements.find((e) => e.id === elementId);
-    return el?.contentJson ?? '{}';
-  });
+  return getEntityContentJson('element', elementId);
 }
 
 /**
- * Apply a body edit to an element through its Yjs document, keeping the
- * element's contentJson cache in sync. Mirrors {@link writeChapterProse} but
- * elements carry no wordCount, so only the projection cache is refreshed.
+ * Apply a body edit to an element — thin shim over {@link writeEntityProse}.
+ * Routing through the generic path means element edits now RECORD into the
+ * review store (reveal / approve / ticks) like every other prose entity, instead
+ * of silently auto-applying.
  */
 export async function writeElementProse(
   ctx: AgentToolContext,
   elementId: string,
   yMutate: (frag: Y.XmlFragment) => string[],
   jsonMutate: (currentJson: string) => string,
-): Promise<{ contentJson: string; blockIds: string[] }> {
-  const { contentJson, blockIds } = await writeProseDoc(
-    makeDocId('element', elementId),
-    yMutate,
-    jsonMutate,
-    async () => {
-      const el = useDataStore.getState().bookElements.find((e) => e.id === elementId);
-      return el?.contentJson ?? '{}';
-    },
-  );
-
-  await ctx.write.updateElement(elementId, { contentJson });
-
-  return { contentJson, blockIds };
+): Promise<{ contentJson: string; blockIds: string[]; changes: AgentBlockChange[] }> {
+  return writeEntityProse(ctx, 'element', elementId, yMutate, jsonMutate);
 }
 
 /**
- * Undo a single agent block change on a chapter (approve-mode "reject"). Applies
- * the inverse edit through the Yjs doc with a NON-agent origin, so it persists +
- * syncs like an ordinary user edit and does NOT re-record into the edit store:
+ * Undo a single agent block change on any prose entity (approve-mode "reject").
+ * Applies the inverse edit through the Yjs doc with a NON-agent origin, so it
+ * persists + syncs like an ordinary user edit and does NOT re-record into the
+ * edit store:
  *   - changed → restore the block's old text
  *   - new     → remove the block
  *   - deleted → re-insert the old text after its anchor, preserving the ORIGINAL
  *               block id so the restored block stays tracked (not a fresh uuid)
- * Live doc when the chapter is open (the usual case while reviewing); else a
- * transient doc rehydrated from SQLite.
+ * Live doc when the entity is open in an editor (the usual case while reviewing);
+ * else a transient doc rehydrated from SQLite.
  */
 const REVERT_ORIGIN = 'agent-revert';
-export async function revertNodeBlock(nodeId: string, change: AgentBlockChange): Promise<void> {
-  const docId = makeDocId('node-content', nodeId);
+export async function revertEntityBlock(
+  entityType: ProseEntityType,
+  id: string,
+  change: AgentBlockChange,
+): Promise<void> {
+  const docId = proseDocId(entityType, id);
   const mutate = (frag: Y.XmlFragment) => {
     if (change.op === 'changed') {
       yReplaceBlockText(frag, { blockId: change.blockId }, change.oldText);

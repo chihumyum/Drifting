@@ -31,6 +31,21 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
   const run = (name: string, args: Record<string, unknown>): Promise<ToolContent> =>
     callRenderer(getWindow, name, args).then(asText, asError);
 
+  // Shared target selector for the block-prose tools. Prose blocks live not only
+  // in chapters/drift nodes but also in element / storyline / category bodies —
+  // pass `kind` to address those; it defaults to node (chapter/drift). `entity`
+  // is the project-unique NAME. (The handler also accepts the legacy `node`
+  // spelling for back-compat.)
+  const proseTarget = {
+    kind: z
+      .string()
+      .optional()
+      .describe('Entity kind to edit: node (chapter/drift — the default) | element | storyline | category'),
+    entity: z
+      .string()
+      .describe('Entity NAME: the chapter/drift, element, storyline, or category to read/edit'),
+  };
+
   return createSdkMcpServer({
     name: 'drifting',
     tools: [
@@ -48,8 +63,8 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_node',
-        "Read a chapter/drift node's prose as a compact numbered list: a header line (title · status · words), a summary line, an `appears:` line naming the elements/entities mentioned in this node, then one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote). Pass the leading number <n> to edit_block to edit that block.",
-        { node: z.string().describe('Node NAME (chapter or drift)') },
+        "Read a prose body as a compact numbered list, one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote); pass the leading number <n> to edit_block. For a chapter/drift node it also prefixes a header line (title · status · words), a summary line, and an `appears:` line of the elements mentioned. Set `kind` to read an element / storyline / category body instead (body-only, no header).",
+        { ...proseTarget },
         (args) => run('read_node', args),
       ),
       tool(
@@ -146,9 +161,9 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_block',
-        "Read the CURRENT (live) text of one prose block by its uuid — e.g. a TODO's targetBlockId from list_comments. Returns {found, block (1-based number), type, text} so you can then edit_block it. Returns {found:false} if that block was since deleted.",
+        "Read the CURRENT (live) text of one prose block by its uuid — e.g. a TODO's targetBlockId from list_comments. Returns {found, block (1-based number), type, text} so you can then edit_block it. Returns {found:false} if that block was since deleted. Set `kind` for an element/storyline/category block.",
         {
-          node: z.string().describe("The node NAME (a comment's `target`)"),
+          ...proseTarget,
           blockId: z.string().describe("The block uuid (e.g. a comment's targetBlockId)"),
         },
         (args) => run('read_block', args),
@@ -172,13 +187,16 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         (args) => run('update_element', args),
       ),
       tool(
-        'set_element_body',
-        "Replace an element's BODY/profile prose (the long-form description under a character / place / item — distinct from its one-line `summary` and its kv `facts`). Pass the full new body as plain text; blank lines separate paragraphs. Read the current body first with read_element. Inline formatting is dropped; this overwrites the whole body, so include everything you want to keep.",
+        'set_entity_body',
+        "Replace the ENTIRE body/profile prose of an element, storyline, or category (the long-form description — distinct from an element's one-line `summary` and its kv `facts`). Pass the full new body as plain text; blank lines separate paragraphs. Read the current body first (read_element, or read_node with the matching kind). Inline formatting is dropped; this overwrites the whole body, so include everything you want to keep. NOT for chapters/drift — use the block tools there. For surgical edits to a LONG body prefer the block tools (edit_block / insert_blocks); a whole-body replace marks every paragraph changed.",
         {
-          element: z.string().describe('Element NAME'),
+          kind: z
+            .string()
+            .describe('Entity kind: element | storyline | category (NOT node — use the block tools for chapters)'),
+          entity: z.string().describe('Entity NAME'),
           body: z.string().describe('The full new body text (replaces the existing body)'),
         },
-        (args) => run('set_element_body', args),
+        (args) => run('set_entity_body', args),
       ),
       tool(
         'create_element',
@@ -209,9 +227,9 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_block',
-        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_node / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same node, use edit_blocks instead (atomic). Inline formatting in that block is dropped. Edits apply to the node live — if it is open in the editor, the change appears immediately.',
+        'Replace the text of ONE prose block, keeping it in place. Address it by its number (from read_node / search_prose) via `block`, or by uuid via `blockId` (e.g. from where_does_entity_appear). To change several blocks in the same entity, use edit_blocks instead (atomic). Inline formatting in that block is dropped. Edits apply live — if the entity is open in the editor, the change appears immediately. Works on element/storyline/category bodies too — set `kind`.',
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           block: z.number().optional().describe('1-based block number from read_node'),
           blockId: z.string().optional().describe('uuid block id (alternative to block)'),
           text: z.string(),
@@ -220,9 +238,9 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'edit_blocks',
-        'Replace the text of SEVERAL prose blocks in one node atomically (one read-modify-write — safe against clobbering, one round-trip). Use this instead of multiple edit_block calls on the same node. Each edit addresses a block by `block` (number) or `blockId` (uuid). Block numbers refer to read_node and stay valid across the batch.',
+        'Replace the text of SEVERAL prose blocks in one entity atomically (one read-modify-write — safe against clobbering, one round-trip). Use this instead of multiple edit_block calls on the same entity. Each edit addresses a block by `block` (number) or `blockId` (uuid). Block numbers refer to read_node and stay valid across the batch. Set `kind` for an element/storyline/category body.',
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           edits: z
             .array(
               z.object({
@@ -237,15 +255,15 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'append_paragraph',
-        'Append a new paragraph to the end of a chapter/drift node.',
-        { node: z.string().describe('Node NAME (chapter or drift)'), text: z.string() },
+        'Append a new paragraph to the end of a prose body (chapter/drift node by default; set `kind` for an element/storyline/category body).',
+        { ...proseTarget, text: z.string() },
         (args) => run('append_paragraph', args),
       ),
       tool(
         'lookup_block',
-        "Find a prose block's stable uuid `blockId` by its 1-based number and/or a substring of its text. Use this to get the blockId needed by the structural tools below (remove_blocks / replace_block_range / insert_blocks), since read_node's numbers shift once blocks are added or removed. Returns matches as {blockId, block, type, snippet}.",
+        "Find a prose block's stable uuid `blockId` by its 1-based number and/or a substring of its text. Use this to get the blockId needed by the structural tools below (remove_blocks / replace_block_range / insert_blocks), since read_node's numbers shift once blocks are added or removed. Returns matches as {blockId, block, type, snippet}. Set `kind` for an element/storyline/category body.",
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           ordinal: z.number().optional().describe('1-based block number from read_node'),
           contains: z.string().optional().describe('case-insensitive substring of the block text'),
         },
@@ -253,18 +271,18 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'remove_blocks',
-        'Delete one or more prose blocks from a chapter/drift node. Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
+        'Delete one or more prose blocks from a prose body (chapter/drift by default; set `kind` for an element/storyline/category body). Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           blockIds: z.array(z.string()).describe('uuid block ids to delete'),
         },
         (args) => run('remove_blocks', args),
       ),
       tool(
         'replace_block_range',
-        'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids.',
+        'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids. Set `kind` for an element/storyline/category body.',
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           fromBlockId: z.string().describe('uuid of the first block in the range'),
           toBlockId: z.string().describe('uuid of the last block in the range (may equal fromBlockId)'),
           blocks: z.array(z.string()).describe('replacement paragraphs, one string each'),
@@ -273,9 +291,9 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'insert_blocks',
-        'Insert new paragraphs into a chapter/drift node after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph.',
+        'Insert new paragraphs into a prose body after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph. Chapter/drift by default; set `kind` for an element/storyline/category body.',
         {
-          node: z.string().describe('Node NAME (chapter or drift)'),
+          ...proseTarget,
           afterBlockId: z
             .string()
             .optional()

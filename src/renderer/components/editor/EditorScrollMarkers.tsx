@@ -3,6 +3,7 @@ import type { CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
+import { isProseEntityType } from '../../lib/yjs-doc-id';
 import type { AgentBlockChange } from '../../lib/agent/block-diff';
 
 /**
@@ -52,13 +53,13 @@ export function EditorScrollMarkers({
   targetId,
 }: EditorScrollMarkersProps) {
   const comments = useDataStore((s) => s.comments);
-  // Agent-changed blocks for this entity (node only). Colored by op — new
-  // (green) / changed (blue) / deleted (red). Shown in BOTH modes so pending
-  // edits are findable in a long chapter: in auto a tick drops once its reveal
-  // has played; in approve once the block is approved/rejected — either way when
-  // the edit-store entry clears.
+  // Agent-changed blocks for this entity (any prose entity — node / element /
+  // storyline / category). Colored by op — new (green) / changed (blue) /
+  // deleted (red). Shown in BOTH modes so pending edits are findable in a long
+  // body: in auto a tick drops once its reveal has played; in approve once the
+  // block is approved/rejected — either way when the edit-store entry clears.
   const pending = useAgentEditStore((s) => s.pending);
-  const agentEntry = targetKind === 'node' ? pending[entityKey('node', targetId)] : undefined;
+  const agentEntry = isProseEntityType(targetKind) ? pending[entityKey(targetKind, targetId)] : undefined;
   const showAgentTicks = !!agentEntry;
   // Stable key so the recompute effect only churns when the change set shifts.
   const agentKey =

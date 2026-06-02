@@ -61,9 +61,9 @@ import {
   makeParagraphBlock,
 } from './serialize';
 import {
-  writeChapterProse,
   getChapterContentJson,
-  writeElementProse,
+  writeEntityProse,
+  getEntityContentJson,
   getElementContentJson,
   yReplaceBlockText,
   yRemoveBlocks,
@@ -72,6 +72,7 @@ import {
   yAppendParagraph,
   yReplaceAllParagraphs,
 } from './chapter-prose';
+import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -292,6 +293,46 @@ function resolveArgsRefs(ctx: AgentToolContext, args: Record<string, unknown>): 
   return out;
 }
 
+/** First non-empty string among `fields` on `args`. */
+function firstRef(args: Record<string, unknown>, fields: string[]): string | undefined {
+  for (const f of fields) {
+    const v = args[f];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the prose entity a block tool targets, from a `kind` selector (node —
+ * default — / element / storyline / category) + an `entity` NAME (or id). The
+ * neutral `entity` arg is preferred; the legacy kind-specific spellings
+ * (node/chapter/element/… and their pre-resolved *Id forms) are accepted for
+ * back-compat. resolveRef is idempotent on ids, so re-resolving a resolved id is
+ * a no-op.
+ */
+function resolveProseTarget(
+  ctx: AgentToolContext,
+  args: Record<string, unknown>,
+): { entityType: ProseEntityType; id: string } {
+  const rawKind = typeof args.kind === 'string' ? args.kind : 'node';
+  const entityType = normalizeEntityKind(rawKind);
+  if (!entityType) throw new Error(`unknown kind "${rawKind}" (use node | element | storyline | category)`);
+  const ref = firstRef(args, [
+    'entity', 'node', 'chapter', 'element', 'storyline', 'category',
+    'nodeId', 'elementId', 'storylineId', 'categoryId',
+  ]);
+  if (!ref) throw new Error('missing entity reference (name or id)');
+  return { entityType, id: resolveRef(ctx, entityType, ref) };
+}
+
+/** The entity descriptor a prose tool reports in its result. Keeps the legacy
+ *  `node` key for chapters (byte-identical result); other kinds report
+ *  `{entity, entityType}`. */
+function proseEntityResult(entityType: ProseEntityType, id: string): Record<string, string> {
+  const label = entityLabel(useDataStore.getState(), entityType, id);
+  return entityType === 'node' ? { node: label } : { entity: label, entityType };
+}
+
 /**
  * The structural entities (elements / nodes / storylines …) a chapter references
  * in its prose, deduped by `${kind}:${id}`. Derived from the inline-mention
@@ -334,6 +375,22 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
     : 'appears: (none recorded)';
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
+}
+
+/**
+ * read_node, generalized over prose entities. A chapter/drift node keeps the
+ * rich numbered view (header · summary · appears); element / storyline /
+ * category get a body-only numbered view — they have no writingStatus / word
+ * count / inline-mention projection, so emitting those lines would be misleading.
+ */
+async function readEntityBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const { entityType, id } = resolveProseTarget(ctx, args);
+  if (entityType === 'node') return readChapter(ctx, id);
+  const truthJson = await getEntityContentJson(entityType, id);
+  const blocks = docToBlocks(truthJson);
+  const label = entityLabel(useDataStore.getState(), entityType, id);
+  const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
+  return `${entityType} "${label}"\n\n${body}`;
 }
 
 async function readElement(ctx: AgentToolContext, elementId: string) {
@@ -783,15 +840,20 @@ async function createElement(ctx: AgentToolContext, args: Record<string, unknown
  * the live Yjs doc (see writeElementProse) so an open element editor reflects it
  * immediately instead of clobbering it. Blank lines split paragraphs.
  */
-async function setElementBody(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const id = String(args.elementId ?? '');
-  if (!id) throw new Error('set_element_body requires element');
+async function setEntityBody(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const { entityType, id } = resolveProseTarget(ctx, args);
+  if (entityType === 'node') {
+    throw new Error(
+      'set_entity_body is for element / storyline / category bodies — use the block tools (edit_block / replace_block_range / insert_blocks) for chapter/drift prose so edits stay diffable',
+    );
+  }
   const paras = String(args.body ?? '')
     .split(/\n+/)
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
-  await writeElementProse(
+  await writeEntityProse(
     ctx,
+    entityType,
     id,
     (frag) => yReplaceAllParagraphs(frag, paras),
     () =>
@@ -800,7 +862,7 @@ async function setElementBody(ctx: AgentToolContext, args: Record<string, unknow
         content: (paras.length ? paras : ['']).map(makeParagraphBlock),
       }),
   );
-  return { ok: true, element: entityLabel(useDataStore.getState(), 'element', id) };
+  return { ok: true, ...proseEntityResult(entityType, id) };
 }
 
 async function renameChapter(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -819,14 +881,15 @@ async function setNodeSummary(ctx: AgentToolContext, args: Record<string, unknow
   return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId) };
 }
 
-// Per-node serialization for prose read-modify-write. Editing a block reads the
-// whole doc, mutates it, and writes it all back; if two such ops on the SAME
-// node interleave (the model can fire parallel tool calls and the bridge runs
+// Per-entity serialization for prose read-modify-write. Editing a block reads
+// the whole doc, mutates it, and writes it all back; if two such ops on the SAME
+// entity interleave (the model can fire parallel tool calls and the bridge runs
 // them concurrently) the second write clobbers the first. We chain ops per
-// nodeId so each one reads the previous one's persisted result.
+// prose docId (proseDocId(entityType,id)) so each one reads the previous one's
+// persisted result — and so different entities never serialize against each other.
 const contentWriteChains = new Map<string, Promise<unknown>>();
-function withNodeContentLock<T>(nodeId: string, fn: () => Promise<T>): Promise<T> {
-  const prev = contentWriteChains.get(nodeId) ?? Promise.resolve();
+function withProseLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
+  const prev = contentWriteChains.get(lockKey) ?? Promise.resolve();
   // Run fn after the previous op settles (success OR failure — a prior error
   // must not wedge the chain).
   const run = prev.then(
@@ -835,7 +898,7 @@ function withNodeContentLock<T>(nodeId: string, fn: () => Promise<T>): Promise<T
   );
   // Stored tail swallows errors so the next waiter isn't rejected by this one.
   contentWriteChains.set(
-    nodeId,
+    lockKey,
     run.then(
       () => undefined,
       () => undefined,
@@ -865,20 +928,20 @@ function parseBlockEdit(edit: {
 }
 
 async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('edit_block requires nodeId');
+  const { entityType, id } = resolveProseTarget(ctx, args);
   const { target, text, label } = parseBlockEdit(args);
-  return withNodeContentLock(nodeId, async () => {
-    const { blockIds } = await writeChapterProse(
+  return withProseLock(proseDocId(entityType, id), async () => {
+    const { blockIds } = await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => [yReplaceBlockText(frag, target, text)],
       (json) =>
         target.blockId
           ? replaceBlockText(json, target.blockId, text)
           : replaceBlockByIndex(json, target.block as number, text),
     );
-    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), block: label, blockIds };
+    return { ok: true, ...proseEntityResult(entityType, id), block: label, blockIds };
   });
 }
 
@@ -888,15 +951,15 @@ async function editBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
  * (edits only replace text, never add/remove blocks).
  */
 async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('edit_blocks requires nodeId');
+  const { entityType, id } = resolveProseTarget(ctx, args);
   const edits = Array.isArray(args.edits) ? (args.edits as Record<string, unknown>[]) : [];
   if (edits.length === 0) throw new Error('edit_blocks requires a non-empty edits array');
   const parsed = edits.map(parseBlockEdit);
-  return withNodeContentLock(nodeId, async () => {
-    const { blockIds } = await writeChapterProse(
+  return withProseLock(proseDocId(entityType, id), async () => {
+    const { blockIds } = await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => parsed.map((e) => yReplaceBlockText(frag, e.target, e.text)),
       (json) => {
         let j = json;
@@ -910,7 +973,7 @@ async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) 
     );
     return {
       ok: true,
-      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      ...proseEntityResult(entityType, id),
       edited: parsed.map((e) => e.label),
       blockIds,
     };
@@ -918,28 +981,28 @@ async function editBlocks(ctx: AgentToolContext, args: Record<string, unknown>) 
 }
 
 async function appendParagraphTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
   const text = String(args.text ?? '');
-  if (!nodeId || !text) throw new Error('append_paragraph requires node and text');
-  return withNodeContentLock(nodeId, async () => {
-    const { blockIds } = await writeChapterProse(
+  if (!text) throw new Error('append_paragraph requires text');
+  const { entityType, id } = resolveProseTarget(ctx, args);
+  return withProseLock(proseDocId(entityType, id), async () => {
+    const { blockIds } = await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => [yAppendParagraph(frag, text)],
       (json) => appendParagraph(json, text),
     );
-    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), blockIds };
+    return { ok: true, ...proseEntityResult(entityType, id), blockIds };
   });
 }
 
 // ---- structural block edits (add/remove blocks — id-addressed only) --------
 
-async function readBlock(args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
+async function readBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
   const blockId = String(args.blockId ?? '');
-  if (!nodeId || !blockId) throw new Error('read_block requires node and blockId');
-  const content = await createBookContentRepository().findByNodeId(nodeId);
-  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  if (!blockId) throw new Error('read_block requires blockId');
+  const { entityType, id } = resolveProseTarget(ctx, args);
+  const truthJson = await getEntityContentJson(entityType, id);
   const blocks = docToBlocks(truthJson);
   const idx = blocks.findIndex((b) => b.blockId === blockId);
   if (idx < 0) return { blockId, found: false };
@@ -947,9 +1010,8 @@ async function readBlock(args: Record<string, unknown>) {
   return { blockId, found: true, block: idx + 1, type: b.type, text: b.text };
 }
 
-async function lookupBlock(args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('lookup_block requires node');
+async function lookupBlock(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const { entityType, id } = resolveProseTarget(ctx, args);
   const ordinalRaw = args.ordinal;
   const ordinal =
     ordinalRaw === undefined || ordinalRaw === null || ordinalRaw === ''
@@ -959,51 +1021,51 @@ async function lookupBlock(args: Record<string, unknown>) {
   if (ordinal === undefined && !contains) {
     throw new Error('lookup_block requires ordinal and/or contains');
   }
-  const content = await createBookContentRepository().findByNodeId(nodeId);
-  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  const truthJson = await getEntityContentJson(entityType, id);
   return {
-    node: entityLabel(useDataStore.getState(), 'node', nodeId),
+    ...proseEntityResult(entityType, id),
     matches: findBlocks(truthJson, { ordinal, contains }),
   };
 }
 
 async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('remove_blocks requires nodeId');
+  const { entityType, id } = resolveProseTarget(ctx, args);
   const blockIds = Array.isArray(args.blockIds) ? args.blockIds.map((b) => String(b)) : [];
   if (blockIds.length === 0) throw new Error('remove_blocks requires a non-empty blockIds array');
-  return withNodeContentLock(nodeId, async () => {
-    await writeChapterProse(
+  return withProseLock(proseDocId(entityType, id), async () => {
+    await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => {
         yRemoveBlocks(frag, blockIds);
         return []; // removed blocks have no surviving anchor — tracked as structural
       },
       (json) => removeBlocks(json, blockIds),
     );
-    return { ok: true, node: entityLabel(useDataStore.getState(), 'node', nodeId), removed: blockIds };
+    return { ok: true, ...proseEntityResult(entityType, id), removed: blockIds };
   });
 }
 
 async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
   const fromBlockId = String(args.fromBlockId ?? '');
   const toBlockId = String(args.toBlockId ?? '');
-  if (!nodeId || !fromBlockId || !toBlockId) {
-    throw new Error('replace_block_range requires nodeId, fromBlockId and toBlockId');
+  if (!fromBlockId || !toBlockId) {
+    throw new Error('replace_block_range requires fromBlockId and toBlockId');
   }
+  const { entityType, id } = resolveProseTarget(ctx, args);
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
-  return withNodeContentLock(nodeId, async () => {
-    const { blockIds } = await writeChapterProse(
+  return withProseLock(proseDocId(entityType, id), async () => {
+    const { blockIds } = await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => yReplaceBlockRange(frag, fromBlockId, toBlockId, texts),
       (json) => replaceBlockRange(json, fromBlockId, toBlockId, texts),
     );
     return {
       ok: true,
-      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      ...proseEntityResult(entityType, id),
       replaced: { from: fromBlockId, to: toBlockId, with: texts.length },
       blockIds,
     };
@@ -1011,24 +1073,24 @@ async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string,
 }
 
 async function insertBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const nodeId = String(args.nodeId ?? '');
-  if (!nodeId) throw new Error('insert_blocks requires nodeId');
   const afterBlockId =
     args.afterBlockId === undefined || args.afterBlockId === null || args.afterBlockId === ''
       ? null
       : String(args.afterBlockId);
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
   if (texts.length === 0) throw new Error('insert_blocks requires a non-empty blocks array');
-  return withNodeContentLock(nodeId, async () => {
-    const { blockIds } = await writeChapterProse(
+  const { entityType, id } = resolveProseTarget(ctx, args);
+  return withProseLock(proseDocId(entityType, id), async () => {
+    const { blockIds } = await writeEntityProse(
       ctx,
-      nodeId,
+      entityType,
+      id,
       (frag) => yInsertBlocks(frag, afterBlockId, texts),
       (json) => insertBlocks(json, afterBlockId, texts),
     );
     return {
       ok: true,
-      node: entityLabel(useDataStore.getState(), 'node', nodeId),
+      ...proseEntityResult(entityType, id),
       inserted: texts.length,
       after: afterBlockId,
       blockIds,
@@ -1407,7 +1469,7 @@ export async function runAgentTool(
     case 'list_elements':
       return listElements(ctx);
     case 'read_node':
-      return readChapter(ctx, String(args.nodeId ?? ''));
+      return readEntityBlocks(ctx, args);
     case 'read_element':
       return readElement(ctx, String(args.elementId ?? ''));
     case 'search_project':
@@ -1434,8 +1496,10 @@ export async function runAgentTool(
     // writes
     case 'update_element':
       return updateElement(ctx, args);
-    case 'set_element_body':
-      return setElementBody(ctx, args);
+    case 'set_entity_body':
+      return setEntityBody(ctx, args);
+    case 'set_element_body': // deprecated alias — element-only
+      return setEntityBody(ctx, { ...args, kind: 'element' });
     case 'create_element':
       return createElement(ctx, args);
     case 'rename_node':
@@ -1449,9 +1513,9 @@ export async function runAgentTool(
     case 'append_paragraph':
       return appendParagraphTool(ctx, args);
     case 'read_block':
-      return readBlock(args);
+      return readBlock(ctx, args);
     case 'lookup_block':
-      return lookupBlock(args);
+      return lookupBlock(ctx, args);
     case 'remove_blocks':
       return removeBlocksTool(ctx, args);
     case 'replace_block_range':

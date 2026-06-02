@@ -31,6 +31,14 @@ export interface AgentBlockChange {
    * that still exists after the edit — the anchor the deletion ghost hangs under.
    */
   afterPrevId: string | null;
+  /**
+   * The review mode in effect when this change was RECORDED (stamped by the edit
+   * store, not computeBlockChanges). Carried per-change so flipping the global
+   * toggle only governs FUTURE edits: an 'approve' change keeps its ✓/✗ even
+   * after switching to auto, and an 'auto' change reveals + applies even after
+   * switching to approve. Absent on freshly-diffed changes (stamped on record).
+   */
+  mode?: 'auto' | 'approve';
 }
 
 /**

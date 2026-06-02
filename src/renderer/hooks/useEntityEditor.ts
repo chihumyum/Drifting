@@ -22,6 +22,7 @@ import {
 } from '../lib/extensions/agent-diff-decoration';
 import { useAgentEditStore } from '../store/agent-edit-store';
 import { entityKey } from '../lib/agent/tool-entity-ref';
+import { isProseEntityType } from '../lib/yjs-doc-id';
 import {
   EntityLink,
   EntityLinkDanglingPluginKey,
@@ -1010,26 +1011,27 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     }
   }, [autoElementLinkEnabled, autoDetectTargets, entityLinkInteractive, trashedEntityIds, editor]);
 
-  // Agent-edit diff decorations (#3, approve mode). Node editors only. Recomputed
-  // from the edit store + edit-mode setting and pushed into the doc via meta, so
-  // the diff renders IN PLACE (reflows + scrolls with the prose, no overlay). The
-  // `update` listener re-runs it after content load and after any edit (positions
-  // shift); a meta-only dispatch makes no doc change, so it can't loop.
+  // Agent-edit diff decorations (#3, approve mode). Any prose editor (node /
+  // element / storyline / category). Recomputed from the edit store + edit-mode
+  // setting and pushed into the doc via meta, so the diff renders IN PLACE
+  // (reflows + scrolls with the prose, no overlay). The `update` listener re-runs
+  // it after content load and after any edit (positions shift); a meta-only
+  // dispatch makes no doc change, so it can't loop.
   useEffect(() => {
-    if (!editor || editor.isDestroyed || sourceKind !== 'node') return undefined;
-    const nodeId = sourceId;
+    if (!editor || editor.isDestroyed || !isProseEntityType(sourceKind)) return undefined;
+    const entityType = sourceKind;
     const recompute = () => {
       if (editor.isDestroyed) return;
       try {
-        const entry = useAgentEditStore.getState().pending[entityKey('node', nodeId)];
-        // Use the mode frozen on the entry (not the live global), so flipping the
-        // toggle mid-review doesn't add/remove in-place diff decorations for edits
-        // already recorded — matches AgentEditAnimator.
-        const mode = entry?.mode ?? useSettingsStore.getState().agentEditMode;
-        const set =
-          mode === 'approve' && entry && entry.changes.length
-            ? buildAgentDiffDecorations(editor.state.doc, entry.changes)
-            : DecorationSet.empty;
+        const entry = useAgentEditStore.getState().pending[entityKey(entityType, sourceId)];
+        // Only APPROVE-mode changes render the in-place diff (per-change mode);
+        // auto changes reveal + apply via AgentEditAnimator instead. No global-mode
+        // dependency — switching the toggle never reclassifies existing changes.
+        const approveChanges =
+          entry?.changes.filter((c) => (c.mode ?? 'approve') === 'approve') ?? [];
+        const set = approveChanges.length
+          ? buildAgentDiffDecorations(editor.state.doc, approveChanges)
+          : DecorationSet.empty;
         editor.view.dispatch(editor.state.tr.setMeta(AgentDiffPluginKey, set));
       } catch (error) {
         log.warn('Failed to build agent diff decorations:', error);
@@ -1037,11 +1039,9 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     };
     recompute();
     const unsubEdit = useAgentEditStore.subscribe(recompute);
-    const unsubSettings = useSettingsStore.subscribe(recompute);
     editor.on('update', recompute);
     return () => {
       unsubEdit();
-      unsubSettings();
       editor.off('update', recompute);
     };
   }, [editor, sourceKind, sourceId]);

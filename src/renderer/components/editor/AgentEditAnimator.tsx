@@ -11,10 +11,9 @@ import { createPortal } from 'react-dom';
 import { Check, X } from 'lucide-react';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
-import { useSettingsStore } from '../../store/settings-store';
 import { entityKey, type ActivityEntityType } from '../../lib/agent/tool-entity-ref';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
-import { revertNodeBlock } from '../../lib/agent/chapter-prose';
+import { revertEntityBlock } from '../../lib/agent/chapter-prose';
 
 /**
  * Agent prose-edit reveal layer (#3 / #4). Renders OVER the manuscript (a fixed
@@ -34,12 +33,11 @@ import { revertNodeBlock } from '../../lib/agent/chapter-prose';
  *                  Scrollbar ticks still show (BOTH modes) so pending edits stay
  *                  findable in a long chapter — see EditorScrollMarkers.
  *
- * The mode that governs a given entity's review is the one FROZEN when its edits
- * were recorded (PendingEntityEdits.mode), not the live global setting — flipping
- * the toggle mid-review must not retro-reclassify edits already on screen.
+ * The live GLOBAL `agentEditMode` governs behavior (the toggle is authoritative):
+ * switching to auto auto-applies pending edits, switching to approve surfaces ✓/✗.
  *
  * Pure UI: the entity content already holds the agent's edit. Nothing here writes
- * the doc except an explicit ✗ (reject), which calls revertNodeBlock.
+ * the doc except an explicit ✗ (reject), which calls revertEntityBlock.
  */
 interface AgentEditAnimatorProps {
   scrollEl: HTMLElement | null;
@@ -68,7 +66,13 @@ const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}
  *  its surviving predecessor (or the first block when it led the chapter). */
 function anchorEl(scrollEl: HTMLElement, c: AgentBlockChange): HTMLElement | null {
   if (c.op === 'deleted') {
-    if (c.afterPrevId) return scrollEl.querySelector(sel(c.afterPrevId));
+    // Hang on the surviving predecessor — but fall back to the page's first block
+    // when that predecessor is itself gone (adjacent deletions / whole-body
+    // rewrites), so the reveal / ✓✗ stays reachable instead of getting stuck.
+    if (c.afterPrevId) {
+      const prev = scrollEl.querySelector(sel(c.afterPrevId)) as HTMLElement | null;
+      if (prev) return prev;
+    }
     const page = scrollEl.querySelector('.page');
     return (page?.firstElementChild as HTMLElement | null) ?? null;
   }
@@ -335,15 +339,20 @@ function ApproveControl({
 const EMPTY: AgentBlockChange[] = [];
 
 export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: AgentEditAnimatorProps) {
-  const globalEditMode = useSettingsStore((s) => s.agentEditMode);
+  // Each change carries its OWN mode (stamped at record time), so the global
+  // toggle only governs future edits: an 'auto' change reveals + auto-applies, an
+  // 'approve' change shows ✓/✗ — even after the toggle flips. No global read here.
   const pending = useAgentEditStore((s) => s.pending);
   const entry = id ? pending[entityKey(entityType, id)] : undefined;
   const changes = entry?.changes ?? EMPTY;
-  // Use the mode FROZEN on this entry, not the live global setting, so flipping
-  // the toggle mid-review doesn't reclassify edits already on screen. Falls back
-  // to the global only when there's no entry (nothing to render anyway).
-  const editMode = entry?.mode ?? globalEditMode;
   const changesKey = changes.map(keyOf).join('|');
+  // Default to 'approve' for an unstamped (legacy) change — safer to ask than to
+  // silently auto-apply something the user never reviewed.
+  const autoChanges = useMemo(() => changes.filter((c) => (c.mode ?? 'approve') === 'auto'), [changes]);
+  const approveChanges = useMemo(
+    () => changes.filter((c) => (c.mode ?? 'approve') === 'approve'),
+    [changes],
+  );
 
   // Auto mode: every change currently playing its reveal, keyed. CONCURRENT —
   // each fires the moment it enters the viewport, not serially. Held as captured
@@ -381,7 +390,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   // LATER — so the anchor isn't there on the first pass, and without this the
   // reveal would never fire (tick stuck).
   useEffect(() => {
-    if (editMode !== 'auto' || !scrollEl || !id || changes.length === 0) return undefined;
+    if (!scrollEl || !id || autoChanges.length === 0) return undefined;
 
     const byEl = new Map<Element, AgentBlockChange>();
     const wired = new Set<string>(); // change keys already attached to the IO
@@ -400,9 +409,10 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
       { root: scrollEl, threshold: [0, 0.35, 1] },
     );
 
-    // Attach any pending block whose anchor is now in the DOM but not yet observed.
+    // Attach any pending AUTO block whose anchor is now in the DOM but not yet
+    // observed (approve-mode changes wait for an explicit ✓/✗ instead).
     const wire = () => {
-      for (const c of changes) {
+      for (const c of autoChanges) {
         const k = keyOf(c);
         if (wired.has(k)) continue;
         const el = anchorEl(scrollEl, c);
@@ -430,7 +440,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
       mo.disconnect();
       if (raf) window.cancelAnimationFrame(raf);
     };
-  }, [editMode, scrollEl, id, changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scrollEl, id, changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clip the overlay layer to the editor's scroll viewport, so a reveal/control
   // anchored to a block scrolled near the bottom doesn't spill over the
@@ -459,18 +469,18 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     };
   }, [scrollEl, hasLayer]);
 
-  // Safety net (AUTO mode only): a change we can never anchor (block didn't
-  // render) clears after a grace period so its tick / "M" can't get stuck. In
-  // APPROVE mode this must NOT run — resolving an un-anchored block would silently
-  // ACCEPT an edit the user never approved; instead it stays pending until the
-  // user scrolls it into view and clicks ✓/✗.
+  // Safety net (per-change, AUTO changes only): an auto change we can never anchor
+  // (block didn't render) clears after a grace period so its tick / "M" can't get
+  // stuck. An APPROVE change is never auto-resolved here — that would silently
+  // ACCEPT an edit the user never approved; it stays pending until the user
+  // scrolls it into view and clicks ✓/✗.
   useEffect(() => {
-    if (editMode !== 'auto' || !scrollEl || !id || changes.length === 0) return;
+    if (!scrollEl || !id || autoChanges.length === 0) return;
     const t = window.setTimeout(() => {
-      for (const c of changes) if (!anchorEl(scrollEl, c)) resolve(c);
+      for (const c of autoChanges) if (!anchorEl(scrollEl, c)) resolve(c);
     }, ANCHOR_GRACE_MS);
     return () => window.clearTimeout(t);
-  }, [editMode, scrollEl, id, changesKey, resolve]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scrollEl, id, changesKey, resolve]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep rendering while a reveal (auto) or commit (approve) is in flight even
   // after its change resolves out of the store — otherwise the overlay would
@@ -479,10 +489,10 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
 
   return createPortal(
     <div ref={layerRef} className="agent-edit-layer">
-      {/* Auto: every change in the viewport plays its reveal concurrently.
-          Rendered off `revealing` alone (no editMode gate) — that map is only
-          ever populated by the auto-mode effect, so a reveal still finishes if
-          its entry resolves out from under it and editMode falls back to global. */}
+      {/* Auto changes: each plays its reveal concurrently as it enters the
+          viewport. Rendered off `revealing` alone — that map is only ever
+          populated by the auto effect, so a reveal still finishes if its change
+          resolves out from under it. */}
       {[...revealing.values()].map((c) => (
         <RevealOverlay
           key={keyOf(c)}
@@ -494,12 +504,12 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
           }}
         />
       ))}
-      {/* Approve: the diff itself renders IN PLACE via editor decorations (see
-          useEntityEditor); here we float the ✓ / ✗ just outside the column. ✓
-          clears the pending block (text already applied) AND plays a one-off
-          typewriter commit over it; ✗ reverts via Yjs. */}
-      {editMode === 'approve' &&
-        changes.map((c) => (
+      {/* Approve changes: the diff itself renders IN PLACE via editor decorations
+          (see useEntityEditor); here we float the ✓ / ✗ just outside the column.
+          ✓ clears the pending block (text already applied) AND plays a one-off
+          typewriter commit over it; ✗ reverts via Yjs. Per-change, so approve and
+          auto changes can coexist on the same entity. */}
+      {approveChanges.map((c) => (
           <ApproveControl
             key={keyOf(c)}
             scrollEl={scrollEl}
@@ -514,7 +524,7 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
               // text is still in the doc — so keep the block flagged (the ✓/✗
               // control stays, the user can retry) instead of silently looking
               // reverted while the edit secretly remains.
-              void revertNodeBlock(id, c)
+              void revertEntityBlock(entityType, id, c)
                 .then(() => {
                   resolve(c);
                   // Tell the agent on its next turn that this edit was undone — it

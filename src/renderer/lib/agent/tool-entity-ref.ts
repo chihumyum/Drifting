@@ -54,6 +54,9 @@ const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp
   get_element_patches: { entityType: 'element', op: 'read' },
   update_element: { entityType: 'element', op: 'write' },
   delete_element: { entityType: 'element', op: 'delete' },
+  set_element_body: { entityType: 'element', op: 'write' },
+  // whole-body set — entityType resolved from args.kind (kind-selectable below)
+  set_entity_body: { entityType: 'element', op: 'write' },
   // storyline
   get_storyline: { entityType: 'storyline', op: 'read' },
   update_storyline: { entityType: 'storyline', op: 'write' },
@@ -71,11 +74,45 @@ const REF_FIELDS: Record<ActivityEntityType, string[]> = {
   category: ['category', 'categoryId'],
 };
 function refValue(entityType: ActivityEntityType, args: Record<string, unknown>): string | undefined {
+  // The neutral `entity` arg (the kind-selectable block-prose tools) takes
+  // priority over the kind-specific spellings.
+  const neutral = args['entity'];
+  if (typeof neutral === 'string' && neutral.trim()) return neutral;
   for (const f of REF_FIELDS[entityType]) {
     const v = args[f];
     if (typeof v === 'string' && v.trim()) return v;
   }
   return undefined;
+}
+
+/**
+ * Block-prose tools take a `kind` selector (node — default — / element /
+ * storyline / category) so they can edit any prose entity's body. For these, the
+ * touched entityType comes from args.kind, NOT the hardcoded ARG_TOOLS entry.
+ */
+const KIND_SELECTABLE_TOOLS = new Set([
+  'read_node',
+  'read_block',
+  'lookup_block',
+  'edit_block',
+  'edit_blocks',
+  'append_paragraph',
+  'remove_blocks',
+  'replace_block_range',
+  'insert_blocks',
+  'set_entity_body',
+]);
+function kindFromArgs(args: Record<string, unknown>): ActivityEntityType {
+  switch (typeof args.kind === 'string' ? args.kind : '') {
+    case 'element':
+      return 'element';
+    case 'storyline':
+      return 'storyline';
+    case 'category':
+      return 'category';
+    default:
+      return 'node'; // node | chapter | drift | (missing)
+  }
 }
 
 // Tools that change the entity summary (not block prose).
@@ -217,11 +254,14 @@ export function toolEntityRef(
   }
   const arg = ARG_TOOLS[name];
   if (arg) {
-    const raw = refValue(arg.entityType, args);
+    // Kind-selectable block tools resolve their entityType from args.kind; the
+    // rest use their fixed ARG_TOOLS entityType. The op is fixed either way.
+    const entityType = KIND_SELECTABLE_TOOLS.has(name) ? kindFromArgs(args) : arg.entityType;
+    const raw = refValue(entityType, args);
     if (raw) {
-      const id = resolveEntityId(arg.entityType, raw);
+      const id = resolveEntityId(entityType, raw);
       if (id) {
-        return { entityType: arg.entityType, id, op: arg.op, spots: deriveSpots(name, arg.op, resultText) };
+        return { entityType, id, op: arg.op, spots: deriveSpots(name, arg.op, resultText) };
       }
     }
     return null;
