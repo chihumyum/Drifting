@@ -37,9 +37,30 @@ export interface PendingEntityEdits {
   changes: AgentBlockChange[];
 }
 
+/**
+ * A block edit the user REJECTED (approve-mode ✗) and that was successfully
+ * reverted in the doc. The agent ran `bypassPermissions`, so it believes its
+ * edit stuck — this is queued and fed into its NEXT turn's prompt so its mental
+ * model of the manuscript stays in sync. Project-scoped because the edit-store
+ * key carries no projectId and a revert in one project must not leak into
+ * another project's conversation.
+ */
+export interface RevertRecord {
+  projectId: string;
+  entityType: ActivityEntityType;
+  id: string;
+  blockId: string;
+  op: AgentBlockChange['op'];
+  /** The text the block was restored TO ('' when the rejected edit was a brand-new
+   *  block that got removed). */
+  restoredText: string;
+}
+
 interface AgentEditState {
   /** entityKey → pending block edits awaiting reveal/approval. */
   pending: Record<string, PendingEntityEdits>;
+  /** Rejected-then-reverted edits awaiting delivery to the agent's next turn. */
+  pendingReverts: RevertRecord[];
 
   /** Record a batch of agent block edits (from the write path). */
   record: (
@@ -51,6 +72,16 @@ interface AgentEditState {
   /** A block's reveal animation finished (auto) or it was approved/rejected
    *  (approve) — drop it; the entity clears once nothing is left. */
   resolveBlocks: (entityType: ActivityEntityType, id: string, blockIds: string[]) => void;
+  /** Queue a rejected-then-reverted edit for the agent's next turn. */
+  recordRevert: (
+    projectId: string,
+    entityType: ActivityEntityType,
+    id: string,
+    change: AgentBlockChange,
+  ) => void;
+  /** Take (and clear) the queued reverts for a project, to inject into the next
+   *  turn's prompt. Leaves other projects' reverts untouched. */
+  drainReverts: (projectId: string) => RevertRecord[];
   /** Drop an entity's whole pending set (e.g. the user dismissed it). */
   clear: (entityType: ActivityEntityType, id: string) => void;
   /** New prompt / project switch — forget everything. */
@@ -59,8 +90,9 @@ interface AgentEditState {
 
 export const useAgentEditStore = create<AgentEditState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       pending: {},
+      pendingReverts: [],
 
       record: (entityType, id, changes, mode) => {
         if (changes.length === 0) return;
@@ -95,6 +127,22 @@ export const useAgentEditStore = create<AgentEditState>()(
         });
       },
 
+      recordRevert: (projectId, entityType, id, change) => {
+        set((s) => ({
+          pendingReverts: [
+            ...s.pendingReverts,
+            { projectId, entityType, id, blockId: change.blockId, op: change.op, restoredText: change.oldText },
+          ],
+        }));
+      },
+
+      drainReverts: (projectId) => {
+        const all = get().pendingReverts;
+        const mine = all.filter((r) => r.projectId === projectId);
+        if (mine.length) set({ pendingReverts: all.filter((r) => r.projectId !== projectId) });
+        return mine;
+      },
+
       clear: (entityType, id) => {
         const key = entityKey(entityType, id);
         set((s) => {
@@ -105,13 +153,14 @@ export const useAgentEditStore = create<AgentEditState>()(
         });
       },
 
-      clearAll: () => set({ pending: {} }),
+      clearAll: () => set({ pending: {}, pendingReverts: [] }),
     }),
     {
       name: 'agent-edit-pending',
       storage: createJSONStorage(() => localStorage),
-      // Only the data — methods come from the initializer on every load.
-      partialize: (s) => ({ pending: s.pending }),
+      // Only the data — methods come from the initializer on every load. Reverts
+      // persist too, so a reject survives a reload before the next turn drains it.
+      partialize: (s) => ({ pending: s.pending, pendingReverts: s.pendingReverts }),
     },
   ),
 );

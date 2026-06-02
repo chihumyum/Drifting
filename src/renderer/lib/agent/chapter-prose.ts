@@ -66,6 +66,34 @@ function newParagraph(text: string): Y.XmlElement {
   return el;
 }
 
+/** Like {@link newParagraph} but keeps a SPECIFIC block id — used when reverting
+ *  a deletion, so the restored block carries its ORIGINAL uuid (the edit store,
+ *  activity spots and comment anchors are all keyed on it) instead of a fresh one
+ *  that would orphan every reference to the block. */
+function newParagraphWithId(blockId: string, text: string): Y.XmlElement {
+  const el = new Y.XmlElement('paragraph');
+  el.setAttribute('id', blockId);
+  if (text) el.insert(0, [new Y.XmlText(text)]);
+  return el;
+}
+
+/** Re-insert a single block with a KNOWN id after `afterBlockId` (or at the top
+ *  when null). Used only to undo a deletion — preserves the original block id. */
+export function yInsertBlockWithId(
+  frag: Y.XmlFragment,
+  afterBlockId: string | null,
+  blockId: string,
+  text: string,
+): void {
+  let at = 0;
+  if (afterBlockId) {
+    const i = blockIndexInFrag(frag, afterBlockId);
+    if (i < 0) throw new Error(`after block "${afterBlockId}" not found`);
+    at = i + 1;
+  }
+  frag.insert(at, [newParagraphWithId(blockId, text)]);
+}
+
 /**
  * Replace one block's text in place (by uuid blockId or 1-based number).
  * Returns the block's stable uuid — the agent-change tracker keys on it (#17).
@@ -358,7 +386,8 @@ export async function writeElementProse(
  * syncs like an ordinary user edit and does NOT re-record into the edit store:
  *   - changed → restore the block's old text
  *   - new     → remove the block
- *   - deleted → re-insert the old text after its anchor (fresh id, text restored)
+ *   - deleted → re-insert the old text after its anchor, preserving the ORIGINAL
+ *               block id so the restored block stays tracked (not a fresh uuid)
  * Live doc when the chapter is open (the usual case while reviewing); else a
  * transient doc rehydrated from SQLite.
  */
@@ -371,7 +400,8 @@ export async function revertNodeBlock(nodeId: string, change: AgentBlockChange):
     } else if (change.op === 'new') {
       yRemoveBlocks(frag, [change.blockId]);
     } else {
-      yInsertBlocks(frag, change.afterPrevId, [change.oldText]);
+      // Restore the deleted block under its old anchor, keeping its original id.
+      yInsertBlockWithId(frag, change.afterPrevId, change.blockId, change.oldText);
     }
   };
 

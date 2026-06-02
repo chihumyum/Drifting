@@ -23,6 +23,9 @@ import { v7 as uuidv7 } from 'uuid';
 import { useSettingsStore } from './settings-store';
 import { useProjectStore } from './project-store';
 import { useAgentActivityStore } from './agent-activity-store';
+import { useDataStore } from './data-store';
+import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
+import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { parseKv } from '../domain/kv';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
@@ -132,6 +135,38 @@ function deriveTitle(text: string): string {
   const t = text.replace(/\s+/g, ' ').trim();
   if (!t) return '新对话';
   return t.length > 40 ? `${t.slice(0, 40)}…` : t;
+}
+
+/** Human name for a prose entity, from the in-memory data store (mirrors
+ *  tool-handlers' entityLabel). */
+function entityDisplayName(entityType: ActivityEntityType, id: string): string {
+  const s = useDataStore.getState();
+  switch (entityType) {
+    case 'node':
+      return s.bookNodes.find((n) => n.id === id)?.title ?? id;
+    case 'element':
+      return s.bookElements.find((e) => e.id === id)?.name ?? id;
+    case 'storyline':
+      return s.storylines.find((sl) => sl.id === id)?.name ?? id;
+    case 'category':
+      return s.bookElementCategories.find((c) => c.id === id)?.name ?? id;
+    default:
+      return id;
+  }
+}
+
+/** A system note (zh-CN) telling the agent which of its edits the user rejected
+ *  since the last turn, so it works from the restored text instead of believing
+ *  its edits stuck (it ran bypassPermissions). Prepended to the next prompt. */
+function buildRevertNote(reverts: RevertRecord[]): string {
+  const clamp = (t: string): string => (t.length > 200 ? `${t.slice(0, 200)}…` : t);
+  const lines = reverts.map((rv) => {
+    const name = `《${entityDisplayName(rv.entityType, rv.id)}》`;
+    if (rv.op === 'new') return `- 你在${name}中新增的一个段落已被用户撤销（删除）。`;
+    if (rv.op === 'deleted') return `- 你在${name}中删除的段落已被用户恢复为原文：「${clamp(rv.restoredText)}」。`;
+    return `- 你在${name}中的一处改写已被用户拒绝，已恢复为原文：「${clamp(rv.restoredText)}」。`;
+  });
+  return `【系统提示】自你上一轮之后，用户拒绝并还原了以下改动。请以还原后的文本为当前内容，未经用户明确要求不要重新应用这些改动：\n${lines.join('\n')}`;
 }
 
 // ---- store -----------------------------------------------------------------
@@ -272,6 +307,13 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     if (!api || !s.prompt.trim() || !s.boundProjectId || s.runningConvId) return;
     const projectId = s.boundProjectId;
     const text = s.prompt.trim();
+    // Drain edits the user rejected since the last turn and prepend them as a
+    // system note for the SDK only — so the agent works from the restored text.
+    // Drained AFTER the guard (an aborted send must not silently consume them);
+    // the visible transcript keeps the ORIGINAL text, only the SDK prompt is
+    // prefixed.
+    const reverts = useAgentEditStore.getState().drainReverts(projectId);
+    const promptToSend = reverts.length ? `${buildRevertNote(reverts)}\n\n${text}` : text;
     const now = new Date().toISOString();
     const settings = useSettingsStore.getState();
     const auth = settings.agentAuth;
@@ -333,7 +375,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const writingLanguage = resolveWritingLanguage(projectId);
 
     const r = await api.start({
-      prompt: text,
+      prompt: promptToSend,
       mode: auth,
       model: settings.agentModel,
       effort: settings.agentEffort,

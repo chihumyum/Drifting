@@ -232,8 +232,8 @@ function ComposerConfig() {
                 )}
                 <div className="agt-menu__divider" />
                 <div className="agt-menu__sec">改动</div>
-                <div className="agt-menu__row" title="开启后，agent 对正文的每处改动都需要你逐块批准；关闭则自动应用并以动画揭示。">
-                  <span>改动需批准</span>
+                <div className="agt-menu__row" title="开启后，agent 对正文的每处改动都进入审阅，由你逐块确认或还原；关闭则自动应用并以动画揭示。">
+                  <span>审阅改动</span>
                   <button
                     type="button"
                     aria-pressed={agentEditMode === 'approve'}

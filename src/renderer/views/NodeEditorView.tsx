@@ -796,7 +796,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               targetId={nodeId ?? ''}
               scrollEl={scrollEl}
             />
-            <AgentEditAnimator scrollEl={scrollEl} entityType="node" id={nodeId} />
+            <AgentEditAnimator scrollEl={scrollEl} projectId={activeProjectId} entityType="node" id={nodeId} />
           </div>
         </>
       )}

@@ -1021,8 +1021,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     const recompute = () => {
       if (editor.isDestroyed) return;
       try {
-        const mode = useSettingsStore.getState().agentEditMode;
         const entry = useAgentEditStore.getState().pending[entityKey('node', nodeId)];
+        // Use the mode frozen on the entry (not the live global), so flipping the
+        // toggle mid-review doesn't add/remove in-place diff decorations for edits
+        // already recorded — matches AgentEditAnimator.
+        const mode = entry?.mode ?? useSettingsStore.getState().agentEditMode;
         const set =
           mode === 'approve' && entry && entry.changes.length
             ? buildAgentDiffDecorations(editor.state.doc, entry.changes)
