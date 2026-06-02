@@ -4,6 +4,7 @@ import loglevel from 'loglevel';
 import type { BookElement } from '../../domain/book-element';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookElement } from '../../usecase/useBookElement';
@@ -52,6 +53,7 @@ export function ElementPanel() {
   const selectedBookElementId = elementUi.selectedId;
   const agentActive = useAgentActivityStore((s) => s.active);
   const agentTouched = useAgentActivityStore((s) => s.touched);
+  const agentPending = useAgentEditStore((s) => s.pending);
 
   const activeProjectId = useMemo(() => {
     if (!projectId) {
@@ -651,6 +653,11 @@ export function ElementPanel() {
                 sticky
                 agentBusy={activity.busy}
                 agentDoneCount={activity.doneCount}
+                agentSelfChanged={
+                  !isUncategorized &&
+                  (`category:${categoryId}` in agentTouched ||
+                    `category:${categoryId}` in agentPending)
+                }
               />
 
               {!collapsedCategoryIds.has(categoryId) &&

@@ -499,6 +499,10 @@ export function ChapterPanel() {
                   onAdd={() => void handleCreateNode(storyline.id)}
                   agentBusy={activity.busy}
                   agentDoneCount={activity.doneCount}
+                  agentSelfChanged={
+                    `storyline:${storyline.id}` in agentTouched ||
+                    `storyline:${storyline.id}` in agentPending
+                  }
                 />
 
                 {!collapsed && sNodes.map((node) => renderNodeCard(node))}

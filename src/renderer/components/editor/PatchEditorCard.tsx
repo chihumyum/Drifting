@@ -31,6 +31,22 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const { navigateToNode } = useProjectNavigation();
 
   const [titleValue, setTitleValue] = useState(patch.title ?? '');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  // Tracks whether the CURRENT draft came from the user typing (vs. a sync from
+  // patch.title). handleSaveTitle only persists when this is true — so a blur
+  // that the user never typed into can NEVER write null over a stored title (the
+  // bug that nulled agent-created titles).
+  const titleDirtyRef = useRef(false);
+  // Re-sync the draft when the stored title changes underneath us — e.g. the
+  // agent created this patch WITH a title, or a sync brought a newer one. Without
+  // this, titleValue stays at its mount value and the title never shows. Skip
+  // while the user is mid-edit so we don't clobber typing.
+  useEffect(() => {
+    if (document.activeElement !== titleInputRef.current) {
+      setTitleValue(patch.title ?? '');
+      titleDirtyRef.current = false; // synced value, not a user edit
+    }
+  }, [patch.title]);
   // Default expanded so the patch body (the actual content) is the visual
   // anchor. Toggle remains for users who want to collapse long bodies.
   const [collapsed, setCollapsed] = useState(false);
@@ -68,6 +84,10 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   });
 
   const handleSaveTitle = useCallback(async () => {
+    // Only persist a title the USER actually typed — never a blur over a synced
+    // value, which could write null over a stored (e.g. agent-created) title.
+    if (!titleDirtyRef.current) return;
+    titleDirtyRef.current = false;
     if ((patch.title ?? '') === titleValue) return;
     try {
       const nextTitle = titleValue || null;
@@ -244,10 +264,22 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
         >
           {collapsed ? '▸' : '▾'}
         </button>
-        {/* Anchor sits left of the title — chapter + 段 read together
-            naturally ("from chapter X, paragraph"). Click semantics fork
-            on whether the original block still exists (see handleAnchorClick).
-            The ✎ next to it re-anchors to a different chapter. */}
+        {/* Title leads the row — it's the patch's primary identifier. */}
+        <input
+          ref={titleInputRef}
+          type="text"
+          value={titleValue}
+          onChange={(e) => {
+            titleDirtyRef.current = true;
+            setTitleValue(e.target.value);
+          }}
+          onBlur={handleSaveTitle}
+          placeholder="补丁标题（可选）"
+          className="patch-card__title"
+        />
+        {/* Source-chapter anchor — SECONDARY, sits after the title. Click
+            semantics fork on whether the original block still exists (see
+            handleAnchorClick); the ✎ re-anchors. */}
         {patch.sourceNodeId ? (
           <button
             type="button"
@@ -333,14 +365,6 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             </div>
           )}
         </div>
-        <input
-          type="text"
-          value={titleValue}
-          onChange={(e) => setTitleValue(e.target.value)}
-          onBlur={handleSaveTitle}
-          placeholder="补丁标题（可选）"
-          className="patch-card__title"
-        />
         <button
           type="button"
           onClick={handleDelete}

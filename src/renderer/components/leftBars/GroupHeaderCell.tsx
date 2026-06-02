@@ -39,6 +39,10 @@ export interface GroupHeaderCellProps {
   // unviewed changes the dot is replaced by the plain `agentDoneCount`.
   agentBusy?: boolean;
   agentDoneCount?: number;
+  // The GROUP entity's OWN body (storyline / category prose) has unreviewed agent
+  // changes. Takes priority over the child `agentDoneCount`: show "M" first, then
+  // the child count once the group's own body is reviewed.
+  agentSelfChanged?: boolean;
 }
 
 export function GroupHeaderCell({
@@ -56,6 +60,7 @@ export function GroupHeaderCell({
   rightExtra,
   agentBusy = false,
   agentDoneCount = 0,
+  agentSelfChanged = false,
 }: GroupHeaderCellProps) {
   return (
     <div
@@ -127,8 +132,25 @@ export function GroupHeaderCell({
             <ChevronDown size={11} strokeWidth={2} />
           )}
         </button>
-        {!agentBusy && agentDoneCount > 0 ? (
-          <AgentCountBadge count={agentDoneCount} title="未查看的 Agent 改动" />
+        {!agentBusy && agentSelfChanged ? (
+          <span
+            aria-hidden
+            title="Agent 刚改动了此线 / 类的正文"
+            style={{
+              width: 7,
+              flexShrink: 0,
+              textAlign: 'center',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 600,
+              lineHeight: 1,
+              color: 'hsl(var(--ink-2))',
+            }}
+          >
+            M
+          </span>
+        ) : !agentBusy && agentDoneCount > 0 ? (
+          <AgentCountBadge count={agentDoneCount} title="未查看的子条目 Agent 改动" />
         ) : (
           <span
             aria-hidden

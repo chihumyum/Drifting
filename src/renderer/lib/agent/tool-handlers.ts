@@ -73,6 +73,9 @@ import {
   yReplaceAllParagraphs,
 } from './chapter-prose';
 import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
+import { getLiveYDoc } from '../yjs-doc-registry';
+import { eventBus } from '../events';
+import { requestAgentConfirm } from '../../store/agent-confirm-store';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -650,6 +653,23 @@ async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
 }
 
 /** Full-text search over chapter/drift prose and element bodies, with snippets. */
+/**
+ * The entity's CURRENT prose JSON for search — the live editor doc when one is
+ * open (the contentJson cache lags the editor's debounce, so search would
+ * otherwise miss in-flight text and report block numbers that disagree with
+ * read_node), else the cheap cache. Gated on getLiveYDoc so closed entities skip
+ * the Yjs rehydrate entirely.
+ */
+async function proseJsonForSearch(
+  entityType: ProseEntityType,
+  id: string,
+  cacheJson: string,
+): Promise<string> {
+  return getLiveYDoc(proseDocId(entityType, id))
+    ? getEntityContentJson(entityType, id, cacheJson)
+    : cacheJson;
+}
+
 async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>) {
   const q = String(args.query ?? '').trim().toLowerCase();
   const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
@@ -660,10 +680,10 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
 
   const s = useDataStore.getState();
 
-  // Element bodies are in memory — cheap.
+  // Element bodies are in memory — cheap (live doc only when one is open).
   for (const e of s.bookElements) {
     if (e.projectId !== ctx.projectId) continue;
-    const text = docToPlainText(e.contentJson);
+    const text = docToPlainText(await proseJsonForSearch('element', e.id, e.contentJson));
     const idx = text.toLowerCase().indexOf(q);
     if (idx !== -1) {
       matches.push({ kind: 'element', title: e.name, snippet: snippetAround(text, idx, q.length) });
@@ -677,7 +697,7 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
   for (const n of nodes) {
     const content = await contentRepo.findByNodeId(n.id);
     if (!content) continue;
-    const blocks = docToBlocks(content.contentJson);
+    const blocks = docToBlocks(await proseJsonForSearch('node', n.id, content.contentJson));
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
       const idx = b.text.toLowerCase().indexOf(q);
@@ -1179,6 +1199,9 @@ async function addRelation(ctx: AgentToolContext, args: Record<string, unknown>)
 async function removeRelation(ctx: AgentToolContext, args: Record<string, unknown>) {
   const relationId = String(args.relationId ?? '');
   if (!relationId) throw new Error('remove_relation requires relationId (from get_entity_relations)');
+  if (!(await requestAgentConfirm('Agent 想删除一条实体关系。允许吗？'))) {
+    return { ok: false, declined: true };
+  }
   await ctx.write.removeRelation(relationId);
   return { ok: true, relationId };
 }
@@ -1287,12 +1310,11 @@ async function deleteElement(ctx: AgentToolContext, args: Record<string, unknown
   if (!id) throw new Error('delete_element requires elementId');
   const el = useDataStore.getState().bookElements.find((e) => e.id === id);
   const label = el ? el.name : id;
-  // Destructive — require explicit human confirmation in the renderer.
-  const confirmed =
-    typeof window !== 'undefined' && typeof window.confirm === 'function'
-      ? window.confirm(`Claude wants to delete the element "${label}". Allow?`)
-      : false;
-  if (!confirmed) return { ok: false, declined: true };
+  // Destructive — require explicit human confirmation (non-blocking, auto-declines
+  // before the bridge timeout so a delete can't run after the agent is told it failed).
+  if (!(await requestAgentConfirm(`Agent 想删除元素「${label}」。允许吗？`))) {
+    return { ok: false, declined: true };
+  }
   await ctx.write.removeElement(id);
   return { ok: true, element: label };
 }
@@ -1361,6 +1383,9 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
   if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
   const created = await createElementPatchRepository().create(input);
   syncElementPatchCreate(created.id, ctx.projectId, patchSyncPayload(created));
+  // Tell the open element editor's PatchesSection to reload (it has no store
+  // subscription — it only refreshes on its own actions + this event).
+  eventBus.emit('element:patches-changed', { elementId });
   // patchId is the handle for update_element_patch / delete_element_patch.
   return {
     ok: true,
@@ -1379,14 +1404,21 @@ async function updateElementPatch(ctx: AgentToolContext, args: Record<string, un
   const updated = await createElementPatchRepository().update(patchId, updates);
   if (!updated) throw new Error(`No patch found with id "${patchId}"`);
   syncElementPatchUpdate(updated.id, ctx.projectId, patchSyncPayload(updated));
+  eventBus.emit('element:patches-changed', { elementId: updated.elementId });
   return { ok: true, patchId };
 }
 
 async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const patchId = String(args.patchId ?? '');
   if (!patchId) throw new Error('delete_element_patch requires patchId');
+  if (!(await requestAgentConfirm('Agent 想删除一条元素补丁。允许吗？'))) {
+    return { ok: false, declined: true };
+  }
   await createElementPatchRepository().delete(patchId);
   syncElementPatchDelete(patchId, ctx.projectId);
+  // No owning elementId in scope (delete takes only patchId) — broadcast so any
+  // open PatchesSection reloads.
+  eventBus.emit('element:patches-changed', {});
   return { ok: true, patchId };
 }
 
@@ -1430,6 +1462,9 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
 async function deleteCommentTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const id = String(args.commentId ?? '');
   if (!id) throw new Error('delete_comment requires commentId');
+  if (!(await requestAgentConfirm('Agent 想删除一条批注 / TODO。允许吗？'))) {
+    return { ok: false, declined: true };
+  }
   await ctx.write.deleteComment(id);
   return { ok: true, commentId: id };
 }

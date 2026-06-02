@@ -36,6 +36,7 @@ import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { countWordsInPmJson } from '../word-count';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
+import { detectEntityLinkSpans } from '../extensions/entity-link';
 import type { AgentToolContext } from './tool-handlers';
 
 // Update origin: anything other than 'load'/'remote'/'seed'/'restore' is treated
@@ -57,6 +58,31 @@ function blockIndexInFrag(frag: Y.XmlFragment, blockId: string): number {
 function setBlockText(el: Y.XmlElement, text: string): void {
   if (el.length > 0) el.delete(0, el.length);
   if (text) el.insert(0, [new Y.XmlText(text)]);
+}
+
+/**
+ * Re-derive entityLink marks on the given just-edited blocks. The agent writes
+ * blocks as PLAIN text, so without this an edit silently strips the inline
+ * @-mention marks the inline-mention projection — and where_does_entity_appear /
+ * get_node_context — read. Mirrors the editor's auto-detect (same registered
+ * targets), idempotent (re-formatting the same span is a no-op). Must run INSIDE
+ * the agent transaction so the marks land with the edit. Each touched block is
+ * plain text at this point (just written), so positions align with the string.
+ */
+function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[]): void {
+  for (const blockId of blockIds) {
+    const idx = blockIndexInFrag(frag, blockId);
+    if (idx < 0) continue;
+    const el = frag.toArray()[idx];
+    if (!(el instanceof Y.XmlElement)) continue;
+    for (const child of el.toArray()) {
+      if (!(child instanceof Y.XmlText)) continue;
+      const text = child.toString();
+      for (const span of detectEntityLinkSpans(text)) {
+        child.format(span.from, span.to - span.from, { entityLink: span.attrs });
+      }
+    }
+  }
 }
 
 function newParagraph(text: string): Y.XmlElement {
@@ -251,7 +277,9 @@ async function writeProseDoc(
     const beforeJson = toJson(live);
     let blockIds: string[] = [];
     live.transact(() => {
-      blockIds = yMutate(live.getXmlFragment('default'));
+      const frag = live.getXmlFragment('default');
+      blockIds = yMutate(frag);
+      relinkBlockMentions(frag, blockIds); // re-derive @-mention marks on plain agent text
     }, AGENT_ORIGIN);
     const contentJson = toJson(live);
     return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
@@ -274,7 +302,9 @@ async function writeProseDoc(
       doc.on('update', onUpdate);
       let blockIds: string[] = [];
       doc.transact(() => {
-        blockIds = yMutate(doc.getXmlFragment('default'));
+        const frag = doc.getXmlFragment('default');
+        blockIds = yMutate(frag);
+        relinkBlockMentions(frag, blockIds); // re-derive @-mention marks on plain agent text
       }, AGENT_ORIGIN);
       doc.off('update', onUpdate);
 

@@ -36,6 +36,7 @@ import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
+import { AgentConfirmDialog } from './components/agent/AgentConfirmDialog';
 import { initAccentColor } from './lib/theme';
 import { useUiStore, tabKey, focusedLeafOf } from './store/ui-store';
 import { useSettingsStore } from './store/settings-store';
@@ -837,6 +838,7 @@ function Layout() {
       <BottomStatusBar />
 
       {/* Overlays / Modals (绝对定位层) */}
+      <AgentConfirmDialog />
       {activeSuperView === 'graph' && <StoryGraphView />}
       {activeSuperView === 'element' && <SuperElementView />}
       {activeSuperView === 'memo-material' && <SuperMemoMaterialView />}

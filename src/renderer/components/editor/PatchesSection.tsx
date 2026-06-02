@@ -5,6 +5,7 @@ import {
   type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
 import { syncElementPatchCreate } from '../../usecase/sync-helpers';
+import { eventBus } from '../../lib/events';
 import { PatchEditorCard } from './PatchEditorCard';
 
 const log = loglevel.getLogger('PatchesSection');
@@ -38,6 +39,16 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
     setLoading(true);
     void reload();
   }, [reload]);
+
+  // Reload when an agent (or another surface) changes this element's patches —
+  // PatchesSection keeps local state with no store subscription of its own.
+  useEffect(() => {
+    const onChanged = (p: { elementId?: string }) => {
+      if (!p.elementId || p.elementId === elementId) void reload();
+    };
+    eventBus.on('element:patches-changed', onChanged);
+    return () => eventBus.off('element:patches-changed', onChanged);
+  }, [elementId, reload]);
 
   const handleAddFloating = useCallback(async () => {
     try {

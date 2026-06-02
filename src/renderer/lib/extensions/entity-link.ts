@@ -186,6 +186,41 @@ function runAutoDetect(view: EditorView, markType: MarkType): void {
   view.dispatch(tr);
 }
 
+/** A detected entity-name span in a plain string + the entityLink mark attrs. */
+export interface EntityLinkSpan {
+  from: number;
+  to: number;
+  attrs: { targetKind: string; targetId: string; targetBlockId: null };
+}
+
+/**
+ * Pure entity-link detection over a PLAIN string, using the same registered
+ * targets + merged matcher as the editor's auto-detect (longest-name-first,
+ * verbatim/CJK-safe). For re-linking agent-written prose — which arrives as plain
+ * text with no marks — OUTSIDE an editor (the Yjs write path), so the inline-
+ * mention projection the relational tools depend on isn't silently dropped.
+ * Returns [] when auto-detect is off or no targets are registered.
+ */
+export function detectEntityLinkSpans(text: string): EntityLinkSpan[] {
+  if (!text || !entityLinkConfig.autoDetectEnabled) return [];
+  const matcher = getMergedMatcher();
+  if (!matcher) return [];
+  const spans: EntityLinkSpan[] = [];
+  matcher.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(text)) !== null) {
+    const name = match[0];
+    const target = entityLinkConfig.autoDetectTargets.get(name);
+    if (!target) continue;
+    spans.push({
+      from: match.index,
+      to: match.index + name.length,
+      attrs: { targetKind: target.kind, targetId: target.id, targetBlockId: null },
+    });
+  }
+  return spans;
+}
+
 /**
  * Force any pending debounced auto-detect to run NOW, synchronously linking
  * freshly-typed entity names. Copilot context assembly calls this before reading

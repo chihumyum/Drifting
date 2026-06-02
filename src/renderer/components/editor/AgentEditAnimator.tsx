@@ -515,8 +515,13 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
             scrollEl={scrollEl}
             change={c}
             onApprove={() => {
-              resolve(c); // clears the in-place decoration (text already applied)
-              setCommitting(c); // …then play the commit reveal over the real block
+              // changed / new: the real (post-edit) block already holds the space,
+              // so clear the in-place decoration now and play the commit reveal over
+              // it. DELETION: the struck placeholder IS the decoration — keep it
+              // until the erase reveal finishes (resolve in the commit's onDone)
+              // so blocks below don't jump up and overlap the animation.
+              if (c.op !== 'deleted') resolve(c);
+              setCommitting(c);
             }}
             onReject={() => {
               // Only clear the review marker once the undo ACTUALLY applies. If
@@ -539,13 +544,19 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
             }}
           />
         ))}
-      {/* The approved block's one-off commit reveal (occludes it, plays, fades). */}
+      {/* The approved block's one-off commit reveal (occludes it, plays, fades).
+          For a DELETION the pending change was kept (placeholder held the space) —
+          resolve it now that the erase animation is done, so the collapse happens
+          AFTER the reveal, not before it. */}
       {committing && (
         <RevealOverlay
           key={`commit:${keyOf(committing)}`}
           scrollEl={scrollEl}
           change={committing}
-          onDone={() => setCommitting(null)}
+          onDone={() => {
+            if (committing.op === 'deleted') resolve(committing);
+            setCommitting(null);
+          }}
         />
       )}
     </div>,

@@ -53,6 +53,11 @@ export type AppEvents = {
   'element:category-deleted': { categoryId: string };
   'element:appearance-detected': { elementId: string; nodeId: string; blockId: string };
 
+  // An element's patches changed (e.g. the agent created/edited/deleted one) —
+  // the open element editor's PatchesSection reloads. elementId omitted ⇒ reload
+  // regardless (a delete that didn't resolve the owning element).
+  'element:patches-changed': { elementId?: string };
+
   'db:ready': void;
   'db:migrated': void;
   'db:error': { error: string };
