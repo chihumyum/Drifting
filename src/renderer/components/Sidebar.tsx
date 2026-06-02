@@ -45,8 +45,9 @@ export function Sidebar({ sidebarType, topBar, children, collapsedContent }: Sid
 
     const handleMouseMove = (e: MouseEvent) => {
       let newWidth = sidebarType === 'left' ? e.clientX : window.innerWidth - e.clientX;
-      // 对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）。
-      const minWidth = 140;
+      // 左栏对齐 collapsed 状态下 LeftSidebarTopBar 分隔线位置（AppTopbar 中 LEFT_COLLAPSED_WIDTH = 140）；
+      // 右栏不允许低于 200，保证五个 tab 始终能横排显示。
+      const minWidth = sidebarType === 'right' ? 200 : 140;
       // Right sidebar gets a wider cap so it can reach the ~768px split
       // threshold (two columns) on roomy screens; left stays at 30%.
       const maxWidth = window.innerWidth * (sidebarType === 'right' ? 0.6 : 0.3);

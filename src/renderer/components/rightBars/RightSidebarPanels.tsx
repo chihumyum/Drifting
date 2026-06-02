@@ -173,11 +173,10 @@ export function RightSidebarPanels() {
     return () => ro.disconnect();
   }, []);
   const isSplit = panelWidth >= 600;
-  // Between the split threshold and a narrow panel, there's still room to lay
-  // ALL tabs flat in one row (no group switch). ~420 fits 5 equal tabs without
-  // collapsing labels (the longest, "Companion", needs ~95px/tab). Below it,
-  // fall back to the two-group switch.
-  const isFlat = !isSplit && panelWidth >= 420;
+  // Whenever the panel isn't wide enough to split into two columns it stays a
+  // single column with ALL five tabs laid flat in one row — no group switch.
+  // The tab labels compact down as the tray tightens (see RightSidebarHeader),
+  // so this holds together all the way down to the 200px min width.
 
   // Drag the divider between the two columns to reallocate width. Mirrors the
   // editor split-pane divider (EditorMainArea/SplitView): ref-tracked rect so
@@ -292,7 +291,7 @@ export function RightSidebarPanels() {
       ) : (
         <>
           <RightSidebarHeader
-            flat={isFlat}
+            flat
             shadowReviewCount={shadowReviewCount}
             kicker={headerKicker}
             title={headerTitle}

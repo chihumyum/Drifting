@@ -47,7 +47,7 @@ interface AgentEditAnimatorProps {
 // clamped so tiny edits still register and big rewrites don't drag.
 const CHAR_MS = 25;
 const MIN_REVEAL_MS = 500;
-const MAX_REVEAL_MS = 3000;
+const MAX_REVEAL_MS = 2500;
 const EXIT_MS = 320;
 // A change whose anchor never appears in the DOM clears after this, so a tick /
 // "M" can never get wedged on a block that won't render.
@@ -219,7 +219,9 @@ function RevealOverlay({
   const top = change.op === 'deleted' && change.afterPrevId ? rect.bottom : rect.top;
   const pos: CSSProperties = {
     ...prose,
-    position: 'fixed',
+    // absolute (not fixed) so the layer's clip-path crops it to the editor
+    // viewport; the layer is inset:0 fixed, so these viewport coords still apply.
+    position: 'absolute',
     top,
     left: rect.left,
     width: rect.width,
@@ -270,6 +272,8 @@ function ApproveControl({
       node.style.left = `${r.right + 12}px`;
     };
     place();
+    // Scroll handler runs synchronously (no rAF) so the control tracks the block
+    // frame-for-frame instead of lagging behind on scroll.
     scrollEl.addEventListener('scroll', place, { passive: true });
     window.addEventListener('resize', place);
     // Observe the scroll container AND its content (.page) so the control also
@@ -278,10 +282,24 @@ function ApproveControl({
     ro.observe(scrollEl);
     const page = scrollEl.querySelector('.page');
     if (page) ro.observe(page);
+    // …and a MutationObserver, because when the agent edits the OPEN chapter the
+    // target block's DOM (esp. a freshly appended/inserted one at the end) syncs
+    // from Yjs a tick after this mounts — so the anchor isn't there on first place.
+    let raf = 0;
+    const mo = new MutationObserver(() => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        place();
+      });
+    });
+    mo.observe(scrollEl, { childList: true, subtree: true });
     return () => {
       scrollEl.removeEventListener('scroll', place);
       window.removeEventListener('resize', place);
       ro.disconnect();
+      mo.disconnect();
+      if (raf) window.cancelAnimationFrame(raf);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollEl, change.blockId, change.op, change.afterPrevId]);
@@ -291,7 +309,9 @@ function ApproveControl({
     <div
       ref={ref}
       className={`agent-approve agent-approve--${change.op}`}
-      style={{ position: 'fixed', top: 0, left: 0, visibility: 'hidden' }}
+      // absolute so the layer's clip-path crops it to the editor viewport (layer
+      // is inset:0 fixed, so the viewport coords place() writes still apply).
+      style={{ position: 'absolute', top: 0, left: 0, visibility: 'hidden' }}
     >
       <span className="agent-approve__tag">{label}</span>
       <button type="button" className="agent-approve__btn agent-approve__btn--ok" title="批准这处改动" onClick={onApprove}>
@@ -313,11 +333,22 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
   const changes = entry?.changes ?? EMPTY;
   const changesKey = changes.map(keyOf).join('|');
 
-  // Auto mode: the block whose scheduled reveal is playing right now (serial).
-  const [activeKey, setActiveKey] = useState<string | null>(null);
-  // Approve mode: the just-approved block, played as a one-off commit reveal
-  // (held in local state because it's already resolved out of the store).
+  // Auto mode: every change currently playing its reveal, keyed. CONCURRENT —
+  // each fires the moment it enters the viewport, not serially. Held as captured
+  // change data so an overlay still finishes after its change resolves out of the
+  // store. Approve commit (one-off) lives in `committing`.
+  const [revealing, setRevealing] = useState<Map<string, AgentBlockChange>>(() => new Map());
   const [committing, setCommitting] = useState<AgentBlockChange | null>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
+
+  const stopRevealing = useCallback((c: AgentBlockChange) => {
+    setRevealing((prev) => {
+      if (!prev.has(keyOf(c))) return prev;
+      const next = new Map(prev);
+      next.delete(keyOf(c));
+      return next;
+    });
+  }, []);
 
   const resolve = useCallback(
     (c: AgentBlockChange) => {
@@ -330,47 +361,91 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
     [entityType, id],
   );
 
-  // Auto mode: observe each pending block; once visible, schedule its reveal in
-  // document (top-to-bottom) order, one at a time.
+  // Auto mode: observe each pending block; the MOMENT it enters the viewport,
+  // fire its reveal — concurrently, so every change in view animates at once
+  // (not one-at-a-time). A MutationObserver re-wires blocks as their DOM appears:
+  // when the agent edits the OPEN chapter, the edit lands in Yjs + the store
+  // synchronously (re-running this effect) but the ProseMirror DOM syncs a tick
+  // LATER — so the anchor isn't there on the first pass, and without this the
+  // reveal would never fire (tick stuck).
   useEffect(() => {
-    if (editMode !== 'auto' || !scrollEl || !id || changes.length === 0) return;
-    if (activeKey) return; // a reveal is in flight — let it finish first
+    if (editMode !== 'auto' || !scrollEl || !id || changes.length === 0) return undefined;
 
-    const seen = new Set<string>();
     const byEl = new Map<Element, AgentBlockChange>();
-
-    const schedule = () => {
-      const ready = changes.filter((c) => seen.has(keyOf(c)));
-      if (ready.length === 0) return;
-      ready.sort((a, b) => {
-        const ea = anchorEl(scrollEl, a);
-        const eb = anchorEl(scrollEl, b);
-        return (ea?.getBoundingClientRect().top ?? Infinity) - (eb?.getBoundingClientRect().top ?? Infinity);
-      });
-      setActiveKey(keyOf(ready[0]));
-    };
+    const wired = new Set<string>(); // change keys already attached to the IO
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
           const c = byEl.get(e.target);
           if (!c) continue;
-          if (e.isIntersecting && e.intersectionRatio >= 0.35) seen.add(keyOf(c));
+          if (e.isIntersecting && e.intersectionRatio >= 0.35) {
+            io.unobserve(e.target); // started — don't re-fire it
+            setRevealing((prev) => (prev.has(keyOf(c)) ? prev : new Map(prev).set(keyOf(c), c)));
+          }
         }
-        schedule();
       },
       { root: scrollEl, threshold: [0, 0.35, 1] },
     );
 
-    for (const c of changes) {
-      const el = anchorEl(scrollEl, c);
-      if (el) {
-        byEl.set(el, c);
-        io.observe(el);
+    // Attach any pending block whose anchor is now in the DOM but not yet observed.
+    const wire = () => {
+      for (const c of changes) {
+        const k = keyOf(c);
+        if (wired.has(k)) continue;
+        const el = anchorEl(scrollEl, c);
+        if (el) {
+          wired.add(k);
+          byEl.set(el, c);
+          io.observe(el);
+        }
       }
-    }
-    return () => io.disconnect();
-  }, [editMode, scrollEl, id, changesKey, activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    };
+
+    let raf = 0;
+    const mo = new MutationObserver(() => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        wire();
+      });
+    });
+    mo.observe(scrollEl, { childList: true, subtree: true });
+    wire();
+
+    return () => {
+      io.disconnect();
+      mo.disconnect();
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [editMode, scrollEl, id, changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clip the overlay layer to the editor's scroll viewport, so a reveal/control
+  // anchored to a block scrolled near the bottom doesn't spill over the
+  // BottomTimeline (or above the toolbar). Recomputed on layout change only —
+  // scrollEl's own rect doesn't move while the content scrolls inside it.
+  const hasLayer = !!scrollEl && !!id && (changes.length > 0 || !!committing || revealing.size > 0);
+  useEffect(() => {
+    if (!hasLayer || !scrollEl) return undefined;
+    const layer = layerRef.current;
+    if (!layer) return undefined;
+    const clip = () => {
+      const r = scrollEl.getBoundingClientRect();
+      const t = Math.max(0, r.top);
+      const right = Math.max(0, window.innerWidth - r.right);
+      const b = Math.max(0, window.innerHeight - r.bottom);
+      const l = Math.max(0, r.left);
+      layer.style.clipPath = `inset(${t}px ${right}px ${b}px ${l}px)`;
+    };
+    clip();
+    window.addEventListener('resize', clip);
+    const ro = new ResizeObserver(clip);
+    ro.observe(scrollEl);
+    return () => {
+      window.removeEventListener('resize', clip);
+      ro.disconnect();
+    };
+  }, [scrollEl, hasLayer]);
 
   // Safety net: a change we can never anchor (block didn't render) clears after a
   // grace period so its tick / "M" can't get stuck.
@@ -382,24 +457,26 @@ export function AgentEditAnimator({ scrollEl, entityType, id }: AgentEditAnimato
     return () => window.clearTimeout(t);
   }, [scrollEl, id, changesKey, resolve]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!scrollEl || !id || changes.length === 0) return null;
-
-  const active = changes.find((c) => keyOf(c) === activeKey) ?? null;
+  // Keep rendering while a reveal (auto) or commit (approve) is in flight even
+  // after its change resolves out of the store — otherwise the overlay would
+  // unmount mid-animation the instant `changes` empties.
+  if (!scrollEl || !id || !hasLayer) return null;
 
   return createPortal(
-    <div className="agent-edit-layer">
-      {/* Auto: one scheduled typewriter reveal at a time, as blocks scroll in. */}
-      {editMode === 'auto' && active && (
-        <RevealOverlay
-          key={keyOf(active)}
-          scrollEl={scrollEl}
-          change={active}
-          onDone={() => {
-            resolve(active);
-            setActiveKey(null);
-          }}
-        />
-      )}
+    <div ref={layerRef} className="agent-edit-layer">
+      {/* Auto: every change in the viewport plays its reveal concurrently. */}
+      {editMode === 'auto' &&
+        [...revealing.values()].map((c) => (
+          <RevealOverlay
+            key={keyOf(c)}
+            scrollEl={scrollEl}
+            change={c}
+            onDone={() => {
+              resolve(c);
+              stopRevealing(c);
+            }}
+          />
+        ))}
       {/* Approve: the diff itself renders IN PLACE via editor decorations (see
           useEntityEditor); here we float the ✓ / ✗ just outside the column. ✓
           clears the pending block (text already applied) AND plays a one-off

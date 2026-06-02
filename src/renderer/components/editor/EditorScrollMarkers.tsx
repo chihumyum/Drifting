@@ -169,7 +169,14 @@ export function EditorScrollMarkers({
 
   const jump = (blockId: string) => {
     const block = scrollEl?.querySelector(blockSelector(blockId)) as HTMLElement | null;
-    block?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!block) return;
+    block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Briefly flash the target so the eye lands on it after the jump. Remove +
+    // reflow + re-add so a repeat click on the same tick restarts the animation.
+    block.classList.remove('editor__jump-flash');
+    void block.offsetWidth;
+    block.classList.add('editor__jump-flash');
+    window.setTimeout(() => block.classList.remove('editor__jump-flash'), 1300);
   };
 
   return (

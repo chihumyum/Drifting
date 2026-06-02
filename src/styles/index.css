@@ -30,6 +30,7 @@
 
     --accent:                  8 55% 33%;  /* 印章红 oxblood #8A2A1E */
     --accent-foreground:     40 22% 93%;
+    --comment:               336 40% 45%;  /* 胭脂 rouge — comment chrome (vs. accent) */
 
     --destructive:           14 55% 38%;
     --destructive-foreground:40 22% 93%;
@@ -142,6 +143,7 @@
     /* Accent — muted blue-gray, very low saturation */
     --accent:                218 22% 52%;
     --accent-foreground:     0   0%  100%;
+    --comment:               336 46% 58%;  /* rouge — comment chrome */
     --ring:                  218 22% 52%;
     --accent-border:         30  6%  88%;
 
@@ -209,6 +211,7 @@
        contrast. */
     --accent:                218 35% 65%;
     --accent-foreground:     220 6%  11%;
+    --comment:               336 50% 70%;  /* rouge — comment chrome */
     --ring:                  218 35% 65%;
     --accent-border:         220 6%  26%;
 
@@ -526,6 +529,7 @@
 
     --accent:                 13 45% 60%;
     --accent-foreground:     36  8% 10%;
+    --comment:               336 46% 66%;  /* rouge — comment chrome */
 
     --destructive:           14 45% 50%;
     --destructive-foreground:42 25% 88%;
@@ -586,6 +590,7 @@
 
     --accent:               347 38% 35%;
     --accent-foreground:    225 21% 94%;
+    --comment:              334 40% 46%;  /* rouge — comment chrome */
 
     --destructive:          347 38% 35%;
     --destructive-foreground: 225 21% 94%;
@@ -637,6 +642,7 @@
 
     --accent:               255 47% 77%;
     --accent-foreground:    219 22% 10%;
+    --comment:              334 50% 74%;  /* rouge — comment chrome */
 
     --destructive:          347 38% 55%;
     --destructive-foreground: 224 17% 86%;
@@ -1473,7 +1479,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    card would render semi-transparent against whatever sits behind the
    editor rail. */
 .mnote--todo {
-  border-left: 2px solid hsl(var(--story-4));
+  border-left: 1px solid hsl(var(--rule)); /* no stripe — ochre tint + glyph carry the TODO identity */
   background-color: hsl(var(--surface));
   background-image: linear-gradient(
     hsl(var(--story-4) / 0.12),
@@ -1490,9 +1496,46 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .mnote--todo .mnote__head-l > span:last-child {
   color: hsl(var(--story-4));
 }
+/* Plain notes carry a 胭脂 (rouge/pink) identity — distinct from the app-wide
+   blue accent (which now reads as "agent-changed" on the overview ruler) and
+   from the ochre of TODOs. The accent bar is dropped (no left stripe); the
+   pink lives in the § glyph and the primary action instead, so the card reads
+   quieter. Resolved notes keep their dimmed gray bar cue. */
+.mnote--manual:not(.mnote--todo):not(.mnote--resolved) {
+  border-left: 1px solid hsl(var(--rule));
+}
+.mnote--manual:not(.mnote--todo) .mnote__head-glyph {
+  color: hsl(var(--comment));
+}
+.mnote--manual:not(.mnote--todo) .mnote__head-r .mnote__icon-btn:hover {
+  color: hsl(var(--comment));
+}
+.mnote--manual:not(.mnote--todo) .mnote__btn--primary {
+  background: hsl(var(--comment));
+  border-color: hsl(var(--comment));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--manual:not(.mnote--todo) .mnote__btn--primary:hover {
+  background: hsl(var(--comment) / 0.85);
+  border-color: hsl(var(--comment) / 0.85);
+}
+/* New-comment composer matches the note identity so creating → created reads as
+   one color, not blue→pink. */
 .mnote--composer {
-  border-left-color: hsl(var(--accent));
+  border-left-color: hsl(var(--comment));
   z-index: 8;
+}
+.mnote--composer .mnote__btn--primary {
+  background: hsl(var(--comment));
+  border-color: hsl(var(--comment));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--composer .mnote__btn--primary:hover {
+  background: hsl(var(--comment) / 0.85);
+  border-color: hsl(var(--comment) / 0.85);
+}
+.mnote--composer .mnote__textarea:focus {
+  border-color: hsl(var(--comment));
 }
 .mnote__head {
   display: flex;
@@ -1853,7 +1896,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   opacity: 1;
 }
 .editor__scrollmap-tick--note {
-  background: hsl(var(--story-2)); /* 群青 — note */
+  background: hsl(var(--comment)); /* 胭脂 — note (distinct from agent 群青-changed) */
 }
 .editor__scrollmap-tick--todo {
   background: hsl(var(--story-4)); /* 赭黄 — todo */
@@ -1876,6 +1919,22 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .editor__scrollmap-tick--agent-deleted {
   background: hsl(var(--story-1));
+}
+
+/* Brief highlight on the block jumped to from a scrollbar tick, so the eye
+   lands on it after the scroll. */
+.editor__jump-flash {
+  animation: editorJumpFlash 1.3s ease;
+  border-radius: 3px;
+}
+@keyframes editorJumpFlash {
+  0%,
+  20% {
+    background-color: hsl(var(--accent) / 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 /* ============================================================

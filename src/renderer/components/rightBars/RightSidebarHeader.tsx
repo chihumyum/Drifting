@@ -16,12 +16,12 @@ interface RightSidebarHeaderProps {
    *  TODO + Library tabs where the tab label itself already describes the
    *  surface and the project-wide list doesn't need a per-entity title. */
   hideTitleBlock?: boolean;
-  /** Force a single group's tabs and hide the group switch — used by the
-   *  wide-screen split where each column owns one group. Omit for the normal
-   *  single-column mode (renders the store's active group + the switch). */
+  /** Force a single group's tabs — used by the wide-screen split where each
+   *  column owns one group. Omit for the normal single-column mode, which lays
+   *  all five tabs flat (pass `flat`). */
   group?: 'content' | 'agent';
-  /** Lay ALL tabs (both groups) flat in one row, no switch — used when the
-   *  panel is wide enough to fit them without collapsing. */
+  /** Lay ALL five tabs flat in one row — the default single-column layout.
+   *  Labels compact down as the tray narrows. */
   flat?: boolean;
 }
 
@@ -36,17 +36,14 @@ export function RightSidebarHeader({
   flat,
 }: RightSidebarHeaderProps) {
   const storeGroup = useUiStore((state) => state.rightPanelGroup);
-  const setRightPanelGroup = useUiStore((state) => state.setRightPanelGroup);
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
   const activeAgentPanel = useUiStore((state) => state.activeAgentPanel);
   const setActiveAgentPanel = useUiStore((state) => state.setActiveAgentPanel);
   // Render modes:
-  //  - flat: show ALL tabs (both groups) in one row, no switch (wide panel).
-  //  - column: `group` pins one group, no switch (split layout).
-  //  - single: the store's active group + the switch (narrow panel).
+  //  - flat: show ALL five tabs in one row (the default single-column panel).
+  //  - column: `group` pins one group's tabs (the wide-screen split layout).
   const renderGroup = group ?? storeGroup;
-  const showSwitch = !flat && group == null;
   const activeOf = (g: 'content' | 'agent') =>
     g === 'content' ? activeRightPanel : activeAgentPanel;
   // In flat mode the one active tab is (storeGroup, that group's active);
@@ -192,30 +189,6 @@ export function RightSidebarHeader({
             </>
           )}
         </div>
-        {/* Group switch: a single bare icon that flips between the content
-            panels and the AI agent. The glyph shows where a click takes you. */}
-        {showSwitch && (
-          <div
-            onClick={() => setRightPanelGroup(storeGroup === 'content' ? 'agent' : 'content')}
-            title={storeGroup === 'content' ? '切换到 AI Agent' : '切换到内容面板'}
-            style={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 24,
-              height: 24,
-              fontSize: 15,
-              cursor: 'pointer',
-              color: 'hsl(var(--ink-4))',
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-1))')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-4))')}
-          >
-            {storeGroup === 'content' ? '✦' : '☰'}
-          </div>
-        )}
       </div>
 
       {!hideTitleBlock && (
