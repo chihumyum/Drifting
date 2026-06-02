@@ -165,6 +165,14 @@ function buildRevertNote(reverts: RevertRecord[]): string {
     // Non-prose field edits (summary / kv / template kv) name the field.
     if (rv.field) {
       const f = rv.field;
+      // Patch review: rejecting a CREATE deletes it; a DELETE keeps it; an
+      // UPDATE restores the pre-edit title/body.
+      if (f.kind === 'patch') {
+        if (rv.op === 'deleted') return `- 你删除的${name}的补丁「${f.label}」已被用户保留（未删除）。`;
+        if (rv.op === 'changed')
+          return `- 你对${name}的补丁「${f.label}」的修改已被用户撤销，已还原为改动前的内容。`;
+        return `- 你为${name}创建的补丁「${f.label}」已被用户删除。`;
+      }
       const fieldLabel =
         f.kind === 'summary'
           ? '摘要'

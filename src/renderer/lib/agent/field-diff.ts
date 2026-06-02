@@ -104,6 +104,24 @@ export function kvFieldChanges(
 }
 
 /**
+ * A newly agent-created element patch, surfaced for card-level review (keep /
+ * discard). Unlike summary/kv there's no "before" — it's a whole new record — so
+ * this isn't a text diff; the change just marks `patch:<id>` pending so its card
+ * shows ✓ (keep) / ✗ (delete). `label` carries the title for the revert note.
+ */
+export function patchFieldChange(patchId: string, title: string | null): AgentBlockChange {
+  const label = title && title.trim() ? title : '新补丁';
+  return {
+    blockId: fieldBlockId('patch', patchId),
+    op: 'new',
+    oldText: '',
+    newText: label,
+    afterPrevId: null,
+    field: { kind: 'patch', key: patchId, label },
+  };
+}
+
+/**
  * Reconstruct the JSON that REVERTS one KV row change, applied to the CURRENT
  * (post-edit) blob — restore the row's old value (re-adding it for a deletion),
  * or drop it for an agent-added row. Touches only the one key, so concurrent

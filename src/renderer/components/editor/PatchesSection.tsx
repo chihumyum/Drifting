@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import loglevel from 'loglevel';
 import {
   createElementPatchRepository,
@@ -6,6 +6,8 @@ import {
 } from '../../sqlite-repo/element-patch-repo';
 import { syncElementPatchCreate } from '../../usecase/sync-helpers';
 import { eventBus } from '../../lib/events';
+import { useAgentEditStore } from '../../store/agent-edit-store';
+import { entityKey } from '../../lib/agent/tool-entity-ref';
 import { PatchEditorCard } from './PatchEditorCard';
 
 const log = loglevel.getLogger('PatchesSection');
@@ -22,6 +24,18 @@ interface PatchesSectionProps {
 export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   const [patches, setPatches] = useState<PatchWithSourceTitle[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pending agent review op per patch, used to KEY each card: when the op changes
+  // (e.g. an agent UPDATE records a 'changed' review, or it resolves), the card
+  // remounts so its editor re-seeds from the new contentJson instead of showing
+  // stale content (useEntityEditor only loads on sourceId change, not content).
+  const pendingEntry = useAgentEditStore((s) => s.pending[entityKey('element', elementId)]);
+  const reviewOpByPatch = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of pendingEntry?.changes ?? []) {
+      if (c.field?.kind === 'patch' && c.field.key) m.set(c.field.key, c.op);
+    }
+    return m;
+  }, [pendingEntry]);
 
   const reload = useCallback(async () => {
     try {
@@ -92,7 +106,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         <div>
           {patches.map((patch) => (
             <PatchEditorCard
-              key={patch.id}
+              key={`${patch.id}:${reviewOpByPatch.get(patch.id) ?? ''}`}
               patch={patch}
               projectId={projectId}
               onChange={reload}

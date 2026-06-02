@@ -2143,6 +2143,57 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .field-kv-key {
   color: hsl(var(--ink-3));
 }
+/* Agent-created patch awaiting review — faint green wash + a thin keep/discard
+   bar at the top of the card. Reuses .field-review__btn for the ✓/✗. */
+.patch-card--proposed {
+  background: hsl(var(--story-3) / 0.05);
+}
+.patch-card__review {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 12px;
+  border-bottom: 1px solid hsl(var(--story-3) / 0.16);
+}
+.patch-card__review-tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--story-3));
+}
+.patch-card__review-actions {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: auto;
+}
+/* Soft-deleted patch awaiting confirmation — faint red wash, body dimmed +
+   struck so it reads as "about to be removed". */
+.patch-card--removing {
+  background: hsl(var(--story-1) / 0.05);
+}
+/* Body/title diff shown in place of the editor while an UPDATE is under review. */
+.patch-card__review-diff {
+  padding: 6px 12px 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.patch-card__review-diff-title {
+  font-size: 11px;
+  color: hsl(var(--ink-3));
+  margin-bottom: 2px;
+}
+.patch-card--removing .patch-card__title,
+.patch-card--removing .patch-card__body {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-color: hsl(var(--story-1) / 0.5);
+}
+.patch-card__review-tag--del {
+  color: hsl(var(--story-1));
+}
+
 /* Token diff — same red(del)/green(ins) language as the prose reveal. */
 .field-diff {
   white-space: pre-wrap;

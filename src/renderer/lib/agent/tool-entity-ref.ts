@@ -52,6 +52,9 @@ const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp
   // element
   read_element: { entityType: 'element', op: 'read' },
   get_element_patches: { entityType: 'element', op: 'read' },
+  // Creating a patch is a write to its owning element (lights the element's "M"
+  // + makes it a 本轮改动 link). Resolves the element from args.element (a NAME).
+  create_element_patch: { entityType: 'element', op: 'write' },
   update_element: { entityType: 'element', op: 'write' },
   delete_element: { entityType: 'element', op: 'delete' },
   set_element_body: { entityType: 'element', op: 'write' },
@@ -251,6 +254,23 @@ export function toolEntityRef(
     if (!entityType) return null;
     const id = resolveEntityId(entityType, raw);
     return id ? { entityType, id, op: 'write', spots: deriveSpots(name, 'write', resultText) } : null;
+  }
+  // Patch update/delete carry only a patchId in their ARGS, but return their
+  // owning element NAME in the RESULT — surface that as an element write so the
+  // cell "M" + 本轮改动 link reflect the change (a soft-delete still modifies the
+  // element's patch set, so it's a write, not a delete).
+  if (name === 'update_element_patch' || name === 'delete_element_patch') {
+    if (!resultText) return null;
+    try {
+      const parsed = JSON.parse(resultText) as { element?: unknown };
+      if (typeof parsed.element === 'string' && parsed.element) {
+        const id = resolveEntityId('element', parsed.element);
+        if (id) return { entityType: 'element', id, op: 'write', spots: { structural: true } };
+      }
+    } catch {
+      /* not JSON */
+    }
+    return null;
   }
   const arg = ARG_TOOLS[name];
   if (arg) {

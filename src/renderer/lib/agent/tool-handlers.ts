@@ -18,7 +18,6 @@ import {
 import {
   syncElementPatchCreate,
   syncElementPatchUpdate,
-  syncElementPatchDelete,
 } from '../../usecase/sync-helpers';
 import { isChapter, type BookNode } from '../../domain/book-node';
 import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
@@ -79,8 +78,8 @@ import { requestAgentConfirm } from '../../store/agent-confirm-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useSettingsStore } from '../../store/settings-store';
 import type { AgentBlockChange } from './block-diff';
-import type { ActivityEntityType } from './tool-entity-ref';
-import { summaryFieldChange, kvFieldChanges } from './field-diff';
+import { entityKey, type ActivityEntityType } from './tool-entity-ref';
+import { summaryFieldChange, kvFieldChanges, patchFieldChange, fieldBlockId } from './field-diff';
 
 /**
  * Merge facts into an existing kv list by key (upsert). Unlike update_element's
@@ -113,6 +112,19 @@ function recordFieldChanges(
   useAgentEditStore
     .getState()
     .record(entityType, id, changes, useSettingsStore.getState().agentEditMode);
+}
+
+/** Patch ids this element has SOFT-deleted (agent ran delete_element_patch, but
+ *  the row stays until the user confirms on the card). The agent's patch reads
+ *  hide these so its view matches its belief that they're gone. */
+function pendingDeletedPatchIds(elementId: string): Set<string> {
+  const entry = useAgentEditStore.getState().pending[entityKey('element', elementId)];
+  return new Set(
+    (entry?.changes ?? [])
+      .filter((c) => c.field?.kind === 'patch' && c.op === 'deleted')
+      .map((c) => c.field?.key)
+      .filter((k): k is string => !!k),
+  );
 }
 
 /** Coerce a loose facts array (from tool args) to KvEntry[]. */
@@ -426,6 +438,13 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
   // Read the live Yjs body (what the editor shows), not just the contentJson
   // cache, so the agent sees in-flight user edits — mirrors readChapter.
   const bodyJson = await getElementContentJson(elementId);
+  // Patch count so the agent can discover an element HAS patches (list_elements /
+  // read_element didn't surface this) and call get_element_patches for detail.
+  // Excludes soft-deleted ones so it matches what get_element_patches returns.
+  const del = pendingDeletedPatchIds(elementId);
+  const patchCount = (await createElementPatchRepository().listByElement(elementId)).filter(
+    (p) => !del.has(p.id),
+  ).length;
   return {
     name: el.name,
     summary: el.summary,
@@ -433,6 +452,7 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
     groupName: el.groupName,
     category: el.categoryId ? entityLabel(s, 'category', el.categoryId) : undefined,
     facts: parseKv(el.kvJson),
+    patchCount,
     body: docToPlainText(bodyJson),
   };
 }
@@ -737,7 +757,12 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
 /** An element's accepted state-change patches across chapters (its evolution). */
 async function getElementPatches(_ctx: AgentToolContext, elementId: string) {
   if (!elementId) throw new Error('get_element_patches requires elementId');
-  const patches = await createElementPatchRepository().listByElement(elementId);
+  // Hide soft-deleted patches (delete_element_patch awaiting card confirmation) so
+  // the agent's view matches its belief that it deleted them.
+  const del = pendingDeletedPatchIds(elementId);
+  const patches = (await createElementPatchRepository().listByElement(elementId)).filter(
+    (p) => !del.has(p.id),
+  );
   return {
     patches: patches.map((p) => ({
       patchId: p.id,
@@ -1446,6 +1471,9 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
   if (typeof args.sourceNodeId === 'string') input.sourceNodeId = args.sourceNodeId;
   const created = await createElementPatchRepository().create(input);
   syncElementPatchCreate(created.id, ctx.projectId, patchSyncPayload(created));
+  // Surface the new patch for card-level review (keep / discard) — soft-approval,
+  // same as the other non-prose edits. Marks `patch:<id>` pending on the element.
+  recordFieldChanges('element', elementId, [patchFieldChange(created.id, created.title)]);
   // Tell the open element editor's PatchesSection to reload (it has no store
   // subscription — it only refreshes on its own actions + this event).
   eventBus.emit('element:patches-changed', { elementId });
@@ -1461,28 +1489,68 @@ async function createElementPatch(ctx: AgentToolContext, args: Record<string, un
 async function updateElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const patchId = String(args.patchId ?? '');
   if (!patchId) throw new Error('update_element_patch requires patchId');
+  const before = await createElementPatchRepository().findById(patchId);
+  if (!before) throw new Error(`No patch found with id "${patchId}"`);
   const updates: UpdatePatchInput = {};
   if (typeof args.title === 'string') updates.title = args.title;
   if (typeof args.body === 'string') updates.contentJson = createPlainCommentDoc(args.body);
   const updated = await createElementPatchRepository().update(patchId, updates);
   if (!updated) throw new Error(`No patch found with id "${patchId}"`);
   syncElementPatchUpdate(updated.id, ctx.projectId, patchSyncPayload(updated));
+  // Surface the edit for review — op 'changed', stashing the pre-edit title +
+  // body in oldText so ✗ can restore them; the card renders a title/body diff.
+  if (updates.title !== undefined || updates.contentJson !== undefined) {
+    const stash = JSON.stringify({ title: before.title, contentJson: before.contentJson });
+    const label = updated.title?.trim() ? updated.title : '补丁';
+    recordFieldChanges('element', updated.elementId, [
+      {
+        blockId: fieldBlockId('patch', patchId),
+        op: 'changed',
+        oldText: stash,
+        newText: '',
+        afterPrevId: null,
+        field: { kind: 'patch', key: patchId, label },
+      },
+    ]);
+  }
   eventBus.emit('element:patches-changed', { elementId: updated.elementId });
-  return { ok: true, patchId };
+  return {
+    ok: true,
+    patchId,
+    element: entityLabel(useDataStore.getState(), 'element', updated.elementId),
+  };
 }
 
-async function deleteElementPatch(ctx: AgentToolContext, args: Record<string, unknown>) {
+async function deleteElementPatch(_ctx: AgentToolContext, args: Record<string, unknown>) {
   const patchId = String(args.patchId ?? '');
   if (!patchId) throw new Error('delete_element_patch requires patchId');
-  if (!(await requestAgentConfirm('Agent 想删除一条元素补丁。允许吗？'))) {
-    return { ok: false, declined: true };
-  }
-  await createElementPatchRepository().delete(patchId);
-  syncElementPatchDelete(patchId, ctx.projectId);
-  // No owning elementId in scope (delete takes only patchId) — broadcast so any
-  // open PatchesSection reloads.
-  eventBus.emit('element:patches-changed', {});
-  return { ok: true, patchId };
+  const existing = await createElementPatchRepository().findById(patchId);
+  if (!existing) return { ok: true, patchId }; // already gone
+  // SOFT delete: a patch is a minor sub-field, so route through the in-editor
+  // approve flow instead of a blocking confirm. The row stays until the user
+  // confirms on the card (get_element_patches hides it meanwhile, so the agent's
+  // reads match its belief that it's deleted); ✗ keeps it + tells the agent.
+  // (Heavier deletes — element / chapter — still use requestAgentConfirm. TODO:
+  // move THAT off the full-screen overlay into a non-blocking in-chat prompt that
+  // flashes the agent tab while it blocks — see agent-confirm-store.)
+  const title = existing.title?.trim() ? existing.title : '补丁';
+  recordFieldChanges('element', existing.elementId, [
+    {
+      blockId: fieldBlockId('patch', patchId),
+      op: 'deleted',
+      oldText: '',
+      newText: '',
+      afterPrevId: null,
+      field: { kind: 'patch', key: patchId, label: title },
+    },
+  ]);
+  // Reload any open PatchesSection so the card picks up the pending-delete mark.
+  eventBus.emit('element:patches-changed', { elementId: existing.elementId });
+  return {
+    ok: true,
+    patchId,
+    element: entityLabel(useDataStore.getState(), 'element', existing.elementId),
+  };
 }
 
 // ---- Comments / TODOs (a TODO is a comment with kind='todo') ----------------

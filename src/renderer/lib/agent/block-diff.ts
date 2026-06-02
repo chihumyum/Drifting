@@ -22,7 +22,7 @@ export type AgentBlockChangeOp = 'new' | 'changed' | 'deleted';
  *  in-place decorations / scroll ticks) skip these, and the in-page field-review
  *  affordance renders only them. When set, `blockId` is a synthetic key
  *  (`field:summary`, `field:kv:<key>`) — never a real prose block uuid. */
-export type AgentFieldKind = 'summary' | 'kv' | 'templatekv' | 'group';
+export type AgentFieldKind = 'summary' | 'kv' | 'templatekv' | 'group' | 'patch';
 export interface AgentFieldRef {
   kind: AgentFieldKind;
   /** For kv / templatekv: the row key. Undefined for summary / group. */

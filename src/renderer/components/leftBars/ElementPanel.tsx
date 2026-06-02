@@ -427,7 +427,12 @@ export function ElementPanel() {
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
     const agentBusy = `element:${element.id}` in agentActive;
-    const agentChanged = !agentBusy && `element:${element.id}` in agentTouched;
+    // "M" on either an activity touch (summary/kv writes) OR a pending edit-store
+    // change (e.g. an unreviewed patch create/soft-delete, which leaves no
+    // activity dot) — mirrors how storyline/category cells flag both.
+    const agentChanged =
+      !agentBusy &&
+      (`element:${element.id}` in agentTouched || `element:${element.id}` in agentPending);
     // The virtual "未分类" bucket isn't a real category — getCategoryColor
     // would log a not-found warning and return a flickering random color.
     const categoryColor =

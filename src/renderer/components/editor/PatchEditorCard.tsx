@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
+import { Check, X } from 'lucide-react';
 import loglevel from 'loglevel';
 import {
   createElementPatchRepository,
@@ -12,6 +13,10 @@ import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
 import { useDataStore } from '../../store/data-store';
+import { useAgentEditStore } from '../../store/agent-edit-store';
+import { entityKey } from '../../lib/agent/tool-entity-ref';
+import { docToPlainText } from '../../lib/agent/serialize';
+import { FieldDiff } from './FieldReview';
 import {
   syncElementPatchDelete,
   syncElementPatchUpdate,
@@ -110,6 +115,98 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       log.error('Failed to delete patch:', error);
     }
   }, [patch.id, projectId, onDelete]);
+
+  // Agent-created patch awaiting review (keep / discard). The agent's create
+  // already landed (soft-approval); this just surfaces it. Resolves out of the
+  // edit store on ✓/✗ (or auto-settle). See agent-edit-review.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const patchChange = useAgentEditStore((s) => {
+    const entry = s.pending[entityKey('element', patch.elementId)];
+    return (
+      entry?.changes.find((c) => c.field?.kind === 'patch' && c.field.key === patch.id) ?? null
+    );
+  });
+  const reviewMode = patchChange ? patchChange.mode ?? 'approve' : null;
+  const isDeleting = patchChange?.op === 'deleted';
+  const isChanged = patchChange?.op === 'changed';
+  // For an UPDATE review, oldText stashes the pre-edit { title, contentJson }; the
+  // card diffs that against the current patch (title + body plain text).
+  const stash = useMemo((): { title: string | null; contentJson: string } | null => {
+    if (!isChanged || !patchChange) return null;
+    try {
+      return JSON.parse(patchChange.oldText);
+    } catch {
+      return null;
+    }
+  }, [isChanged, patchChange]);
+
+  const acceptPatch = useCallback(() => {
+    const c = patchChange;
+    if (!c) return;
+    // Accept = the agent's action stands: a create stays; a (soft) delete is
+    // committed for real now.
+    useAgentEditStore.getState().resolveBlocks('element', patch.elementId, [c.blockId]);
+    if (c.op === 'deleted') void handleDelete();
+  }, [patchChange, patch.elementId, handleDelete]);
+
+  const rejectPatch = useCallback(() => {
+    const c = patchChange;
+    if (!c) return;
+    // Reject = undo the agent's action (and tell it next turn, since it ran
+    // bypassPermissions): undo a create by deleting; undo a (soft) delete by
+    // keeping the still-present row.
+    useAgentEditStore.getState().recordRevert(projectId, 'element', patch.elementId, c);
+    useAgentEditStore.getState().resolveBlocks('element', patch.elementId, [c.blockId]);
+    if (c.op === 'new') {
+      void handleDelete();
+    } else if (c.op === 'changed') {
+      // Restore the pre-edit title + body stashed in oldText.
+      void (async () => {
+        try {
+          const old = JSON.parse(c.oldText) as { title: string | null; contentJson: string };
+          await patchRepoRef.current.update(patch.id, {
+            title: old.title,
+            contentJson: old.contentJson,
+          });
+          syncElementPatchUpdate(patch.id, projectId, {
+            title: old.title,
+            contentJson: old.contentJson,
+          });
+          onChange?.();
+        } catch (error) {
+          log.error('Failed to restore patch on reject:', error);
+        }
+      })();
+    }
+  }, [patchChange, projectId, patch.elementId, patch.id, handleDelete, onChange]);
+
+  // Auto mode: once the card is on screen, settle (keep) after a brief beat.
+  const acceptRef = useRef(acceptPatch);
+  useEffect(() => {
+    acceptRef.current = acceptPatch;
+  });
+  useEffect(() => {
+    if (reviewMode !== 'auto') return undefined;
+    const el = cardRef.current;
+    if (!el) return undefined;
+    let hold = 0;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && e.intersectionRatio >= 0.4 && !hold) {
+            io.disconnect();
+            hold = window.setTimeout(() => acceptRef.current(), 900);
+          }
+        }
+      },
+      { threshold: [0, 0.4, 1] },
+    );
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      if (hold) window.clearTimeout(hold);
+    };
+  }, [reviewMode, patch.id]);
 
   // Source-chapter picker: a floating popover anchored under the head row.
   // Listed in reading order (bookOrder), plus an explicit detach option.
@@ -254,7 +351,41 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     : `来自 ${anchorLabel} · 点击跳转`;
 
   return (
-    <div className={`patch-card${sourceMissing ? ' patch-card--source-missing' : ''}`}>
+    <div
+      ref={cardRef}
+      className={`patch-card${sourceMissing ? ' patch-card--source-missing' : ''}${
+        reviewMode ? (isDeleting ? ' patch-card--removing' : ' patch-card--proposed') : ''
+      }`}
+    >
+      {reviewMode && (
+        <div className="patch-card__review">
+          <span
+            className={`patch-card__review-tag${isDeleting ? ' patch-card__review-tag--del' : ''}`}
+          >
+            {isDeleting ? 'agent 删除' : isChanged ? 'agent 改动' : 'agent 新增'}
+          </span>
+          {reviewMode === 'approve' && (
+            <span className="patch-card__review-actions">
+              <button
+                type="button"
+                className="field-review__btn field-review__btn--ok"
+                title={isDeleting ? '确认删除' : isChanged ? '采纳改动' : '保留这条补丁'}
+                onClick={acceptPatch}
+              >
+                <Check size={12} />
+              </button>
+              <button
+                type="button"
+                className="field-review__btn field-review__btn--no"
+                title={isDeleting ? '还原（不删除）' : isChanged ? '撤销改动' : '丢弃并删除'}
+                onClick={rejectPatch}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
       <div className="patch-card__head">
         <button
           type="button"
@@ -379,11 +510,27 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           <pre className="patch-card__snapshot-body">{patch.sourceBlockText}</pre>
         </div>
       )}
-      {!collapsed && (
-        <div className="patch-card__body">
-          <EditorContent editor={editor} />
-        </div>
-      )}
+      {!collapsed &&
+        (isChanged ? (
+          // Show the title/body diff in place of the (otherwise stale) editor
+          // while the update is under review; the editor returns on ✓/✗.
+          <div className="patch-card__review-diff">
+            {(stash?.title ?? '') !== (patch.title ?? '') && (
+              <div>
+                <span className="patch-card__review-diff-title">标题</span>{' '}
+                <FieldDiff oldText={stash?.title ?? ''} newText={patch.title ?? ''} />
+              </div>
+            )}
+            <FieldDiff
+              oldText={stash ? docToPlainText(stash.contentJson) : ''}
+              newText={docToPlainText(patch.contentJson)}
+            />
+          </div>
+        ) : (
+          <div className="patch-card__body">
+            <EditorContent editor={editor} />
+          </div>
+        ))}
     </div>
   );
 }
