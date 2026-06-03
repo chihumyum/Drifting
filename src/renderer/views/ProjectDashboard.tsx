@@ -10,6 +10,7 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
+import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
 import { isChapter, type BookNode, type WritingStatus } from '../domain/book-node';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
@@ -950,6 +951,11 @@ export function ProjectDashboard() {
             </section>
           </div>
         )}
+
+        {/* ════════ SHADOW RULES ════════
+            Temporary authoring surface for shadow review rules (freeform; an LLM
+            compiles each into a checklist). Parked here until a dedicated UX. */}
+        {currentProject && <ShadowRulesSection projectId={currentProject.id} />}
 
         {/* ════════ FOOTER ════════ */}
         <footer className="dash-foot">

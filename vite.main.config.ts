@@ -26,6 +26,11 @@ export default defineConfig({
         // from node_modules; never bundle it or its per-platform binary package.
         '@anthropic-ai/claude-agent-sdk',
         /^@anthropic-ai\/claude-agent-sdk/,
+        // LangGraph (shadow workflow) — ESM, resolve at runtime from node_modules
+        // like the Agent SDK. Never bundle it (avoids CJS/ESM interop trouble).
+        '@langchain/langgraph',
+        '@langchain/core',
+        /^@langchain\//,
         // Also exclude electron and node built-ins
         'electron',
         'fs',

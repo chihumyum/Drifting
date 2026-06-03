@@ -260,6 +260,27 @@
       "when": 1782100000000,
       "tag": "0036_project_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1782200000000,
+      "tag": "0037_project_rule",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1782300000000,
+      "tag": "0038_drop_rule_severity",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1782400000000,
+      "tag": "0039_comment_block_ids",
+      "breakpoints": true
     }
   ]
 }

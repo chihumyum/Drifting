@@ -553,123 +553,41 @@ function CategoryStats({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shadow tab (mock)
+// Shadow tab — real task queue lands here (mock list removed)
 
 function ShadowAgentView() {
-  const tasks: { id: string; state: 'running' | 'queued' | 'done'; title: string; meta: string }[] = [
-    { id: 't1', state: 'running', title: '通读卷一 · 寻找 plot hole', meta: '已读 8/14 章 · 12 分钟前' },
-    { id: 't2', state: 'running', title: '核对所有"红绳"出场上下文', meta: '19/27 处 · 3 分钟前' },
-    { id: 't3', state: 'queued', title: '检查卷二与卷三之间叙事时连贯性', meta: '排队中' },
-    { id: 't4', state: 'done', title: '一处叙述视角越界 (已采纳)', meta: '昨天' },
-  ];
+  // The mock task list was removed. This panel will host the real shadow task
+  // queue: every shadow review job (queued / running / done) surfaces here.
+  // Backing store + live wiring land with the queue (src/main/shadow).
   return (
     <div style={{ padding: 12 }}>
       <div
         style={{
-          padding: '10px 12px',
-          margin: '0 0 12px',
+          padding: '16px 12px',
           borderRadius: 4,
-          border: '1px dashed hsl(var(--accent))',
-          background: 'transparent',
-          cursor: 'pointer',
+          border: '1px dashed hsl(var(--rule))',
+          textAlign: 'center',
+          fontFamily: 'var(--font-serif)',
+          fontStyle: 'italic',
+          fontSize: 13,
+          color: 'hsl(var(--ink-4))',
+          lineHeight: 1.5,
         }}
       >
+        暂无 shadow 任务
         <div
           style={{
+            marginTop: 6,
             fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            color: 'hsl(var(--accent))',
+            fontStyle: 'normal',
+            fontSize: 9.5,
+            letterSpacing: '0.08em',
+            color: 'hsl(var(--ink-4))',
           }}
         >
-          ＋ 派发 SHADOW 任务
-        </div>
-        <div
-          style={{
-            fontStyle: 'italic',
-            color: 'hsl(var(--ink-3))',
-            fontSize: 13,
-            marginTop: 4,
-            fontFamily: 'var(--font-serif)',
-          }}
-        >
-          通读某段，找设定矛盾 / 通读全书，找视角问题 / ⋯
+          SHADOW TASK QUEUE
         </div>
       </div>
-
-      {tasks.map((t) => (
-        <div
-          key={t.id}
-          style={{
-            padding: '10px 12px',
-            margin: '0 0 8px',
-            borderRadius: 4,
-            border: '1px solid hsl(var(--rule))',
-            borderLeft: `2px solid ${
-              t.state === 'running'
-                ? 'hsl(var(--accent))'
-                : t.state === 'queued'
-                  ? 'hsl(var(--ink-4))'
-                  : 'hsl(var(--story-3))'
-            }`,
-            background: 'hsl(var(--surface))',
-            opacity: t.state === 'done' ? 0.55 : 1,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              color: 'hsl(var(--ink-4))',
-              marginBottom: 4,
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background:
-                    t.state === 'running'
-                      ? 'hsl(var(--accent))'
-                      : t.state === 'queued'
-                        ? 'hsl(var(--ink-4))'
-                        : 'hsl(var(--story-3))',
-                }}
-              />
-              {t.state.toUpperCase()}
-            </span>
-            <span>⋯</span>
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: 13.5,
-              color: 'hsl(var(--ink-1))',
-              lineHeight: 1.35,
-            }}
-          >
-            {t.title}
-          </div>
-          <div
-            style={{
-              marginTop: 6,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              color: 'hsl(var(--ink-4))',
-              letterSpacing: '0.04em',
-            }}
-          >
-            {t.meta}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

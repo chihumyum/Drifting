@@ -30,6 +30,13 @@ interface ElectronAPI {
     isMaximized: () => Promise<boolean>;
     setTrafficLightPosition: (position: { x: number; y: number }) => Promise<void>;
   };
+  shadow?: {
+    enqueue: (job: { projectId: string; chapterId: string }) => void;
+    run: (job: {
+      projectId: string;
+      chapterId: string;
+    }) => Promise<{ chapterId: string; decision: 'finished' | 'draft'; findingCount: number }>;
+  };
 }
 
 declare global {

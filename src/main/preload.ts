@@ -126,6 +126,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     sendToolResult: (result: ToolExecResult) => ipcRenderer.send('agent:tool-result', result),
   },
+
+  // Shadow review: renderer asks main to enqueue (fire-and-forget) or run a
+  // chapter review job. The main-process LangGraph engine bridges back here.
+  shadow: {
+    enqueue: (job: { projectId: string; chapterId: string }) =>
+      ipcRenderer.send('shadow:enqueue', job),
+    run: (job: { projectId: string; chapterId: string }) =>
+      ipcRenderer.invoke('shadow:run', job),
+  },
 });
 
 // Type definitions for TypeScript
@@ -173,6 +182,13 @@ export interface ElectronAPI {
     onEvent: (callback: (env: AgentEventEnvelope) => void) => () => void;
     onToolExec: (callback: (req: ToolExecRequest) => void) => () => void;
     sendToolResult: (result: ToolExecResult) => void;
+  };
+  shadow: {
+    enqueue: (job: { projectId: string; chapterId: string }) => void;
+    run: (job: {
+      projectId: string;
+      chapterId: string;
+    }) => Promise<{ chapterId: string; decision: 'finished' | 'draft'; findingCount: number }>;
   };
   aiLog: {
     write: (

@@ -6,6 +6,7 @@ import { setupDatabase } from './database';
 import { registerKeyringIpc } from './keyring-ipc';
 import { registerAiLogIpc } from './ai-log-ipc';
 import { registerAgentIpc } from './agent';
+import { registerShadowIpc } from './shadow';
 
 function parseEnvValue(raw: string): string {
   const value = raw.trim();
@@ -162,6 +163,8 @@ app.whenReady().then(async () => {
   registerAiLogIpc();
   // Claude Agent (SDK runs in main; streams to renderer over IPC)
   registerAgentIpc(() => mainWindow);
+  // Shadow review engine (LangGraph in main; bridges to renderer for data + LLM)
+  registerShadowIpc(() => mainWindow);
 
   createWindow();
 

@@ -55,6 +55,8 @@ interface ChapterEditorProps {
   // 编辑选项
   editableTitle?: boolean;
   editableSummary?: boolean;
+  // Read-only prose body (chapter locked during shadow review).
+  readOnly?: boolean;
 
   // 样式选项
   autoFocus?: boolean;
@@ -85,6 +87,7 @@ export function ChapterEditor({
   showSummary = false,
   editableTitle = false,
   editableSummary = false,
+  readOnly = false,
   autoFocus = false,
   minHeight = '300px',
   compact = false,
@@ -168,6 +171,7 @@ export function ChapterEditor({
     selectionKey,
     onAddCommentRequest,
     enableInlineCopilot: true,
+    editable: !readOnly,
     slashExtraItems: [
       {
         id: 'patch',

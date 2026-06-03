@@ -34,6 +34,39 @@ export const ProjectTable = sqliteTable('project', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Project Rule (Shadow Mode)
+// Domain: ProjectRule — a project-owned review rule the shadow CI checks chapters
+// against. The author writes rules FREEFORM (rawContent: a kv-ish line or prose);
+// an LLM normalizer compiles each into checklistJson — a list of atomic
+// assertions, each with an inferred `type` (mechanical kinds like word-count /
+// must-appear, or 'semantic'). compiledFromHash holds the hash of rawContent at
+// compile time, so a rule recompiles only when its source changes.
+//
+// scopeJson is AUTHOR-owned metadata (null = whole project) narrowing which
+// chapters/storylines/elements the rule applies to. There is no soft/advisory
+// tier — ANY violation drives the chapter to 'revising' (the author can still
+// resolve or finish manually).
+//
+// source 'project' = authored here; 'drift' = discovered from a drift node and
+// pending until enabled. sourceDriftHash drives incremental re-discovery (only
+// re-classify a drift whose content changed). Facts/summary are NOT rules — they
+// are auxiliary ground-truth pulled at evaluation time.
+export const ProjectRuleTable = sqliteTable('project_rule', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  rawContent: text('raw_content').notNull().default(''),
+  checklistJson: text('checklist_json').notNull().default('[]'),
+  compiledFromHash: text('compiled_from_hash').notNull().default(''),
+  scopeJson: text('scope_json'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  source: text('source').notNull().default('project'),
+  sourceDriftId: text('source_drift_id'),
+  sourceDriftHash: text('source_drift_hash'),
+  orderKey: integer('order_key').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 // Element Category
 // project(1) <-> elementCategory(N)
 // elementCategory(1) <-> element(N)
@@ -481,6 +514,10 @@ export const CommentTable = sqliteTable(
     priority: text('priority'),
     source: text('source').notNull().default('manual'), // manual | shadow | copilot | api
     metadataJson: text('metadata_json'),
+    // JSON array of block ids this comment anchors to (a consecutive range).
+    // targetBlockId stays the primary/first (card position + back-compat); this
+    // is the full span, written by both manual multi-block selection and shadow.
+    targetBlockIdsJson: text('target_block_ids_json').notNull().default('[]'),
     resolvedAt: text('resolved_at'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
