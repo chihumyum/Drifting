@@ -1921,21 +1921,10 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--story-1));
 }
 
-/* Brief highlight on the block jumped to from a scrollbar tick, so the eye
-   lands on it after the scroll. */
-.editor__jump-flash {
-  animation: editorJumpFlash 1.3s ease;
-  border-radius: 3px;
-}
-@keyframes editorJumpFlash {
-  0%,
-  20% {
-    background-color: hsl(var(--accent) / 0.2);
-  }
-  100% {
-    background-color: transparent;
-  }
-}
+/* The block jumped to (scrollbar tick / patch card / block-anchored TODO) is
+   flashed via the Web Animations API in lib/scroll-to-block.ts (flashBlock) —
+   a CSS class can't be used because ProseMirror strips externally-added classes
+   off the blocks it manages. */
 
 /* ============================================================
    Agent-change gutter — a git-style left bar + faint tint on blocks

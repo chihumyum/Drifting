@@ -17,6 +17,7 @@ import type { Comment } from '../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../domain/library-item';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
+import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
 import '../../../styles/bottom-timeline.css';
 
@@ -669,6 +670,7 @@ export function TodoCard({
   onAddRelation: (t: RelationTarget) => void;
   onRemoveRelation: (t: RelationTarget) => void;
 }) {
+  const { navigateToNode } = useProjectNavigation();
   const text = extractTextFromCommentBody(todo.bodyJson);
   const [hover, setHover] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -678,6 +680,14 @@ export function TodoCard({
   );
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
   const isBlockAnchored = todo.targetKind === 'node' && !!todo.targetId && !!todo.targetBlockId;
+
+  // Block-anchored TODOs jump to their source block: open the chapter tab, then
+  // scroll + flash the block once the editor has mounted it.
+  const jumpToAnchor = useCallback(() => {
+    if (!todo.targetId || !todo.targetBlockId) return;
+    navigateToNode(todo.targetId);
+    scrollToBlockWhenReady(todo.targetId, todo.targetBlockId);
+  }, [navigateToNode, todo.targetId, todo.targetBlockId]);
 
   return (
     <div
@@ -708,9 +718,24 @@ export function TodoCard({
       >
         <span style={{ color: 'hsl(var(--story-2))' }}>TODO</span>
         {isBlockAnchored && (
-          <span title="挂在手稿 block 上" style={{ color: 'hsl(var(--ink-4))' }}>
+          <button
+            onClick={jumpToAnchor}
+            title="跳转到关联 block"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              font: 'inherit',
+              letterSpacing: 'inherit',
+              textTransform: 'inherit',
+              color: 'hsl(var(--ink-4))',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--story-2))')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--ink-4))')}
+          >
             ⊕ block
-          </span>
+          </button>
         )}
         <span style={{ flex: 1 }} />
         <button

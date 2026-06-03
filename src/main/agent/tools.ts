@@ -100,7 +100,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'where_does_entity_appear',
-        'Find every chapter/drift (and other source) where a structural entity is mentioned in prose — its appearances/backlinks. The fastest way to go from one character/place/item to all the scenes involving it. Returns appearances grouped by source (by name) with blockIds.',
+        'Find every chapter/drift (and other source) where a structural entity is mentioned in prose — its appearances/backlinks. The fastest way to go from one character/place/item to all the scenes involving it. Returns appearances grouped by source (by name) with a per-source mentionCount and a few context snippets (the matched name wrapped in 「」), plus totalMentions. Each snippet carries its blockId for a follow-up read_block / edit; `more` counts extra blocks beyond the shown snippets.',
         {
           kind: z
             .string()

@@ -71,7 +71,7 @@ import {
   yAppendParagraph,
   yReplaceAllParagraphs,
 } from './chapter-prose';
-import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
+import { proseDocId, isProseEntityType, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { eventBus } from '../events';
 import { requestAgentConfirm } from '../../store/agent-confirm-store';
@@ -578,7 +578,52 @@ function getProjectBrief(ctx: AgentToolContext) {
   };
 }
 
-/** Where a structural entity is mentioned in prose (its appearances/backlinks). */
+/** A mention's surrounding text, centered on the match — enough for the agent
+ *  to judge relevance without a follow-up read_block per blockId. */
+const MENTION_SNIPPET_PAD = 36;
+/** Cap on mention snippets returned per source; the rest are summarized as `more`
+ *  so a heavily-mentioned entity doesn't flood the agent's context. */
+const MENTIONS_PER_SOURCE = 4;
+
+/** Count the spans recorded for one (block, target) row. Each span is one literal
+ *  occurrence of the name in that block; falls back to 1 for legacy/empty json. */
+function spanCount(spansJson: string): number {
+  try {
+    const spans = JSON.parse(spansJson);
+    return Array.isArray(spans) && spans.length > 0 ? spans.length : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Build a context snippet for a mention: the block text windowed around the
+ *  first span, with the matched name wrapped in 「」 and elided edges marked. */
+function mentionSnippet(blockText: string, spansJson: string): string {
+  if (!blockText) return '';
+  let from = 0;
+  let to = 0;
+  try {
+    const spans = JSON.parse(spansJson) as Array<{ from: number; to: number }>;
+    if (Array.isArray(spans) && spans.length > 0) {
+      from = Math.max(0, Math.min(spans[0].from ?? 0, blockText.length));
+      to = Math.max(from, Math.min(spans[0].to ?? from, blockText.length));
+    }
+  } catch {
+    /* no spans — fall back to the head of the block */
+  }
+  if (to === from) return blockText.slice(0, MENTION_SNIPPET_PAD * 2).replace(/\s+/g, ' ').trim();
+  const start = Math.max(0, from - MENTION_SNIPPET_PAD);
+  const end = Math.min(blockText.length, to + MENTION_SNIPPET_PAD);
+  const lead = start > 0 ? '…' : '';
+  const tail = end < blockText.length ? '…' : '';
+  const out = `${lead}${blockText.slice(start, from)}「${blockText.slice(from, to)}」${blockText.slice(to, end)}${tail}`;
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+/** Where a structural entity is mentioned in prose (its appearances/backlinks).
+ *  Groups by source (surfaced by name, not id) and returns a short context
+ *  snippet per mention so the agent can gauge relevance without re-reading each
+ *  block. The blockId stays as the actionable handle for read_block / edits. */
 async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string, unknown>) {
   const kind = String(args.kind ?? '');
   if (!isStructuralEntityKind(kind)) {
@@ -589,17 +634,65 @@ async function whereDoesEntityAppear(ctx: AgentToolContext, args: Record<string,
   const id = resolveByKind(ctx, kind, ref);
   const s = useDataStore.getState();
   const backlinks = await createInlineMentionRepository().listBacklinksToTarget(kind, id);
+
   // Group by source entity (one source can mention the target in many blocks).
-  // Sources are surfaced by name (`from`), not id.
-  const bySource = new Map<string, { fromKind: string; from: string; blockIds: string[] }>();
+  type SourceAgg = {
+    fromKind: string;
+    from: string;
+    fromId: string;
+    rows: Array<{ blockId: string; spansJson: string }>;
+    mentionCount: number;
+  };
+  const bySource = new Map<string, SourceAgg>();
   for (const b of backlinks) {
     const key = `${b.fromKind}:${b.fromId}`;
-    const cur = bySource.get(key) ?? { fromKind: b.fromKind, from: b.fromTitle, blockIds: [] };
-    cur.blockIds.push(b.fromBlockId);
+    const cur =
+      bySource.get(key) ??
+      ({ fromKind: b.fromKind, from: b.fromTitle, fromId: b.fromId, rows: [], mentionCount: 0 } as SourceAgg);
+    cur.rows.push({ blockId: b.fromBlockId, spansJson: b.fromSpansJson });
+    cur.mentionCount += spanCount(b.fromSpansJson);
     bySource.set(key, cur);
   }
-  const appearances = [...bySource.values()].map((a) => ({ ...a, mentionCount: a.blockIds.length }));
-  return { target: { kind, name: entityLabel(s, kind, id) }, appearances };
+
+  // Read each prose source once to map blockId -> text for the snippets.
+  type Appearance = {
+    from: string;
+    fromKind: string;
+    mentionCount: number;
+    mentions: Array<{ blockId: string; snippet: string }>;
+    more?: number;
+  };
+  const appearances: Appearance[] = [];
+  for (const src of bySource.values()) {
+    const blockText = new Map<string, string>();
+    if (isProseEntityType(src.fromKind)) {
+      try {
+        const json = await getEntityContentJson(src.fromKind, src.fromId);
+        for (const blk of docToBlocks(json)) {
+          if (blk.blockId) blockText.set(blk.blockId, blk.text);
+        }
+      } catch {
+        /* content unreadable — fall back to blockId-only mentions */
+      }
+    }
+    const mentions = src.rows.slice(0, MENTIONS_PER_SOURCE).map((r) => ({
+      blockId: r.blockId,
+      snippet: mentionSnippet(blockText.get(r.blockId) ?? '', r.spansJson),
+    }));
+    const more = src.rows.length - mentions.length;
+    appearances.push({
+      from: src.from,
+      fromKind: src.fromKind,
+      mentionCount: src.mentionCount,
+      mentions,
+      ...(more > 0 ? { more } : {}),
+    });
+  }
+  // Heaviest sources first — where the entity actually lives.
+  appearances.sort((a, b) => b.mentionCount - a.mentionCount);
+
+  const totalMentions = appearances.reduce((n, a) => n + a.mentionCount, 0);
+  return { target: { kind, name: entityLabel(s, kind, id) }, totalMentions, appearances };
 }
 
 /** The curated cross-entity relation edges touching an entity, both directions. */
