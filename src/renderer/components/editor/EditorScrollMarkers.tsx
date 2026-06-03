@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommentTargetKind } from '../../domain/comment';
+import { commentBlockIds, commentColorKey, type CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
@@ -23,13 +23,23 @@ interface EditorScrollMarkersProps {
   projectId: string;
   targetKind: CommentTargetKind;
   targetId: string;
+  /** When the comment rail is closed, comment ticks are hidden (there's no rail
+   *  to jump to). Agent-change ticks always show — they're rail-independent. */
+  commentsVisible?: boolean;
 }
 
 interface Tick {
   key: string;
   frac: number;
+  /** Colour class (by comment family or agent op). */
   cls: string;
-  blockId: string;
+  /** Lane/position class. Agent ticks sit in one of three VSCode-git-style
+   *  lanes (new=left / changed=mid / deleted=right); comment ticks are a
+   *  horizontal bar spanning all three. */
+  laneCls: string;
+  /** Every block the tick covers. Click flashes them all; position is the first.
+   *  Comments carry their whole consecutive range; agent changes carry one. */
+  blockIds: string[];
   title: string;
 }
 
@@ -52,6 +62,7 @@ export function EditorScrollMarkers({
   projectId,
   targetKind,
   targetId,
+  commentsVisible = true,
 }: EditorScrollMarkersProps) {
   const comments = useDataStore((s) => s.comments);
   // Agent-changed blocks for this entity (any prose entity — node / element /
@@ -96,7 +107,9 @@ export function EditorScrollMarkers({
 
     const next: Tick[] = [];
 
-    for (const c of comments) {
+    // Comment ticks only when the rail is open — a tick that jumps to a hidden
+    // rail is dead. Agent ticks (below) are rail-independent and always show.
+    for (const c of commentsVisible ? comments : []) {
       if (
         c.projectId !== projectId ||
         c.targetKind !== targetKind ||
@@ -106,19 +119,25 @@ export function EditorScrollMarkers({
       ) {
         continue;
       }
-      const block = scrollEl.querySelector(blockSelector(c.targetBlockId)) as HTMLElement | null;
-      if (!block) continue; // orphan — no anchor on the rail
+      // Position the tick at the first present block of the range; clicking
+      // flashes the whole range (multi-block comments span several blocks).
+      const ids = commentBlockIds(c);
+      const firstPresent = ids
+        .map((id) => scrollEl.querySelector(blockSelector(id)) as HTMLElement | null)
+        .find((el): el is HTMLElement => el != null);
+      if (!firstPresent) continue; // orphan — no anchor on the rail
+      // Comment ticks span all three lanes (a horizontal bar), coloured by
+      // family (manual/shadow/copilot/todo) — muted once resolved.
       const cls =
         c.status === 'resolved'
           ? 'editor__scrollmap-tick--resolved'
-          : c.kind === 'todo'
-            ? 'editor__scrollmap-tick--todo'
-            : 'editor__scrollmap-tick--note';
+          : `editor__scrollmap-tick--c-${commentColorKey(c)}`;
       next.push({
         key: `c:${c.id}`,
-        frac: fracOf(block),
+        frac: fracOf(firstPresent),
         cls,
-        blockId: c.targetBlockId,
+        laneCls: 'editor__scrollmap-tick--span',
+        blockIds: ids,
         title: c.kind === 'todo' ? '跳到 TODO' : '跳到批注',
       });
     }
@@ -133,13 +152,28 @@ export function EditorScrollMarkers({
         if (!block) continue;
         frac = fracOf(block);
       }
+      // VSCode-git-style lanes: new=left (green), changed=mid (blue),
+      // deleted=right (red). A sharp little rectangle in its own column.
       const cls =
         c.op === 'new'
           ? 'editor__scrollmap-tick--agent-new'
           : c.op === 'deleted'
             ? 'editor__scrollmap-tick--agent-deleted'
             : 'editor__scrollmap-tick--agent-changed';
-      next.push({ key: `a:${c.op}:${c.blockId}`, frac, cls, blockId: anchorId ?? '', title: '跳到改动处' });
+      const laneCls =
+        c.op === 'new'
+          ? 'editor__scrollmap-tick--lane0'
+          : c.op === 'deleted'
+            ? 'editor__scrollmap-tick--lane2'
+            : 'editor__scrollmap-tick--lane1';
+      next.push({
+        key: `a:${c.op}:${c.blockId}`,
+        frac,
+        cls,
+        laneCls,
+        blockIds: anchorId ? [anchorId] : [],
+        title: '跳到改动处',
+      });
     }
 
     next.sort((a, b) => a.frac - b.frac);
@@ -147,7 +181,7 @@ export function EditorScrollMarkers({
       ticksRef.current = next;
       setTicks(next);
     }
-  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges]);
+  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges, commentsVisible]);
 
   // Recompute on data change + layout change. Fractions are scroll-independent,
   // so we don't listen to `scroll` — only resize and content-height changes.
@@ -171,11 +205,17 @@ export function EditorScrollMarkers({
 
   if (ticks.length === 0) return null;
 
-  const jump = (blockId: string) => {
-    const block = scrollEl?.querySelector(blockSelector(blockId)) as HTMLElement | null;
-    if (!block) return;
-    block.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    flashBlock(block);
+  // Scroll the first present block into view, then flash EVERY block in the
+  // range — so clicking a multi-block comment's tick reveals its whole span,
+  // not just the first block.
+  const jump = (blockIds: string[]) => {
+    if (!scrollEl) return;
+    const blocks = blockIds
+      .map((id) => scrollEl.querySelector(blockSelector(id)) as HTMLElement | null)
+      .filter((el): el is HTMLElement => el != null);
+    if (blocks.length === 0) return;
+    blocks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    blocks.forEach(flashBlock);
   };
 
   return (
@@ -185,10 +225,10 @@ export function EditorScrollMarkers({
           key={t.key}
           type="button"
           tabIndex={-1}
-          className={`editor__scrollmap-tick ${t.cls}`}
+          className={`editor__scrollmap-tick ${t.cls} ${t.laneCls}`}
           style={{ top: `${(t.frac * 100).toFixed(3)}%` }}
           title={t.title}
-          onClick={() => jump(t.blockId)}
+          onClick={() => jump(t.blockIds)}
         />
       ))}
     </div>

@@ -9,6 +9,8 @@
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
+import { createProjectRuleRepository } from '../../sqlite-repo/project-rule-repo';
+import { evaluateSemanticAssertion } from '../ai/shadow-rules';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
   createElementPatchRepository,
@@ -1713,6 +1715,151 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
   return { ok: true, commentId: id, kind };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shadow review bridge handlers. The main-process LangGraph engine calls these
+// over the agent bridge (callRenderer) to read the locked chapter + rules, judge
+// semantic assertions, write shadow comments, and push the chapter's status.
+// They reuse this file's private helpers (the renderer owns the DB + Yjs prose).
+
+// The chapter body as top-level blocks ({id, text}) from the live Yjs truth.
+async function shadowChapterBlocks(
+  chapterId: string,
+): Promise<Array<{ id: string | null; text: string }>> {
+  const content = await createBookContentRepository().findByNodeId(chapterId);
+  const truthJson = await getChapterContentJson(chapterId, content?.contentJson ?? null);
+  return docToBlocks(truthJson).map((b) => ({ id: b.blockId, text: b.text }));
+}
+
+async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const chapterId = String(args.chapterId ?? '');
+  const s = useDataStore.getState();
+  const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+  if (!node) throw new Error(`shadow_read_chapter_snapshot: no chapter "${chapterId}"`);
+  const blocks = await shadowChapterBlocks(chapterId);
+  const refs = await listChapterReferences(s, chapterId);
+  // rulesKv = auxiliary ground-truth: project facts overlaid with the primary
+  // storyline's facts (storyline wins on key collisions).
+  const rulesKv: Record<string, string> = {};
+  const project = useProjectStore.getState().currentProject;
+  if (project) for (const kv of parseKv(project.kvJson)) rulesKv[kv.key] = kv.value;
+  const primaryStorylineId = s.primaryStorylineByNode[chapterId];
+  if (primaryStorylineId) {
+    const sl = s.storylines.find((x) => x.id === primaryStorylineId);
+    if (sl) for (const kv of parseKv(sl.kvJson)) rulesKv[kv.key] = kv.value;
+  }
+  return {
+    projectId: ctx.projectId,
+    chapterId,
+    title: node.title,
+    summary: node.summary ?? '',
+    blocks,
+    appears: refs.map((r) => r.label),
+    rulesKv,
+  };
+}
+
+async function shadowReadRules(ctx: AgentToolContext) {
+  const rules = await createProjectRuleRepository().listByProject(ctx.projectId);
+  return rules
+    .filter((r) => r.enabled && r.checklist.length > 0)
+    .map((r) => ({ id: r.id, checklist: r.checklist }));
+}
+
+async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const assertion = String(args.assertion ?? '');
+  const chapterId = String(args.chapterId ?? '');
+  const s = useDataStore.getState();
+  if (!s.bookNodes.some((n) => n.id === chapterId && n.projectId === ctx.projectId)) {
+    throw new Error(`shadow_eval_semantic: no chapter "${chapterId}"`);
+  }
+  const blocks = await shadowChapterBlocks(chapterId);
+  const facts =
+    args.facts && typeof args.facts === 'object'
+      ? (args.facts as Record<string, string>)
+      : {};
+  const summary = String(args.summary ?? '');
+  return evaluateSemanticAssertion(assertion, blocks, ctx.projectId, { facts, summary });
+}
+
+async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const chapterId = String(args.chapterId ?? '');
+  const stale = useDataStore
+    .getState()
+    .comments.filter(
+      (c) =>
+        c.projectId === ctx.projectId &&
+        c.source === 'shadow' &&
+        c.targetKind === 'node' &&
+        c.targetId === chapterId,
+    );
+  for (const c of stale) await ctx.write.deleteComment(c.id);
+  return { ok: true, cleared: stale.length };
+}
+
+async function shadowWriteComment(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const chapterId = String(args.chapterId ?? '');
+  const finding = (args.finding ?? {}) as {
+    message?: string;
+    reason?: string;
+    blockId?: string | null;
+    blockIds?: string[];
+    ruleId?: string;
+    itemId?: string;
+  };
+  const message = String(finding.message ?? '').trim();
+  if (!chapterId || !message) return { ok: false };
+  const reason = String(finding.reason ?? '').trim();
+  const body = reason ? `${message}\n${reason}` : message;
+  // The full consecutive block range goes in metadataJson.blockIds; targetBlockId
+  // stays the first block (card position). CommentRail reads blockIds for the
+  // anchor-mark + hover highlight, so one comment spans the whole range.
+  const blockIds = Array.isArray(finding.blockIds)
+    ? finding.blockIds.filter((b): b is string => typeof b === 'string' && b.length > 0)
+    : [];
+  // Snapshot the violating blocks' live text so the shadow comment, like manual
+  // ones, can show "原文" on demand and detect when the prose later diverges.
+  // Shadow findings are block-level, so no precise textAnchor — whole blocks.
+  const snapBlockIds = blockIds.length
+    ? blockIds
+    : typeof finding.blockId === 'string' && finding.blockId
+      ? [finding.blockId]
+      : [];
+  const chapterBlocks = await shadowChapterBlocks(chapterId);
+  const textById = new Map(
+    chapterBlocks.filter((b) => b.id).map((b) => [b.id as string, b.text]),
+  );
+  const blockSnapshots = snapBlockIds.map((id) => ({
+    blockId: id,
+    blockText: textById.get(id) ?? '',
+  }));
+  const input: CreateCommentInput = {
+    kind: 'note',
+    bodyJson: createPlainCommentDoc(body),
+    targetKind: 'node',
+    targetId: chapterId,
+    targetBlockIds: blockIds,
+    anchorJson: JSON.stringify({ createdAt: new Date().toISOString(), blockSnapshots }),
+    authorKind: 'ai',
+    authorName: 'Shadow',
+    source: 'shadow',
+    metadataJson: JSON.stringify({ ruleId: finding.ruleId ?? '', itemId: finding.itemId ?? '' }),
+  };
+  if (typeof finding.blockId === 'string' && finding.blockId) {
+    input.targetBlockId = finding.blockId;
+  }
+  const created = await ctx.write.createComment(input);
+  return { ok: true, commentId: (created as { id?: string })?.id };
+}
+
+async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const chapterId = String(args.chapterId ?? '');
+  const status =
+    args.status === 'finished' ? 'finished' : args.status === 'draft' ? 'draft' : null;
+  if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
+  await ctx.write.updateNode(chapterId, { writingStatus: status });
+  return { ok: true, chapterId, status };
+}
+
 /** Dispatch a tool call to its handler. Throws on unknown/missing. */
 export async function runAgentTool(
   name: string,
@@ -1829,6 +1976,19 @@ export async function runAgentTool(
     // destructive
     case 'delete_element':
       return deleteElement(ctx, args);
+    // shadow review (main-process LangGraph engine ↔ bridge)
+    case 'shadow_read_chapter_snapshot':
+      return shadowReadChapterSnapshot(ctx, args);
+    case 'shadow_read_rules':
+      return shadowReadRules(ctx);
+    case 'shadow_eval_semantic':
+      return shadowEvalSemantic(ctx, args);
+    case 'shadow_clear_comments':
+      return shadowClearComments(ctx, args);
+    case 'shadow_write_comment':
+      return shadowWriteComment(ctx, args);
+    case 'shadow_set_status':
+      return shadowSetStatus(ctx, args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

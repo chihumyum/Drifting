@@ -77,6 +77,9 @@ export interface EditorCommentRequest {
   sourceKind: CommentTargetKind;
   sourceId: string;
   targetBlockId: string;
+  /** All top-level blocks the selection spans (incl. targetBlockId), in order —
+   *  for a multi-block comment anchor. Single-block selections yield [targetBlockId]. */
+  targetBlockIds: string[];
   selectedText: string;
   anchorJson: string;
   clientX: number;
@@ -401,6 +404,11 @@ export interface UseEntityEditorConfig {
   // editors set this (Copilot is chapter-scoped); the popover itself is
   // mounted by the caller (ChapterEditor) and keys off the same nodeId.
   enableInlineCopilot?: boolean;
+
+  // When false, the prose body is read-only (e.g. a chapter locked during shadow
+  // review). Defaults to true. The caller keys the editor on this so toggling it
+  // remounts + re-creates the editor with the new editable state.
+  editable?: boolean;
 }
 
 export interface UseEntityEditorResult {
@@ -443,6 +451,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     selectionKey,
     onAddCommentRequest,
     enableInlineCopilot = false,
+    editable = true,
   } = config;
 
   const sourceRef = useLatestRef({ projectId, sourceKind, sourceId, parentElementId });
@@ -799,7 +808,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       ],
       content: null,
       autofocus: autoFocus ? 'end' : false,
-      editable: true,
+      editable,
       editorProps: {
         attributes: {
           class: editorClass ?? 'prose max-w-none focus:outline-none',
@@ -873,6 +882,22 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
             }
             if (!blockId) return false;
 
+            // All top-level blocks the selection spans (in order) — for a
+            // multi-block comment anchor. Capture each block's id, original
+            // plain text (so the card can show the source on demand even after
+            // edits/deletes), and doc-start position (to derive char offsets).
+            const spanBlocks: { id: string; text: string; docStart: number }[] = [];
+            view.state.doc.forEach((node, offset) => {
+              if (offset + node.nodeSize > selection.from && offset < selection.to) {
+                const id = node.attrs?.id as string | null | undefined;
+                if (id) spanBlocks.push({ id, text: node.textContent, docStart: offset + 1 });
+              }
+            });
+            if (spanBlocks.length === 0) {
+              spanBlocks.push({ id: blockId, text: blockText, docStart: blockStartInDoc });
+            }
+            const spanBlockIds = spanBlocks.map((b) => b.id);
+
             // Map doc-relative selection offsets into blockText-relative ones.
             // Direct subtraction works for plain prose; inline atoms (entity
             // links etc.) can shift positions, so we sanity-check against
@@ -890,6 +915,21 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               }
             }
 
+            // Precise text anchor: start = first spanned block + its in-block
+            // offset (reuse the validated blockSelectionFrom), end = last
+            // spanned block + the selection-end offset within it. Drives the
+            // fine-grained hover highlight + text-level change detection.
+            const firstSpan = spanBlocks[0]!;
+            const lastSpan = spanBlocks[spanBlocks.length - 1]!;
+            const startOffset =
+              blockSelectionFrom >= 0
+                ? blockSelectionFrom
+                : Math.max(0, Math.min(firstSpan.text.length, selection.from - firstSpan.docStart));
+            const endOffset =
+              spanBlocks.length === 1 && blockSelectionTo >= 0
+                ? blockSelectionTo
+                : Math.max(0, Math.min(lastSpan.text.length, selection.to - lastSpan.docStart));
+
             event.preventDefault();
             event.stopPropagation();
             const request: EditorCommentRequest = {
@@ -897,6 +937,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               sourceKind: source.sourceKind,
               sourceId: source.sourceId,
               targetBlockId: blockId,
+              targetBlockIds: spanBlockIds,
               selectedText,
               anchorJson: JSON.stringify({
                 selectedText,
@@ -906,6 +947,14 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
                 blockText,
                 blockSelectionFrom,
                 blockSelectionTo,
+                blockSnapshots: spanBlocks.map((b) => ({ blockId: b.id, blockText: b.text })),
+                textAnchor: {
+                  startBlockId: firstSpan.id,
+                  startOffset,
+                  endBlockId: lastSpan.id,
+                  endOffset,
+                  text: selectedText,
+                },
               }),
               clientX: event.clientX,
               clientY: event.clientY,

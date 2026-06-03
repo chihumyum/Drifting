@@ -1,15 +1,17 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, Eye, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
   commentBelongsToEntity,
+  commentBlockIds,
+  commentColorKey,
   commentIdsRelatedToEntity,
   createPlainCommentDoc,
   extractTextFromCommentBody,
-  getBlockSnapshotFromAnchor,
-  getSelectedTextFromAnchor,
+  getBlockSnapshotsFromAnchor,
+  getTextAnchorFromAnchor,
   type Comment,
-  type CommentBlockSnapshot,
+  type CommentColorKey,
   type CommentTargetKind,
 } from '../../domain/comment';
 import { decodeCopilotMetadata } from '../../domain/copilot-suggestion';
@@ -19,11 +21,12 @@ import {
 } from '../../lib/copilot/capability';
 import { copilotRuntime } from '../../lib/copilot/runtime';
 import { getActiveEditor } from '../../lib/active-editor';
+import { highlightComment } from '../../lib/comment-highlight';
+import { events } from '../../lib/events';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useComment } from '../../usecase/useComment';
-import { CopilotSuggestionCard } from '../copilot/CopilotSuggestionCard';
 
 interface CommentRailProps {
   projectId: string;
@@ -40,9 +43,15 @@ interface CommentRailProps {
 // works and the card remains visible.
 const COPILOT_ACTIVE_MS = 5000;
 
-// Context window around the selection in the in-card quote. The full block
-// snapshot is preserved in anchorJson — the modal shows it untrimmed.
-const QUOTE_CONTEXT_PAD = 60;
+// A copilot suggestion only flashes its Tab hint if it was created within this
+// window — so one re-loaded from the DB on tab reopen / remount never re-flashes.
+const COPILOT_FRESH_MS = 8000;
+
+// Ids that have ALREADY flashed their Tab hint, persisted across CommentRail
+// remounts for the app session (module scope). Combined with the recency gate
+// above, this guarantees a given suggestion flashes at most once — reopening the
+// tab won't replay the hint.
+const flashedCopilotIds = new Set<string>();
 
 function blockSelector(blockId: string): string {
   return `[data-block-id="${CSS.escape(blockId)}"]`;
@@ -52,47 +61,77 @@ function commentSort(a: Comment, b: Comment): number {
   return a.createdAt.localeCompare(b.createdAt);
 }
 
-/** Quote excerpt: ±PAD chars around the selected hit, hit bolded + tinted. */
-function renderQuoteExcerpt(snapshot: CommentBlockSnapshot): ReactNode {
-  const { blockText, from, to } = snapshot;
-  if (from < 0 || to <= from || to > blockText.length) {
-    // Snapshot exists but offsets aren't usable — fall back to plain text.
-    return blockText;
+// Whether the prose a comment was written against has since diverged from its
+// creation-time snapshot — drives the "view original" affordance (no point
+// offering it while the live prose still matches). Anchor-aware:
+//   • text anchor → diverged iff the exact anchored text no longer appears in
+//     its (live) span blocks, OR a span block was deleted. So edits ELSEWHERE in
+//     the block don't false-positive a text-pinned comment.
+//   • whole-block anchor → diverged iff any snapshotted block's text changed or
+//     the block was deleted.
+function originalDiverged(comment: Comment, scrollEl: HTMLElement | null): boolean {
+  if (!scrollEl) return false;
+  // Whitespace-normalize both sides: snapshots captured server-side (shadow,
+  // via docToBlocks/collectText) and live DOM textContent can differ only in
+  // whitespace for unchanged prose — comparing raw would false-positive.
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const ids = commentBlockIds(comment);
+  const textAnchor = getTextAnchorFromAnchor(comment.anchorJson);
+  if (textAnchor) {
+    if (ids.length === 0) return false;
+    if (ids.some((id) => !scrollEl.querySelector(blockSelector(id)))) return true; // block gone
+    const liveText = norm(
+      ids.map((id) => scrollEl.querySelector(blockSelector(id))?.textContent ?? '').join(' '),
+    );
+    return !liveText.includes(norm(textAnchor.text));
   }
-  const start = Math.max(0, from - QUOTE_CONTEXT_PAD);
-  const end = Math.min(blockText.length, to + QUOTE_CONTEXT_PAD);
-  return (
-    <>
-      {start > 0 ? '…' : null}
-      {blockText.slice(start, from)}
-      <mark className="mnote__quote-hit">{blockText.slice(from, to)}</mark>
-      {blockText.slice(to, end)}
-      {end < blockText.length ? '…' : null}
-    </>
-  );
+  const snapshots = getBlockSnapshotsFromAnchor(comment.anchorJson);
+  if (snapshots.length === 0) return false;
+  for (const snap of snapshots) {
+    if (snap.blockId == null || !snap.blockText) continue; // un-verifiable — ignore
+    const el = scrollEl.querySelector(blockSelector(snap.blockId));
+    if (!el) return true; // block deleted
+    if (norm(el.textContent ?? '') !== norm(snap.blockText)) return true; // block edited
+  }
+  return false;
 }
 
-/** Full block text with the hit highlighted — for the snapshot modal. */
-function renderQuoteFull(snapshot: CommentBlockSnapshot): ReactNode {
-  const { blockText, from, to } = snapshot;
-  if (from < 0 || to <= from || to > blockText.length) {
-    return blockText;
+// Per-family rail micro-icon (head glyph + collapsed chip) — manual / shadow /
+// copilot / todo are visually distinct (see commentColorKey + the .mnote--*
+// colours in index.css).
+function colorIcon(key: CommentColorKey, size = 11): ReactNode {
+  switch (key) {
+    case 'todo':
+      return <ListTodo size={size} />;
+    case 'shadow':
+      return <Eye size={size} />;
+    case 'copilot':
+      return <Sparkles size={size} />;
+    default:
+      return <MessageSquare size={size} />;
   }
-  return (
-    <>
-      {blockText.slice(0, from)}
-      <mark className="mnote__quote-hit">{blockText.slice(from, to)}</mark>
-      {blockText.slice(to)}
-    </>
-  );
 }
+
+const COLOR_LABEL: Record<CommentColorKey, string> = {
+  todo: 'TODO',
+  shadow: 'SHADOW',
+  copilot: 'COPILOT',
+  manual: 'COMMENT',
+};
 
 interface SnapshotModalProps {
-  snapshot: CommentBlockSnapshot;
+  /** Original text of each anchored block, captured at creation (anchor v3). */
+  snapshots: { blockId: string | null; blockText: string }[];
+  /** Block ids still present in the live doc — used to flag edited/deleted ones. */
+  liveBlockIds: Set<string>;
   onClose: () => void;
 }
 
-function SnapshotModal({ snapshot, onClose }: SnapshotModalProps) {
+// On-demand view of the comment's source blocks AS THEY WERE when the comment
+// was made. Manual cards no longer show prose inline (per design) — this is the
+// click-to-view escape hatch, and the only way to recover the text once a block
+// is edited or deleted.
+function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -113,7 +152,7 @@ function SnapshotModal({ snapshot, onClose }: SnapshotModalProps) {
         aria-label="Source block snapshot"
       >
         <div className="snapshot-modal__head">
-          <span>原文快照 · 已删除</span>
+          <span>关联原文 · 创建时快照{snapshots.length > 1 ? ` · ${snapshots.length} 段` : ''}</span>
           <button
             type="button"
             className="mnote__icon-btn"
@@ -123,7 +162,20 @@ function SnapshotModal({ snapshot, onClose }: SnapshotModalProps) {
             <X size={12} />
           </button>
         </div>
-        <div className="snapshot-modal__body">{renderQuoteFull(snapshot)}</div>
+        <div className="snapshot-modal__body">
+          {snapshots.map((snap, i) => {
+            const gone = snap.blockId != null && !liveBlockIds.has(snap.blockId);
+            return (
+              <p
+                key={snap.blockId ?? `snap-${i}`}
+                className={`snapshot-modal__block${gone ? ' snapshot-modal__block--gone' : ''}`}
+              >
+                {gone && <span className="snapshot-modal__flag">已删除/改动</span>}
+                {snap.blockText || <span className="snapshot-modal__empty">（空段）</span>}
+              </p>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -223,6 +275,28 @@ export function CommentRail({
   // The stack starts collapsed (an iOS-notification-style deck); clicking it
   // fans the cards out into a flat list. Session-local; not persisted.
   const [stackExpanded, setStackExpanded] = useState(false);
+  // Inline composer for a NEW entity-level (block-less) comment — opened from the
+  // bottom-right ball (when empty) or the "+" beside the collapse button.
+  const [entityComposerOpen, setEntityComposerOpen] = useState(false);
+  const [entityDraft, setEntityDraft] = useState('');
+  // Which comment card is hovered → the effect below highlights its anchored
+  // block(s). State-driven (+ cleanup) so the highlight never sticks: the old
+  // inline classList toggling left marks behind on card unmount / delete / create.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  // Bumped after each (debounced) prose edit to this entity so the manual cards
+  // re-evaluate snapshotsDiverged — the "view original" button must appear once
+  // an anchored block is edited/deleted. The value is unused; the re-render is
+  // the point. references:changed fires from the editor's persist pipeline.
+  const [, bumpEditRevision] = useState(0);
+  useEffect(() => {
+    const onChange = (payload: { fromKind?: string; fromId?: string }) => {
+      if (payload.fromKind === targetKind && payload.fromId === targetId) {
+        bumpEditRevision((n) => n + 1);
+      }
+    };
+    events.on('references:changed', onChange);
+    return () => events.off('references:changed', onChange);
+  }, [targetKind, targetId]);
 
   const relevantPending =
     pendingRequest &&
@@ -346,34 +420,21 @@ export function CommentRail({
     };
   }, [scrollEl, applyPositions]);
 
-  // ─── anchor-highlight class application ───────────────────────────────
+  // ─── hover-highlight (state-driven, the ONLY in-prose mark) ───────────
+  // The hovered comment's anchored region is washed ONLY while its card is
+  // hovered — never persistently. Uses the CSS Custom Highlight API (see
+  // highlightComment): it paints an arbitrary DOM Range — a precise text span
+  // when the comment is text-anchored, else the whole block(s) — WITHOUT
+  // mutating the DOM, so it survives ProseMirror reconciliation (which strips
+  // class/attr changes) and supports fine-grained text highlighting. The
+  // cleanup runs whenever hoveredId or the comment set changes, so the mark
+  // can't stick after unmount / delete / create.
   useEffect(() => {
-    if (!scrollEl) return;
-    scrollEl.querySelectorAll('.comment-anchor-mark').forEach((node) => {
-      node.classList.remove('comment-anchor-mark', 'comment-anchor-resolved');
-    });
-
-    const byBlock = new Map<string, { open: number; resolved: number }>();
-    visibleComments.forEach((comment) => {
-      const current = byBlock.get(comment.targetBlockId) ?? { open: 0, resolved: 0 };
-      if (comment.status === 'resolved') current.resolved += 1;
-      else current.open += 1;
-      byBlock.set(comment.targetBlockId, current);
-    });
-
-    byBlock.forEach((count, blockId) => {
-      const block = scrollEl.querySelector(blockSelector(blockId));
-      if (!block) return;
-      block.classList.add('comment-anchor-mark');
-      if (count.open === 0 && count.resolved > 0) block.classList.add('comment-anchor-resolved');
-    });
-
-    return () => {
-      scrollEl.querySelectorAll('.comment-anchor-mark').forEach((node) => {
-        node.classList.remove('comment-anchor-mark', 'comment-anchor-resolved');
-      });
-    };
-  }, [scrollEl, visibleComments]);
+    if (!scrollEl || !hoveredId) return undefined;
+    const hovered = visibleComments.find((c) => c.id === hoveredId);
+    if (!hovered) return undefined;
+    return highlightComment(scrollEl, hovered);
+  }, [scrollEl, hoveredId, visibleComments]);
 
   // ─── composer focus ──────────────────────────────────────────────────
   // The composer's initial position is handled by applyPositions in the
@@ -393,18 +454,24 @@ export function CommentRail({
   // burst of suggestions stays Tab-acceptable in order.
   useEffect(() => {
     const currentIds = new Set(visibleComments.map((c) => c.id));
-    const copilotIds = visibleComments
-      .filter((c) => c.source === 'copilot')
-      .map((c) => c.id);
+    const copilotComments = visibleComments.filter((c) => c.source === 'copilot');
 
-    copilotIds.forEach((id) => {
+    copilotComments.forEach((c) => {
+      const id = c.id;
       if (seenIds.has(id)) return;
+      // Mark seen for every copilot comment so we don't re-evaluate it each
+      // render — but only a genuinely-new one (created just now AND not already
+      // flashed this session) gets the active window + Tab-hint pulse. A
+      // suggestion re-loaded from the DB on remount/reopen is neither.
       setSeenIds((prev) => {
         if (prev.has(id)) return prev;
         const next = new Set(prev);
         next.add(id);
         return next;
       });
+      const isFresh = Date.now() - Date.parse(c.createdAt) < COPILOT_FRESH_MS;
+      if (flashedCopilotIds.has(id) || !isFresh) return;
+      flashedCopilotIds.add(id);
       setActiveIds((prev) => {
         if (prev.has(id)) return prev;
         const next = new Set(prev);
@@ -548,6 +615,7 @@ export function CommentRail({
       targetKind,
       targetId,
       targetBlockId: relevantPending.targetBlockId,
+      targetBlockIds: relevantPending.targetBlockIds,
       anchorJson: relevantPending.anchorJson,
       bodyJson: createPlainCommentDoc(body),
       authorKind: 'user',
@@ -556,6 +624,31 @@ export function CommentRail({
     });
     setDraft('');
     onPendingRequestChange(null);
+  };
+
+  // Create an entity-level (block-less) comment about this chapter/element. No
+  // anchor, no block — it joins looseComments / the bottom stack.
+  const handleCreateEntityComment = async () => {
+    const body = entityDraft.trim();
+    if (!body) return;
+    await commentUsecases.createComment({
+      targetKind,
+      targetId,
+      bodyJson: createPlainCommentDoc(body),
+      authorKind: 'user',
+      authorId: userId ?? null,
+      source: 'manual',
+    });
+    setEntityDraft('');
+    setEntityComposerOpen(false);
+  };
+  const openEntityComposer = () => {
+    setStackExpanded(true);
+    setEntityComposerOpen(true);
+  };
+  const closeEntityComposer = () => {
+    setEntityComposerOpen(false);
+    setEntityDraft('');
   };
 
   const runAction = async (commentId: string, action: () => Promise<unknown>) => {
@@ -575,57 +668,62 @@ export function CommentRail({
     [orphanIds],
   );
 
-  // ─── card renderers ───────────────────────────────────────────────────
-  const renderCopilotCard = (comment: Comment) => {
-    const isOrphan = orphanIds.has(comment.id);
-    const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
-    return (
-      <CopilotSuggestionCard
-        comment={comment}
-        isActive={activeIds.has(comment.id)}
-        isStale={!activeIds.has(comment.id) && seenIds.has(comment.id)}
-        isOrphan={isOrphan}
-        onAccept={() => {
-          clearActivation(comment.id);
-          return acceptCopilotComment(comment);
-        }}
-        onReject={() => {
-          clearActivation(comment.id);
-          return rejectCopilotComment(comment.id);
-        }}
-        onShowSnapshot={isOrphan && snapshot ? () => setSnapshotForId(comment.id) : undefined}
-        onCollapse={() => collapseToChip(comment.id)}
-      />
-    );
-  };
-
-  // `loose` cards have no prose block to anchor to (entity-level notes/TODOs),
-  // so they render flat inside the bottom stack rather than floating: no leader
-  // line, no collapse-to-chip (the whole stack collapses instead), no block
-  // quote/orphan affordance.
-  const renderManualCard = (comment: Comment, opts?: { loose?: boolean }) => {
+  // ─── unified card renderer ────────────────────────────────────────────
+  // ONE card for every comment — manual / shadow / copilot / todo. They share
+  // structure, hover-highlight, the snapshot affordance, and the
+  // resolve/转TODO/删除 actions; only the colour, icon, header label, and
+  // (copilot-only) the accept/reject + capability summary differ. `loose` cards
+  // (entity-level notes/TODOs with no block anchor) render flat in the bottom
+  // stack: no leader line, no collapse-to-chip.
+  const renderUnifiedCard = (comment: Comment, opts?: { loose?: boolean }) => {
     const loose = opts?.loose ?? false;
-    const snapshot = getBlockSnapshotFromAnchor(comment.anchorJson);
-    const fallbackQuote = snapshot ? '' : getSelectedTextFromAnchor(comment.anchorJson);
-    const body = extractTextFromCommentBody(comment.bodyJson);
-    const isResolved = comment.status === 'resolved';
-    // Orphan affordance shows whether the card floats or sits in the bottom
-    // stack — a deleted block has no anchor in either place.
-    const isOrphan = orphanIds.has(comment.id);
+    const colorKey = commentColorKey(comment);
+    const isCopilot = comment.source === 'copilot';
     const isTodo = comment.kind === 'todo';
+    const isResolved = comment.status === 'resolved';
+    const isOrphan = orphanIds.has(comment.id);
     const busy = busyId === comment.id;
-    const classes = ['mnote', 'mnote--manual'];
+
+    // "View original" appears ONLY once the anchored prose has diverged from its
+    // creation-time snapshot (edited/deleted) — anchor-aware (text vs block).
+    const hasSnapshot = getBlockSnapshotsFromAnchor(comment.anchorJson).length > 0;
+    const showOriginal = hasSnapshot && originalDiverged(comment, scrollEl);
+
+    // Copilot capability summary (title / subtitle / evidence / accept label).
+    const meta = isCopilot ? decodeCopilotMetadata(comment.metadataJson) : null;
+    const capability = meta ? getCopilotCapabilityForMetadataKind(meta.kind) : null;
+    const summary = capability && meta ? capability.renderSummary?.(meta) : null;
+
+    const body = extractTextFromCommentBody(comment.bodyJson);
+    const title = isCopilot
+      ? summary?.title ?? `Copilot 建议${meta ? ` (${meta.kind})` : ''}`
+      : body || '空批注';
+
+    const isActive = activeIds.has(comment.id);
+    // Tab/accept is copilot-only — but a copilot suggestion deferred into a TODO
+    // behaves as a task, so it drops accept/reject and uses the shared actions.
+    const showCopilotActions = isCopilot && !isTodo;
+
+    // Going stale (active window expired) must NOT restyle the card — it only
+    // stops the accept button's pulse (the glow class below is gated on isActive).
+    // ONLY resolved/open changes the whole card's look (all comment types).
+    const classes = ['mnote', `mnote--${colorKey}`];
     if (isResolved) classes.push('mnote--resolved');
     if (isOrphan) classes.push('mnote--orphan');
-    if (isTodo) classes.push('mnote--todo');
     if (loose) classes.push('mnote--loose');
+
     return (
-      <div className={classes.join(' ')} data-comment-id={comment.id}>
+      <div
+        className={classes.join(' ')}
+        data-comment-id={comment.id}
+        onMouseEnter={() => setHoveredId(comment.id)}
+        onMouseLeave={() => setHoveredId((prev) => (prev === comment.id ? null : prev))}
+      >
         {!isOrphan && !loose && <div className="mnote__leader" aria-hidden="true" />}
         <div className="mnote__head">
           <span className="mnote__head-l">
-            <span className="mnote__head-glyph">{isTodo ? '☐' : '§'}</span>
-            <span>{isTodo ? 'TODO' : comment.authorKind === 'user' ? 'COMMENT' : comment.authorKind}</span>
+            <span className="mnote__head-glyph">{colorIcon(colorKey)}</span>
+            <span>{isCopilot && capability ? capability.displayName : COLOR_LABEL[colorKey]}</span>
           </span>
           <span className="mnote__head-r">
             <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
@@ -642,25 +740,54 @@ export function CommentRail({
             )}
           </span>
         </div>
-        <div className="mnote__title">{body || '空批注'}</div>
-        {isOrphan ? (
+        <div className="mnote__title">{title}</div>
+        {isCopilot && summary?.subtitle && <div className="mnote__subtitle">{summary.subtitle}</div>}
+        {/* No anchored prose is shown inline — hover highlights it in place. The
+            source is recoverable via the "view original" button below, which
+            appears only once the prose has diverged (same rule for every type). */}
+        {showOriginal && (
           <button
             type="button"
-            className="mnote__tag"
-            onClick={() => snapshot && setSnapshotForId(comment.id)}
-            disabled={!snapshot}
-            title={snapshot ? '查看原文快照' : '无原文快照'}
+            className={`mnote__tag${isOrphan ? ' mnote__tag--orphan' : ''}`}
+            onClick={() => setSnapshotForId(comment.id)}
+            title="正文已变动 · 查看创建时的关联原文"
           >
-            原文已删除
+            {isOrphan ? '原文已删除 · 查看' : '正文已改动 · 查看原文'}
           </button>
-        ) : !loose ? (
-          snapshot ? (
-            <div className="mnote__quote">{renderQuoteExcerpt(snapshot)}</div>
-          ) : (
-            fallbackQuote && <div className="mnote__quote">{fallbackQuote}</div>
-          )
-        ) : null}
+        )}
         <div className="mnote__actions">
+          {showCopilotActions && (
+            <>
+              <button
+                type="button"
+                className={`mnote__btn mnote__btn--primary${isActive ? ' mnote__btn--glow' : ''}`}
+                disabled={busy}
+                onClick={() => {
+                  clearActivation(comment.id);
+                  void acceptCopilotComment(comment).catch((err) =>
+                    console.error('[CommentRail] copilot accept failed', err),
+                  );
+                }}
+              >
+                <Check size={12} />
+                <span>{summary?.actionLabel ?? '接受'}</span>
+              </button>
+              <button
+                type="button"
+                className="mnote__btn"
+                disabled={busy}
+                onClick={() => {
+                  clearActivation(comment.id);
+                  void rejectCopilotComment(comment.id).catch((err) =>
+                    console.error('[CommentRail] copilot reject failed', err),
+                  );
+                }}
+              >
+                <X size={12} />
+                <span>拒绝</span>
+              </button>
+            </>
+          )}
           {isResolved ? (
             <button
               type="button"
@@ -696,7 +823,7 @@ export function CommentRail({
           ) : (
             <button
               type="button"
-              className="mnote__btn mnote__btn--primary"
+              className="mnote__btn"
               disabled={busy}
               onClick={() => void runAction(comment.id, () => commentUsecases.convertToTodo(comment.id))}
             >
@@ -719,15 +846,13 @@ export function CommentRail({
   };
 
   const renderChip = (comment: Comment) => {
+    const colorKey = commentColorKey(comment);
     const isCopilot = comment.source === 'copilot';
     const isActive = activeIds.has(comment.id);
-    const isStale = !isActive && seenIds.has(comment.id);
     const isOrphan = orphanIds.has(comment.id);
-    const classes = ['comment-chip'];
-    if (isCopilot) classes.push('comment-chip--copilot');
+    const classes = ['comment-chip', `comment-chip--${colorKey}`];
     if (comment.status === 'resolved') classes.push('comment-chip--resolved');
-    if (isActive) classes.push('comment-chip--active');
-    if (isStale) classes.push('comment-chip--stale');
+    if (isCopilot && isActive) classes.push('comment-chip--active');
     if (isOrphan) classes.push('comment-chip--orphan');
     return (
       <button
@@ -735,17 +860,17 @@ export function CommentRail({
         className={classes.join(' ')}
         data-comment-id={comment.id}
         onClick={() => expandToCard(comment.id)}
-        aria-label={isCopilot ? 'Copilot suggestion' : 'Comment'}
+        aria-label={COLOR_LABEL[colorKey]}
         title="展开"
       >
-        {isCopilot ? <Sparkles size={11} /> : <MessageSquare size={11} />}
+        {colorIcon(colorKey)}
       </button>
     );
   };
 
   const renderCard = (comment: Comment) => {
     if (chipIds.has(comment.id)) return renderChip(comment);
-    return comment.source === 'copilot' ? renderCopilotCard(comment) : renderManualCard(comment);
+    return renderUnifiedCard(comment);
   };
 
   const renderComposer = () => {
@@ -808,25 +933,75 @@ export function CommentRail({
   // Collapsed to a single chip at the bottom of the rail (like a normal comment's
   // collapsed state) with a count; click to lay the cards out directly in a
   // floating column, which a small button collapses back.
+  // Inline composer for a new entity-level comment — a flat card in the stack.
+  const renderEntityComposer = () => (
+    <div className="mnote mnote--manual mnote--loose mnote--entity-composer">
+      <div className="mnote__head">
+        <span className="mnote__head-l">
+          <MessageSquarePlus size={11} />
+          <span>本章备注</span>
+        </span>
+        <button
+          type="button"
+          className="mnote__icon-btn"
+          onClick={closeEntityComposer}
+          aria-label="取消"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      <textarea
+        className="mnote__textarea"
+        value={entityDraft}
+        onChange={(e) => setEntityDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') closeEntityComposer();
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            void handleCreateEntityComment();
+          }
+        }}
+        placeholder="写本章备注（不锚定具体段落）…"
+        rows={3}
+        autoFocus
+      />
+      <div className="mnote__actions">
+        <button type="button" className="mnote__btn" onClick={closeEntityComposer}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="mnote__btn mnote__btn--primary"
+          disabled={!entityDraft.trim()}
+          onClick={() => void handleCreateEntityComment()}
+        >
+          添加
+        </button>
+      </div>
+    </div>
+  );
+
   const renderLooseStack = () => {
     // Entity-level notes/TODOs (no block anchor) + manual orphans (anchor block
     // deleted) share the bottom stack. Both render as flat, statically-placed
-    // cards; orphans keep their "原文已删除 / 快照" affordance via renderManualCard.
+    // cards; orphans keep their "原文已删除 / 快照" affordance via renderUnifiedCard.
     const stackComments = [...looseComments, ...visibleComments.filter(isStackOrphan)].sort(
       commentSort,
     );
-    if (stackComments.length === 0) return null;
     const total = stackComments.length;
 
+    // The ball is ALWAYS shown (even with no entity comments) so the author can
+    // create a block-less note from here. Empty → click opens the composer;
+    // non-empty → click expands the deck.
     if (!stackExpanded) {
       return (
         <div className="mnote-stack mnote-stack--collapsed">
           <button
             type="button"
             className="mnote-stack__ball"
-            onClick={() => setStackExpanded(true)}
-            aria-label={`${total} 条本章备注`}
-            title={`${total} 条本章备注`}
+            onClick={() => (total > 0 ? setStackExpanded(true) : openEntityComposer())}
+            aria-label={total > 0 ? `${total} 条本章备注` : '新建本章备注'}
+            title={total > 0 ? `${total} 条本章备注` : '新建本章备注'}
           >
             <MessageSquare size={11} />
             {total > 1 && <span className="mnote-stack__ball-count">{total}</span>}
@@ -837,18 +1012,33 @@ export function CommentRail({
 
     return (
       <div className="mnote-stack mnote-stack--open">
-        <button
-          type="button"
-          className="mnote-stack__collapse"
-          onClick={() => setStackExpanded(false)}
-          aria-label="收起"
-          title="收起"
-        >
-          <Minimize2 size={11} />
-        </button>
+        <div className="mnote-stack__bar">
+          <button
+            type="button"
+            className="mnote-stack__btn"
+            onClick={() => setEntityComposerOpen(true)}
+            aria-label="新建本章备注"
+            title="新建本章备注"
+          >
+            <MessageSquarePlus size={11} />
+          </button>
+          <button
+            type="button"
+            className="mnote-stack__btn"
+            onClick={() => {
+              setStackExpanded(false);
+              closeEntityComposer();
+            }}
+            aria-label="收起"
+            title="收起"
+          >
+            <Minimize2 size={11} />
+          </button>
+        </div>
         <div className="mnote-stack__list">
+          {entityComposerOpen && renderEntityComposer()}
           {stackComments.map((comment) => (
-            <Fragment key={comment.id}>{renderManualCard(comment, { loose: true })}</Fragment>
+            <Fragment key={comment.id}>{renderUnifiedCard(comment, { loose: true })}</Fragment>
           ))}
         </div>
       </div>
@@ -857,11 +1047,23 @@ export function CommentRail({
 
   const snapshotComment =
     snapshotForId !== null
-      ? visibleComments.find((c) => c.id === snapshotForId) ?? null
+      ? [...visibleComments, ...looseComments].find((c) => c.id === snapshotForId) ?? null
       : null;
   const snapshotPayload = snapshotComment
-    ? getBlockSnapshotFromAnchor(snapshotComment.anchorJson)
-    : null;
+    ? getBlockSnapshotsFromAnchor(snapshotComment.anchorJson)
+    : [];
+  // Block ids still in the live doc — lets the modal flag which snapshotted
+  // blocks have since been edited away or deleted. Only walked when the modal
+  // is actually open.
+  const liveBlockIds = (() => {
+    if (!snapshotComment || !scrollEl) return new Set<string>();
+    const ids = new Set<string>();
+    scrollEl.querySelectorAll('[data-block-id]').forEach((el) => {
+      const id = (el as HTMLElement).dataset.blockId;
+      if (id) ids.add(id);
+    });
+    return ids;
+  })();
 
   return (
     <>
@@ -878,8 +1080,12 @@ export function CommentRail({
         {renderComposer()}
         {renderLooseStack()}
       </aside>
-      {snapshotPayload && (
-        <SnapshotModal snapshot={snapshotPayload} onClose={() => setSnapshotForId(null)} />
+      {snapshotComment && snapshotPayload.length > 0 && (
+        <SnapshotModal
+          snapshots={snapshotPayload}
+          liveBlockIds={liveBlockIds}
+          onClose={() => setSnapshotForId(null)}
+        />
       )}
     </>
   );

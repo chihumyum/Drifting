@@ -625,6 +625,7 @@ export function StorylineEditorView({
           entityType="storyline"
           id={currentStoryline.id}
           scrollEl={scrollEl}
+          commentsVisible={marginNotes}
         />
       </div>
     </div>

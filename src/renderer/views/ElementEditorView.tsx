@@ -669,6 +669,7 @@ export function ElementEditorView({
           entityType="element"
           id={elementId}
           scrollEl={scrollEl}
+          commentsVisible={marginNotes}
         />
       </div>
 

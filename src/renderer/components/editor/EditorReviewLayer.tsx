@@ -7,6 +7,9 @@ interface EditorReviewLayerProps {
   entityType: ActivityEntityType;
   id: string | null | undefined;
   scrollEl: HTMLElement | null;
+  /** Whether the comment rail is open — comment scroll ticks are hidden when
+   *  it's closed (agent-change ticks always show). Defaults to true. */
+  commentsVisible?: boolean;
 }
 
 /**
@@ -21,7 +24,13 @@ interface EditorReviewLayerProps {
  * `useAgentChangeMarks(scrollEl, entityType, id)` must still be called at the top
  * level of the view/scaffold (a hook can't live inside this component).
  */
-export function EditorReviewLayer({ projectId, entityType, id, scrollEl }: EditorReviewLayerProps) {
+export function EditorReviewLayer({
+  projectId,
+  entityType,
+  id,
+  scrollEl,
+  commentsVisible = true,
+}: EditorReviewLayerProps) {
   return (
     <>
       <EditorScrollMarkers
@@ -29,6 +38,7 @@ export function EditorReviewLayer({ projectId, entityType, id, scrollEl }: Edito
         targetKind={entityType}
         targetId={id ?? ''}
         scrollEl={scrollEl}
+        commentsVisible={commentsVisible}
       />
       <AgentEditAnimator scrollEl={scrollEl} projectId={projectId} entityType={entityType} id={id} />
     </>

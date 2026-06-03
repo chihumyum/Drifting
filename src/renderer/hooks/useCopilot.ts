@@ -39,6 +39,7 @@ import {
   selectionWarrantsSummaryRegen,
 } from '../lib/copilot/base-block-context';
 import { produceBlockSectionSummary } from '../lib/copilot/produce-block-section-summary';
+import { locateTextInBlock } from '../domain/comment';
 import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { useCopilotInlineStore } from '../store/copilot-inline-store';
@@ -167,11 +168,49 @@ export function useCopilot({
         let persistedAny = false;
         for (const result of results) {
           try {
+            // Enrich the bare evidence anchor into the unified shape (snapshot +
+            // precise text anchor) so a copilot comment hover-highlights its
+            // evidence phrase and can show "原文" like manual/shadow comments.
+            const targetBlockId = result.overrideTargetBlockId ?? defaultAnchorBlockId;
+            const evidenceText = (() => {
+              try {
+                return (JSON.parse(result.anchorJson) as { selectedText?: string }).selectedText ?? '';
+              } catch {
+                return '';
+              }
+            })();
+            let blockText = '';
+            editor.state.doc.descendants((node) => {
+              if (blockText) return false;
+              if ((node.attrs?.id as string | undefined) === targetBlockId) {
+                blockText = node.textContent;
+                return false;
+              }
+              return undefined;
+            });
+            const loc = evidenceText ? locateTextInBlock(blockText, evidenceText) : null;
+            const enrichedAnchor = JSON.stringify({
+              selectedText: evidenceText,
+              createdAt: new Date().toISOString(),
+              blockSnapshots: [{ blockId: targetBlockId, blockText }],
+              ...(loc
+                ? {
+                    textAnchor: {
+                      startBlockId: targetBlockId,
+                      startOffset: loc.from,
+                      endBlockId: targetBlockId,
+                      endOffset: loc.to,
+                      text: evidenceText,
+                    },
+                  }
+                : {}),
+            });
             await createCopilotSuggestion({
               targetKind: 'node',
               targetId: nodeId,
-              targetBlockId: result.overrideTargetBlockId ?? defaultAnchorBlockId,
-              anchorJson: result.anchorJson,
+              targetBlockId,
+              targetBlockIds: [targetBlockId],
+              anchorJson: enrichedAnchor,
               metadata: result.metadata,
             });
             persistedAny = true;

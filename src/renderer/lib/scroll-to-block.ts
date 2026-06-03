@@ -55,6 +55,11 @@ export function flashBlock(el: HTMLElement): void {
   );
 }
 
+// (A sustained hover-highlight once lived here as a WAAPI hold; comment hover is
+// now painted via the CSS Custom Highlight API — see lib/comment-highlight.ts —
+// which also supports sub-text ranges. flashBlock stays WAAPI for the transient
+// jump flash.)
+
 // Bumped on every call so a newer jump supersedes any in-flight settle loop —
 // two quick clicks won't have their rAF loops fight over the scroll position.
 let jumpGeneration = 0;

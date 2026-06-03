@@ -476,7 +476,16 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         const allowed = isDrift(curNode) ? DRIFT_STATUSES : CHAPTER_WRITING_STATUSES;
         if (!allowed.includes(next as never) || next === curNode.writingStatus) return;
         try {
-          await updateNode(nodeId, { writingStatus: next });
+          // Marking a chapter finished runs it through shadow review first: lock
+          // it (waiting_review) + enqueue. Shadow then pushes it to finished
+          // (clean) or back to draft (issues surface as comments). Drift nodes and
+          // the 'draft' option set directly.
+          if (next === 'finished' && !isDrift(curNode)) {
+            await updateNode(nodeId, { writingStatus: 'waiting_review' });
+            window.electronAPI?.shadow?.enqueue({ projectId: activeProjectId, chapterId: nodeId });
+          } else {
+            await updateNode(nodeId, { writingStatus: next });
+          }
         } catch (error) {
           log.error('[NodeEditor] Failed to set writing status:', error);
           alert('Failed to update writing status. Please try again.');
@@ -746,13 +755,14 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   )}
 
                   <ChapterEditor
-                    key={nodeId}
+                    key={`${nodeId}:${curNode.writingStatus === 'waiting_review' ? 'ro' : 'rw'}`}
                     ref={editorRef}
                     nodeId={nodeId}
                     projectId={activeProjectId}
                     content={bookContent?.contentJson ?? null}
                     title={curNode.title}
                     summary={curNode.summary || ''}
+                    readOnly={curNode.writingStatus === 'waiting_review'}
                     onContentUpdate={handleContentUpdate}
                     onTitleUpdate={handleTitleUpdate}
                     onSummaryUpdate={handleSummaryUpdate}
@@ -794,6 +804,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               entityType="node"
               id={nodeId}
               scrollEl={scrollEl}
+              commentsVisible={marginNotes}
             />
           </div>
         </>

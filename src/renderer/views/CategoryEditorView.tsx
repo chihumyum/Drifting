@@ -559,6 +559,7 @@ export function CategoryEditorView({
           entityType="category"
           id={curCategory.id}
           scrollEl={scrollEl}
+          commentsVisible={marginNotes}
         />
       </div>
     </div>

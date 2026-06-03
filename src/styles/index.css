@@ -30,7 +30,7 @@
 
     --accent:                  8 55% 33%;  /* 印章红 oxblood #8A2A1E */
     --accent-foreground:     40 22% 93%;
-    --comment:               336 40% 45%;  /* 胭脂 rouge — comment chrome (vs. accent) */
+    --comment:                18 52% 47%;  /* Claude 橙褐 terracotta — comment chrome (vs. accent) */
 
     --destructive:           14 55% 38%;
     --destructive-foreground:40 22% 93%;
@@ -143,7 +143,7 @@
     /* Accent — muted blue-gray, very low saturation */
     --accent:                218 22% 52%;
     --accent-foreground:     0   0%  100%;
-    --comment:               336 46% 58%;  /* rouge — comment chrome */
+    --comment:                18 55% 57%;  /* Claude 橙褐 terracotta — comment chrome */
     --ring:                  218 22% 52%;
     --accent-border:         30  6%  88%;
 
@@ -211,7 +211,7 @@
        contrast. */
     --accent:                218 35% 65%;
     --accent-foreground:     220 6%  11%;
-    --comment:               336 50% 70%;  /* rouge — comment chrome */
+    --comment:                20 58% 66%;  /* Claude 橙褐 terracotta — comment chrome */
     --ring:                  218 35% 65%;
     --accent-border:         220 6%  26%;
 
@@ -529,7 +529,7 @@
 
     --accent:                 13 45% 60%;
     --accent-foreground:     36  8% 10%;
-    --comment:               336 46% 66%;  /* rouge — comment chrome */
+    --comment:                18 52% 60%;  /* Claude 橙褐 terracotta — comment chrome */
 
     --destructive:           14 45% 50%;
     --destructive-foreground:42 25% 88%;
@@ -590,7 +590,7 @@
 
     --accent:               347 38% 35%;
     --accent-foreground:    225 21% 94%;
-    --comment:              334 40% 46%;  /* rouge — comment chrome */
+    --comment:               18 50% 47%;  /* Claude 橙褐 terracotta — comment chrome */
 
     --destructive:          347 38% 35%;
     --destructive-foreground: 225 21% 94%;
@@ -642,7 +642,7 @@
 
     --accent:               255 47% 77%;
     --accent-foreground:    219 22% 10%;
-    --comment:              334 50% 74%;  /* rouge — comment chrome */
+    --comment:               20 56% 70%;  /* Claude 橙褐 terracotta — comment chrome */
 
     --destructive:          347 38% 55%;
     --destructive-foreground: 224 17% 86%;
@@ -1519,6 +1519,61 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--comment) / 0.85);
   border-color: hsl(var(--comment) / 0.85);
 }
+/* Shadow (CI) comments carry a 梅紫→群青 (dark-purple → abyss-blue) gradient
+   wash — distinct from the rouge of manual notes and the blue of copilot. No
+   left bar; the gradient tint + purple glyph carry the identity. */
+.mnote--shadow {
+  border-left: 1px solid hsl(var(--rule));
+  background-color: hsl(var(--surface));
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--story-5) / 0.16),
+    hsl(var(--story-2) / 0.16)
+  );
+}
+.mnote--shadow:hover {
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--story-5) / 0.24),
+    hsl(var(--story-2) / 0.24)
+  );
+}
+.mnote--shadow .mnote__head-glyph,
+.mnote--shadow .mnote__head-l > span:last-child {
+  color: hsl(var(--story-5));
+}
+
+/* Copilot suggestions carry a solid 群青 (abyss blue) identity — the accept
+   button + glyph are blue; a faint blue tint backs the card. */
+.mnote--copilot {
+  border-left: 1px solid hsl(var(--rule));
+  background-color: hsl(var(--surface));
+  background-image: linear-gradient(hsl(var(--story-2) / 0.10), hsl(var(--story-2) / 0.10));
+}
+.mnote--copilot:hover {
+  background-image: linear-gradient(hsl(var(--story-2) / 0.16), hsl(var(--story-2) / 0.16));
+}
+.mnote--copilot .mnote__head-glyph,
+.mnote--copilot .mnote__head-l > span:last-child {
+  color: hsl(var(--story-2));
+}
+.mnote--copilot .mnote__btn--primary {
+  background: hsl(var(--story-2));
+  border-color: hsl(var(--story-2));
+  color: hsl(var(--accent-foreground));
+}
+.mnote--copilot .mnote__btn--primary:hover {
+  background: hsl(var(--story-2) / 0.85);
+  border-color: hsl(var(--story-2) / 0.85);
+}
+
+/* Copilot capability subtitle (between title and evidence quote). */
+.mnote__subtitle {
+  font-size: 10.5px;
+  color: hsl(var(--ink-3));
+  margin: 1px 0 3px;
+}
+
 /* New-comment composer matches the note identity so creating → created reads as
    one color, not blue→pink. */
 .mnote--composer {
@@ -1689,18 +1744,23 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .mnote:hover .mnote__leader {
   background: hsl(var(--accent));
 }
-.comment-anchor-mark {
-  background:
-    linear-gradient(
-      to right,
-      hsl(var(--accent) / 0.18),
-      hsl(var(--accent) / 0.10)
-    );
-  box-shadow: inset 3px 0 0 hsl(var(--accent));
+/* Comment hover highlight — painted via the CSS Custom Highlight API (see
+   lib/comment-highlight.ts), NOT a CSS class: ProseMirror strips externally-
+   added classes from its nodes, and a highlight can wash an arbitrary DOM Range
+   (a sub-text phrase OR whole blocks). Coloured per family. Background only — no
+   left bar (user preference). Only `background-color`/`color`/text-decoration
+   are honoured inside ::highlight(). */
+::highlight(comment-hl-manual) {
+  background-color: hsl(var(--comment) / 0.24);
 }
-.comment-anchor-resolved {
-  background: hsl(var(--ink-5) / 0.08);
-  box-shadow: inset 3px 0 0 hsl(var(--ink-5));
+::highlight(comment-hl-shadow) {
+  background-color: hsl(var(--story-5) / 0.30);
+}
+::highlight(comment-hl-copilot) {
+  background-color: hsl(var(--story-2) / 0.26);
+}
+::highlight(comment-hl-todo) {
+  background-color: hsl(var(--story-4) / 0.32);
 }
 
 /* ============================================================
@@ -1734,12 +1794,24 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   border-color: hsl(var(--accent));
   z-index: 6;
 }
+/* Collapsed-chip identity matches the card family (icon + ring colour). */
+.comment-chip--manual {
+  border-color: hsl(var(--comment));
+  color: hsl(var(--comment));
+}
+.comment-chip--shadow {
+  border-color: hsl(var(--story-5));
+  color: hsl(var(--story-5));
+}
 .comment-chip--copilot {
-  border-color: hsl(var(--accent));
-  color: hsl(var(--accent));
+  border-color: hsl(var(--story-2));
+  color: hsl(var(--story-2));
+}
+.comment-chip--todo {
+  border-color: hsl(var(--story-4));
+  color: hsl(var(--story-4));
 }
 .comment-chip--resolved,
-.comment-chip--stale,
 .comment-chip--orphan {
   opacity: 0.55;
 }
@@ -1823,16 +1895,22 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.mnote-stack__collapse {
+/* Expanded-stack header bar: [+ new entity comment] [collapse], right-aligned
+   to match the collapsed ball's column. */
+.mnote-stack__bar {
   align-self: flex-end;
-  margin-right: 8px; /* aligns with the collapsed ball's column */
+  margin-right: 8px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+}
+.mnote-stack__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-bottom: 6px;
-  flex-shrink: 0;
   border-radius: 11px;
   border: 1px solid hsl(var(--rule-strong));
   background: hsl(var(--surface));
@@ -1841,10 +1919,14 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   box-shadow: 0 1px 3px hsl(var(--ink-1) / 0.1);
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.mnote-stack__collapse:hover {
+.mnote-stack__btn:hover {
   background: hsl(var(--accent) / 0.1);
   color: hsl(var(--accent));
   border-color: hsl(var(--accent));
+}
+/* Inline entity-comment composer sits flat in the stack list. */
+.mnote--entity-composer {
+  cursor: default;
 }
 .mnote-stack__list {
   min-height: 0;
@@ -1873,44 +1955,52 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 14px;
+  /* Three agent lanes (≈5px each) + a hair of padding. Wider than the old
+     single-column ruler so the VSCode-git lanes + comment bars fit. */
+  width: 18px;
   z-index: 8;
   pointer-events: none;
 }
 .editor__scrollmap-tick {
   position: absolute;
-  right: 2px;
-  width: 8px;
-  height: 3px;
-  margin-top: -1.5px; /* center the tick on its fractional position */
+  height: 4px;
+  margin-top: -2px; /* center the tick on its fractional position */
   padding: 0;
   border: none;
-  border-radius: 2px;
+  border-radius: 0; /* sharp rectangles, VSCode-style — no rounding */
   cursor: pointer;
   pointer-events: auto;
-  opacity: 0.82;
-  transition: opacity 0.15s ease, width 0.15s ease;
+  opacity: 0.85;
+  transition: opacity 0.12s ease;
 }
 .editor__scrollmap-tick:hover {
-  width: 12px;
   opacity: 1;
 }
-.editor__scrollmap-tick--note {
-  background: hsl(var(--comment)); /* 胭脂 — note (distinct from agent 群青-changed) */
+/* Three vertical lanes for agent ticks (VSCode-git layout):
+   new = left, changed = middle, deleted = right. */
+.editor__scrollmap-tick--lane0 {
+  left: 1px;
+  width: 4px;
 }
-.editor__scrollmap-tick--todo {
-  background: hsl(var(--story-4)); /* 赭黄 — todo */
+.editor__scrollmap-tick--lane1 {
+  left: 7px;
+  width: 4px;
 }
-.editor__scrollmap-tick--resolved {
-  background: hsl(var(--rule-strong));
-  opacity: 0.55;
+.editor__scrollmap-tick--lane2 {
+  left: 13px;
+  width: 4px;
 }
-.editor__scrollmap-tick--agent {
-  background: hsl(var(--story-3)); /* 苔绿 — unread agent change (legacy) */
+/* Comment ticks: a horizontal bar spanning all three lanes, above agent ticks. */
+.editor__scrollmap-tick--span {
+  left: 1px;
+  right: 1px;
+  width: auto;
+  height: 3px;
+  z-index: 2;
 }
-/* Agent-edit ticks, colored by op (auto mode only): new = 苔绿 moss green,
-   changed = 群青 ink blue, deleted = 朱砂 oxblood red. Each drops once its
-   block's reveal animation has played. */
+
+/* Agent-edit op colours: new = 苔绿 moss green, changed = 群青 ink blue,
+   deleted = 朱砂 oxblood red. Each drops once its block's reveal has played. */
 .editor__scrollmap-tick--agent-new {
   background: hsl(var(--story-3));
 }
@@ -1919,6 +2009,24 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .editor__scrollmap-tick--agent-deleted {
   background: hsl(var(--story-1));
+}
+
+/* Comment family colours (the spanning bar). */
+.editor__scrollmap-tick--c-manual {
+  background: hsl(var(--comment)); /* 胭脂 rouge */
+}
+.editor__scrollmap-tick--c-shadow {
+  background: linear-gradient(90deg, hsl(var(--story-5)), hsl(var(--story-2))); /* 梅紫→群青 */
+}
+.editor__scrollmap-tick--c-copilot {
+  background: hsl(var(--story-2)); /* 群青 abyss blue */
+}
+.editor__scrollmap-tick--c-todo {
+  background: hsl(var(--story-4)); /* 赭黄 ochre */
+}
+.editor__scrollmap-tick--resolved {
+  background: hsl(var(--rule-strong));
+  opacity: 0.5;
 }
 
 /* The block jumped to (scrollbar tick / patch card / block-anchored TODO) is
@@ -2205,16 +2313,9 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 /* ============================================================
    Copilot active / stale states
    ============================================================ */
-/* Stale = past the 5s Tab-accept window. Visually receded, but mouse still
-   clicks through to accept/reject buttons. */
-.mnote--stale {
-  opacity: 0.55;
-  border-left-color: hsl(var(--ink-5));
-}
-.mnote--stale .mnote__btn--primary {
-  background: hsl(var(--ink-4));
-  border-color: hsl(var(--ink-4));
-}
+/* Going stale (past the 5s Tab-accept window) does NOT restyle the card — only
+   the accept button's pulse stops (the glow class is gated on the active state).
+   Only resolved/open changes a card's overall look. */
 
 /* Active accept button — pulses to telegraph "Tab will hit me". The pulse
    fades on its own when the parent removes the class at the end of the
@@ -2267,6 +2368,11 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .mnote__tag:disabled {
   cursor: default;
   opacity: 0.6;
+}
+/* Same pill, flagged when the source block is gone (orphan). */
+.mnote__tag--orphan {
+  border-color: hsl(var(--ink-5));
+  color: hsl(var(--ink-4));
 }
 
 /* Orphan card — slightly muted, no left-border accent, no leader line.
@@ -2321,6 +2427,40 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   white-space: pre-wrap;
   overflow-y: auto;
   padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* One paragraph per snapshotted block. Multi-block comments list each in order. */
+.snapshot-modal__block {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid hsl(var(--rule));
+}
+.snapshot-modal__block:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+/* A block that's since been edited away / deleted from the live doc. */
+.snapshot-modal__block--gone {
+  color: hsl(var(--ink-3));
+}
+.snapshot-modal__flag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: hsl(var(--ink-5) / 0.14);
+  color: hsl(var(--ink-4));
+}
+.snapshot-modal__empty {
+  color: hsl(var(--ink-4));
+  font-style: italic;
 }
 .editor-comment-menu {
   position: fixed;
