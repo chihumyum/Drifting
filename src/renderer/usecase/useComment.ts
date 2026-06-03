@@ -41,6 +41,9 @@ export interface CreateCommentInput {
   targetKind?: CommentTargetKind | null;
   targetId?: string | null;
   targetBlockId?: string | null;
+  /** Consecutive block range the comment anchors to (incl. the first). Serialized
+   *  into targetBlockIdsJson; CommentRail anchor-marks + hover-highlights all of them. */
+  targetBlockIds?: string[];
   anchorJson?: string;
   bodyJson: string;
   authorKind?: CommentAuthorKind;
@@ -62,6 +65,8 @@ export interface CreateCopilotSuggestionInput {
   targetKind: CommentTargetKind;
   targetId: string;
   targetBlockId: string;
+  /** Consecutive block range (unified anchor). Defaults to [targetBlockId]. */
+  targetBlockIds?: string[];
   /** Encoded CommentAnchorPayload — typically built around the evidence span. */
   anchorJson: string;
   /** Typed copilot metadata; serialized into the comment's metadataJson. */
@@ -87,6 +92,7 @@ function commentSyncPayload(comment: Comment): Record<string, unknown> {
     priority: comment.priority,
     source: comment.source,
     metadataJson: comment.metadataJson,
+    targetBlockIdsJson: comment.targetBlockIdsJson,
     resolvedAt: comment.resolvedAt,
   };
 }
@@ -146,6 +152,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
         priority: input.priority ?? null,
         source: input.source ?? 'manual',
         metadataJson: input.metadataJson ?? null,
+        targetBlockIdsJson: JSON.stringify(input.targetBlockIds ?? []),
         resolvedAt: null,
         createdAt: now,
         updatedAt: now,
@@ -358,6 +365,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
         priority: input.priority ?? null,
         source: 'copilot',
         metadataJson: encodeCopilotMetadata(input.metadata),
+        targetBlockIdsJson: JSON.stringify(input.targetBlockIds ?? [input.targetBlockId]),
         resolvedAt: null,
         createdAt: now,
         updatedAt: now,

@@ -62,6 +62,7 @@ function toCommentDomain(record: typeof CommentTable.$inferSelect): Comment {
     priority: (record.priority as CommentPriority | null) ?? null,
     source: record.source as CommentSource,
     metadataJson: record.metadataJson,
+    targetBlockIdsJson: record.targetBlockIdsJson,
     resolvedAt: record.resolvedAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -130,6 +131,7 @@ export function createCommentRepository(
         priority: input.priority,
         source: input.source,
         metadataJson: input.metadataJson,
+        targetBlockIdsJson: input.targetBlockIdsJson,
         resolvedAt: input.resolvedAt,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
@@ -154,6 +156,8 @@ export function createCommentRepository(
       if (data.priority !== undefined) updateValues.priority = data.priority;
       if (data.source !== undefined) updateValues.source = data.source;
       if (data.metadataJson !== undefined) updateValues.metadataJson = data.metadataJson;
+      if (data.targetBlockIdsJson !== undefined)
+        updateValues.targetBlockIdsJson = data.targetBlockIdsJson;
       if (data.resolvedAt !== undefined) updateValues.resolvedAt = data.resolvedAt;
 
       await dbProvider()

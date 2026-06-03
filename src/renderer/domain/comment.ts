@@ -44,6 +44,9 @@ export interface Comment {
   priority: CommentPriority | null;
   source: CommentSource;
   metadataJson: string | null;
+  /** JSON array of block ids this comment anchors to (a consecutive range).
+   *  Parsed at use; targetBlockId is the primary/first. Default '[]'. */
+  targetBlockIdsJson: string;
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +81,30 @@ export interface CommentAnchorPayload {
   blockText?: string;
   blockSelectionFrom?: number;
   blockSelectionTo?: number;
+  // v3 (additive, optional): the ORIGINAL plain text of every block the
+  // selection spanned, captured at creation. Powers the card's "view original
+  // text" affordance for multi-block comments and survives later edits /
+  // deletions of any block in the range. Single-block comments still get one
+  // entry. Older anchors lack this; renderers fall back to blockText.
+  blockSnapshots?: { blockId: string | null; blockText: string }[];
+  // v4 (additive, optional): a PRECISE, possibly multi-block text range —
+  // start/end block id + char offset within each + the exact selected text.
+  // Present when the comment targets a sub-block / cross-block text span (the
+  // "text" and "blocks+text" anchor modes); absent for pure whole-block anchors
+  // (which highlight the whole block instead). Drives the fine-grained hover
+  // highlight (a DOM Range) and text-level "original changed?" detection.
+  textAnchor?: CommentTextAnchor;
+}
+
+export interface CommentTextAnchor {
+  startBlockId: string;
+  /** Char offset of the selection start within startBlockId's plain text. */
+  startOffset: number;
+  endBlockId: string;
+  /** Char offset of the selection end within endBlockId's plain text. */
+  endOffset: number;
+  /** The exact selected text — the robust key for re-locating / change-detection. */
+  text: string;
 }
 
 export interface CommentBlockSnapshot {
@@ -210,4 +237,98 @@ export function getBlockSnapshotFromAnchor(
   } catch {
     return null;
   }
+}
+
+/**
+ * Original plain text of every block this comment spanned, captured at creation
+ * (anchor v3 `blockSnapshots`). Falls back to the single-block v2 snapshot
+ * (`blockText`) so older comments still yield one entry. Empty when nothing was
+ * captured. Used by the card's "view original text" button — it survives the
+ * blocks being later edited or deleted.
+ */
+export function getBlockSnapshotsFromAnchor(
+  anchorJson: string | null | undefined,
+): { blockId: string | null; blockText: string }[] {
+  if (!anchorJson) return [];
+  try {
+    const parsed = JSON.parse(anchorJson) as CommentAnchorPayload;
+    if (Array.isArray(parsed.blockSnapshots)) {
+      const snaps = parsed.blockSnapshots.filter(
+        (s): s is { blockId: string | null; blockText: string } =>
+          !!s && typeof s.blockText === 'string',
+      );
+      if (snaps.length > 0) return snaps;
+    }
+    if (typeof parsed.blockText === 'string') {
+      return [{ blockId: null, blockText: parsed.blockText }];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The block ids a comment anchors to — its consecutive range from
+ * `targetBlockIdsJson` (a first-class field written by BOTH manual multi-block
+ * selection and shadow), falling back to the single `targetBlockId`. Shared by
+ * the rail's hover highlight and the scroll-map ticks so a multi-block comment
+ * is handled identically everywhere.
+ */
+export function commentBlockIds(comment: Comment): string[] {
+  try {
+    const arr = JSON.parse(comment.targetBlockIdsJson) as unknown;
+    if (Array.isArray(arr)) {
+      const ids = arr.filter((b): b is string => typeof b === 'string' && b.length > 0);
+      if (ids.length > 0) return ids;
+    }
+  } catch {
+    /* malformed — fall back to the single primary block below */
+  }
+  return comment.targetBlockId ? [comment.targetBlockId] : [];
+}
+
+/** The precise text range a comment anchors to, or null for a whole-block anchor. */
+export function getTextAnchorFromAnchor(
+  anchorJson: string | null | undefined,
+): CommentTextAnchor | null {
+  if (!anchorJson) return null;
+  try {
+    const parsed = JSON.parse(anchorJson) as CommentAnchorPayload;
+    const t = parsed.textAnchor;
+    if (
+      t &&
+      typeof t.startBlockId === 'string' &&
+      typeof t.endBlockId === 'string' &&
+      typeof t.text === 'string' &&
+      typeof t.startOffset === 'number' &&
+      typeof t.endOffset === 'number'
+    ) {
+      return t;
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+/** First verbatim {from,to} of `needle` in `haystack`, or null. */
+export function locateTextInBlock(
+  haystack: string,
+  needle: string,
+): { from: number; to: number } | null {
+  const n = needle.trim();
+  if (!n) return null;
+  const i = haystack.indexOf(n);
+  return i < 0 ? null : { from: i, to: i + n.length };
+}
+
+/** Visual family used across card / rail-icon / scroll-tick / in-prose highlight.
+ *  A TODO is yellow regardless of where it came from; otherwise by source. */
+export type CommentColorKey = 'todo' | 'manual' | 'shadow' | 'copilot';
+export function commentColorKey(comment: Comment): CommentColorKey {
+  if (comment.kind === 'todo') return 'todo';
+  if (comment.source === 'shadow') return 'shadow';
+  if (comment.source === 'copilot') return 'copilot';
+  return 'manual';
 }
