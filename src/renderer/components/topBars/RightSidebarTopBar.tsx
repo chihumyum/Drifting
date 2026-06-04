@@ -37,10 +37,6 @@ export function RightSidebarTopBar() {
         } as React.CSSProperties
       }
     >
-      {/* Leading spacer keeps the whole control cluster (pill · toggle · avatar)
-          flush to the window's right edge, with empty drag space on the left. */}
-      <div style={{ flex: 1 }} />
-      {/* Dynamic-Island AI-task pill, sitting just left of the sidebar toggle. */}
       <NotificationPill />
       <button
         onClick={() => toggleSidebar('right')}

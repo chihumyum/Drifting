@@ -3774,30 +3774,39 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   }
 }
 
-/* Notification pill spinner (topbar AI-task pill) */
+/* Notification bell spinner — used by SourceIcon in the history dropdown rows. */
 @keyframes drift-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* Notification pill collapse-to-circle — modern skin only. When the pill drops
-   its task text and shrinks back to the round bell, give it a little spring.
-   Classic skin keeps the plain width transition (no rule here = no animation). */
-@keyframes notif-pill-collapse {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(0.82);
-  }
-  75% {
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1);
-  }
+/* Blink animation for the running-task icon in the circle button. */
+@keyframes notif-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.18; }
 }
-html[data-skin='modern'] .notif-pill--idle {
-  animation: notif-pill-collapse 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+.notif-blink-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: notif-blink 1.2s ease-in-out infinite;
+}
+.notif-blink-icon--text {
+  font-size: 14px;
+  line-height: 1;
+  font-style: normal;
+}
+
+/* Pop-in animation for the result icon shown briefly after a task finishes. */
+@keyframes notif-flash-pop {
+  0%   { opacity: 0; transform: scale(0.55); }
+  60%  { opacity: 1; transform: scale(1.18); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.notif-flash-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: notif-flash-pop 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }

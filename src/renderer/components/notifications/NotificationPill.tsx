@@ -1,25 +1,22 @@
 /**
- * Dynamic-Island-style notification pill, mounted in the topbar to the left of
- * the right-sidebar toggle. It morphs in place:
- *   - a task is running   → spinner + its title,
- *   - a result just landed → ✓/⚠ + title for a few seconds,
- *   - otherwise            → a bell with an unread-count dot.
- * Clicking it toggles the NotificationCenter dropdown (the reopenable history).
- *
- * The store is fed globally from App (see useNotificationFeed), so this component
- * is pure presentation over useNotificationStore.
+ * Notification bell button in the topbar. Always a 26×26 circle.
+ *   - a task is running   → source-specific icon (Sparkles / ◐) blinks
+ *   - task just finished  → result icon (✓ / ⚠ / ✗) for FLASH_MS, then bell
+ *   - otherwise           → bell icon
+ * Clicking toggles the NotificationCenter history dropdown.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Ban, Bell, CheckCircle2, Loader2, Sparkles, Trash2, X } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import {
-  selectUnreadCount,
   useNotificationStore,
   type AppNotification,
 } from '../../store/notification-store';
 
-const RECENT_MS = 10000; // how long a finished task keeps showing in the pill before it collapses
+const FLASH_MS = 1800; // how long the result icon shows in the circle after the pill collapses
+
+type FlashResult = { state: 'completed' | 'failed' | 'stopped'; outcome: string | undefined; id: number } | null;
 
 interface Anchor {
   top: number;
@@ -58,6 +55,20 @@ function SourceIcon({ n, size = 14 }: { n: AppNotification; size?: number }) {
   return <CheckCircle2 size={size} strokeWidth={2} />;
 }
 
+function flashToneColor(r: NonNullable<FlashResult>): string {
+  if (r.state === 'stopped') return 'hsl(var(--ink-3))';
+  if (r.state === 'failed') return 'hsl(0 64% 51%)';
+  if (r.outcome === 'issues') return 'hsl(32 80% 44%)';
+  return 'hsl(142 42% 40%)';
+}
+
+function FlashIcon({ result }: { result: NonNullable<FlashResult> }) {
+  if (result.state === 'stopped') return <Ban size={15} strokeWidth={1.7} />;
+  if (result.state === 'failed') return <AlertTriangle size={15} strokeWidth={1.7} />;
+  if (result.outcome === 'issues') return <AlertTriangle size={15} strokeWidth={1.7} />;
+  return <CheckCircle2 size={15} strokeWidth={1.7} />;
+}
+
 // Foreground color for a notification's state/outcome.
 function toneColor(n: AppNotification): string {
   if (n.state === 'running') return 'hsl(var(--ink-2))';
@@ -76,46 +87,41 @@ export function NotificationPill() {
   const runningItem = items.find((n) => n.state === 'running');
   const headUpdatedAt = items.length ? items[0].updatedAt : 0;
 
-  // A finished result keeps showing in the pill for RECENT_MS after it lands,
-  // then the pill collapses to the bell. Tracked by `recentKey` (the timestamp of
-  // the update currently inside its recent window) — set/cleared from timeout
-  // callbacks so the effect never calls setState synchronously.
-  const [recentKey, setRecentKey] = useState(0);
+  // When a task reaches a terminal state, flash its result icon for FLASH_MS.
   const lastHeadRef = useRef(0);
+  const [flashResult, setFlashResult] = useState<FlashResult>(null);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const flashClearRef = useRef<number>(0);
+
   useEffect(() => {
     if (!headUpdatedAt) return;
-    // Only a genuinely NEW update (timestamp strictly increases) opens the recent
-    // window. When the head changes because the newest item was deleted/reordered,
-    // headUpdatedAt DROPS to an older value — that must not flash an old item into
-    // the pill (bug #6).
     const isNew = headUpdatedAt > lastHeadRef.current;
     lastHeadRef.current = headUpdatedAt;
     if (!isNew) return;
-    const on = window.setTimeout(() => setRecentKey(headUpdatedAt), 0);
-    const off = window.setTimeout(
-      () => setRecentKey((k) => (k === headUpdatedAt ? 0 : k)),
-      RECENT_MS,
-    );
-    return () => {
-      window.clearTimeout(on);
-      window.clearTimeout(off);
-    };
+    const head = itemsRef.current[0];
+    if (!head) return;
+    if (head.state !== 'running') {
+      setFlashResult({ state: head.state as 'completed' | 'failed' | 'stopped', outcome: head.outcome, id: Date.now() });
+    } else {
+      setFlashResult(null);
+    }
   }, [headUpdatedAt]);
-  const recentActive = recentKey !== 0 && recentKey === headUpdatedAt;
 
-  // Clock only for the center's relative timestamps (the pill needs no time).
-  const now = useNow(centerOpen);
-  const pillItem: AppNotification | null =
-    runningItem ?? (recentActive ? items.find((n) => n.state !== 'running') ?? null : null);
-  const unread = useMemo(() => selectUnreadCount(items), [items]);
+  useEffect(() => {
+    if (flashResult === null) return;
+    window.clearTimeout(flashClearRef.current);
+    flashClearRef.current = window.setTimeout(() => setFlashResult(null), FLASH_MS);
+    return () => window.clearTimeout(flashClearRef.current);
+  }, [flashResult]);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const pillRef = useRef<HTMLButtonElement | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
   const centerRef = useRef<HTMLDivElement | null>(null);
   const [anchor, setAnchor] = useState<Anchor>({ top: 40, right: 12 });
 
   const measure = () => {
-    const r = pillRef.current?.getBoundingClientRect();
+    const r = btnRef.current?.getBoundingClientRect();
     if (r) setAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
   };
   const handleToggle = () => {
@@ -123,10 +129,6 @@ export function NotificationPill() {
     toggleCenter();
   };
 
-  // Close the center on outside click / Escape; keep it anchored on resize. The
-  // center is portaled to <body> (see render) to escape the topbar's stacking
-  // context — so the outside-click test must exclude BOTH the pill and the
-  // portaled panel.
   useEffect(() => {
     if (!centerOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -148,8 +150,33 @@ export function NotificationPill() {
     };
   }, [centerOpen, setCenterOpen]);
 
-  const showText = !!pillItem;
-  const tone = pillItem ? toneColor(pillItem) : 'hsl(var(--ink-3))';
+  const now = useNow(centerOpen);
+
+  // Priority: running source icon (blink) > flash result icon > bell
+  let iconEl: React.ReactNode;
+  let iconColor: string;
+  if (runningItem) {
+    iconColor = 'hsl(var(--ink-2))';
+    iconEl = runningItem.source === 'copilot' ? (
+      <span key="copilot-run" className="notif-blink-icon">
+        <Sparkles size={14} strokeWidth={1.8} />
+      </span>
+    ) : (
+      <span key="shadow-run" className="notif-blink-icon notif-blink-icon--text">
+        ◐
+      </span>
+    );
+  } else if (flashResult) {
+    iconColor = flashToneColor(flashResult);
+    iconEl = (
+      <span key={flashResult.id} className="notif-flash-icon">
+        <FlashIcon result={flashResult} />
+      </span>
+    );
+  } else {
+    iconColor = 'hsl(var(--ink-3))';
+    iconEl = <Bell size={15} strokeWidth={1.7} />;
+  }
 
   return (
     <div
@@ -157,69 +184,29 @@ export function NotificationPill() {
       style={{ position: 'relative', display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
     >
       <button
-        ref={pillRef}
+        ref={btnRef}
         type="button"
         onClick={handleToggle}
         title="通知"
-        className={showText ? 'notif-pill' : 'notif-pill notif-pill--idle'}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          height: 26,
-          maxWidth: 150,
-          padding: showText ? '0 10px' : 0,
-          width: showText ? undefined : 26,
           justifyContent: 'center',
+          width: 26,
+          height: 26,
           borderRadius: 13,
-          border: '1px solid',
-          borderColor: showText ? 'hsl(var(--rule))' : 'transparent',
-          background: showText ? 'hsl(var(--paper-deep))' : 'transparent',
-          color: tone,
+          border: 'none',
+          background: 'transparent',
+          color: iconColor,
           cursor: 'pointer',
-          transition: 'width 0.25s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease',
-          overflow: 'hidden',
+          transition: 'color 0.2s ease, background 0.15s ease',
           flexShrink: 0,
+          padding: 0,
         }}
-        onMouseEnter={(e) => {
-          if (!showText) e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-        }}
-        onMouseLeave={(e) => {
-          if (!showText) e.currentTarget.style.background = 'transparent';
-        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--paper-deep))'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
       >
-        {pillItem ? (
-          <>
-            <SourceIcon n={pillItem} />
-            <span
-              style={{
-                fontSize: 11.5,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                color: 'hsl(var(--ink-1))',
-              }}
-            >
-              {pillItem.title}
-            </span>
-          </>
-        ) : (
-          <Bell size={16} strokeWidth={1.7} />
-        )}
-        {!showText && unread > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 1,
-              right: 1,
-              minWidth: 7,
-              height: 7,
-              borderRadius: 4,
-              background: 'hsl(0 64% 51%)',
-            }}
-          />
-        )}
+        {iconEl}
       </button>
 
       {centerOpen &&

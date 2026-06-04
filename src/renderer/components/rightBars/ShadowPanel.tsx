@@ -402,21 +402,20 @@ export function ShadowPanel() {
         )}
       </div>
 
-      {archived.length > 0 && (
-        <div
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            ...(showArchived ? { height: footerHeight } : {}),
-          }}
-        >
+      <div
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          ...(showArchived && archived.length > 0 ? { height: footerHeight } : {}),
+        }}
+      >
           <style>{`.shadow-archived-list::-webkit-scrollbar{display:none}`}</style>
           <div
-            onMouseDown={showArchived ? startFooterDrag : undefined}
+            onMouseDown={showArchived && archived.length > 0 ? startFooterDrag : undefined}
             style={{
               borderTop: '2px solid hsl(var(--rule))',
-              cursor: showArchived ? 'ns-resize' : 'default',
+              cursor: showArchived && archived.length > 0 ? 'ns-resize' : 'default',
               flexShrink: 0,
             }}
           />
@@ -478,6 +477,18 @@ export function ShadowPanel() {
                 scrollbarWidth: 'none',
               }}
             >
+              {archived.length === 0 && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'hsl(var(--ink-4))',
+                    fontStyle: 'italic',
+                    padding: '8px 4px',
+                  }}
+                >
+                  无已归档任务
+                </div>
+              )}
               {archived.map((job) => {
                 const sv = statusView(job, reviewOf(job));
                 const isOpen = expandedArchived.has(job.id);
@@ -591,7 +602,6 @@ export function ShadowPanel() {
             </div>
           )}
         </div>
-      )}
     </div>
   );
 }
