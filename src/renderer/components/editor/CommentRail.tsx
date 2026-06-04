@@ -221,6 +221,10 @@ export function CommentRail({
       next.add(id);
       return next;
     });
+    // Collapsing swaps the card for a chip WITHOUT the card's onMouseLeave ever
+    // firing, so its hover-highlight would stick. Drop it here; re-hovering the
+    // chip re-applies it (renderChip carries the same mouse handlers).
+    setHoveredId((prev) => (prev === id ? null : prev));
   }, []);
   const expandToCard = useCallback((id: string) => {
     setChipIds((prev) => {
@@ -803,7 +807,16 @@ export function CommentRail({
               type="button"
               className="mnote__btn"
               disabled={busy}
-              onClick={() => void runAction(comment.id, () => commentUsecases.resolveComment(comment.id))}
+              // Manually resolving a floating card auto-collapses it to a chip —
+              // the resolved note clears out of the margin but stays one click
+              // away. Loose (bottom-stack) cards have no chip form, so skip them.
+              onClick={() =>
+                void runAction(comment.id, () => commentUsecases.resolveComment(comment.id))
+                  .then(() => {
+                    if (!loose) collapseToChip(comment.id);
+                  })
+                  .catch((err) => console.error('[CommentRail] resolve failed', err))
+              }
             >
               <Check size={12} />
               <span>解决</span>
@@ -860,6 +873,10 @@ export function CommentRail({
         className={classes.join(' ')}
         data-comment-id={comment.id}
         onClick={() => expandToCard(comment.id)}
+        // Chips carry the same hover-highlight as cards — in the collapsed state
+        // hovering the icon washes its anchored block/text, same as the card did.
+        onMouseEnter={() => setHoveredId(comment.id)}
+        onMouseLeave={() => setHoveredId((prev) => (prev === comment.id ? null : prev))}
         aria-label={COLOR_LABEL[colorKey]}
         title="展开"
       >
