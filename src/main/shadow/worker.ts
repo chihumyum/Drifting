@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import type { ShadowJobInput, ShadowJobResult } from './types';
+import type { ShadowJobInput, ShadowJobResult, ShadowJobEvent } from './types';
 import { callRenderer } from '../agent/bridge';
 import { buildShadowGraph } from './graph';
 import { createShadowDeps } from './deps';
@@ -11,6 +11,15 @@ type GetWindow = () => BrowserWindow | null;
 let getWindowRef: GetWindow | null = null;
 export function initShadowWorker(getWindow: GetWindow): void {
   getWindowRef = getWindow;
+}
+
+// Push a lifecycle signal to the renderer (notification feed + persisted job row).
+function emitJobEvent(ev: ShadowJobEvent): void {
+  try {
+    getWindowRef?.()?.webContents.send('shadow:job', ev);
+  } catch {
+    /* window gone — nothing to notify */
+  }
 }
 
 // The compiled graph is cached after first build. LangGraph is loaded lazily via
@@ -54,16 +63,38 @@ export function enqueueShadowJob(job: ShadowJobInput): void {
   void drain();
 }
 
+// User asked to stop a review. Drop it from the queue if it hasn't started; an
+// already-running job is unwound on the renderer side (the cancelled flag makes
+// the next shadow bridge call throw), so there's nothing to interrupt here.
+export function cancelShadowJob(chapterId: string): void {
+  const i = queue.findIndex((j) => j.chapterId === chapterId);
+  if (i !== -1) queue.splice(i, 1);
+}
+
 async function drain(): Promise<void> {
   if (running) return;
   running = true;
   try {
     while (queue.length > 0) {
       const job = queue.shift()!;
+      emitJobEvent({ chapterId: job.chapterId, projectId: job.projectId, state: 'started' });
       try {
-        await runShadowJob(job);
+        const result = await runShadowJob(job);
+        emitJobEvent({
+          chapterId: job.chapterId,
+          projectId: job.projectId,
+          state: 'completed',
+          decision: result.decision,
+          findingCount: result.findingCount,
+        });
       } catch (err) {
         console.error('[shadow] job failed —', job.chapterId, err);
+        emitJobEvent({
+          chapterId: job.chapterId,
+          projectId: job.projectId,
+          state: 'failed',
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
   } finally {

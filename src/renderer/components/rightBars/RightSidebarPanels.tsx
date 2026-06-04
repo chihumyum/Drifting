@@ -7,6 +7,7 @@ import { RightSidebarHeader } from './RightSidebarHeader';
 import { LibraryPanel, type FocusedEntity } from './MemoMaterialPanel';
 import { TodoPanel } from './TodoPanel';
 import { CompanionPanel } from '../agent/CompanionPanel';
+import { ShadowPanel } from './ShadowPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
 interface ResolvedTarget {
@@ -118,10 +119,6 @@ export function RightSidebarPanels() {
   const [fragmentCountFlash] = useState(false);
   const [shadowJustAppeared, setShadowJustAppeared] = useState(false);
 
-  // Shadow review count was previously sourced from the mocked notification
-  // stack; now that the stack is gone we leave the badge at 0 until a real
-  // backing store lands.
-  const shadowReviewCount = 0;
 
   // Pulse the Shadow tab the first ~4.5s after the user invokes shadow mode.
   // Syncing a UI pulse to an external trigger (shadowMode) — the setState is
@@ -256,7 +253,6 @@ export function RightSidebarPanels() {
           >
             <RightSidebarHeader
               group="content"
-              shadowReviewCount={shadowReviewCount}
               kicker=""
               title=""
               hideTitleBlock
@@ -277,7 +273,6 @@ export function RightSidebarPanels() {
           >
             <RightSidebarHeader
               group="agent"
-              shadowReviewCount={shadowReviewCount}
               shadowJustAppeared={shadowJustAppeared}
               kicker=""
               title=""
@@ -292,7 +287,6 @@ export function RightSidebarPanels() {
         <>
           <RightSidebarHeader
             flat
-            shadowReviewCount={shadowReviewCount}
             kicker={headerKicker}
             title={headerTitle}
             fragmentCountFlash={fragmentCountFlash}
@@ -556,40 +550,9 @@ function CategoryStats({
 // Shadow tab — real task queue lands here (mock list removed)
 
 function ShadowAgentView() {
-  // The mock task list was removed. This panel will host the real shadow task
-  // queue: every shadow review job (queued / running / done) surfaces here.
-  // Backing store + live wiring land with the queue (src/main/shadow).
-  return (
-    <div style={{ padding: 12 }}>
-      <div
-        style={{
-          padding: '16px 12px',
-          borderRadius: 4,
-          border: '1px dashed hsl(var(--rule))',
-          textAlign: 'center',
-          fontFamily: 'var(--font-serif)',
-          fontStyle: 'italic',
-          fontSize: 13,
-          color: 'hsl(var(--ink-4))',
-          lineHeight: 1.5,
-        }}
-      >
-        暂无 shadow 任务
-        <div
-          style={{
-            marginTop: 6,
-            fontFamily: 'var(--font-mono)',
-            fontStyle: 'normal',
-            fontSize: 9.5,
-            letterSpacing: '0.08em',
-            color: 'hsl(var(--ink-4))',
-          }}
-        >
-          SHADOW TASK QUEUE
-        </div>
-      </div>
-    </div>
-  );
+  // The real shadow task queue: persisted review jobs, each expandable to its
+  // evidence-gathering + decision trail. See ShadowPanel.
+  return <ShadowPanel />;
 }
 
 // Shadow notification stack (bottom-pinned card pile) used to live here.

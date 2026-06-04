@@ -67,6 +67,38 @@ export const ProjectRuleTable = sqliteTable('project_rule', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Shadow Job
+// Domain: ShadowJob — one record per chapter shadow-review run, kept for
+// observability. The right-rail Shadow panel lists these; a cell expands to its
+// `trace_json` (the structured evidence-gathering / decision trail). Local-only
+// (never synced): these are runtime telemetry, not authored content.
+//   status:   running | done | failed
+//   decision: finished | draft | null (null while running / on failure)
+//   traceJson: ShadowTraceStep[] — phase steps, per-rule evidence rounds, verdicts
+export const ShadowJobTable = sqliteTable(
+  'shadow_job',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    chapterId: text('chapter_id').notNull(),
+    chapterTitle: text('chapter_title').notNull().default(''),
+    status: text('status').notNull().default('running'),
+    decision: text('decision'),
+    findingCount: integer('finding_count').notNull().default(0),
+    error: text('error'),
+    traceJson: text('trace_json').notNull().default('[]'),
+    archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+    startedAt: text('started_at').notNull(),
+    finishedAt: text('finished_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_shadow_job_project').on(t.projectId),
+    index('idx_shadow_job_chapter').on(t.chapterId),
+  ],
+);
+
 // Element Category
 // project(1) <-> elementCategory(N)
 // elementCategory(1) <-> element(N)

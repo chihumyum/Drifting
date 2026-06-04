@@ -3,6 +3,7 @@ import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { UserAvatar, UserMenu } from './UserMenu';
+import { NotificationPill } from '../notifications/NotificationPill';
 
 export function RightSidebarTopBar() {
   const isMac = navigator.userAgent.includes('Mac');
@@ -36,6 +37,11 @@ export function RightSidebarTopBar() {
         } as React.CSSProperties
       }
     >
+      {/* Leading spacer keeps the whole control cluster (pill · toggle · avatar)
+          flush to the window's right edge, with empty drag space on the left. */}
+      <div style={{ flex: 1 }} />
+      {/* Dynamic-Island AI-task pill, sitting just left of the sidebar toggle. */}
+      <NotificationPill />
       <button
         onClick={() => toggleSidebar('right')}
         title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar'}
@@ -72,10 +78,6 @@ export function RightSidebarTopBar() {
           <PanelRightOpen size={iconSize} strokeWidth={1.6} />
         )}
       </button>
-      {/* Spacer pushes the avatar to the right edge. The tab strip / title bar
-          now lives inside the right panel itself so collapsed state still has
-          room for both the toggle button and the user avatar. */}
-      <div style={{ flex: 1 }} />
       <UserAvatar
         forwardRef={avatarRef}
         initial={initial}

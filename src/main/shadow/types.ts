@@ -90,3 +90,15 @@ export interface ShadowJobResult {
   decision: ShadowDecision;
   findingCount: number;
 }
+
+// Lifecycle signal pushed from the main-process worker to the renderer over the
+// `shadow:job` channel as a review starts / finishes / fails. Drives the global
+// notification feed (and, later, the persisted shadow_jobs row).
+export interface ShadowJobEvent {
+  chapterId: string;
+  projectId: string;
+  state: 'started' | 'completed' | 'failed';
+  decision?: ShadowDecision;
+  findingCount?: number;
+  error?: string;
+}

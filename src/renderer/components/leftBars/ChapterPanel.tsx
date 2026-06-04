@@ -124,19 +124,29 @@ export function ChapterPanel() {
     ) => {
       return (a: BookNode, b: BookNode) => {
         if (!isChapter(a) || !isChapter(b)) return 0;
-        if (mode === 'bookOrder') return a.bookOrder - b.bookOrder;
-        if (mode === 'narrativeOrder') {
+        let primary = 0;
+        if (mode === 'bookOrder') {
+          primary = a.bookOrder - b.bookOrder;
+        } else if (mode === 'narrativeOrder') {
           const av = a.narrativeOrder;
           const bv = b.narrativeOrder;
-          if (av == null && bv == null) return 0;
-          if (av == null) return 1;
-          if (bv == null) return -1;
-          return av - bv;
+          if (av == null && bv == null) primary = 0;
+          else if (av == null) primary = 1;
+          else if (bv == null) primary = -1;
+          else primary = av - bv;
+        } else {
+          const av = a[mode];
+          const bv = b[mode];
+          if (av === bv) primary = 0;
+          else primary = bv > av ? 1 : -1; // desc for createdAt/updatedAt
         }
-        const av = a[mode];
-        const bv = b[mode];
-        if (av === bv) return 0;
-        return bv > av ? 1 : -1; // desc for createdAt/updatedAt
+        if (primary !== 0) return primary;
+        // Total-order tiebreak: when the primary key ties (e.g. several chapters
+        // share a bookOrder, or both have null narrativeOrder) never fall back to
+        // the input array's order — that order is the storylineNodeMapping
+        // insertion order, which isn't guaranteed stable across rebuilds. id is
+        // uuidv7 (≈ creation order), so this keeps the panel deterministic.
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
       };
     },
     [],

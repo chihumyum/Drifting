@@ -12,8 +12,11 @@ export function AppTopbar() {
   // controls — search + toggle on the left, toggle + avatar on the right.
   // paddingLeft 78 (traffic lights) + search 26 + gap 2 + toggle 26 + paddingRight 8 = 140
   const leftWidth = 140;
-  // paddingLeft 6 + toggle 26 + gap 6 + spacer ~8 + avatar 26 + paddingRight 8 = 80
-  const rightWidth = 80;
+  // paddingLeft 6 + leading spacer + pill (≤150) + gap 6 + toggle 26 + gap 6 +
+  // avatar 26 + paddingRight 8. Reserve room for the expanded notification pill;
+  // when idle the pill is a 26px bell and the leading spacer absorbs the slack so
+  // the toggle + avatar stay flush right.
+  const rightWidth = 226;
 
   return (
     <div

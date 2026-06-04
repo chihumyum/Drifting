@@ -10,7 +10,13 @@ import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createProjectRuleRepository } from '../../sqlite-repo/project-rule-repo';
-import { evaluateSemanticAssertion } from '../ai/shadow-rules';
+import {
+  evaluateSemanticAssertionAgentic,
+  type EvidenceCatalog,
+  type EvidenceProvider,
+  type EvidenceRequest,
+} from '../ai/shadow-rules';
+import { traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
   createElementPatchRepository,
@@ -1732,6 +1738,7 @@ async function shadowChapterBlocks(
 
 async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
+  throwIfShadowCancelled(chapterId);
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`shadow_read_chapter_snapshot: no chapter "${chapterId}"`);
@@ -1747,27 +1754,158 @@ async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<str
     const sl = s.storylines.find((x) => x.id === primaryStorylineId);
     if (sl) for (const kv of parseKv(sl.kvJson)) rulesKv[kv.key] = kv.value;
   }
+  const appears = refs.map((r) => r.label);
+  void traceShadow(chapterId, ctx.projectId, 'gather', '读取章节快照', {
+    detail: `${blocks.length} 段${appears.length ? ` · 出场 ${appears.slice(0, 6).join('、')}` : ''}`,
+  });
   return {
     projectId: ctx.projectId,
     chapterId,
     title: node.title,
     summary: node.summary ?? '',
     blocks,
-    appears: refs.map((r) => r.label),
+    appears,
     rulesKv,
   };
 }
 
-async function shadowReadRules(ctx: AgentToolContext) {
+async function shadowReadRules(ctx: AgentToolContext, args: Record<string, unknown>) {
+  throwIfShadowCancelled(String(args.chapterId ?? ''));
   const rules = await createProjectRuleRepository().listByProject(ctx.projectId);
-  return rules
+  const active = rules
     .filter((r) => r.enabled && r.checklist.length > 0)
     .map((r) => ({ id: r.id, checklist: r.checklist }));
+  const chapterId = String(args.chapterId ?? '');
+  if (chapterId) {
+    const items = active.reduce((acc, r) => acc + r.checklist.length, 0);
+    void traceShadow(chapterId, ctx.projectId, 'resolve', '加载规则', {
+      detail: `${active.length} 条规则 · ${items} 项检查`,
+    });
+  }
+  return active;
+}
+
+// Keep long evidence bodies from blowing the judge's context window.
+function truncate(text: string, max: number): string {
+  const t = text.trim();
+  return t.length > max ? `${t.slice(0, max)}…（已截断）` : t;
+}
+
+// Build the on-demand evidence surface the agentic semantic judge pulls from:
+// element profiles + evolution, free-floating drift nodes (settings/rules), and
+// neighbouring chapters — all via this file's existing read helpers (the renderer
+// owns the DB + Yjs). Progressive disclosure: the catalog hands the judge cheap
+// summaries; full bodies are fetched only when it asks.
+function buildShadowEvidenceProvider(ctx: AgentToolContext, chapterId: string): EvidenceProvider {
+  const findElement = (name: string) => {
+    const q = name.trim().toLowerCase();
+    return useDataStore
+      .getState()
+      .bookElements.find(
+        (e) =>
+          e.projectId === ctx.projectId &&
+          [e.name, ...e.aliases].some((n) => n.trim().toLowerCase() === q),
+      );
+  };
+  const findNodeByTitle = (title: string, kind?: 'chapter' | 'drift') => {
+    const q = title.trim().toLowerCase();
+    return useDataStore
+      .getState()
+      .bookNodes.find(
+        (n) =>
+          n.projectId === ctx.projectId &&
+          (!kind || n.kind === kind) &&
+          n.title.trim().toLowerCase() === q,
+      );
+  };
+
+  return {
+    async catalog(): Promise<EvidenceCatalog> {
+      const s = useDataStore.getState();
+      const cur = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+      const elementSummary = new Map(
+        s.bookElements
+          .filter((e) => e.projectId === ctx.projectId)
+          .map((e) => [e.name, e.summary] as const),
+      );
+      const refs = await listChapterReferences(s, chapterId);
+      const sceneEntities = refs
+        .filter((r) => r.kind === 'element')
+        .map((r) => ({ name: r.label, summary: elementSummary.get(r.label) || undefined }));
+      const driftNodes = s.bookNodes
+        .filter((n) => n.projectId === ctx.projectId && n.kind === 'drift')
+        .slice(0, 40)
+        .map((n) => ({ title: n.title, summary: n.summary || undefined }));
+      // Prior chapter by narrative (story-time) order — the one most relevant to
+      // continuity checks.
+      let priorChapter: EvidenceCatalog['priorChapter'];
+      if (cur && cur.narrativeOrder != null) {
+        const curOrder = cur.narrativeOrder;
+        const prev = s.bookNodes
+          .filter(
+            (n): n is typeof n & { narrativeOrder: number } =>
+              n.projectId === ctx.projectId &&
+              n.kind === 'chapter' &&
+              n.narrativeOrder != null &&
+              n.narrativeOrder < curOrder,
+          )
+          .sort((a, b) => b.narrativeOrder - a.narrativeOrder)[0];
+        if (prev) priorChapter = { title: prev.title, summary: prev.summary || undefined };
+      }
+      return { sceneEntities, driftNodes, priorChapter };
+    },
+
+    async fetch(req: EvidenceRequest): Promise<string | null> {
+      if (req.kind === 'element' || req.kind === 'element_evolution') {
+        const el = findElement(req.name);
+        if (!el) return null;
+        if (req.kind === 'element') {
+          const r = (await readElement(ctx, el.id)) as {
+            summary?: string;
+            aliases?: string[];
+            facts?: { key: string; value: string }[];
+            body?: string;
+            patchCount?: number;
+          };
+          const lines: string[] = [];
+          if (r.summary) lines.push(`简介：${r.summary}`);
+          if (r.aliases?.length) lines.push(`别名：${r.aliases.join('、')}`);
+          for (const f of r.facts ?? []) lines.push(`- ${f.key}：${f.value}`);
+          if (r.body) lines.push(`正文：${truncate(r.body, 1500)}`);
+          if (r.patchCount) lines.push(`（有 ${r.patchCount} 条状态演变，可用 element_evolution 索取）`);
+          return lines.join('\n') || '（无内容）';
+        }
+        const r = (await getElementPatches(ctx, el.id)) as {
+          patches: { title: string; sourceChapter?: string; body: string }[];
+        };
+        if (!r.patches.length) return '（无状态演变记录）';
+        return r.patches
+          .map(
+            (p) =>
+              `· ${p.title}${p.sourceChapter ? `（${p.sourceChapter}）` : ''}：${truncate(p.body, 400)}`,
+          )
+          .join('\n');
+      }
+
+      if (req.kind === 'drift' || req.kind === 'chapter') {
+        const node = findNodeByTitle(req.name, req.kind === 'drift' ? 'drift' : 'chapter')
+          ?? findNodeByTitle(req.name);
+        if (!node) return null;
+        const blocks = await shadowChapterBlocks(node.id);
+        const text = blocks.map((b) => b.text).join('\n');
+        const head = node.summary ? `梗概：${node.summary}\n---\n` : '';
+        return `${head}${truncate(text, 4000)}`;
+      }
+
+      return null;
+    },
+  };
 }
 
 async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, unknown>) {
   const assertion = String(args.assertion ?? '');
   const chapterId = String(args.chapterId ?? '');
+  throwIfShadowCancelled(chapterId);
   const s = useDataStore.getState();
   if (!s.bookNodes.some((n) => n.id === chapterId && n.projectId === ctx.projectId)) {
     throw new Error(`shadow_eval_semantic: no chapter "${chapterId}"`);
@@ -1778,7 +1916,23 @@ async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, un
       ? (args.facts as Record<string, string>)
       : {};
   const summary = String(args.summary ?? '');
-  return evaluateSemanticAssertion(assertion, blocks, ctx.projectId, { facts, summary });
+  const provider = buildShadowEvidenceProvider(ctx, chapterId);
+  // Header step for this assertion, then each evidence round / verdict from the
+  // agentic judge streams in as its own 'check' step.
+  void traceShadow(chapterId, ctx.projectId, 'check', '检查约束', { detail: assertion });
+  return evaluateSemanticAssertionAgentic(
+    assertion,
+    blocks,
+    ctx.projectId,
+    { facts, summary },
+    provider,
+    undefined,
+    (step) =>
+      void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
+        detail: step.detail,
+        items: step.items,
+      }),
+  );
 }
 
 async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -1808,6 +1962,7 @@ async function shadowWriteComment(ctx: AgentToolContext, args: Record<string, un
   };
   const message = String(finding.message ?? '').trim();
   if (!chapterId || !message) return { ok: false };
+  throwIfShadowCancelled(chapterId);
   const reason = String(finding.reason ?? '').trim();
   const body = reason ? `${message}\n${reason}` : message;
   // The full consecutive block range goes in metadataJson.blockIds; targetBlockId
@@ -1848,6 +2003,10 @@ async function shadowWriteComment(ctx: AgentToolContext, args: Record<string, un
     input.targetBlockId = finding.blockId;
   }
   const created = await ctx.write.createComment(input);
+  void traceShadow(chapterId, ctx.projectId, 'emit', '写入批注', {
+    detail: message,
+    items: reason ? [reason] : undefined,
+  });
   return { ok: true, commentId: (created as { id?: string })?.id };
 }
 
@@ -1856,6 +2015,7 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   const status =
     args.status === 'finished' ? 'finished' : args.status === 'draft' ? 'draft' : null;
   if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
+  void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
   await ctx.write.updateNode(chapterId, { writingStatus: status });
   return { ok: true, chapterId, status };
 }
@@ -1980,7 +2140,7 @@ export async function runAgentTool(
     case 'shadow_read_chapter_snapshot':
       return shadowReadChapterSnapshot(ctx, args);
     case 'shadow_read_rules':
-      return shadowReadRules(ctx);
+      return shadowReadRules(ctx, args);
     case 'shadow_eval_semantic':
       return shadowEvalSemantic(ctx, args);
     case 'shadow_clear_comments':

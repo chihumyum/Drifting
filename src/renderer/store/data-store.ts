@@ -5,6 +5,7 @@ import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
 import type { LibraryItem } from '../domain/library-item';
 import type { Comment, CommentAction } from '../domain/comment';
+import type { ShadowJob } from '../domain/shadow-job';
 import type { BlockSection } from '../domain/block-section';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
@@ -102,6 +103,12 @@ interface DataState {
   addCommentAction: (action: CommentAction) => void;
   updateCommentAction: (id: string, updates: Partial<CommentAction>) => void;
   removeCommentAction: (id: string) => void;
+
+  // Shadow review jobs (observability records; see lib/shadow/job-recorder).
+  shadowJobs: ShadowJob[];
+  setShadowJobs: (jobs: ShadowJob[]) => void;
+  upsertShadowJob: (job: ShadowJob) => void;
+  removeShadowJob: (id: string) => void;
 
   /**
    * User-curated cross-entity relations (comment → node, library_item → element …).
@@ -334,6 +341,19 @@ export const useDataStore = create<DataState>((set) => ({
     set((state) => ({
       commentActions: state.commentActions.filter((action) => action.id !== id),
     })),
+
+  shadowJobs: [],
+  setShadowJobs: (shadowJobs) => set({ shadowJobs }),
+  upsertShadowJob: (job) =>
+    set((state) => {
+      const i = state.shadowJobs.findIndex((j) => j.id === job.id);
+      if (i === -1) return { shadowJobs: [job, ...state.shadowJobs] };
+      const next = state.shadowJobs.slice();
+      next[i] = job;
+      return { shadowJobs: next };
+    }),
+  removeShadowJob: (id) =>
+    set((state) => ({ shadowJobs: state.shadowJobs.filter((j) => j.id !== id) })),
 
   entityRelations: [],
   setEntityRelations: (entityRelations) => set({ entityRelations }),

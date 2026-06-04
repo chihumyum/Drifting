@@ -51,6 +51,8 @@ import { forceFlush as forceFlushEntitySync } from './services/entity-sync.servi
 import { flushPreferencesSync } from './services/preferences-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
+import { useNotificationFeed } from './hooks/useNotificationFeed';
+import { useShadowJobs } from './usecase/useShadowJobs';
 import { useAuthStore } from './store/auth';
 import { useDataStore } from './store/data-store';
 import { useWritingStatsStore } from './store/writing-stats-store';
@@ -202,6 +204,10 @@ function Layout() {
   // side. Mounted at the Layout level so it runs in both single- and
   // split-pane modes (EditorShell wouldn't run when Outlet isn't rendered).
   useSyncSplitFocusedUrl();
+  // Collect Copilot/Shadow task lifecycle events into the global notification
+  // feed (pill + center). Mounted here so history accrues even on platforms
+  // where the topbar pill isn't rendered.
+  useNotificationFeed();
   const nodeUsecases = useBookNode({ projectId: projectId, userId: userId });
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
@@ -211,6 +217,7 @@ function Layout() {
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
   const projectUsecases = useProject({ userId: userId });
+  const shadowJobUsecases = useShadowJobs({ projectId: projectId });
 
   // Bridge the main-process agent's tool calls to renderer-side handlers
   // (reads/writes go through the same store + usecases as manual edits).
@@ -381,6 +388,7 @@ function Layout() {
           libraryItemUsecases.loadInitial(),
           relationUsecases.loadInitial(),
           commentUsecases.loadInitial(),
+          shadowJobUsecases.loadInitial(),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
@@ -415,6 +423,7 @@ function Layout() {
     libraryItemUsecases,
     relationUsecases,
     commentUsecases,
+    shadowJobUsecases,
   ]); // Re-init when projectId or user changes
 
   // listen for left topbar events

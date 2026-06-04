@@ -5,7 +5,6 @@ import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 type RightPanelId = 'todo' | 'library' | 'stats' | 'companion' | 'shadow';
 
 interface RightSidebarHeaderProps {
-  shadowReviewCount: number;
   kicker: string;
   title: string;
   /** Pulsates the library/TODO tab labels after a shadow → fragment conversion. */
@@ -26,7 +25,6 @@ interface RightSidebarHeaderProps {
 }
 
 export function RightSidebarHeader({
-  shadowReviewCount,
   kicker,
   title,
   fragmentCountFlash,
@@ -77,7 +75,6 @@ export function RightSidebarHeader({
   // With 4 tabs (TODO + Library + Stats + Shadow) the tray gets squeezed
   // earlier than the old 3-tab layout, so compactLabels triggers at a
   // wider threshold than before.
-  const shadowGlyphOnly = trayWidth < 300;
   const compactLabels = trayWidth < 200;
 
   return (
@@ -175,15 +172,7 @@ export function RightSidebarHeader({
                       : undefined
                   }
                 >
-                  <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 13 }}>
-                    ◐
-                  </span>
-                  {!shadowGlyphOnly && <span>Shadow</span>}
-                  {!shadowGlyphOnly && (
-                    <span style={{ color: 'hsl(var(--ink-4))', fontSize: 9.5 }}>
-                      {shadowReviewCount}
-                    </span>
-                  )}
+                  <span>{compactLabels ? 'SH' : 'Shadow'}</span>
                 </RightPanelTab>
               )}
             </>

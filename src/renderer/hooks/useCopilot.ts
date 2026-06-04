@@ -44,6 +44,7 @@ import { useComment } from '../usecase/useComment';
 import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
 import { useCopilotInlineStore } from '../store/copilot-inline-store';
 import { events } from '../lib/events';
+import { useDataStore } from '../store/data-store';
 
 export interface UseCopilotInput {
   editor: Editor;
@@ -141,6 +142,25 @@ export function useCopilot({
         `[useCopilot] cap=${cap.id} fire #${localFireId}${forced ? ' (manual)' : ''} dispatch chapter=${nodeId.slice(0, 8)} uncovered=${baseContext.uncoveredBlocks.length} priorSections=${baseContext.priorSections.length}`,
       );
 
+      // Global notification feed. Background fires are silent until they produce
+      // something (else the center floods on every debounce); a manual run
+      // announces its whole arc (started → completed/failed).
+      const taskId = `copilot:${cap.id}:${nodeId}:${localFireId}`;
+      const chapterTitle =
+        useDataStore.getState().bookNodes.find((n) => n.id === nodeId)?.title || '本章';
+      const taskTitle = `Copilot · ${cap.displayName}`;
+      if (forced) {
+        events.emit('ai-task', {
+          id: taskId,
+          source: 'copilot',
+          state: 'started',
+          title: taskTitle,
+          detail: chapterTitle,
+          chapterId: nodeId,
+          at: Date.now(),
+        });
+      }
+
       try {
         let results: Awaited<ReturnType<typeof cap.detect>> = [];
         try {
@@ -159,6 +179,18 @@ export function useCopilot({
           if (err instanceof AIError && err.kind === 'aborted') return;
           if (err instanceof AIError && err.kind === 'auth') return;
           log.warn(`[copilot] capability "${cap.id}" detect failed`, err);
+          if (forced) {
+            events.emit('ai-task', {
+              id: taskId,
+              source: 'copilot',
+              state: 'failed',
+              title: taskTitle,
+              detail: chapterTitle,
+              chapterId: nodeId,
+              error: err instanceof Error ? err.message : String(err),
+              at: Date.now(),
+            });
+          }
           return;
         }
 
@@ -223,6 +255,23 @@ export function useCopilot({
           events.emit('copilot:suggestion-persisted', {
             targetKind: 'node',
             targetId: nodeId,
+          });
+        }
+
+        // Notify when a manual run finishes, or a background run actually
+        // produced suggestions. Silent empty background fires stay silent.
+        if (forced || persistedAny) {
+          events.emit('ai-task', {
+            id: taskId,
+            source: 'copilot',
+            state: 'completed',
+            title: taskTitle,
+            detail: persistedAny
+              ? `${results.length} 条建议 · ${chapterTitle}`
+              : `无新建议 · ${chapterTitle}`,
+            chapterId: nodeId,
+            count: results.length,
+            at: Date.now(),
           });
         }
 

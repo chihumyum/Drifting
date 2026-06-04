@@ -36,6 +36,17 @@ interface ElectronAPI {
       projectId: string;
       chapterId: string;
     }) => Promise<{ chapterId: string; decision: 'finished' | 'draft'; findingCount: number }>;
+    cancel: (job: { chapterId: string }) => void;
+    onJob: (
+      callback: (ev: {
+        chapterId: string;
+        projectId: string;
+        state: 'started' | 'completed' | 'failed';
+        decision?: 'finished' | 'draft';
+        findingCount?: number;
+        error?: string;
+      }) => void,
+    ) => () => void;
   };
 }
 

@@ -28,6 +28,27 @@ export type SyncOperationEvent = {
   at: number;
 };
 
+// One AI-task lifecycle signal, emitted by both Copilot and Shadow. Carries its
+// `state` inline (like SyncOperationEvent) so a single subscription drives the
+// global notification surface. `id` is stable across started→completed/failed so
+// the notification center can collapse a task's phases into one row.
+export type AiTaskSource = 'copilot' | 'shadow';
+export type AiTaskState = 'started' | 'completed' | 'failed' | 'stopped';
+export type AiTaskOutcome = 'clean' | 'issues' | 'ok' | 'error';
+
+export type AiTaskEvent = {
+  id: string;
+  source: AiTaskSource;
+  state: AiTaskState;
+  title: string; // short headline, e.g. "Shadow 审阅" / "Copilot · 元素候选"
+  detail?: string; // one-line detail, e.g. "第三章 · 发现 2 处问题"
+  chapterId?: string; // for click-to-navigate, when applicable
+  outcome?: AiTaskOutcome; // tints the completed banner
+  count?: number; // findings / suggestions produced
+  error?: string;
+  at: number;
+};
+
 export type AppEvents = {
   'graph:select': { nodeId: string | null };
   'graph:node-created': { node: BookNode };
@@ -70,6 +91,9 @@ export type AppEvents = {
   'jobs:failed': { jobId: string; error: string };
 
   'sync:operation': SyncOperationEvent;
+
+  // Copilot/Shadow task lifecycle → global notification pill + center.
+  'ai-task': AiTaskEvent;
 
   'ui:sidecar-toggled': { open: boolean };
   'ui:command-palette-toggled': { open: boolean };

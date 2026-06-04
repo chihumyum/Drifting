@@ -3773,3 +3773,31 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
     transform: rotate(360deg);
   }
 }
+
+/* Notification pill spinner (topbar AI-task pill) */
+@keyframes drift-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Notification pill collapse-to-circle — modern skin only. When the pill drops
+   its task text and shrinks back to the round bell, give it a little spring.
+   Classic skin keeps the plain width transition (no rule here = no animation). */
+@keyframes notif-pill-collapse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(0.82);
+  }
+  75% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+html[data-skin='modern'] .notif-pill--idle {
+  animation: notif-pill-collapse 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}

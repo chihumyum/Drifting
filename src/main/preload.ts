@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AgentEventEnvelope, AgentStartInput } from './agent';
 import type { ToolExecRequest, ToolExecResult } from './agent/bridge';
+import type { ShadowJobEvent } from './shadow/types';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -134,6 +135,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.send('shadow:enqueue', job),
     run: (job: { projectId: string; chapterId: string }) =>
       ipcRenderer.invoke('shadow:run', job),
+    cancel: (job: { chapterId: string }) => ipcRenderer.send('shadow:cancel', job),
+    onJob: (callback: (ev: ShadowJobEvent) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, ev: ShadowJobEvent) => callback(ev);
+      ipcRenderer.on('shadow:job', handler);
+      return () => ipcRenderer.removeListener('shadow:job', handler);
+    },
   },
 });
 
@@ -189,6 +196,8 @@ export interface ElectronAPI {
       projectId: string;
       chapterId: string;
     }) => Promise<{ chapterId: string; decision: 'finished' | 'draft'; findingCount: number }>;
+    cancel: (job: { chapterId: string }) => void;
+    onJob: (callback: (ev: ShadowJobEvent) => void) => () => void;
   };
   aiLog: {
     write: (
