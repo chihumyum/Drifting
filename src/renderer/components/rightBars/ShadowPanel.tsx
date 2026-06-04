@@ -28,6 +28,7 @@ import { useComment } from '../../usecase/useComment';
 import { useBookNode } from '../../usecase/useBookNode';
 import { createShadowJobRepository } from '../../sqlite-repo/shadow-job-repo';
 import { stopShadowJob } from '../../lib/shadow/job-recorder';
+import { useStaleReviews, type StaleReview } from '../../usecase/useStaleReviews';
 import type { ShadowJob, ShadowTracePhase } from '../../domain/shadow-job';
 
 const PHASE_LABEL: Record<ShadowTracePhase, string> = {
@@ -142,6 +143,7 @@ export function ShadowPanel() {
   const removeShadowJob = useDataStore((s) => s.removeShadowJob);
   const { resolveComment } = useComment({ projectId, userId });
   const { updateNode } = useBookNode({ projectId, userId });
+  const staleReviews = useStaleReviews(projectId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -223,10 +225,11 @@ export function ShadowPanel() {
     for (const c of open) await resolveComment(c.id);
     await updateNode(job.chapterId, { writingStatus: 'finished' });
   };
-  const rerun = async (job: ShadowJob) => {
-    await updateNode(job.chapterId, { writingStatus: 'waiting_review' });
-    window.electronAPI?.shadow?.enqueue({ projectId: job.projectId, chapterId: job.chapterId });
+  const rerunChapter = async (chapterId: string) => {
+    await updateNode(chapterId, { writingStatus: 'waiting_review' });
+    window.electronAPI?.shadow?.enqueue({ projectId, chapterId });
   };
+  const rerun = (job: ShadowJob) => rerunChapter(job.chapterId);
 
   if (mine.length === 0) {
     return (
@@ -265,6 +268,14 @@ export function ShadowPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 16px' }}>
+        {staleReviews.length > 0 && (
+          <StaleSection
+            reviews={staleReviews}
+            onReview={(id) => void rerunChapter(id)}
+            onOpen={(id) => navigateToNode(id)}
+          />
+        )}
+
         <div
           style={{
             display: 'flex',
@@ -413,6 +424,92 @@ export function ShadowPanel() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// The incremental-review surface: finished chapters whose canon dependencies
+// changed since they were last validated. The moat — edit an element and the
+// chapters that lean on it light up here.
+function StaleSection({
+  reviews,
+  onReview,
+  onOpen,
+}: {
+  reviews: StaleReview[];
+  onReview: (chapterId: string) => void;
+  onOpen: (chapterId: string) => void;
+}) {
+  const reason = (r: StaleReview): string => {
+    const names = Array.from(new Set(r.changes.map((c) => c.name)));
+    const head = names.slice(0, 3).join('、');
+    return names.length > 3 ? `依据 ${head} 等 ${names.length} 项已改动` : `依据 ${head} 已改动`;
+  };
+  return (
+    <div
+      style={{
+        border: '1px solid hsl(32 70% 55% / 0.5)',
+        background: 'hsl(38 80% 60% / 0.08)',
+        borderRadius: 6,
+        padding: '8px 9px 9px',
+        marginBottom: 10,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 11,
+          fontWeight: 700,
+          color: 'hsl(32 70% 38%)',
+          marginBottom: 7,
+        }}
+      >
+        <AlertTriangle size={13} />
+        需复审 · {reviews.length}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {reviews.map((r) => (
+          <div key={r.chapterId} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                onClick={() => onOpen(r.chapterId)}
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: 'hsl(var(--ink-1))',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {r.chapterTitle || '章节'}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-3))',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {reason(r)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onReview(r.chapterId)}
+              style={{ ...actionBtn, flexShrink: 0 }}
+              title="重新审阅本章"
+            >
+              <RotateCw size={12} /> 复审
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
