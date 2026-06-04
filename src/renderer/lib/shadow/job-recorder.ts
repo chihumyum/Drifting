@@ -21,6 +21,7 @@ import { useDataStore } from '../../store/data-store';
 import type {
   ShadowJob,
   ShadowJobStatus,
+  ShadowToolCall,
   ShadowTracePhase,
   ShadowTraceStep,
 } from '../../domain/shadow-job';
@@ -63,6 +64,12 @@ export function throwIfShadowCancelled(chapterId: string): void {
   if (cancelled.has(chapterId)) throw new ShadowCancelledError(chapterId);
 }
 
+/** Is a review for this chapter genuinely in-flight in THIS session? Lets the
+ *  loader tell a live 'running' row from one orphaned by a prior session/reload. */
+export function isShadowActive(chapterId: string): boolean {
+  return activeByChapter.has(chapterId) || creating.has(chapterId);
+}
+
 function titleOf(chapterId: string): string {
   return useDataStore.getState().bookNodes.find((n) => n.id === chapterId)?.title || '章节';
 }
@@ -95,6 +102,7 @@ export async function beginShadowJob(chapterId: string, projectId: string): Prom
 export interface TraceOpts {
   detail?: string;
   items?: string[];
+  calls?: ShadowToolCall[];
 }
 
 /** Append one readable step to the chapter's active review trail. */
@@ -116,6 +124,7 @@ export async function traceShadow(
       label,
       detail: opts?.detail,
       items: opts?.items && opts.items.length ? opts.items : undefined,
+      calls: opts?.calls && opts.calls.length ? opts.calls : undefined,
     };
     job.trace = [...job.trace, step];
     job.updatedAt = step.at;
@@ -187,24 +196,33 @@ export async function stopShadowJob(chapterId: string, projectId: string): Promi
     chapterId,
     at: Date.now(),
   });
-  const job = activeByChapter.get(chapterId) ?? (await ensureActive(chapterId, projectId));
-  if (job) {
-    const at = new Date().toISOString();
-    job.status = 'stopped';
-    job.error = null;
-    job.finishedAt = at;
-    job.updatedAt = at;
-    job.trace = [...job.trace, { at, phase: 'decide', label: '已终止（用户）' }];
-    activeByChapter.delete(chapterId);
-    pushStore(job);
-    try {
-      await repo.update(job.id, {
-        status: 'stopped',
-        finishedAt: at,
-        trace: job.trace,
-      });
-    } catch {
-      /* swallow */
-    }
+  // Finalize the EXISTING job row — NEVER mint a new one. Prefer the in-memory
+  // active job; otherwise the persisted 'running' row for this chapter (e.g. one
+  // left running by a prior session/reload). The old `?? ensureActive` fallback
+  // minted a fresh row → a phantom "已终止" cell appeared (upsert prepends a new
+  // id) while the real running row hung forever, so stop never took.
+  const job =
+    activeByChapter.get(chapterId) ??
+    useDataStore
+      .getState()
+      .shadowJobs.find(
+        (j) => j.chapterId === chapterId && j.projectId === projectId && j.status === 'running',
+      );
+  if (!job) return;
+  const at = new Date().toISOString();
+  const stopped: ShadowJob = {
+    ...job,
+    status: 'stopped',
+    error: null,
+    finishedAt: at,
+    updatedAt: at,
+    trace: [...job.trace, { at, phase: 'decide', label: '已终止（用户）' }],
+  };
+  activeByChapter.delete(chapterId);
+  pushStore(stopped);
+  try {
+    await repo.update(stopped.id, { status: 'stopped', finishedAt: at, trace: stopped.trace });
+  } catch {
+    /* swallow — the in-memory/store copy is already correct */
   }
 }

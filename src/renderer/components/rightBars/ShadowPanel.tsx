@@ -9,7 +9,7 @@
  *   - 强制通过 — resolve all remaining comments + push the chapter to finished, or
  *   - once the user has cleared every comment (待办归零): 通过 (finish) / 重跑.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
@@ -19,6 +19,7 @@ import {
   Loader2,
   RotateCw,
   Square,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
@@ -138,7 +139,6 @@ export function ShadowPanel() {
   const shadowJobs = useDataStore((s) => s.shadowJobs);
   const comments = useDataStore((s) => s.comments);
   const bookNodes = useDataStore((s) => s.bookNodes);
-  const setShadowJobs = useDataStore((s) => s.setShadowJobs);
   const upsertShadowJob = useDataStore((s) => s.upsertShadowJob);
   const removeShadowJob = useDataStore((s) => s.removeShadowJob);
   const { resolveComment } = useComment({ projectId, userId });
@@ -146,6 +146,9 @@ export function ShadowPanel() {
   const staleReviews = useStaleReviews(projectId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [footerHeight, setFooterHeight] = useState(220);
+  const [expandedArchived, setExpandedArchived] = useState<Set<string>>(new Set());
+  const footerDragRef = useRef<{ startY: number; startH: number } | null>(null);
 
   const repo = useMemo(() => createShadowJobRepository(), []);
 
@@ -159,7 +162,6 @@ export function ShadowPanel() {
   );
   const jobs = useMemo(() => mine.filter((j) => !j.archived), [mine]);
   const archived = useMemo(() => mine.filter((j) => j.archived), [mine]);
-  const completedCount = useMemo(() => jobs.filter((j) => j.status !== 'running').length, [jobs]);
 
   // First (newest) job per chapter is the "current" one whose comments are live.
   const latestIdByChapter = useMemo(() => {
@@ -181,6 +183,21 @@ export function ShadowPanel() {
     return m;
   }, [comments]);
 
+  // Archivable = a settled task the user is done attending to: completed with every
+  // 待办 resolved (open === 0), or manually stopped. A running review — or a done
+  // one with unresolved 待办 — stays put. (The footer separately deletes archived.)
+  const isArchivable = (j: ShadowJob): boolean => {
+    if (j.status === 'stopped') return true;
+    if (j.status !== 'done') return false; // running / failed → leave for the user
+    const tally = tallyByChapter.get(j.chapterId) ?? { total: 0, open: 0 };
+    return tally.open === 0;
+  };
+  const archivableCount = useMemo(
+    () => jobs.filter(isArchivable).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [jobs, tallyByChapter],
+  );
+
   const reviewOf = (job: ShadowJob): ReviewInfo => {
     const isLatest = latestIdByChapter.get(job.chapterId) === job.id;
     const tally = tallyByChapter.get(job.chapterId) ?? { total: 0, open: 0 };
@@ -201,10 +218,14 @@ export function ShadowPanel() {
     upsertShadowJob({ ...job, archived: true });
     await repo.update(job.id, { archived: true });
   };
+  // Bulk-archive every settled task (done & all 待办 resolved, or manually stopped)
+  // — never one with an open 待办, and never a running review.
   const archiveCompleted = async () => {
     if (!projectId) return;
-    await repo.archiveCompleted(projectId);
-    setShadowJobs(await repo.listByProject(projectId));
+    const target = jobs.filter(isArchivable);
+    if (target.length === 0) return;
+    for (const j of target) upsertShadowJob({ ...j, archived: true });
+    await Promise.all(target.map((j) => repo.update(j.id, { archived: true })));
   };
   const deleteOne = async (id: string) => {
     await repo.delete(id);
@@ -230,6 +251,37 @@ export function ShadowPanel() {
     window.electronAPI?.shadow?.enqueue({ projectId, chapterId });
   };
   const rerun = (job: ShadowJob) => rerunChapter(job.chapterId);
+
+  const deleteAllArchived = async () => {
+    await Promise.all(archived.map((j) => repo.delete(j.id)));
+    for (const j of archived) removeShadowJob(j.id);
+  };
+
+  const startFooterDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    footerDragRef.current = { startY: e.clientY, startH: footerHeight };
+    const onMove = (ev: MouseEvent) => {
+      if (!footerDragRef.current) return;
+      const delta = footerDragRef.current.startY - ev.clientY;
+      setFooterHeight(Math.max(60, Math.min(600, footerDragRef.current.startH + delta)));
+    };
+    const onUp = () => {
+      footerDragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const toggleArchived = (id: string) => {
+    setExpandedArchived((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   if (mine.length === 0) {
     return (
@@ -294,11 +346,11 @@ export function ShadowPanel() {
           >
             SHADOW · {jobs.length}
           </span>
-          {completedCount > 0 && (
+          {archivableCount > 0 && (
             <button
               type="button"
               onClick={archiveCompleted}
-              title="归档已完成（不影响正在跑的任务）"
+              title="归档已处理的任务（已通过/待办已清空/已终止；不含未解决与运行中）"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -351,72 +403,188 @@ export function ShadowPanel() {
       </div>
 
       {archived.length > 0 && (
-        <div style={{ borderTop: '1px solid hsl(var(--rule))', flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => setShowArchived((v) => !v)}
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            ...(showArchived ? { height: footerHeight } : {}),
+          }}
+        >
+          <style>{`.shadow-archived-list::-webkit-scrollbar{display:none}`}</style>
+          <div
+            onMouseDown={showArchived ? startFooterDrag : undefined}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              width: '100%',
-              border: 'none',
-              background: 'transparent',
-              color: 'hsl(var(--ink-3))',
-              cursor: 'pointer',
-              padding: '8px 12px',
-              fontSize: 11.5,
+              borderTop: '2px solid hsl(var(--rule))',
+              cursor: showArchived ? 'ns-resize' : 'default',
+              flexShrink: 0,
             }}
-          >
-            {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-            <Archive size={12} />
-            已归档
-            <span style={{ color: 'hsl(var(--ink-4))' }}>{archived.length}</span>
-          </button>
+          />
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flex: 1,
+                border: 'none',
+                background: 'transparent',
+                color: 'hsl(var(--ink-3))',
+                cursor: 'pointer',
+                padding: '8px 12px',
+                fontSize: 11.5,
+              }}
+            >
+              {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              <Archive size={12} />
+              已归档
+              <span style={{ color: 'hsl(var(--ink-4))' }}>{archived.length}</span>
+            </button>
+            {showArchived && archived.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void deleteAllArchived()}
+                title="清空已归档"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'hsl(0 50% 55%)',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  padding: '2px 10px 2px 4px',
+                  borderRadius: 4,
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={12} /> 清空
+              </button>
+            )}
+          </div>
           {showArchived && (
             <div
+              className="shadow-archived-list"
               style={{
-                maxHeight: 220,
+                flex: 1,
                 overflowY: 'auto',
                 padding: '0 8px 10px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 4,
+                scrollbarWidth: 'none',
               }}
             >
               {archived.map((job) => {
                 const sv = statusView(job, reviewOf(job));
+                const isOpen = expandedArchived.has(job.id);
                 return (
                   <div
                     key={job.id}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 8px',
+                      border: '1px solid hsl(var(--rule) / 0.6)',
                       borderRadius: 5,
                       background: 'hsl(var(--paper-deep) / 0.5)',
+                      overflow: 'hidden',
+                      flexShrink: 0,
                     }}
                   >
-                    <span style={{ color: sv.color, display: 'flex', flexShrink: 0 }}>{sv.icon}</span>
-                    <span
-                      onClick={() => navigateToNode(job.chapterId)}
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        fontSize: 12,
-                        color: 'hsl(var(--ink-2))',
-                        cursor: 'pointer',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {job.chapterTitle || '章节'}
-                    </span>
-                    <button type="button" onClick={() => deleteOne(job.id)} title="彻底删除" style={iconBtn}>
-                      <X size={13} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
+                      <div
+                        onClick={() => toggleArchived(job.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                      >
+                        <ChevronRight
+                          size={12}
+                          style={{
+                            color: 'hsl(var(--ink-4))',
+                            flexShrink: 0,
+                            transform: isOpen ? 'rotate(90deg)' : 'none',
+                            transition: 'transform 0.15s ease',
+                          }}
+                        />
+                        <span style={{ color: sv.color, display: 'flex', flexShrink: 0 }}>{sv.icon}</span>
+                        <span
+                          onClick={(e) => { e.stopPropagation(); navigateToNode(job.chapterId); }}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 12,
+                            color: 'hsl(var(--ink-2))',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {job.chapterTitle || '章节'}
+                        </span>
+                      </div>
+                      <button type="button" onClick={() => deleteOne(job.id)} title="彻底删除" style={iconBtn}>
+                        <X size={13} />
+                      </button>
+                    </div>
+                    {isOpen && (
+                      <div
+                        style={{
+                          borderTop: '1px solid hsl(var(--rule) / 0.5)',
+                          padding: '8px 10px 10px',
+                          background: 'hsl(var(--paper-deep) / 0.3)',
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {job.trace.length === 0 ? (
+                          <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无轨迹记录</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            {job.trace.map((step, i) => (
+                              <div key={i} style={{ display: 'flex', gap: 7 }}>
+                                <span
+                                  style={{
+                                    flexShrink: 0,
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 8.5,
+                                    letterSpacing: '0.04em',
+                                    color: 'hsl(var(--ink-4))',
+                                    background: 'hsl(var(--paper-deep))',
+                                    border: '1px solid hsl(var(--rule))',
+                                    borderRadius: 3,
+                                    padding: '1px 4px',
+                                    height: 'fit-content',
+                                    marginTop: 1,
+                                  }}
+                                >
+                                  {PHASE_LABEL[step.phase]}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-1))', fontWeight: 500 }}>
+                                    {step.label}
+                                  </div>
+                                  {step.detail && (
+                                    <div style={{ fontSize: 11, color: 'hsl(var(--ink-3))', marginTop: 1, lineHeight: 1.4 }}>
+                                      {step.detail}
+                                    </div>
+                                  )}
+                                  {step.items && step.items.length > 0 && (
+                                    <ul style={{ margin: '3px 0 0', paddingLeft: 14 }}>
+                                      {step.items.map((it, k) => (
+                                        <li key={k} style={{ fontSize: 11, color: 'hsl(var(--ink-3))', lineHeight: 1.45 }}>
+                                          {it}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -539,6 +707,10 @@ function JobCell({
 }) {
   const sv = statusView(job, review);
   const running = job.status === 'running';
+  // The FC judge's per-rule verdicts (the result) — folded by default, separate
+  // from the verbose evidence trace below.
+  const verdicts = job.trace.filter((s) => s.phase === 'check' && s.label.startsWith('裁决'));
+  const [showResult, setShowResult] = useState(false);
   return (
     <div
       style={{
@@ -642,6 +814,59 @@ function JobCell({
             打开章节 →
           </button>
 
+          {verdicts.length > 0 && (
+            <div style={{ margin: '2px 0 9px' }}>
+              <button
+                type="button"
+                onClick={() => setShowResult((v) => !v)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: 'hsl(var(--ink-2))',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: 0,
+                }}
+              >
+                {showResult ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                FC 结论（{verdicts.length}）
+              </button>
+              {showResult && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 5, paddingLeft: 4 }}>
+                  {verdicts.map((v, i) => {
+                    const violated = v.label.includes('违反');
+                    return (
+                      <div key={i}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 500,
+                            color: violated ? 'hsl(var(--danger, 0 70% 50%))' : 'hsl(142 40% 40%)',
+                          }}
+                        >
+                          {v.label.replace(/^裁决：/, '')}
+                        </div>
+                        {v.items && v.items.length > 0 && (
+                          <ul style={{ margin: '2px 0 0', paddingLeft: 14 }}>
+                            {v.items.map((it, k) => (
+                              <li key={k} style={{ fontSize: 11, color: 'hsl(var(--ink-3))', lineHeight: 1.45 }}>
+                                {it}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {job.trace.length === 0 ? (
             <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
               {running ? '审阅进行中…' : '无轨迹记录'}
@@ -683,6 +908,64 @@ function JobCell({
                             {it}
                           </li>
                         ))}
+                      </ul>
+                    )}
+                    {step.calls && step.calls.length > 0 && (
+                      <ul style={{ margin: '3px 0 0', padding: 0, listStyle: 'none' }}>
+                        {step.calls.map((c, k) => {
+                          const failed = c.status !== 'ok';
+                          const color =
+                            c.status === 'error'
+                              ? 'hsl(var(--danger, 0 70% 50%))'
+                              : c.status === 'denied'
+                                ? 'hsl(35 85% 42%)'
+                                : 'hsl(var(--ink-3))';
+                          const line = (
+                            <>
+                              <span style={{ flexShrink: 0, opacity: failed ? 1 : 0.55 }}>
+                                {failed ? '✕' : '·'}
+                              </span>{' '}
+                              <span style={{ minWidth: 0, wordBreak: 'break-word' }}>
+                                {c.tool}
+                                {c.args ? <span style={{ opacity: 0.75 }}> {c.args}</span> : null}
+                                {c.note ? <span style={{ opacity: 0.85 }}> — {c.note}</span> : null}
+                              </span>
+                            </>
+                          );
+                          return (
+                            <li
+                              key={k}
+                              style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color, lineHeight: 1.5 }}
+                            >
+                              {c.result ? (
+                                <details>
+                                  <summary style={{ cursor: 'pointer', listStyle: 'none' }}>{line}</summary>
+                                  <pre
+                                    style={{
+                                      margin: '3px 0 5px 12px',
+                                      padding: '5px 7px',
+                                      fontSize: 10,
+                                      lineHeight: 1.5,
+                                      color: 'hsl(var(--ink-2))',
+                                      background: 'hsl(var(--paper-deep))',
+                                      border: '1px solid hsl(var(--rule))',
+                                      borderRadius: 4,
+                                      maxHeight: 200,
+                                      overflow: 'auto',
+                                      whiteSpace: 'pre-wrap',
+                                      wordBreak: 'break-word',
+                                      fontFamily: 'var(--font-mono)',
+                                    }}
+                                  >
+                                    {c.result}
+                                  </pre>
+                                </details>
+                              ) : (
+                                <div>{line}</div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

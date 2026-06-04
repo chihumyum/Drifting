@@ -5,6 +5,7 @@ import { createShadowJobRepository } from '../sqlite-repo/shadow-job-repo';
 import {
   beginShadowJob,
   finishShadowJob,
+  isShadowActive,
   isShadowCancelled,
   clearShadowCancelled,
 } from '../lib/shadow/job-recorder';
@@ -21,8 +22,20 @@ import {
 export function useShadowJobs({ projectId }: { projectId: string }) {
   const loadInitial = useCallback(async () => {
     if (!projectId) return;
-    const jobs = await createShadowJobRepository().listByProject(projectId);
-    useDataStore.getState().setShadowJobs(jobs);
+    const repo = createShadowJobRepository();
+    const jobs = await repo.listByProject(projectId);
+    // Reconcile orphaned 'running' rows: a review in-flight when the app/renderer
+    // last closed never finalizes (its slow work — the judge — lived in the
+    // renderer, which is gone). Left alone it shows a perpetual running cell.
+    // Anything 'running' but not active in THIS session is stale → mark stopped.
+    const at = new Date().toISOString();
+    const reconciled = jobs.map((j) => {
+      if (j.status !== 'running' || isShadowActive(j.chapterId)) return j;
+      const trace = [...j.trace, { at, phase: 'decide' as const, label: '上次会话中断，自动结束' }];
+      void repo.update(j.id, { status: 'stopped', finishedAt: at, trace });
+      return { ...j, status: 'stopped' as const, finishedAt: at, updatedAt: at, trace };
+    });
+    useDataStore.getState().setShadowJobs(reconciled);
   }, [projectId]);
 
   useEffect(() => {
