@@ -121,6 +121,16 @@ export function useSyncSplitFocusedUrl(): void {
       return;
     }
     if (!active) {
+      // No active tab — the last tab was just closed, or a delete flow
+      // emptied the project. Nothing is focused, so clear any lingering
+      // node/element selection. Otherwise nodeUi/elementUi.selectedId keeps
+      // pointing at the just-closed entity and ChapterPanel + BottomTimeline
+      // render a stale "selected" cell/node forever (the residual-highlight
+      // bug). Guard on getState() to skip redundant store writes when there's
+      // nothing selected.
+      const ui = useUiStore.getState();
+      if (ui.nodeUi.selectedId) setNodeSelection(null);
+      if (ui.elementUi.selectedId) setElementSelection(null);
       prevFocusedRef.current = null;
       return;
     }
@@ -226,8 +236,16 @@ function mirrorSelection(
 ): void {
   if (ref.entityType === 'node') setNodeSelection(ref.id, 'system');
   else if (ref.entityType === 'element') setElementSelection(ref.id, 'system');
-  // dashboard / all-chapters / storyline / category don't drive entity
-  // selection — left sidebar listens to nodeUi/elementUi only.
+  else {
+    // dashboard / all-chapters / storyline / category aren't entity
+    // selections — the left sidebar / timeline listen to nodeUi/elementUi
+    // only. Clear any lingering node/element highlight so focusing one of
+    // these (e.g. after closing a node tab whose successor is a storyline
+    // tab) doesn't leave the previously-focused chapter/element selected.
+    const ui = useUiStore.getState();
+    if (ui.nodeUi.selectedId) setNodeSelection(null);
+    if (ui.elementUi.selectedId) setElementSelection(null);
+  }
 }
 
 // Build the pathname a TabRef corresponds to. Mirrors the URL switch in
