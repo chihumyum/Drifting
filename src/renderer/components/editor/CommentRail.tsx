@@ -199,6 +199,7 @@ export function CommentRail({
 
   const marginRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const entitySubmittingRef = useRef(false);
   const [orphanIds, setOrphanIds] = useState<Set<string>>(new Set());
   const [snapshotForId, setSnapshotForId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -635,16 +636,25 @@ export function CommentRail({
   const handleCreateEntityComment = async () => {
     const body = entityDraft.trim();
     if (!body) return;
-    await commentUsecases.createComment({
-      targetKind,
-      targetId,
-      bodyJson: createPlainCommentDoc(body),
-      authorKind: 'user',
-      authorId: userId ?? null,
-      source: 'manual',
-    });
+    // Close the composer optimistically before awaiting so the store update
+    // that adds the new comment doesn't render both cards simultaneously.
+    // The submitting ref prevents the auto-collapse useEffect from firing
+    // during the gap between composer close and comment arriving in the store.
+    entitySubmittingRef.current = true;
     setEntityDraft('');
     setEntityComposerOpen(false);
+    try {
+      await commentUsecases.createComment({
+        targetKind,
+        targetId,
+        bodyJson: createPlainCommentDoc(body),
+        authorKind: 'user',
+        authorId: userId ?? null,
+        source: 'manual',
+      });
+    } finally {
+      entitySubmittingRef.current = false;
+    }
   };
   const openEntityComposer = () => {
     setStackExpanded(true);
@@ -945,6 +955,19 @@ export function CommentRail({
       </div>
     );
   };
+
+  // Auto-collapse the entity stack when expanded but there's nothing left to
+  // show — all comments deleted, or the composer was closed without creating.
+  // Skip while a creation is in-flight: the comment hasn't hit the store yet
+  // so the stack looks empty, but it won't be once the await resolves.
+  useEffect(() => {
+    if (!stackExpanded) return;
+    if (entitySubmittingRef.current) return;
+    const stackComments = [...looseComments, ...visibleComments.filter(isStackOrphan)];
+    if (stackComments.length === 0 && !entityComposerOpen) {
+      setStackExpanded(false);
+    }
+  }, [stackExpanded, looseComments, visibleComments, isStackOrphan, entityComposerOpen]);
 
   // ─── block-less notes/TODOs (entity-level) ────────────────────────────
   // Collapsed to a single chip at the bottom of the rail (like a normal comment's
