@@ -72,7 +72,10 @@ export type ShadowDecision = 'finished' | 'draft';
 export interface ShadowDeps {
   readChapterSnapshot(chapterId: string): Promise<ReviewContext>;
   readRules(projectId: string, chapterId: string): Promise<RuleSpec[]>;
-  evaluateSemantic(assertion: string, ctx: ReviewContext): Promise<SemanticViolation[]>;
+  // Judge a RULE's semantic assertions together — one shared evidence loop per
+  // rule (its related checks share context). Returns one SemanticViolation[] per
+  // input assertion, aligned by index.
+  evaluateSemanticBatch(assertions: string[], ctx: ReviewContext): Promise<SemanticViolation[][]>;
   // Remove this chapter's prior shadow comments before writing the fresh batch,
   // so a re-review never piles up duplicates.
   clearComments(chapterId: string): Promise<void>;

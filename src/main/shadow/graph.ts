@@ -51,7 +51,7 @@ export function buildShadowGraph(lg: LangGraphModule, deps: ShadowDeps) {
   });
 
   const check = async (s: S): Promise<Partial<S>> => ({
-    findings: s.context ? await evaluateRules(s.rules, s.context, deps.evaluateSemantic) : [],
+    findings: s.context ? await evaluateRules(s.rules, s.context, deps.evaluateSemanticBatch) : [],
   });
 
   // Side-effect node ①: the only place comments are written. Clear this chapter's

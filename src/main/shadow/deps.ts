@@ -22,16 +22,20 @@ export function createShadowDeps(call: RendererCall): ShadowDeps {
     async readRules(projectId: string, chapterId: string): Promise<RuleSpec[]> {
       return (await call('shadow_read_rules', { projectId, chapterId })) as RuleSpec[];
     },
-    async evaluateSemantic(assertion: string, ctx: ReviewContext): Promise<SemanticViolation[]> {
-      return (await call('shadow_eval_semantic', {
-        assertion,
+    async evaluateSemanticBatch(
+      assertions: string[],
+      ctx: ReviewContext,
+    ): Promise<SemanticViolation[][]> {
+      return (await call('shadow_eval_semantic_batch', {
+        assertions,
         chapterId: ctx.chapterId,
         projectId: ctx.projectId,
         // Ground deep rules: hand the judge the project/storyline facts (POV,
-        // person, character setup) + the chapter summary.
+        // person, character setup) + the chapter summary. The renderer further
+        // warm-starts it with chapter identity + scene entities + prior chapter.
         facts: ctx.rulesKv,
         summary: ctx.summary,
-      })) as SemanticViolation[];
+      })) as SemanticViolation[][];
     },
     async clearComments(chapterId: string): Promise<void> {
       await call('shadow_clear_comments', { chapterId });

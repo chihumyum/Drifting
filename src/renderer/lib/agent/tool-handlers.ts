@@ -12,13 +12,17 @@ import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createProjectRuleRepository } from '../../sqlite-repo/project-rule-repo';
 import {
   evaluateSemanticAssertionAgentic,
-  evaluateSemanticAssertionFC,
+  evaluateSemanticAssertionsFC,
+  type AgenticTraceStep,
   type EvidenceCatalog,
   type EvidenceProvider,
   type EvidenceRequest,
+  type SemanticEvalContext,
+  type SemanticViolation,
+  type ToolRunOutcome,
 } from '../ai/shadow-rules';
 import { buildDefaultLLMClient } from '../ai/client/build-default-client';
-import { AGENT_READ_TOOLS, READ_TOOL_NAMES, toAITools } from './tool-registry';
+import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
@@ -1730,6 +1734,63 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
 // semantic assertions, write shadow comments, and push the chapter's status.
 // They reuse this file's private helpers (the renderer owns the DB + Yjs prose).
 
+// Chapter-scoped tool-result cache. Across a single review the per-rule FC loops
+// re-request the same canon (get_project_brief, list_elements, read_element …);
+// memoize by (tool, args) so duplicate fetches collapse to one. Reset per review
+// (cleared when the chapter snapshot is read at the start of `gather`) and freed
+// when status is pushed at the end. Read-only tools only → caching is always safe.
+const shadowToolCache = new Map<string, Map<string, string>>();
+
+function shadowCacheKey(name: string, args: Record<string, unknown>): string {
+  const norm: Record<string, unknown> = {};
+  for (const k of Object.keys(args).sort()) norm[k] = args[k];
+  return `${name}:${JSON.stringify(norm)}`;
+}
+
+// Schema-allowed arg names per read tool. Used to STRIP args the model invents
+// (e.g. read_node pagination `read_node 11 1 60` — which both no-ops AND defeats
+// the cache by varying the key) so repeated reads dedupe; and as the allowlist.
+const READ_TOOL_ARG_KEYS = new Map<string, Set<string>>(
+  AGENT_READ_TOOLS.map((t) => {
+    const props = (t.parametersSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    return [t.name, new Set(Object.keys(props))] as const;
+  }),
+);
+// A compact menu handed back when the model calls a tool that doesn't exist, so it
+// self-corrects in ONE round instead of guessing read_drift→get_all_drifts→…
+const READ_TOOL_MENU = AGENT_READ_TOOLS.map(
+  (t) => `${t.name}(${[...(READ_TOOL_ARG_KEYS.get(t.name) ?? [])].join(', ')})`,
+).join('；');
+
+// One READ tool executor for the shadow judge. Guards: cancel check + read-only
+// allowlist (the judge must never reach a write tool — advise-not-block), arg
+// stripping, and the per-review cache. Disallowed/hallucinated tools don't throw —
+// they return the real menu so the model corrects course instead of burning rounds.
+function makeShadowRunTool(ctx: AgentToolContext, chapterId: string) {
+  return async (name: string, toolArgs: Record<string, unknown>): Promise<ToolRunOutcome> => {
+    throwIfShadowCancelled(chapterId);
+    const allowedKeys = READ_TOOL_ARG_KEYS.get(name);
+    if (!allowedKeys) {
+      return {
+        content: `没有名为「${name}」的工具。只读工具仅限：${READ_TOOL_MENU}。读 drift/设定/元素/故事线正文请用 read_node(node=名称, kind='drift'|'element'|'storyline'|'category')；本章正文你已在上文按段拿到，无需再读本章自身。`,
+        status: 'denied',
+        note: '未知工具',
+      };
+    }
+    // Drop args outside the schema (the model invents read_node pagination etc.).
+    const cleanArgs: Record<string, unknown> = {};
+    for (const k of Object.keys(toolArgs)) if (allowedKeys.has(k)) cleanArgs[k] = toolArgs[k];
+    const cache = shadowToolCache.get(chapterId);
+    const key = shadowCacheKey(name, cleanArgs);
+    const cached = cache?.get(key);
+    if (cached !== undefined) return { content: cached, status: 'ok' };
+    const result = await runAgentTool(name, cleanArgs, ctx);
+    const text = typeof result === 'string' ? result : JSON.stringify(result);
+    cache?.set(key, text);
+    return { content: text, status: 'ok' };
+  };
+}
+
 // The chapter body as top-level blocks ({id, text}) from the live Yjs truth.
 async function shadowChapterBlocks(
   chapterId: string,
@@ -1742,6 +1803,7 @@ async function shadowChapterBlocks(
 async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
+  shadowToolCache.set(chapterId, new Map()); // fresh evidence cache for this review
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`shadow_read_chapter_snapshot: no chapter "${chapterId}"`);
@@ -1905,65 +1967,136 @@ function buildShadowEvidenceProvider(ctx: AgentToolContext, chapterId: string): 
   };
 }
 
-async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const assertion = String(args.assertion ?? '');
+// Scene entities by SCANNING the prose for element names/aliases — NOT just the
+// linked inline-mentions (those miss bare-name protagonists: 奥伦/凯尔 were absent
+// while peripheral linked entities showed up). A warm-start hint, not ground truth;
+// short names (<2 chars) are skipped so common characters don't false-match.
+function scanSceneEntities(
+  projectId: string,
+  blocks: Array<{ text: string }>,
+): Array<{ name: string; summary?: string }> {
+  const text = blocks.map((b) => b.text).join('\n');
+  const hits: Array<{ name: string; summary?: string }> = [];
+  for (const e of useDataStore.getState().bookElements) {
+    if (e.projectId !== projectId) continue;
+    const names = [e.name, ...(e.aliases ?? [])]
+      .map((n) => (n ?? '').trim())
+      .filter((n) => n.length >= 2);
+    if (names.some((n) => text.includes(n))) {
+      hits.push({ name: e.name, summary: e.summary || undefined });
+    }
+  }
+  return hits.slice(0, 12);
+}
+
+// Warm-start context for the judge: chapter IDENTITY (so it can address its own
+// node by name instead of guessing), prose-scanned scene entities, the prior
+// chapter, and drift settings. Cheap summary-level hints; full bodies on demand.
+function buildWarmStart(
+  ctx: AgentToolContext,
+  node: { id: string; title: string; kind: string; narrativeOrder: number | null },
+  blocks: Array<{ text: string }>,
+): Pick<SemanticEvalContext, 'identity' | 'sceneEntities' | 'priorChapter' | 'driftNodes'> {
+  const s = useDataStore.getState();
+  const kind: 'chapter' | 'drift' = node.kind === 'drift' ? 'drift' : 'chapter';
+
+  let position: string | undefined;
+  let priorChapter: SemanticEvalContext['priorChapter'];
+  if (kind === 'chapter' && node.narrativeOrder != null) {
+    const order = node.narrativeOrder;
+    const chapters = s.bookNodes
+      .filter(
+        (n): n is typeof n & { narrativeOrder: number } =>
+          n.projectId === ctx.projectId && n.kind === 'chapter' && n.narrativeOrder != null,
+      )
+      .sort((a, b) => a.narrativeOrder - b.narrativeOrder);
+    const idx = chapters.findIndex((n) => n.id === node.id);
+    if (idx >= 0) position = `第 ${idx + 1} 章 / 共 ${chapters.length}`;
+    const prev = chapters.filter((n) => n.narrativeOrder < order).slice(-1)[0];
+    if (prev) priorChapter = { title: prev.title, summary: prev.summary || undefined };
+  }
+
+  const driftNodes = s.bookNodes
+    .filter((n) => n.projectId === ctx.projectId && n.kind === 'drift')
+    .slice(0, 20)
+    .map((n) => ({ title: n.title, summary: n.summary || undefined }));
+
+  return {
+    identity: { title: node.title, kind, position },
+    sceneEntities: scanSceneEntities(ctx.projectId, blocks),
+    priorChapter,
+    driftNodes,
+  };
+}
+
+// Judge a RULE's semantic assertions together — one shared evidence loop per rule
+// (not per item). The graph now batches a rule's checklist here so context (canon
+// + reasoning) is gathered once across its related checks. Returns one
+// SemanticViolation[] per input assertion, aligned by index.
+async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
   const s = useDataStore.getState();
-  if (!s.bookNodes.some((n) => n.id === chapterId && n.projectId === ctx.projectId)) {
-    throw new Error(`shadow_eval_semantic: no chapter "${chapterId}"`);
-  }
+  const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+  if (!node) throw new Error(`shadow_eval_semantic_batch: no chapter "${chapterId}"`);
+  const assertions = Array.isArray(args.assertions)
+    ? (args.assertions as unknown[]).map((a) => String(a ?? ''))
+    : [];
+  if (assertions.length === 0) return [] as SemanticViolation[][];
+
   const blocks = await shadowChapterBlocks(chapterId);
   const facts =
-    args.facts && typeof args.facts === 'object'
-      ? (args.facts as Record<string, string>)
-      : {};
+    args.facts && typeof args.facts === 'object' ? (args.facts as Record<string, string>) : {};
   const summary = String(args.summary ?? '');
-  const onTrace = (step: { label: string; detail?: string; items?: string[] }) =>
+  const context: SemanticEvalContext = { facts, summary, ...buildWarmStart(ctx, node, blocks) };
+
+  const onTrace = (step: AgenticTraceStep) =>
     void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
       detail: step.detail,
       items: step.items,
+      calls: step.calls,
     });
 
   // Prefer a real function-calling loop when the substrate supports it (OpenAI-
-  // compatible): the judge freely calls READ tools to gather any canon it needs.
-  // Otherwise fall back to the Path-A fixed-menu evidence loop.
+  // compatible): the judge freely calls READ tools and rules on the whole rule's
+  // checklist in ONE shared loop. Otherwise fall back to the Path-A menu loop,
+  // judging each assertion in turn (no batched tool loop there).
   const client = await buildDefaultLLMClient();
   if (client.supportsTools) {
-    void traceShadow(chapterId, ctx.projectId, 'check', '检查约束（FC）', { detail: assertion });
-    const readTools = toAITools(AGENT_READ_TOOLS);
-    // Execute one READ tool. Guards: cancel check + a read-only allowlist (the
-    // judge must never reach a write tool — advise-not-block).
-    const runTool = async (name: string, toolArgs: Record<string, unknown>): Promise<string> => {
-      throwIfShadowCancelled(chapterId);
-      if (!READ_TOOL_NAMES.has(name)) throw new Error(`shadow judge: tool not allowed: ${name}`);
-      const result = await runAgentTool(name, toolArgs, ctx);
-      return typeof result === 'string' ? result : JSON.stringify(result);
-    };
-    return evaluateSemanticAssertionFC(
-      assertion,
+    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（FC）`, {
+      items: assertions,
+    });
+    return evaluateSemanticAssertionsFC(
+      assertions,
       blocks,
       ctx.projectId,
-      { facts, summary },
+      context,
       client,
-      readTools,
-      runTool,
+      toAITools(AGENT_READ_TOOLS),
+      makeShadowRunTool(ctx, chapterId),
       undefined,
       onTrace,
     );
   }
 
   const provider = buildShadowEvidenceProvider(ctx, chapterId);
-  void traceShadow(chapterId, ctx.projectId, 'check', '检查约束', { detail: assertion });
-  return evaluateSemanticAssertionAgentic(
-    assertion,
-    blocks,
-    ctx.projectId,
-    { facts, summary },
-    provider,
-    undefined,
-    onTrace,
-  );
+  const out: SemanticViolation[][] = [];
+  for (const assertion of assertions) {
+    throwIfShadowCancelled(chapterId);
+    void traceShadow(chapterId, ctx.projectId, 'check', '检查约束', { detail: assertion });
+    out.push(
+      await evaluateSemanticAssertionAgentic(
+        assertion,
+        blocks,
+        ctx.projectId,
+        context,
+        provider,
+        undefined,
+        onTrace,
+      ),
+    );
+  }
+  return out;
 }
 
 async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {
@@ -2048,6 +2181,7 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
   void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
   await ctx.write.updateNode(chapterId, { writingStatus: status });
+  shadowToolCache.delete(chapterId); // review done — free its evidence cache
   return { ok: true, chapterId, status };
 }
 
@@ -2172,8 +2306,8 @@ export async function runAgentTool(
       return shadowReadChapterSnapshot(ctx, args);
     case 'shadow_read_rules':
       return shadowReadRules(ctx, args);
-    case 'shadow_eval_semantic':
-      return shadowEvalSemantic(ctx, args);
+    case 'shadow_eval_semantic_batch':
+      return shadowEvalSemanticBatch(ctx, args);
     case 'shadow_clear_comments':
       return shadowClearComments(ctx, args);
     case 'shadow_write_comment':
