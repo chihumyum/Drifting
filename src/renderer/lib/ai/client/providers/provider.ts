@@ -17,6 +17,15 @@ export interface LLMProvider {
   /** Stable id used by metering / logging to attribute requests. */
   readonly id: string;
 
+  /**
+   * Whether this provider supports a real multi-tool function-calling loop
+   * (auto tool-choice + tool-result messages), not just the single-forced-tool
+   * structured-output channel. Absent ⇒ false. OpenAI-compatible providers set
+   * this; gateways/proxies that haven't wired tool threading leave it off so
+   * callers fall back to the structured-menu path.
+   */
+  readonly supportsTools?: boolean;
+
   complete(request: AICompletionRequest): Promise<AICompletionResponse>;
 
   /**

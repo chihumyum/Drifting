@@ -23,8 +23,14 @@ export type GoogleModel =
 export type AIFeatureId = string;
 
 export interface AIMessage {
-  role: 'user' | 'model';
+  // 'tool' carries a tool-call RESULT back to the model (function-calling loop);
+  // an assistant ('model') turn that called tools carries `toolCalls`.
+  role: 'user' | 'model' | 'tool';
   content: string;
+  /** For role 'tool': the id of the tool_call this message answers. */
+  toolCallId?: string;
+  /** For role 'model': the tool calls the assistant emitted this turn. */
+  toolCalls?: AIToolCall[];
 }
 
 /**
@@ -52,6 +58,13 @@ export interface AICompletionRequest {
    * ignored by the rest. Used by inline-ask to force reasoning on.
    */
   thinking?: boolean;
+  /**
+   * Tool-choice for a function-calling turn. Absent = the legacy "force the
+   * single tool" behavior callStructured relies on (structured-output channel).
+   * 'auto' lets the model pick; 'required' forces SOME tool; { force: name }
+   * forces a specific tool (e.g. a terminal submit-verdict tool).
+   */
+  toolChoice?: 'auto' | 'required' | { force: string };
   signal?: AbortSignal;
   /**
    * Free-form metadata threaded through interceptors. `feature` is required
@@ -67,6 +80,8 @@ export interface AICompletionRequest {
 }
 
 export interface AIToolCall {
+  /** Provider-assigned id, needed to thread the tool RESULT back (FC loop). */
+  id?: string;
   name: string;
   arguments: unknown;
 }
@@ -83,6 +98,8 @@ export interface AICompletionResponse {
   text?: string;
   /** First tool call, if any. We force ANY-mode with a single allowed tool for structured output. */
   toolCall?: AIToolCall;
+  /** All tool calls this turn (function-calling loop). `toolCall` is `toolCalls[0]`. */
+  toolCalls?: AIToolCall[];
   usage: AIUsage;
   /** Raw provider response — kept for debugging, never relied on by upper layers. */
   raw?: unknown;

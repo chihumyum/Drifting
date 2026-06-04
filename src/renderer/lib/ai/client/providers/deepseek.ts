@@ -78,6 +78,9 @@ const DEFAULT_MODEL = 'deepseek-v4-flash';
 
 export class DeepSeekProvider implements LLMProvider {
   readonly id = 'deepseek';
+  // OpenAI-compatible Chat Completions ⇒ full function-calling (tools, auto
+  // tool_choice, role:'tool' results, parallel tool_calls).
+  readonly supportsTools = true;
   private readonly client: OpenAI;
   private readonly defaultModel: string;
   private readonly thinking: boolean;
@@ -125,10 +128,26 @@ export class DeepSeekProvider implements LLMProvider {
       chatMessages.push({ role: 'system', content: system });
     }
     for (const m of messages) {
-      chatMessages.push({
-        role: m.role === 'model' ? 'assistant' : 'user',
-        content: m.content,
-      });
+      if (m.role === 'tool') {
+        // A tool-call RESULT — must reference the originating tool_call id.
+        chatMessages.push({ role: 'tool', tool_call_id: m.toolCallId ?? '', content: m.content });
+      } else if (m.role === 'model') {
+        const asst: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+          role: 'assistant',
+          // OpenAI wants null content on a pure tool-call turn.
+          content: m.content || (m.toolCalls?.length ? null : ''),
+        };
+        if (m.toolCalls?.length) {
+          asst.tool_calls = m.toolCalls.map((tc) => ({
+            id: tc.id ?? '',
+            type: 'function',
+            function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
+          }));
+        }
+        chatMessages.push(asst);
+      } else {
+        chatMessages.push({ role: 'user', content: m.content });
+      }
     }
 
     const chatTools: OpenAI.Chat.ChatCompletionTool[] | undefined = tools?.length
@@ -142,12 +161,18 @@ export class DeepSeekProvider implements LLMProvider {
         }))
       : undefined;
 
-    // Force the first (and in our usage, only) tool. Matches Gemini's
-    // ANY-mode-with-single-allowed-name convention used by callStructured.
-    const toolChoice: OpenAI.Chat.ChatCompletionToolChoiceOption | undefined =
-      tools && tools.length > 0
-        ? { type: 'function', function: { name: tools[0]!.name } }
-        : undefined;
+    // tool_choice: an explicit request.toolChoice drives the FC loop (auto /
+    // required / force-a-named-tool). When absent we keep the legacy "force the
+    // first (single) tool" behavior that callStructured relies on for structured
+    // JSON output.
+    let toolChoice: OpenAI.Chat.ChatCompletionToolChoiceOption | undefined;
+    if (request.toolChoice === 'auto' || request.toolChoice === 'required') {
+      toolChoice = request.toolChoice;
+    } else if (request.toolChoice && typeof request.toolChoice === 'object') {
+      toolChoice = { type: 'function', function: { name: request.toolChoice.force } };
+    } else if (tools && tools.length > 0) {
+      toolChoice = { type: 'function', function: { name: tools[0]!.name } };
+    }
 
     // Body construction — split standard OpenAI fields from DeepSeek
     // extensions. The OpenAI Node SDK doesn't type `thinking` /
@@ -176,31 +201,28 @@ export class DeepSeekProvider implements LLMProvider {
 
       const choice = response.choices[0];
       const message = choice?.message;
-      const rawToolCall = message?.tool_calls?.[0];
+      const rawToolCalls = message?.tool_calls ?? [];
 
-      let toolCall: AIToolCall | undefined;
-      if (rawToolCall && rawToolCall.type === 'function') {
+      const toolCalls: AIToolCall[] = [];
+      for (const raw of rawToolCalls) {
+        if (raw.type !== 'function') continue;
         // OpenAI tool arguments come as a JSON string — parse here so the
         // higher layers see the same shape regardless of provider.
         let parsedArgs: unknown = {};
         try {
-          parsedArgs = rawToolCall.function.arguments
-            ? JSON.parse(rawToolCall.function.arguments)
-            : {};
+          parsedArgs = raw.function.arguments ? JSON.parse(raw.function.arguments) : {};
         } catch (err) {
           throw new AIError(
             'parse',
             `DeepSeek returned tool args that aren't valid JSON: ${
               err instanceof Error ? err.message : String(err)
             }`,
-            { rawArguments: rawToolCall.function.arguments },
+            { rawArguments: raw.function.arguments },
           );
         }
-        toolCall = {
-          name: rawToolCall.function.name,
-          arguments: parsedArgs,
-        };
+        toolCalls.push({ id: raw.id, name: raw.function.name, arguments: parsedArgs });
       }
+      const toolCall = toolCalls[0];
 
       const text =
         !toolCall && typeof message?.content === 'string' ? message.content : undefined;
@@ -208,6 +230,7 @@ export class DeepSeekProvider implements LLMProvider {
       return {
         text,
         toolCall,
+        toolCalls: toolCalls.length ? toolCalls : undefined,
         usage: {
           inputTokens: response.usage?.prompt_tokens ?? 0,
           outputTokens: response.usage?.completion_tokens ?? 0,

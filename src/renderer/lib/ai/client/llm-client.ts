@@ -39,6 +39,11 @@ export class LLMClient {
     return this;
   }
 
+  /** Whether the underlying provider supports a real function-calling loop. */
+  get supportsTools(): boolean {
+    return this.provider.supportsTools === true;
+  }
+
   async complete(request: AICompletionRequest): Promise<AICompletionResponse> {
     let req = request;
     for (const it of this.interceptors) {

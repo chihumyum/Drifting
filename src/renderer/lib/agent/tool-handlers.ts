@@ -12,10 +12,13 @@ import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { createProjectRuleRepository } from '../../sqlite-repo/project-rule-repo';
 import {
   evaluateSemanticAssertionAgentic,
+  evaluateSemanticAssertionFC,
   type EvidenceCatalog,
   type EvidenceProvider,
   type EvidenceRequest,
 } from '../ai/shadow-rules';
+import { buildDefaultLLMClient } from '../ai/client/build-default-client';
+import { AGENT_READ_TOOLS, READ_TOOL_NAMES, toAITools } from './tool-registry';
 import { traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
@@ -1916,9 +1919,41 @@ async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, un
       ? (args.facts as Record<string, string>)
       : {};
   const summary = String(args.summary ?? '');
+  const onTrace = (step: { label: string; detail?: string; items?: string[] }) =>
+    void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
+      detail: step.detail,
+      items: step.items,
+    });
+
+  // Prefer a real function-calling loop when the substrate supports it (OpenAI-
+  // compatible): the judge freely calls READ tools to gather any canon it needs.
+  // Otherwise fall back to the Path-A fixed-menu evidence loop.
+  const client = await buildDefaultLLMClient();
+  if (client.supportsTools) {
+    void traceShadow(chapterId, ctx.projectId, 'check', '检查约束（FC）', { detail: assertion });
+    const readTools = toAITools(AGENT_READ_TOOLS);
+    // Execute one READ tool. Guards: cancel check + a read-only allowlist (the
+    // judge must never reach a write tool — advise-not-block).
+    const runTool = async (name: string, toolArgs: Record<string, unknown>): Promise<string> => {
+      throwIfShadowCancelled(chapterId);
+      if (!READ_TOOL_NAMES.has(name)) throw new Error(`shadow judge: tool not allowed: ${name}`);
+      const result = await runAgentTool(name, toolArgs, ctx);
+      return typeof result === 'string' ? result : JSON.stringify(result);
+    };
+    return evaluateSemanticAssertionFC(
+      assertion,
+      blocks,
+      ctx.projectId,
+      { facts, summary },
+      client,
+      readTools,
+      runTool,
+      undefined,
+      onTrace,
+    );
+  }
+
   const provider = buildShadowEvidenceProvider(ctx, chapterId);
-  // Header step for this assertion, then each evidence round / verdict from the
-  // agentic judge streams in as its own 'check' step.
   void traceShadow(chapterId, ctx.projectId, 'check', '检查约束', { detail: assertion });
   return evaluateSemanticAssertionAgentic(
     assertion,
@@ -1927,11 +1962,7 @@ async function shadowEvalSemantic(ctx: AgentToolContext, args: Record<string, un
     { facts, summary },
     provider,
     undefined,
-    (step) =>
-      void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
-        detail: step.detail,
-        items: step.items,
-      }),
+    onTrace,
   );
 }
 
