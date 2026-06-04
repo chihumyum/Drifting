@@ -55,9 +55,13 @@ function delWidget(text: string): HTMLElement {
   return span;
 }
 
-function deletedBlockWidget(text: string): HTMLElement {
+function deletedBlockWidget(text: string, blockId: string): HTMLElement {
   const div = document.createElement('div');
   div.className = 'agent-diff-deleted-block';
+  // Tag with the deleted block's id so the floating ✓/✗ control (AgentEditAnimator)
+  // can anchor to this in-place ghost directly, instead of guessing via the
+  // surviving predecessor (which fails for a first-block deletion).
+  div.dataset.agentDeletedBlock = blockId;
   div.textContent = text;
   return div;
 }
@@ -77,7 +81,10 @@ export function buildAgentDiffDecorations(doc: PMNode, changes: AgentBlockChange
         }
         at = Math.max(0, Math.min(docEnd, at));
         decos.push(
-          Decoration.widget(at, () => deletedBlockWidget(c.oldText), { side: 1, key: `adel:${c.blockId}` }),
+          Decoration.widget(at, () => deletedBlockWidget(c.oldText, c.blockId), {
+            side: 1,
+            key: `adel:${c.blockId}`,
+          }),
         );
         continue;
       }

@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { Check, X } from 'lucide-react';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
@@ -63,20 +63,40 @@ const keyOf = (c: AgentBlockChange): string => `${c.op}:${c.blockId}`;
 const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}"]`;
 
 /** The DOM element a change hangs on: the block itself, or — for a deletion —
- *  its surviving predecessor (or the first block when it led the chapter). */
+ *  its in-place struck ghost (approve mode), else its surviving predecessor, else
+ *  the first prose block. */
 function anchorEl(scrollEl: HTMLElement, c: AgentBlockChange): HTMLElement | null {
   if (c.op === 'deleted') {
-    // Hang on the surviving predecessor — but fall back to the page's first block
-    // when that predecessor is itself gone (adjacent deletions / whole-body
-    // rewrites), so the reveal / ✓✗ stays reachable instead of getting stuck.
+    // Approve mode renders the deleted text as an in-place struck widget tagged
+    // with the block id — anchor to it directly: it's always in the right editor
+    // at the right spot, even for a first-block deletion (no predecessor).
+    const ghost = scrollEl.querySelector(
+      `[data-agent-deleted-block="${CSS.escape(c.blockId)}"]`,
+    ) as HTMLElement | null;
+    if (ghost) return ghost;
+    // Auto mode (no ghost): hang on the surviving predecessor…
     if (c.afterPrevId) {
       const prev = scrollEl.querySelector(sel(c.afterPrevId)) as HTMLElement | null;
       if (prev) return prev;
     }
-    const page = scrollEl.querySelector('.page');
-    return (page?.firstElementChild as HTMLElement | null) ?? null;
+    // …else the first PROSE block. NOT .page's firstElementChild — in structured
+    // element/category/storyline editors .page wraps a header + several sections,
+    // so its first child is the title, which floated the control at the page top.
+    return scrollEl.querySelector('[data-block-id]') as HTMLElement | null;
   }
   return scrollEl.querySelector(sel(c.blockId));
+}
+
+/** A deletion is anchored to its surviving PREDECESSOR (so the control sits just
+ *  below it) only in the no-ghost fallback; when anchored to the in-place ghost
+ *  or the first block, it hugs that element's TOP. */
+function deletionHangsBelow(el: HTMLElement, c: AgentBlockChange): boolean {
+  return (
+    c.op === 'deleted' &&
+    c.afterPrevId != null &&
+    !el.classList.contains('agent-diff-deleted-block') &&
+    el.hasAttribute('data-block-id')
+  );
 }
 
 /** Track an anchor element's viewport rect, refreshed on scroll/resize. */
@@ -187,6 +207,12 @@ function RevealOverlay({
       setProgress(Math.round(t * total));
       if (t < 1) {
         raf = window.requestAnimationFrame(tick);
+      } else if (change.op === 'deleted') {
+        // A deletion has nothing to crossfade ONTO — the typewriter erase IS the
+        // disappearance. Resolve immediately (the struck ghost is removed
+        // synchronously via the edit store), so it can't flash through a fading
+        // overlay. The EXIT crossfade is only for changed/new blocks.
+        done.current();
       } else {
         setFading(true);
         window.setTimeout(() => done.current(), EXIT_MS);
@@ -196,7 +222,7 @@ function RevealOverlay({
     return () => {
       if (raf) window.cancelAnimationFrame(raf);
     };
-  }, [total]);
+  }, [total, change.op]);
 
   if (!rect) return null;
 
@@ -226,9 +252,11 @@ function RevealOverlay({
     nodes.push(<span key="caret" className="agent-reveal__caret" />);
   }
 
-  // Deletions show their old text BELOW the surviving predecessor; everything
-  // else sits on top of its own (post-edit) block.
-  const top = change.op === 'deleted' && change.afterPrevId ? rect.bottom : rect.top;
+  // A deletion hangs just BELOW its surviving predecessor (no-ghost fallback);
+  // anchored to its in-place ghost or the first block, it sits at that top.
+  const aEl = anchorEl(scrollEl, change);
+  const onGhost = !!aEl && aEl.classList.contains('agent-diff-deleted-block');
+  const top = aEl && deletionHangsBelow(aEl, change) ? rect.bottom : rect.top;
   const pos: CSSProperties = {
     ...prose,
     // absolute (not fixed) so the layer's clip-path crops it to the editor
@@ -237,7 +265,12 @@ function RevealOverlay({
     top,
     left: rect.left,
     width: rect.width,
-    minHeight: change.op === 'deleted' ? undefined : rect.height,
+    // Hold the FULL height so the overlay keeps occluding what's underneath as its
+    // text erases. Crucial for a deletion over its struck ghost: without this the
+    // overlay shrinks with the shrinking text and progressively UNCOVERS the ghost,
+    // which fully shows for an instant at the end (the "flash"). Auto-mode
+    // deletions (no ghost to occlude) keep auto-height.
+    minHeight: change.op === 'deleted' ? (onGhost ? rect.height : undefined) : rect.height,
   };
   return (
     <div
@@ -278,7 +311,7 @@ function ApproveControl({
         return;
       }
       const r = a.getBoundingClientRect();
-      const top = change.op === 'deleted' && change.afterPrevId ? r.bottom : r.top;
+      const top = deletionHangsBelow(a, change) ? r.bottom : r.top;
       node.style.visibility = 'visible';
       node.style.top = `${top - 2}px`;
       node.style.left = `${r.right + 12}px`;
@@ -504,7 +537,12 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
           change={c}
           onDone={() => {
             resolve(c);
-            stopRevealing(c);
+            // Drop the occluder in the SAME frame the doc change lands (flushSync
+            // forces the React unmount synchronous) — a deletion otherwise leaves
+            // an empty opaque box for one paint (flicker). Non-deletions keep their
+            // crossfade, so a plain unmount is fine.
+            if (c.op === 'deleted') flushSync(() => stopRevealing(c));
+            else stopRevealing(c);
           }}
         />
       ))}
@@ -558,8 +596,15 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
           scrollEl={scrollEl}
           change={committing}
           onDone={() => {
-            if (committing.op === 'deleted') resolve(committing);
-            setCommitting(null);
+            if (committing.op === 'deleted') {
+              resolve(committing);
+              // flushSync: unmount the occluder synchronously with the (synchronous)
+              // ghost removal, so neither the struck ghost nor an empty box ever
+              // paints alone — kills both the flash and the residual flicker.
+              flushSync(() => setCommitting(null));
+            } else {
+              setCommitting(null);
+            }
           }}
         />
       )}
