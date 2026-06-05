@@ -22,9 +22,11 @@ import { revertEntityBlock } from '../../lib/agent/chapter-prose';
  *  - auto mode:    as each agent-changed block scrolls into view, plays a
  *                  text-level reveal — the old text shows, deletions erase and
  *                  insertions type in (typewriter), then it settles onto the real
- *                  block. Plays serially in document order. Only AFTER a block's
- *                  reveal runs do its scrollbar tick + the panel "M" clear (the
- *                  edit-store entry and the activity spot drop in lockstep).
+ *                  block. Reveals run CONCURRENTLY (every change in view animates
+ *                  at once); a run of deletions sharing one anchor stacks
+ *                  vertically in document order. Only AFTER a block's reveal runs
+ *                  do its scrollbar tick + the panel "M" clear (the edit-store
+ *                  entry and the activity spot drop in lockstep).
  *  - approve mode: the diff renders IN PLACE as editor decorations (see
  *                  useEntityEditor + agent-diff-decoration) — insertions inline
  *                  green, deletions as red struck widgets — so it reflows + scrolls
@@ -171,10 +173,19 @@ function RevealOverlay({
   scrollEl,
   change,
   onDone,
+  offsetTop = 0,
+  onMeasure,
 }: {
   scrollEl: HTMLElement;
   change: AgentBlockChange;
   onDone: () => void;
+  /** Extra vertical offset so a run of deletions sharing one anchor stacks
+   *  instead of all pinning to the anchor's bottom (the parent sums the earlier
+   *  deletes' heights). 0 for everything else. */
+  offsetTop?: number;
+  /** Report this overlay's live height up so the parent can stack the run (and
+   *  let the column compact as each delete erases). Only wired for deletions. */
+  onMeasure?: (key: string, height: number) => void;
 }) {
   const rect = useAnchorRect(scrollEl, change);
   const prose = useProseStyle(scrollEl, change);
@@ -196,6 +207,33 @@ function RevealOverlay({
   useEffect(() => {
     done.current = onDone;
   });
+
+  // Report the overlay's live height so the parent can stack a run of deletions
+  // that share one anchor (and let the column compact as each erases). Gated to
+  // deletions — they're the only changes that can collapse onto a shared anchor;
+  // a changed/new block owns its own anchor and never stacks.
+  const key = keyOf(change);
+  const isDeletion = change.op === 'deleted';
+  const onMeasureRef = useRef(onMeasure);
+  useEffect(() => {
+    onMeasureRef.current = onMeasure;
+  });
+  const roRef = useRef<ResizeObserver | null>(null);
+  const setNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      roRef.current?.disconnect();
+      roRef.current = null;
+      // Only deletions stack, and only when a measure sink is wired (the approve
+      // commit reveal passes none) — skip the observer otherwise.
+      if (!node || !isDeletion || !onMeasureRef.current) return;
+      const report = () => onMeasureRef.current?.(key, node.getBoundingClientRect().height);
+      report();
+      const ro = new ResizeObserver(report);
+      ro.observe(node);
+      roRef.current = ro;
+    },
+    [key, isDeletion],
+  );
 
   useEffect(() => {
     const duration = Math.max(MIN_REVEAL_MS, Math.min(MAX_REVEAL_MS, total * CHAR_MS));
@@ -262,7 +300,8 @@ function RevealOverlay({
     // absolute (not fixed) so the layer's clip-path crops it to the editor
     // viewport; the layer is inset:0 fixed, so these viewport coords still apply.
     position: 'absolute',
-    top,
+    // offsetTop stacks a run of deletions sharing this anchor (0 otherwise).
+    top: top + offsetTop,
     left: rect.left,
     width: rect.width,
     // Hold the FULL height so the overlay keeps occluding what's underneath as its
@@ -274,6 +313,7 @@ function RevealOverlay({
   };
   return (
     <div
+      ref={setNode}
       aria-hidden="true"
       className={`agent-reveal agent-reveal--${change.op}${fading ? ' agent-reveal--fade' : ''}`}
       style={pos}
@@ -399,8 +439,59 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   const [committing, setCommitting] = useState<AgentBlockChange | null>(null);
   const layerRef = useRef<HTMLDivElement>(null);
 
+  // Live heights (keyed) of the deletion overlays currently revealing, reported
+  // by each RevealOverlay — used to STACK a run of deletions that share one
+  // anchor. A run of consecutive deletes all hangs under the same surviving
+  // predecessor (block-diff anchors every delete to its nearest survivor), so
+  // without an offset they'd pin to the same spot and overlap. Each delete sits
+  // below the summed heights of the earlier deletes in its run; the column
+  // compacts as they erase (and as each resolves out of the run).
+  const [heights, setHeights] = useState<Map<string, number>>(() => new Map());
+  const reportHeight = useCallback((k: string, h: number) => {
+    setHeights((prev) => (prev.get(k) === h ? prev : new Map(prev).set(k, h)));
+  }, []);
+  // Document-order index so a run stacks the way it reads in the manuscript, not
+  // in `revealing`'s firing order (deletes can enter the viewport out of order).
+  const orderIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    changes.forEach((c, i) => m.set(keyOf(c), i));
+    return m;
+  }, [changesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stackOffsets = useMemo(() => {
+    // Group the revealing DELETIONS by their shared anchor (afterPrevId, or the
+    // first-block fallback when null) — only deletions can collapse onto one
+    // anchor; a changed/new block owns its own.
+    const groups = new Map<string, AgentBlockChange[]>();
+    for (const c of revealing.values()) {
+      if (c.op !== 'deleted') continue;
+      const g = c.afterPrevId ?? '#first';
+      const list = groups.get(g);
+      if (list) list.push(c);
+      else groups.set(g, [c]);
+    }
+    const offsets = new Map<string, number>();
+    for (const list of groups.values()) {
+      if (list.length < 2) continue; // a lone delete needs no offset
+      list.sort((a, b) => (orderIndex.get(keyOf(a)) ?? 0) - (orderIndex.get(keyOf(b)) ?? 0));
+      let acc = 0;
+      for (const c of list) {
+        offsets.set(keyOf(c), acc);
+        acc += heights.get(keyOf(c)) ?? 0;
+      }
+    }
+    return offsets;
+  }, [revealing, heights, orderIndex]);
+
   const stopRevealing = useCallback((c: AgentBlockChange) => {
     setRevealing((prev) => {
+      if (!prev.has(keyOf(c))) return prev;
+      const next = new Map(prev);
+      next.delete(keyOf(c));
+      return next;
+    });
+    // Drop its reported height too, so the stacking map tracks the live run (and
+    // doesn't accumulate stale keys across a session).
+    setHeights((prev) => {
       if (!prev.has(keyOf(c))) return prev;
       const next = new Map(prev);
       next.delete(keyOf(c));
@@ -429,17 +520,30 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
   useEffect(() => {
     if (!scrollEl || !id || autoChanges.length === 0) return undefined;
 
-    const byEl = new Map<Element, AgentBlockChange>();
+    // One element can carry SEVERAL changes — a run of consecutive deletions all
+    // anchors to the same surviving predecessor. Hold a list (not one change) so
+    // they all fire together when that anchor enters view; keying by element
+    // would otherwise overwrite all but the last, leaving them to dribble out
+    // one-at-a-time as each prior delete resolves and re-runs this effect.
+    const byEl = new Map<Element, AgentBlockChange[]>();
     const wired = new Set<string>(); // change keys already attached to the IO
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          const c = byEl.get(e.target);
-          if (!c) continue;
+          const cs = byEl.get(e.target);
+          if (!cs || cs.length === 0) continue;
           if (e.isIntersecting && e.intersectionRatio >= 0.35) {
             io.unobserve(e.target); // started — don't re-fire it
-            setRevealing((prev) => (prev.has(keyOf(c)) ? prev : new Map(prev).set(keyOf(c), c)));
+            setRevealing((prev) => {
+              let next = prev;
+              for (const c of cs) {
+                if (next.has(keyOf(c))) continue;
+                if (next === prev) next = new Map(prev);
+                next.set(keyOf(c), c);
+              }
+              return next;
+            });
           }
         }
       },
@@ -447,7 +551,8 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     );
 
     // Attach any pending AUTO block whose anchor is now in the DOM but not yet
-    // observed (approve-mode changes wait for an explicit ✓/✗ instead).
+    // observed (approve-mode changes wait for an explicit ✓/✗ instead). Several
+    // changes can land on one anchor — append to its list, observe it once.
     const wire = () => {
       for (const c of autoChanges) {
         const k = keyOf(c);
@@ -455,8 +560,13 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
         const el = anchorEl(scrollEl, c);
         if (el) {
           wired.add(k);
-          byEl.set(el, c);
-          io.observe(el);
+          const list = byEl.get(el);
+          if (list) {
+            list.push(c);
+          } else {
+            byEl.set(el, [c]);
+            io.observe(el);
+          }
         }
       }
     };
@@ -535,6 +645,8 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
           key={keyOf(c)}
           scrollEl={scrollEl}
           change={c}
+          offsetTop={stackOffsets.get(keyOf(c)) ?? 0}
+          onMeasure={reportHeight}
           onDone={() => {
             resolve(c);
             // Drop the occluder in the SAME frame the doc change lands (flushSync
