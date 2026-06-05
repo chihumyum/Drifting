@@ -6,6 +6,47 @@ evaluator chain (`src/main/shadow/evaluators.ts` → `evaluateRules`, incl. the 
 judge), and **captures `Finding[]` directly — bypassing the DB, the LangGraph
 wrapper, and the IPC bridge**. No app, no Electron.
 
+## Cases are DATA (the corpus) — the current path
+
+Goldens, cases, and suites live as **data** under `corpus/`, run by a generic
+runner (`runner/`). Add/edit an eval by editing data, never code — `git diff` is
+line-level, and an AI generator / in-app editor produces the same rows.
+
+```
+corpus/
+  goldens/   <id>.golden.json   # frozen EvalProject (+ provenance); fog-harbor uses bodySource (prose read at runtime, never committed)
+  datasets/  <name>.jsonl       # one case per line: {id, golden, op|ops, params, expect, tags, provenance}
+  suites/    <id>.suite.json    # { datasets, client: mock|deepseek, repeat, concurrency, timeoutMs, gate }
+  runs/                         # run.json + rows.jsonl artifacts (gitignored)
+```
+
+- **Operators are a fixed code vocabulary** (`runner/operators.ts`): a case names one
+  by `op` + `params` (or an ordered `ops:[…]` composite). Each operator has a zod
+  param schema — the single source of truth that validates a case (and will drive AI
+  generation + an in-app form). A single-op case must **declare the same `expect` the
+  operator computes** (drift guard) — editing operator semantics without updating data
+  fails loudly.
+- **Run-level metrics** (`runner/metering.ts`) attach to the judge client via a
+  `RequestInterceptor` — tokens, USD cost (`pricing.ts`), call/failure rate, latency
+  p50/p95 — with **zero execution-core change**. Each run freezes a `run.json`
+  (tally + precision/recall/F1/flippedRate + metrics + golden hashes) + `rows.jsonl`.
+
+```bash
+pnpm eval:corpus                                   # ci suite (mechanical, NO key) — exact gate
+VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus   # + acceptance (real judge) + fog-harbor load
+EVAL_ARTIFACT=1 VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus   # also write run artifacts
+```
+
+Suites: `ci` (mock, gated) · `acceptance` (sample.semantic, deepseek) · `fog-harbor`
+(targeted injections) · `fog-harbor-full` (+ the heavy clean-prose FP sweep).
+`EVAL_CONCURRENCY` / `EVAL_CALL_TIMEOUT_MS` still apply (see below).
+
+> The `golden.*.ts` + `mutations.ts` + `shadow-eval.eval.ts` files below are the
+> **legacy hand-coded path** (operators are reused by the data runner; the TS goldens
+> are superseded by `corpus/` and will be retired once the data path is trusted).
+
+## The idea
+
 ## The idea
 
 You provide a polished golden project (exported to the `EvalProject` shape). The

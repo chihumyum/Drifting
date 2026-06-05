@@ -1,0 +1,3 @@
+# Run artifacts (run.json + rows.jsonl) are local/ephemeral; persistent trend
+# tracking is the eval_run DB table (a later phase), not these files.
+runs/

@@ -1,0 +1,8 @@
+{
+  "id": "acceptance",
+  "datasets": ["sample.semantic.jsonl"],
+  "client": "deepseek",
+  "repeat": 1,
+  "concurrency": 6,
+  "timeoutMs": 480000
+}
