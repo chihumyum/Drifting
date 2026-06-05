@@ -2051,10 +2051,6 @@ export function ResolvedTodoArchive({
   const [height, setHeight] = useState(RESOLVED_TODO_DEFAULT_HEIGHT);
   const dragStart = useRef<{ y: number; h: number } | null>(null);
 
-  useEffect(() => {
-    if (todos.length === 0 && open) setOpen(false);
-  }, [todos.length, open]);
-
   const onDragMove = useCallback((e: MouseEvent) => {
     if (!dragStart.current) return;
     const delta = dragStart.current.y - e.clientY;
@@ -2075,8 +2071,6 @@ export function ResolvedTodoArchive({
     window.addEventListener('mousemove', onDragMove);
     window.addEventListener('mouseup', onDragEnd);
   };
-
-  if (todos.length === 0) return null;
 
   return (
     <div
@@ -2152,6 +2146,18 @@ export function ResolvedTodoArchive({
             gap: 4,
           }}
         >
+          {todos.length === 0 && (
+            <div
+              style={{
+                fontSize: 11,
+                color: 'hsl(var(--ink-4))',
+                fontStyle: 'italic',
+                padding: '8px 4px',
+              }}
+            >
+              无已完成 TODO
+            </div>
+          )}
           {todos.map((todo) => (
             <div
               key={todo.id}

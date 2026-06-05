@@ -163,13 +163,11 @@ export function TodoPanel({ focused }: Props) {
         ))}
       </div>
 
-      {resolvedTodos.length > 0 && (
-        <ResolvedTodoArchive
-          todos={resolvedTodos}
-          onReopen={(id) => commentUsecases.reopenComment(id)}
-          onDelete={(id) => commentUsecases.deleteComment(id)}
-        />
-      )}
+      <ResolvedTodoArchive
+        todos={resolvedTodos}
+        onReopen={(id) => commentUsecases.reopenComment(id)}
+        onDelete={(id) => commentUsecases.deleteComment(id)}
+      />
 
       {composeOpen && (
         <ComposeTodoDialog
