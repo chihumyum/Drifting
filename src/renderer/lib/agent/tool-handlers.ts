@@ -24,7 +24,8 @@ import {
 import { buildDefaultLLMClient } from '../ai/client/build-default-client';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { yieldToMain } from '../async/yield-to-main';
-import { traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
+import { setShadowConsulted, traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
+import type { ShadowConsultedKind, ShadowConsultedRef } from '../../domain/shadow-job';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
   createElementPatchRepository,
@@ -1750,6 +1751,66 @@ function shadowCacheKey(name: string, args: Record<string, unknown>): string {
   return `${name}:${JSON.stringify(norm)}`;
 }
 
+// Per-review record of the canon entities the judge ACTUALLY consulted (resolved
+// from its read-tool calls). The precise `(chapter)→entities` dependency edges —
+// compiler `-MMD` to the inline-mention `grep #include`. Reset per review at the
+// snapshot, harvested + persisted at shadow_set_status. Captured for OBSERVATION
+// only right now (staleness still derives from mentions — no behavior change).
+const shadowConsultedByChapter = new Map<string, Map<string, ShadowConsultedRef>>();
+
+// Which specific canon entity (if any) a read-tool call consulted. Only the tools
+// that read ONE named entity's content count — broad discovery/scan calls
+// (search_*, list_*, get_project_brief, where_does_entity_appear, resolve_entity)
+// are deliberately excluded: they aren't a dependency on a particular entity, so
+// folding them in would re-inflate the edge set back toward mention-level noise.
+function consultedRefFor(
+  ctx: AgentToolContext,
+  name: string,
+  cleanArgs: Record<string, unknown>,
+): ShadowConsultedRef | null {
+  try {
+    let kind: ShadowConsultedKind;
+    let id: string;
+    if (name === 'read_node') {
+      const t = resolveProseTarget(ctx, cleanArgs);
+      kind = t.entityType;
+      id = t.id;
+    } else if (name === 'read_element' || name === 'get_element_patches') {
+      kind = 'element';
+      id = resolveRef(ctx, 'element', String(cleanArgs.element ?? cleanArgs.elementId ?? ''));
+    } else if (name === 'get_node_context') {
+      kind = 'node';
+      id = resolveRef(ctx, 'node', String(cleanArgs.node ?? cleanArgs.chapter ?? cleanArgs.nodeId ?? ''));
+    } else if (name === 'get_storyline') {
+      kind = 'storyline';
+      id = resolveRef(ctx, 'storyline', String(cleanArgs.storyline ?? cleanArgs.storylineId ?? ''));
+    } else {
+      return null;
+    }
+    if (!id) return null;
+    return { kind, id, label: entityLabel(useDataStore.getState(), kind, id) };
+  } catch {
+    return null; // unresolvable (hallucinated name) — the tool itself already errored
+  }
+}
+
+function recordShadowConsulted(chapterId: string, ref: ShadowConsultedRef): void {
+  // The chapter is its own trivially-true dependency (reading the chapter under
+  // review isn't an external edge) — skip it so a self-read never marks it stale.
+  if (ref.kind === 'node' && ref.id === chapterId) return;
+  const map = shadowConsultedByChapter.get(chapterId);
+  if (!map) return; // no active review window (reset happens at the snapshot)
+  map.set(`${ref.kind}:${ref.id}`, ref);
+}
+
+/** Harvest + clear the entities consulted during this chapter's review. */
+export function takeShadowConsulted(chapterId: string): ShadowConsultedRef[] {
+  const map = shadowConsultedByChapter.get(chapterId);
+  if (!map) return [];
+  shadowConsultedByChapter.delete(chapterId);
+  return [...map.values()];
+}
+
 // Schema-allowed arg names per read tool. Used to STRIP args the model invents
 // (e.g. read_node pagination `read_node 11 1 60` — which both no-ops AND defeats
 // the cache by varying the key) so repeated reads dedupe; and as the allowlist.
@@ -1783,6 +1844,10 @@ function makeShadowRunTool(ctx: AgentToolContext, chapterId: string) {
     // Drop args outside the schema (the model invents read_node pagination etc.).
     const cleanArgs: Record<string, unknown> = {};
     for (const k of Object.keys(toolArgs)) if (allowedKeys.has(k)) cleanArgs[k] = toolArgs[k];
+    // Record the specific canon entity this call consulted (even on a cache hit —
+    // a deduped re-read is still a real dependency) for the consultation dep graph.
+    const consulted = consultedRefFor(ctx, name, cleanArgs);
+    if (consulted) recordShadowConsulted(chapterId, consulted);
     const cache = shadowToolCache.get(chapterId);
     const key = shadowCacheKey(name, cleanArgs);
     const cached = cache?.get(key);
@@ -1810,6 +1875,7 @@ async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<str
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
   shadowToolCache.set(chapterId, new Map()); // fresh evidence cache for this review
+  shadowConsultedByChapter.set(chapterId, new Map()); // fresh consultation edge set
   beginProseReadCache(); // hydrate each chapter's Y.Doc at most once for this review
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
@@ -2218,6 +2284,9 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
   void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
   await ctx.write.updateNode(chapterId, { writingStatus: status });
+  // Persist the entities this review consulted (precise dep edges) before freeing
+  // the per-review caches. Capture-only for now — staleness still uses mentions.
+  void setShadowConsulted(chapterId, ctx.projectId, takeShadowConsulted(chapterId));
   shadowToolCache.delete(chapterId); // review done — free its evidence cache
   endProseReadCache(); // free the per-review prose-hydration cache
   return { ok: true, chapterId, status };

@@ -36,6 +36,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { NodeContent } from '../domain/node-content';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
+import { enqueueShadowReview } from '../lib/shadow/job-recorder';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { countWordsInPmJson } from '../lib/word-count';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
@@ -482,7 +483,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           // the 'draft' option set directly.
           if (next === 'finished' && !isDrift(curNode)) {
             await updateNode(nodeId, { writingStatus: 'waiting_review' });
-            window.electronAPI?.shadow?.enqueue({ projectId: activeProjectId, chapterId: nodeId });
+            // Durable enqueue: persists a 'queued' row first so a restart resumes it.
+            await enqueueShadowReview(nodeId, activeProjectId);
           } else {
             await updateNode(nodeId, { writingStatus: next });
           }

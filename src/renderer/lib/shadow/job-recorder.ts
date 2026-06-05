@@ -19,6 +19,7 @@ import { createShadowJobRepository } from '../../sqlite-repo/shadow-job-repo';
 import { events } from '../events';
 import { useDataStore } from '../../store/data-store';
 import type {
+  ShadowConsultedRef,
   ShadowJob,
   ShadowJobStatus,
   ShadowToolCall,
@@ -102,11 +103,37 @@ function cancelTraceFlush(jobId: string): void {
   }
 }
 
+/** The chapter's non-terminal persisted row (durable queue: 'queued' from
+ *  enqueue, or a 'running' orphan from a prior session), if any. */
+function findResumableRow(chapterId: string, projectId: string): ShadowJob | undefined {
+  return useDataStore
+    .getState()
+    .shadowJobs.find(
+      (j) =>
+        j.chapterId === chapterId &&
+        j.projectId === projectId &&
+        (j.status === 'queued' || j.status === 'running'),
+    );
+}
+
 async function ensureActive(chapterId: string, projectId: string): Promise<ShadowJob> {
   const ex = activeByChapter.get(chapterId);
   if (ex) return ex;
   const inflight = creating.get(chapterId);
   if (inflight) return inflight;
+  // ADOPT the persisted queue row (created at enqueue) instead of minting a new
+  // one — the durable queue's source of truth. Synchronous set wins any race
+  // between the worker's `started` IPC and the first bridge call's traceShadow.
+  const existing = findResumableRow(chapterId, projectId);
+  if (existing) {
+    const at = new Date().toISOString();
+    // startedAt = run-start (now), so "耗时" measures the run, not the queue wait.
+    const adopted: ShadowJob = { ...existing, status: 'running', startedAt: at, updatedAt: at };
+    activeByChapter.set(chapterId, adopted);
+    pushStore(adopted);
+    void repo.update(adopted.id, { status: 'running', startedAt: at }).catch(() => {});
+    return adopted;
+  }
   const p = (async () => {
     const job = await repo.create({ projectId, chapterId, chapterTitle: titleOf(chapterId) });
     activeByChapter.set(chapterId, job);
@@ -121,6 +148,48 @@ async function ensureActive(chapterId: string, projectId: string): Promise<Shado
 /** A review started — create (or reuse) its job row. */
 export async function beginShadowJob(chapterId: string, projectId: string): Promise<void> {
   await ensureActive(chapterId, projectId);
+}
+
+/**
+ * Durable enqueue: persist a 'queued' row BEFORE asking the main worker to run,
+ * so the request survives a restart (loadInitial resumes it). Reuses the
+ * chapter's existing non-terminal row to coalesce duplicate requests. This is the
+ * single entry point every trigger (完成 / 复审 / 批量) should go through.
+ */
+export async function enqueueShadowReview(chapterId: string, projectId: string): Promise<void> {
+  if (!chapterId || !projectId) return;
+  // Guard: chapterId must be a real chapter in this project. Catches swapped args
+  // / stale ids before they mint a phantom job row that the engine can't resolve
+  // ("no chapter <id>"). Nodes are always loaded by the time any trigger fires.
+  const node = useDataStore.getState().bookNodes.find((n) => n.id === chapterId);
+  if (!node || node.projectId !== projectId) {
+    console.warn(`[shadow] enqueue skipped — "${chapterId}" is not a chapter in project "${projectId}"`);
+    return;
+  }
+  // Already running in THIS session → the in-flight review will produce a result;
+  // a second enqueue would double-queue it in the main worker. No-op.
+  if (activeByChapter.has(chapterId)) return;
+  clearShadowCancelled(chapterId); // a fresh request overrides a prior stop
+  const at = new Date().toISOString();
+  const existing = findResumableRow(chapterId, projectId);
+  let job: ShadowJob;
+  if (existing) {
+    // Reuse the chapter's existing non-terminal row (coalesce) — flip it to queued.
+    // The worker re-emits started → ensureActive adopts it back to running.
+    job = { ...existing, status: 'queued', error: null, finishedAt: null, updatedAt: at };
+  } else {
+    job = await repo.create({ projectId, chapterId, chapterTitle: titleOf(chapterId), startedAt: at });
+    job = { ...job, status: 'queued' };
+  }
+  pushStore(job);
+  void repo
+    .update(job.id, { status: 'queued', error: null, finishedAt: null })
+    .catch(() => {});
+  try {
+    window.electronAPI?.shadow?.enqueue({ projectId, chapterId });
+  } catch {
+    /* main may not be ready — the queued row persists and loadInitial resumes it */
+  }
 }
 
 export interface TraceOpts {
@@ -154,6 +223,27 @@ export async function traceShadow(
     job.updatedAt = step.at;
     pushStore(job);
     scheduleTraceFlush(job);
+  } catch {
+    /* telemetry must never break a review */
+  }
+}
+
+/** Record the canon entities this review actually consulted (the precise
+ *  dependency edges). Called once near the end of a review (shadow_set_status).
+ *  Best-effort telemetry — never throws into the review. */
+export async function setShadowConsulted(
+  chapterId: string,
+  projectId: string,
+  consulted: ShadowConsultedRef[],
+): Promise<void> {
+  if (cancelled.has(chapterId)) return;
+  try {
+    const job = activeByChapter.get(chapterId) ?? (await ensureActive(chapterId, projectId));
+    job.consulted = consulted;
+    job.consultedCaptured = true; // measured — even an empty set now means "no entity deps"
+    job.updatedAt = new Date().toISOString();
+    pushStore(job);
+    await repo.update(job.id, { consulted, consultedCaptured: true }).catch(() => {});
   } catch {
     /* telemetry must never break a review */
   }
@@ -231,7 +321,10 @@ export async function stopShadowJob(chapterId: string, projectId: string): Promi
     useDataStore
       .getState()
       .shadowJobs.find(
-        (j) => j.chapterId === chapterId && j.projectId === projectId && j.status === 'running',
+        (j) =>
+          j.chapterId === chapterId &&
+          j.projectId === projectId &&
+          (j.status === 'running' || j.status === 'queued'),
       );
   if (!job) return;
   cancelTraceFlush(job.id); // a stale pending flush would overwrite the 已终止 trace

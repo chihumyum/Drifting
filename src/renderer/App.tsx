@@ -392,6 +392,9 @@ function Layout() {
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
+        // Resume the durable shadow queue now that nodes are loaded (so the
+        // waiting_review check is reliable) — re-dispatch interrupted reviews.
+        void shadowJobUsecases.resumeQueued();
         await rebuildProjectInlineReferenceIndex(projectId).catch((error) => {
           log.warn('[App] Reference index rebuild failed:', error);
         });
