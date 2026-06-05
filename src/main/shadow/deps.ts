@@ -30,9 +30,10 @@ export function createShadowDeps(call: RendererCall): ShadowDeps {
         assertions,
         chapterId: ctx.chapterId,
         projectId: ctx.projectId,
-        // Ground deep rules: hand the judge the project/storyline facts (POV,
+        // Ground deep rules: hand the judge the whole-book (project) facts (POV,
         // person, character setup) + the chapter summary. The renderer further
-        // warm-starts it with chapter identity + scene entities + prior chapter.
+        // warm-starts it with chapter identity + scene entities + prior chapter +
+        // the chapter's own storyline summary/facts.
         facts: ctx.rulesKv,
         summary: ctx.summary,
       })) as SemanticViolation[][];

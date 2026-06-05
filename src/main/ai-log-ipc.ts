@@ -15,7 +15,7 @@
  * so a plain `ls` sorts chronologically.
  */
 import { app, ipcMain, shell } from 'electron';
-import fs from 'node:fs';
+import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 
 const AI_LOG_DIRNAME = 'ai-log';
@@ -30,21 +30,24 @@ function logDir(): string {
   return path.join(app.getPath('userData'), AI_LOG_DIRNAME);
 }
 
-function ensureDir(): string {
+async function ensureDir(): Promise<string> {
   const dir = logDir();
-  fs.mkdirSync(dir, { recursive: true });
+  await fsp.mkdir(dir, { recursive: true });
   return dir;
 }
 
 export function registerAiLogIpc(): void {
   ipcMain.handle(
     'ai-log:write',
-    (
+    async (
       _event,
       payload: { filename: string; content: string },
-    ): { ok: true; filePath: string } | { ok: false; error: string } => {
+    ): Promise<{ ok: true; filePath: string } | { ok: false; error: string }> => {
       try {
-        const dir = ensureDir();
+        // ASYNC writes only. The renderer's whole DB layer is IPC to THIS main
+        // process; a synchronous fs write here (a shadow review fires ~one per FC
+        // round) would block the event loop and stall those DB reads → UI jank.
+        const dir = await ensureDir();
         // Defense-in-depth: refuse path traversal even though the renderer
         // shouldn't send it. Only basename portion is allowed.
         const safeName = path.basename(payload.filename);
@@ -52,7 +55,7 @@ export function registerAiLogIpc(): void {
           return { ok: false, error: 'invalid filename' };
         }
         const filePath = path.join(dir, safeName);
-        fs.writeFileSync(filePath, payload.content, 'utf8');
+        await fsp.writeFile(filePath, payload.content, 'utf8');
         return { ok: true, filePath };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -62,7 +65,7 @@ export function registerAiLogIpc(): void {
   );
 
   ipcMain.handle('ai-log:openDir', async (): Promise<string> => {
-    const dir = ensureDir();
+    const dir = await ensureDir();
     await shell.openPath(dir);
     return dir;
   });

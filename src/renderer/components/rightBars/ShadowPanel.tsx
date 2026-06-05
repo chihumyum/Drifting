@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Loader2,
   RotateCw,
   Square,
@@ -99,6 +100,12 @@ function statusView(job: ShadowJob, review: ReviewInfo): StatusView {
   }
   if (review.actionable && review.total === 0) {
     return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: '待办归零' };
+  }
+  // Superseded (non-latest) draft review: a newer review for this chapter exists,
+  // so its old findings are HISTORY, not actionable 待改 — they may well already be
+  // resolved. Don't show the stale orange "N 处待改"; mark it re-reviewed, faded.
+  if (!review.isLatest) {
+    return { icon: <RotateCw size={13} />, color: 'hsl(var(--ink-4))', text: '已被复审取代' };
   }
   return {
     icon: <AlertTriangle size={14} />,
@@ -255,6 +262,7 @@ export function ShadowPanel() {
   const deleteAllArchived = async () => {
     await Promise.all(archived.map((j) => repo.delete(j.id)));
     for (const j of archived) removeShadowJob(j.id);
+    setShowArchived(false); // nothing left to show — fold the drawer back up
   };
 
   const startFooterDrag = (e: React.MouseEvent) => {
@@ -283,43 +291,39 @@ export function ShadowPanel() {
     });
   };
 
-  if (mine.length === 0) {
-    return (
-      <div style={{ padding: 12 }}>
-        <div
-          style={{
-            padding: '16px 12px',
-            borderRadius: 4,
-            border: '1px dashed hsl(var(--rule))',
-            textAlign: 'center',
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 13,
-            color: 'hsl(var(--ink-4))',
-            lineHeight: 1.5,
-          }}
-        >
-          暂无 shadow 任务
-          <div
-            style={{
-              marginTop: 6,
-              fontFamily: 'var(--font-mono)',
-              fontStyle: 'normal',
-              fontSize: 9.5,
-              letterSpacing: '0.08em',
-              color: 'hsl(var(--ink-4))',
-            }}
-          >
-            标记章节「已完成」即触发审阅
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 16px' }}>
+        {mine.length === 0 ? (
+          <div
+            style={{
+              padding: '16px 12px',
+              borderRadius: 4,
+              border: '1px dashed hsl(var(--rule))',
+              textAlign: 'center',
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              fontSize: 13,
+              color: 'hsl(var(--ink-4))',
+              lineHeight: 1.5,
+            }}
+          >
+            暂无 shadow 任务
+            <div
+              style={{
+                marginTop: 6,
+                fontFamily: 'var(--font-mono)',
+                fontStyle: 'normal',
+                fontSize: 9.5,
+                letterSpacing: '0.08em',
+                color: 'hsl(var(--ink-4))',
+              }}
+            >
+              标记章节「已完成」即触发审阅
+            </div>
+          </div>
+        ) : (
+          <>
         {staleReviews.length > 0 && (
           <StaleSection
             reviews={staleReviews}
@@ -400,6 +404,8 @@ export function ShadowPanel() {
             ))}
           </div>
         )}
+          </>
+        )}
       </div>
 
       <div
@@ -407,19 +413,40 @@ export function ShadowPanel() {
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
-          ...(showArchived && archived.length > 0 ? { height: footerHeight } : {}),
+          position: 'relative',
+          // Mirror the todo panel's ResolvedTodoArchive box model exactly: the
+          // 1px top border lives INSIDE a fixed border-box height (Tailwind
+          // preflight makes box-sizing:border-box global), so the collapsed
+          // footer is 28px total. Previously the border sat on a separate row
+          // ABOVE the 28px header (1px + 28px = 29px), which floated the whole
+          // footer 1px higher than the todo footer it sits beside.
+          borderTop: '1px solid hsl(var(--rule))',
+          height: showArchived ? footerHeight : 28,
+          minHeight: 28,
+          // Smooth the open/close toggle; kill the transition mid-drag so the
+          // resize cursor stays glued to the edge — mirrors ResolvedTodoArchive.
+          transition: footerDragRef.current ? 'none' : 'height 0.18s ease',
         }}
       >
           <style>{`.shadow-archived-list::-webkit-scrollbar{display:none}`}</style>
-          <div
-            onMouseDown={showArchived && archived.length > 0 ? startFooterDrag : undefined}
-            style={{
-              borderTop: '2px solid hsl(var(--rule))',
-              cursor: showArchived && archived.length > 0 ? 'ns-resize' : 'default',
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          {/* Resize grip — only while expanded, overlaying the top border.
+              Mirrors ResolvedTodoArchive's absolute drag handle. */}
+          {showArchived && (
+            <div
+              onMouseDown={startFooterDrag}
+              style={{
+                position: 'absolute',
+                top: -3,
+                left: 0,
+                right: 0,
+                height: 6,
+                cursor: 'ns-resize',
+                zIndex: 1,
+              }}
+              aria-hidden
+            />
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, height: 28 }}>
             <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}
@@ -428,18 +455,26 @@ export function ShadowPanel() {
                 alignItems: 'center',
                 gap: 6,
                 flex: 1,
+                height: '100%',
                 border: 'none',
                 background: 'transparent',
-                color: 'hsl(var(--ink-3))',
+                color: 'hsl(var(--ink-4))',
                 cursor: 'pointer',
-                padding: '8px 12px',
-                fontSize: 11.5,
+                padding: '0 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9.5,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
               }}
             >
-              {showArchived ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              <Archive size={12} />
-              已归档
-              <span style={{ color: 'hsl(var(--ink-4))' }}>{archived.length}</span>
+              <ChevronUp
+                size={11}
+                style={{
+                  transform: showArchived ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.18s ease',
+                }}
+              />
+              已归档 · {archived.length}
             </button>
             {showArchived && archived.length > 0 && (
               <button

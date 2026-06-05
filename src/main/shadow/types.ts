@@ -37,7 +37,7 @@ export interface ReviewContext {
   summary: string;
   blocks: ChapterBlock[]; // the chapter body, block by block (mechanical checks)
   appears: string[]; // element names that appear (inline mentions)
-  rulesKv: Record<string, string>; // storyline/project KV — auxiliary ground-truth
+  rulesKv: Record<string, string>; // whole-book (project) KV — auxiliary ground-truth (storyline facts fed separately by the renderer)
 }
 
 // One violation found. Becomes a single shadow-authored comment, anchored to a

@@ -23,6 +23,7 @@ import {
 } from '../ai/shadow-rules';
 import { buildDefaultLLMClient } from '../ai/client/build-default-client';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
+import { yieldToMain } from '../async/yield-to-main';
 import { traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
@@ -85,6 +86,8 @@ import {
   yInsertBlocks,
   yAppendParagraph,
   yReplaceAllParagraphs,
+  beginProseReadCache,
+  endProseReadCache,
 } from './chapter-prose';
 import { proseDocId, isProseEntityType, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
@@ -1784,6 +1787,9 @@ function makeShadowRunTool(ctx: AgentToolContext, chapterId: string) {
     const key = shadowCacheKey(name, cleanArgs);
     const cached = cache?.get(key);
     if (cached !== undefined) return { content: cached, status: 'ok' };
+    // Let the UI paint before this tool's (possibly heavy) CPU burst — prose
+    // hydration / full-project scan. Breaks the judge's tool-call burst-train.
+    await yieldToMain();
     const result = await runAgentTool(name, cleanArgs, ctx);
     const text = typeof result === 'string' ? result : JSON.stringify(result);
     cache?.set(key, text);
@@ -1804,21 +1810,18 @@ async function shadowReadChapterSnapshot(ctx: AgentToolContext, args: Record<str
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
   shadowToolCache.set(chapterId, new Map()); // fresh evidence cache for this review
+  beginProseReadCache(); // hydrate each chapter's Y.Doc at most once for this review
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`shadow_read_chapter_snapshot: no chapter "${chapterId}"`);
   const blocks = await shadowChapterBlocks(chapterId);
   const refs = await listChapterReferences(s, chapterId);
-  // rulesKv = auxiliary ground-truth: project facts overlaid with the primary
-  // storyline's facts (storyline wins on key collisions).
+  // rulesKv = whole-book ground truth: PROJECT facts only. The chapter's own
+  // storyline facts/summary are fed separately (see buildWarmStart) so the judge
+  // can tell book-wide canon from this arc's local canon — no longer merged here.
   const rulesKv: Record<string, string> = {};
   const project = useProjectStore.getState().currentProject;
   if (project) for (const kv of parseKv(project.kvJson)) rulesKv[kv.key] = kv.value;
-  const primaryStorylineId = s.primaryStorylineByNode[chapterId];
-  if (primaryStorylineId) {
-    const sl = s.storylines.find((x) => x.id === primaryStorylineId);
-    if (sl) for (const kv of parseKv(sl.kvJson)) rulesKv[kv.key] = kv.value;
-  }
   const appears = refs.map((r) => r.label);
   void traceShadow(chapterId, ctx.projectId, 'gather', '读取章节快照', {
     detail: `${blocks.length} 段${appears.length ? ` · 出场 ${appears.slice(0, 6).join('、')}` : ''}`,
@@ -1971,12 +1974,13 @@ function buildShadowEvidenceProvider(ctx: AgentToolContext, chapterId: string): 
 // linked inline-mentions (those miss bare-name protagonists: 奥伦/凯尔 were absent
 // while peripheral linked entities showed up). A warm-start hint, not ground truth;
 // short names (<2 chars) are skipped so common characters don't false-match.
-function scanSceneEntities(
+async function scanSceneEntities(
   projectId: string,
   blocks: Array<{ text: string }>,
-): Array<{ name: string; summary?: string }> {
+): Promise<Array<{ name: string; summary?: string }>> {
   const text = blocks.map((b) => b.text).join('\n');
   const hits: Array<{ name: string; summary?: string }> = [];
+  let scanned = 0;
   for (const e of useDataStore.getState().bookElements) {
     if (e.projectId !== projectId) continue;
     const names = [e.name, ...(e.aliases ?? [])]
@@ -1985,6 +1989,9 @@ function scanSceneEntities(
     if (names.some((n) => text.includes(n))) {
       hits.push({ name: e.name, summary: e.summary || undefined });
     }
+    // E elements × includes() over the full prose is a synchronous burst — yield
+    // periodically so a big cast / long chapter doesn't freeze the UI.
+    if (++scanned % 24 === 0) await yieldToMain();
   }
   return hits.slice(0, 12);
 }
@@ -1992,11 +1999,16 @@ function scanSceneEntities(
 // Warm-start context for the judge: chapter IDENTITY (so it can address its own
 // node by name instead of guessing), prose-scanned scene entities, the prior
 // chapter, and drift settings. Cheap summary-level hints; full bodies on demand.
-function buildWarmStart(
+async function buildWarmStart(
   ctx: AgentToolContext,
   node: { id: string; title: string; kind: string; narrativeOrder: number | null },
   blocks: Array<{ text: string }>,
-): Pick<SemanticEvalContext, 'identity' | 'sceneEntities' | 'priorChapter' | 'driftNodes'> {
+): Promise<
+  Pick<
+    SemanticEvalContext,
+    'identity' | 'sceneEntities' | 'priorChapter' | 'driftNodes' | 'storyline'
+  >
+> {
   const s = useDataStore.getState();
   const kind: 'chapter' | 'drift' = node.kind === 'drift' ? 'drift' : 'chapter';
 
@@ -2010,8 +2022,9 @@ function buildWarmStart(
           n.projectId === ctx.projectId && n.kind === 'chapter' && n.narrativeOrder != null,
       )
       .sort((a, b) => a.narrativeOrder - b.narrativeOrder);
-    const idx = chapters.findIndex((n) => n.id === node.id);
-    if (idx >= 0) position = `第 ${idx + 1} 章 / 共 ${chapters.length}`;
+    // Total count only — telling the judge "第 N 章" nudged it to wander into
+    // neighbouring chapters it didn't need.
+    if (chapters.length > 0) position = `共 ${chapters.length} 章`;
     const prev = chapters.filter((n) => n.narrativeOrder < order).slice(-1)[0];
     if (prev) priorChapter = { title: prev.title, summary: prev.summary || undefined };
   }
@@ -2021,11 +2034,30 @@ function buildWarmStart(
     .slice(0, 20)
     .map((n) => ({ title: n.title, summary: n.summary || undefined }));
 
+  // The storyline this node primarily belongs to — its summary + own KV facts.
+  // Fed alongside (not merged into) the whole-book facts so the judge grounds in
+  // this arc's local canon. Drift nodes usually have no primary storyline → omit.
+  let storyline: SemanticEvalContext['storyline'];
+  const primaryStorylineId = s.primaryStorylineByNode[node.id];
+  if (primaryStorylineId) {
+    const sl = s.storylines.find((x) => x.id === primaryStorylineId);
+    if (sl) {
+      const facts: Record<string, string> = {};
+      for (const kv of parseKv(sl.kvJson)) facts[kv.key] = kv.value;
+      storyline = {
+        name: sl.name,
+        summary: sl.summary || undefined,
+        facts: Object.keys(facts).length > 0 ? facts : undefined,
+      };
+    }
+  }
+
   return {
     identity: { title: node.title, kind, position },
-    sceneEntities: scanSceneEntities(ctx.projectId, blocks),
+    sceneEntities: await scanSceneEntities(ctx.projectId, blocks),
     priorChapter,
     driftNodes,
+    storyline,
   };
 }
 
@@ -2044,11 +2076,16 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
     : [];
   if (assertions.length === 0) return [] as SemanticViolation[][];
 
+  await yieldToMain(); // paint before the chapter-prose hydration burst
   const blocks = await shadowChapterBlocks(chapterId);
   const facts =
     args.facts && typeof args.facts === 'object' ? (args.facts as Record<string, string>) : {};
   const summary = String(args.summary ?? '');
-  const context: SemanticEvalContext = { facts, summary, ...buildWarmStart(ctx, node, blocks) };
+  const context: SemanticEvalContext = {
+    facts,
+    summary,
+    ...(await buildWarmStart(ctx, node, blocks)),
+  };
 
   const onTrace = (step: AgenticTraceStep) =>
     void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
@@ -2182,6 +2219,7 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
   await ctx.write.updateNode(chapterId, { writingStatus: status });
   shadowToolCache.delete(chapterId); // review done — free its evidence cache
+  endProseReadCache(); // free the per-review prose-hydration cache
   return { ok: true, chapterId, status };
 }
 

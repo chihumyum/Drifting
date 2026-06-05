@@ -8,6 +8,7 @@ import type { LLMClient } from './client/llm-client';
 import type { AIMessage, AITool, AIToolCall } from './types';
 import type { ChecklistItem } from '../../domain/project-rule';
 import type { ShadowToolCall, ShadowToolStatus } from '../../domain/shadow-job';
+import { yieldToMain } from '../async/yield-to-main';
 
 // What the FC judge's tool executor returns: the result text fed back to the
 // model + the outcome status surfaced to the trace (ok / denied / error).
@@ -66,12 +67,17 @@ export interface SemanticViolation {
   confidence: number;
 }
 
-// Background the semantic judge gets alongside the prose: project/storyline facts
-// (POV, writing person, character setup…) + the chapter summary. Grounds deep
-// rules so the model judges with context instead of guessing.
+// Background the semantic judge gets alongside the prose: whole-book (project)
+// facts + the chapter summary + the chapter's storyline (its own summary/facts).
+// (POV, writing person, character setup…). Grounds deep rules so the model judges
+// with context instead of guessing.
 export interface SemanticEvalContext {
   facts?: Record<string, string>;
   summary?: string;
+  // The storyline this chapter primarily belongs to — its own summary and KV
+  // facts, fed ALONGSIDE (not merged into) the whole-book facts so the judge can
+  // tell book-wide canon from this arc's local canon.
+  storyline?: { name?: string; summary?: string; facts?: Record<string, string> };
   // Chapter IDENTITY — so the judge KNOWS which node it is reviewing and can
   // address it by name with the read tools, instead of guessing node titles
   // (`get_node_context 未知章节`) or re-searching the project for its own prose.
@@ -88,10 +94,21 @@ export interface SemanticEvalContext {
 function buildBackground(context?: SemanticEvalContext): string {
   const lines: string[] = [];
   if (context?.summary?.trim()) lines.push(`本章梗概：${context.summary.trim()}`);
-  const factLines = Object.entries(context?.facts ?? {})
-    .filter(([, v]) => typeof v === 'string' && v.trim().length > 0)
-    .map(([k, v]) => `- ${k}：${v}`);
-  if (factLines.length > 0) lines.push(`设定/事实：\n${factLines.join('\n')}`);
+  const factLines = (facts?: Record<string, string>) =>
+    Object.entries(facts ?? {})
+      .filter(([, v]) => typeof v === 'string' && v.trim().length > 0)
+      .map(([k, v]) => `- ${k}：${v}`);
+  const bookFacts = factLines(context?.facts);
+  if (bookFacts.length > 0) lines.push(`全书设定/事实：\n${bookFacts.join('\n')}`);
+  // The chapter's storyline, fed as its own section so its local canon doesn't
+  // masquerade as book-wide fact.
+  const sl = context?.storyline;
+  if (sl) {
+    const label = sl.name?.trim() ? `本章所属故事线《${sl.name.trim()}》` : '本章所属故事线';
+    if (sl.summary?.trim()) lines.push(`${label}梗概：${sl.summary.trim()}`);
+    const slFacts = factLines(sl.facts);
+    if (slFacts.length > 0) lines.push(`${label}设定/事实：\n${slFacts.join('\n')}`);
+  }
   return lines.length > 0 ? lines.join('\n') : '（无额外背景）';
 }
 
@@ -100,35 +117,42 @@ function buildBackground(context?: SemanticEvalContext): string {
 // text), and cheap warm-start hints. This is the fix for the "未知章节 / 满世界
 //找自己正文" flailing — without it the judge has no name to address its own node.
 function buildChapterHeader(context: SemanticEvalContext | undefined, blockCount: number): string {
+  // Summaries are warm-start hints (just enough to decide whether to fetch full);
+  // keep them short so the seed stays lean.
+  const clip = (s: string) => (s.length > 100 ? `${s.slice(0, 100)}…` : s);
   const lines: string[] = [];
   const id = context?.identity;
   if (id?.title) {
     const kindLabel = id.kind === 'drift' ? 'drift 节点' : '章节';
-    const pos = id.position ? `，${id.position}` : '';
+    // Note the total chapter count only — NOT this chapter's index, which nudged
+    // the model to go read neighbouring chapters it didn't need.
+    const pos = id.position ? `（${id.position}）` : '';
     lines.push(`你正在审${kindLabel}《${id.title}》${pos}。`);
   }
   lines.push(
     `下面「正文」就是这一章的完整正文（共 ${blockCount} 段），你已拿到全文——不要再去检索或定位本章自身的内容。`,
   );
+  // Each warm-start entry is tagged with its KIND so the judge knows the right
+  // read_node(kind=…) to use and doesn't mistake an element for a chapter.
   const scene = (context?.sceneEntities ?? []).filter((e) => e.name?.trim());
   if (scene.length) {
     lines.push(
-      `本章登场（扫描正文得到，可能不全）：\n${scene
-        .map((e) => `- ${e.name}${e.summary ? `：${e.summary}` : ''}`)
+      `本章登场的元素（扫描正文得到，可能不全；读全文用 read_node(kind='element')）：\n${scene
+        .map((e) => `- [element] ${e.name}${e.summary ? `：${clip(e.summary)}` : ''}`)
         .join('\n')}`,
     );
   }
   const prior = context?.priorChapter;
   if (prior?.title) {
     lines.push(
-      `前一章（连续性核对可按名 read_node 索取全文）：\n- ${prior.title}${prior.summary ? `：${prior.summary}` : ''}`,
+      `前一章（连续性核对用 read_node(kind='chapter') 索取全文）：\n- [chapter] ${prior.title}${prior.summary ? `：${clip(prior.summary)}` : ''}`,
     );
   }
   const drifts = (context?.driftNodes ?? []).filter((d) => d.title?.trim());
   if (drifts.length) {
     lines.push(
-      `可能相关的设定 drift（先看 summary，相关再索取全文）：\n${drifts
-        .map((d) => `- ${d.title}${d.summary ? `：${d.summary}` : ''}`)
+      `可能相关的设定 drift（先看 summary，相关再用 read_node(kind='drift') 索取全文）：\n${drifts
+        .map((d) => `- [drift] ${d.title}${d.summary ? `：${clip(d.summary)}` : ''}`)
         .join('\n')}`,
     );
   }
@@ -400,8 +424,13 @@ const FC_TOOL_CALLS_PER_ASSERTION = 6; // + per batched check
 const FC_ROUNDS_BASE = 12; // model-turn floor
 const FC_ROUNDS_PER_ASSERTION = 5; // + per batched check
 const FC_MODEL = 'gemini-3.5-flash'; // non-deepseek id ⇒ provider substitutes its configured default
-const FC_RESULT_MAX = 2000; // chars per tool result fed back to the model
-const FC_TRACE_RESULT_MAX = 1200; // chars per tool result KEPT in the trace (panel display)
+// Per-tool-result cap fed back to the model. read_node returns a FULL chapter
+// (the judge's main reason to fetch — continuity), so this must be roomy: 2000
+// chopped a 6770-word chapter to ~a quarter. A few full reads still fit DeepSeek's
+// window; the round/tool-call caps bound how many. The trace keeps a shorter slice
+// (panel display only — full content is in the ai-log) to bound the stored row.
+const FC_RESULT_MAX = 16000; // chars per tool result fed back to the model
+const FC_TRACE_RESULT_MAX = 2000; // chars per tool result KEPT in the trace (panel display)
 
 const SUBMIT_VERDICTS_TOOL: AITool = {
   name: 'submit_verdicts',
@@ -615,6 +644,7 @@ export async function evaluateSemanticAssertionsFC(
       });
       return submitted;
     }
+    await yieldToMain(); // let this round's trace-push re-render + paint before the next
   }
   return empty();
 }

@@ -34,6 +34,7 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
+import { hydrateProseJson } from './prose-hydrate-client';
 import { countWordsInPmJson } from '../word-count';
 import { computeBlockChanges, type AgentBlockChange } from './block-diff';
 import { detectEntityLinkSpans } from '../extensions/entity-link';
@@ -227,30 +228,51 @@ export function yReplaceAllParagraphs(frag: Y.XmlFragment, texts: string[]): str
  * one is open, else a transient doc rehydrated from SQLite, else the supplied
  * fallback (the projection cache) when the entity has no Yjs state yet.
  */
+// Optional read-through cache for a bounded READ-ONLY burst (a shadow review):
+// rebuilding a chapter's Y.Doc (apply snapshot + every update → y-prosemirror
+// conversion) is CPU-heavy, and full-project scans (search_prose,
+// where_does_entity_appear) re-hydrate every chapter on EVERY call. With the cache
+// each doc hydrates at most once per burst. Only the non-live paths are cached — a
+// doc on those paths has no open editor, so its source is static for the burst.
+let proseReadCache: Map<string, string> | null = null;
+export function beginProseReadCache(): void {
+  proseReadCache = new Map(); // fresh each bracket — self-heals a missed end()
+}
+export function endProseReadCache(): void {
+  proseReadCache = null;
+}
+
 async function readProseContentJson(
   docId: string,
   readFallbackJson: () => Promise<string>,
 ): Promise<string> {
-  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
-
+  // Live doc (open in an editor) is the freshest truth — a mutable in-memory
+  // object that can't leave the main thread; convert it here (cheap, no hydration).
   const live = getLiveYDoc(docId);
   if (live && live.getXmlFragment('default').length > 0) {
+    const { yDocToProsemirrorJSON } = await import('y-prosemirror');
     return JSON.stringify(yDocToProsemirrorJSON(live, 'default'));
   }
 
+  const cached = proseReadCache?.get(docId);
+  if (cached !== undefined) return cached;
+
+  let result: string;
   const repo = createYjsRepository();
   if (await repo.hasDocState(docId)) {
-    const doc = new Y.Doc();
-    try {
-      const snap = await repo.getSnapshot(docId);
-      if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
-      for (const u of await repo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
-      return JSON.stringify(yDocToProsemirrorJSON(doc, 'default'));
-    } finally {
-      doc.destroy();
-    }
+    // Hand the binary blobs to the hydration worker (off the main thread). Falls
+    // back to inline automatically if the worker is unavailable — see hydrateProseJson.
+    const snap = await repo.getSnapshot(docId);
+    const updates = await repo.listUpdates(docId);
+    result = await hydrateProseJson(
+      snap?.stateBlob ?? null,
+      updates.map((u) => u.updateBlob),
+    );
+  } else {
+    result = await readFallbackJson();
   }
-  return readFallbackJson();
+  proseReadCache?.set(docId, result);
+  return result;
 }
 
 /**
