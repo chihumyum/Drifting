@@ -87,6 +87,15 @@ export const ShadowJobTable = sqliteTable(
     findingCount: integer('finding_count').notNull().default(0),
     error: text('error'),
     traceJson: text('trace_json').notNull().default('[]'),
+    // The canon entities the FC judge ACTUALLY consulted this review (resolved
+    // {kind,id,label}). The precise `(chapter)→entities` dependency edges — the
+    // compiler `-MMD` to the inline-mention `grep #include`.
+    consultedJson: text('consulted_json').notNull().default('[]'),
+    // Was a consultation set MEASURED this review? Disambiguates an empty
+    // consulted_json: false = legacy/un-measured (staleness falls back to prose
+    // mentions); true = measured, and an empty set means "no entity deps" (don't
+    // fall back). Set true by setShadowConsulted at the end of a real review.
+    consultedCaptured: integer('consulted_captured', { mode: 'boolean' }).notNull().default(false),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     startedAt: text('started_at').notNull(),
     finishedAt: text('finished_at'),

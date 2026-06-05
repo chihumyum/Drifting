@@ -2,7 +2,12 @@ import { v7 as uuidv7 } from 'uuid';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { ShadowJobTable } from '../schema/drizzle';
-import type { ShadowJob, ShadowJobStatus, ShadowTraceStep } from '../domain/shadow-job';
+import type {
+  ShadowConsultedRef,
+  ShadowJob,
+  ShadowJobStatus,
+  ShadowTraceStep,
+} from '../domain/shadow-job';
 
 export interface CreateShadowJobInput {
   projectId: string;
@@ -17,7 +22,10 @@ export type UpdateShadowJobInput = Partial<{
   findingCount: number;
   error: string | null;
   trace: ShadowTraceStep[];
+  consulted: ShadowConsultedRef[];
+  consultedCaptured: boolean;
   chapterTitle: string;
+  startedAt: string;
   finishedAt: string | null;
   archived: boolean;
 }>;
@@ -43,6 +51,15 @@ function parseTrace(json: string): ShadowTraceStep[] {
   }
 }
 
+function parseConsulted(json: string): ShadowConsultedRef[] {
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? (v as ShadowConsultedRef[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function toDomain(row: typeof ShadowJobTable.$inferSelect): ShadowJob {
   return {
     id: row.id,
@@ -54,6 +71,8 @@ function toDomain(row: typeof ShadowJobTable.$inferSelect): ShadowJob {
     findingCount: row.findingCount,
     error: row.error,
     trace: parseTrace(row.traceJson),
+    consulted: parseConsulted(row.consultedJson),
+    consultedCaptured: !!row.consultedCaptured,
     archived: !!row.archived,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
@@ -76,6 +95,8 @@ export function createShadowJobRepository(): ShadowJobRepository {
       findingCount: 0,
       error: null as string | null,
       traceJson: '[]',
+      consultedJson: '[]',
+      consultedCaptured: false,
       archived: false,
       startedAt: input.startedAt ?? now,
       finishedAt: null as string | null,
@@ -94,7 +115,10 @@ export function createShadowJobRepository(): ShadowJobRepository {
     if (updates.findingCount !== undefined) set.findingCount = updates.findingCount;
     if (updates.error !== undefined) set.error = updates.error;
     if (updates.trace !== undefined) set.traceJson = JSON.stringify(updates.trace);
+    if (updates.consulted !== undefined) set.consultedJson = JSON.stringify(updates.consulted);
+    if (updates.consultedCaptured !== undefined) set.consultedCaptured = updates.consultedCaptured;
     if (updates.chapterTitle !== undefined) set.chapterTitle = updates.chapterTitle;
+    if (updates.startedAt !== undefined) set.startedAt = updates.startedAt;
     if (updates.finishedAt !== undefined) set.finishedAt = updates.finishedAt;
     if (updates.archived !== undefined) set.archived = updates.archived;
     await db.update(ShadowJobTable).set(set).where(eq(ShadowJobTable.id, id));

@@ -3,7 +3,10 @@
 // expands to its `trace` (the structured evidence-gathering + decision trail).
 // Local-only telemetry — never synced.
 
-export type ShadowJobStatus = 'running' | 'done' | 'failed' | 'stopped';
+// 'queued' = persisted-but-not-yet-started (the durable queue: a row exists from
+// the moment of enqueue, so a restart can resume it). 'running' once the worker
+// begins. Terminal: done | failed | stopped.
+export type ShadowJobStatus = 'queued' | 'running' | 'done' | 'failed' | 'stopped';
 
 export type ShadowTracePhase = 'gather' | 'resolve' | 'check' | 'emit' | 'decide';
 
@@ -32,6 +35,18 @@ export interface ShadowTraceStep {
   calls?: ShadowToolCall[]; // FC tool calls this round, with outcome status
 }
 
+// A canon entity the FC judge actually CONSULTED during a review (resolved from
+// the read-tool calls it made). `kind` mirrors the entity namespaces; `label` is
+// the human name snapshotted at consult time (for the panel, no store lookup).
+// These are the precise `(chapter)→entities` dependency edges — captured now to
+// observe reliability before they replace mention-based staleness.
+export type ShadowConsultedKind = 'node' | 'element' | 'storyline' | 'category';
+export interface ShadowConsultedRef {
+  kind: ShadowConsultedKind;
+  id: string;
+  label: string;
+}
+
 export interface ShadowJob {
   id: string;
   projectId: string;
@@ -42,6 +57,11 @@ export interface ShadowJob {
   findingCount: number;
   error: string | null;
   trace: ShadowTraceStep[];
+  consulted: ShadowConsultedRef[];
+  // Whether `consulted` was actually measured this review (vs a legacy row that
+  // predates capture). Drives the staleness fallback: captured ⇒ trust the set
+  // (empty = no entity deps); not captured ⇒ fall back to prose mentions.
+  consultedCaptured: boolean;
   archived: boolean;
   startedAt: string;
   finishedAt: string | null;
