@@ -20,6 +20,9 @@
     "publish": "electron-forge publish",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "test": "vitest run",
+    "eval:shadow": "vitest run src/renderer/lib/shadow/eval/shadow-eval.eval.ts",
+    "eval:shadow:smoke": "vitest run src/renderer/lib/shadow/eval/smoke.eval.ts",
     "claude:fetch-binary": "node scripts/fetch-claude-binary.mjs",
     "postinstall": "node scripts/fetch-claude-binary.mjs"
   },
@@ -68,7 +71,8 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.53.1",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.123",
