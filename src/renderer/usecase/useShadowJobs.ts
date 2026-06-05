@@ -36,6 +36,10 @@ export function useShadowJobs({ projectId }: { projectId: string }) {
       return { ...j, status: 'stopped' as const, finishedAt: at, updatedAt: at, trace };
     });
     useDataStore.getState().setShadowJobs(reconciled);
+    // Bound on-disk growth — these telemetry rows accumulate forever otherwise.
+    // Fire-and-forget so it never delays the UI; only rows beyond the cap (older
+    // than anything we load/show) are removed.
+    void repo.pruneOldJobs(projectId).catch(() => {});
   }, [projectId]);
 
   useEffect(() => {

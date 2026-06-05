@@ -78,6 +78,30 @@ function pushStore(job: ShadowJob): void {
   useDataStore.getState().upsertShadowJob({ ...job });
 }
 
+// Trace writes are DEBOUNCED. A fast review fires many steps; rewriting the whole
+// traceJson blob on every one is O(n²) write volume. We coalesce into a periodic
+// flush — the in-memory + store copy stays live for the UI, and finish/stop write
+// the final full trace — so a crash loses at most ~1s of trail, not the whole row.
+const TRACE_FLUSH_DELAY = 1000;
+const flushTimers = new Map<string, number>(); // jobId → pending flush timer
+
+function scheduleTraceFlush(job: ShadowJob): void {
+  if (flushTimers.has(job.id)) return; // a flush is already queued; it reads job.trace fresh
+  const t = window.setTimeout(() => {
+    flushTimers.delete(job.id);
+    void repo.update(job.id, { trace: job.trace }).catch(() => {});
+  }, TRACE_FLUSH_DELAY);
+  flushTimers.set(job.id, t);
+}
+
+function cancelTraceFlush(jobId: string): void {
+  const t = flushTimers.get(jobId);
+  if (t !== undefined) {
+    window.clearTimeout(t);
+    flushTimers.delete(jobId);
+  }
+}
+
 async function ensureActive(chapterId: string, projectId: string): Promise<ShadowJob> {
   const ex = activeByChapter.get(chapterId);
   if (ex) return ex;
@@ -129,7 +153,7 @@ export async function traceShadow(
     job.trace = [...job.trace, step];
     job.updatedAt = step.at;
     pushStore(job);
-    void repo.update(job.id, { trace: job.trace });
+    scheduleTraceFlush(job);
   } catch {
     /* telemetry must never break a review */
   }
@@ -151,6 +175,7 @@ export async function finishShadowJob(
 ): Promise<void> {
   const job = activeByChapter.get(chapterId) ?? (await ensureActive(chapterId, projectId));
   if (!job) return;
+  cancelTraceFlush(job.id); // this write carries the final full trace
   const finishedAt = new Date().toISOString();
   job.status = opts.status;
   job.decision = opts.decision ?? null;
@@ -209,6 +234,7 @@ export async function stopShadowJob(chapterId: string, projectId: string): Promi
         (j) => j.chapterId === chapterId && j.projectId === projectId && j.status === 'running',
       );
   if (!job) return;
+  cancelTraceFlush(job.id); // a stale pending flush would overwrite the 已终止 trace
   const at = new Date().toISOString();
   const stopped: ShadowJob = {
     ...job,

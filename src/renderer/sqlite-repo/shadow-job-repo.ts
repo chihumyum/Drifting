@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from 'uuid';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { ShadowJobTable } from '../schema/drizzle';
 import type { ShadowJob, ShadowJobStatus, ShadowTraceStep } from '../domain/shadow-job';
@@ -27,8 +27,9 @@ export interface ShadowJobRepository {
   update(id: string, updates: UpdateShadowJobInput): Promise<ShadowJob | null>;
   findById(id: string): Promise<ShadowJob | null>;
   listByProject(projectId: string, limit?: number): Promise<ShadowJob[]>;
-  // Archive every finished/failed/stopped (i.e. non-running) job in a project.
-  archiveCompleted(projectId: string): Promise<void>;
+  // Bound on-disk growth: keep the most recent `keep` jobs in a project, delete the
+  // rest (these telemetry rows accumulate forever otherwise). Returns # deleted.
+  pruneOldJobs(projectId: string, keep?: number): Promise<number>;
   delete(id: string): Promise<void>;
   deleteByProject(projectId: string): Promise<void>;
 }
@@ -116,13 +117,20 @@ export function createShadowJobRepository(): ShadowJobRepository {
     return rows.map(toDomain);
   };
 
-  const archiveCompleted = async (projectId: string): Promise<void> => {
-    await getDb()
-      .update(ShadowJobTable)
-      .set({ archived: true, updatedAt: new Date().toISOString() })
-      .where(
-        and(eq(ShadowJobTable.projectId, projectId), ne(ShadowJobTable.status, 'running')),
-      );
+  const pruneOldJobs = async (projectId: string, keep = 200): Promise<number> => {
+    const db = getDb();
+    const rows = await db
+      .select({ id: ShadowJobTable.id })
+      .from(ShadowJobTable)
+      .where(eq(ShadowJobTable.projectId, projectId))
+      .orderBy(desc(ShadowJobTable.startedAt));
+    if (rows.length <= keep) return 0;
+    const stale = rows.slice(keep).map((r) => r.id);
+    // Chunk to stay under SQLite's bound-parameter ceiling.
+    for (let i = 0; i < stale.length; i += 500) {
+      await db.delete(ShadowJobTable).where(inArray(ShadowJobTable.id, stale.slice(i, i + 500)));
+    }
+    return stale.length;
   };
 
   const deleteJob = async (id: string): Promise<void> => {
@@ -138,7 +146,7 @@ export function createShadowJobRepository(): ShadowJobRepository {
     update,
     findById,
     listByProject,
-    archiveCompleted,
+    pruneOldJobs,
     delete: deleteJob,
     deleteByProject,
   };
