@@ -475,7 +475,7 @@ const FC_TRACE_RESULT_MAX = 2000; // chars per tool result KEPT in the trace (pa
 const SUBMIT_VERDICTS_TOOL: AITool = {
   name: 'submit_verdicts',
   description:
-    '证据已足够，一次性提交对所有约束的最终裁决。verdicts 必须每条约束恰好一项，用 constraint 标明约束编号（与输入的「约束」列表 1-based 对应）。某条整章满足时其 violations 为空数组；不确定/依据不足一律不写。',
+    '证据已足够，一次性提交对所有约束的最终裁决。verdicts 必须每条约束恰好一项，用 constraint 标明约束编号（与输入的「约束」列表 1-based 对应）。每项都必须填 basis（核对依据，即使判一致也要写）。某条整章满足时其 violations 为空数组；不确定/依据不足的边缘段不写进 violations，但仍要在 basis 说明。',
   parametersSchema: {
     type: 'object',
     properties: {
@@ -486,6 +486,11 @@ const SUBMIT_VERDICTS_TOOL: AITool = {
           type: 'object',
           properties: {
             constraint: { type: 'number', description: '约束编号(1 起，对应输入「约束」的顺序)' },
+            basis: {
+              type: 'string',
+              description:
+                '核对依据：逐个核对了哪些角色/设定的【当前值】对照本章哪几段，结论一致还是冲突。判一致也必须写，不得为空——这是为了逼出真实比对，杜绝「读完直接空数组、零依据放行」。',
+            },
             violations: {
               type: 'array',
               description: '该约束违反的连续段范围列表；无违反则为空数组',
@@ -502,7 +507,7 @@ const SUBMIT_VERDICTS_TOOL: AITool = {
               },
             },
           },
-          required: ['constraint', 'violations'],
+          required: ['constraint', 'basis', 'violations'],
         },
       },
     },
@@ -536,6 +541,21 @@ function coerceBatchVerdicts(args: unknown, count: number): RawViolation[][] {
     const idx = Math.floor(Number(o.constraint ?? 0)) - 1; // 1-based → 0-based
     if (idx < 0 || idx >= count) continue;
     out[idx] = coerceVerdict(o); // reads o.violations
+  }
+  return out;
+}
+
+// The per-constraint `basis` (the forced check rationale) keyed by 1-based constraint
+// → surfaced in the trace so even a PASS shows WHAT the judge actually compared.
+function coerceBases(args: unknown, count: number): string[] {
+  const out: string[] = Array.from({ length: count }, () => '');
+  const raw = (args as { verdicts?: unknown })?.verdicts;
+  if (!Array.isArray(raw)) return out;
+  for (const entry of raw) {
+    const o = (entry ?? {}) as Record<string, unknown>;
+    const idx = Math.floor(Number(o.constraint ?? 0)) - 1;
+    if (idx < 0 || idx >= count) continue;
+    out[idx] = String(o.basis ?? '').trim();
   }
   return out;
 }
@@ -586,8 +606,13 @@ export async function evaluateSemanticAssertionsFC(
     // Tool-shape guidance — it kept hallucinating read_drift / search_facts / get_all_drifts.
     '只读工具就是给你的这几个，没有别的：读 drift/设定/元素/故事线的正文一律用 read_node(node=名称, kind=\'drift\'|\'element\'|\'storyline\'|\'category\')；查内容用 search_prose，查名称/元数据用 search_project。不要臆造工具名或给工具加未列出的参数。',
     '克制取证：能直接判就别查；只查真正影响判断的；同一样东西只查一次。',
+    // Consistency rules were the big false-negative source: the judge read every
+    // entity's canon then emitted an empty verdict with NO reasoning — silently
+    // swallowing even an explicit changedDeps diff. Force a per-character check.
+    '【人物/设定一致性类约束·必做】凡涉及「言行须与人物设定一致」的约束：必须把本章每个登场角色的关键言行，逐个对照其【当前设定】。尤其「从不/总是/绝不/永远/只/必」这类绝对表述是可证伪的硬约束——正文一旦出现相反言行即为冲突。被【一致性复核提示】点名、或设定含绝对措辞的角色，绝不能以「看着自洽/没把握」为由跳过核对。',
+    '你是一致性 linter，不是替作者圆场：言行与设定冲突就报出，由作者裁定是否有意为之；不要主动把矛盾解释成「角色成长/特殊情境」就放过。唯一例外：本章正文对该越界有显式铺垫(退化弧、反讽框定、设定被章内重定义)时可判一致——但必须在 basis 写明这层铺垫，而非静默放过。',
     '查够了就调用 submit_verdicts 一次性给出每条约束的裁决(每条一项，按约束编号)。',
-    '裁决规则:只把确实违反的连续段写进对应约束的 violations(blockStart/blockEnd 含两端,整章级用 0);不确定一律不写;宁可漏报别误报;某条整章满足则该条 violations 为空数组。',
+    '裁决规则:每条约束都必须在 basis 写明核对依据(核对了哪些角色/设定的【当前值】对照本章哪几段→一致还是冲突;判一致也要写,不得空);只把确实违反的连续段写进 violations(blockStart/blockEnd 含两端,整章级用 0),某条整章满足则 violations 为空数组;仍然宁可漏报别误报，但「漏报」只能是「核对后判一致」，不允许「未核对/零依据就空数组」。',
     `用 ${outputLanguage} 写所有自然语言输出(reason 等)。`,
   ]
     .filter(Boolean)
@@ -638,11 +663,13 @@ export async function evaluateSemanticAssertionsFC(
 
     const traceCalls: ShadowToolCall[] = [];
     let submitted: SemanticViolation[][] | null = null;
+    let bases: string[] = [];
     for (const call of calls) {
       if (call.name === 'submit_verdicts') {
         submitted = coerceBatchVerdicts(call.arguments, active.length).map((vs) =>
           mapViolations(vs, blocks),
         );
+        bases = coerceBases(call.arguments, active.length);
         continue;
       }
       toolCalls += 1;
@@ -686,9 +713,12 @@ export async function evaluateSemanticAssertionsFC(
     if (submitted) {
       const hit = submitted.filter((vs) => vs.length > 0).length;
       const reasons = submitted.flat().map((v) => v.reason).filter(Boolean);
+      // On a PASS, show the forced `basis` (what the judge actually compared) so a
+      // silent rubber-stamp is no longer possible to hide — the panel sees the check.
+      const checkNotes = bases.filter(Boolean);
       onTrace?.({
         label: hit ? `裁决：${hit}/${active.length} 条发现违反` : `裁决：${active.length} 条全部通过`,
-        items: reasons.length ? reasons : undefined,
+        items: reasons.length ? reasons : checkNotes.length ? checkNotes : undefined,
       });
       return submitted;
     }
