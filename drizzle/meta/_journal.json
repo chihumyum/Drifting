@@ -323,6 +323,13 @@
       "when": 1783000000000,
       "tag": "0045_project_rule_enhancement",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1783100000000,
+      "tag": "0046_element_patch_text_anchor_invalidation",
+      "breakpoints": true
     }
   ]
 }

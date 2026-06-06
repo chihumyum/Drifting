@@ -12,6 +12,13 @@ export interface ElementPatch {
   // Plain-text snapshot of the sourceBlock at accept time. NULL when the
   // patch wasn't produced by Copilot or predates the column.
   sourceBlockText: string | null;
+  // Precise text-fragment anchor (JSON CommentTextAnchor) when created by
+  // selecting prose; NULL otherwise. See drizzle.ts for the full rationale.
+  textAnchorJson: string | null;
+  // ISO timestamp set when the anchored text was deleted from the source
+  // chapter; NULL while the anchor still resolves. Invalidated patches are
+  // hidden from Shadow / agent canon context but still shown (badged) in UI.
+  invalidatedAt: string | null;
   title: string | null;
   contentJson: string;
   orderKey: number;
@@ -36,12 +43,16 @@ export interface CreatePatchInput {
   sourceNodeId?: string | null;
   sourceBlockId?: string | null;
   sourceBlockText?: string | null;
+  textAnchorJson?: string | null;
   title?: string | null;
   contentJson?: string;
 }
 
 export type UpdatePatchInput = Partial<
-  Pick<ElementPatch, 'sourceNodeId' | 'sourceBlockId' | 'title' | 'contentJson' | 'orderKey'>
+  Pick<
+    ElementPatch,
+    'sourceNodeId' | 'sourceBlockId' | 'textAnchorJson' | 'invalidatedAt' | 'title' | 'contentJson' | 'orderKey'
+  >
 >;
 
 export interface ElementPatchRepository {
@@ -65,6 +76,8 @@ function toDomain(row: typeof ElementPatchTable.$inferSelect): ElementPatch {
     sourceNodeId: row.sourceNodeId,
     sourceBlockId: row.sourceBlockId,
     sourceBlockText: row.sourceBlockText,
+    textAnchorJson: row.textAnchorJson,
+    invalidatedAt: row.invalidatedAt,
     title: row.title,
     contentJson: row.contentJson,
     orderKey: row.orderKey,
@@ -84,6 +97,8 @@ export function createElementPatchRepository(): ElementPatchRepository {
       sourceNodeId: input.sourceNodeId ?? null,
       sourceBlockId: input.sourceBlockId ?? null,
       sourceBlockText: input.sourceBlockText ?? null,
+      textAnchorJson: input.textAnchorJson ?? null,
+      invalidatedAt: null,
       title: input.title ?? null,
       contentJson: input.contentJson ?? '{}',
       orderKey: 0,
@@ -103,6 +118,8 @@ export function createElementPatchRepository(): ElementPatchRepository {
     const setValues: Record<string, unknown> = { updatedAt: now };
     if (updates.sourceNodeId !== undefined) setValues.sourceNodeId = updates.sourceNodeId;
     if (updates.sourceBlockId !== undefined) setValues.sourceBlockId = updates.sourceBlockId;
+    if (updates.textAnchorJson !== undefined) setValues.textAnchorJson = updates.textAnchorJson;
+    if (updates.invalidatedAt !== undefined) setValues.invalidatedAt = updates.invalidatedAt;
     if (updates.title !== undefined) setValues.title = updates.title;
     if (updates.contentJson !== undefined) setValues.contentJson = updates.contentJson;
     if (updates.orderKey !== undefined) setValues.orderKey = updates.orderKey;

@@ -188,8 +188,9 @@ export function syncCategoryRestore(id: string, projectId: string) {
 // Patches were originally local-only; these helpers + matching server
 // routes (added 2026-05) finally close the multi-device sync loop.
 // All client write sites for patches must call these alongside the repo
-// write — see PatchTargetModal, PatchesSection, PatchEditorCard, and
-// the elementPatch Copilot capability.
+// write — see PatchCreateModal, PatchesSection, PatchEditorCard, the patch
+// invalidation recheck (usecase/patch-validity.ts), and the elementPatch
+// Copilot capability.
 
 export function syncElementPatchCreate(
   id: string,

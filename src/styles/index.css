@@ -3260,10 +3260,10 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .patch-card__anchor-pop-item {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 4px 12px;
+  padding: 6px 12px;
   background: transparent;
   border: 0;
   font-family: var(--font-serif);
@@ -3290,16 +3290,37 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .patch-card__anchor-pop-mark {
   flex-shrink: 0;
   width: 10px;
+  /* Nudge the ✓ down to sit on the title's baseline now that the item is
+     top-aligned (to make room for the wrapping summary line below). */
+  margin-top: 1px;
   font-family: var(--font-mono);
   font-style: normal;
   font-size: 11px;
   color: hsl(var(--accent));
 }
-.patch-card__anchor-pop-title {
+.patch-card__anchor-pop-body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.patch-card__anchor-pop-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Chapter summary preview under the title — clamped to two lines so a long
+   summary doesn't blow out the popover height. */
+.patch-card__anchor-pop-summary {
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.4;
+  color: hsl(var(--ink-4));
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .patch-card__anchor-pop-tail {
   flex-shrink: 0;
@@ -3349,6 +3370,43 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .patch-card--source-missing .patch-card__body .ProseMirror {
   text-decoration: line-through;
   text-decoration-color: hsl(var(--ink-5) / 0.6);
+  color: hsl(var(--ink-4));
+}
+
+/* Invalidated — the anchored source text was deleted from its chapter, so this
+   patch is no longer fed to consistency review. A small pill flags it; the
+   title is dimmed so it reads as inactive but stays editable (the user can
+   re-anchor or delete it deliberately). */
+.patch-card__invalid-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: hsl(var(--accent) / 0.12);
+  color: hsl(var(--accent));
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+/* Clickable variant — expands the original-text snapshot below. */
+.patch-card__invalid-badge--btn {
+  border: 0;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.patch-card__invalid-badge--btn:hover {
+  background: hsl(var(--accent) / 0.2);
+}
+.patch-card--invalidated .patch-card__title {
+  color: hsl(var(--ink-4));
+}
+/* Label above the original-text snapshot when it's shown for an invalidated
+   patch (distinguishes it from the block-level "block deleted" snapshot). */
+.patch-card__snapshot-kicker {
+  margin: 0 0 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
   color: hsl(var(--ink-4));
 }
 

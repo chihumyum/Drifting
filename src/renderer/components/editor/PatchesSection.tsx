@@ -20,7 +20,7 @@ interface PatchesSectionProps {
 
 // Renders the patches list for one element and offers a "+ 新建补丁" button
 // that creates a floating patch (no chapter affiliation). Chapter-anchored
-// patches are created from the chapter side via the /patch slash command.
+// patches are created from the chapter side: select text → 右键「新建补丁」.
 export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   const [patches, setPatches] = useState<PatchWithSourceTitle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +74,8 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
         sourceNodeId: created.sourceNodeId,
         sourceBlockId: created.sourceBlockId,
         sourceBlockText: created.sourceBlockText,
+        textAnchorJson: created.textAnchorJson,
+        invalidatedAt: created.invalidatedAt,
         title: created.title,
         contentJson: created.contentJson,
         orderKey: created.orderKey,
@@ -100,7 +102,7 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
       </div>
       {patches.length === 0 ? (
         <div className="refs-empty">
-          — 尚无补丁。在章节里用 /patch 可创建关联到此元素的批注 —
+          — 尚无补丁。在章节里选中文本 → 右键「新建补丁」可锚定到此元素 —
         </div>
       ) : (
         <div>

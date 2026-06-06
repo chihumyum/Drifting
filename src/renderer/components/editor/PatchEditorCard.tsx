@@ -313,6 +313,29 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
   const hasSnapshot = !!patch.sourceBlockText && patch.sourceBlockText.trim().length > 0;
   const sourceMissing = !!patch.sourceBlockId && blockExists === false;
 
+  // The exact selected text captured (and frozen) when the patch was created,
+  // pulled from its text anchor. When the patch is later invalidated (that text
+  // was deleted from the chapter), clicking the 失效 badge reveals this snapshot
+  // so the user can still see what the patch was anchored to.
+  const anchorSnapshotText = useMemo(() => {
+    if (!patch.textAnchorJson) return '';
+    try {
+      const a = JSON.parse(patch.textAnchorJson) as { text?: unknown };
+      return typeof a.text === 'string' ? a.text.trim() : '';
+    } catch {
+      return '';
+    }
+  }, [patch.textAnchorJson]);
+
+  // The snapshot the expandable panel shows: the deleted anchored selection for
+  // an invalidated text-anchored patch, else the legacy block snapshot.
+  const invalidSnapshot = !!patch.invalidatedAt && anchorSnapshotText.length > 0;
+  const snapshotText = invalidSnapshot
+    ? anchorSnapshotText
+    : hasSnapshot
+      ? (patch.sourceBlockText ?? '')
+      : '';
+
   const anchorLabel = patch.sourceBlockId
     ? sourceMissing
       ? `${patch.sourceNodeTitle ?? '(已删除章节)'} · 原段已删除`
@@ -333,7 +356,10 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     }
     if (!patch.sourceNodeId) return;
     navigateToNode(patch.sourceNodeId);
-    if (patch.sourceBlockId) {
+    // Invalidated patches' anchored text was deleted, so the block is stale or
+    // gone — scrolling to it would land on the wrong place or nowhere. Just open
+    // the chapter editor; the original text lives in the 失效 snapshot instead.
+    if (patch.sourceBlockId && !patch.invalidatedAt) {
       scrollToBlockWhenReady(patch.sourceNodeId, patch.sourceBlockId);
     }
   }, [
@@ -341,6 +367,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     hasSnapshot,
     patch.sourceNodeId,
     patch.sourceBlockId,
+    patch.invalidatedAt,
     navigateToNode,
   ]);
 
@@ -348,14 +375,16 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
     ? hasSnapshot
       ? `${anchorLabel} · 点击查看原文快照`
       : anchorLabel
-    : `来自 ${anchorLabel} · 点击跳转`;
+    : patch.invalidatedAt
+      ? `来自 ${anchorLabel} · 原文已删除，点击跳转到章节`
+      : `来自 ${anchorLabel} · 点击跳转`;
 
   return (
     <div
       ref={cardRef}
       className={`patch-card${sourceMissing ? ' patch-card--source-missing' : ''}${
-        reviewMode ? (isDeleting ? ' patch-card--removing' : ' patch-card--proposed') : ''
-      }`}
+        patch.invalidatedAt ? ' patch-card--invalidated' : ''
+      }${reviewMode ? (isDeleting ? ' patch-card--removing' : ' patch-card--proposed') : ''}`}
     >
       {reviewMode && (
         <div className="patch-card__review">
@@ -408,6 +437,31 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           placeholder="补丁标题（可选）"
           className="patch-card__title"
         />
+        {/* Invalidated — the anchored source text was deleted from its chapter,
+            so this patch is excluded from consistency review until fixed. When a
+            text snapshot exists the badge expands it (点击查看原文快照). */}
+        {patch.invalidatedAt &&
+          (anchorSnapshotText ? (
+            <button
+              type="button"
+              className="patch-card__invalid-badge patch-card__invalid-badge--btn"
+              title="锚定的原文已从章节中删除 · 点击查看原文快照"
+              aria-expanded={snapshotOpen}
+              onClick={() => {
+                setCollapsed(false);
+                setSnapshotOpen((v) => !v);
+              }}
+            >
+              失效 {snapshotOpen ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span
+              className="patch-card__invalid-badge"
+              title="锚定的原文已从章节中删除，此补丁已失效，不再纳入一致性审阅"
+            >
+              失效
+            </span>
+          ))}
         {/* Source-chapter anchor — SECONDARY, sits after the title. Click
             semantics fork on whether the original block still exists (see
             handleAnchorClick); the ✎ re-anchors. */}
@@ -467,8 +521,15 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                       onClick={() => void handleChangeAnchor(n.id)}
                     >
                       <span className="patch-card__anchor-pop-mark">{current ? '✓' : ''}</span>
-                      <span className="patch-card__anchor-pop-title">
-                        {n.title || '(未命名章节)'}
+                      {/* Title + summary preview so the user can recognize the
+                          chapter without leaving to recall its contents. */}
+                      <span className="patch-card__anchor-pop-body">
+                        <span className="patch-card__anchor-pop-title">
+                          {n.title || '(未命名章节)'}
+                        </span>
+                        {n.summary?.trim() && (
+                          <span className="patch-card__anchor-pop-summary">{n.summary.trim()}</span>
+                        )}
                       </span>
                       {current && patch.sourceBlockId && (
                         <span className="patch-card__anchor-pop-tail">块级</span>
@@ -505,9 +566,12 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           ×
         </button>
       </div>
-      {!collapsed && sourceMissing && hasSnapshot && snapshotOpen && (
+      {!collapsed && snapshotOpen && snapshotText && (
         <div className="patch-card__snapshot">
-          <pre className="patch-card__snapshot-body">{patch.sourceBlockText}</pre>
+          {invalidSnapshot && (
+            <div className="patch-card__snapshot-kicker">原文快照 · 已从章节删除</div>
+          )}
+          <pre className="patch-card__snapshot-body">{snapshotText}</pre>
         </div>
       )}
       {!collapsed &&

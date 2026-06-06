@@ -4,7 +4,6 @@ import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import type { OutlineItem } from '../../lib/outline';
 import { type EntityLinkRef } from '../../lib/extensions/entity-link';
-import { isBlockType } from '../../lib/extensions/block-id';
 import {
   useEntityEditor,
   type EditorCommentRequest,
@@ -15,7 +14,12 @@ import { useFieldReview } from '../../hooks/useFieldReview';
 import { FieldReview } from './FieldReview';
 import loglevel from 'loglevel';
 import { countWords } from '@/renderer/lib/word-count';
-import { PatchTargetModal, type PatchAnchor } from './PatchTargetModal';
+import { recheckChapterPatchValidity } from '../../usecase/patch-validity';
+import { PatchCreateModal } from './PatchCreateModal';
+import {
+  patchRequestFromComment,
+  type PatchCreateRequest,
+} from './patch-create-request';
 import { CopilotEditorMount } from '../copilot/CopilotEditorMount';
 import { CopilotInlinePopover } from '../copilot/CopilotInlinePopover';
 const log = loglevel.getLogger('ChapterEditor');
@@ -112,28 +116,13 @@ export function ChapterEditor({
     setSummaryValue(summary);
   }
 
-  // /patch slash command pipeline: opens a modal asking which element this
-  // chapter (or specific block under the cursor) should patch.
-  const [patchAnchor, setPatchAnchor] = useState<PatchAnchor | null>(null);
-  const openPatchModal = useCallback(
-    (editor: Editor) => {
-      const { state } = editor;
-      const resolved = state.doc.resolve(state.selection.from);
-      let blockId: string | null = null;
-      for (let depth = resolved.depth; depth >= 0; depth--) {
-        const node = resolved.node(depth);
-        if (isBlockType(node.type.name)) {
-          const id = node.attrs?.id as string | null | undefined;
-          if (id) {
-            blockId = id;
-            break;
-          }
-        }
-      }
-      setPatchAnchor({ sourceNodeId: nodeId, sourceBlockId: blockId });
-    },
-    [nodeId],
-  );
+  // New-patch pipeline: triggered from the text-selection context menu
+  // ("新建补丁"). Carries the selection's chapter/block anchor + precise text
+  // anchor so the created patch can be invalidated when that text is deleted.
+  const [patchRequest, setPatchRequest] = useState<PatchCreateRequest | null>(null);
+  const handleAddPatchRequest = useCallback((request: EditorCommentRequest) => {
+    setPatchRequest(patchRequestFromComment(request));
+  }, []);
 
   // Yjs binding — all Yjs concerns (docId, seed, sync, snapshot) live in
   // useEntityYjsDoc. Editor views don't talk to useYjsSync directly.
@@ -154,8 +143,12 @@ export function ChapterEditor({
     (ed: Editor, { pmJson, outlineJson }: EditorPersistDerived) => {
       const wordCount = countWords(ed.getText());
       onContentUpdate(nodeId, pmJson, outlineJson, wordCount);
+      // Re-evaluate text-anchored patches sourced from this chapter against the
+      // freshly-serialized doc: if the author just deleted the text a patch was
+      // anchored to, the patch is invalidated (and dropped from Shadow/canon).
+      void recheckChapterPatchValidity(projectId, nodeId, pmJson);
     },
-    [nodeId, onContentUpdate],
+    [nodeId, projectId, onContentUpdate],
   );
 
   const { editor, outline } = useEntityEditor({
@@ -170,15 +163,9 @@ export function ChapterEditor({
     minHeight,
     selectionKey,
     onAddCommentRequest,
+    onAddPatchRequest: handleAddPatchRequest,
     enableInlineCopilot: true,
     editable: !readOnly,
-    slashExtraItems: [
-      {
-        id: 'patch',
-        title: '元素补丁',
-        run: ({ editor }) => openPatchModal(editor),
-      },
-    ],
   });
 
   // Forward the live outline up to NodeEditorView so it can render the TOC.
@@ -365,10 +352,10 @@ export function ChapterEditor({
         <EditorContent editor={editor} />
       </div>
 
-      <PatchTargetModal
+      <PatchCreateModal
         projectId={projectId}
-        anchor={patchAnchor}
-        onClose={() => setPatchAnchor(null)}
+        request={patchRequest}
+        onClose={() => setPatchRequest(null)}
       />
 
       {/* Headless mount — runs Copilot capabilities (element-candidate, element-patch) on debounced edits */}

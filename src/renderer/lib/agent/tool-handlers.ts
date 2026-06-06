@@ -461,10 +461,11 @@ async function readElement(ctx: AgentToolContext, elementId: string) {
   const bodyJson = await getElementContentJson(elementId);
   // Patch count so the agent can discover an element HAS patches (list_elements /
   // read_element didn't surface this) and call get_element_patches for detail.
-  // Excludes soft-deleted ones so it matches what get_element_patches returns.
+  // Excludes soft-deleted AND invalidated ones so it matches what
+  // get_element_patches returns (both hide deleted-evidence patches).
   const del = pendingDeletedPatchIds(elementId);
   const patchCount = (await createElementPatchRepository().listByElement(elementId)).filter(
-    (p) => !del.has(p.id),
+    (p) => !del.has(p.id) && !p.invalidatedAt,
   ).length;
   return {
     name: el.name,
@@ -872,10 +873,11 @@ async function searchProse(ctx: AgentToolContext, args: Record<string, unknown>)
 async function getElementPatches(_ctx: AgentToolContext, elementId: string) {
   if (!elementId) throw new Error('get_element_patches requires elementId');
   // Hide soft-deleted patches (delete_element_patch awaiting card confirmation) so
-  // the agent's view matches its belief that it deleted them.
+  // the agent's view matches its belief that it deleted them. Also hide invalidated
+  // patches (anchored source text deleted) — deleted evidence isn't part of canon.
   const del = pendingDeletedPatchIds(elementId);
   const patches = (await createElementPatchRepository().listByElement(elementId)).filter(
-    (p) => !del.has(p.id),
+    (p) => !del.has(p.id) && !p.invalidatedAt,
   );
   return {
     patches: patches.map((p) => ({
@@ -1557,6 +1559,8 @@ function patchSyncPayload(p: {
   sourceNodeId: string | null;
   sourceBlockId: string | null;
   sourceBlockText: string | null;
+  textAnchorJson: string | null;
+  invalidatedAt: string | null;
   title: string | null;
   contentJson: string;
   orderKey: number;
@@ -1567,6 +1571,8 @@ function patchSyncPayload(p: {
     sourceNodeId: p.sourceNodeId,
     sourceBlockId: p.sourceBlockId,
     sourceBlockText: p.sourceBlockText,
+    textAnchorJson: p.textAnchorJson,
+    invalidatedAt: p.invalidatedAt,
     title: p.title,
     contentJson: p.contentJson,
     orderKey: p.orderKey,
@@ -1855,7 +1861,11 @@ async function shadowEffectivePatchesText(
 
   const del = pendingDeletedPatchIds(elementId);
   const all = (await createElementPatchRepository().listByElement(elementId)).filter(
-    (p) => !del.has(p.id),
+    // Drop soft-deleted patches AND invalidated ones: a patch whose anchored
+    // source text was deleted from its chapter (invalidatedAt set) no longer has
+    // standing evidence, so it can't sanction a divergence — exclude it entirely
+    // (not even counted as a "future" patch) from this chapter's effective canon.
+    (p) => !del.has(p.id) && !p.invalidatedAt,
   );
   // Floating patches (no chapter anchor) are global authored evolutions → always in effect.
   const orderOfPatch = (p: PatchWithSourceTitle): number =>

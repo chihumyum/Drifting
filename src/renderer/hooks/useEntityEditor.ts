@@ -130,6 +130,7 @@ function openCommentContextMenu(
   request: EditorCommentRequest,
   onAddCommentRequest: (request: EditorCommentRequest) => void,
   onCopilot?: () => void,
+  onAddPatch?: () => void,
 ): void {
   removeCommentContextMenu();
   const menu = document.createElement('div');
@@ -150,6 +151,9 @@ function openCommentContextMenu(
   };
 
   addButton('添加批注', () => onAddCommentRequest(request));
+  // Anchor a new element patch to the selection (chapter editors). Opens a
+  // modal to pick the element + author title/body.
+  if (onAddPatch) addButton('新建补丁', onAddPatch);
   // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
   if (onCopilot) addButton('Copilot 修改', onCopilot);
 
@@ -400,6 +404,12 @@ export interface UseEntityEditorConfig {
   // selected block and selected text; persistence/UI lives above it.
   onAddCommentRequest?: (request: EditorCommentRequest) => void;
 
+  // Optional "新建补丁" entry on the same selection context menu (chapter
+  // editors only). Receives the SAME EditorCommentRequest the comment entry
+  // would — the caller derives the patch anchor (chapter/block + text anchor)
+  // from it. The hook only adds the menu item; the modal/UI lives above it.
+  onAddPatchRequest?: (request: EditorCommentRequest) => void;
+
   // Enable the Cmd+Shift+I inline-Copilot popover for this editor. Only chapter
   // editors set this (Copilot is chapter-scoped); the popover itself is
   // mounted by the caller (ChapterEditor) and keys off the same nodeId.
@@ -450,6 +460,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
     minHeight,
     selectionKey,
     onAddCommentRequest,
+    onAddPatchRequest,
     enableInlineCopilot = false,
     editable = true,
   } = config;
@@ -460,6 +471,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onEntityClickRef = useLatestRef(onEntityClick);
   const selectionKeyRef = useLatestRef(selectionKey ?? null);
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
+  const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
 
   const userId = useAuthStore((state) => state.user?.id);
@@ -972,7 +984,13 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
                     if (ctx) useCopilotInlineStore.getState().open(ctx);
                   }
                 : undefined;
-            openCommentContextMenu(request, handler, onCopilot);
+            // "新建补丁" — only on chapter editors (a patch's source is a chapter).
+            const patchHandler = onAddPatchRequestRef.current;
+            const onAddPatch =
+              patchHandler && source.sourceKind === 'node'
+                ? () => patchHandler(request)
+                : undefined;
+            openCommentContextMenu(request, handler, onCopilot, onAddPatch);
             return true;
           },
         },

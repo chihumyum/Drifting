@@ -377,6 +377,20 @@ export const ElementPatchTable = sqliteTable(
     // chapter sidebar (no Copilot pipeline) don't carry one either.
     sourceBlockText: text('source_block_text'),
 
+    // Precise text-fragment anchor (JSON of CommentTextAnchor: startBlockId,
+    // startOffset, endBlockId, endOffset, text) when the patch was created by
+    // selecting a span of prose in the chapter. NULL for floating / block-only
+    // / chapter-only patches. Drives invalidation: if the anchored `text` can
+    // no longer be found in the source chapter, the patch is invalidated.
+    textAnchorJson: text('text_anchor_json'),
+    // Set (ISO timestamp) when the anchored source text was deleted/rewritten
+    // out of the source chapter, NULL while the anchor still resolves. Stored
+    // as TEXT (not a real timestamp) so it round-trips through the JSON sync
+    // payload unchanged. Invalidated patches are EXCLUDED from Shadow / agent
+    // canon context (deleted evidence ⇒ no longer a sanctioned evolution) but
+    // still shown — badged — in the element editor so the user can act on them.
+    invalidatedAt: text('invalidated_at'),
+
     title: text('title'),
     contentJson: text('content_json').notNull().default('{}'),
 
