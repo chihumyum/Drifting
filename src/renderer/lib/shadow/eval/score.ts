@@ -35,12 +35,26 @@ export interface EvalRow {
   flipped: boolean; // verdict was not unanimous across repeats
 }
 
+// One finding the judge produced — kept so a fired clean-baseline assertion (an FP
+// candidate) can be triaged by its reason/location instead of just "violated".
+export interface EvalFinding {
+  mutation: string;
+  chapterId: string;
+  ruleId: string;
+  blockIds: string[];
+  confidence: number;
+  reason?: string;
+  message: string;
+}
+
 export interface EvalResult {
   tally: Record<Outcome, number>;
   rows: EvalRow[];
   repeat: number;
   // Per-case (mutation id) token totals — summed across its chapter reviews/repeats.
   tokensByCase: Record<string, { inputTokens: number; outputTokens: number }>;
+  // Every finding the judge raised (with reason/blockIds) — FP/FN triage material.
+  findings: EvalFinding[];
 }
 
 export interface RunOpts {
@@ -159,6 +173,7 @@ export async function runEval(
   }
 
   const tokensByCase: Record<string, { inputTokens: number; outputTokens: number }> = {};
+  const allFindings: EvalFinding[] = [];
 
   let done = 0;
   await mapPool(tasks, concurrency, async (t) => {
@@ -191,7 +206,21 @@ export async function runEval(
       console.warn(`[eval] ⚠ ${t.mutationId} · ${t.chapterId} 失败/超时：${(e as Error).message}`);
     }
     const set = fired.get(`${t.mutationId}|${t.iter}`)!;
-    for (const f of findings) set.add(`${t.chapterId}|${f.ruleId}`);
+    for (const f of findings) {
+      set.add(`${t.chapterId}|${f.ruleId}`);
+      // Record only once (first repeat) to avoid N copies; enough to triage.
+      if (t.iter === 0) {
+        allFindings.push({
+          mutation: t.mutationId,
+          chapterId: t.chapterId,
+          ruleId: f.ruleId,
+          blockIds: f.blockIds ?? (f.blockId ? [f.blockId] : []),
+          confidence: f.confidence,
+          reason: f.reason,
+          message: f.message,
+        });
+      }
+    }
     // Synchronous read-modify-write (no await between) → safe under concurrency.
     const acc = tokensByCase[t.mutationId] ?? { inputTokens: 0, outputTokens: 0 };
     acc.inputTokens += inTok;
@@ -230,7 +259,7 @@ export async function runEval(
       });
     }
   }
-  return { tally, rows, repeat, tokensByCase };
+  return { tally, rows, repeat, tokensByCase, findings: allFindings };
 }
 
 const glyph = (o: Outcome) =>
@@ -241,22 +270,48 @@ export function formatReport(r: EvalResult): string {
   const prec = TP + FP ? TP / (TP + FP) : 1;
   const rec = TP + FN ? TP / (TP + FN) : 1;
   const acc = (TP + TN) / (TP + FP + FN + TN || 1);
+  const positives = TP + FP + FN; // 0 ⇒ a pure clean-baseline run → precision/recall meaningless
   const rowLines = r.rows.map(
     (row) =>
       `  ${glyph(row.outcome).padEnd(6)} ${row.mutation.padEnd(14)} ${row.chapterId}/${row.ruleId}` +
       ` 期望=${row.expected ? '违反' : '通过'} 实判=${row.predicted ? '违反' : '通过'}` +
       (row.flipped ? '  ⚡不稳定' : ''),
   );
+
+  // FP/FN triage: show what the judge actually said for the rows that went wrong.
+  const reasonsFor = (mutation: string, chapterId: string, ruleId: string): string[] =>
+    r.findings
+      .filter((f) => f.mutation === mutation && f.chapterId === chapterId && f.ruleId === ruleId)
+      .map((f) => `${f.reason || f.message}${f.blockIds.length ? ` @${f.blockIds.join(',')}` : ''}`);
+  const wrong = r.rows.filter((row) => row.outcome === 'FP' || row.outcome === 'FN');
+  const triage = wrong.length
+    ? '\n  ─── 待分诊（FP/FN）───\n' +
+      wrong
+        .map((row) => {
+          const tag = row.outcome === 'FP' ? '✗误报' : '✗漏报';
+          const why =
+            row.outcome === 'FP'
+              ? reasonsFor(row.mutation, row.chapterId, row.ruleId).map((s) => `\n        → ${s}`).join('') ||
+                '\n        →（无 reason 记录）'
+              : '\n        →（判官未触发该约束）';
+          return `  ${tag} ${row.mutation} ${row.chapterId}/${row.ruleId}${why}`;
+        })
+        .join('\n')
+    : '';
+
+  const qualityLine = positives
+    ? `  precision=${(prec * 100).toFixed(0)}%  recall=${(rec * 100).toFixed(0)}%  accuracy=${(acc * 100).toFixed(0)}%\n`
+    : `  （纯清白基线：无注入故障 → precision/recall 无意义；只看误报）\n`;
+
   return (
     '\n──────── Shadow Eval ────────\n' +
     `assertions=${r.rows.length} repeat=${r.repeat}\n` +
     rowLines.join('\n') +
     '\n  ─────\n' +
     `  TP=${TP} FP=${FP} FN=${FN} TN=${TN}\n` +
-    `  precision=${(prec * 100).toFixed(0)}%  recall=${(rec * 100).toFixed(0)}%  accuracy=${(
-      acc * 100
-    ).toFixed(0)}%\n` +
+    qualityLine +
     `  误报(FP)=${FP}  漏报(FN)=${FN}\n` +
-    '─────────────────────────────\n'
+    triage +
+    '\n─────────────────────────────\n'
   );
 }

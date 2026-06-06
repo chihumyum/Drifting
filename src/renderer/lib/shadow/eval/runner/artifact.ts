@@ -59,6 +59,14 @@ export function writeArtifact(dir: string, report: RunReport): string {
     join(dir, 'rows.jsonl'),
     report.result.rows.map((r) => JSON.stringify(r)).join('\n') + '\n',
   );
+  // Finding detail (reason + blockIds) for FP/FN triage — kept out of rows.jsonl
+  // so the matrix stays compact.
+  if (report.result.findings.length) {
+    writeFileSync(
+      join(dir, 'findings.jsonl'),
+      report.result.findings.map((f) => JSON.stringify(f)).join('\n') + '\n',
+    );
+  }
   return dir;
 }
 
