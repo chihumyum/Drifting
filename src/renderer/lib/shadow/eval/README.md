@@ -34,12 +34,31 @@ corpus/
 ```bash
 pnpm eval:corpus                                   # ci suite (mechanical, NO key) — exact gate
 VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus   # + acceptance (real judge) + fog-harbor load
-EVAL_ARTIFACT=1 VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus   # also write run artifacts
+EVAL_ARTIFACT=1 VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus   # also write run artifacts + history.jsonl
+VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:gen      # AI generate faults → certify → (EVAL_WRITE_GENERATED=1 to append)
 ```
 
 Suites: `ci` (mock, gated) · `acceptance` (sample.semantic, deepseek) · `fog-harbor`
 (targeted injections) · `fog-harbor-full` (+ the heavy clean-prose FP sweep).
 `EVAL_CONCURRENCY` / `EVAL_CALL_TIMEOUT_MS` still apply (see below).
+
+**Rigor + observability.** `suites/*.json` carry a `gate` (`maxFP`/`maxFN` hard,
+`minPrecision`/`minRecall` advisory) enforced by the runner → `RunReport.gateViolations`.
+Each artifacted run appends run-level scalars to a committed `history.jsonl` (trend;
+`formatTrend` shows latest-vs-previous delta). A `MeteringInterceptor` captures
+tokens / USD cost (`pricing.ts`) / latency p50·p95 / failure rate; `onUsage` attributes
+tokens **per case**. Golden `contentHash` is over the RESOLVED project (incl. vault prose).
+
+**Scaling the corpus (AI, not by hand).** `generate.ts` has an LLM propose fault
+cases *as data* (validated against the operator registry + drift guard + a no-throw
+`apply`); `certify.ts` has an INDEPENDENT model confirm each is unambiguous
+(`clear-violation`/`ambiguous`/`not-a-violation`) before it's `enabled` — breaking the
+write-and-judge circularity. See `pnpm eval:gen`.
+
+**From a real project (no hand-written JSON).** `export/` turns a live project slice
+into a `*.golden.json` (`exportProjectGolden`, DI-tested headless). In-app, call
+`downloadProjectGolden(id, project.id, project.kvJson, selection)` to download one —
+see `export/INTEGRATION.md`.
 
 > The `golden.*.ts` + `mutations.ts` + `shadow-eval.eval.ts` files below are the
 > **legacy hand-coded path** (operators are reused by the data runner; the TS goldens
