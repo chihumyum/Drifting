@@ -3,6 +3,7 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { ShadowJobTable } from '../schema/drizzle';
 import type {
+  ConsultedSnapshotRef,
   ShadowConsultedRef,
   ShadowJob,
   ShadowJobStatus,
@@ -24,6 +25,7 @@ export type UpdateShadowJobInput = Partial<{
   trace: ShadowTraceStep[];
   consulted: ShadowConsultedRef[];
   consultedCaptured: boolean;
+  consultedSnapshot: ConsultedSnapshotRef[];
   chapterTitle: string;
   startedAt: string;
   finishedAt: string | null;
@@ -60,6 +62,15 @@ function parseConsulted(json: string): ShadowConsultedRef[] {
   }
 }
 
+function parseSnapshot(json: string): ConsultedSnapshotRef[] {
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? (v as ConsultedSnapshotRef[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function toDomain(row: typeof ShadowJobTable.$inferSelect): ShadowJob {
   return {
     id: row.id,
@@ -73,6 +84,7 @@ function toDomain(row: typeof ShadowJobTable.$inferSelect): ShadowJob {
     trace: parseTrace(row.traceJson),
     consulted: parseConsulted(row.consultedJson),
     consultedCaptured: !!row.consultedCaptured,
+    consultedSnapshot: parseSnapshot(row.consultedSnapshotJson),
     archived: !!row.archived,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
@@ -97,6 +109,7 @@ export function createShadowJobRepository(): ShadowJobRepository {
       traceJson: '[]',
       consultedJson: '[]',
       consultedCaptured: false,
+      consultedSnapshotJson: '[]',
       archived: false,
       startedAt: input.startedAt ?? now,
       finishedAt: null as string | null,
@@ -117,6 +130,8 @@ export function createShadowJobRepository(): ShadowJobRepository {
     if (updates.trace !== undefined) set.traceJson = JSON.stringify(updates.trace);
     if (updates.consulted !== undefined) set.consultedJson = JSON.stringify(updates.consulted);
     if (updates.consultedCaptured !== undefined) set.consultedCaptured = updates.consultedCaptured;
+    if (updates.consultedSnapshot !== undefined)
+      set.consultedSnapshotJson = JSON.stringify(updates.consultedSnapshot);
     if (updates.chapterTitle !== undefined) set.chapterTitle = updates.chapterTitle;
     if (updates.startedAt !== undefined) set.startedAt = updates.startedAt;
     if (updates.finishedAt !== undefined) set.finishedAt = updates.finishedAt;

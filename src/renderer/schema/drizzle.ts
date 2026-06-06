@@ -96,6 +96,10 @@ export const ShadowJobTable = sqliteTable(
     // mentions); true = measured, and an empty set means "no entity deps" (don't
     // fall back). Set true by setShadowConsulted at the end of a real review.
     consultedCaptured: integer('consulted_captured', { mode: 'boolean' }).notNull().default(false),
+    // Value-state of the consulted canon AT THIS REVIEW — {kind,id,label,summary?,facts?}[].
+    // The baseline a later re-review diffs CURRENT canon against to produce the old→new
+    // dep-hint fed to the judge. consultedJson holds identity; this holds the values.
+    consultedSnapshotJson: text('consulted_snapshot_json').notNull().default('[]'),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     startedAt: text('started_at').notNull(),
     finishedAt: text('finished_at'),

@@ -19,6 +19,7 @@ import { createShadowJobRepository } from '../../sqlite-repo/shadow-job-repo';
 import { events } from '../events';
 import { useDataStore } from '../../store/data-store';
 import type {
+  ConsultedSnapshotRef,
   ShadowConsultedRef,
   ShadowJob,
   ShadowJobStatus,
@@ -235,15 +236,19 @@ export async function setShadowConsulted(
   chapterId: string,
   projectId: string,
   consulted: ShadowConsultedRef[],
+  snapshot: ConsultedSnapshotRef[] = [],
 ): Promise<void> {
   if (cancelled.has(chapterId)) return;
   try {
     const job = activeByChapter.get(chapterId) ?? (await ensureActive(chapterId, projectId));
     job.consulted = consulted;
     job.consultedCaptured = true; // measured — even an empty set now means "no entity deps"
+    job.consultedSnapshot = snapshot; // value baseline for the next re-review's diff
     job.updatedAt = new Date().toISOString();
     pushStore(job);
-    await repo.update(job.id, { consulted, consultedCaptured: true }).catch(() => {});
+    await repo
+      .update(job.id, { consulted, consultedCaptured: true, consultedSnapshot: snapshot })
+      .catch(() => {});
   } catch {
     /* telemetry must never break a review */
   }

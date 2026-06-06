@@ -47,6 +47,18 @@ export interface ShadowConsultedRef {
   label: string;
 }
 
+// The VALUE-state of a consulted entity captured at review time — the baseline a
+// later re-review diffs current canon against to produce the old→new dep-hint. Where
+// ShadowConsultedRef is identity-only (which entity), this carries what it SAID:
+// `summary` + `facts` (parsed KV). Elements/storylines carry facts; nodes carry summary.
+export interface ConsultedSnapshotRef {
+  kind: ShadowConsultedKind;
+  id: string;
+  label: string; // name at snapshot time
+  summary?: string;
+  facts?: Record<string, string>;
+}
+
 export interface ShadowJob {
   id: string;
   projectId: string;
@@ -62,6 +74,9 @@ export interface ShadowJob {
   // predates capture). Drives the staleness fallback: captured ⇒ trust the set
   // (empty = no entity deps); not captured ⇒ fall back to prose mentions.
   consultedCaptured: boolean;
+  // Value snapshot of the consulted canon at this review (see ConsultedSnapshotRef) —
+  // the diff baseline. Empty for legacy rows / reviews that captured no entity deps.
+  consultedSnapshot: ConsultedSnapshotRef[];
   archived: boolean;
   startedAt: string;
   finishedAt: string | null;

@@ -94,7 +94,17 @@ export interface SemanticEvalContext {
   // old→new VALUE diff (from/to) — never that a fault EXISTS in the prose (no answer
   // leak). from/to is exactly what the staleness/diff layer holds in prod. Populated by
   // that layer (and, in eval, by the changeDependency operator).
-  changedDeps?: { name: string; fact?: string; from?: string; to?: string }[];
+  changedDeps?: ChangedDepHint[];
+}
+
+// One changed-canon pointer forwarded to the judge. `fact` = which field moved;
+// `from`/`to` = the old→new value diff (omitted ⇒ pointer-level hint). See
+// buildChangedDepsHint for how it renders; computed in prod by lib/shadow/dep-snapshot.
+export interface ChangedDepHint {
+  name: string;
+  fact?: string;
+  from?: string;
+  to?: string;
 }
 
 function buildBackground(context?: SemanticEvalContext): string {

@@ -25,6 +25,7 @@ import { buildDefaultLLMClient } from '../ai/client/build-default-client';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { yieldToMain } from '../async/yield-to-main';
 import { setShadowConsulted, traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
+import { computeChangedDeps, snapshotConsulted } from '../shadow/dep-snapshot';
 import type { ShadowConsultedKind, ShadowConsultedRef } from '../../domain/shadow-job';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
@@ -2147,11 +2148,20 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   const facts =
     args.facts && typeof args.facts === 'object' ? (args.facts as Record<string, string>) : {};
   const summary = String(args.summary ?? '');
+  // Dep-graph diff: what canon changed since this chapter's last review (old→new).
+  // Empty on a first review / no prior snapshot → judge runs cold, as before.
+  const changedDeps = computeChangedDeps(ctx.projectId, chapterId);
   const context: SemanticEvalContext = {
     facts,
     summary,
     ...(await buildWarmStart(ctx, node, blocks)),
+    ...(changedDeps.length ? { changedDeps } : {}),
   };
+  if (changedDeps.length) {
+    void traceShadow(chapterId, ctx.projectId, 'gather', `依赖变更提示 ${changedDeps.length} 项`, {
+      items: changedDeps.map((d) => (d.fact ? `${d.name}（${d.fact}）` : d.name)),
+    });
+  }
 
   const onTrace = (step: AgenticTraceStep) =>
     void traceShadow(chapterId, ctx.projectId, 'check', step.label, {
@@ -2284,9 +2294,11 @@ async function shadowSetStatus(ctx: AgentToolContext, args: Record<string, unkno
   if (!chapterId || !status) throw new Error('shadow_set_status: requires chapterId + finished|draft');
   void traceShadow(chapterId, ctx.projectId, 'decide', status === 'finished' ? '结论：已完成' : '结论：退回草稿');
   await ctx.write.updateNode(chapterId, { writingStatus: status });
-  // Persist the entities this review consulted (precise dep edges) before freeing
-  // the per-review caches. Capture-only for now — staleness still uses mentions.
-  void setShadowConsulted(chapterId, ctx.projectId, takeShadowConsulted(chapterId));
+  // Persist the entities this review consulted (precise dep edges) AND a value snapshot
+  // of them — the baseline a later re-review diffs current canon against to build the
+  // changed-dep hint. Done before freeing the per-review caches.
+  const consulted = takeShadowConsulted(chapterId);
+  void setShadowConsulted(chapterId, ctx.projectId, consulted, snapshotConsulted(consulted));
   shadowToolCache.delete(chapterId); // review done — free its evidence cache
   endProseReadCache(); // free the per-review prose-hydration cache
   return { ok: true, chapterId, status };
