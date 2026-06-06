@@ -4,12 +4,12 @@
  * TTY) lists the suites under corpus/suites/ and lets you pick one, then spawns
  * vitest with EVAL_SUITE set so only that suite runs.
  *
- *   pnpm eval:corpus              # interactive menu
+ *   pnpm eval:corpus              # interactive menu (pick suite, then repeat count)
  *   pnpm eval:corpus sample-screenplay       # run a named suite directly (no prompt)
  *   pnpm eval:corpus default      # the default battery (ci + fog-harbor-load + acceptance)
  *   pnpm eval:corpus list         # just print the suites
  *   EVAL_SUITE=sample-screenplay pnpm eval:corpus   # env wins, no prompt
- *   EVAL_REPEAT=3 pnpm eval:corpus       # extra env flows through to the run
+ *   EVAL_REPEAT=3 pnpm eval:corpus       # preset repeat (env wins → skips repeat prompt)
  *
  * Non-TTY (CI / piped) falls back to the default battery — never hangs on input.
  */
@@ -49,10 +49,11 @@ function printMenu(suites) {
   });
 }
 
-function run(evalSuite) {
+function run(evalSuite, repeat) {
   const env = { ...process.env };
   if (evalSuite) env.EVAL_SUITE = evalSuite;
   else delete env.EVAL_SUITE;
+  if (repeat) env.EVAL_REPEAT = String(repeat);
   const bin = join(ROOT, 'node_modules', '.bin', 'vitest');
   const child = spawn(bin, ['run', EVAL_FILE], { stdio: 'inherit', env, cwd: ROOT });
   child.on('exit', (code) => process.exit(code ?? 0));
@@ -77,15 +78,28 @@ if (arg === 'list') {
 } else {
   printMenu(suites);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  rl.question('\n选择编号或名字（回车=默认全套）: ', (ans) => {
-    rl.close();
-    const t = ans.trim();
-    if (!t || t === '0') return run('');
+  const ask = (q) => new Promise((res) => rl.question(q, res));
+  (async () => {
+    const t = (await ask('\n选择编号或名字（回车=默认全套）: ')).trim();
+    if (!t || t === '0') {
+      rl.close();
+      return run('');
+    }
     const pick = suites[Number(t) - 1] ?? suites.find((s) => s.id === t);
     if (!pick) {
+      rl.close();
       console.error(`未知选择: ${t}`);
       process.exit(1);
     }
-    run(pick.id);
-  });
+    // EVAL_REPEAT preset in env → skip the prompt and honor it.
+    if (process.env.EVAL_REPEAT) {
+      rl.close();
+      return run(pick.id);
+    }
+    const def = pick.repeat ?? 1;
+    const r = (await ask(`重复次数 repeat（回车=suite 默认 ${def}）: `)).trim();
+    rl.close();
+    const repeat = r ? Math.max(1, Number(r) || def) : undefined;
+    run(pick.id, repeat);
+  })();
 }

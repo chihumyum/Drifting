@@ -46,10 +46,21 @@ export function mockCleanClient(): LLMClient {
   return { supportsTools: true, complete } as unknown as LLMClient;
 }
 
+// Window the chapter under review: instead of one FC pass over the whole chapter,
+// judge `size`-block windows (with `overlap` carry-over) and UNION the violations.
+// Raises the signal-to-noise of a diluted fault in a long chapter; the deterministic
+// checks stay chapter-level (this only wraps the semantic judge). size<=0 = off.
+export interface ChunkConfig {
+  size: number;
+  overlap: number;
+}
+
 export interface ReviewOpts {
   // Abort the in-flight judge call(s) — lets the scorer impose a per-chapter
   // timeout instead of waiting out the SDK's 10-min default.
   signal?: AbortSignal;
+  // Split the semantic review into windows (see ChunkConfig). Off = whole chapter.
+  chunk?: ChunkConfig;
   // Review ONLY these rule ids (default: all of the project's rules). A mutation
   // only scores the rules in its `expect`, so reviewing just those skips the other
   // rules' independent FC loops — roughly halving an injection's judge calls.
@@ -71,13 +82,15 @@ export async function reviewChapter(
   const ctx = toReviewContext(project, chapter);
   const runTool = makeModelRunTool(project);
   const semCtx = semanticContextFor(project, chapter);
-  const evaluateSemanticBatch = (
+  // One FC pass over a given block slice. Numbering + verdict→blockId resolution are
+  // internal to this call, so a windowed slice yields correct GLOBAL block ids.
+  const oneCall = (
     assertions: string[],
-    c: ReviewContext,
+    blocks: { id: string | null; text: string }[],
   ): Promise<SemanticViolation[][]> =>
     evaluateSemanticAssertionsFC(
       assertions,
-      c.blocks,
+      blocks,
       project.projectId,
       semCtx,
       client,
@@ -87,8 +100,57 @@ export async function reviewChapter(
       opts.onTrace,
       opts.onUsage,
     );
+  const chunk = opts.chunk;
+  const evaluateSemanticBatch = (
+    assertions: string[],
+    c: ReviewContext,
+  ): Promise<SemanticViolation[][]> =>
+    !chunk || chunk.size <= 0 || c.blocks.length <= chunk.size
+      ? oneCall(assertions, c.blocks)
+      : reviewInWindows(assertions, c.blocks, chunk, oneCall);
   const rules = opts.ruleIds
     ? project.rules.filter((r) => opts.ruleIds!.includes(r.id))
     : project.rules;
   return evaluateRules(rules, ctx, evaluateSemanticBatch);
+}
+
+/** How many windows `len` blocks split into under `chunk` (1 = no split). */
+export function windowCount(len: number, chunk?: ChunkConfig): number {
+  if (!chunk || chunk.size <= 0 || len <= chunk.size) return 1;
+  const step = Math.max(1, chunk.size - Math.max(0, chunk.overlap));
+  return Math.ceil((len - chunk.size) / step) + 1;
+}
+
+/**
+ * Judge the chapter in overlapping windows and UNION the per-assertion violations.
+ * Windows run SEQUENTIALLY (the outer task pool already parallelizes across chapters
+ * — fanning out windows too would blow the rate limit). The global canon brief
+ * (semCtx, baked into `oneCall`) rides into every window, so cross-window context
+ * isn't fully lost. Overlap can surface the same span twice → dedup by (ids, reason).
+ */
+async function reviewInWindows(
+  assertions: string[],
+  blocks: { id: string | null; text: string }[],
+  chunk: ChunkConfig,
+  oneCall: (
+    a: string[],
+    b: { id: string | null; text: string }[],
+  ) => Promise<SemanticViolation[][]>,
+): Promise<SemanticViolation[][]> {
+  const step = Math.max(1, chunk.size - Math.max(0, chunk.overlap));
+  const merged: SemanticViolation[][] = assertions.map(() => []);
+  const seen = assertions.map(() => new Set<string>());
+  for (let i = 0; i < blocks.length; i += step) {
+    const part = await oneCall(assertions, blocks.slice(i, i + chunk.size));
+    for (let a = 0; a < assertions.length; a++) {
+      for (const v of part[a] ?? []) {
+        const key = `${v.blockIds.join(',')}|${v.reason}`;
+        if (seen[a]!.has(key)) continue;
+        seen[a]!.add(key);
+        merged[a]!.push(v);
+      }
+    }
+    if (i + chunk.size >= blocks.length) break;
+  }
+  return merged;
 }

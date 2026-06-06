@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { LLMClient } from '../../../ai/client/llm-client';
 import { runEval, type EvalResult } from '../score';
-import { mockCleanClient, realJudgeClient } from '../review';
+import { mockCleanClient, realJudgeClient, type ChunkConfig } from '../review';
 import { goldenToProject, loadGoldenFile } from './load-golden';
 import { loadDataset, loadSuite } from './load-corpus';
 import { caseToMutation } from './operators';
@@ -28,6 +28,9 @@ export const HISTORY_PATH = join(CORPUS, 'history.jsonl');
 export interface RunOptions {
   // Write run.json + rows.jsonl under corpus/runs/. Defaults to EVAL_ARTIFACT=1.
   artifact?: boolean;
+  // Window the semantic judge for this run (overrides EVAL_CHUNK_SIZE). Lets a
+  // caller A/B whole-chapter vs windowed in one process without touching env.
+  chunk?: ChunkConfig;
 }
 
 function emptyResult(repeat: number): EvalResult {
@@ -38,6 +41,10 @@ function emptyResult(repeat: number): EvalResult {
 export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Promise<RunReport> {
   const suite = loadSuite(suitePath);
   const startedAt = new Date().toISOString();
+
+  // EVAL_REPEAT overrides the suite's declared repeat (the launcher prompts for it);
+  // suite.repeat is the default when unset.
+  const repeat = Math.max(1, Number(process.env.EVAL_REPEAT) || suite.repeat);
 
   const cases: EvalCase[] = suite.datasets
     .flatMap((d) => loadDataset(join(DATASETS_DIR, d)))
@@ -59,7 +66,7 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
     else byGolden.set(c.golden, [c]);
   }
 
-  const merged = emptyResult(suite.repeat);
+  const merged = emptyResult(repeat);
   const goldens: { id: string; contentHash?: string }[] = [];
   for (const [goldenId, gCases] of byGolden) {
     const gf = loadGoldenFile(join(GOLDENS_DIR, `${goldenId}.golden.json`));
@@ -67,9 +74,10 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
     // Hash the RESOLVED project (incl. vault-read prose) so a bodySource edit shows.
     goldens.push({ id: goldenId, contentHash: contentHash(golden) });
     const mutations = gCases.map(caseToMutation);
-    const res = await runEval(golden, mutations, client, suite.repeat, {
+    const res = await runEval(golden, mutations, client, repeat, {
       concurrency: suite.concurrency,
       timeoutMs: suite.timeoutMs,
+      chunk: opts.chunk,
     });
     merged.tally.TP += res.tally.TP;
     merged.tally.FP += res.tally.FP;

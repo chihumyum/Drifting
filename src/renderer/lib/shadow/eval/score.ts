@@ -20,7 +20,7 @@ import type { LLMClient } from '../../ai/client/llm-client';
 import type { AgenticTraceStep } from '../../ai/shadow-rules';
 import type { AIUsage } from '../../ai/types';
 import { cloneProject, type EvalChapter, type EvalProject } from './model';
-import { reviewChapter } from './review';
+import { reviewChapter, windowCount, type ChunkConfig } from './review';
 import { scopeOf, type Mutation } from './mutations';
 
 export type Outcome = 'TP' | 'FP' | 'FN' | 'TN';
@@ -60,6 +60,8 @@ export interface EvalResult {
 export interface RunOpts {
   concurrency?: number; // simultaneous chapter reviews (default EVAL_CONCURRENCY ?? 6)
   timeoutMs?: number; // per-chapter abort budget (default EVAL_CALL_TIMEOUT_MS ?? 480000; 0 = off)
+  // Window the semantic judge (default: off, or EVAL_CHUNK_SIZE/EVAL_CHUNK_OVERLAP).
+  chunk?: ChunkConfig;
 }
 
 function outcome(expected: boolean, predicted: boolean): Outcome {
@@ -93,10 +95,12 @@ async function reviewWithTimeout(
   client: LLMClient,
   ruleIds: string[],
   timeoutMs: number,
+  chunk?: ChunkConfig,
   onTrace?: (step: AgenticTraceStep) => void,
   onUsage?: (usage: AIUsage) => void,
 ): Promise<Finding[]> {
-  if (!timeoutMs) return reviewChapter(project, chapter, client, { ruleIds, onTrace, onUsage });
+  if (!timeoutMs)
+    return reviewChapter(project, chapter, client, { ruleIds, chunk, onTrace, onUsage });
   const ac = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -107,7 +111,13 @@ async function reviewWithTimeout(
   });
   try {
     return await Promise.race([
-      reviewChapter(project, chapter, client, { ruleIds, signal: ac.signal, onTrace, onUsage }),
+      reviewChapter(project, chapter, client, {
+        ruleIds,
+        chunk,
+        signal: ac.signal,
+        onTrace,
+        onUsage,
+      }),
       timeout,
     ]);
   } finally {
@@ -139,6 +149,12 @@ export async function runEval(
     0,
     opts.timeoutMs ?? (Number(process.env.EVAL_CALL_TIMEOUT_MS ?? '480000') || 0),
   );
+  const envChunkSize = Number(process.env.EVAL_CHUNK_SIZE) || 0;
+  const chunk =
+    opts.chunk ??
+    (envChunkSize > 0
+      ? { size: envChunkSize, overlap: Math.max(0, Number(process.env.EVAL_CHUNK_OVERLAP) || 0) }
+      : undefined);
 
   // Flatten to independent per-chapter review tasks. Each (mutation,iteration) gets
   // ONE clone (read-only across its chapter tasks); we only review the rules the
@@ -161,7 +177,8 @@ export async function runEval(
 
   console.log(
     `[eval] ${mutations.length} 变异 × repeat${repeat} → ${tasks.length} 次章节审阅 · 并发=${concurrency}` +
-      (timeoutMs ? ` · 单章上限=${Math.round(timeoutMs / 1000)}s` : ''),
+      (timeoutMs ? ` · 单章上限=${Math.round(timeoutMs / 1000)}s` : '') +
+      (chunk ? ` · 切窗=${chunk.size}/重叠${chunk.overlap}` : ' · 整章'),
   );
 
   // `${mutationId}|${iter}` → set of `${chapterId}|${ruleId}` that fired. Pre-seed
@@ -178,8 +195,9 @@ export async function runEval(
   let done = 0;
   await mapPool(tasks, concurrency, async (t) => {
     const started = Date.now();
+    const nWin = windowCount(t.chapter.blocks.length, chunk);
     console.log(
-      `[eval] ▶ ${t.mutationId} · ${t.chapterId}(${t.chapter.blocks.length}段) [${t.ruleIds.join(',')}] …`,
+      `[eval] ▶ ${t.mutationId} · ${t.chapterId}(${t.chapter.blocks.length}段${nWin > 1 ? `→${nWin}窗` : ''}) [${t.ruleIds.join(',')}] …`,
     );
     const consulted: string[] = [];
     const onTrace = (step: AgenticTraceStep): void => {
@@ -199,6 +217,7 @@ export async function runEval(
         client,
         t.ruleIds,
         timeoutMs,
+        chunk,
         onTrace,
         onUsage,
       );
