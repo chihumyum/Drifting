@@ -2,7 +2,13 @@ import { v7 as uuidv7 } from 'uuid';
 import { asc, eq } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { ProjectRuleTable } from '../schema/drizzle';
-import type { ChecklistItem, ProjectRule, RuleScope, RuleSource } from '../domain/project-rule';
+import type {
+  ChecklistItem,
+  ProjectRule,
+  RuleKind,
+  RuleScope,
+  RuleSource,
+} from '../domain/project-rule';
 
 export interface CreateRuleInput {
   projectId: string;
@@ -17,6 +23,8 @@ export interface CreateRuleInput {
 export type UpdateRuleInput = Partial<{
   rawContent: string;
   checklist: ChecklistItem[];
+  kind: RuleKind;
+  judgingGuide: string;
   compiledFromHash: string;
   scope: RuleScope | null;
   enabled: boolean;
@@ -57,6 +65,8 @@ function toDomain(row: typeof ProjectRuleTable.$inferSelect): ProjectRule {
     projectId: row.projectId,
     rawContent: row.rawContent,
     checklist: parseChecklist(row.checklistJson),
+    kind: (row.kind as RuleKind) ?? 'other',
+    judgingGuide: row.judgingGuide ?? '',
     compiledFromHash: row.compiledFromHash,
     scope: parseScope(row.scopeJson),
     enabled: row.enabled,
@@ -78,6 +88,8 @@ export function createProjectRuleRepository(): ProjectRuleRepository {
       projectId: input.projectId,
       rawContent: input.rawContent ?? '',
       checklistJson: '[]',
+      kind: 'other' as RuleKind,
+      judgingGuide: '',
       compiledFromHash: '',
       scopeJson: input.scope ? JSON.stringify(input.scope) : null,
       enabled: input.enabled ?? true,
@@ -97,6 +109,8 @@ export function createProjectRuleRepository(): ProjectRuleRepository {
     const setValues: Record<string, unknown> = { updatedAt: new Date().toISOString() };
     if (updates.rawContent !== undefined) setValues.rawContent = updates.rawContent;
     if (updates.checklist !== undefined) setValues.checklistJson = JSON.stringify(updates.checklist);
+    if (updates.kind !== undefined) setValues.kind = updates.kind;
+    if (updates.judgingGuide !== undefined) setValues.judgingGuide = updates.judgingGuide;
     if (updates.compiledFromHash !== undefined) setValues.compiledFromHash = updates.compiledFromHash;
     if (updates.scope !== undefined) setValues.scopeJson = updates.scope ? JSON.stringify(updates.scope) : null;
     if (updates.enabled !== undefined) setValues.enabled = updates.enabled;

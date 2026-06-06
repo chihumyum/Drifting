@@ -5,6 +5,10 @@
 
 export type RuleSource = 'project' | 'drift';
 
+// The rule's overall category, inferred by the enhancement compiler. Drives which
+// judging guidance applies; 'consistency' rules carry the canon-truth policy.
+export type RuleKind = 'consistency' | 'continuity' | 'structure' | 'style' | 'other';
+
 // Atomic, individually-checkable assertion compiled from a rule. `type` is
 // inferred by the normalizer (the author never picks it): mechanical kinds route
 // to deterministic evaluators; 'semantic' routes to the LLM evaluator.
@@ -29,6 +33,11 @@ export interface ProjectRule {
   projectId: string;
   rawContent: string;
   checklist: ChecklistItem[];
+  // Enhancement-compiler outputs (see lib/ai/prompts/templates/shadow-rule-compile).
+  // `kind` routes judging; `judgingGuide` is the LLM-authored, author-editable judging
+  // template injected into the Shadow judge's prompt when this rule is evaluated.
+  kind: RuleKind;
+  judgingGuide: string;
   compiledFromHash: string;
   scope: RuleScope | null;
   enabled: boolean;

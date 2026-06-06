@@ -316,6 +316,13 @@
       "when": 1782900000000,
       "tag": "0044_shadow_job_consulted_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1783000000000,
+      "tag": "0045_project_rule_enhancement",
+      "breakpoints": true
     }
   ]
 }

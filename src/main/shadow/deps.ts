@@ -25,6 +25,7 @@ export function createShadowDeps(call: RendererCall): ShadowDeps {
     async evaluateSemanticBatch(
       assertions: string[],
       ctx: ReviewContext,
+      rule?: { kind?: string; judgingGuide?: string },
     ): Promise<SemanticViolation[][]> {
       return (await call('shadow_eval_semantic_batch', {
         assertions,
@@ -36,6 +37,10 @@ export function createShadowDeps(call: RendererCall): ShadowDeps {
         // the chapter's own storyline summary/facts.
         facts: ctx.rulesKv,
         summary: ctx.summary,
+        // Per-rule judging template (LLM-authored, author-editable) + kind, injected
+        // into the judge's prompt for this rule.
+        ruleKind: rule?.kind,
+        judgingGuide: rule?.judgingGuide,
       })) as SemanticViolation[][];
     },
     async clearComments(chapterId: string): Promise<void> {

@@ -6,7 +6,7 @@ import { shadowSemanticEvalPrompt } from './prompts/templates/shadow-semantic-ev
 import { shadowSemanticAgenticPrompt } from './prompts/templates/shadow-semantic-agentic';
 import type { LLMClient } from './client/llm-client';
 import type { AIMessage, AITool, AIToolCall, AIUsage } from './types';
-import type { ChecklistItem } from '../../domain/project-rule';
+import type { ChecklistItem, RuleKind } from '../../domain/project-rule';
 import type { ShadowToolCall, ShadowToolStatus } from '../../domain/shadow-job';
 import { yieldToMain } from '../async/yield-to-main';
 
@@ -34,16 +34,24 @@ function nextItemId(): string {
   return `ci_${Date.now().toString(36)}_${itemCounter}`;
 }
 
-// Compile one freeform rule into a checklist of atomic, typed assertions via the
-// LLM normalizer (reuses the renderer AI substrate → DeepSeek by default).
-// Returns [] for blank input. Each item gets a fresh local id.
+// The enhancement-compiler output for one rule: the atomic checklist PLUS the inferred
+// kind and the LLM-authored judging template (injected into the judge's prompt).
+export interface CompiledRule {
+  checklist: ChecklistItem[];
+  kind: RuleKind;
+  judgingGuide: string;
+}
+
+// Compile one freeform rule into {checklist, kind, judgingGuide} via the LLM enhancement
+// compiler (reuses the renderer AI substrate → DeepSeek by default). Blank input → empty.
+// Each checklist item gets a fresh local id.
 export async function compileRule(
   rawContent: string,
   projectId: string,
   signal?: AbortSignal,
-): Promise<ChecklistItem[]> {
+): Promise<CompiledRule> {
   const rule = rawContent.trim();
-  if (!rule) return [];
+  if (!rule) return { checklist: [], kind: 'other', judgingGuide: '' };
 
   const client = await buildDefaultLLMClient();
   const out = await callStructured(
@@ -53,12 +61,16 @@ export async function compileRule(
     { outputLanguage: resolveWritingLanguage(projectId), signal },
   );
 
-  return out.checklist.map((item) => ({
-    id: nextItemId(),
-    assertion: item.assertion,
-    type: item.type,
-    params: item.params ? (item.params as Record<string, unknown>) : undefined,
-  }));
+  return {
+    checklist: out.checklist.map((item) => ({
+      id: nextItemId(),
+      assertion: item.assertion,
+      type: item.type,
+      params: item.params ? (item.params as Record<string, unknown>) : undefined,
+    })),
+    kind: out.kind,
+    judgingGuide: out.judgingGuide ?? '',
+  };
 }
 
 export interface SemanticViolation {
@@ -95,6 +107,11 @@ export interface SemanticEvalContext {
   // leak). from/to is exactly what the staleness/diff layer holds in prod. Populated by
   // that layer (and, in eval, by the changeDependency operator).
   changedDeps?: ChangedDepHint[];
+  // Per-rule judging template (LLM-authored by the enhancement compiler, author-editable)
+  // + the rule's kind. `judgingGuide` is injected into the judge's prompt for THIS rule
+  // (replaces the global heuristic canon-truth injection). See shadow/DESIGN.md §6/④.
+  ruleKind?: string;
+  judgingGuide?: string;
 }
 
 // One changed-canon pointer forwarded to the judge. `fact` = which field moved;
@@ -630,12 +647,15 @@ export async function evaluateSemanticAssertionsFC(
     // Tool-shape guidance — it kept hallucinating read_drift / search_facts / get_all_drifts.
     '只读工具就是给你的这几个，没有别的：读 drift/设定/元素/故事线的正文一律用 read_node(node=名称, kind=\'drift\'|\'element\'|\'storyline\'|\'category\')；查内容用 search_prose，查名称/元数据用 search_project。不要臆造工具名或给工具加未列出的参数。',
     '克制取证：能直接判就别查；只查真正影响判断的；同一样东西只查一次。',
-    // Canon-truth policy — injected ONLY for consistency rules (de-hardwired from the
-    // global template; structural/POV/word-count rules don't get it). canon=truth, a
-    // divergence needs an in-effect patch or it's reported; in-prose arc framing does
-    // NOT excuse. Will migrate from this heuristic gate to the authored per-rule spec
-    // (DESIGN.md ④). Layer 0's "退化弧 exception" is intentionally gone.
-    isConsistencyAssertions(active) ? CANON_TRUTH_POLICY : '',
+    // Per-rule judging template: the LLM-authored, author-editable guide for THIS rule
+    // (from the enhancement compiler, threaded via context.judgingGuide). It embeds the
+    // canon-truth policy for consistency rules. Falls back to the templated canon-truth
+    // policy via the heuristic when a rule predates enhancement (legacy/eval). DESIGN.md §6.
+    context?.judgingGuide?.trim()
+      ? context.judgingGuide.trim()
+      : isConsistencyAssertions(active)
+        ? CANON_TRUTH_POLICY
+        : '',
     '查够了就调用 submit_verdicts 一次性给出每条约束的裁决(每条一项，按约束编号)。',
     '裁决规则:每条约束都必须在 basis 写明核对依据(核对了哪些角色/设定的【当前值】对照本章哪几段→一致还是冲突;判一致也要写,不得空);只把确实违反的连续段写进 violations(blockStart/blockEnd 含两端,整章级用 0),某条整章满足则 violations 为空数组;仍然宁可漏报别误报，但「漏报」只能是「核对后判一致」，不允许「未核对/零依据就空数组」。',
     `用 ${outputLanguage} 写所有自然语言输出(reason 等)。`,

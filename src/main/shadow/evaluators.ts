@@ -84,6 +84,7 @@ async function evaluateRuleSemantics(
     results = await evaluateSemanticBatch(
       items.map((i) => i.assertion),
       ctx,
+      { kind: rule.kind, judgingGuide: rule.judgingGuide },
     );
   } catch {
     // LLM unavailable — don't crash the whole review (that would leave the chapter

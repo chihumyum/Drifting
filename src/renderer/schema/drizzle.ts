@@ -56,6 +56,10 @@ export const ProjectRuleTable = sqliteTable('project_rule', {
   projectId: text('project_id').notNull(),
   rawContent: text('raw_content').notNull().default(''),
   checklistJson: text('checklist_json').notNull().default('[]'),
+  // Enhancement-compiler outputs: `kind` routes judging; `judgingGuide` is the LLM-
+  // authored, author-editable judging template injected into the Shadow judge's prompt.
+  kind: text('kind').notNull().default('other'),
+  judgingGuide: text('judging_guide').notNull().default(''),
   compiledFromHash: text('compiled_from_hash').notNull().default(''),
   scopeJson: text('scope_json'),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),

@@ -43,13 +43,13 @@ export function ShadowRulesSection({ projectId }: { projectId: string }) {
       await repo.update(id, { rawContent });
       const hash = hashRuleContent(rawContent);
       if (!rawContent.trim()) {
-        await repo.update(id, { checklist: [], compiledFromHash: hash });
+        await repo.update(id, { checklist: [], kind: 'other', judgingGuide: '', compiledFromHash: hash });
         await reload();
         return;
       }
       try {
-        const checklist = await compileRule(rawContent, projectId);
-        await repo.update(id, { checklist, compiledFromHash: hash });
+        const { checklist, kind, judgingGuide } = await compileRule(rawContent, projectId);
+        await repo.update(id, { checklist, kind, judgingGuide, compiledFromHash: hash });
       } catch (e) {
         log.error('rule compile failed', e);
       } finally {
@@ -57,6 +57,16 @@ export function ShadowRulesSection({ projectId }: { projectId: string }) {
       }
     },
     [repo, projectId, reload],
+  );
+
+  // Author override of the LLM-generated judging template. The author owns the final
+  // judging policy — re-compiling the rule text regenerates it (overwrites the override).
+  const saveGuide = useCallback(
+    async (id: string, judgingGuide: string) => {
+      await repo.update(id, { judgingGuide });
+      void reload();
+    },
+    [repo, reload],
   );
 
   const toggle = useCallback(
@@ -120,6 +130,7 @@ export function ShadowRulesSection({ projectId }: { projectId: string }) {
               onCommit={commitRule}
               onToggle={toggle}
               onRemove={remove}
+              onSaveGuide={saveGuide}
             />
           ))
         )}
@@ -143,17 +154,20 @@ interface RuleRowProps {
   onCommit: (id: string, rawContent: string) => Promise<void>;
   onToggle: (id: string, enabled: boolean) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  onSaveGuide: (id: string, judgingGuide: string) => Promise<void>;
 }
 
-function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
+function RuleRow({ rule, onCommit, onToggle, onRemove, onSaveGuide }: RuleRowProps) {
   const [draft, setDraft] = useState(rule.rawContent);
   const [committing, setCommitting] = useState(false);
+  const [guideDraft, setGuideDraft] = useState(rule.judgingGuide);
   // Re-sync the local draft when the underlying rule changes (prev-snapshot
   // pattern, mirroring ChapterEditor — avoids the set-state-in-effect lint).
-  const [synced, setSynced] = useState({ id: rule.id, raw: rule.rawContent });
-  if (synced.id !== rule.id || synced.raw !== rule.rawContent) {
-    setSynced({ id: rule.id, raw: rule.rawContent });
+  const [synced, setSynced] = useState({ id: rule.id, raw: rule.rawContent, guide: rule.judgingGuide });
+  if (synced.id !== rule.id || synced.raw !== rule.rawContent || synced.guide !== rule.judgingGuide) {
+    setSynced({ id: rule.id, raw: rule.rawContent, guide: rule.judgingGuide });
     setDraft(rule.rawContent);
+    setGuideDraft(rule.judgingGuide);
   }
 
   const commit = async () => {
@@ -268,6 +282,46 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
             </div>
           ))}
         </div>
+      ) : null}
+
+      {/* LLM-authored judging template — author-editable (the author owns the final
+          judging policy). Recompiling the rule text regenerates it. */}
+      {!committing && rule.checklist.length > 0 ? (
+        <details style={{ marginTop: 6, paddingLeft: 4 }}>
+          <summary
+            style={{
+              cursor: 'pointer',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              letterSpacing: '0.04em',
+              color: 'hsl(var(--ink-4))',
+            }}
+          >
+            判定指引 · {rule.kind}
+          </summary>
+          <textarea
+            value={guideDraft}
+            onChange={(e) => setGuideDraft(e.target.value)}
+            onBlur={() => {
+              if (guideDraft !== rule.judgingGuide) void onSaveGuide(rule.id, guideDraft);
+            }}
+            rows={4}
+            placeholder="（编译后由 LLM 生成；可手改，作者说了算）"
+            style={{
+              marginTop: 4,
+              width: '100%',
+              resize: 'vertical',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              lineHeight: 1.4,
+              color: 'hsl(var(--ink-3))',
+              background: 'hsl(var(--ink-1) / 0.03)',
+              border: '1px solid hsl(var(--ink-1) / 0.12)',
+              borderRadius: 4,
+              padding: '6px 8px',
+            }}
+          />
+        </details>
       ) : null}
     </div>
   );

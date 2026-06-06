@@ -13,11 +13,19 @@ export interface ChecklistItem {
   params?: Record<string, unknown>;
 }
 
+// The rule's overall category (inferred by the enhancement compiler). Mirrors the
+// renderer's RuleKind (main can't import renderer types).
+export type RuleKind = 'consistency' | 'continuity' | 'structure' | 'style' | 'other';
+
 // A compiled rule as the engine evaluates it — a subset of the renderer's
 // ProjectRule, delivered as plain data (main can't import renderer types).
+// `judgingGuide` is the LLM-authored, author-editable per-rule judging template
+// injected into the judge's prompt; `kind` routes which guidance applies.
 export interface RuleSpec {
   id: string;
   checklist: ChecklistItem[];
+  kind?: RuleKind;
+  judgingGuide?: string;
 }
 
 // The read-only view of a chapter the review graph operates on. Assembled from
@@ -74,8 +82,13 @@ export interface ShadowDeps {
   readRules(projectId: string, chapterId: string): Promise<RuleSpec[]>;
   // Judge a RULE's semantic assertions together — one shared evidence loop per
   // rule (its related checks share context). Returns one SemanticViolation[] per
-  // input assertion, aligned by index.
-  evaluateSemanticBatch(assertions: string[], ctx: ReviewContext): Promise<SemanticViolation[][]>;
+  // input assertion, aligned by index. `rule` carries the per-rule judging template
+  // (judgingGuide) + kind, injected into the judge's prompt for this rule.
+  evaluateSemanticBatch(
+    assertions: string[],
+    ctx: ReviewContext,
+    rule?: { kind?: RuleKind; judgingGuide?: string },
+  ): Promise<SemanticViolation[][]>;
   // Remove this chapter's prior shadow comments before writing the fresh batch,
   // so a re-review never piles up duplicates.
   clearComments(chapterId: string): Promise<void>;

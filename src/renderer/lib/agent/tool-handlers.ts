@@ -1973,7 +1973,7 @@ async function shadowReadRules(ctx: AgentToolContext, args: Record<string, unkno
   const rules = await createProjectRuleRepository().listByProject(ctx.projectId);
   const active = rules
     .filter((r) => r.enabled && r.checklist.length > 0)
-    .map((r) => ({ id: r.id, checklist: r.checklist }));
+    .map((r) => ({ id: r.id, checklist: r.checklist, kind: r.kind, judgingGuide: r.judgingGuide }));
   const chapterId = String(args.chapterId ?? '');
   if (chapterId) {
     const items = active.reduce((acc, r) => acc + r.checklist.length, 0);
@@ -2215,11 +2215,17 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   // Dep-graph diff: what canon changed since this chapter's last review (old→new).
   // Empty on a first review / no prior snapshot → judge runs cold, as before.
   const changedDeps = computeChangedDeps(ctx.projectId, chapterId);
+  // Per-rule judging template (LLM-authored, author-editable) + kind, threaded from the
+  // rule through evaluateSemanticBatch → injected into the judge's prompt for this rule.
+  const ruleKind = typeof args.ruleKind === 'string' ? args.ruleKind : undefined;
+  const judgingGuide = typeof args.judgingGuide === 'string' ? args.judgingGuide : undefined;
   const context: SemanticEvalContext = {
     facts,
     summary,
     ...(await buildWarmStart(ctx, node, blocks)),
     ...(changedDeps.length ? { changedDeps } : {}),
+    ...(ruleKind ? { ruleKind } : {}),
+    ...(judgingGuide?.trim() ? { judgingGuide } : {}),
   };
   if (changedDeps.length) {
     void traceShadow(chapterId, ctx.projectId, 'gather', `依赖变更提示 ${changedDeps.length} 项`, {
