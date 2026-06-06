@@ -5,7 +5,7 @@ import { shadowRuleCompilePrompt } from './prompts/templates/shadow-rule-compile
 import { shadowSemanticEvalPrompt } from './prompts/templates/shadow-semantic-eval';
 import { shadowSemanticAgenticPrompt } from './prompts/templates/shadow-semantic-agentic';
 import type { LLMClient } from './client/llm-client';
-import type { AIMessage, AITool, AIToolCall } from './types';
+import type { AIMessage, AITool, AIToolCall, AIUsage } from './types';
 import type { ChecklistItem } from '../../domain/project-rule';
 import type { ShadowToolCall, ShadowToolStatus } from '../../domain/shadow-job';
 import { yieldToMain } from '../async/yield-to-main';
@@ -520,6 +520,9 @@ export async function evaluateSemanticAssertionsFC(
   runTool: (name: string, args: Record<string, unknown>) => Promise<ToolRunOutcome>,
   signal?: AbortSignal,
   onTrace?: (step: AgenticTraceStep) => void,
+  // Per-call usage bypass (like onTrace) — lets the eval attribute tokens/cost down
+  // to a single judge invocation without changing the return shape. Unused in prod.
+  onUsage?: (usage: AIUsage) => void,
 ): Promise<SemanticViolation[][]> {
   const active = assertions.map((a) => a.trim());
   const empty = (): SemanticViolation[][] => assertions.map(() => []);
@@ -577,6 +580,7 @@ export async function evaluateSemanticAssertionsFC(
       signal,
       metadata: { feature: 'shadow-semantic-fc' },
     });
+    if (resp.usage) onUsage?.(resp.usage);
 
     const calls: AIToolCall[] = resp.toolCalls ?? (resp.toolCall ? [resp.toolCall] : []);
     if (calls.length === 0) {

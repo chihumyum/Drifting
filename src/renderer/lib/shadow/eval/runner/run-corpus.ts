@@ -31,7 +31,7 @@ export interface RunOptions {
 }
 
 function emptyResult(repeat: number): EvalResult {
-  return { tally: { TP: 0, FP: 0, FN: 0, TN: 0 }, rows: [], repeat };
+  return { tally: { TP: 0, FP: 0, FN: 0, TN: 0 }, rows: [], repeat, tokensByCase: {} };
 }
 
 /** Run a suite file → merged confusion matrix + run-level metrics + the artifact. */
@@ -76,6 +76,7 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
     merged.tally.FN += res.tally.FN;
     merged.tally.TN += res.tally.TN;
     merged.rows.push(...res.rows);
+    Object.assign(merged.tokensByCase, res.tokensByCase);
   }
 
   const report: RunReport = {

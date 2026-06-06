@@ -50,6 +50,8 @@ export function writeArtifact(dir: string, report: RunReport): string {
     tally: report.result.tally,
     ...quality(report.result),
     metrics: report.metrics,
+    tokensByCase: report.result.tokensByCase,
+    gateViolations: report.gateViolations,
     goldens: report.goldens,
   };
   writeFileSync(join(dir, 'run.json'), JSON.stringify(runJson, null, 2));

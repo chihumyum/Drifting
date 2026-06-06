@@ -11,6 +11,7 @@
 import { evaluateRules } from '@/main/shadow/evaluators';
 import type { Finding, ReviewContext, SemanticViolation } from '@/main/shadow/types';
 import { evaluateSemanticAssertionsFC, type AgenticTraceStep } from '../../ai/shadow-rules';
+import type { AIUsage } from '../../ai/types';
 import { AGENT_READ_TOOLS, toAITools } from '../../agent/tool-registry';
 import { LLMClient } from '../../ai/client/llm-client';
 import { DeepSeekProvider } from '../../ai/client/providers/deepseek';
@@ -56,6 +57,8 @@ export interface ReviewOpts {
   // The judge's evidence trail (which canon it consulted, how it ruled) — lets the
   // scorer show whether a missed fault was a consultation gap vs a reasoning gap.
   onTrace?: (step: AgenticTraceStep) => void;
+  // Per-judge-call token usage — the scorer aggregates it into per-case cost.
+  onUsage?: (usage: AIUsage) => void;
 }
 
 /** Review one chapter of a project with the real evaluator chain → its findings. */
@@ -82,6 +85,7 @@ export async function reviewChapter(
       runTool,
       opts.signal,
       opts.onTrace,
+      opts.onUsage,
     );
   const rules = opts.ruleIds
     ? project.rules.filter((r) => opts.ruleIds!.includes(r.id))

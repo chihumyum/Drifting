@@ -18,6 +18,7 @@
 import type { Finding } from '@/main/shadow/types';
 import type { LLMClient } from '../../ai/client/llm-client';
 import type { AgenticTraceStep } from '../../ai/shadow-rules';
+import type { AIUsage } from '../../ai/types';
 import { cloneProject, type EvalChapter, type EvalProject } from './model';
 import { reviewChapter } from './review';
 import { scopeOf, type Mutation } from './mutations';
@@ -38,6 +39,8 @@ export interface EvalResult {
   tally: Record<Outcome, number>;
   rows: EvalRow[];
   repeat: number;
+  // Per-case (mutation id) token totals — summed across its chapter reviews/repeats.
+  tokensByCase: Record<string, { inputTokens: number; outputTokens: number }>;
 }
 
 export interface RunOpts {
@@ -77,8 +80,9 @@ async function reviewWithTimeout(
   ruleIds: string[],
   timeoutMs: number,
   onTrace?: (step: AgenticTraceStep) => void,
+  onUsage?: (usage: AIUsage) => void,
 ): Promise<Finding[]> {
-  if (!timeoutMs) return reviewChapter(project, chapter, client, { ruleIds, onTrace });
+  if (!timeoutMs) return reviewChapter(project, chapter, client, { ruleIds, onTrace, onUsage });
   const ac = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -89,7 +93,7 @@ async function reviewWithTimeout(
   });
   try {
     return await Promise.race([
-      reviewChapter(project, chapter, client, { ruleIds, signal: ac.signal, onTrace }),
+      reviewChapter(project, chapter, client, { ruleIds, signal: ac.signal, onTrace, onUsage }),
       timeout,
     ]);
   } finally {
@@ -154,6 +158,8 @@ export async function runEval(
     if (!fired.has(k)) fired.set(k, new Set());
   }
 
+  const tokensByCase: Record<string, { inputTokens: number; outputTokens: number }> = {};
+
   let done = 0;
   await mapPool(tasks, concurrency, async (t) => {
     const started = Date.now();
@@ -164,20 +170,39 @@ export async function runEval(
     const onTrace = (step: AgenticTraceStep): void => {
       for (const c of step.calls ?? []) consulted.push(c.args ? `${c.tool} ${c.args}` : c.tool);
     };
+    let inTok = 0;
+    let outTok = 0;
+    const onUsage = (u: AIUsage): void => {
+      inTok += u.inputTokens;
+      outTok += u.outputTokens;
+    };
     let findings: Finding[] = [];
     try {
-      findings = await reviewWithTimeout(t.project, t.chapter, client, t.ruleIds, timeoutMs, onTrace);
+      findings = await reviewWithTimeout(
+        t.project,
+        t.chapter,
+        client,
+        t.ruleIds,
+        timeoutMs,
+        onTrace,
+        onUsage,
+      );
     } catch (e) {
       console.warn(`[eval] ⚠ ${t.mutationId} · ${t.chapterId} 失败/超时：${(e as Error).message}`);
     }
     const set = fired.get(`${t.mutationId}|${t.iter}`)!;
     for (const f of findings) set.add(`${t.chapterId}|${f.ruleId}`);
+    // Synchronous read-modify-write (no await between) → safe under concurrency.
+    const acc = tokensByCase[t.mutationId] ?? { inputTokens: 0, outputTokens: 0 };
+    acc.inputTokens += inTok;
+    acc.outputTokens += outTok;
+    tokensByCase[t.mutationId] = acc;
     done += 1;
     const secs = ((Date.now() - started) / 1000).toFixed(0);
     console.log(
-      `[eval] ✓ ${t.mutationId} · ${t.chapterId} — ${findings.length} 处发现 · ${secs}s · 查证[${
-        consulted.length ? consulted.join(' / ') : '未查证'
-      }] （${done}/${tasks.length}）`,
+      `[eval] ✓ ${t.mutationId} · ${t.chapterId} — ${findings.length} 处发现 · ${secs}s · ` +
+        (inTok || outTok ? `tok ${inTok}/${outTok} · ` : '') +
+        `查证[${consulted.length ? consulted.join(' / ') : '未查证'}] （${done}/${tasks.length}）`,
     );
   });
 
@@ -205,7 +230,7 @@ export async function runEval(
       });
     }
   }
-  return { tally, rows, repeat };
+  return { tally, rows, repeat, tokensByCase };
 }
 
 const glyph = (o: Outcome) =>
