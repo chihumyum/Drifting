@@ -17,20 +17,20 @@ vi.mock('../../ai/client/build-default-client', () => ({
 }));
 
 import { join } from 'node:path';
-import { runSuite, GOLDENS_DIR } from './runner/run-corpus';
+import { runSuite, GOLDENS_DIR, HISTORY_PATH } from './runner/run-corpus';
 import { goldenToProject, loadGoldenFile } from './runner/load-golden';
 import { formatReport } from './score';
-import { formatMetrics } from './runner/artifact';
+import { formatMetrics, formatTrend } from './runner/artifact';
 import { realJudgeClient } from './review';
 
 describe('corpus eval — cases as data', () => {
   // No key: the ci suite is the mechanical (banned-words) path, an exact regression
   // gate. Same numbers the old hand-coded mechanical test produced (TP=1/FP/FN=0/TN=2).
-  test('ci suite (mock) — gate FP==0 && FN==0', async () => {
-    const { result } = await runSuite('ci');
+  // The suite's gate (maxFP/maxFN=0) is enforced by the runner.
+  test('ci suite (mock) — suite gate passes', async () => {
+    const { result, gateViolations } = await runSuite('ci');
     console.log(formatReport(result));
-    expect(result.tally.FP).toBe(0);
-    expect(result.tally.FN).toBe(0);
+    expect(gateViolations).toEqual([]);
   });
 
   // Structural (no key): the fog-harbor golden loads through the DATA path — bodySource
@@ -62,9 +62,11 @@ describe('corpus eval — cases as data', () => {
         console.warn('\n[eval] 跳过 acceptance：未提供 DeepSeek key。\n');
         return;
       }
-      const { result, metrics } = await runSuite('acceptance');
+      const { result, metrics, gateViolations } = await runSuite('acceptance', { artifact: true });
       console.log(formatReport(result));
       console.log(formatMetrics(metrics));
+      console.log(formatTrend(HISTORY_PATH, 'acceptance'));
+      if (gateViolations.length) console.warn(`[eval] gate 未过：${gateViolations.join(' · ')}`);
     },
     1_800_000,
   );

@@ -14,7 +14,8 @@ import { goldenToProject, loadGoldenFile } from './load-golden';
 import { loadDataset, loadSuite } from './load-corpus';
 import { caseToMutation } from './operators';
 import { Metering, ZERO_METRICS } from './metering';
-import { writeArtifact, type RunReport } from './artifact';
+import { appendHistory, checkGate, writeArtifact, type RunReport } from './artifact';
+import { contentHash } from './hash';
 import type { EvalCase } from './schema';
 
 const CORPUS = fileURLToPath(new URL('../corpus', import.meta.url));
@@ -22,6 +23,7 @@ export const GOLDENS_DIR = join(CORPUS, 'goldens');
 export const DATASETS_DIR = join(CORPUS, 'datasets');
 export const SUITES_DIR = join(CORPUS, 'suites');
 export const RUNS_DIR = join(CORPUS, 'runs');
+export const HISTORY_PATH = join(CORPUS, 'history.jsonl');
 
 export interface RunOptions {
   // Write run.json + rows.jsonl under corpus/runs/. Defaults to EVAL_ARTIFACT=1.
@@ -61,8 +63,9 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
   const goldens: { id: string; contentHash?: string }[] = [];
   for (const [goldenId, gCases] of byGolden) {
     const gf = loadGoldenFile(join(GOLDENS_DIR, `${goldenId}.golden.json`));
-    goldens.push({ id: goldenId, contentHash: gf.contentHash });
     const golden = goldenToProject(gf);
+    // Hash the RESOLVED project (incl. vault-read prose) so a bodySource edit shows.
+    goldens.push({ id: goldenId, contentHash: contentHash(golden) });
     const mutations = gCases.map(caseToMutation);
     const res = await runEval(golden, mutations, client, suite.repeat, {
       concurrency: suite.concurrency,
@@ -83,11 +86,13 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
     result: merged,
     metrics: metering ? metering.snapshot() : ZERO_METRICS,
     goldens,
+    gateViolations: checkGate(merged, suite.gate),
   };
 
   if (opts.artifact ?? process.env.EVAL_ARTIFACT === '1') {
     const dir = join(RUNS_DIR, suite.id, startedAt.replace(/[:.]/g, '-'));
     writeArtifact(dir, report);
+    appendHistory(HISTORY_PATH, report);
     console.log(`[eval] artifact → ${dir}`);
   }
   return report;
