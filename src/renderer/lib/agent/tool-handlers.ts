@@ -32,6 +32,7 @@ import {
   createElementPatchRepository,
   type CreatePatchInput,
   type UpdatePatchInput,
+  type PatchWithSourceTitle,
 } from '../../sqlite-repo/element-patch-repo';
 import {
   syncElementPatchCreate,
@@ -1831,6 +1832,62 @@ const READ_TOOL_MENU = AGENT_READ_TOOLS.map(
 // allowlist (the judge must never reach a write tool — advise-not-block), arg
 // stripping, and the per-review cache. Disallowed/hallucinated tools don't throw —
 // they return the real menu so the model corrects course instead of burning rounds.
+// Effective-canon patch reader for Shadow: returns the element's evolution patches that
+// are IN EFFECT for the chapter under review — whose source chapter is at/before this
+// chapter on the timeline (narrativeOrder ?? bookOrder). Later-chapter patches must NOT
+// excuse an earlier divergence, so they're withheld (only their count is noted). This
+// realizes effective_canon(element, N) = canon + patches up to N (see shadow/DESIGN.md).
+async function shadowEffectivePatchesText(
+  ctx: AgentToolContext,
+  chapterId: string,
+  args: Record<string, unknown>,
+): Promise<ToolRunOutcome> {
+  const ref = String(args.element ?? args.elementId ?? args.node ?? '').trim();
+  const elementId = resolveRef(ctx, 'element', ref);
+  if (!elementId) return { content: `（eval：无设定「${ref}」）`, status: 'denied', note: '未知设定' };
+
+  // This chapter's timeline position. A node resolves to its narrativeOrder when the
+  // author set one (story-time, handles flashbacks), else bookOrder (reading order).
+  const timelineKey = (n?: { narrativeOrder: number | null; bookOrder: number | null }): number =>
+    n ? (n.narrativeOrder ?? n.bookOrder ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+  const here = useDataStore.getState().bookNodes.find((n) => n.id === chapterId);
+  const cutoff = timelineKey(here);
+
+  const del = pendingDeletedPatchIds(elementId);
+  const all = (await createElementPatchRepository().listByElement(elementId)).filter(
+    (p) => !del.has(p.id),
+  );
+  // Floating patches (no chapter anchor) are global authored evolutions → always in effect.
+  const orderOfPatch = (p: PatchWithSourceTitle): number =>
+    p.sourceNarrativeOrder ?? p.sourceBookOrder ?? Number.NEGATIVE_INFINITY;
+  const inEffect = all.filter((p) => orderOfPatch(p) <= cutoff);
+  const future = all.length - inEffect.length;
+
+  if (!inEffect.length) {
+    return {
+      content: future
+        ? `设定「${ref}」有 ${future} 条演化记录(patch)，但都来自更晚的章节，对本章【尚未生效】——不可用于解释本章的偏离。`
+        : `设定「${ref}」无演化记录(patch)。若本章正文与其当前设定冲突，又无对应演化背书，即为真实矛盾，应报出。`,
+      status: 'ok',
+    };
+  }
+
+  const lines = inEffect.map((p) => {
+    const where = p.sourceNodeTitle ? `（《${p.sourceNodeTitle}》起生效）` : '（全局生效）';
+    return `· ${p.title ?? '(无标题)'}${where}：${truncate(docToPlainText(p.contentJson), 400)}`;
+  });
+  const tail = future
+    ? `\n（另有 ${future} 条来自更晚章节的演化，对本章尚未生效，已隐去——不可用于解释本章）`
+    : '';
+  return {
+    content:
+      `设定「${ref}」对本章【已生效】的演化记录(patch)。正文与其设定的偏离，只有被下列之一解释才算合法演化，否则按矛盾报出：\n` +
+      lines.join('\n') +
+      tail,
+    status: 'ok',
+  };
+}
+
 function makeShadowRunTool(ctx: AgentToolContext, chapterId: string) {
   return async (name: string, toolArgs: Record<string, unknown>): Promise<ToolRunOutcome> => {
     throwIfShadowCancelled(chapterId);
@@ -1856,6 +1913,13 @@ function makeShadowRunTool(ctx: AgentToolContext, chapterId: string) {
     // Let the UI paint before this tool's (possibly heavy) CPU burst — prose
     // hydration / full-project scan. Breaks the judge's tool-call burst-train.
     await yieldToMain();
+    // Patches go through Shadow's effective-canon reader (timeline-filtered) so a
+    // later-chapter evolution can't be used to excuse an earlier divergence.
+    if (name === 'get_element_patches') {
+      const outcome = await shadowEffectivePatchesText(ctx, chapterId, cleanArgs);
+      cache?.set(key, outcome.content);
+      return outcome;
+    }
     const result = await runAgentTool(name, cleanArgs, ctx);
     const text = typeof result === 'string' ? result : JSON.stringify(result);
     cache?.set(key, text);

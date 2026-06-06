@@ -152,6 +152,30 @@ function buildChangedDepsHint(context?: SemanticEvalContext): string {
   ].join('\n');
 }
 
+// Heuristic: does this rule's checklist concern character/setting consistency? Interim
+// gate so the canon-truth policy is injected ONLY for consistency rules (de-hardwired
+// from the global template) — until rules carry an authored kind via the LLM rule-
+// enhancement spec (see shadow/DESIGN.md §6/④).
+const CONSISTENCY_RE = /设定|人物|角色|性格|言行|动机|价值观|形象|一致|前后矛盾|矛盾/;
+function isConsistencyAssertions(assertions: string[]): boolean {
+  return assertions.some((a) => CONSISTENCY_RE.test(a));
+}
+
+// Canon-truth policy (shadow/DESIGN.md): canon = authored truth; the ONLY sanctioned way
+// prose may diverge is an element_patch that is IN EFFECT for this chapter (the judge's
+// get_element_patches is timeline-filtered to ≤N). No in-effect patch → report. The
+// in-prose narrative framing (arc, "this time", payoff) does NOT excuse — only an authored
+// patch does. This is what kills the judge's "it's an intentional arc" rationalization
+// (the exact false-negative we hit: 米拉 cried vs 从不哭, no patch, yet passed).
+const CANON_TRUTH_POLICY = [
+  '【设定一致性·canon 政策】本类约束按下面规则裁决，不要替作者圆场：',
+  '· canon(角色/设定的 简介/正文/字段)是作者敲定的真理。正文与之冲突时，唯一合法的例外是：该设定有一条【对本章已生效】的演化记录(patch)解释了这个变化。',
+  '· 一旦发现某角色言行与其设定冲突，必须 get_element_patches 查它的演化记录(该工具只会返回对本章已生效的 patch)：有 patch 解释→判一致；没有→报出(advisory)，交作者裁定(改正文/更新设定/有意为之)。',
+  '· 正文内部的叙事铺垫(退化弧、「这一次」、伏笔回收)不构成例外——只有作者写下的 patch 才算。绝不要因为「正文自己解释了」就放过无 patch 背书的冲突。',
+  '· 「从不/总是/绝不/永远/只」这类绝对设定被正文打破、且无已生效 patch → 必报。',
+  '· 区分叙述确立的事实 vs 角色口中的话：角色撒谎/自夸不是 canon 冲突。',
+].join('\n');
+
 // The judge's anchored header: WHO it's reviewing (chapter identity), that it
 // already HOLDS the full prose (so it stops re-searching the project for its own
 // text), and cheap warm-start hints. This is the fix for the "未知章节 / 满世界
@@ -606,11 +630,12 @@ export async function evaluateSemanticAssertionsFC(
     // Tool-shape guidance — it kept hallucinating read_drift / search_facts / get_all_drifts.
     '只读工具就是给你的这几个，没有别的：读 drift/设定/元素/故事线的正文一律用 read_node(node=名称, kind=\'drift\'|\'element\'|\'storyline\'|\'category\')；查内容用 search_prose，查名称/元数据用 search_project。不要臆造工具名或给工具加未列出的参数。',
     '克制取证：能直接判就别查；只查真正影响判断的；同一样东西只查一次。',
-    // Consistency rules were the big false-negative source: the judge read every
-    // entity's canon then emitted an empty verdict with NO reasoning — silently
-    // swallowing even an explicit changedDeps diff. Force a per-character check.
-    '【人物/设定一致性类约束·必做】凡涉及「言行须与人物设定一致」的约束：必须把本章每个登场角色的关键言行，逐个对照其【当前设定】。尤其「从不/总是/绝不/永远/只/必」这类绝对表述是可证伪的硬约束——正文一旦出现相反言行即为冲突。被【一致性复核提示】点名、或设定含绝对措辞的角色，绝不能以「看着自洽/没把握」为由跳过核对。',
-    '你是一致性 linter，不是替作者圆场：言行与设定冲突就报出，由作者裁定是否有意为之；不要主动把矛盾解释成「角色成长/特殊情境」就放过。唯一例外：本章正文对该越界有显式铺垫(退化弧、反讽框定、设定被章内重定义)时可判一致——但必须在 basis 写明这层铺垫，而非静默放过。',
+    // Canon-truth policy — injected ONLY for consistency rules (de-hardwired from the
+    // global template; structural/POV/word-count rules don't get it). canon=truth, a
+    // divergence needs an in-effect patch or it's reported; in-prose arc framing does
+    // NOT excuse. Will migrate from this heuristic gate to the authored per-rule spec
+    // (DESIGN.md ④). Layer 0's "退化弧 exception" is intentionally gone.
+    isConsistencyAssertions(active) ? CANON_TRUTH_POLICY : '',
     '查够了就调用 submit_verdicts 一次性给出每条约束的裁决(每条一项，按约束编号)。',
     '裁决规则:每条约束都必须在 basis 写明核对依据(核对了哪些角色/设定的【当前值】对照本章哪几段→一致还是冲突;判一致也要写,不得空);只把确实违反的连续段写进 violations(blockStart/blockEnd 含两端,整章级用 0),某条整章满足则 violations 为空数组;仍然宁可漏报别误报，但「漏报」只能是「核对后判一致」，不允许「未核对/零依据就空数组」。',
     `用 ${outputLanguage} 写所有自然语言输出(reason 等)。`,

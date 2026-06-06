@@ -22,6 +22,12 @@ export interface ElementPatch {
 // Hydrated read shape including the source chapter's title for display.
 export interface PatchWithSourceTitle extends ElementPatch {
   sourceNodeTitle: string | null;
+  // Source chapter's timeline position — drives Shadow's "effective canon at chapter N"
+  // (a patch is in effect only from its source chapter onward). Null = floating/unordered
+  // patch (no chapter anchor), treated as always-in-effect. narrativeOrder = author's
+  // story-time axis (preferred); bookOrder = reading order (always present, fallback).
+  sourceNarrativeOrder: number | null;
+  sourceBookOrder: number | null;
 }
 
 export interface CreatePatchInput {
@@ -142,6 +148,7 @@ export function createElementPatchRepository(): ElementPatchRepository {
             id: BookNodeTable.id,
             title: BookNodeTable.title,
             bookOrder: BookNodeTable.bookOrder,
+            narrativeOrder: BookNodeTable.narrativeOrder,
           })
           .from(BookNodeTable)
           .where(inArray(BookNodeTable.id, nodeIds))
@@ -154,6 +161,12 @@ export function createElementPatchRepository(): ElementPatchRepository {
       .map((row) => ({
         ...toDomain(row),
         sourceNodeTitle: row.sourceNodeId ? (nodeById.get(row.sourceNodeId)?.title ?? null) : null,
+        sourceNarrativeOrder: row.sourceNodeId
+          ? (nodeById.get(row.sourceNodeId)?.narrativeOrder ?? null)
+          : null,
+        sourceBookOrder: row.sourceNodeId
+          ? (nodeById.get(row.sourceNodeId)?.bookOrder ?? null)
+          : null,
       }))
       // Mirror the old ORDER BY: bookOrder, then orderKey, then createdAt;
       // floating patches (no source node) sort to the end.
