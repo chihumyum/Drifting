@@ -23,16 +23,24 @@ import {
   type EvalChapter,
   type EvalProject,
 } from './model';
+import {
+  keywordProseSearcher,
+  semanticProseSearcher,
+  type SemanticPickLog,
+} from './prose-search';
 
 const READ_TOOLS = toAITools(AGENT_READ_TOOLS);
 
-/** Real DeepSeek client from an env key, or null (caller skips the LLM path). */
-export function realJudgeClient(): LLMClient | null {
+/** Real DeepSeek client from an env key, or null (caller skips the LLM path). The
+ *  optional `model` becomes the provider's defaultModel — the FC prompt's id is the
+ *  non-deepseek placeholder, so resolveModel substitutes this. Any 'deepseek-' id is
+ *  passed straight to the API, so this is how the eval switches judge models. */
+export function realJudgeClient(model?: string): LLMClient | null {
   const key =
     process.env.VITE_DEEPSEEK_AI_API_KEY ||
     process.env.VITE_DEEPSEEK_API_KEY ||
     process.env.DEEPSEEK_API_KEY;
-  return key ? new LLMClient(new DeepSeekProvider({ apiKey: key })) : null;
+  return key ? new LLMClient(new DeepSeekProvider({ apiKey: key, defaultModel: model })) : null;
 }
 
 /** A no-LLM client that rules every assertion CLEAN — lets the deterministic path
@@ -55,12 +63,36 @@ export interface ChunkConfig {
   overlap: number;
 }
 
+// A changed-canon pointer forwarded to the judge. `fact` = which field moved; `from`/
+// `to` = the value diff (Level-2 hint). No "the prose is wrong" — the judge still finds
+// the contradiction; the hint only says what changed (what the dep-graph holds).
+export interface DepHint {
+  name: string;
+  fact?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface ReviewOpts {
   // Abort the in-flight judge call(s) — lets the scorer impose a per-chapter
   // timeout instead of waiting out the SDK's 10-min default.
   signal?: AbortSignal;
   // Split the semantic review into windows (see ChunkConfig). Off = whole chapter.
   chunk?: ChunkConfig;
+  // Dep-graph recheck hint forwarded to the judge: which canon nodes changed (and,
+  // at Level 2, the old→new value). Models the staleness/diff layer telling the judge
+  // what to re-verify. The judge still has to find the contradiction in the prose.
+  depHints?: DepHint[];
+  // Backend for the judge's search_prose tool: 'none' (denied — original behaviour),
+  // 'keyword' (substring, mirrors production), or 'semantic' (LLM-retriever / RAG test).
+  proseSearch?: 'none' | 'keyword' | 'semantic';
+  // For 'semantic' only: the client that BACKS the retriever. Pin it to one model so
+  // the judge model (which varies across a model sweep) is the only moving part; the
+  // RAG quality stays constant. Defaults to the judge `client` when omitted.
+  proseSearchClient?: LLMClient;
+  // For 'semantic' only: observe each retrieval (query / raw model reply / parsed picks)
+  // — lets the eval LOG what RAG surfaced, to tell "found the evidence" from "judged it".
+  onProseSearch?: (log: SemanticPickLog) => void;
   // Review ONLY these rule ids (default: all of the project's rules). A mutation
   // only scores the rules in its `expect`, so reviewing just those skips the other
   // rules' independent FC loops — roughly halving an injection's judge calls.
@@ -80,8 +112,17 @@ export async function reviewChapter(
   opts: ReviewOpts = {},
 ): Promise<Finding[]> {
   const ctx = toReviewContext(project, chapter);
-  const runTool = makeModelRunTool(project);
+  const searcher =
+    opts.proseSearch === 'keyword'
+      ? keywordProseSearcher(project)
+      : opts.proseSearch === 'semantic'
+        ? semanticProseSearcher(opts.proseSearchClient ?? client, chapter, opts.onProseSearch)
+        : undefined;
+  const runTool = makeModelRunTool(project, searcher);
   const semCtx = semanticContextFor(project, chapter);
+  // Dep-graph recheck hint (which canon moved) rides in the judge context, exactly
+  // where the real staleness/diff layer would put it. No values — just the pointer.
+  const judgeCtx = opts.depHints?.length ? { ...semCtx, changedDeps: opts.depHints } : semCtx;
   // One FC pass over a given block slice. Numbering + verdict→blockId resolution are
   // internal to this call, so a windowed slice yields correct GLOBAL block ids.
   const oneCall = (
@@ -92,7 +133,7 @@ export async function reviewChapter(
       assertions,
       blocks,
       project.projectId,
-      semCtx,
+      judgeCtx,
       client,
       READ_TOOLS,
       runTool,

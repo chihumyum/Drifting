@@ -20,10 +20,15 @@ import type { LLMClient } from '../../ai/client/llm-client';
 import type { AgenticTraceStep } from '../../ai/shadow-rules';
 import type { AIUsage } from '../../ai/types';
 import { cloneProject, type EvalChapter, type EvalProject } from './model';
-import { reviewChapter, windowCount, type ChunkConfig } from './review';
+import { reviewChapter, windowCount, type ChunkConfig, type DepHint } from './review';
 import { scopeOf, type Mutation } from './mutations';
 
 export type Outcome = 'TP' | 'FP' | 'FN' | 'TN';
+
+// How much of the dep-graph's knowledge to forward to the judge on a canon-edit
+// review: nothing (cold rediscovery) → which field moved (pointer) → the old→new
+// value (diff). Each rung is strictly more of the info the real engine already holds.
+export type DepHintLevel = 'off' | 'pointer' | 'diff';
 
 export interface EvalRow {
   mutation: string;
@@ -62,6 +67,10 @@ export interface RunOpts {
   timeoutMs?: number; // per-chapter abort budget (default EVAL_CALL_TIMEOUT_MS ?? 480000; 0 = off)
   // Window the semantic judge (default: off, or EVAL_CHUNK_SIZE/EVAL_CHUNK_OVERLAP).
   chunk?: ChunkConfig;
+  // Forward the dep-graph hint to the judge: 'off' | 'pointer' (which field moved) |
+  // 'diff' (old→new value). Default from EVAL_DEP_HINT (0/1/2 or off/pointer/diff).
+  // Only affects mutations that edited canon (depChanges present).
+  depHintLevel?: DepHintLevel;
 }
 
 function outcome(expected: boolean, predicted: boolean): Outcome {
@@ -96,11 +105,12 @@ async function reviewWithTimeout(
   ruleIds: string[],
   timeoutMs: number,
   chunk?: ChunkConfig,
+  depHints?: DepHint[],
   onTrace?: (step: AgenticTraceStep) => void,
   onUsage?: (usage: AIUsage) => void,
 ): Promise<Finding[]> {
   if (!timeoutMs)
-    return reviewChapter(project, chapter, client, { ruleIds, chunk, onTrace, onUsage });
+    return reviewChapter(project, chapter, client, { ruleIds, chunk, depHints, onTrace, onUsage });
   const ac = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -114,6 +124,7 @@ async function reviewWithTimeout(
       reviewChapter(project, chapter, client, {
         ruleIds,
         chunk,
+        depHints,
         signal: ac.signal,
         onTrace,
         onUsage,
@@ -132,6 +143,35 @@ interface Task {
   project: EvalProject; // the (mutation,iter) clone — shared read-only across its chapter tasks
   chapter: EvalChapter;
   ruleIds: string[]; // only the rules this mutation scores on this chapter
+  depHints?: DepHint[]; // dep-graph hint (pointer/diff), if hinting is on
+}
+
+// Resolve the hint level (explicit opt wins; else EVAL_DEP_HINT: 0/off, 1/pointer,
+// 2/diff). Backward-compatible: EVAL_DEP_HINT=1 still means pointer.
+function resolveDepHintLevel(opt?: DepHintLevel): DepHintLevel {
+  if (opt) return opt;
+  const e = process.env.EVAL_DEP_HINT;
+  if (e === '2' || e === 'diff') return 'diff';
+  if (e === '1' || e === 'pointer') return 'pointer';
+  return 'off';
+}
+
+// Build the per-mutation hint from its canon edits. pointer = name+field only; diff
+// reads the OLD value from the pristine golden and the NEW value from the mutated
+// clone — exactly the diff the real staleness layer would surface.
+export function depHintsFor(
+  level: DepHintLevel,
+  m: Mutation,
+  golden: EvalProject,
+  copy: EvalProject,
+): DepHint[] | undefined {
+  if (level === 'off' || !m.depChanges?.length) return undefined;
+  return m.depChanges.map((d) => {
+    if (level === 'pointer' || !d.fact) return { name: d.name, fact: d.fact };
+    const from = golden.elements.find((e) => e.name === d.name)?.facts[d.fact];
+    const to = copy.elements.find((e) => e.name === d.name)?.facts[d.fact];
+    return { name: d.name, fact: d.fact, from, to };
+  });
 }
 
 export async function runEval(
@@ -155,6 +195,7 @@ export async function runEval(
     (envChunkSize > 0
       ? { size: envChunkSize, overlap: Math.max(0, Number(process.env.EVAL_CHUNK_OVERLAP) || 0) }
       : undefined);
+  const depHintLevel = resolveDepHintLevel(opts.depHintLevel);
 
   // Flatten to independent per-chapter review tasks. Each (mutation,iteration) gets
   // ONE clone (read-only across its chapter tasks); we only review the rules the
@@ -164,13 +205,14 @@ export async function runEval(
     for (let iter = 0; iter < repeat; iter++) {
       const copy = cloneProject(golden);
       m.apply(copy);
+      const depHints = depHintsFor(depHintLevel, m, golden, copy);
       for (const chId of scopeOf(m)) {
         const ch = copy.chapters.find((c) => c.id === chId);
         if (!ch) continue;
         const ruleIds = [
           ...new Set(m.expect.filter((e) => e.chapterId === chId).map((e) => e.ruleId)),
         ];
-        tasks.push({ mutationId: m.id, iter, chapterId: chId, project: copy, chapter: ch, ruleIds });
+        tasks.push({ mutationId: m.id, iter, chapterId: chId, project: copy, chapter: ch, ruleIds, depHints });
       }
     }
   }
@@ -178,7 +220,8 @@ export async function runEval(
   console.log(
     `[eval] ${mutations.length} 变异 × repeat${repeat} → ${tasks.length} 次章节审阅 · 并发=${concurrency}` +
       (timeoutMs ? ` · 单章上限=${Math.round(timeoutMs / 1000)}s` : '') +
-      (chunk ? ` · 切窗=${chunk.size}/重叠${chunk.overlap}` : ' · 整章'),
+      (chunk ? ` · 切窗=${chunk.size}/重叠${chunk.overlap}` : ' · 整章') +
+      (depHintLevel !== 'off' ? ` · dep提示(${depHintLevel})` : ''),
   );
 
   // `${mutationId}|${iter}` → set of `${chapterId}|${ruleId}` that fired. Pre-seed
@@ -218,6 +261,7 @@ export async function runEval(
         t.ruleIds,
         timeoutMs,
         chunk,
+        t.depHints,
         onTrace,
         onUsage,
       );

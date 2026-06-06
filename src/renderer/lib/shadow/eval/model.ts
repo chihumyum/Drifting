@@ -93,12 +93,25 @@ function renderElement(e: EvalElement): string {
     .join('\n');
 }
 
+// One prose-search hit (mirrors production search_prose's match shape).
+export interface ProseMatch {
+  kind: string;
+  title: string;
+  block?: number;
+  snippet: string;
+}
+export type ProseSearcher = (query: string, limit: number) => Promise<ProseMatch[]>;
+
 /**
  * A model-backed read-tool, mirroring makeShadowRunTool's read surface so the
  * judge consults canon from the (mutated) model exactly as it would in prod.
  * Resolves element/chapter by name; everything else returns a helpful refusal.
+ *
+ * `searchProse` (optional) backs the search_prose tool — pass keywordProseSearcher
+ * to mirror production, or semanticProseSearcher to test RAG. Omit → search_prose is
+ * denied (the original behaviour, where the judge had no working prose search).
  */
-export function makeModelRunTool(project: EvalProject) {
+export function makeModelRunTool(project: EvalProject, searchProse?: ProseSearcher) {
   const elByName = new Map<string, EvalElement>();
   for (const e of project.elements) {
     elByName.set(e.name, e);
@@ -135,6 +148,20 @@ export function makeModelRunTool(project: EvalProject) {
       }
       case 'list_elements':
         return { content: project.elements.map((e) => e.name).join('、'), status: 'ok' };
+      case 'search_prose': {
+        if (!searchProse)
+          return { content: '（eval：该工具在评测桩中不可用）', status: 'denied', note: '不可用' };
+        const query = String(args.query ?? args.q ?? '').trim();
+        const limit = Math.min(Math.max(Number(args.limit) || 30, 1), 100);
+        const matches = await searchProse(query, limit);
+        if (!matches.length) return { content: `（search_prose「${query}」：无匹配）`, status: 'ok' };
+        return {
+          content: matches
+            .map((m) => `[${m.kind}] ${m.title}${m.block ? ` 第${m.block}段` : ''}：${m.snippet}`)
+            .join('\n'),
+          status: 'ok',
+        };
+      }
       default:
         return { content: '（eval：该工具在评测桩中不可用）', status: 'denied', note: '不可用' };
     }

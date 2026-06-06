@@ -25,6 +25,11 @@
     "eval:shadow:smoke": "vitest run src/renderer/lib/shadow/eval/smoke.eval.ts",
     "eval:corpus": "node scripts/eval-corpus.mjs",
     "eval:chunk-ab": "vitest run src/renderer/lib/shadow/eval/chunk-ab.eval.ts",
+    "eval:dep-hint-ab": "vitest run src/renderer/lib/shadow/eval/dep-hint-ab.eval.ts",
+    "eval:model-hint-sweep": "vitest run src/renderer/lib/shadow/eval/model-hint-sweep.eval.ts",
+    "eval:diag-timeout": "vitest run src/renderer/lib/shadow/eval/diag-timeout.eval.ts",
+    "eval:diag-focus": "vitest run src/renderer/lib/shadow/eval/diag-focus.eval.ts",
+    "eval:diag-search": "vitest run src/renderer/lib/shadow/eval/diag-search.eval.ts",
     "eval:gen": "vitest run src/renderer/lib/shadow/eval/corpus-gen.eval.ts",
     "claude:fetch-binary": "node scripts/fetch-claude-binary.mjs",
     "postinstall": "node scripts/fetch-claude-binary.mjs"

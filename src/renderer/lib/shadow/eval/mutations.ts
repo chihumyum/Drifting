@@ -26,6 +26,10 @@ export interface Mutation {
   // In a fuller version this comes from the staleness selector (and verifying it
   // matches is how we test the dep graph).
   scope?: string[];
+  // Canon nodes this mutation edited (name + field) — the SAME pointer the real
+  // dep-graph would surface on a canon edit. Forwarded to the judge as a recheck
+  // hint (no values) so we can measure cold-rediscovery vs hinted recall.
+  depChanges?: { name: string; fact?: string }[];
 }
 
 // ── low-level edit helpers (operate on a clone) ───────────────────────────────
@@ -134,6 +138,7 @@ export function changeDependency(
       element(p, elementName).facts[factKey] = newValue;
     },
     expect: affected.map((a) => ({ ...a, shouldFlag: true })),
+    depChanges: [{ name: elementName, fact: factKey }],
   };
 }
 
@@ -152,5 +157,8 @@ export function changeDependencyIrrelevant(
       element(p, elementName).facts[factKey] = newValue;
     },
     expect: control.map((a) => ({ ...a, shouldFlag: false })),
+    // Irrelevant changes ALSO get hinted — so we measure whether the hint itself
+    // induces a false positive (the FP guard, under hint).
+    depChanges: [{ name: elementName, fact: factKey }],
   };
 }

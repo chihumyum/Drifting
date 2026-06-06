@@ -89,6 +89,12 @@ export interface SemanticEvalContext {
   sceneEntities?: { name: string; summary?: string }[];
   priorChapter?: { title: string; summary?: string };
   driftNodes?: { title: string; summary?: string }[];
+  // Dep-graph recheck hint: canon nodes edited since this chapter was last reviewed.
+  // The judge is told WHICH settings moved (name + optional field), and optionally the
+  // old→new VALUE diff (from/to) — never that a fault EXISTS in the prose (no answer
+  // leak). from/to is exactly what the staleness/diff layer holds in prod. Populated by
+  // that layer (and, in eval, by the changeDependency operator).
+  changedDeps?: { name: string; fact?: string; from?: string; to?: string }[];
 }
 
 function buildBackground(context?: SemanticEvalContext): string {
@@ -110,6 +116,30 @@ function buildBackground(context?: SemanticEvalContext): string {
     if (slFacts.length > 0) lines.push(`${label}设定/事实：\n${slFacts.join('\n')}`);
   }
   return lines.length > 0 ? lines.join('\n') : '（无额外背景）';
+}
+
+// A consistency-recheck hint built from the dep-graph: which canon nodes were edited
+// since this chapter was last reviewed. We name WHICH settings moved (name + field) —
+// NOT the old/new value, NOT that a violation exists — and ask the judge to re-verify
+// the prose against CURRENT canon. The anti-over-fire clause keeps a merely-irrelevant
+// change from inducing a false positive.
+function buildChangedDepsHint(context?: SemanticEvalContext): string {
+  const deps = (context?.changedDeps ?? []).filter((d) => d.name?.trim());
+  if (!deps.length) return '';
+  // Pointer level → "X（字段：Y）"; diff level → "X（字段：Y）：由「旧」改为「新」". The
+  // diff is the value the engine actually holds; it discloses the change, not a verdict.
+  const list = deps
+    .map((d) => {
+      const head = d.fact?.trim() ? `${d.name}（字段：${d.fact.trim()}）` : d.name;
+      const hasDiff = (d.from?.trim() ?? '') !== '' || (d.to?.trim() ?? '') !== '';
+      return hasDiff ? `${head}：由「${d.from?.trim() || '（空）'}」改为「${d.to?.trim() || '（空）'}」` : head;
+    })
+    .join('\n');
+  return [
+    '【一致性复核提示】以下设定/事实自本章上次审阅后被改动过，请重点核对本章正文是否仍与它们的【当前】值一致：',
+    list,
+    '若正文与当前设定确有冲突，按相关约束报出；若并不冲突，照常放过——不要因为被提示就强行找茬（仍然宁可漏报、不误报）。',
+  ].join('\n');
 }
 
 // The judge's anchored header: WHO it's reviewing (chapter identity), that it
@@ -554,10 +584,14 @@ export async function evaluateSemanticAssertionsFC(
     .join('\n');
 
   const header = buildChapterHeader(context, blocks.length);
+  const depHint = buildChangedDepsHint(context);
   const messages: AIMessage[] = [
     {
       role: 'user',
-      content: `${header}\n\n背景设定：\n${buildBackground(context)}\n\n约束（共 ${active.length} 条，逐条裁决）：\n${constraintList}\n\n正文（按段编号）：\n${numbered}`,
+      content:
+        `${header}\n\n背景设定：\n${buildBackground(context)}` +
+        (depHint ? `\n\n${depHint}` : '') +
+        `\n\n约束（共 ${active.length} 条，逐条裁决）：\n${constraintList}\n\n正文（按段编号）：\n${numbered}`,
     },
   ];
 

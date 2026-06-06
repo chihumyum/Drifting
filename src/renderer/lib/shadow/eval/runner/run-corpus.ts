@@ -8,7 +8,7 @@
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { LLMClient } from '../../../ai/client/llm-client';
-import { runEval, type EvalResult } from '../score';
+import { runEval, type EvalResult, type DepHintLevel } from '../score';
 import { mockCleanClient, realJudgeClient, type ChunkConfig } from '../review';
 import { goldenToProject, loadGoldenFile } from './load-golden';
 import { loadDataset, loadSuite } from './load-corpus';
@@ -31,6 +31,14 @@ export interface RunOptions {
   // Window the semantic judge for this run (overrides EVAL_CHUNK_SIZE). Lets a
   // caller A/B whole-chapter vs windowed in one process without touching env.
   chunk?: ChunkConfig;
+  // Dep-graph hint level forwarded to the judge (overrides EVAL_DEP_HINT). Lets a
+  // caller A/B cold/pointer/diff in one process.
+  depHintLevel?: DepHintLevel;
+  // Judge model id (DeepSeek). Becomes the provider defaultModel; any 'deepseek-' id
+  // passes straight through. Default = provider default (deepseek-v4-flash).
+  model?: string;
+  // Override the run's repeat (else EVAL_REPEAT, else the suite's declared repeat).
+  repeat?: number;
 }
 
 function emptyResult(repeat: number): EvalResult {
@@ -42,16 +50,16 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
   const suite = loadSuite(suitePath);
   const startedAt = new Date().toISOString();
 
-  // EVAL_REPEAT overrides the suite's declared repeat (the launcher prompts for it);
-  // suite.repeat is the default when unset.
-  const repeat = Math.max(1, Number(process.env.EVAL_REPEAT) || suite.repeat);
+  // Explicit opt.repeat wins; else EVAL_REPEAT (the launcher prompts for it); else the
+  // suite's declared repeat.
+  const repeat = Math.max(1, opts.repeat ?? (Number(process.env.EVAL_REPEAT) || suite.repeat));
 
   const cases: EvalCase[] = suite.datasets
     .flatMap((d) => loadDataset(join(DATASETS_DIR, d)))
     .filter((c) => c.enabled);
 
   const deepseek = suite.client === 'deepseek';
-  const client = deepseek ? realJudgeClient() : mockCleanClient();
+  const client = deepseek ? realJudgeClient(opts.model) : mockCleanClient();
   if (!client) throw new Error(`suite "${suite.id}" client=deepseek 但未提供 DeepSeek key`);
 
   // Run-level metering only makes sense for a real client (mock fires no real calls).
@@ -78,6 +86,7 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
       concurrency: suite.concurrency,
       timeoutMs: suite.timeoutMs,
       chunk: opts.chunk,
+      depHintLevel: opts.depHintLevel,
     });
     merged.tally.TP += res.tally.TP;
     merged.tally.FP += res.tally.FP;
@@ -92,7 +101,7 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
     suite: suite.id,
     startedAt,
     finishedAt: new Date().toISOString(),
-    judgeModel: deepseek ? 'deepseek-v4-flash' : 'mock',
+    judgeModel: deepseek ? (opts.model ?? 'deepseek-v4-flash') : 'mock',
     result: merged,
     metrics: metering ? metering.snapshot() : ZERO_METRICS,
     goldens,
