@@ -70,4 +70,28 @@ describe('corpus eval — cases as data', () => {
     },
     1_800_000,
   );
+
+  // Run ANY suite by name: EVAL_SUITE=fog-harbor VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus
+  // Writes a run artifact + history. Skips (not fails) a deepseek suite when no key is set.
+  const ONLY = process.env.EVAL_SUITE;
+  test.runIf(!!ONLY)(
+    `suite: ${ONLY ?? '(set EVAL_SUITE)'}`,
+    async () => {
+      try {
+        const { result, metrics, gateViolations } = await runSuite(ONLY!, { artifact: true });
+        console.log(formatReport(result));
+        console.log(formatMetrics(metrics));
+        console.log(formatTrend(HISTORY_PATH, ONLY!));
+        if (gateViolations.length) console.warn(`[eval] gate 未过：${gateViolations.join(' · ')}`);
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg.includes('DeepSeek key')) {
+          console.warn(`\n[eval] 跳过 suite "${ONLY}"：需要 DeepSeek key。\n`);
+          return;
+        }
+        throw e;
+      }
+    },
+    1_800_000,
+  );
 });

@@ -93,7 +93,8 @@ export async function runSuiteFile(suitePath: string, opts: RunOptions = {}): Pr
   if (opts.artifact ?? process.env.EVAL_ARTIFACT === '1') {
     const dir = join(RUNS_DIR, suite.id, startedAt.replace(/[:.]/g, '-'));
     writeArtifact(dir, report);
-    appendHistory(HISTORY_PATH, report);
+    // Only real-judge runs enter the committed trend — keep mock/ci noise out.
+    if (metering) appendHistory(HISTORY_PATH, report);
     console.log(`[eval] artifact → ${dir}`);
   }
   return report;
