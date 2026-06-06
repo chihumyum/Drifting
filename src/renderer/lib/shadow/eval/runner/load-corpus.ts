@@ -3,7 +3,7 @@
  * (JSON). Each line is validated against the case schema with its file+line in the
  * error, so a malformed row points you straight at it.
  */
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { zCase, zSuite, type EvalCase, type Suite } from './schema';
 
 export function loadDataset(path: string): EvalCase[] {
@@ -33,4 +33,10 @@ export function loadSuite(path: string): Suite {
   } catch (e) {
     throw new Error(`suite ${path} 加载失败：${(e as Error).message}`);
   }
+}
+
+/** Append cases to a JSONL dataset (the AI-generated → certified → corpus path). */
+export function appendCases(path: string, cases: EvalCase[]): void {
+  if (cases.length === 0) return;
+  appendFileSync(path, cases.map((c) => JSON.stringify(c)).join('\n') + '\n');
 }

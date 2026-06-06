@@ -24,6 +24,7 @@
     "eval:shadow": "vitest run src/renderer/lib/shadow/eval/shadow-eval.eval.ts",
     "eval:shadow:smoke": "vitest run src/renderer/lib/shadow/eval/smoke.eval.ts",
     "eval:corpus": "vitest run src/renderer/lib/shadow/eval/corpus.eval.ts",
+    "eval:gen": "vitest run src/renderer/lib/shadow/eval/corpus-gen.eval.ts",
     "claude:fetch-binary": "node scripts/fetch-claude-binary.mjs",
     "postinstall": "node scripts/fetch-claude-binary.mjs"
   },
