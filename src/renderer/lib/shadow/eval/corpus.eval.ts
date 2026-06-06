@@ -24,10 +24,14 @@ import { formatMetrics, formatTrend } from './runner/artifact';
 import { realJudgeClient } from './review';
 
 describe('corpus eval — cases as data', () => {
+  // EVAL_SUITE=<id> runs ONLY that suite (below); unset runs the default battery
+  // (ci + fog-harbor-load + acceptance). So `EVAL_SUITE=sample-screenplay` won't drag in others.
+  const ONLY = process.env.EVAL_SUITE;
+
   // No key: the ci suite is the mechanical (banned-words) path, an exact regression
   // gate. Same numbers the old hand-coded mechanical test produced (TP=1/FP/FN=0/TN=2).
   // The suite's gate (maxFP/maxFN=0) is enforced by the runner.
-  test('ci suite (mock) — suite gate passes', async () => {
+  test.skipIf(!!ONLY)('ci suite (mock) — suite gate passes', async () => {
     const { result, gateViolations } = await runSuite('ci');
     console.log(formatReport(result));
     expect(gateViolations).toEqual([]);
@@ -35,7 +39,7 @@ describe('corpus eval — cases as data', () => {
 
   // Structural (no key): the fog-harbor golden loads through the DATA path — bodySource
   // prose is read at runtime from FOG_HARBOR_DIR. Self-skips if the vault isn't present.
-  test('fog-harbor golden loads via the data path (bodySource)', () => {
+  test.skipIf(!!ONLY)('fog-harbor golden loads via the data path (bodySource)', () => {
     let project;
     try {
       project = goldenToProject(loadGoldenFile(join(GOLDENS_DIR, 'fog-harbor.golden.json')));
@@ -55,7 +59,7 @@ describe('corpus eval — cases as data', () => {
 
   // Key-gated: the acceptance suite through the real judge. Prints precision/recall +
   // run-level metrics (tokens / cost / latency); self-skips green without a key.
-  test(
+  test.skipIf(!!ONLY)(
     'acceptance suite (deepseek) — precision / recall + metrics',
     async () => {
       if (!realJudgeClient()) {
@@ -73,7 +77,6 @@ describe('corpus eval — cases as data', () => {
 
   // Run ANY suite by name: EVAL_SUITE=fog-harbor VITE_DEEPSEEK_AI_API_KEY=sk-... pnpm eval:corpus
   // Writes a run artifact + history. Skips (not fails) a deepseek suite when no key is set.
-  const ONLY = process.env.EVAL_SUITE;
   test.runIf(!!ONLY)(
     `suite: ${ONLY ?? '(set EVAL_SUITE)'}`,
     async () => {
