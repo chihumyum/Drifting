@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Clock,
   Loader2,
+  Plus,
   RotateCw,
   Square,
   Trash2,
@@ -294,6 +295,120 @@ const actionBtn: React.CSSProperties = {
   borderRadius: 5,
 };
 
+// Inline composer for a NEW chapter review — enqueues onto the durable serial
+// queue. (Arc derivation is NOT here: it's an element-level analysis and lives in
+// the element editor's arc section.) Parked in the panel header.
+function NewTaskComposer({
+  chapters,
+  onRunReview,
+  onClose,
+}: {
+  chapters: { id: string; title: string; finished: boolean }[];
+  onRunReview: (chapterId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [chapterId, setChapterId] = useState(chapters[0]?.id ?? '');
+  const [running, setRunning] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const run = async () => {
+    if (!chapterId) {
+      setMsg('请选择章节');
+      return;
+    }
+    setMsg(null);
+    setRunning(true);
+    try {
+      await onRunReview(chapterId);
+      setMsg('✓ 已加入审阅队列');
+    } catch (e) {
+      setMsg(`✗ ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        margin: '0 4px 8px',
+        padding: 8,
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 6,
+        background: 'hsl(var(--paper-deep))',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 7,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            letterSpacing: '0.08em',
+            color: 'hsl(var(--ink-4))',
+          }}
+        >
+          新建审阅
+        </span>
+        <button type="button" onClick={onClose} title="关闭" style={iconBtn}>
+          <X size={13} />
+        </button>
+      </div>
+
+      <select
+        value={chapterId}
+        onChange={(e) => setChapterId(e.target.value)}
+        style={{
+          width: '100%',
+          fontSize: 12,
+          padding: '4px 6px',
+          border: '1px solid hsl(var(--rule))',
+          borderRadius: 5,
+          background: 'hsl(var(--paper-deep))',
+          color: 'hsl(var(--ink-1))',
+        }}
+      >
+        {chapters.length === 0 && <option value="">（暂无章节）</option>}
+        {chapters.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.finished ? '✓ ' : '· '}
+            {c.title}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={running}
+        style={{
+          ...actionBtn,
+          justifyContent: 'center',
+          opacity: running ? 0.6 : 1,
+          cursor: running ? 'default' : 'pointer',
+        }}
+      >
+        {running ? (
+          <Loader2 size={12} style={{ animation: 'drift-spin 0.9s linear infinite' }} />
+        ) : (
+          <Plus size={12} />
+        )}
+        加入审阅队列
+      </button>
+
+      {msg && (
+        <div
+          style={{ fontSize: 11, lineHeight: 1.45, color: 'hsl(var(--ink-3))', whiteSpace: 'pre-wrap' }}
+        >
+          {msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ShadowPanel() {
   const { projectId, navigateToNode } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
@@ -307,6 +422,7 @@ export function ShadowPanel() {
   const staleReviews = useStaleReviews(projectId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showNewTask, setShowNewTask] = useState(false);
   const [footerHeight, setFooterHeight] = useState(220);
   const [expandedArchived, setExpandedArchived] = useState<Set<string>>(new Set());
   const footerDragRef = useRef<{ startY: number; startH: number } | null>(null);
@@ -481,6 +597,19 @@ export function ShadowPanel() {
     void rerunMany(finished.map((n) => n.id));
   };
 
+  // ── New-task composer: pick a chapter to review (arc derivation lives in the
+  // element editor, not here — it's an element-level analysis, not a chapter CI). ──
+  const taskChapters = useMemo(
+    () =>
+      bookNodes
+        .filter((n) => n.projectId === projectId && n.kind === 'chapter')
+        .map((n) => ({ id: n.id, title: n.title || '(未命名章节)', finished: n.writingStatus === 'finished' })),
+    [bookNodes, projectId],
+  );
+  const runReviewTask = async (chapterId: string) => {
+    await enqueueShadowReview(chapterId, projectId);
+  };
+
   const deleteAllArchived = async () => {
     await Promise.all(archived.map((j) => repo.delete(j.id)));
     for (const j of archived) removeShadowJob(j.id);
@@ -577,6 +706,25 @@ export function ShadowPanel() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <button
               type="button"
+              onClick={() => setShowNewTask((v) => !v)}
+              title="新建任务：审阅章节 / 派生元素弧线"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                border: 'none',
+                background: showNewTask ? 'hsl(var(--accent) / 0.12)' : 'transparent',
+                color: showNewTask ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: '2px 4px',
+                borderRadius: 4,
+              }}
+            >
+              <Plus size={12} /> 新建
+            </button>
+            <button
+              type="button"
               onClick={sweepBook}
               title="对全书已完成章节重新审阅（整书回归）"
               style={{
@@ -617,6 +765,14 @@ export function ShadowPanel() {
             )}
           </div>
         </div>
+
+        {showNewTask && (
+          <NewTaskComposer
+            chapters={taskChapters}
+            onRunReview={runReviewTask}
+            onClose={() => setShowNewTask(false)}
+          />
+        )}
 
         {jobs.length === 0 ? (
           <div

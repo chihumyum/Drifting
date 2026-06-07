@@ -330,6 +330,13 @@
       "when": 1783100000000,
       "tag": "0046_element_patch_text_anchor_invalidation",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1783200000000,
+      "tag": "0047_element_arc",
+      "breakpoints": true
     }
   ]
 }

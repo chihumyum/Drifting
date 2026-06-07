@@ -406,6 +406,32 @@ export const ElementPatchTable = sqliteTable(
   ],
 );
 
+// Element Arc — per-element derived development trajectory (the「弧线透镜」). One row
+// per element holds the LATEST derivation + its status, so the element editor's arc
+// section persists across reloads. Deliberately NOT folded into shadow_job: that's a
+// chapter-CI record (subject=chapter, product=findings); an arc is an element-level
+// analysis (subject=element, product=an ArcMap, stored in result_json). Joins to
+// element; cascades on delete.
+export const ElementArcTable = sqliteTable(
+  'element_arc',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    elementId: text('element_id')
+      .notNull()
+      .references(() => BookElementTable.id, { onDelete: 'cascade' }),
+    // running | done | failed
+    status: text('status').notNull().default('running'),
+    includeDrafts: integer('include_drafts', { mode: 'boolean' }).notNull().default(false),
+    // The ArcMap (domain/element-arc.ts) as JSON; null until the derivation finishes.
+    resultJson: text('result_json'),
+    error: text('error'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [uniqueIndex('idx_element_arc_element').on(t.elementId)],
+);
+
 // Block Section
 // Per-chapter rolling summary of a contiguous range of blocks ("blocks 15-27:
 // tavern fight escalates into Bjorn's challenge"). Produced as a side-effect

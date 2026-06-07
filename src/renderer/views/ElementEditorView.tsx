@@ -21,6 +21,7 @@ import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy'
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
+import { ArcSection } from '../components/editor/ArcSection';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -650,6 +651,9 @@ export function ElementEditorView({
             )}
             {elementId && projectId && (
               <PatchesSection elementId={elementId} projectId={projectId} />
+            )}
+            {elementId && projectId && (
+              <ArcSection elementId={elementId} projectId={projectId} />
             )}
           </article>
           {marginNotes && (
