@@ -37,6 +37,7 @@ import {
 import { SHADOW_TIERS, SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
 import { useAuthStore } from '../../store/auth';
 import { useProjectStore } from '../../store/project-store';
+import { useAgentChatStore } from '../../store/agent-chat-store';
 import {
   createAgentConversationRepository,
   type AgentConversationUsage,
@@ -2736,6 +2737,17 @@ const fmtUsageTok = (n: number): string =>
       ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`
       : String(n);
 const fmtUsageUsd = (n: number): string => `$${n.toFixed(n > 0 && n < 0.01 ? 4 : 2)}`;
+const fmtConvTime = (iso: string): string => {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    return d.toDateString() === now.toDateString()
+      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+  } catch {
+    return '';
+  }
+};
 
 function AgentUsageSection({ open }: { open: boolean }) {
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
@@ -2769,6 +2781,15 @@ function AgentUsageSection({ open }: { open: boolean }) {
     { input: 0, output: 0, cost: 0, turns: 0 },
   );
   const withUsage = rows.filter((r) => r.inputTokens + r.outputTokens > 0);
+
+  // Soft-delete through the chat store so the right-rail Companion (if bound to
+  // this project) drops the conversation too — abort an in-flight turn, clear the
+  // active pointer, refresh its list. Persistence (repo.softDelete) runs even when
+  // the store isn't bound, so deletion is safe either way; then prune our own row.
+  const handleDelete = (id: string) => {
+    void useAgentChatStore.getState().deleteConversation(id);
+    setRows((rs) => rs.filter((r) => r.id !== id));
+  };
 
   const card = (label: string, value: string, sub?: string) => (
     <div
@@ -2828,85 +2849,126 @@ function AgentUsageSection({ open }: { open: boolean }) {
       {!projectId ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后查看其 Agent 用量。</div>
       ) : (
-        <>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {card(
-              '累计 Token',
-              fmtUsageTok(totals.input + totals.output),
-              `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
-            )}
-            {card('累计费用', fmtUsageUsd(totals.cost))}
-            {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
-          </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {card(
+            '累计 Token',
+            fmtUsageTok(totals.input + totals.output),
+            `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
+          )}
+          {card('累计费用', fmtUsageUsd(totals.cost))}
+          {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
+        </div>
+      )}
 
-          <div style={{ marginTop: 18 }}>
-            <SecHead title="按对话" hint={`${withUsage.length} 个有用量的对话`} />
-            {withUsage.length === 0 ? (
-              <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
-                还没有用量记录 — 给 Agent 发一条消息试试。
-              </div>
-            ) : (
-              <div
+      <GroupHead
+        label="对话历史"
+        hint="HISTORY"
+        desc="本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。"
+      />
+
+      {!projectId ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后管理其对话历史。</div>
+      ) : rows.length === 0 ? (
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
+          还没有对话 — 给 Agent 发一条消息试试。
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid hsl(var(--rule))',
+            borderRadius: 5,
+            overflow: 'hidden',
+          }}
+        >
+          {rows.map((r, i) => (
+            <div
+              key={r.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                borderTop: i === 0 ? 'none' : '1px solid hsl(var(--rule))',
+                fontSize: 12.5,
+              }}
+            >
+              <span
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  border: '1px solid hsl(var(--rule))',
-                  borderRadius: 5,
+                  flex: 1,
+                  minWidth: 0,
                   overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: 'hsl(var(--ink-1))',
                 }}
               >
-                {withUsage.map((r, i) => (
-                  <div
-                    key={r.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 12px',
-                      borderTop: i === 0 ? 'none' : '1px solid hsl(var(--rule))',
-                      fontSize: 12.5,
-                    }}
-                  >
-                    <span
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        color: 'hsl(var(--ink-1))',
-                      }}
-                    >
-                      {r.title || '未命名'}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 11,
-                        color: 'hsl(var(--ink-3))',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      ↑{fmtUsageTok(r.inputTokens)} ↓{fmtUsageTok(r.outputTokens)}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 11,
-                        color: 'hsl(var(--ink-4))',
-                        minWidth: 56,
-                        textAlign: 'right',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {r.costUsd > 0 ? fmtUsageUsd(r.costUsd) : '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
+                {r.title || '未命名'}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  color: 'hsl(var(--ink-4))',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmtConvTime(r.updatedAt)}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-3))',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {r.inputTokens + r.outputTokens > 0
+                  ? `↑${fmtUsageTok(r.inputTokens)} ↓${fmtUsageTok(r.outputTokens)}`
+                  : '—'}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'hsl(var(--ink-4))',
+                  minWidth: 56,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {r.costUsd > 0 ? fmtUsageUsd(r.costUsd) : '—'}
+              </span>
+              <button
+                type="button"
+                title="删除这条对话"
+                onClick={() => handleDelete(r.id)}
+                style={{
+                  flexShrink: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'hsl(var(--ink-4))',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  lineHeight: 1,
+                  padding: '2px 4px',
+                  borderRadius: 4,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'hsl(var(--ink-1))';
+                  e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'hsl(var(--ink-4))';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </>
   );
