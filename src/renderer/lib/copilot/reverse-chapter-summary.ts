@@ -10,6 +10,7 @@
 import loglevel from 'loglevel';
 import { runStructured } from '../ai/remote/run-structured';
 import { chapterSummaryPrompt } from '../ai/prompts/templates/chapter-summary';
+import { buildAdaptiveChapterContext } from './adaptive-chapter-context';
 import { useDataStore } from '../../store/data-store';
 import { createBookNodeSqliteRepository } from '../../sqlite-repo/node-repo';
 import { syncNodeUpdate } from '../../usecase/sync-helpers';
@@ -41,19 +42,21 @@ export async function generateChapterSummary(params: {
     return { status: 'skipped-nonempty' };
   }
 
-  const sectionSummaries = useDataStore
-    .getState()
-    .blockSections.filter((s) => s.chapterId === chapterId)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .map((s) => s.summary)
-    .filter((s) => s.trim().length > 0);
-  if (sectionSummaries.length === 0) return { status: 'no-sections' };
+  // Adaptive source: the chapter's full prose when it's small enough (no longer
+  // the rolling summary by default), else fall back to the rolling segment
+  // summaries for an oversized chapter.
+  const ctx = await buildAdaptiveChapterContext(chapterId);
+  if (!ctx.fullChapterText && !(ctx.sectionSummaries && ctx.sectionSummaries.length > 0)) {
+    return { status: 'no-sections' };
+  }
 
   let summary: string;
   try {
     const out = await runStructured(
       chapterSummaryPrompt,
-      { sectionSummaries },
+      ctx.fullChapterText
+        ? { fullChapterText: ctx.fullChapterText }
+        : { sectionSummaries: ctx.sectionSummaries },
       { signal, projectId },
     );
     summary = out.summary.trim();

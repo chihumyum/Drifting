@@ -8,6 +8,7 @@ import {
   StoryGraphViewIcon,
 } from './BottomStatusBarIcons';
 import { CopilotBottomMenu } from './copilot/CopilotBottomMenu';
+import { ShadowQuickMenu } from './ShadowQuickMenu';
 import '../../styles/bottom-status-bar.css';
 
 // BottomStatusBar — always-visible compact footer. Hosts the project-global
@@ -31,9 +32,6 @@ export function BottomStatusBar() {
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const toggleSuper = (id: SuperViewId) =>
     setActiveSuperView(activeSuperView === id ? 'none' : id);
-
-  const shadowMode = useUiStore((s) => s.shadowMode);
-  const toggleShadowMode = useUiStore((s) => s.toggleShadowMode);
 
   // Nav-icon clicks should ALWAYS land the user on the navigated route —
   // when a super view is overlaying the editor, clicking Home / 通览全书
@@ -103,25 +101,7 @@ export function BottomStatusBar() {
 
       <div className="bsb__spacer" />
       <CopilotBottomMenu />
-      <button
-        type="button"
-        className={`bsb__seg bsb__shadow${shadowMode ? ' is-active' : ''}`}
-        onClick={toggleShadowMode}
-        title={shadowMode ? '退回 Shadow' : '唤起 Shadow'}
-        aria-label={shadowMode ? '退回 Shadow' : '唤起 Shadow'}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 12,
-            lineHeight: 1,
-          }}
-        >
-          ◐
-        </span>
-        <span>Shadow</span>
-      </button>
+      <ShadowQuickMenu />
       <button
         type="button"
         className={`bsb__seg bsb__timeline-toggle${bottomTimelineHidden ? '' : ' is-open'}`}

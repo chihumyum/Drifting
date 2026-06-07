@@ -561,125 +561,6 @@
     --story-6:               165 25% 56%;
   }
 
-  /* ─── Shadow mode ──────────────────────────────────────────
-     Triggered by ShadowOrb (toggleShadowMode in ui-store). The
-     entire palette shifts — paper goes cool slate, accent goes
-     deep maroon (light) / lavender (dark). Story colors track
-     the shift so storyline rails read the same as in paper mode.
-     ──────────────────────────────────────────────────────── */
-
-  /* LIGHT × SHADOW — daylight gone cool, paper still bright */
-  html[data-shadow-mode='on']:not(.dark) {
-    --background:           225 21% 94%;
-    --foreground:           224 19% 12%;
-
-    --card:                 218 50% 98%;
-    --card-foreground:      224 19% 12%;
-
-    --popover:              220 25% 96%;
-    --popover-foreground:   224 19% 12%;
-
-    --primary:              224 19% 12%;
-    --primary-foreground:   225 21% 94%;
-
-    --secondary:            222 18% 90%;
-    --secondary-foreground: 225 13% 24%;
-
-    --muted:                222 18% 90%;
-    --muted-foreground:     227 11% 43%;
-
-    --accent:               347 38% 35%;
-    --accent-foreground:    225 21% 94%;
-    --comment:               18 50% 47%;  /* Claude 橙褐 terracotta — comment chrome */
-
-    --destructive:          347 38% 35%;
-    --destructive-foreground: 225 21% 94%;
-
-    --border:               222 13% 84%;
-    --input:                222 13% 84%;
-    --ring:                 347 38% 35%;
-
-    --paper:                225 21% 94%;
-    --paper-deep:           222 18% 90%;
-    --surface:              220 25% 96%;
-    --page:                 218 50% 98%;
-
-    --ink-1:                224 19% 12%;
-    --ink-2:                225 13% 24%;
-    --ink-3:                227 11% 43%;
-    --ink-4:                228 12% 63%;
-    --ink-5:                224 12% 78%;
-    --rule:                 222 13% 85%;
-    --rule-strong:          222 13% 76%;
-
-    --story-1:              347 32% 43%;
-    --story-2:              215 36% 39%;
-    --story-3:              140 13% 41%;
-    --story-4:              40  26% 42%;
-    --story-5:              267 19% 36%;
-    --story-6:              178 28% 37%;
-  }
-
-  /* DARK × SHADOW — moonless night, ink in cold water */
-  html.dark[data-shadow-mode='on'] {
-    --background:           219 22% 10%;
-    --foreground:           224 17% 86%;
-
-    --card:                 219 25% 15%;
-    --card-foreground:      224 17% 86%;
-
-    --popover:              219 21% 13%;
-    --popover-foreground:   224 17% 86%;
-
-    --primary:              224 17% 86%;
-    --primary-foreground:   219 22% 10%;
-
-    --secondary:            222 26%  7%;
-    --secondary-foreground: 226 15% 73%;
-
-    --muted:                219 21% 13%;
-    --muted-foreground:     224 10% 51%;
-
-    --accent:               255 47% 77%;
-    --accent-foreground:    219 22% 10%;
-    --comment:               20 56% 70%;  /* Claude 橙褐 terracotta — comment chrome */
-
-    --destructive:          347 38% 55%;
-    --destructive-foreground: 224 17% 86%;
-
-    --border:               220 17% 22%;
-    --input:                220 17% 22%;
-    --ring:                 255 47% 77%;
-
-    --paper:                219 22% 10%;
-    --paper-deep:           222 26%  7%;
-    --surface:              219 21% 13%;
-    --page:                 219 25% 15%;
-
-    --ink-1:                224 17% 86%;
-    --ink-2:                226 15% 73%;
-    --ink-3:                224 10% 51%;
-    --ink-4:                227 13% 35%;
-    --ink-5:                225 17% 25%;
-    --rule:                 220 17% 22%;
-    --rule-strong:          220 17% 30%;
-
-    --story-1:              13  46% 60%;
-    --story-2:              215 39% 56%;
-    --story-3:              80  26% 54%;
-    --story-4:              38  42% 60%;
-    --story-5:              285 23% 65%;
-    --story-6:              168 32% 57%;
-  }
-
-  /* Smooth the palette shift so the Shadow-orb invocation reads as a tone
-     change, not a flash. The orb's own radial wave is timed at ~850ms;
-     keep this in the same ballpark. */
-  html,
-  body,
-  .app-shadow-tinted {
-    transition: background-color 0.6s ease, color 0.6s ease;
-  }
 }
 
 @layer base {
@@ -1572,6 +1453,21 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   font-size: 10.5px;
   color: hsl(var(--ink-3));
   margin: 1px 0 3px;
+}
+
+/* Copilot suggestion body preview — the element's initial summary (element
+   candidate) or the patch body. A soft background wash (no left bar) so the
+   author sees what they're accepting without expanding anything. */
+.mnote__evidence {
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--ink-2));
+  margin: 4px 0 2px;
+  padding: 6px 8px;
+  background: hsl(var(--ink-1) / 0.04);
+  border-radius: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* New-comment composer matches the note identity so creating → created reads as

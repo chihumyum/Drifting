@@ -39,6 +39,7 @@ import {
 } from '../lib/extensions/entity-mention-suggestion';
 import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-menu';
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
+import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
 import type { EditorView } from '@tiptap/pm/view';
 import { useDataStore, trashedKey } from '../store/data-store';
@@ -168,7 +169,8 @@ function openCommentContextMenu(
   setTimeout(() => document.addEventListener('mousedown', close, true), 0);
 }
 
-/** How many blocks before/after the invocation region to pull in as context. */
+/** How many blocks before/after the invocation region to pull in as context when
+ *  the chapter is too large to send whole (see FULL_CHAPTER_CHAR_BUDGET). */
 const INLINE_CONTEXT_WINDOW = 5;
 
 /**
@@ -293,13 +295,22 @@ function buildInlineCopilotCtx(
       text: b.text,
     }));
 
+  // Adaptive context scope. When the whole chapter is small enough, send ALL of
+  // it as 上文/下文 — faithful full-chapter context beats a lossy rolling summary
+  // (product direction: 内容不多就全 chapter). Only an oversized chapter falls
+  // back to a ±INLINE_CONTEXT_WINDOW window + the rolling segment summaries.
+  const chapterChars = blocks.reduce((n, b) => n + b.text.length, 0);
+  const wholeChapter = chapterChars <= FULL_CHAPTER_CHAR_BUDGET;
+
   // Nearby context, split by side: a window of blocks strictly BEFORE the
   // first covered block (上文) and strictly AFTER the last (下文). Iterating the
   // two ranges separately both excludes the [firstIdx, lastIdx] target span and
   // keeps each side in document order, so the prompt can show the target
   // sitting between them rather than as one undifferentiated blob.
-  const windowStart = Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
-  const windowEnd = Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
+  const windowStart = wholeChapter ? 0 : Math.max(0, firstIdx - INLINE_CONTEXT_WINDOW);
+  const windowEnd = wholeChapter
+    ? blocks.length - 1
+    : Math.min(blocks.length - 1, lastIdx + INLINE_CONTEXT_WINDOW);
   const beforeParts: string[] = [];
   const afterParts: string[] = [];
   for (let i = windowStart; i < firstIdx; i++) {
@@ -311,17 +322,21 @@ function buildInlineCopilotCtx(
     if (b.text) afterParts.push(b.text);
   }
 
-  // Segment summaries overlapping the window — the local narrative arc.
+  // Segment summaries overlapping the window — the local narrative arc. Skipped
+  // when we're already sending the whole chapter (the prose itself supersedes a
+  // rolling summary of it).
   const windowIds = new Set<string>();
   for (let i = windowStart; i <= windowEnd; i++) windowIds.add(blocks[i]!.id);
-  const segmentSummaries = useDataStore
-    .getState()
-    .blockSections.filter(
-      (s) => s.chapterId === nodeId && s.blockIds.some((b) => windowIds.has(b)),
-    )
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .map((s) => s.summary)
-    .filter((s) => s.trim().length > 0);
+  const segmentSummaries = wholeChapter
+    ? []
+    : useDataStore
+        .getState()
+        .blockSections.filter(
+          (s) => s.chapterId === nodeId && s.blockIds.some((b) => windowIds.has(b)),
+        )
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((s) => s.summary)
+        .filter((s) => s.trim().length > 0);
 
   return {
     nodeId,

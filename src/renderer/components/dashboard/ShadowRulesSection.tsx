@@ -10,7 +10,16 @@ const log = loglevel.getLogger('ShadowRules');
 // dashboard. The author writes rules FREEFORM (one per row); on save each
 // rawContent is compiled by an LLM normalizer into a checklist of atomic, typed
 // assertions, shown read-only beneath the rule (the author-visible guardrail).
-export function ShadowRulesSection({ projectId }: { projectId: string }) {
+export function ShadowRulesSection({
+  projectId,
+  embedded = false,
+}: {
+  projectId: string;
+  // Embedded (e.g. in the bottom-bar quick menu): drop the big dash-section
+  // header/title — the host already labels the section — and keep only a compact
+  // "＋ 新增规则" affordance + the rows.
+  embedded?: boolean;
+}) {
   const repo = useMemo(() => createProjectRuleRepository(), []);
   const [rules, setRules] = useState<ProjectRule[]>([]);
 
@@ -75,31 +84,39 @@ export function ShadowRulesSection({ projectId }: { projectId: string }) {
     [repo, reload],
   );
 
+  const addButton = (
+    <button
+      type="button"
+      onClick={() => void addRule()}
+      style={{
+        marginLeft: 'auto',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.08em',
+        color: 'hsl(var(--accent))',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+      }}
+    >
+      ＋ 新增规则
+    </button>
+  );
+
   return (
-    <section className="dash-section" style={{ marginBottom: 0 }}>
-      <div className="dash-section__head">
-        <div className="dash-section__title">
-          <span className="dash-section__title-mark">⊘</span>
-          <span className="dash-section__title-cn">Shadow 规则</span>
-          <span className="dash-section__title-en">Shadow Rules</span>
+    <section className={embedded ? undefined : 'dash-section'} style={{ marginBottom: 0 }}>
+      {embedded ? (
+        <div style={{ display: 'flex', padding: '0 4px 2px' }}>{addButton}</div>
+      ) : (
+        <div className="dash-section__head">
+          <div className="dash-section__title">
+            <span className="dash-section__title-mark">⊘</span>
+            <span className="dash-section__title-cn">Shadow 规则</span>
+            <span className="dash-section__title-en">Shadow Rules</span>
+          </div>
+          {addButton}
         </div>
-        <button
-          type="button"
-          onClick={() => void addRule()}
-          style={{
-            marginLeft: 'auto',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            letterSpacing: '0.08em',
-            color: 'hsl(var(--accent))',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          ＋ 新增规则
-        </button>
-      </div>
+      )}
       <div style={{ padding: '0 4px' }}>
         {rules.length === 0 ? (
           <div

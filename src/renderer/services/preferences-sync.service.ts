@@ -36,7 +36,6 @@ const CURSOR_KEY = 'preferences-sync.cursor';
 type SyncableSlice = {
   // appearance
   themeMode: unknown;
-  shadowAffectsTheme: unknown;
   // editor typography
   bodyFontSize: unknown;
   lineHeight: unknown;
@@ -58,6 +57,13 @@ type SyncableSlice = {
   copilotAiMode: unknown;
   copilotByokProvider: unknown;
   copilotByokModel: unknown;
+  // shadow* = the Shadow module's own routing (review + arc); the hosted tier needs
+  // to reach the server so it can map 高→Sonnet. Keys never sync (same as copilot).
+  shadowAiMode: unknown;
+  shadowTier: unknown;
+  shadowByokProvider: unknown;
+  shadowByokModel: unknown;
+  shadowAutoRun: unknown;
   agentAuth: unknown;
   agentModel: unknown;
   agentEffort: unknown;
@@ -79,7 +85,6 @@ type SyncableSlice = {
 
 const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'themeMode',
-  'shadowAffectsTheme',
   'bodyFontSize',
   'lineHeight',
   'paragraphIndent',
@@ -97,6 +102,11 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'copilotAiMode',
   'copilotByokProvider',
   'copilotByokModel',
+  'shadowAiMode',
+  'shadowTier',
+  'shadowByokProvider',
+  'shadowByokModel',
+  'shadowAutoRun',
   'agentAuth',
   'agentModel',
   'agentEffort',
@@ -194,7 +204,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
   const store = useSettingsStore.getState();
   const setterByKey: Record<string, (v: unknown) => void> = {
     themeMode: (v) => store.setThemeMode(v as never),
-    shadowAffectsTheme: (v) => store.setShadowAffectsTheme(!!v),
     bodyFontSize: (v) => store.setBodyFontSize(Number(v)),
     lineHeight: (v) => store.setLineHeight(v as never),
     paragraphIndent: (v) => store.setParagraphIndent(v as never),
@@ -220,6 +229,21 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     copilotByokModel: (v) => {
       if (typeof v === 'string') store.setCopilotByokModel(v);
     },
+    shadowAiMode: (v) => {
+      if (v === 'hosted' || v === 'byok') store.setShadowAiMode(v);
+    },
+    shadowTier: (v) => {
+      if (v === 'lite' || v === 'standard' || v === 'pro') store.setShadowTier(v);
+    },
+    shadowByokProvider: (v) => {
+      if (v === 'deepseek' || v === 'anthropic' || v === 'openai' || v === 'google') {
+        store.setShadowByokProvider(v);
+      }
+    },
+    shadowByokModel: (v) => {
+      if (typeof v === 'string') store.setShadowByokModel(v);
+    },
+    shadowAutoRun: (v) => store.setShadowAutoRun(!!v),
     agentAuth: (v) => {
       if (v === 'hosted' || v === 'oauth' || v === 'apikey') store.setAgentAuth(v);
     },

@@ -4,6 +4,7 @@ import { getDb } from '../lib/db';
 import { ShadowJobTable } from '../schema/drizzle';
 import type {
   ConsultedSnapshotRef,
+  ShadowConsultedKind,
   ShadowConsultedRef,
   ShadowJob,
   ShadowJobStatus,
@@ -40,6 +41,11 @@ export interface ShadowJobRepository {
   // Bound on-disk growth: keep the most recent `keep` jobs in a project, delete the
   // rest (these telemetry rows accumulate forever otherwise). Returns # deleted.
   pruneOldJobs(projectId: string, keep?: number): Promise<number>;
+  // Drop a now-deleted entity from every job's consulted / consultedSnapshot dep
+  // refs in this project, so a gone element can't drive staleness (a deleted dep
+  // would otherwise read as "changed" forever → perpetual re-review under auto-run).
+  // Returns the rows that actually changed (for the in-memory store to mirror).
+  scrubEntityRefs(projectId: string, kind: ShadowConsultedKind, id: string): Promise<ShadowJob[]>;
   delete(id: string): Promise<void>;
   deleteByProject(projectId: string): Promise<void>;
 }
@@ -172,6 +178,28 @@ export function createShadowJobRepository(): ShadowJobRepository {
     return stale.length;
   };
 
+  const scrubEntityRefs = async (
+    projectId: string,
+    kind: ShadowConsultedKind,
+    id: string,
+  ): Promise<ShadowJob[]> => {
+    const jobs = await listByProject(projectId, 1000);
+    const updated: ShadowJob[] = [];
+    for (const j of jobs) {
+      const consulted = j.consulted.filter((r) => !(r.kind === kind && r.id === id));
+      const consultedSnapshot = j.consultedSnapshot.filter((r) => !(r.kind === kind && r.id === id));
+      if (
+        consulted.length === j.consulted.length &&
+        consultedSnapshot.length === j.consultedSnapshot.length
+      ) {
+        continue;
+      }
+      const row = await update(j.id, { consulted, consultedSnapshot });
+      if (row) updated.push(row);
+    }
+    return updated;
+  };
+
   const deleteJob = async (id: string): Promise<void> => {
     await getDb().delete(ShadowJobTable).where(eq(ShadowJobTable.id, id));
   };
@@ -186,6 +214,7 @@ export function createShadowJobRepository(): ShadowJobRepository {
     findById,
     listByProject,
     pruneOldJobs,
+    scrubEntityRefs,
     delete: deleteJob,
     deleteByProject,
   };

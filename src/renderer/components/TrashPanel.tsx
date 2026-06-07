@@ -102,6 +102,23 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     await reload();
   };
 
+  // Permanently drop one row, routing to the right domain usecase. No confirm /
+  // reload here — callers (single purge, clear-all) own those.
+  const purgeOne = useCallback(
+    async (item: TrashItem) => {
+      if (item.kind === 'chapter' || item.kind === 'drift') {
+        await nodeUC.purgeNode(item.id);
+      } else if (item.kind === 'element') {
+        await elementUC.purgeElement(item.id);
+      } else if (item.kind === 'storyline') {
+        await storylineUC.purgeStoryline(item.id);
+      } else if (item.kind === 'category') {
+        await categoryUC.purgeCategory(item.id);
+      }
+    },
+    [nodeUC, elementUC, storylineUC, categoryUC],
+  );
+
   // Skip the 30-day wait and drop the row for good. Irreversible, so gate it
   // behind a confirm — once purged there's no restore.
   const purge = async (item: TrashItem) => {
@@ -109,14 +126,25 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
       `彻底删除「${item.label}」？此操作无法撤销，将立即永久删除。`,
     );
     if (!confirmed) return;
-    if (item.kind === 'chapter' || item.kind === 'drift') {
-      await nodeUC.purgeNode(item.id);
-    } else if (item.kind === 'element') {
-      await elementUC.purgeElement(item.id);
-    } else if (item.kind === 'storyline') {
-      await storylineUC.purgeStoryline(item.id);
-    } else if (item.kind === 'category') {
-      await categoryUC.purgeCategory(item.id);
+    await purgeOne(item);
+    await reload();
+  };
+
+  // Empty the whole bin in one go. Purge sequentially so a category's child
+  // re-link runs before any element row that depends on it.
+  const purgeAll = async () => {
+    if (items.length === 0) return;
+    const confirmed = window.confirm(
+      `清空回收站？将永久删除全部 ${items.length} 项，此操作无法撤销。`,
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      for (const item of items) {
+        await purgeOne(item);
+      }
+    } finally {
+      setBusy(false);
     }
     await reload();
   };
@@ -125,9 +153,18 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     <div style={{ padding: 24, maxWidth: 720 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h3 style={{ margin: 0 }}>回收站</h3>
-        <span style={{ fontSize: 11, color: 'hsl(var(--ink-4))' }}>
-          30 天后自动彻底删除
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'hsl(var(--ink-4))' }}>
+            30 天后自动彻底删除
+          </span>
+          <button
+            className="set-btn set-btn--danger"
+            disabled={busy || items.length === 0}
+            onClick={() => void purgeAll()}
+          >
+            清空回收站
+          </button>
+        </div>
       </div>
       {busy && items.length === 0 ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>加载中…</div>

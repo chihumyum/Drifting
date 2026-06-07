@@ -15,6 +15,7 @@ import { buildDefaultLLMClient } from '../../ai/client/build-default-client';
 import { callStructured } from '../../ai/call-structured';
 import { AIError } from '../../ai/types';
 import { resolveWritingLanguage } from '../../ai/output-language';
+import { resolveShadowModel, ensureShadowModelRoutable } from '../model-routing';
 import { arcLeafPrompt } from '../../ai/prompts/templates/arc-leaf';
 import { arcDistillPrompt } from '../../ai/prompts/templates/arc-distill';
 import { arcSynthesizePrompt } from '../../ai/prompts/templates/arc-synthesize';
@@ -45,16 +46,13 @@ type SynthOut = Static<typeof arcSynthesizePrompt.output>;
 const GROUP_SIZE = 4;
 const DEFAULT_CONCURRENCY = 4;
 
-// Arc runs flash + THINKING mode. flash WITHOUT thinking returns invalid JSON for
-// ~40% of these prose-heavy structured calls (measured: leaf 6/16, distill 2/5 —
-// equal across stages, so it's model-bound, not input size). A reasoning pass before
-// the tool call makes the output far more disciplined; DeepSeek-V3.2+ supports tool
-// calls in thinking mode, so it composes with the forced-tool-call mechanism (single
-// shot → no reasoning_content round-trip to worry about). Arc is low-freq + manual,
-// so the extra reasoning cost is fine. (Bump ARC_MODEL to -pro if flash still slips.)
-const ARC_MODEL = 'deepseek-v4-flash';
-const ARC_THINKING = true;
-
+// Arc runs in THINKING mode regardless of tier. Without thinking, flash returns
+// invalid JSON for ~40% of these prose-heavy structured calls (measured: leaf 6/16,
+// distill 2/5 — equal across stages, so it's model-bound, not input size). A
+// reasoning pass makes the output far more disciplined; it composes with json mode.
+// Arc is low-freq + manual, so the extra reasoning cost is fine. The MODEL itself
+// now follows the user's Shadow tier (设置 · Shadow): 低 flash / 中 pro / 高 sonnet —
+// resolved per-run via resolveShadowModel(). See lib/shadow/model-routing.ts.
 const arcLog = loglevel.getLogger('arc');
 
 // callStructured does NOT retry (by design — see its header). Weak models
@@ -333,6 +331,13 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
   const categoryRepo = createElementCategoryRepository(projectId);
   const outputLanguage = resolveWritingLanguage(projectId);
 
+  // Resolve the model from the user's Shadow tier (设置 · Shadow), once per run.
+  // ensureShadowModelRoutable throws a clear error up-front if the chosen tier
+  // (e.g. 高/Sonnet) can't be reached on this transport — better than a silent
+  // downgrade mid-derivation.
+  const { model: arcModel, thinking: arcThinking } = resolveShadowModel();
+  ensureShadowModelRoutable(arcModel);
+
   // Build the LLM client once, lazily, shared across all stage calls.
   let clientPromise: ReturnType<typeof buildDefaultLLMClient> | null = null;
   const getClient = () => (clientPromise ??= buildDefaultLLMClient());
@@ -396,8 +401,8 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
         callStructured(client, arcLeafPrompt, input, {
           outputLanguage,
           signal,
-          model: ARC_MODEL,
-          thinking: ARC_THINKING,
+          model: arcModel,
+          thinking: arcThinking,
           jsonMode: true,
         }),
       );
@@ -408,8 +413,8 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
         callStructured(client, arcDistillPrompt, input, {
           outputLanguage,
           signal,
-          model: ARC_MODEL,
-          thinking: ARC_THINKING,
+          model: arcModel,
+          thinking: arcThinking,
           jsonMode: true,
         }),
       );
@@ -420,8 +425,8 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
         callStructured(client, arcSynthesizePrompt, input, {
           outputLanguage,
           signal,
-          model: ARC_MODEL,
-          thinking: ARC_THINKING,
+          model: arcModel,
+          thinking: arcThinking,
           jsonMode: true,
         }),
       );

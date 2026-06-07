@@ -37,6 +37,21 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'hsl(var(--ink-3))' }}>
           弧线 · ARC
         </span>
+        <span
+          title="弧线派生属于 Shadow 模块（影）的只读分析能力；模型档位在 设置 · Shadow 里调。"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 8.5,
+            letterSpacing: '0.1em',
+            color: 'hsl(var(--ink-4))',
+            border: '1px solid hsl(var(--rule))',
+            borderRadius: 4,
+            padding: '1px 5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          Shadow
+        </span>
         <button
           type="button"
           onClick={() => void derive(includeDrafts)}
@@ -102,10 +117,16 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
 
 function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) => void }) {
   const overlayByOrder = new Map(arc.patchOverlay.map((o) => [o.atOrder, o]));
+  // `n{order}` is a narrative-axis position (narrativeOrder ?? bookOrder), NOT a
+  // reader-facing chapter number — keep the neutral `n` framing the point chips use.
+  const axisLabel = arc.axis === 'narrativeOrder' ? '叙事序' : '书序';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--ink-4))' }}>
-        {arc.coverage.appearances} 章 · 生成至第 {arc.coverage.generatedAtOrder} 章
+      <div
+        title={`覆盖 ${arc.coverage.appearances} 个出场章；截至${axisLabel}位置 n${arc.coverage.generatedAtOrder}（n = ${axisLabel}，非读者章号）`}
+        style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--ink-4))' }}
+      >
+        覆盖 {arc.coverage.appearances} 章 · 截至 n{arc.coverage.generatedAtOrder}
         {arc.coverage.skipped > 0 ? ` · 跳过 ${arc.coverage.skipped}` : ''}
       </div>
 

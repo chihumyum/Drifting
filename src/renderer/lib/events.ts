@@ -115,6 +115,12 @@ export type AppEvents = {
   // Settings) — the Agent panel listens to refresh its usable state.
   'agent:auth-changed': void;
 
+  // A BYOK provider key was connected/disconnected in Settings (copilot's
+  // per-provider keychain). Lets key-STATUS indicators that don't own the
+  // ProviderRow's local state (the copilot active-provider warning, the
+  // Shadow panel's "DeepSeek key connected?" line) re-read the keychain live.
+  'byok:keys-changed': void;
+
   // Copilot persisted a suggestion against the given (kind, id) target.
   // Consumed by useEntityMarginNotes to auto-open the comment rail when
   // copilot writes — otherwise suggestions land in a hidden margin and

@@ -171,7 +171,6 @@
   text-align: left;
 }
 .set-rail__item:hover { background: hsl(var(--ink-1) / 0.04); color: hsl(var(--ink-1)); }
-html[data-shadow-mode="on"] .set-rail__item:hover { background: hsl(var(--ink-1) / 0.06); }
 .set-rail__item--active {
   color: hsl(var(--ink-1));
   background: hsl(var(--surface));

@@ -34,6 +34,7 @@ import {
   type ParagraphIndent,
   type ThemeMode,
 } from '../../store/settings-store';
+import { SHADOW_TIERS, SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
 import { useAuthStore } from '../../store/auth';
 import { useProjectStore } from '../../store/project-store';
 import {
@@ -1365,8 +1366,6 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
 function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const shadowAffectsTheme = useSettingsStore((s) => s.shadowAffectsTheme);
-  const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
   const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
   const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
 
@@ -1437,12 +1436,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
             </button>
           ))}
         </div>
-
-        <Row
-          label="Shadow 模式改变主题色调"
-          desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
-          control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
-        />
       </div>
     </section>
   );
@@ -2017,11 +2010,13 @@ function ProviderRow({
     }
     setDraft('');
     setEditing(false);
+    events.emit('byok:keys-changed');
   };
 
   const disconnect = async () => {
     await byokKeychain.clear(provider);
     setStored(null);
+    events.emit('byok:keys-changed');
   };
 
   return (
@@ -2139,44 +2134,142 @@ function ProviderRow({
   );
 }
 
-// Shadow Agent is not built yet — only this placeholder tab is shown. The old
-// scaffolding controls (orb / surface / permissions / voice / system prompt)
-// were removed since no runtime ever consumed them. When Shadow ships it will
-// share Copilot's provider model (hosted tier OR BYOK provider + key), per the
-// product decision; wire its config here then.
+// Shadow model routing modes — like Copilot's, but Shadow has its own slice
+// (governs BOTH chapter-CI review and element-arc derive). BYOK is DeepSeek-only
+// for now (the substrate routes DeepSeek directly; Sonnet is hosted-only).
+const SHADOW_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
+  {
+    value: 'hosted',
+    kicker: 'HOSTED',
+    name: '托管',
+    desc: '走 Drifting 的通道与额度。只需在下方选一个能力档位（低 / 中 / 高）。',
+  },
+  {
+    value: 'byok',
+    kicker: 'BYOK',
+    name: '自带 Key',
+    desc: '用你自己的 DeepSeek Key（与 Copilot 共用 Keychain 里的同一条），在下方选模型。',
+  },
+];
+
+// Shadow BYOK shares Copilot's DeepSeek keychain entry (byok.deepseek) — it has no
+// key entry of its own. This makes that borrow VISIBLE: shows connected/未连接 and
+// jumps to the Copilot panel (where the key is actually entered) so the user isn't
+// left with a silent no-key BYOK that only errors at run time.
+function ShadowDeepseekKeyStatus() {
+  const connected = useByokConnected('deepseek');
+  const jumpToCopilot = () =>
+    document.getElementById('copilot')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (connected === null) return null;
+  return (
+    <Row
+      label="DeepSeek 密钥"
+      desc="Shadow 自带 Key 与 Copilot 共用同一条 DeepSeek 密钥（Keychain）。在「Copilot · 副手」面板填写或更换。"
+      control={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            className="set-mono"
+            style={{ fontSize: 12, color: connected ? '#2e7d52' : 'hsl(38 80% 42%)' }}
+          >
+            {connected ? '✓ 已连接' : '⚠ 未连接'}
+          </span>
+          <button className="set-btn" onClick={jumpToCopilot}>
+            前往 Copilot 填写
+          </button>
+        </div>
+      }
+    />
+  );
+}
+
+// Shadow Agent settings — model routing for the two Shadow capabilities: chapter
+// continuity review (CI) and element-arc derivation. Both read resolveShadowModel()
+// (lib/shadow/model-routing.ts). Hosted = a capability tier the server maps to a
+// concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
 function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const shadowAiMode = useSettingsStore((s) => s.shadowAiMode);
+  const setShadowAiMode = useSettingsStore((s) => s.setShadowAiMode);
+  const shadowTier = useSettingsStore((s) => s.shadowTier);
+  const setShadowTier = useSettingsStore((s) => s.setShadowTier);
+  const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
+  const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
+
   return (
     <section className="set-panel" ref={registerRef} id="shadow">
       <PanelHead
-        kicker="SHADOW AGENT · 影"
-        title="影，还在路上。"
-        sub="后台巡查你的稿子、在关键处主动浮现的「影」尚未上线。它将与 Copilot 共用同一套调用方式（托管档位或自带 Key），上线后这里会出现它的触发、权限与语气设置。"
+        kicker="SHADOW · 影"
+        title="影，替你巡查全书。"
+        sub={
+          <>
+            Shadow 的两个能力——章节连贯审阅（CI）与元素弧线派生——共用这里的模型档位。
+            托管按能力档位走 Drifting 额度；自带 Key 用你自己的 DeepSeek 额度。
+            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+          </>
+        }
       />
-      <div
-        style={{
-          marginTop: 8,
-          padding: '20px 22px',
-          border: '1px dashed hsl(var(--rule))',
-          borderRadius: 6,
-          color: 'hsl(var(--ink-3))',
-          fontSize: 13,
-          lineHeight: 1.7,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.14em',
-            color: 'hsl(var(--ink-4))',
-            marginBottom: 6,
-          }}
-        >
-          COMING SOON
+
+      <div className="set-sec">
+        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {SHADOW_AI_MODES.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (shadowAiMode === m.value ? ' set-tier--active' : '')}
+              onClick={() => setShadowAiMode(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
         </div>
-        敬请期待。
       </div>
+
+      {shadowAiMode === 'hosted' ? (
+        <div className="set-sec">
+          <SecHead title="能力档位" hint="TIER" />
+          <div className="set-tiers">
+            {SHADOW_TIERS.map((t) => (
+              <button
+                key={t.value}
+                className={'set-tier' + (shadowTier === t.value ? ' set-tier--active' : '')}
+                onClick={() => setShadowTier(t.value)}
+              >
+                <div className="set-tier__kicker">{t.kicker}</div>
+                <div className="set-tier__name">{t.name}</div>
+                <div className="set-tier__desc">{t.desc}</div>
+              </button>
+            ))}
+          </div>
+          <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
+            「高 · Sonnet」需托管订阅（服务端调用）。本地直连仅支持「低 / 中」DeepSeek 档位——若选了高，
+            review 会自动回退到中档、arc 派生会提示需托管。
+          </p>
+        </div>
+      ) : (
+        <div className="set-sec">
+          <SecHead title="自带密钥 · BYOK" hint="DEEPSEEK" />
+          <ShadowDeepseekKeyStatus />
+          <Row
+            label="DeepSeek 模型"
+            desc="自带 Key 时 Shadow 实际调用的模型。"
+            control={
+              <select
+                className="set-input"
+                style={{ minWidth: 220 }}
+                value={shadowByokModel}
+                onChange={(e) => setShadowByokModel(e.target.value)}
+              >
+                {SHADOW_BYOK_MODELS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -2302,13 +2395,140 @@ const COPILOT_AI_MODES: { value: AiMode; kicker: string; name: string; desc: str
   },
 ];
 
+// Known models per BYOK provider — drives the Copilot model dropdown so the user
+// picks instead of hand-typing a model id. Only ids the codebase already blesses
+// (deepseek v4 flash/pro, the Agent catalog's pinned Claude ids, the GoogleModel
+// union); openai has no sanctioned catalog here, so it falls back to 默认/自定义.
+// The model is still resolved server-side (synced via preferences) — this is a
+// UX layer over the same copilotByokModel value, NOT new routing.
+const COPILOT_BYOK_MODELS: Record<BYOKProvider, { value: string; label: string }[]> = {
+  deepseek: [
+    { value: 'deepseek-v4-flash', label: 'DeepSeek Flash · 快' },
+    { value: 'deepseek-v4-pro', label: 'DeepSeek Pro · 稳' },
+  ],
+  anthropic: [
+    { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+  ],
+  google: [
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite' },
+  ],
+  openai: [],
+};
+
+const BYOK_PROVIDER_LABEL: Record<BYOKProvider, string> = {
+  deepseek: 'DeepSeek',
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google',
+};
+
+// Live keychain-connected status for one BYOK provider. Re-reads on mount and on
+// any 'byok:keys-changed' (ProviderRow connect/disconnect) so indicators that
+// don't own ProviderRow's local state stay in sync. null = still loading.
+function useByokConnected(provider: BYOKProvider): boolean | null {
+  const [connected, setConnected] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const read = () => {
+      void byokKeychain.get(provider).then((k) => {
+        if (!cancelled) setConnected(!!k);
+      });
+    };
+    read();
+    events.on('byok:keys-changed', read);
+    return () => {
+      cancelled = true;
+      events.off('byok:keys-changed', read);
+    };
+  }, [provider]);
+  return connected;
+}
+
+// Sentinel select value for the "custom model id" escape hatch.
+const BYOK_MODEL_CUSTOM = '__custom__';
+
+// Copilot BYOK model picker: a dropdown of known models for the active provider
+// (+ provider-default + 自定义…), replacing the old hand-typed model-id input.
+function CopilotByokModelPicker() {
+  const provider = useSettingsStore((s) => s.copilotByokProvider);
+  const model = useSettingsStore((s) => s.copilotByokModel);
+  const setModel = useSettingsStore((s) => s.setCopilotByokModel);
+  const known = COPILOT_BYOK_MODELS[provider] ?? [];
+  const inKnown = model === '' || known.some((m) => m.value === model);
+  const [customOpen, setCustomOpen] = useState(false);
+  const showCustom = customOpen || (model !== '' && !inKnown);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 240 }}>
+      <select
+        className="set-input"
+        style={{ minWidth: 240 }}
+        value={showCustom ? BYOK_MODEL_CUSTOM : model}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === BYOK_MODEL_CUSTOM) {
+            setCustomOpen(true);
+          } else {
+            setCustomOpen(false);
+            setModel(v);
+          }
+        }}
+      >
+        <option value="">provider 默认（留空）</option>
+        {known.map((m) => (
+          <option key={m.value} value={m.value}>
+            {m.label}
+          </option>
+        ))}
+        <option value={BYOK_MODEL_CUSTOM}>自定义…</option>
+      </select>
+      {showCustom && (
+        <input
+          className="set-input set-input--mono"
+          style={{ minWidth: 240 }}
+          placeholder="输入完整 model id"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Warns when BYOK is selected but the ACTIVE provider has no key — the request
+// would silently fall back to hosted (byok-headers.ts). Removes the "filled a key
+// but forgot 设为当前 / selected BYOK with no key" silent trap.
+function CopilotByokWarning() {
+  const provider = useSettingsStore((s) => s.copilotByokProvider);
+  const connected = useByokConnected(provider);
+  if (connected !== false) return null;
+  return (
+    <div
+      style={{
+        margin: '0 0 10px',
+        padding: '9px 12px',
+        borderRadius: 6,
+        background: 'hsl(38 92% 50% / 0.1)',
+        border: '1px solid hsl(38 80% 50% / 0.35)',
+        fontSize: 12.5,
+        lineHeight: 1.6,
+        color: 'hsl(var(--ink-2))',
+      }}
+    >
+      当前 BYOK provider「{BYOK_PROVIDER_LABEL[provider]}」未连接密钥 —— 实际调用会
+      <b>静默回退托管</b>。请在下方为它「连接」密钥，或把已连接的 provider「设为当前」。
+    </div>
+  );
+}
+
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   const copilotTier = useSettingsStore((s) => s.copilotTier);
   const setCopilotTier = useSettingsStore((s) => s.setCopilotTier);
   const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
   const setCopilotAiMode = useSettingsStore((s) => s.setCopilotAiMode);
-  const copilotByokModel = useSettingsStore((s) => s.copilotByokModel);
-  const setCopilotByokModel = useSettingsStore((s) => s.setCopilotByokModel);
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
   const copilotInDrift = useSettingsStore((s) => s.copilotInDrift);
@@ -2365,11 +2585,15 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
               </button>
             ))}
           </div>
+          <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
+            档位是「能力档」，具体模型由服务端按档位选择（所以这里不显示模型名）。想精确指定某个模型，请改用「自带 Key」。
+          </p>
         </div>
       ) : (
         <>
           <div className="set-sec">
             <SecHead title="自带密钥 · BYOK" hint="4 PROVIDERS" />
+            <CopilotByokWarning />
             <ProviderRow
               provider="deepseek"
               logoClass="set-provider__logo--deepseek"
@@ -2404,16 +2628,8 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
             <SecHead title="模型" hint="MODEL" />
             <Row
               label="指定模型"
-              desc="当前 provider 下要用的具体模型 id（留空 = 由服务端选该 provider 的默认模型）。"
-              control={
-                <input
-                  className="set-input set-input--mono"
-                  style={{ minWidth: 220 }}
-                  placeholder="留空 = provider 默认"
-                  value={copilotByokModel}
-                  onChange={(e) => setCopilotByokModel(e.target.value)}
-                />
-              }
+              desc="当前 provider 下要用的模型（留空 = 由服务端选该 provider 的默认模型；列表外的可选「自定义…」手填 id）。"
+              control={<CopilotByokModelPicker />}
             />
           </div>
         </>

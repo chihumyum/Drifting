@@ -39,10 +39,18 @@ async function getGraph(): Promise<ReturnType<typeof buildShadowGraph>> {
   return compiledGraph;
 }
 
-// Run one chapter review to completion and report the verdict.
-export async function runShadowJob(job: ShadowJobInput): Promise<ShadowJobResult> {
+// Run one chapter review to completion and report the verdict. An optional signal
+// lets cancelShadowJob bail the run between graph steps (the in-flight LLM fetch is
+// aborted renderer-side; this is belt-and-suspenders for the gap between nodes).
+export async function runShadowJob(
+  job: ShadowJobInput,
+  signal?: AbortSignal,
+): Promise<ShadowJobResult> {
   const graph = await getGraph();
-  const final = await graph.invoke({ chapterId: job.chapterId, projectId: job.projectId });
+  const final = await graph.invoke(
+    { chapterId: job.chapterId, projectId: job.projectId },
+    signal ? { signal } : undefined,
+  );
   return {
     chapterId: job.chapterId,
     decision: final.decision ?? 'finished',
@@ -56,6 +64,9 @@ export async function runShadowJob(job: ShadowJobInput): Promise<ShadowJobResult
 // separate concern from this job queue (which job to run next).
 const queue: ShadowJobInput[] = [];
 let running = false;
+// AbortController for the job currently in drain(), keyed by chapterId. Lets
+// cancelShadowJob interrupt an already-started run, not just dequeue a pending one.
+const runControllers = new Map<string, AbortController>();
 
 export function enqueueShadowJob(job: ShadowJobInput): void {
   if (queue.some((j) => j.chapterId === job.chapterId)) return; // coalesce dupes
@@ -63,12 +74,15 @@ export function enqueueShadowJob(job: ShadowJobInput): void {
   void drain();
 }
 
-// User asked to stop a review. Drop it from the queue if it hasn't started; an
-// already-running job is unwound on the renderer side (the cancelled flag makes
-// the next shadow bridge call throw), so there's nothing to interrupt here.
+// User asked to stop a review. Drop it from the queue if it hasn't started; if it's
+// already running, abort its controller — the renderer aborts its in-flight LLM
+// fetch (the heavy work lives there) and the rejection unwinds graph.invoke, so the
+// serial queue frees immediately for the next job instead of blocking till the LLM
+// round-trip finishes.
 export function cancelShadowJob(chapterId: string): void {
   const i = queue.findIndex((j) => j.chapterId === chapterId);
   if (i !== -1) queue.splice(i, 1);
+  runControllers.get(chapterId)?.abort();
 }
 
 async function drain(): Promise<void> {
@@ -78,8 +92,10 @@ async function drain(): Promise<void> {
     while (queue.length > 0) {
       const job = queue.shift()!;
       emitJobEvent({ chapterId: job.chapterId, projectId: job.projectId, state: 'started' });
+      const controller = new AbortController();
+      runControllers.set(job.chapterId, controller);
       try {
-        const result = await runShadowJob(job);
+        const result = await runShadowJob(job, controller.signal);
         emitJobEvent({
           chapterId: job.chapterId,
           projectId: job.projectId,
@@ -95,6 +111,8 @@ async function drain(): Promise<void> {
           state: 'failed',
           error: err instanceof Error ? err.message : String(err),
         });
+      } finally {
+        runControllers.delete(job.chapterId);
       }
     }
   } finally {

@@ -22,9 +22,19 @@ import {
   type ToolRunOutcome,
 } from '../ai/shadow-rules';
 import { buildDefaultLLMClient } from '../ai/client/build-default-client';
+import {
+  resolveShadowModel,
+  ensureShadowModelRoutable,
+  SHADOW_TIER_MODEL,
+} from '../shadow/model-routing';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { yieldToMain } from '../async/yield-to-main';
-import { setShadowConsulted, traceShadow, throwIfShadowCancelled } from '../shadow/job-recorder';
+import {
+  setShadowConsulted,
+  traceShadow,
+  throwIfShadowCancelled,
+  registerShadowAborter,
+} from '../shadow/job-recorder';
 import { computeChangedDeps, snapshotConsulted } from '../shadow/dep-snapshot';
 import type { ShadowConsultedKind, ShadowConsultedRef } from '../../domain/shadow-job';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
@@ -2209,6 +2219,9 @@ async function buildWarmStart(
 async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
   throwIfShadowCancelled(chapterId);
+  // Signal for the in-flight judge fetch — Stop aborts it so the LLM round-trip is
+  // cancelled immediately (frees the main worker's serial queue), not at next entry.
+  const abortSignal = registerShadowAborter(chapterId);
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`shadow_eval_semantic_batch: no chapter "${chapterId}"`);
@@ -2254,9 +2267,21 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   // compatible): the judge freely calls READ tools and rules on the whole rule's
   // checklist in ONE shared loop. Otherwise fall back to the Path-A menu loop,
   // judging each assertion in turn (no batched tool loop there).
+  // Judge model follows the user's Shadow tier (设置 · Shadow). If the chosen tier
+  // resolves to a model this transport can't reach (高/Sonnet on a local direct
+  // build), degrade to the中档 DeepSeek model rather than failing every review —
+  // and leave a trace so the downgrade is visible, not silent.
+  let judgeModel = resolveShadowModel().model;
+  try {
+    ensureShadowModelRoutable(judgeModel);
+  } catch {
+    judgeModel = SHADOW_TIER_MODEL.standard;
+    void traceShadow(chapterId, ctx.projectId, 'check', '高档 Sonnet 需托管，本次回退 DeepSeek-Pro');
+  }
+
   const client = await buildDefaultLLMClient();
   if (client.supportsTools) {
-    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（FC）`, {
+    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（FC · ${judgeModel}）`, {
       items: assertions,
     });
     return evaluateSemanticAssertionsFC(
@@ -2267,8 +2292,10 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
       client,
       toAITools(AGENT_READ_TOOLS),
       makeShadowRunTool(ctx, chapterId),
-      undefined,
+      abortSignal,
       onTrace,
+      undefined,
+      judgeModel,
     );
   }
 
@@ -2284,7 +2311,7 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
         ctx.projectId,
         context,
         provider,
-        undefined,
+        abortSignal,
         onTrace,
       ),
     );

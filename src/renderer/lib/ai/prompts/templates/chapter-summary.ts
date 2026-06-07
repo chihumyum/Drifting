@@ -11,11 +11,14 @@ import { defineRemotePrompt } from '../../remote/run-structured';
 
 export const chapterSummaryPrompt = defineRemotePrompt({
   id: 'chapter-summary',
-  version: 1,
+  version: 2,
   model: 'gemini-2.5-flash',
 
+  // v2: prefer the chapter's full prose when small; sectionSummaries is the
+  // fallback for an oversized chapter. buildAdaptiveChapterContext picks one.
   input: Type.Object({
-    sectionSummaries: Type.Array(Type.String()),
+    fullChapterText: Type.Optional(Type.String()),
+    sectionSummaries: Type.Optional(Type.Array(Type.String())),
   }),
 
   output: Type.Object({
