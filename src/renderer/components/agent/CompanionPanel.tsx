@@ -303,13 +303,47 @@ function fmtCost(usd: number): string {
   return `$${usd.toFixed(usd > 0 && usd < 0.01 ? 4 : 2)}`;
 }
 
-/** Subtle per-turn token/cost badge appended after each agent turn. */
+/** Compact duration: 850 → "850ms", 4200 → "4.2s". */
+function fmtMs(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
+
+/**
+ * Subtle per-turn diagnostic badge appended after each agent turn.
+ *
+ * Beyond token/cost it surfaces the latency split that distinguishes "the model
+ * is slow" from "the local tool bridge is slow":
+ *   ⏱ total = SDK duration_ms (wall-clock for the whole turn)
+ *   api      = SDK duration_api_ms (time in model API calls)
+ *   总 − api = local overhead (IPC bridge + Yjs hydration + tool work)
+ * and the cache-hit indicator (⚡ = cache_read_input_tokens): a large ⚡ with a
+ * small cache-write means the tools+system prefix is being reused, so per-turn
+ * cost is dominated by output/thinking, not input re-processing.
+ */
 function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
   const inTok = msg.inputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
+  const hasTiming = msg.durationMs != null;
+  const localMs =
+    msg.durationMs != null && msg.durationApiMs != null
+      ? Math.max(0, msg.durationMs - msg.durationApiMs)
+      : null;
+  const title =
+    `本轮用量\n` +
+    `输入 ${inTok}（缓存读 ${msg.cacheReadTokens} · 缓存写 ${msg.cacheCreationTokens} · 净算 ${msg.inputTokens}）\n` +
+    `输出 ${msg.outputTokens} · 轮次 ${msg.turns}` +
+    (msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : '') +
+    (hasTiming
+      ? `\n总耗时 ${msg.durationMs}ms · API ${msg.durationApiMs}ms · 本地 ${localMs}ms` +
+        `\n（总≈API → 慢在模型侧；缓存读高且缓存写≈0 → 前缀已缓存，每轮成本在输出/思考）`
+      : '');
   return (
-    <div style={usageRow} title="本轮 token 用量（输入含缓存）/ 费用">
+    <div style={usageRow} title={title}>
       ↑{fmtTokens(inTok)} ↓{fmtTokens(msg.outputTokens)}
       {msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : ''}
+      {hasTiming ? ` · ⏱${fmtMs(msg.durationMs!)}` : ''}
+      {hasTiming && msg.durationApiMs != null ? ` (api ${fmtMs(msg.durationApiMs)})` : ''}
+      {msg.turns > 0 ? ` · ${msg.turns}轮` : ''}
+      {msg.cacheReadTokens > 0 ? ` · ⚡${fmtTokens(msg.cacheReadTokens)}` : ''}
     </div>
   );
 }

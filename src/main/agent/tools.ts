@@ -63,7 +63,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_node',
-        "Read a prose body as a compact numbered list, one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote); pass the leading number <n> to edit_block. For a chapter/drift node it also prefixes a header line (title · status · words), a summary line, and an `appears:` line of the elements mentioned. Set `kind` to read an element / storyline / category body instead (body-only, no header).",
+        "Read a prose body as a compact numbered list, one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote); pass the leading number <n> to edit_block (and to the structural tools). For a chapter/drift node it also prefixes the chapter's context inline — a header line (title · status · words), `summary:`, `appears:` (elements mentioned), and, when present, `storylines:` and `relations:` — so you normally do NOT need a separate get_node_context call before reading/editing. Set `kind` to read an element / storyline / category body instead (body-only, no header).",
         { ...proseTarget },
         (args) => run('read_node', args),
       ),
@@ -93,8 +93,14 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       // ---- relational / context reads (traverse the graph, don't brute-force) ----
       tool(
+        'get_overview',
+        "Orient in ONE call: the book's premise + author facts + counts, ALL storylines/chapters/drifts, and ALL element categories/elements — everything by NAME. Call this FIRST instead of get_project_brief + list_nodes + list_elements separately. (Those three still exist to re-fetch a single slice.)",
+        {},
+        () => run('get_overview', {}),
+      ),
+      tool(
         'get_project_brief',
-        "The book's premise: project name, description, the author's key/value facts (goal, style, premise, references) and structure counts. Call this FIRST to orient before diving in.",
+        "The book's premise: project name, description, the author's key/value facts (goal, style, premise, references) and structure counts. Usually folded into get_overview — call this alone only to re-read the premise.",
         {},
         () => run('get_project_brief', {}),
       ),
@@ -126,7 +132,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'get_node_context',
-        "Cheap overview of a chapter/drift node WITHOUT its full prose: title, summary, word count, status, rolling block-section summaries, the elements it references, the storylines it belongs to, and its relations (all by name). Call this before read_node — only read the full prose if you still need it.",
+        "Prose-FREE overview of a chapter/drift node: title, summary, word count, status, rolling block-section summaries, referenced elements, storylines, and relations (all by name). Use it to TRIAGE/scan many chapters cheaply without pulling prose. NOT a required pre-step for read_node — read_node already includes summary/appears/storylines/relations inline, so go straight to it when you're going to read the chapter anyway. (Only get_node_context adds the rolling block-section summaries.)",
         { node: z.string().describe('Node NAME (chapter or drift)') },
         (args) => run('get_node_context', args),
       ),
@@ -271,33 +277,46 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'remove_blocks',
-        'Delete one or more prose blocks from a prose body (chapter/drift by default; set `kind` for an element/storyline/category body). Addressed by stable uuid `blockId` ONLY (get them from lookup_block / where_does_entity_appear) — never by number, which shifts after a structural edit. Destructive; confirm intent before removing prose.',
+        'Delete one or more prose blocks from a prose body (chapter/drift by default; set `kind` for an element/storyline/category body). Address blocks by their read_node NUMBER via `blockNumbers` (resolved against the current doc at call time — no lookup_block needed) and/or by stable uuid via `blockIds` (from lookup_block / where_does_entity_appear). Destructive; confirm intent before removing prose.',
         {
           ...proseTarget,
-          blockIds: z.array(z.string()).describe('uuid block ids to delete'),
+          blockNumbers: z
+            .array(z.number())
+            .optional()
+            .describe('1-based block numbers from read_node'),
+          blockIds: z
+            .array(z.string())
+            .optional()
+            .describe('uuid block ids (alternative/in addition to blockNumbers)'),
         },
         (args) => run('remove_blocks', args),
       ),
       tool(
         'replace_block_range',
-        'Replace an inclusive range of blocks [fromBlockId … toBlockId] with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different number of blocks than the original. Range endpoints are addressed by uuid `blockId` (from lookup_block), not by number. New blocks are plain paragraphs with fresh ids. Set `kind` for an element/storyline/category body.',
+        'Replace an inclusive range of blocks with new paragraphs (one per string in `blocks`; pass [] to just delete the range). The replacement may have a different block count than the original. Address the range endpoints by read_node NUMBER via `fromBlock`/`toBlock` (resolved at call time — no lookup_block needed) or by uuid via `fromBlockId`/`toBlockId`. New blocks are plain paragraphs with fresh ids. Set `kind` for an element/storyline/category body.',
         {
           ...proseTarget,
-          fromBlockId: z.string().describe('uuid of the first block in the range'),
-          toBlockId: z.string().describe('uuid of the last block in the range (may equal fromBlockId)'),
+          fromBlock: z.number().optional().describe('1-based number of the first block (from read_node)'),
+          toBlock: z.number().optional().describe('1-based number of the last block (may equal fromBlock)'),
+          fromBlockId: z.string().optional().describe('uuid of the first block (alternative to fromBlock)'),
+          toBlockId: z.string().optional().describe('uuid of the last block (alternative to toBlock)'),
           blocks: z.array(z.string()).describe('replacement paragraphs, one string each'),
         },
         (args) => run('replace_block_range', args),
       ),
       tool(
         'insert_blocks',
-        'Insert new paragraphs into a prose body after a given block (by uuid `afterBlockId`), or at the very start when afterBlockId is omitted. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph. Chapter/drift by default; set `kind` for an element/storyline/category body.',
+        'Insert new paragraphs into a prose body after a given block — by read_node NUMBER via `afterBlock` (resolved at call time — no lookup_block needed) or by uuid via `afterBlockId`; omit both to prepend at the start. Each string becomes one new paragraph with a fresh id. To add at the very end use append_paragraph. Chapter/drift by default; set `kind` for an element/storyline/category body.',
         {
           ...proseTarget,
+          afterBlock: z
+            .number()
+            .optional()
+            .describe('1-based number of the block to insert after (from read_node)'),
           afterBlockId: z
             .string()
             .optional()
-            .describe('uuid of the block to insert after; omit to prepend at the start'),
+            .describe('uuid of the block to insert after (alternative to afterBlock); omit both to prepend'),
           blocks: z.array(z.string()).describe('new paragraphs, one string each'),
         },
         (args) => run('insert_blocks', args),

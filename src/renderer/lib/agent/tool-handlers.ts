@@ -443,8 +443,34 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
   const appearsLine = refs.length
     ? `appears: ${refs.map((r) => `${r.label} (${r.kind})`).join(', ')}`
     : 'appears: (none recorded)';
+  // Structural context inline (storylines + curated relations) so read_node is
+  // self-sufficient — the agent needn't call get_node_context first just to know
+  // what a chapter connects to before reading/editing it. Both are cheap
+  // in-memory store reads; lines are omitted when empty (drifts stay identical).
+  const storylineIds = s.nodeStorylineMapping[nodeId] ?? [];
+  const storylineLine = storylineIds.length
+    ? `storylines: ${storylineIds
+        .map((sid) => {
+          const name = entityLabel(s, 'storyline', sid);
+          return s.primaryStorylineByNode[nodeId] === sid ? `${name} (primary)` : name;
+        })
+        .join(', ')}`
+    : null;
+  const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
+  const relParts = [
+    ...rels
+      .filter((r) => r.fromKind === 'node' && r.fromId === nodeId)
+      .map((r) => `${r.kind || 'related'} → ${entityLabel(s, r.toKind, r.toId)} (${r.toKind})`),
+    ...rels
+      .filter((r) => r.toKind === 'node' && r.toId === nodeId)
+      .map((r) => `${entityLabel(s, r.fromKind, r.fromId)} (${r.fromKind}) → ${r.kind || 'related'}`),
+  ];
+  const relationsLine = relParts.length ? `relations: ${relParts.join(', ')}` : null;
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
-  return `${header}\n${summaryLine}\n${appearsLine}\n\n${body}`;
+  const head = [header, summaryLine, appearsLine, storylineLine, relationsLine]
+    .filter(Boolean)
+    .join('\n');
+  return `${head}\n\n${body}`;
 }
 
 /**
@@ -608,6 +634,21 @@ function getProjectBrief(ctx: AgentToolContext) {
       elements: s.bookElements.filter((e) => e.projectId === ctx.projectId).length,
       categories: s.bookElementCategories.filter((c) => c.projectId === ctx.projectId).length,
     },
+  };
+}
+
+/**
+ * One-call orientation bundle: the project brief + the full node list (storylines
+ * + chapters + drifts) + the full element list (categories + elements). Folds
+ * what used to be get_project_brief → list_nodes → list_elements (three model
+ * round-trips) into one, since the agent fetches all three to orient anyway. All
+ * three are pure in-memory store reads, so bundling adds no extra work.
+ */
+function getOverview(ctx: AgentToolContext) {
+  return {
+    ...getProjectBrief(ctx),
+    ...listChapters(ctx),
+    ...listElements(ctx),
   };
 }
 
@@ -1236,11 +1277,55 @@ async function lookupBlock(ctx: AgentToolContext, args: Record<string, unknown>)
   };
 }
 
+/** Map a 1-based block number (as shown by read_node) to its stable blockId in
+ *  an already-loaded block list. Throws if out of range. */
+function blockAtNumber(blocks: ReturnType<typeof docToBlocks>, n: number): string {
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error('block number must be a 1-based integer (the number from read_node)');
+  }
+  const b = blocks[n - 1];
+  if (!b) throw new Error(`no block #${n} (entity has ${blocks.length} blocks)`);
+  // The block exists at this ordinal but has no stable id — happens on prose
+  // imported and never opened in the editor (block ids are stamped on first
+  // open). Structural moves/removes need an id; give the agent a real recovery
+  // path instead of a misleading "no block" so it doesn't retry the same number.
+  if (!b.blockId) {
+    throw new Error(
+      `block #${n} has no stable id yet, so it can't be structurally removed/moved by number. ` +
+        `Use edit_block to change its text (that works by number), or open the chapter once in the app to materialize block ids.`,
+    );
+  }
+  return b.blockId;
+}
+
+/**
+ * Resolve 1-based block NUMBERS to stable blockIds against the entity's CURRENT
+ * doc (one read for the whole batch). Lets the structural tools take read_node
+ * numbers directly — resolved at call time, before any mutation — so the agent
+ * needn't call lookup_block first. blockId remains the safe handle when numbers
+ * could shift (across multiple structural ops). Empty in → empty out (no read).
+ */
+async function blockNumbersToIds(
+  entityType: ProseEntityType,
+  id: string,
+  ns: number[],
+): Promise<string[]> {
+  if (ns.length === 0) return [];
+  const blocks = docToBlocks(await getEntityContentJson(entityType, id));
+  return ns.map((n) => blockAtNumber(blocks, n));
+}
+
 async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const { entityType, id } = resolveProseTarget(ctx, args);
-  const blockIds = Array.isArray(args.blockIds) ? args.blockIds.map((b) => String(b)) : [];
-  if (blockIds.length === 0) throw new Error('remove_blocks requires a non-empty blockIds array');
+  const idArgs = Array.isArray(args.blockIds) ? args.blockIds.map((b) => String(b)) : [];
+  const numArgs = Array.isArray(args.blockNumbers) ? args.blockNumbers.map((b) => Number(b)) : [];
   return withProseLock(proseDocId(entityType, id), async () => {
+    // Resolve read_node numbers → blockIds up front (before any removal), so a
+    // batch of numbers all map against the same pre-edit doc.
+    const blockIds = [...idArgs, ...(await blockNumbersToIds(entityType, id, numArgs))];
+    if (blockIds.length === 0) {
+      throw new Error('remove_blocks requires blockIds (uuids) or blockNumbers (read_node numbers)');
+    }
     await writeEntityProse(
       ctx,
       entityType,
@@ -1256,14 +1341,27 @@ async function removeBlocksTool(ctx: AgentToolContext, args: Record<string, unkn
 }
 
 async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const fromBlockId = String(args.fromBlockId ?? '');
-  const toBlockId = String(args.toBlockId ?? '');
-  if (!fromBlockId || !toBlockId) {
-    throw new Error('replace_block_range requires fromBlockId and toBlockId');
-  }
   const { entityType, id } = resolveProseTarget(ctx, args);
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
   return withProseLock(proseDocId(entityType, id), async () => {
+    // Accept read_node NUMBERS (fromBlock/toBlock) as an alternative to uuids —
+    // resolved against the current doc, one read for both sides.
+    let fromBlockId = String(args.fromBlockId ?? '');
+    let toBlockId = String(args.toBlockId ?? '');
+    const nums: number[] = [];
+    if (!fromBlockId && args.fromBlock != null && args.fromBlock !== '') nums.push(Number(args.fromBlock));
+    if (!toBlockId && args.toBlock != null && args.toBlock !== '') nums.push(Number(args.toBlock));
+    if (nums.length) {
+      const ids = await blockNumbersToIds(entityType, id, nums);
+      let k = 0;
+      if (!fromBlockId && args.fromBlock != null && args.fromBlock !== '') fromBlockId = ids[k++];
+      if (!toBlockId && args.toBlock != null && args.toBlock !== '') toBlockId = ids[k++];
+    }
+    if (!fromBlockId || !toBlockId) {
+      throw new Error(
+        'replace_block_range requires fromBlock/toBlock (read_node numbers) or fromBlockId/toBlockId (uuids)',
+      );
+    }
     const { blockIds } = await writeEntityProse(
       ctx,
       entityType,
@@ -1281,14 +1379,18 @@ async function replaceBlockRangeTool(ctx: AgentToolContext, args: Record<string,
 }
 
 async function insertBlocksTool(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const afterBlockId =
-    args.afterBlockId === undefined || args.afterBlockId === null || args.afterBlockId === ''
-      ? null
-      : String(args.afterBlockId);
   const texts = Array.isArray(args.blocks) ? args.blocks.map((b) => String(b)) : [];
   if (texts.length === 0) throw new Error('insert_blocks requires a non-empty blocks array');
   const { entityType, id } = resolveProseTarget(ctx, args);
   return withProseLock(proseDocId(entityType, id), async () => {
+    // afterBlockId (uuid) or afterBlock (read_node number); omit both to prepend.
+    let afterBlockId =
+      args.afterBlockId === undefined || args.afterBlockId === null || args.afterBlockId === ''
+        ? null
+        : String(args.afterBlockId);
+    if (!afterBlockId && args.afterBlock != null && args.afterBlock !== '') {
+      afterBlockId = (await blockNumbersToIds(entityType, id, [Number(args.afterBlock)]))[0];
+    }
     const { blockIds } = await writeEntityProse(
       ctx,
       entityType,
@@ -2437,6 +2539,8 @@ export async function runAgentTool(
     case 'resolve_entity':
       return resolveEntity(ctx, args);
     // relational / context reads (point → surface)
+    case 'get_overview':
+      return getOverview(ctx);
     case 'get_project_brief':
       return getProjectBrief(ctx);
     case 'where_does_entity_appear':

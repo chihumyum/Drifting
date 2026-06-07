@@ -117,6 +117,8 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
           cacheCreationTokens: ev.cacheCreationTokens,
           costUsd: ev.costUsd,
           turns: ev.turns,
+          durationMs: ev.durationMs,
+          durationApiMs: ev.durationApiMs,
           // Stamp the moment usage arrives so the settings panel can scope
           // totals to a time window (this-month vs all-time).
           at: new Date().toISOString(),

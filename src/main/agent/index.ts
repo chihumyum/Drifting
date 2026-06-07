@@ -66,6 +66,11 @@ export type AgentEvent =
       cacheCreationTokens: number;
       costUsd: number;
       turns: number;
+      /** Total wall-clock for the turn (SDK `duration_ms`). */
+      durationMs: number;
+      /** Time spent in model API calls (SDK `duration_api_ms`). The gap
+       *  durationMs − durationApiMs is local overhead (IPC bridge + tool work). */
+      durationApiMs: number;
     }
   /** The SDK session id for this turn — the renderer stores it to resume later. */
   | { type: 'session'; id: string }
@@ -359,6 +364,10 @@ function toEvents(msg: SDKMessage, state: { sawDelta: boolean; sawThinking: bool
         cacheCreationTokens: u?.cache_creation_input_tokens ?? 0,
         costUsd: r.total_cost_usd ?? 0,
         turns: r.num_turns ?? 0,
+        // Wall-clock vs API time: the gap is local overhead (IPC bridge + tool
+        // work). Both fields are present on success AND error result messages.
+        durationMs: r.duration_ms ?? 0,
+        durationApiMs: r.duration_api_ms ?? 0,
       };
       if (r.subtype === 'success') {
         return [{ type: 'result', ok: true, text: r.result }, usageEvent];
@@ -476,14 +485,16 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         ...(resume ? { resume } : {}),
         systemPrompt:
           'You are a writing assistant embedded in the Drifting creative-writing app. ' +
-          'Orient first with get_project_brief, then list_nodes (storylines + chapters + drifts) ' +
-          'and/or list_elements (categories + elements) to see the manuscript — both list BY NAME. ' +
+          'Orient first with get_overview — ONE call returns the premise + author facts + counts, ' +
+          'all storylines/chapters/drifts, and all categories/elements, BY NAME (no need to call ' +
+          'get_project_brief + list_nodes + list_elements separately). ' +
           "A 'node' is a chapter OR a drift (free-floating note); they share one name space. " +
           'Gather context by TRAVERSING the graph instead of reading every node: ' +
           'where_does_entity_appear (all scenes mentioning a character/place/item), ' +
           'get_entity_relations (curated story-graph edges, both directions), ' +
-          'get_storyline (a storyline + its chapters), get_node_context (a node overview — ' +
-          'summary, rolling summaries, referenced elements, storylines — WITHOUT the full prose), ' +
+          'get_storyline (a storyline + its chapters), get_node_context (prose-FREE node overview ' +
+          "for triaging chapters — read_node already includes a chapter's summary, referenced " +
+          'elements, storylines and relations inline, so you need not call this before reading), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
           'Entity reference args are NAMES (project-unique) — never ids: pass the entity by name via ' +
@@ -499,9 +510,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'in one node — atomic), append_paragraph. Prose edits apply to the node live — no ' +
           'need to close the editor. To RESTRUCTURE prose (delete a block, replace a range of ' +
           'blocks with a different number of blocks, or insert blocks mid-node) use ' +
-          'remove_blocks / replace_block_range / insert_blocks; these address blocks by their ' +
-          'stable uuid blockId, NOT the read_node number (numbers shift after a structural ' +
-          'edit), so call lookup_block first to resolve a number or text snippet to its blockId. ' +
+          'remove_blocks / replace_block_range / insert_blocks; these accept read_node block ' +
+          'NUMBERS directly (remove_blocks: blockNumbers; replace_block_range: fromBlock/toBlock; ' +
+          'insert_blocks: afterBlock), resolved server-side at call time, or stable uuid blockIds. ' +
+          'Use lookup_block only to turn a text snippet into a block number/blockId. ' +
           'Build structure: create_storyline / update_storyline (incl. facts), create_category / ' +
           "update_category (element template facts), create_node (a 'chapter' or 'drift'). " +
           'Record book-level writing preferences (文风 / 写作人称 / 章节目标字数 / 目标 / 对标作品) ' +
