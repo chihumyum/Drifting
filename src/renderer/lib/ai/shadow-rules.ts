@@ -624,6 +624,10 @@ export async function evaluateSemanticAssertionsFC(
   // Per-call usage bypass (like onTrace) — lets the eval attribute tokens/cost down
   // to a single judge invocation without changing the return shape. Unused in prod.
   onUsage?: (usage: AIUsage) => void,
+  // The judge model. Prod passes the user's Shadow tier model (设置 · Shadow);
+  // omitted by the eval, which leaves the non-deepseek placeholder so the provider
+  // substitutes its configured defaultModel (the eval flips the model that way).
+  judgeModel: string = FC_MODEL,
 ): Promise<SemanticViolation[][]> {
   const active = assertions.map((a) => a.trim());
   const empty = (): SemanticViolation[][] => assertions.map(() => []);
@@ -683,7 +687,7 @@ export async function evaluateSemanticAssertionsFC(
   for (let round = 0; round < maxRounds; round++) {
     const force = toolCalls >= maxToolCalls || round === maxRounds - 1;
     const resp = await client.complete({
-      model: FC_MODEL,
+      model: judgeModel,
       system,
       messages,
       tools,

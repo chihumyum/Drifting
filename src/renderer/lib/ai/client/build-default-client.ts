@@ -91,7 +91,7 @@ async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMP
  * flag — flip per build by setting VITE_AI_TRANSPORT=proxy. Defaults to the
  * direct-to-provider path so existing builds are unchanged.
  */
-function isProxyTransport(): boolean {
+export function isProxyTransport(): boolean {
   return import.meta.env.VITE_AI_TRANSPORT === 'proxy';
 }
 
