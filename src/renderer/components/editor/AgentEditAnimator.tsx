@@ -61,6 +61,11 @@ const EXIT_MS = 320;
 // "M" can never get wedged on a block that won't render.
 const ANCHOR_GRACE_MS = 4500;
 
+// A block is "in view enough to reveal" when ≥35% of the BLOCK is visible, OR its
+// visible slice covers ≥35% of the VIEWPORT — the latter handles a block taller
+// than the viewport, whose visible fraction OF ITSELF can never reach 35%.
+const REVEAL_RATIO = 0.35;
+
 const keyOf = (c: AgentBlockChange): string => `${c.op}:${c.blockId}`;
 const sel = (blockId: string): string => `[data-block-id="${CSS.escape(blockId)}"]`;
 
@@ -87,6 +92,16 @@ function anchorEl(scrollEl: HTMLElement, c: AgentBlockChange): HTMLElement | nul
     return scrollEl.querySelector('[data-block-id]') as HTMLElement | null;
   }
   return scrollEl.querySelector(sel(c.blockId));
+}
+
+/** Does this element's box overlap the editor's scroll viewport at all? The grace
+ *  net uses it to tell an in-view edit whose reveal never fired (clear it, so the
+ *  tick / "M" can't wedge) from one resting fully off-screen (leave it — its
+ *  reveal legitimately waits until the user scrolls it into view). */
+function intersectsViewport(el: HTMLElement, scrollEl: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  const v = scrollEl.getBoundingClientRect();
+  return r.bottom > v.top && r.top < v.bottom && r.right > v.left && r.left < v.right;
 }
 
 /** A deletion is anchored to its surviving PREDECESSOR (so the control sits just
@@ -510,80 +525,75 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     [entityType, id],
   );
 
-  // Auto mode: observe each pending block; the MOMENT it enters the viewport,
-  // fire its reveal — concurrently, so every change in view animates at once
-  // (not one-at-a-time). A MutationObserver re-wires blocks as their DOM appears:
-  // when the agent edits the OPEN chapter, the edit lands in Yjs + the store
-  // synchronously (re-running this effect) but the ProseMirror DOM syncs a tick
-  // LATER — so the anchor isn't there on the first pass, and without this the
-  // reveal would never fire (tick stuck).
+  // Auto mode: as each pending block comes into view, fire its reveal —
+  // concurrently, so every change on screen animates at once. Driven by a RECT
+  // CHECK that re-queries the anchor every pass, NOT a one-shot
+  // IntersectionObserver.observe(node), because the anchor element is not stable:
+  // when the agent edits the OPEN chapter the change lands in Yjs + the store
+  // synchronously (re-running this effect), but ProseMirror re-syncs its DOM a
+  // tick LATER and, for an edited block, commonly REPLACES the <p> node
+  // (delete+insert). An observer pinned to the original node then watches a
+  // detached element forever — its callback never fires, so the reveal silently
+  // never plays and the tick / "M" wedge (the frequent "edit didn't animate"
+  // bug). Re-running anchorEl() on scroll / resize / DOM-mutation always tests
+  // the CURRENT node, so a replaced or late-rendered block is picked up next frame.
   useEffect(() => {
     if (!scrollEl || !id || autoChanges.length === 0) return undefined;
 
-    // One element can carry SEVERAL changes — a run of consecutive deletions all
-    // anchors to the same surviving predecessor. Hold a list (not one change) so
-    // they all fire together when that anchor enters view; keying by element
-    // would otherwise overwrite all but the last, leaving them to dribble out
-    // one-at-a-time as each prior delete resolves and re-runs this effect.
-    const byEl = new Map<Element, AgentBlockChange[]>();
-    const wired = new Set<string>(); // change keys already attached to the IO
+    const fired = new Set<string>(); // change keys whose reveal has been kicked off
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          const cs = byEl.get(e.target);
-          if (!cs || cs.length === 0) continue;
-          if (e.isIntersecting && e.intersectionRatio >= 0.35) {
-            io.unobserve(e.target); // started — don't re-fire it
-            setRevealing((prev) => {
-              let next = prev;
-              for (const c of cs) {
-                if (next.has(keyOf(c))) continue;
-                if (next === prev) next = new Map(prev);
-                next.set(keyOf(c), c);
-              }
-              return next;
-            });
-          }
-        }
-      },
-      { root: scrollEl, threshold: [0, 0.35, 1] },
-    );
-
-    // Attach any pending AUTO block whose anchor is now in the DOM but not yet
-    // observed (approve-mode changes wait for an explicit ✓/✗ instead). Several
-    // changes can land on one anchor — append to its list, observe it once.
-    const wire = () => {
+    const check = () => {
+      const v = scrollEl.getBoundingClientRect();
+      const toFire: AgentBlockChange[] = [];
       for (const c of autoChanges) {
         const k = keyOf(c);
-        if (wired.has(k)) continue;
+        if (fired.has(k)) continue;
         const el = anchorEl(scrollEl, c);
-        if (el) {
-          wired.add(k);
-          const list = byEl.get(el);
-          if (list) {
-            list.push(c);
-          } else {
-            byEl.set(el, [c]);
-            io.observe(el);
-          }
+        if (!el || !el.isConnected) continue;
+        const r = el.getBoundingClientRect();
+        const visible = Math.min(r.bottom, v.bottom) - Math.max(r.top, v.top);
+        if (visible <= 0) continue;
+        // ≥35% of the block is visible, OR its visible slice covers ≥35% of the
+        // viewport (the block-taller-than-viewport case).
+        if (visible >= r.height * REVEAL_RATIO || visible >= v.height * REVEAL_RATIO) {
+          fired.add(k);
+          toFire.push(c);
         }
       }
+      if (toFire.length === 0) return;
+      setRevealing((prev) => {
+        let next = prev;
+        for (const c of toFire) {
+          const k = keyOf(c);
+          if (next.has(k)) continue;
+          if (next === prev) next = new Map(prev);
+          next.set(k, c);
+        }
+        return next;
+      });
     };
 
     let raf = 0;
-    const mo = new MutationObserver(() => {
+    const schedule = () => {
       if (raf) return;
       raf = window.requestAnimationFrame(() => {
         raf = 0;
-        wire();
+        check();
       });
-    });
+    };
+
+    check(); // an in-view edit fires at once — no wait for a scroll / observer tick
+    scrollEl.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    // The Yjs→ProseMirror DOM sync (and any later node replacement) lands as a
+    // childList/subtree mutation — re-check so a block absent (or swapped out) on
+    // the first pass reveals once its node settles into the DOM.
+    const mo = new MutationObserver(schedule);
     mo.observe(scrollEl, { childList: true, subtree: true });
-    wire();
 
     return () => {
-      io.disconnect();
+      scrollEl.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
       mo.disconnect();
       if (raf) window.cancelAnimationFrame(raf);
     };
@@ -616,15 +626,22 @@ export function AgentEditAnimator({ scrollEl, projectId, entityType, id }: Agent
     };
   }, [scrollEl, hasLayer]);
 
-  // Safety net (per-change, AUTO changes only): an auto change we can never anchor
-  // (block didn't render) clears after a grace period so its tick / "M" can't get
-  // stuck. An APPROVE change is never auto-resolved here — that would silently
-  // ACCEPT an edit the user never approved; it stays pending until the user
-  // scrolls it into view and clicks ✓/✗.
+  // Safety net (per-change, AUTO changes only) so a tick / "M" can't get wedged
+  // when a reveal never plays. After a grace period an auto change clears if
+  // EITHER (a) it has no anchor (the block never rendered), or (b) it's anchored
+  // and resting within the editor viewport yet still pending — i.e. its reveal
+  // never fired (the block came only partly into view, under the reveal ratio). A
+  // block fully OFF the viewport is left alone: its reveal — and its marker clear
+  // — happen when the user scrolls it in (the tick is the "find me" handle for it).
+  // An APPROVE change is never auto-resolved here — that would silently ACCEPT an
+  // edit the user never approved; it waits for the user to scroll to it and ✓/✗.
   useEffect(() => {
     if (!scrollEl || !id || autoChanges.length === 0) return;
     const t = window.setTimeout(() => {
-      for (const c of autoChanges) if (!anchorEl(scrollEl, c)) resolve(c);
+      for (const c of autoChanges) {
+        const el = anchorEl(scrollEl, c);
+        if (!el || intersectsViewport(el, scrollEl)) resolve(c);
+      }
     }, ANCHOR_GRACE_MS);
     return () => window.clearTimeout(t);
   }, [scrollEl, id, changesKey, resolve]); // eslint-disable-line react-hooks/exhaustive-deps

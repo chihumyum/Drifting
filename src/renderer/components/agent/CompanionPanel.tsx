@@ -31,6 +31,7 @@ import {
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import {
   collectTurnEntityRefs,
   type ActivityEntityType,
@@ -48,9 +49,6 @@ interface AuthStatus {
   apiKeyConnected: boolean;
   hostedAvailable: boolean;
 }
-
-/** Max composer height before it stops growing and scrolls internally (~8 lines). */
-const COMPOSER_MAX_PX = 168;
 
 function relTime(iso: string): string {
   try {
@@ -480,7 +478,13 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemDraft, setItemDraft] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  // Auto-grow the composer from one line up to the CSS max-height (then it scrolls
+  // internally). A ref-callback + ResizeObserver (not a one-shot [prompt] effect)
+  // so the height is re-measured every mount AND when the textarea regains a real
+  // size — e.g. when the right column is switched away and back, which unmounts +
+  // remounts this panel. The old [prompt]-only effect re-ran once on remount before
+  // the panel had settled its width, so a multi-line draft collapsed to one row.
+  const taRef = useAutosizeTextArea(prompt);
   // Whether to keep pinning the view to the bottom during streaming. The user
   // scrolling up sets this false (breaks free); scrolling back to the bottom
   // re-engages it.
@@ -518,16 +522,6 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       logRef.current.scrollTop = logRef.current.scrollHeight;
     }
   }, [messages]);
-
-  // Auto-grow the composer from one line up to a cap, then scroll. The bar is
-  // bottom-anchored with the log on flex:1, so growing the textarea pushes the
-  // input area upward (the requested "grow upward" behavior).
-  useEffect(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_PX)}px`;
-  }, [prompt]);
 
   const onScroll = useCallback(() => {
     const el = logRef.current;
