@@ -18,7 +18,7 @@ import type { Static, TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import type { LLMClient } from './client/llm-client';
 import type { PromptDef } from './prompts/define-prompt';
-import { AIError, type AITool } from './types';
+import { AIError, type AITool, type AIUsage } from './types';
 
 export interface CallStructuredOptions {
   signal?: AbortSignal;
@@ -40,6 +40,12 @@ export interface CallStructuredOptions {
   jsonMode?: boolean;
   /** Max output tokens (json mode can truncate large outputs — set generously). */
   maxOutputTokens?: number;
+  /**
+   * Observe this call's token usage (fired once per `complete()`, after it returns,
+   * BEFORE schema validation — so it reflects tokens actually spent even on an
+   * attempt that later fails validation). Used for local usage accounting.
+   */
+  onUsage?: (usage: AIUsage) => void;
   /**
    * Human-readable language name (e.g. "Simplified Chinese (简体中文)") to
    * force the model's natural-language output into, appended to the system
@@ -106,6 +112,7 @@ export async function callStructured<
       signal: options.signal,
       metadata: { feature: prompt.id, promptId: prompt.id, promptVersion: prompt.version },
     });
+    if (jsonRes.usage) options.onUsage?.(jsonRes.usage);
     const raw = (jsonRes.text ?? '').trim();
     if (!raw) {
       throw new AIError('parse', `Prompt "${prompt.id}" (json mode) returned empty content.`);
@@ -146,6 +153,7 @@ export async function callStructured<
       promptVersion: prompt.version,
     },
   });
+  if (response.usage) options.onUsage?.(response.usage);
 
   if (!response.toolCall) {
     throw new AIError(

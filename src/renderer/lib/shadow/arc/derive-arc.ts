@@ -16,6 +16,7 @@ import { callStructured } from '../../ai/call-structured';
 import { AIError } from '../../ai/types';
 import { resolveWritingLanguage } from '../../ai/output-language';
 import { resolveShadowModel, ensureShadowModelRoutable } from '../model-routing';
+import { recordShadowUsage } from '../usage';
 import { arcLeafPrompt } from '../../ai/prompts/templates/arc-leaf';
 import { arcDistillPrompt } from '../../ai/prompts/templates/arc-distill';
 import { arcSynthesizePrompt } from '../../ai/prompts/templates/arc-synthesize';
@@ -404,6 +405,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           model: arcModel,
           thinking: arcThinking,
           jsonMode: true,
+          onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );
     },
@@ -416,6 +418,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           model: arcModel,
           thinking: arcThinking,
           jsonMode: true,
+          onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );
     },
@@ -428,6 +431,7 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
           model: arcModel,
           thinking: arcThinking,
           jsonMode: true,
+          onUsage: (u) => recordShadowUsage('shadow:arc', arcModel, u),
         }),
       );
     },

@@ -337,6 +337,13 @@
       "when": 1783200000000,
       "tag": "0047_element_arc",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1783300000000,
+      "tag": "0048_ai_usage",
+      "breakpoints": true
     }
   ]
 }

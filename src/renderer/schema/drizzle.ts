@@ -432,6 +432,31 @@ export const ElementArcTable = sqliteTable(
   (t) => [uniqueIndex('idx_element_arc_element').on(t.elementId)],
 );
 
+// ai_usage — local token accounting for AI calls that EXECUTE on this client
+// (Shadow BYOK / direct-provider). Hosted calls run on the Drifting server and are
+// metered there; this captures the calls the server never sees. One row per LLM
+// call, tagged by `feature` ('shadow:review' | 'shadow:arc' | …). Tokens only, no
+// cost/$. `credentialsMode` records hosted|byok for forward-compat (today local).
+export const AiUsageTable = sqliteTable(
+  'ai_usage',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id'),
+    feature: text('feature').notNull(),
+    provider: text('provider'),
+    model: text('model'),
+    credentialsMode: text('credentials_mode'),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cachedTokens: integer('cached_tokens').notNull().default(0),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_ai_usage_created').on(t.createdAt),
+    index('idx_ai_usage_feature').on(t.feature),
+  ],
+);
+
 // Block Section
 // Per-chapter rolling summary of a contiguous range of blocks ("blocks 15-27:
 // tavern fight escalates into Bjorn's challenge"). Produced as a side-effect

@@ -27,6 +27,7 @@ import {
   ensureShadowModelRoutable,
   SHADOW_TIER_MODEL,
 } from '../shadow/model-routing';
+import { recordShadowUsage } from '../shadow/usage';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { yieldToMain } from '../async/yield-to-main';
 import {
@@ -2294,7 +2295,9 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
       makeShadowRunTool(ctx, chapterId),
       abortSignal,
       onTrace,
-      undefined,
+      // Record each judge round's token usage locally (Shadow runs direct-to-provider;
+      // the server never sees it). No-ops when the proxy transport is on.
+      (usage) => recordShadowUsage('shadow:review', judgeModel, usage),
       judgeModel,
     );
   }

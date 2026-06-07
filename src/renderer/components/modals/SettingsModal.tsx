@@ -41,6 +41,7 @@ import {
   createAgentConversationRepository,
   type AgentConversationUsage,
 } from '../../sqlite-repo/agent-conversation-repo';
+import { createAiUsageRepository, type AiUsageSummary } from '../../sqlite-repo/ai-usage-repo';
 import { authClient } from '../../lib/auth-client';
 import { TrashPanel } from '../TrashPanel';
 import { refreshFeatureAccess, useFeatureAccessStore } from '../../lib/feature-access';
@@ -1246,18 +1247,76 @@ function TrashRailPanel({ registerRef }: { registerRef: RegisterRef }) {
   );
 }
 
+const SHADOW_USAGE_FEATURE_LABEL: Record<string, string> = {
+  'shadow:review': '章节审阅 · CI',
+  'shadow:arc': '弧线派生',
+};
+
+const EMPTY_USAGE_SUMMARY: AiUsageSummary = {
+  total: { calls: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+  byFeature: [],
+};
+
+// Start of the current month (UTC), ISO — the window the usage panel sums over.
+function monthStartISO(): string {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
+// REAL local usage — sums the `ai_usage` rows recorded by recordShadowUsage for
+// Shadow calls that executed on this client (direct/BYOK). Hosted usage is metered
+// server-side and intentionally NOT shown here. Tokens only (no cost/$, no quota:
+// BYOK has no hosted budget). Replaces the former hardcoded mock.
 function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
+  const [scope, setScope] = useState<'month' | 'all'>('month');
+  const [summary, setSummary] = useState<AiUsageSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const since = scope === 'month' ? monthStartISO() : undefined;
+    createAiUsageRepository()
+      .summary({ featurePrefix: 'shadow:', since })
+      .then((s) => {
+        if (!cancelled) setSummary(s);
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(EMPTY_USAGE_SUMMARY);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope]);
+
+  const s = summary ?? EMPTY_USAGE_SUMMARY;
+  const totalTokens = s.total.inputTokens + s.total.outputTokens;
+
   return (
     <section className="set-panel" ref={registerRef} id="usage">
       <PanelHead
         kicker="Shadow 用量 · USAGE"
-        title="这个月，Shadow 为你做了多少事。"
+        title="本地自带 Key，Shadow 烧了多少 token。"
         sub={
           <>
-            周期 2026·05·14 → 06·14。配额刷新前你还有 <span className="set-italic">16 次任务</span>。
+            只统计<b>在本机直连执行</b>的 Shadow 调用（章节审阅 + 弧线派生）的 token。
+            <span className="set-italic">
+              {' '}
+              托管模式的用量在服务端计量、不在此处；自带 Key 无配额，仅作展示。
+            </span>
           </>
         }
       />
+
+      <div className="set-sec">
+        <SecHead title="周期" hint="SCOPE" />
+        <Seg<'month' | 'all'>
+          value={scope}
+          options={[
+            { value: 'month', label: '本月' },
+            { value: 'all', label: '累计' },
+          ]}
+          onChange={setScope}
+        />
+      </div>
 
       <div
         style={{
@@ -1276,7 +1335,7 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
             color: 'hsl(var(--ink-4))',
           }}
         >
-          Shadow Agent 任务
+          Tokens（输入 + 输出）
         </div>
         <div
           style={{
@@ -1286,34 +1345,13 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
             marginTop: 6,
           }}
         >
-          34
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 13,
-              color: 'hsl(var(--ink-4))',
-              marginLeft: 6,
-            }}
-          >
-            / 50
-          </span>
-        </div>
-        <div
-          style={{
-            marginTop: 14,
-            height: 5,
-            background: 'hsl(var(--rule))',
-            borderRadius: 3,
-            overflow: 'hidden',
-            position: 'relative',
-          }}
-        >
-          <div style={{ width: '68%', height: '100%', background: 'hsl(var(--accent))' }} />
+          {totalTokens.toLocaleString()}
         </div>
         <div
           style={{
             marginTop: 10,
             display: 'flex',
+            flexWrap: 'wrap',
             gap: 18,
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
@@ -1323,41 +1361,43 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
           }}
         >
           <span>
-            <b style={{ color: 'hsl(var(--ink-2))' }}>68%</b> 已用
+            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.calls.toLocaleString()}</b> 次调用
           </span>
           <span>
-            剩余 <b style={{ color: 'hsl(var(--ink-2))' }}>16</b> 次
+            输入 <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.inputTokens.toLocaleString()}</b>
           </span>
           <span>
-            日均 <b style={{ color: 'hsl(var(--ink-2))' }}>1.6</b>
+            输出 <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.outputTokens.toLocaleString()}</b>
           </span>
+          {s.total.cachedTokens > 0 && (
+            <span>
+              缓存{' '}
+              <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.cachedTokens.toLocaleString()}</b>
+            </span>
+          )}
         </div>
       </div>
 
       <div className="set-sec" style={{ marginTop: 24 }}>
-        <SecHead title="超额行为" hint="GUARDRAILS" />
-        <Row
-          label="超额时自动暂停"
-          desc="达到 100% 时停止接受新任务，不自动按次计费。"
-          control={<Toggle on onChange={() => undefined} />}
-        />
-        <Row
-          label="用量预警"
-          desc="到达阈值时邮件提醒。"
-          control={
-            <Seg
-              value="80%"
-              options={[
-                { value: '50%', label: '50%' },
-                { value: '70%', label: '70%' },
-                { value: '80%', label: '80%' },
-                { value: '90%', label: '90%' },
-                { value: '关', label: '关' },
-              ]}
-              onChange={() => undefined}
+        <SecHead title="按能力" hint="BY FEATURE" />
+        {s.byFeature.length === 0 ? (
+          <p className="set-row__desc" style={{ margin: '4px 0 0' }}>
+            还没有本地用量记录。跑一次章节审阅或弧线派生后，token 用量会出现在这里。
+          </p>
+        ) : (
+          s.byFeature.map((f) => (
+            <Row
+              key={f.feature}
+              label={SHADOW_USAGE_FEATURE_LABEL[f.feature] ?? f.feature}
+              desc={`${f.calls.toLocaleString()} 次调用`}
+              control={
+                <span className="set-mono" style={{ fontSize: 12, color: 'hsl(var(--ink-2))' }}>
+                  {(f.inputTokens + f.outputTokens).toLocaleString()} tok
+                </span>
+              }
             />
-          }
-        />
+          ))
+        )}
       </div>
     </section>
   );
