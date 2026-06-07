@@ -33,6 +33,8 @@ export type AgentChatMessage =
   | { kind: 'todos'; items: AgentTodoItem[] }
   // Per-turn token usage + cost, appended after each turn. Persisted in the
   // transcript so session totals survive reload (summed across these rows).
+  // `at` (ISO, set when the turn completed) lets usage be scoped by time window
+  // (e.g. this-month vs all-time); absent on rows written before it was added.
   | {
       kind: 'usage';
       inputTokens: number;
@@ -41,6 +43,7 @@ export type AgentChatMessage =
       cacheCreationTokens: number;
       costUsd: number;
       turns: number;
+      at?: string;
     }
   | { kind: 'error'; text: string };
 

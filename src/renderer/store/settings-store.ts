@@ -78,16 +78,18 @@ export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 
-// Only the wired copilot capabilities. The unimplemented placeholders
-// (人物一致性核查 / 时间线对齐 / 自动链接 / 语言润色 / 资料检索) were removed — they
-// rendered toggles that did nothing. elementExtract + elementPatch are the two
-// debounced capabilities; inlineEdit (+ the popover「问」, not a task) is manual.
-export type CopilotTaskId = 'elementExtract' | 'elementPatch' | 'inlineEdit';
+// The AUTO-task switches — only the wired, debounced copilot capabilities. The
+// unimplemented placeholders (人物一致性核查 / 时间线对齐 / 自动链接 / 语言润色 /
+// 资料检索) were removed — they rendered toggles that did nothing. elementExtract
+// + elementPatch are the two debounced capabilities. Inline-edit (⇧⌘I) and the
+// popover「问」are MANUAL — always available, never gated by a task switch — so
+// they are deliberately NOT listed here. The task-toggle UIs (settings panel +
+// bottom menu) iterate COPILOT_TASKS, so a manual feature never gets a switch.
+export type CopilotTaskId = 'elementExtract' | 'elementPatch';
 
 export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
   { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
   { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
-  { id: 'inlineEdit', label: '行内修改', desc: '⇧⌘I 手动触发的局部润色 / 改写，不生成新情节' },
 ];
 
 /**
@@ -111,7 +113,7 @@ function defaultTaskConfig(enabled: boolean): CopilotTaskConfig {
 function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
   const out = {} as Record<CopilotTaskId, CopilotTaskConfig>;
   for (const t of COPILOT_TASKS) {
-    // All three remaining tasks are wired — default them on so a fresh install
+    // Both remaining tasks are wired — default them on so a fresh install
     // actually does something.
     out[t.id] = defaultTaskConfig(true);
   }
@@ -469,7 +471,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 11,
+      version: 12,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -574,7 +576,7 @@ export const useSettingsStore = create<SettingsState>()(
           next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
         }
         if (version < 8) {
-          // New task ids ship over time (e.g. 'inlineEdit'). Backfill any
+          // New task ids ship over time. Backfill any current
           // COPILOT_TASKS entry missing from the user's persisted configs
           // with its first-run default, so the settings UI and the manual-run
           // menu surface it instead of treating it as silently disabled.
@@ -648,6 +650,18 @@ export const useSettingsStore = create<SettingsState>()(
           if (next.shadowTier === undefined) next.shadowTier = 'standard';
           if (next.shadowByokProvider === undefined) next.shadowByokProvider = 'deepseek';
           if (next.shadowByokModel === undefined) next.shadowByokModel = 'deepseek-v4-flash';
+        }
+        if (version < 12) {
+          // 'inlineEdit' is no longer a task: inline-edit (⇧⌘I) is a MANUAL
+          // feature, always available, never gated by a switch. Drop its stale
+          // persisted config (and any other key no longer in COPILOT_TASKS) so
+          // the saved shape matches CopilotTaskId again.
+          const known = new Set(COPILOT_TASKS.map((t) => t.id));
+          const configs = { ...(next.copilotTaskConfigs ?? {}) } as Record<string, CopilotTaskConfig>;
+          for (const id of Object.keys(configs)) {
+            if (!known.has(id as CopilotTaskId)) delete configs[id];
+          }
+          next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
         }
         return next;
       },

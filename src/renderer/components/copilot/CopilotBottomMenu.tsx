@@ -138,7 +138,7 @@ export function CopilotBottomMenu() {
           )}
 
           <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
-          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>任务</div>
+          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>自动任务</div>
           {COPILOT_TASKS.map((t) => (
             <ToggleRow
               key={t.id}

@@ -2718,7 +2718,7 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="任务" hint="TASKS" />
+        <SecHead title="自动任务" hint="TASKS" />
         <p className="set-row__desc" style={{ margin: '-4px 0 0' }}>
           每个 task 都能独立开关和调触发节奏。低 debounce 适合轻量识别（如实体抽取），高 debounce 适合重型分析（如 patch 提议）。
         </p>
@@ -2752,14 +2752,20 @@ const fmtConvTime = (iso: string): string => {
 function AgentUsageSection({ open }: { open: boolean }) {
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [rows, setRows] = useState<AgentConversationUsage[]>([]);
+  // Two reporting windows, à la the Shadow usage panel: this-month vs all-time.
+  // Defaults to all-time: usage entries written before per-turn timestamps existed
+  // are undated, so they only surface under 累计 — landing there shows real numbers
+  // instead of a misleading 本月 = 0 until fresh, dated turns accrue.
+  const [scope, setScope] = useState<'month' | 'all'>('all');
 
-  // Reload each time Settings opens (the modal stays mounted while closed). All
-  // setState happens in the async callbacks, never synchronously in the effect.
+  // Reload on open / project / scope change (the modal stays mounted while
+  // closed). All setState happens in the async callbacks, never synchronously.
   useEffect(() => {
     if (!open || !projectId) return;
     let cancelled = false;
+    const since = scope === 'month' ? monthStartISO() : undefined;
     void createAgentConversationRepository()
-      .usageByProject(projectId)
+      .usageByProject(projectId, { since })
       .then((u) => {
         if (!cancelled) setRows(u);
       })
@@ -2769,8 +2775,10 @@ function AgentUsageSection({ open }: { open: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [open, projectId]);
+  }, [open, projectId, scope]);
 
+  // Totals sum EVERY conversation in-window, deleted or not — the spend was real,
+  // so deleting a chat must not shrink the usage figures.
   const totals = rows.reduce(
     (a, r) => ({
       input: a.input + r.inputTokens,
@@ -2781,14 +2789,29 @@ function AgentUsageSection({ open }: { open: boolean }) {
     { input: 0, output: 0, cost: 0, turns: 0 },
   );
   const withUsage = rows.filter((r) => r.inputTokens + r.outputTokens > 0);
+  // The manageable history list is live conversations only (all of them, not
+  // window-scoped — you manage every chat regardless of when it was last used).
+  const live = rows.filter((r) => !r.deletedAt);
+  const scopeLabel = scope === 'month' ? '本月' : '累计';
 
   // Soft-delete through the chat store so the right-rail Companion (if bound to
   // this project) drops the conversation too — abort an in-flight turn, clear the
   // active pointer, refresh its list. Persistence (repo.softDelete) runs even when
-  // the store isn't bound, so deletion is safe either way; then prune our own row.
+  // the store isn't bound, so deletion is safe either way. We only MARK the row
+  // deleted locally (not remove it) so its usage stays in the totals above.
   const handleDelete = (id: string) => {
     void useAgentChatStore.getState().deleteConversation(id);
-    setRows((rs) => rs.filter((r) => r.id !== id));
+    const now = new Date().toISOString();
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, deletedAt: now } : r)));
+  };
+
+  // Bulk soft-delete behind a confirm — clearing all is easy to fire by accident.
+  const handleClearAll = () => {
+    if (live.length === 0) return;
+    if (!window.confirm(`清空全部对话历史？将移除本项目的 ${live.length} 条 Agent 对话。`)) return;
+    void useAgentChatStore.getState().clearConversations();
+    const now = new Date().toISOString();
+    setRows((rs) => rs.map((r) => (r.deletedAt ? r : { ...r, deletedAt: now })));
   };
 
   const card = (label: string, value: string, sub?: string) => (
@@ -2843,21 +2866,33 @@ function AgentUsageSection({ open }: { open: boolean }) {
       <GroupHead
         label="用量"
         hint="USAGE"
-        desc="本项目里 Agent 用了多少 token。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。"
+        desc="本项目里 Agent 用了多少 token、花了多少钱。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。按本月 / 累计两个口径查看。"
       />
 
       {!projectId ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后查看其 Agent 用量。</div>
       ) : (
-        <div style={{ display: 'flex', gap: 10 }}>
-          {card(
-            '累计 Token',
-            fmtUsageTok(totals.input + totals.output),
-            `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
-          )}
-          {card('累计费用', fmtUsageUsd(totals.cost))}
-          {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
-        </div>
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <Seg<'month' | 'all'>
+              value={scope}
+              options={[
+                { value: 'month', label: '本月' },
+                { value: 'all', label: '累计' },
+              ]}
+              onChange={setScope}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {card(
+              `${scopeLabel} Token`,
+              fmtUsageTok(totals.input + totals.output),
+              `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
+            )}
+            {card(`${scopeLabel}费用`, fmtUsageUsd(totals.cost))}
+            {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
+          </div>
+        </>
       )}
 
       <GroupHead
@@ -2866,9 +2901,37 @@ function AgentUsageSection({ open }: { open: boolean }) {
         desc="本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。"
       />
 
+      {projectId && live.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '2px 0 8px' }}>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            style={{
+              border: '1px solid hsl(var(--rule))',
+              background: 'transparent',
+              color: 'hsl(var(--ink-3))',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '4px 10px',
+              borderRadius: 5,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'hsl(var(--ink-1))';
+              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'hsl(var(--ink-3))';
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            清空历史
+          </button>
+        </div>
+      )}
+
       {!projectId ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后管理其对话历史。</div>
-      ) : rows.length === 0 ? (
+      ) : live.length === 0 ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
           还没有对话 — 给 Agent 发一条消息试试。
         </div>
@@ -2882,7 +2945,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
             overflow: 'hidden',
           }}
         >
-          {rows.map((r, i) => (
+          {live.map((r, i) => (
             <div
               key={r.id}
               style={{

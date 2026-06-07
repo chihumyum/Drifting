@@ -117,6 +117,9 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
           cacheCreationTokens: ev.cacheCreationTokens,
           costUsd: ev.costUsd,
           turns: ev.turns,
+          // Stamp the moment usage arrives so the settings panel can scope
+          // totals to a time window (this-month vs all-time).
+          at: new Date().toISOString(),
         },
       ];
     case 'error':
@@ -239,6 +242,8 @@ interface AgentChatState {
   newConversation: () => void;
   loadConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  /** Soft-delete every conversation in the bound project, resetting to a fresh chat. */
+  clearConversations: () => Promise<void>;
   renameConversation: (id: string, title: string) => Promise<void>;
 }
 
@@ -493,6 +498,32 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       if (pid) useSettingsStore.getState().clearLastAgentConv(pid);
       set({ activeConvId: null });
     }
+    get().refreshList();
+  },
+
+  clearConversations: async () => {
+    const pid = get().boundProjectId;
+    if (!pid) return;
+    // Abort + clear the in-flight turn (main runs a single query, so abort
+    // targets exactly it) — its conversation is about to be deleted too.
+    if (get().runningConvId) {
+      void window.electronAPI?.agent?.abort();
+      const tid = get().runningTurnId;
+      if (tid) turnConv.delete(tid);
+      set({ runningTurnId: null, runningConvId: null });
+    }
+    try {
+      await repo.softDeleteAllByProject(pid, new Date().toISOString());
+    } catch {
+      /* ignore */
+    }
+    // Drop this project's in-memory transcripts (other projects' caches stay)
+    // and reset the view to a fresh chat.
+    useSettingsStore.getState().clearLastAgentConv(pid);
+    set((st) => ({
+      runs: Object.fromEntries(Object.entries(st.runs).filter(([, r]) => r.projectId !== pid)),
+      activeConvId: null,
+    }));
     get().refreshList();
   },
 

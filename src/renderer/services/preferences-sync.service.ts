@@ -20,7 +20,7 @@
  */
 import { apiClient } from '../lib/axios-config';
 import { isSyncEnabled } from '../lib/config';
-import { useSettingsStore, type CopilotTaskId } from '../store/settings-store';
+import { useSettingsStore, COPILOT_TASKS, type CopilotTaskId } from '../store/settings-store';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('prefs-sync');
@@ -262,10 +262,13 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     copilotMode: (v) => store.setCopilotMode(v as never),
     copilotTaskConfigs: (v) => {
       // Apply each known task's incoming config via setCopilotTaskConfig so
-      // unknown keys (old clients, malformed payloads) get filtered safely.
+      // unknown keys (old clients, malformed payloads, the retired 'inlineEdit'
+      // task) get filtered safely.
       if (!v || typeof v !== 'object') return;
+      const known = new Set<string>(COPILOT_TASKS.map((t) => t.id));
       const incoming = v as Record<string, { enabled?: unknown; debounceMs?: unknown }>;
       for (const [id, cfg] of Object.entries(incoming)) {
+        if (!known.has(id)) continue;
         if (!cfg || typeof cfg !== 'object') continue;
         const patch: { enabled?: boolean; debounceMs?: number } = {};
         if (typeof cfg.enabled === 'boolean') patch.enabled = cfg.enabled;

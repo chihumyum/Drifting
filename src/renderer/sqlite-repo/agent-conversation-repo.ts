@@ -66,6 +66,9 @@ export interface AgentConversationUsage {
   id: string;
   title: string;
   updatedAt: string;
+  /** Soft-delete marker — null while live. Deleted rows still count toward usage
+   *  totals (the spend happened) but drop out of the manageable history list. */
+  deletedAt: string | null;
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -78,8 +81,18 @@ export interface AgentConversationRepository {
   create(input: CreateAgentConversationInput): Promise<void>;
   update(id: string, patch: UpdateAgentConversationInput): Promise<void>;
   softDelete(id: string, deletedAt: string): Promise<void>;
-  /** Per-conversation token/cost usage for a project (most-recent first). */
-  usageByProject(projectId: string): Promise<AgentConversationUsage[]>;
+  /** Soft-delete every live conversation in a project (one UPDATE). */
+  softDeleteAllByProject(projectId: string, deletedAt: string): Promise<void>;
+  /**
+   * Per-conversation token/cost usage for a project (most-recent first).
+   * `opts.since` (ISO) scopes the sum to usage entries stamped at/after it — e.g.
+   * the start of the month; omit for all-time. Every conversation is still
+   * returned (usage 0 when none in-window) so the row stays manageable.
+   */
+  usageByProject(
+    projectId: string,
+    opts?: { since?: string },
+  ): Promise<AgentConversationUsage[]>;
 }
 
 export function createAgentConversationRepository(): AgentConversationRepository {
@@ -108,21 +121,21 @@ export function createAgentConversationRepository(): AgentConversationRepository
       }));
     },
 
-    async usageByProject(projectId) {
+    async usageByProject(projectId, opts) {
+      const since = opts?.since;
+      // Includes soft-deleted conversations on purpose: the tokens/cost were
+      // really spent, so usage totals must survive a deleted chat. Callers split
+      // live vs deleted via the returned `deletedAt`.
       const rows = await getDb()
         .select({
           id: AgentConversationTable.id,
           title: AgentConversationTable.title,
           updatedAt: AgentConversationTable.updatedAt,
+          deletedAt: AgentConversationTable.deletedAt,
           messagesJson: AgentConversationTable.messagesJson,
         })
         .from(AgentConversationTable)
-        .where(
-          and(
-            eq(AgentConversationTable.projectId, projectId),
-            isNull(AgentConversationTable.deletedAt),
-          ),
-        )
+        .where(eq(AgentConversationTable.projectId, projectId))
         .orderBy(desc(AgentConversationTable.updatedAt));
       return rows.map((r) => {
         let inputTokens = 0;
@@ -130,14 +143,26 @@ export function createAgentConversationRepository(): AgentConversationRepository
         let costUsd = 0;
         let turns = 0;
         for (const m of parseMessages(r.messagesJson)) {
-          if (m.kind === 'usage') {
-            inputTokens += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
-            outputTokens += m.outputTokens;
-            costUsd += m.costUsd;
-            turns += m.turns;
-          }
+          if (m.kind !== 'usage') continue;
+          // Time-scoped window: count only entries stamped at/after `since`.
+          // Entries written before `at` existed are undated, so they fall
+          // outside any bounded window (they still count for all-time).
+          if (since && !(m.at && m.at >= since)) continue;
+          inputTokens += m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens;
+          outputTokens += m.outputTokens;
+          costUsd += m.costUsd;
+          turns += m.turns;
         }
-        return { id: r.id, title: r.title, updatedAt: r.updatedAt, inputTokens, outputTokens, costUsd, turns };
+        return {
+          id: r.id,
+          title: r.title,
+          updatedAt: r.updatedAt,
+          deletedAt: r.deletedAt ?? null,
+          inputTokens,
+          outputTokens,
+          costUsd,
+          turns,
+        };
       });
     },
 
@@ -182,6 +207,18 @@ export function createAgentConversationRepository(): AgentConversationRepository
         .update(AgentConversationTable)
         .set({ deletedAt, updatedAt: deletedAt })
         .where(eq(AgentConversationTable.id, id));
+    },
+
+    async softDeleteAllByProject(projectId, deletedAt) {
+      await getDb()
+        .update(AgentConversationTable)
+        .set({ deletedAt, updatedAt: deletedAt })
+        .where(
+          and(
+            eq(AgentConversationTable.projectId, projectId),
+            isNull(AgentConversationTable.deletedAt),
+          ),
+        );
     },
   };
 }
