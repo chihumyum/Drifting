@@ -59,6 +59,13 @@ export interface AICompletionRequest {
    */
   thinking?: boolean;
   /**
+   * DeepSeek JSON Output mode (`response_format: { type: 'json_object' }`). The model
+   * returns a valid JSON string as message CONTENT (no tool call). Unlike forced
+   * tool_choice, this composes with thinking mode. The caller must put the schema +
+   * the word "json" in the prompt. Ignored by providers without a json mode.
+   */
+  responseFormat?: 'json_object';
+  /**
    * Tool-choice for a function-calling turn. Absent = the legacy "force the
    * single tool" behavior callStructured relies on (structured-output channel).
    * 'auto' lets the model pick; 'required' forces SOME tool; { force: name }

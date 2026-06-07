@@ -23,11 +23,13 @@
  *   - When enabled, temperature/top_p/penalty params are silently ignored by
  *     DeepSeek (per their docs), so we omit them to keep wire traffic clean
  *
- * KNOWN INTERACTION: thinking mode does NOT accept forced
- * `tool_choice: { type: 'function', name: ... }` (HTTP 400 from upstream).
- * Capabilities using callStructured must run with thinking disabled. The
- * toggle exists for future capabilities that use natural language or JSON
- * mode for output (e.g. inline-chat).
+ * Thinking + tools: DeepSeek-V3.2+ supports tool calls in thinking mode, so it
+ * composes with callStructured's forced tool_choice (this was NOT true on older
+ * versions — an earlier note here claimed thinking ⊥ forced tool_choice; that's
+ * outdated). One caveat (multi-round only): in a thinking turn that performs a tool
+ * call, the assistant's `reasoning_content` MUST be passed back in subsequent
+ * requests of that turn or the API 400s. callStructured is single-shot (force one
+ * tool, read its args, stop) so there's no follow-up turn and nothing to pass back.
  *
  * Model substitution: prompts hardcode Gemini model ids (`gemini-3.5-flash`)
  * because they were written before multi-provider support. When DeepSeek is
@@ -184,6 +186,11 @@ export class DeepSeekProvider implements LLMProvider {
       tool_choice: toolChoice,
       max_tokens: maxOutputTokens,
     };
+    // JSON Output mode — model returns a valid JSON string as content (no tool call).
+    // Composes with thinking, unlike forced tool_choice.
+    if (request.responseFormat === 'json_object') {
+      baseBody.response_format = { type: 'json_object' };
+    }
     // Per DeepSeek docs: thinking mode silently ignores temperature/top_p/
     // presence_penalty/frequency_penalty. Omit them to keep the wire clean.
     const effectiveThinking = request.thinking ?? this.thinking;
@@ -212,13 +219,21 @@ export class DeepSeekProvider implements LLMProvider {
         try {
           parsedArgs = raw.function.arguments ? JSON.parse(raw.function.arguments) : {};
         } catch (err) {
-          throw new AIError(
-            'parse',
-            `DeepSeek returned tool args that aren't valid JSON: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-            { rawArguments: raw.function.arguments },
-          );
+          // DeepSeek (esp. flash) sometimes wraps the args in a ```json fence or
+          // leaves a trailing comma — try a CONSERVATIVE repair before giving up.
+          // Runs ONLY on the already-failed path, so it can never corrupt valid output.
+          const repaired = tryRepairJsonArgs(raw.function.arguments);
+          if (repaired !== undefined) {
+            parsedArgs = repaired;
+          } else {
+            throw new AIError(
+              'parse',
+              `DeepSeek returned tool args that aren't valid JSON: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+              { rawArguments: raw.function.arguments },
+            );
+          }
         }
         toolCalls.push({ id: raw.id, name: raw.function.name, arguments: parsedArgs });
       }
@@ -317,6 +332,28 @@ export class DeepSeekProvider implements LLMProvider {
 function resolveModel(requested: string, fallback: string): string {
   if (requested && requested.startsWith('deepseek-')) return requested;
   return fallback;
+}
+
+/**
+ * Best-effort repair of tool-call arguments that failed JSON.parse. Handles the two
+ * cheap, SAFE-to-fix cases DeepSeek occasionally produces: a ```json fence wrapping
+ * the object, and a trailing comma before } / ]. Returns the parsed object on
+ * success, or `undefined` if it still isn't valid JSON (caller then throws the
+ * original parse error). Deliberately does NOT attempt to fix unescaped inner quotes
+ * — that can't be done reliably without a tolerant parser, and the PRO model (and the
+ * retry layer) handle that class far better than flash.
+ */
+function tryRepairJsonArgs(raw: string | undefined): unknown {
+  if (!raw) return undefined;
+  let s = raw.trim();
+  const fence = s.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence?.[1]) s = fence[1].trim();
+  s = s.replace(/,(\s*[}\]])/g, '$1'); // drop trailing commas
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
 }
 
 function mapDeepSeekError(err: unknown): AIError {
