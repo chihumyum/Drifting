@@ -53,6 +53,7 @@ import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useNotificationFeed } from './hooks/useNotificationFeed';
 import { useShadowJobs } from './usecase/useShadowJobs';
+import { useShadowAutoRun } from './usecase/useShadowAutoRun';
 import { useAuthStore } from './store/auth';
 import { useDataStore } from './store/data-store';
 import { useWritingStatsStore } from './store/writing-stats-store';
@@ -218,6 +219,7 @@ function Layout() {
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
   const projectUsecases = useProject({ userId: userId });
   const shadowJobUsecases = useShadowJobs({ projectId: projectId });
+  useShadowAutoRun({ projectId: projectId });
 
   // Bridge the main-process agent's tool calls to renderer-side handlers
   // (reads/writes go through the same store + usecases as manual edits).
@@ -254,21 +256,6 @@ function Layout() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDbReady(false);
   }, [projectId, userId]);
-
-  // Shadow mode shifts the full palette via token overrides in index.css.
-  // When the user disables `shadowAffectsTheme`, we leave the html attribute
-  // off so palette stays put — only the right panel still picks up shadow.
-  // Lives in Layout (not App) because shadow state is project-scoped.
-  const shadowMode = useUiStore((state) => state.shadowMode);
-  const shadowAffectsTheme = useSettingsStore((state) => state.shadowAffectsTheme);
-  useEffect(() => {
-    const root = document.documentElement;
-    if (shadowMode && shadowAffectsTheme) {
-      root.setAttribute('data-shadow-mode', 'on');
-    } else {
-      root.removeAttribute('data-shadow-mode');
-    }
-  }, [shadowMode, shadowAffectsTheme]);
 
   // Writing-stats recorder. Subscribes directly to the data store so it ticks
   // regardless of which view is mounted — without this, snapshots would only

@@ -78,25 +78,16 @@ export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 
-export type CopilotTaskId =
-  | 'continuityCheck'
-  | 'timelineAlign'
-  | 'elementExtract'
-  | 'elementPatch'
-  | 'autoLink'
-  | 'inlineEdit'
-  | 'polish'
-  | 'research';
+// Only the wired copilot capabilities. The unimplemented placeholders
+// (人物一致性核查 / 时间线对齐 / 自动链接 / 语言润色 / 资料检索) were removed — they
+// rendered toggles that did nothing. elementExtract + elementPatch are the two
+// debounced capabilities; inlineEdit (+ the popover「问」, not a task) is manual.
+export type CopilotTaskId = 'elementExtract' | 'elementPatch' | 'inlineEdit';
 
 export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
-  { id: 'continuityCheck', label: '人物一致性核查', desc: '识别人物在不同章节的设定冲突' },
-  { id: 'timelineAlign', label: '时间线对齐', desc: '对齐章节与时间线锚点' },
   { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
   { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
-  { id: 'autoLink', label: '自动链接', desc: '把正文里出现的元素自动挂载到元素页面' },
   { id: 'inlineEdit', label: '行内修改', desc: '⇧⌘I 手动触发的局部润色 / 改写，不生成新情节' },
-  { id: 'polish', label: '语言润色', desc: '挑出生硬或重复的句式作为批注' },
-  { id: 'research', label: '资料检索', desc: '联网核查史实、地理、风物等' },
 ];
 
 /**
@@ -120,16 +111,9 @@ function defaultTaskConfig(enabled: boolean): CopilotTaskConfig {
 function buildInitialTaskConfigs(): Record<CopilotTaskId, CopilotTaskConfig> {
   const out = {} as Record<CopilotTaskId, CopilotTaskConfig>;
   for (const t of COPILOT_TASKS) {
-    // elementExtract / elementPatch are the two wired capabilities — default
-    // on so a fresh install actually does something. The placeholders stay
-    // off until their capabilities ship.
-    const on =
-      t.id === 'elementExtract' ||
-      t.id === 'elementPatch' ||
-      t.id === 'autoLink' ||
-      t.id === 'continuityCheck' ||
-      t.id === 'inlineEdit';
-    out[t.id] = defaultTaskConfig(on);
+    // All three remaining tasks are wired — default them on so a fresh install
+    // actually does something.
+    out[t.id] = defaultTaskConfig(true);
   }
   return out;
 }
@@ -146,8 +130,6 @@ interface SettingsState {
   // 外观
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
-  shadowAffectsTheme: boolean;
-  setShadowAffectsTheme: (on: boolean) => void;
   // Classic = literary manuscript palette (oxblood, serif). Modern = Craft /
   // Arc-style: muted blue-gray accent, pastel story colors, sans-serif body,
   // pure-white doc surface. App.tsx pipes this into `data-skin` on <html>;
@@ -200,6 +182,26 @@ interface SettingsState {
   // provider default). Only meaningful when copilotAiMode === 'byok'.
   copilotByokModel: string;
   setCopilotByokModel: (m: string) => void;
+
+  // Shadow (影) provider config — governs BOTH chapter-CI review and element-arc
+  // derivation. Independent of Copilot (deliberately its own slice, not a shared
+  // field). Same shape as Copilot: hosted tier OR BYOK provider+model. The hosted
+  // tier maps to a concrete model in lib/shadow/model-routing.ts (低 flash / 中 pro
+  // / 高 sonnet); 高 (Sonnet) is server-routed (needs the hosted proxy).
+  shadowAiMode: AiMode;
+  setShadowAiMode: (m: AiMode) => void;
+  shadowTier: ModelTier;
+  setShadowTier: (t: ModelTier) => void;
+  shadowByokProvider: BYOKProvider;
+  setShadowByokProvider: (p: BYOKProvider) => void;
+  shadowByokModel: string;
+  setShadowByokModel: (m: string) => void;
+  // When on, a finished chapter whose canon deps changed (a "stale" review, see
+  // useStaleReviews) is re-reviewed automatically instead of waiting for the user
+  // to press 复审. Off = manual only (+ the existing review-on-mark-finished).
+  shadowAutoRun: boolean;
+  setShadowAutoRun: (on: boolean) => void;
+
   // General Agent (Claude Agent SDK) credential method — independent of copilot.
   // hosted = our metered proxy; oauth = user's Claude account; apikey = a plain
   // Anthropic API key (kept in the keychain). See AgentAuth.
@@ -330,8 +332,6 @@ export const useSettingsStore = create<SettingsState>()(
 
       themeMode: 'light',
       setThemeMode: (mode) => set({ themeMode: mode }),
-      shadowAffectsTheme: true,
-      setShadowAffectsTheme: (on) => set({ shadowAffectsTheme: on }),
       appearanceSkin: 'classic',
       setAppearanceSkin: (skin) => set({ appearanceSkin: skin }),
 
@@ -367,6 +367,20 @@ export const useSettingsStore = create<SettingsState>()(
       setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
       copilotByokModel: '',
       setCopilotByokModel: (m) => set({ copilotByokModel: m }),
+      // Shadow defaults: hosted + 中档 (DeepSeek-Pro). Pro is the sensible default
+      // for a quality-sensitive consistency judge / arc derive (steadier reasoning,
+      // far fewer JSON-format failures than flash). Dial down to 低 for flash, or
+      // switch to BYOK to pin your own model.
+      shadowAiMode: 'hosted',
+      setShadowAiMode: (m) => set({ shadowAiMode: m }),
+      shadowTier: 'standard',
+      setShadowTier: (t) => set({ shadowTier: t }),
+      shadowAutoRun: false,
+      setShadowAutoRun: (on) => set({ shadowAutoRun: on }),
+      shadowByokProvider: 'deepseek',
+      setShadowByokProvider: (p) => set({ shadowByokProvider: p }),
+      shadowByokModel: 'deepseek-v4-flash',
+      setShadowByokModel: (m) => set({ shadowByokModel: m }),
       agentAuth: 'oauth',
       setAgentAuth: (a) => set({ agentAuth: a }),
       agentModel: 'default',
@@ -455,7 +469,7 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'settings-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       migrate: (persistedState, version) => {
         const state = persistedState as Partial<SettingsState> & {
           manuscriptSans?: boolean;
@@ -624,6 +638,16 @@ export const useSettingsStore = create<SettingsState>()(
           for (const k of ['uploadFullManuscript', 'allowWebSearch', 'requestTimeoutSec']) {
             delete drop[k];
           }
+        }
+        if (version < 11) {
+          // Shadow gets its own model-routing slice (was previously not wired —
+          // review + arc used hardcoded model constants). Additive: the default
+          // state supplies the values, but seed them explicitly so the field is
+          // present even before any setter runs. Independent of Copilot by design.
+          if (next.shadowAiMode === undefined) next.shadowAiMode = 'hosted';
+          if (next.shadowTier === undefined) next.shadowTier = 'standard';
+          if (next.shadowByokProvider === undefined) next.shadowByokProvider = 'deepseek';
+          if (next.shadowByokModel === undefined) next.shadowByokModel = 'deepseek-v4-flash';
         }
         return next;
       },

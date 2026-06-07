@@ -12,6 +12,8 @@ import {
 import { createBookElementSqliteRepository } from '../sqlite-repo/element-repo';
 import { createEntityRelationRepository } from '../sqlite-repo/entity-relation-repo';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
+import { createShadowJobRepository } from '../sqlite-repo/shadow-job-repo';
+import { unlinkEntityFromChapterProse } from '../lib/agent/chapter-prose';
 import { initDatabase } from '../lib/db';
 import { withOptimisticUpdate } from './optimistic';
 import { events } from '../lib/events';
@@ -63,6 +65,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
   );
   const relationRepo = useMemo(() => createEntityRelationRepository(), []);
   const mentionRepo = useMemo(() => createInlineMentionRepository(), []);
+  const shadowJobRepo = useMemo(() => createShadowJobRepository(), []);
   const ensureDb = useCallback(async () => {
     await initDatabase(userId);
   }, [userId]);
@@ -297,6 +300,46 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
     [relationRepo, mentionRepo, activeProjectId],
   );
 
+  // Full association teardown for a PERMANENT delete (hard delete / purge — NOT
+  // soft delete, which stays recoverable). Beyond cleanupElementRelations:
+  //   • 解链保留文字 — strip the dangling entityLink marks from each chapter's prose
+  //     so the link doesn't re-project into inline_mention on the next save
+  //     (reference-projection reads ALL marks regardless of target liveness).
+  //   • scrub shadow dep refs — a deleted dep would otherwise read as "changed"
+  //     forever, keeping chapters perpetually stale (and auto-re-reviewing).
+  const purgeElementAssociations = useCallback(
+    async (id: string) => {
+      // Capture the chapters that mention this element BEFORE cleanup deletes rows.
+      let chapterIds: string[] = [];
+      try {
+        const backlinks = await mentionRepo.listBacklinksToTarget('element', id);
+        chapterIds = [
+          ...new Set(backlinks.filter((b) => b.fromKind === 'node').map((b) => b.fromId)),
+        ];
+      } catch {
+        /* best-effort — fall through with whatever we have */
+      }
+
+      await cleanupElementRelations(id);
+
+      for (const cid of chapterIds) {
+        try {
+          await unlinkEntityFromChapterProse(cid, id);
+        } catch {
+          /* best-effort per chapter — a single failure must not abort the delete */
+        }
+      }
+
+      try {
+        const changed = await shadowJobRepo.scrubEntityRefs(activeProjectId, 'element', id);
+        for (const job of changed) useDataStore.getState().upsertShadowJob(job);
+      } catch {
+        /* best-effort telemetry cleanup */
+      }
+    },
+    [mentionRepo, cleanupElementRelations, shadowJobRepo, activeProjectId],
+  );
+
   const removeElement = useCallback(
     async (id: string) => {
       await ensureDb();
@@ -331,10 +374,10 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         effect: () => elementRepo.delete(id),
         sync: () => syncElementDelete(id, activeProjectId),
       });
-      await cleanupElementRelations(id);
+      await purgeElementAssociations(id);
       return result;
     },
-    [elementRepo, getElements, setElements, ensureDb, activeProjectId, cleanupElementRelations],
+    [elementRepo, getElements, setElements, ensureDb, activeProjectId, purgeElementAssociations],
   );
 
   const restoreElement = useCallback(
@@ -360,9 +403,9 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       syncElementDelete(id, activeProjectId);
       // No longer trashed — it's gone for good. Mentions flip dim → stripped.
       useDataStore.getState().unmarkTrashed('element', id);
-      await cleanupElementRelations(id);
+      await purgeElementAssociations(id);
     },
-    [elementRepo, ensureDb, activeProjectId, cleanupElementRelations],
+    [elementRepo, ensureDb, activeProjectId, purgeElementAssociations],
   );
 
   const listTrashedElements = useCallback(async () => {

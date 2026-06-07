@@ -86,6 +86,74 @@ function relinkBlockMentions(frag: Y.XmlFragment, blockIds: string[]): void {
   }
 }
 
+/**
+ * Remove every entityLink mark pointing at `targetId` from the fragment, KEEPING
+ * the underlying text (解链保留文字). Walks each block's Y.XmlText delta and clears
+ * the entityLink format over the matching runs (`format(…, { entityLink: null })`),
+ * the inverse of relinkBlockMentions' add path. Used when an entity is hard-deleted
+ * so its dangling marks neither (a) re-project into inline_mention on the next save
+ * (reference-projection reads ALL marks, alive or not) nor (b) linger as gone-styled
+ * links. Returns true if anything changed.
+ */
+function stripEntityLinkMarksInFrag(frag: Y.XmlFragment, targetId: string): boolean {
+  let changed = false;
+  const visitText = (xt: Y.XmlText): void => {
+    const delta = xt.toDelta() as { insert?: unknown; attributes?: Record<string, unknown> }[];
+    let offset = 0;
+    for (const seg of delta) {
+      const len = typeof seg.insert === 'string' ? seg.insert.length : 1;
+      const link = seg.attributes?.entityLink as { targetId?: string } | undefined;
+      if (link && link.targetId === targetId) {
+        xt.format(offset, len, { entityLink: null });
+        changed = true;
+      }
+      offset += len;
+    }
+  };
+  const visitEl = (el: Y.XmlElement): void => {
+    for (const child of el.toArray()) {
+      if (child instanceof Y.XmlText) visitText(child);
+      else if (child instanceof Y.XmlElement) visitEl(child);
+    }
+  };
+  for (const top of frag.toArray()) {
+    if (top instanceof Y.XmlText) visitText(top);
+    else if (top instanceof Y.XmlElement) visitEl(top);
+  }
+  return changed;
+}
+
+/** Same strip on a contentJson string (the no-Yjs seed path). Drops entityLink
+ *  marks for `targetId` from every text node, keeping the text. Returns the new
+ *  json, or the original unchanged when nothing matched. */
+function stripEntityLinkMarksInJson(json: string, targetId: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return json;
+  }
+  let changed = false;
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const rec = node as { marks?: unknown; content?: unknown };
+    if (Array.isArray(rec.marks)) {
+      const kept = rec.marks.filter((m) => {
+        const mm = m as { type?: unknown; attrs?: { targetId?: unknown } };
+        if (mm?.type === 'entityLink' && mm.attrs?.targetId === targetId) {
+          changed = true;
+          return false;
+        }
+        return true;
+      });
+      rec.marks = kept;
+    }
+    if (Array.isArray(rec.content)) for (const c of rec.content) walk(c);
+  };
+  walk(parsed);
+  return changed ? JSON.stringify(parsed) : json;
+}
+
 function newParagraph(text: string): Y.XmlElement {
   const el = new Y.XmlElement('paragraph');
   el.setAttribute('id', uuidv7());
@@ -467,6 +535,80 @@ export async function writeChapterProse(
  *  {@link getEntityContentJson}. */
 export async function getElementContentJson(elementId: string): Promise<string> {
   return getEntityContentJson('element', elementId);
+}
+
+/**
+ * Strip every entityLink mark pointing at `targetId` from ONE chapter's prose,
+ * across whichever representation is live: the open editor's Y.Doc, a rehydrated
+ * Y.Doc (closed chapter with Yjs state), or the contentJson seed (never opened).
+ * Keeps the text; refreshes the contentJson cache so readers stay consistent.
+ * Mirrors {@link writeProseDoc}'s three-path persistence but does NOT record an
+ * agent edit (mark removal leaves text untouched, so it's not a reviewable change).
+ * Used by element delete to permanently break the link (解链保留文字).
+ */
+export async function unlinkEntityFromChapterProse(
+  nodeId: string,
+  targetId: string,
+): Promise<void> {
+  const docId = proseDocId('node', nodeId);
+  const { yDocToProsemirrorJSON } = await import('y-prosemirror');
+  const contentRepo = createBookContentRepository();
+
+  // Live doc (open editor): mutate in place — the editor's own update/sync handlers
+  // persist + push it, and re-project inline mentions (now without this target).
+  const live = getLiveYDoc(docId);
+  if (live) {
+    let changed = false;
+    live.transact(() => {
+      changed = stripEntityLinkMarksInFrag(live.getXmlFragment('default'), targetId);
+    }, AGENT_ORIGIN);
+    if (changed) {
+      await contentRepo.updateByNodeId(nodeId, {
+        contentJson: JSON.stringify(yDocToProsemirrorJSON(live, 'default')),
+      });
+    }
+    return;
+  }
+
+  // Closed chapter with Yjs state: rehydrate, strip, append the diff + snapshot.
+  const yrepo = createYjsRepository();
+  if (await yrepo.hasDocState(docId)) {
+    const doc = new Y.Doc();
+    try {
+      const snap = await yrepo.getSnapshot(docId);
+      if (snap) Y.applyUpdate(doc, snap.stateBlob, 'load');
+      for (const u of await yrepo.listUpdates(docId)) Y.applyUpdate(doc, u.updateBlob, 'load');
+      const diff: Uint8Array[] = [];
+      const onUpdate = (u: Uint8Array, origin: unknown) => {
+        if (origin === AGENT_ORIGIN) diff.push(new Uint8Array(u));
+      };
+      doc.on('update', onUpdate);
+      let changed = false;
+      doc.transact(() => {
+        changed = stripEntityLinkMarksInFrag(doc.getXmlFragment('default'), targetId);
+      }, AGENT_ORIGIN);
+      doc.off('update', onUpdate);
+      if (changed) {
+        for (const u of diff) await yrepo.appendUpdate(docId, u);
+        await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+        await contentRepo.updateByNodeId(nodeId, {
+          contentJson: JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
+        });
+      }
+    } finally {
+      doc.destroy();
+    }
+    return;
+  }
+
+  // Never opened — strip from the contentJson seed the editor will hydrate from.
+  const existing = await contentRepo.findByNodeId(nodeId);
+  if (existing?.contentJson) {
+    const stripped = stripEntityLinkMarksInJson(existing.contentJson, targetId);
+    if (stripped !== existing.contentJson) {
+      await contentRepo.updateByNodeId(nodeId, { contentJson: stripped });
+    }
+  }
 }
 
 /**

@@ -66,6 +66,35 @@ export function throwIfShadowCancelled(chapterId: string): void {
   if (cancelled.has(chapterId)) throw new ShadowCancelledError(chapterId);
 }
 
+// In-flight AbortControllers keyed by chapterId. The heavy LLM judge runs in THIS
+// renderer (shadow_eval_semantic_batch), so the cancelled flag alone only takes
+// effect at the NEXT bridge-handler entry — a long in-flight LLM round-trip keeps
+// the main worker's serial queue blocked ("排队"). Aborting the controller cancels
+// the fetch immediately → the bridge handler rejects → main's graph.invoke rejects
+// → its drain() frees `running` and the next job starts. This is what makes Stop
+// both immediate AND non-blocking.
+const aborters = new Map<string, AbortController>();
+
+/** Signal for this chapter's in-flight judge. The eval handler threads it into
+ *  client.complete so Stop can abort the fetch. Reuses one controller per review;
+ *  a fresh controller is minted if the previous one was already aborted. */
+export function registerShadowAborter(chapterId: string): AbortSignal {
+  const ex = aborters.get(chapterId);
+  if (ex && !ex.signal.aborted) return ex.signal;
+  const ac = new AbortController();
+  aborters.set(chapterId, ac);
+  return ac.signal;
+}
+
+/** Abort this chapter's in-flight judge (if any) and drop the controller. */
+export function abortShadowJob(chapterId: string): void {
+  const ac = aborters.get(chapterId);
+  if (ac) {
+    ac.abort();
+    aborters.delete(chapterId);
+  }
+}
+
 /** Is a review for this chapter genuinely in-flight in THIS session? Lets the
  *  loader tell a live 'running' row from one orphaned by a prior session/reload. */
 export function isShadowActive(chapterId: string): boolean {
@@ -171,6 +200,7 @@ export async function enqueueShadowReview(chapterId: string, projectId: string):
   // a second enqueue would double-queue it in the main worker. No-op.
   if (activeByChapter.has(chapterId)) return;
   clearShadowCancelled(chapterId); // a fresh request overrides a prior stop
+  aborters.delete(chapterId); // drop any aborted controller from a prior stop
   const at = new Date().toISOString();
   const existing = findResumableRow(chapterId, projectId);
   let job: ShadowJob;
@@ -279,6 +309,7 @@ export async function finishShadowJob(
   job.finishedAt = finishedAt;
   job.updatedAt = finishedAt;
   activeByChapter.delete(chapterId);
+  aborters.delete(chapterId); // review done — drop its (un-aborted) controller
   pushStore(job);
   try {
     await repo.update(job.id, {
@@ -299,6 +330,7 @@ export async function finishShadowJob(
  *  job. The trailing worker IPC is suppressed by the cancelled flag. */
 export async function stopShadowJob(chapterId: string, projectId: string): Promise<void> {
   markShadowCancelled(chapterId);
+  abortShadowJob(chapterId); // cancel the in-flight LLM fetch NOW, not at next handler entry
   try {
     window.electronAPI?.shadow?.cancel?.({ chapterId });
   } catch {

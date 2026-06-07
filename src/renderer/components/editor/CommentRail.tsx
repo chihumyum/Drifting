@@ -756,6 +756,12 @@ export function CommentRail({
         </div>
         <div className="mnote__title">{title}</div>
         {isCopilot && summary?.subtitle && <div className="mnote__subtitle">{summary.subtitle}</div>}
+        {/* Suggestion body preview — element candidate's initial summary / the patch
+            body. This is the model's DESCRIPTION, distinct from the anchored prose
+            (which stays hover-only). */}
+        {isCopilot && summary?.evidence && (
+          <div className="mnote__evidence">{summary.evidence}</div>
+        )}
         {/* No anchored prose is shown inline — hover highlights it in place. The
             source is recoverable via the "view original" button below, which
             appears only once the prose has diverged (same rule for every type). */}

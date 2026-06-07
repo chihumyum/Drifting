@@ -34,6 +34,7 @@ import {
   type ParagraphIndent,
   type ThemeMode,
 } from '../../store/settings-store';
+import { SHADOW_TIERS, SHADOW_BYOK_MODELS } from '../../lib/shadow/model-routing';
 import { useAuthStore } from '../../store/auth';
 import { useProjectStore } from '../../store/project-store';
 import {
@@ -1365,8 +1366,6 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
 function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const shadowAffectsTheme = useSettingsStore((s) => s.shadowAffectsTheme);
-  const setShadowAffectsTheme = useSettingsStore((s) => s.setShadowAffectsTheme);
   const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
   const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
 
@@ -1437,12 +1436,6 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
             </button>
           ))}
         </div>
-
-        <Row
-          label="Shadow 模式改变主题色调"
-          desc="开启时，进入 Shadow 模式会同时把纸面调向冷色与梅紫；关闭则只切换右栏面板。"
-          control={<Toggle on={shadowAffectsTheme} onChange={setShadowAffectsTheme} />}
-        />
       </div>
     </section>
   );
@@ -2139,44 +2132,111 @@ function ProviderRow({
   );
 }
 
-// Shadow Agent is not built yet — only this placeholder tab is shown. The old
-// scaffolding controls (orb / surface / permissions / voice / system prompt)
-// were removed since no runtime ever consumed them. When Shadow ships it will
-// share Copilot's provider model (hosted tier OR BYOK provider + key), per the
-// product decision; wire its config here then.
+// Shadow model routing modes — like Copilot's, but Shadow has its own slice
+// (governs BOTH chapter-CI review and element-arc derive). BYOK is DeepSeek-only
+// for now (the substrate routes DeepSeek directly; Sonnet is hosted-only).
+const SHADOW_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
+  {
+    value: 'hosted',
+    kicker: 'HOSTED',
+    name: '托管',
+    desc: '走 Drifting 的通道与额度。只需在下方选一个能力档位（低 / 中 / 高）。',
+  },
+  {
+    value: 'byok',
+    kicker: 'BYOK',
+    name: '自带 Key',
+    desc: '用你自己的 DeepSeek Key（与 Copilot 共用 Keychain 里的同一条），在下方选模型。',
+  },
+];
+
+// Shadow Agent settings — model routing for the two Shadow capabilities: chapter
+// continuity review (CI) and element-arc derivation. Both read resolveShadowModel()
+// (lib/shadow/model-routing.ts). Hosted = a capability tier the server maps to a
+// concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
 function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const shadowAiMode = useSettingsStore((s) => s.shadowAiMode);
+  const setShadowAiMode = useSettingsStore((s) => s.setShadowAiMode);
+  const shadowTier = useSettingsStore((s) => s.shadowTier);
+  const setShadowTier = useSettingsStore((s) => s.setShadowTier);
+  const shadowByokModel = useSettingsStore((s) => s.shadowByokModel);
+  const setShadowByokModel = useSettingsStore((s) => s.setShadowByokModel);
+
   return (
     <section className="set-panel" ref={registerRef} id="shadow">
       <PanelHead
-        kicker="SHADOW AGENT · 影"
-        title="影，还在路上。"
-        sub="后台巡查你的稿子、在关键处主动浮现的「影」尚未上线。它将与 Copilot 共用同一套调用方式（托管档位或自带 Key），上线后这里会出现它的触发、权限与语气设置。"
+        kicker="SHADOW · 影"
+        title="影，替你巡查全书。"
+        sub={
+          <>
+            Shadow 的两个能力——章节连贯审阅（CI）与元素弧线派生——共用这里的模型档位。
+            托管按能力档位走 Drifting 额度；自带 Key 用你自己的 DeepSeek 额度。
+            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+          </>
+        }
       />
-      <div
-        style={{
-          marginTop: 8,
-          padding: '20px 22px',
-          border: '1px dashed hsl(var(--rule))',
-          borderRadius: 6,
-          color: 'hsl(var(--ink-3))',
-          fontSize: 13,
-          lineHeight: 1.7,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9.5,
-            textTransform: 'uppercase',
-            letterSpacing: '0.14em',
-            color: 'hsl(var(--ink-4))',
-            marginBottom: 6,
-          }}
-        >
-          COMING SOON
+
+      <div className="set-sec">
+        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <div className="set-tiers">
+          {SHADOW_AI_MODES.map((m) => (
+            <button
+              key={m.value}
+              className={'set-tier' + (shadowAiMode === m.value ? ' set-tier--active' : '')}
+              onClick={() => setShadowAiMode(m.value)}
+            >
+              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__name">{m.name}</div>
+              <div className="set-tier__desc">{m.desc}</div>
+            </button>
+          ))}
         </div>
-        敬请期待。
       </div>
+
+      {shadowAiMode === 'hosted' ? (
+        <div className="set-sec">
+          <SecHead title="能力档位" hint="TIER" />
+          <div className="set-tiers">
+            {SHADOW_TIERS.map((t) => (
+              <button
+                key={t.value}
+                className={'set-tier' + (shadowTier === t.value ? ' set-tier--active' : '')}
+                onClick={() => setShadowTier(t.value)}
+              >
+                <div className="set-tier__kicker">{t.kicker}</div>
+                <div className="set-tier__name">{t.name}</div>
+                <div className="set-tier__desc">{t.desc}</div>
+              </button>
+            ))}
+          </div>
+          <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
+            「高 · Sonnet」需托管订阅（服务端调用）。本地直连仅支持「低 / 中」DeepSeek 档位——若选了高，
+            review 会自动回退到中档、arc 派生会提示需托管。
+          </p>
+        </div>
+      ) : (
+        <div className="set-sec">
+          <SecHead title="模型" hint="MODEL" />
+          <Row
+            label="DeepSeek 模型"
+            desc="自带 Key 时 Shadow 实际调用的模型。Key 用你在「Copilot · 副手」里填入的 DeepSeek 密钥（同一 Keychain 条目）。"
+            control={
+              <select
+                className="set-input"
+                style={{ minWidth: 220 }}
+                value={shadowByokModel}
+                onChange={(e) => setShadowByokModel(e.target.value)}
+              >
+                {SHADOW_BYOK_MODELS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+        </div>
+      )}
     </section>
   );
 }
