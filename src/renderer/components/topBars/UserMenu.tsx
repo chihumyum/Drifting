@@ -32,10 +32,6 @@ interface UserMenuProps {
   triggerRef: React.RefObject<HTMLElement | null>;
   open: boolean;
   onClose: () => void;
-  // 'project' = default in-app menu (with 设定/导入/切换项目/键盘快捷键).
-  // 'shelf'   = bookshelf menu: only the project-agnostic items (外观/主题/
-  //             Shadow 用量/帮助) plus Logout. No settings-page entry — the
-  //             bookshelf has nowhere meaningful to deep-link a rail into.
   scope?: 'project' | 'shelf';
 }
 
@@ -272,30 +268,29 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
           )}
         </MenuGroup>
 
-        <MenuGroup>
-          {scope === 'project' && (
-            <>
-              <MenuItem
-                icon={<Upload size={13} />}
-                label="导入"
-                meta="MD · DOCX · TXT"
-                onClick={() => {
-                  events.emit('import:open');
-                  onClose();
-                }}
-              />
-              <MenuItem
-                icon={<BookOpenText size={13} />}
-                label="书架 · 切换项目"
-                onClick={() => {
-                  navigate('/');
-                  onClose();
-                }}
-              />
-            </>
-          )}
-          <MenuItem icon={<CircleDot size={13} />} label="Shadow 用量" meta="12 / 50 任务" />
-        </MenuGroup>
+        {scope === 'project' && (
+          <MenuGroup>
+              <>
+                <MenuItem
+                  icon={<Upload size={13} />}
+                  label="导入"
+                  meta="MD · DOCX · TXT"
+                  onClick={() => {
+                    events.emit('import:open');
+                    onClose();
+                  }}
+                />
+                <MenuItem
+                  icon={<BookOpenText size={13} />}
+                  label="书架 · 切换项目"
+                  onClick={() => {
+                    navigate('/');
+                    onClose();
+                  }}
+                />
+              </>
+          </MenuGroup>
+        )}
 
         <MenuGroup last={scope === 'project'}>
           <MenuItem icon={<HelpCircle size={13} />} label="帮助 · 反馈" />
