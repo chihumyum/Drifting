@@ -21,6 +21,7 @@ import { LoggingInterceptor } from '../interceptors/logging-interceptor';
 import { CaptureInterceptor } from '../interceptors/capture-interceptor';
 import type { LLMProvider } from './providers/provider';
 import { AIError } from '../types';
+import { useSettingsStore } from '../../../store/settings-store';
 
 export interface BuildDefaultLLMClientOptions {
   /** Override the logging tag. Defaults to 'ai'. */
@@ -55,6 +56,57 @@ export async function buildDefaultLLMClient(
     client.use(new CaptureInterceptor({ writeFiles: true }));
   }
   return client;
+}
+
+/**
+ * Whether the Drifting server transport is reachable to route a hosted call.
+ * Today this is the same build-time gate the global path uses (VITE_AI_TRANSPORT
+ * =proxy). Kept as the single "is hosted reachable" predicate so per-mode Shadow
+ * routing and its usage gate share one honest source of truth — when the proxy is
+ * promoted to always-on, relax this in ONE place.
+ */
+export function isServerTransportAvailable(): boolean {
+  return import.meta.env.VITE_AI_TRANSPORT === 'proxy';
+}
+
+/**
+ * Does THIS Shadow call route through the hosted server proxy? hosted + server
+ * reachable → yes (server holds the key, meters it, can reach any model); byok or
+ * no-server → no (direct provider, recorded locally). Exported so the Shadow client
+ * factory, the usage-recording gate, and the model-routability guard all agree.
+ *
+ * NOTE: on a normal (non-proxy) build this is always false, so Shadow behaves
+ * exactly as today (direct/local) until the proxy transport is turned on AND the
+ * server's /api/ai/complete contract is widened to serve the FC tool loop.
+ */
+export function shadowRoutesViaProxy(): boolean {
+  return useSettingsStore.getState().shadowAiMode === 'hosted' && isServerTransportAvailable();
+}
+
+function wrapClient(provider: LLMProvider, logTag: string): LLMClient {
+  const client = new LLMClient(provider).use(new LoggingInterceptor(logTag));
+  if (import.meta.env.DEV) client.use(new CaptureInterceptor({ writeFiles: true }));
+  return client;
+}
+
+/**
+ * Shadow-only client factory — per-MODE routing instead of the global transport
+ * flag. hosted (+server reachable) → ServerProxyProvider (server-side key +
+ * metering, routes any model incl. Sonnet); byok → direct DeepSeek/Google from the
+ * renderer credentials chain. buildDefaultLLMClient (Copilot/dev) is left untouched.
+ */
+export async function buildShadowClient(
+  options: BuildDefaultLLMClientOptions = {},
+): Promise<LLMClient> {
+  const provider = shadowRoutesViaProxy()
+    ? new ServerProxyProvider()
+    : await pickProvider(
+        new ChainCredentialsProvider([
+          new EnvCredentialsProvider(),
+          new BYOKCredentialsProvider(),
+        ]),
+      );
+  return wrapClient(provider, options.logTag ?? 'shadow');
 }
 
 async function pickProvider(credentials: ChainCredentialsProvider): Promise<LLMProvider> {

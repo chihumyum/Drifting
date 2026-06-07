@@ -21,7 +21,7 @@ import {
   type SemanticViolation,
   type ToolRunOutcome,
 } from '../ai/shadow-rules';
-import { buildDefaultLLMClient } from '../ai/client/build-default-client';
+import { buildShadowClient } from '../ai/client/build-default-client';
 import {
   resolveShadowModel,
   ensureShadowModelRoutable,
@@ -2280,7 +2280,7 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
     void traceShadow(chapterId, ctx.projectId, 'check', '高档 Sonnet 需托管，本次回退 DeepSeek-Pro');
   }
 
-  const client = await buildDefaultLLMClient();
+  const client = await buildShadowClient({ logTag: 'shadow:review' });
   if (client.supportsTools) {
     void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（FC · ${judgeModel}）`, {
       items: assertions,

@@ -2,7 +2,7 @@
 // client-side half of the usage design (hosted calls are metered on the server;
 // local/direct calls are captured here). Fire-and-forget: usage accounting must
 // never break or slow a Shadow run.
-import { isProxyTransport } from '../ai/client/build-default-client';
+import { shadowRoutesViaProxy } from '../ai/client/build-default-client';
 import { shadowProviderForModel } from './model-routing';
 import { useSettingsStore } from '../../store/settings-store';
 import { useProjectStore } from '../../store/project-store';
@@ -10,10 +10,11 @@ import { createAiUsageRepository } from '../../sqlite-repo/ai-usage-repo';
 import type { AIUsage } from '../ai/types';
 
 export function recordShadowUsage(feature: string, model: string, usage: AIUsage | undefined): void {
-  // When the proxy transport is on, the call executed on the server and the server
-  // metered it — recording here too would double-count. (Step-2 per-mode routing
-  // will refine this to "byok stays local even when hosted uses the proxy".)
-  if (isProxyTransport() || !usage) return;
+  // Record ONLY calls that actually ran locally. When this Shadow call routed
+  // through the hosted proxy, the server metered it — recording here too would
+  // double-count. Gating on shadowRoutesViaProxy() (the same predicate the client
+  // factory used) means byok stays local even on a proxy build.
+  if (shadowRoutesViaProxy() || !usage) return;
   const projectId = useProjectStore.getState().currentProject?.id ?? null;
   const credentialsMode = useSettingsStore.getState().shadowAiMode;
   void createAiUsageRepository()

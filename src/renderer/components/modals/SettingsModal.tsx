@@ -62,7 +62,6 @@ interface SettingsModalProps {
 type RailId =
   | 'account'
   | 'subscription'
-  | 'usage'
   | 'trash'
   | 'appearance'
   | 'editor'
@@ -88,7 +87,6 @@ interface RailDef {
 const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
   { id: 'account', group: '我的账户', glyph: '◌', label: '账号' },
   { id: 'subscription', group: '我的账户', glyph: '¶', label: '订阅' },
-  { id: 'usage', group: '我的账户', glyph: '◐', label: 'Shadow 用量' },
   { id: 'trash', group: '我的账户', glyph: '⌫', label: '回收站' },
   { id: 'appearance', group: '偏好', glyph: '☀', label: '外观' },
   { id: 'editor', group: '偏好', glyph: '§', label: '编辑器' },
@@ -105,7 +103,6 @@ const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
 const RAIL_IDS = new Set<RailId>([
   'account',
   'subscription',
-  'usage',
   'trash',
   'appearance',
   'editor',
@@ -223,7 +220,6 @@ export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalP
           <SubscriptionPanel
             registerRef={(el) => (panelRefs.current.subscription = el ?? undefined)}
           />
-          <UsagePanel registerRef={(el) => (panelRefs.current.usage = el ?? undefined)} />
           <TrashRailPanel registerRef={(el) => (panelRefs.current.trash = el ?? undefined)} />
           <AppearancePanel
             registerRef={(el) => (panelRefs.current.appearance = el ?? undefined)}
@@ -1266,8 +1262,8 @@ function monthStartISO(): string {
 // REAL local usage — sums the `ai_usage` rows recorded by recordShadowUsage for
 // Shadow calls that executed on this client (direct/BYOK). Hosted usage is metered
 // server-side and intentionally NOT shown here. Tokens only (no cost/$, no quota:
-// BYOK has no hosted budget). Replaces the former hardcoded mock.
-function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
+// BYOK has no hosted budget). Rendered as a section INSIDE the Shadow panel.
+function ShadowUsageSection() {
   const [scope, setScope] = useState<'month' | 'all'>('month');
   const [summary, setSummary] = useState<AiUsageSummary | null>(null);
 
@@ -1291,23 +1287,12 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
   const totalTokens = s.total.inputTokens + s.total.outputTokens;
 
   return (
-    <section className="set-panel" ref={registerRef} id="usage">
-      <PanelHead
-        kicker="Shadow 用量 · USAGE"
-        title="本地自带 Key，Shadow 烧了多少 token。"
-        sub={
-          <>
-            只统计<b>在本机直连执行</b>的 Shadow 调用（章节审阅 + 弧线派生）的 token。
-            <span className="set-italic">
-              {' '}
-              托管模式的用量在服务端计量、不在此处；自带 Key 无配额，仅作展示。
-            </span>
-          </>
-        }
-      />
-
+    <>
       <div className="set-sec">
-        <SecHead title="周期" hint="SCOPE" />
+        <SecHead title="本地用量" hint="USAGE" />
+        <p className="set-row__desc" style={{ margin: '-4px 0 8px' }}>
+          只统计<b>在本机直连执行</b>的 Shadow 调用（章节审阅 + 弧线派生）的 token；托管用量在服务端计量、不在此处，自带 Key 无配额。
+        </p>
         <Seg<'month' | 'all'>
           value={scope}
           options={[
@@ -1399,7 +1384,7 @@ function UsagePanel({ registerRef }: { registerRef: RegisterRef }) {
           ))
         )}
       </div>
-    </section>
+    </>
   );
 }
 
@@ -2310,6 +2295,8 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
           />
         </div>
       )}
+
+      <ShadowUsageSection />
     </section>
   );
 }

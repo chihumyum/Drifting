@@ -32,6 +32,12 @@ import {
 
 export class ServerProxyProvider implements LLMProvider {
   readonly id = 'server-proxy';
+  // The proxy forwards the full AICompletionRequest, so tool-calling rides through
+  // it — PROVIDED the server's /api/ai/complete contract accepts the tool fields
+  // (toolChoice, role:'tool' results, assistant toolCalls) and returns toolCalls[].
+  // That server widening is required for Shadow's FC judge to run hosted; until the
+  // server ships it, a proxy build's FC loop will 400 on the first tool-result turn.
+  readonly supportsTools = true;
 
   constructor() {
     console.info('[ai] provider=server-proxy (calls go through Drifting server)');

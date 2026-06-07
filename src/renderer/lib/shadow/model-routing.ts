@@ -7,7 +7,7 @@
 // buildDefaultLLMClient (key presence) / the server proxy — this module only
 // decides the model *name* and guards against asking for a model the current
 // transport can't reach (e.g. Sonnet on a local direct-to-DeepSeek build).
-import { isProxyTransport } from '../ai/client/build-default-client';
+import { shadowRoutesViaProxy } from '../ai/client/build-default-client';
 import { AIError } from '../ai/types';
 import { useSettingsStore, type ModelTier } from '../../store/settings-store';
 
@@ -86,12 +86,12 @@ export function shadowProviderForModel(model: string): 'deepseek' | 'google' | '
  * to the DeepSeek default by the provider, which is worse than a clear error.
  */
 export function ensureShadowModelRoutable(model: string): void {
-  if (isProxyTransport()) return; // hosted proxy routes any provider server-side
+  if (shadowRoutesViaProxy()) return; // hosted + server reachable → server routes any provider
   const p = shadowProviderForModel(model);
-  if (p === 'deepseek' || p === 'google') return; // substrate has these directly
+  if (p === 'deepseek' || p === 'google') return; // byok/direct substrate has these directly
   throw new AIError(
     'invalid-input',
-    `「高档 · Sonnet」需要托管订阅（服务端代理）。当前为本地直连，仅支持 DeepSeek 档位。` +
-      `请在 设置 · Shadow 改用「中档 · DeepSeek-Pro」，或开启托管。`,
+    `「高档 · Sonnet」需要托管订阅（服务端代理）。当前为 BYOK 直连，仅支持 DeepSeek 档位。` +
+      `请在 设置 · Shadow 改用「中档 · DeepSeek-Pro」，或切到托管。`,
   );
 }

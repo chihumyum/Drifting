@@ -11,7 +11,7 @@
 // fakes. See domain/element-arc.ts and lib/shadow/ELEMENT-ARC.md.
 import type { Static } from '@sinclair/typebox';
 import loglevel from 'loglevel';
-import { buildDefaultLLMClient } from '../../ai/client/build-default-client';
+import { buildShadowClient } from '../../ai/client/build-default-client';
 import { callStructured } from '../../ai/call-structured';
 import { AIError } from '../../ai/types';
 import { resolveWritingLanguage } from '../../ai/output-language';
@@ -339,9 +339,10 @@ export function createDefaultArcDeps(projectId: string, opts: ArcDepsOptions = {
   const { model: arcModel, thinking: arcThinking } = resolveShadowModel();
   ensureShadowModelRoutable(arcModel);
 
-  // Build the LLM client once, lazily, shared across all stage calls.
-  let clientPromise: ReturnType<typeof buildDefaultLLMClient> | null = null;
-  const getClient = () => (clientPromise ??= buildDefaultLLMClient());
+  // Build the LLM client once, lazily, shared across all stage calls. buildShadowClient
+  // routes per shadowAiMode (hosted → server proxy, byok → direct provider).
+  let clientPromise: ReturnType<typeof buildShadowClient> | null = null;
+  const getClient = () => (clientPromise ??= buildShadowClient({ logTag: 'shadow:arc' }));
 
   return {
     async loadElementCanon(elementId) {
