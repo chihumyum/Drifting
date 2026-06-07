@@ -306,38 +306,6 @@ export function ProjectPickerView() {
           </aside>
         </header>
 
-        {/* ─── Recent strip ─── */}
-        {recent.length > 0 && (
-          <section className="pp-section">
-            <div className="pp-section__head">
-              <div className="pp-section__title">
-                <span className="pp-section__title-mark">✦</span>
-                <span className="pp-section__title-cn">最近</span>
-                <span className="pp-section__title-en">Recently opened</span>
-              </div>
-              <span className="pp-section__count">· {recent.length}</span>
-            </div>
-            <div className="pp-recent">
-              {recent.map(({ project, status, colorToken, glyph, lastEditedRel }) => (
-                <div
-                  key={project.id}
-                  className="pp-recent__card"
-                  style={{ ['--pp-c' as string]: `var(${colorToken})` }}
-                  onClick={() => handleOpen(project.id)}
-                >
-                  <span className="pp-recent__kicker">{STATUS_LABEL[status]}</span>
-                  <div className="pp-recent__title">
-                    <em>{glyph}</em>
-                    {project.name}
-                  </div>
-                  <span className="pp-recent__last">
-                    最近编辑 · <b>{lastEditedRel}</b>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* ─── Toolbar ─── */}
         <div className="pp-toolbar">
