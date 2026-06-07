@@ -2282,7 +2282,7 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
 
   const client = await buildShadowClient({ logTag: 'shadow:review' });
   if (client.supportsTools) {
-    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（FC · ${judgeModel}）`, {
+    void traceShadow(chapterId, ctx.projectId, 'check', `检查 ${assertions.length} 项约束（${judgeModel}）`, {
       items: assertions,
     });
     return evaluateSemanticAssertionsFC(
