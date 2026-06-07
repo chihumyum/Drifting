@@ -198,9 +198,11 @@ interface SettingsState {
   setShadowByokProvider: (p: BYOKProvider) => void;
   shadowByokModel: string;
   setShadowByokModel: (m: string) => void;
-  // When on, a finished chapter whose canon deps changed (a "stale" review, see
-  // useStaleReviews) is re-reviewed automatically instead of waiting for the user
-  // to press 复审. Off = manual only (+ the existing review-on-mark-finished).
+  // When on, marking a chapter「已完成」auto-runs a shadow review first
+  // (waiting_review → finished/draft). Off = mark finished directly, no review;
+  // the user reviews by hand (复审 / 复审全书). Deps-change re-review is NEVER
+  // automatic — it only surfaces as the「需复审」reminder (see useStaleReviews),
+  // which the user can ignore or act on regardless of this toggle.
   shadowAutoRun: boolean;
   setShadowAutoRun: (on: boolean) => void;
 
@@ -377,7 +379,7 @@ export const useSettingsStore = create<SettingsState>()(
       setShadowAiMode: (m) => set({ shadowAiMode: m }),
       shadowTier: 'standard',
       setShadowTier: (t) => set({ shadowTier: t }),
-      shadowAutoRun: false,
+      shadowAutoRun: true,
       setShadowAutoRun: (on) => set({ shadowAutoRun: on }),
       shadowByokProvider: 'deepseek',
       setShadowByokProvider: (p) => set({ shadowByokProvider: p }),

@@ -53,7 +53,6 @@ import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
 import { useNotificationFeed } from './hooks/useNotificationFeed';
 import { useShadowJobs } from './usecase/useShadowJobs';
-import { useShadowAutoRun } from './usecase/useShadowAutoRun';
 import { useAuthStore } from './store/auth';
 import { useDataStore } from './store/data-store';
 import { useWritingStatsStore } from './store/writing-stats-store';
@@ -219,7 +218,6 @@ function Layout() {
   const contentUsecases = useBookContent({ userId: userId, projectId: projectId });
   const projectUsecases = useProject({ userId: userId });
   const shadowJobUsecases = useShadowJobs({ projectId: projectId });
-  useShadowAutoRun({ projectId: projectId });
 
   // Bridge the main-process agent's tool calls to renderer-side handlers
   // (reads/writes go through the same store + usecases as manual edits).
