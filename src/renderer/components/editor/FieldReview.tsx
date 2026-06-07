@@ -47,6 +47,14 @@ const MIN_REVEAL_MS = 320;
 const MAX_REVEAL_MS = 1800;
 // Auto mode: show the diff this long before it types itself in.
 const AUTO_HOLD_MS = 650;
+// Backstop: a card that's on screen but never armed (the rect check should have
+// caught it) commits after this, so the diff / green change-box can't wedge. A
+// card fully OFF screen is left for scroll-in to commit — same findability as the
+// prose reveal.
+const FIELD_AUTO_GRACE_MS = 4500;
+// Visible enough to start the reveal: ≥50% of the card, OR (for a card taller
+// than the viewport) it covers ≥50% of the viewport.
+const FIELD_REVEAL_RATIO = 0.5;
 
 /**
  * Inline typewriter that morphs old text → new text: deletions erase from the
@@ -154,27 +162,56 @@ export function FieldReview({
     acceptRef.current = onAccept;
   });
 
-  // Auto mode: once the card is on screen, hold the diff briefly, then commit.
+  // Auto mode: once the card is on screen, hold the diff briefly, then type it in.
+  // Driven by an immediate + scroll/resize RECT CHECK (not a lone
+  // IntersectionObserver, whose single async callback can be lost when the editor
+  // re-hydrates or the card briefly remounts on open — leaving the diff stuck and
+  // the change unresolved, which also pins the green change-box that only clears on
+  // accept). A grace backstop commits even if the card never comes into view.
   useEffect(() => {
     if (mode !== 'auto') return undefined;
     const el = ref.current;
     if (!el) return undefined;
     let hold = 0;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting && e.intersectionRatio >= 0.5 && !hold) {
-            io.disconnect();
-            hold = window.setTimeout(() => setCommitting(true), AUTO_HOLD_MS);
-          }
-        }
-      },
-      { threshold: [0, 0.5, 1] },
-    );
-    io.observe(el);
+    let raf = 0;
+    const arm = () => {
+      if (hold) return;
+      hold = window.setTimeout(() => setCommitting(true), AUTO_HOLD_MS);
+    };
+    const check = () => {
+      if (hold) return;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+      if (visible > 0 && (visible >= r.height * FIELD_REVEAL_RATIO || visible >= vh * FIELD_REVEAL_RATIO)) {
+        arm();
+      }
+    };
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        check();
+      });
+    };
+    check(); // a card already on screen arms at once — no wait for an observer tick
+    // Capture phase so a scroll in ANY ancestor scroller (e.g. .editor-scroll), not
+    // just the window, re-checks — scroll events don't bubble.
+    window.addEventListener('scroll', schedule, { passive: true, capture: true });
+    window.addEventListener('resize', schedule);
+    // Only force-commit if the card is still (at all) within the viewport — a
+    // fully off-screen card waits for scroll-in, mirroring the prose grace net.
+    const grace = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (Math.min(r.bottom, vh) - Math.max(r.top, 0) > 0) arm();
+    }, FIELD_AUTO_GRACE_MS);
     return () => {
-      io.disconnect();
+      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', schedule);
       if (hold) window.clearTimeout(hold);
+      if (raf) window.cancelAnimationFrame(raf);
+      window.clearTimeout(grace);
     };
   }, [mode, change.blockId]);
 

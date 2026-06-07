@@ -1931,20 +1931,19 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
    off the blocks it manages. */
 
 /* ============================================================
-   Agent-change gutter — a git-style left bar + faint tint on blocks
-   (and the summary) the agent edited, fading once the user reads them.
+   Agent-change highlight — a faint background tint (NO left accent bar; the
+   design forbids vertical stripes) on blocks (and the summary) the agent edited,
+   fading once the user reads them.
    ============================================================ */
 .agent-change-block,
 .agent-change-summary {
   background-color: hsl(var(--story-3) / 0.07);
-  box-shadow: inset 3px 0 0 0 hsl(var(--story-3) / 0.85);
   border-radius: 3px;
-  transition: background-color 0.5s ease, box-shadow 0.5s ease;
+  transition: background-color 0.5s ease;
 }
 .agent-change-block--seen,
 .agent-change-summary--seen {
   background-color: transparent;
-  box-shadow: none;
 }
 
 /* ============================================================

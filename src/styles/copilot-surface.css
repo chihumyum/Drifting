@@ -92,16 +92,11 @@
   color: var(--copilot-text-faint);
 }
 
-/* Bottom-bar Copilot button "live" state — mirrors the existing
-   .bsb__super.is-active / .bsb__shadow.is-active treatment so the enabled
-   indicator reads consistently with its siblings across all four variants
-   (base .bsb__seg lives in bottom-status-bar.css). */
+/* Bottom-bar Copilot button "live" (auto-trigger on) state — mirror the
+   Timeline toggle's open look (default hover-ish ink + faint wash) rather than
+   the accent box used by the super-view toggles. Hover falls through to the
+   base .bsb__seg:hover (base .bsb__seg lives in bottom-status-bar.css). */
 .bsb__copilot.is-live {
-  color: hsl(var(--accent));
-  background: hsl(var(--accent) / 0.1);
-  box-shadow: inset 0 0 0 1px hsl(var(--accent) / 0.3);
-}
-.bsb__copilot.is-live:hover {
-  color: hsl(var(--accent));
-  background: hsl(var(--accent) / 0.16);
+  color: hsl(var(--ink-1));
+  background: hsl(var(--rule) / 0.3);
 }
