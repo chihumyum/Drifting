@@ -13,9 +13,9 @@
   position: relative;
   color: hsl(var(--ink-1));
   font-family: var(--font-sans);
+  scrollbar-width: none; /* Firefox */
 }
-.dash::-webkit-scrollbar { width: 10px; }
-.dash::-webkit-scrollbar-thumb { background: hsl(var(--rule)); border-radius: 5px; }
+.dash::-webkit-scrollbar { width: 0; height: 0; }
 
 .dash__inner {
   max-width: 1140px;

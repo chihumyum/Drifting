@@ -130,7 +130,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       }
     } else {
       list.push({ key: 'inline', kind: 'inline', label: '局部修改', group: '在光标处触发' });
-      list.push({ key: 'ask', kind: 'ask', label: '向副手提问（不改稿）', group: '在光标处触发' });
+      list.push({ key: 'ask', kind: 'ask', label: '问', group: '在光标处触发' });
     }
     list.push({ key: 'chapter', kind: 'chapter', label: '生成章节摘要', group: '本章节触发' });
     return list;

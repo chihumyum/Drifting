@@ -3444,13 +3444,13 @@ function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
 function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="about">
-      <PanelHead kicker="关于 · ABOUT" title="Drifting · 渡舟" sub="一只为长篇小说准备的写作船。" />
+      <PanelHead kicker="关于 · ABOUT" title="Drifting · 缀浮" sub="终极写作体验" />
 
       <div className="set-about">
-        <div className="set-about__glyph">渡</div>
+        <div className="set-about__glyph">D</div>
         <div className="set-about__main">
           <div className="set-about__name">
-            Drifting <em>渡舟</em>
+            Drifting <em>缀浮</em>
           </div>
           <div className="set-about__meta">
             <span>
@@ -3506,8 +3506,6 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
         }}
       >
         为夜里不睡的写作人造。
-        <br />
-        —— 渡舟 团队
       </p>
     </section>
   );

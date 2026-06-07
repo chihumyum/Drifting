@@ -3,7 +3,7 @@
  * The Shadow button used to toggle a global "shadow mode" (which re-tinted the whole
  * palette); that coupling is gone. The button now opens a compact popover with the
  * quick controls writers actually reach for:
- *   - Shadow 自动跑 — auto re-review chapters whose canon deps changed (shadowAutoRun)
+ *   - 自动审查 — auto re-review chapters whose canon deps changed (shadowAutoRun)
  *   - 规则 — the project's freeform review rules (reuses ShadowRulesSection embedded):
  *     edit + enable inline, compiled to checklists on save
  * Room is left below for future Shadow config without a redesign.
@@ -81,7 +81,7 @@ export function ShadowQuickMenu() {
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
               <ToggleRow
-                label="Shadow 自动跑"
+                label="自动审查"
                 desc="依赖变更的已完成章节自动复审，无需手动点「复审」"
                 checked={autoRun}
                 onChange={setAutoRun}

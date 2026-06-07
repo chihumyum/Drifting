@@ -346,7 +346,6 @@ export function ProjectDashboard() {
             </div>
 
             <h1 className="dash-hero__title">
-              <span className="dash-hero__title-glyph">渡</span>
               {heroProjectTitle}
             </h1>
 
@@ -444,23 +443,6 @@ export function ProjectDashboard() {
               <span className="dash-chip__count">· {c.count}</span>
             </div>
           ))}
-          <div className="dash-chip" style={{ marginLeft: 'auto' }}>
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <circle cx="7" cy="7" r="4.5" />
-              <path d="M10.5 10.5 L14 14" />
-            </svg>
-            <span>搜索…</span>
-            <span className="dash-chip__count" style={{ marginLeft: 4 }}>
-              ⌘K
-            </span>
-          </div>
         </div>
 
         {/* ════════ ROW 1 — CONTINUE + TODAY ════════ */}

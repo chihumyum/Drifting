@@ -162,7 +162,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
           <span className="si-brand__glyph">渡</span>
           <span className="si-brand__name">Drifting</span>
           <span className="si-brand__sep">·</span>
-          <span className="si-brand__cn">渡舟</span>
+          <span className="si-brand__cn">缀浮</span>
         </div>
 
         <div className="si-quote">
