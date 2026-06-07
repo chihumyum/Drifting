@@ -171,7 +171,7 @@ export function ElementEditorView({
     content: curElement?.contentJson ?? null,
     ydoc,
     onPersist: handlePersist,
-    placeholder: '记 · 传——写此元素的来历、形貌、心性…',
+    placeholder: '故事发生时，这个元素是什么？',
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey:
       projectId && curElement

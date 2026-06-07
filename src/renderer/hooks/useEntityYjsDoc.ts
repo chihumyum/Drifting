@@ -75,6 +75,8 @@ export function useEntityYjsDoc<K extends DocKind>({
           Underline,
           Link,
           TextAlign,
+          { BlockId },
+          { EntityLink },
         ] = await Promise.all([
           import('@tiptap/core'),
           import('y-prosemirror'),
@@ -83,6 +85,8 @@ export function useEntityYjsDoc<K extends DocKind>({
           import('@tiptap/extension-underline').then((m) => m.default),
           import('@tiptap/extension-link').then((m) => m.default),
           import('@tiptap/extension-text-align').then((m) => m.default),
+          import('../lib/extensions/block-id'),
+          import('../lib/extensions/entity-link'),
         ]);
         // Build a minimal schema that matches the editor's extensions. We
         // disable underline + link inside StarterKit and re-add them so the
@@ -92,6 +96,8 @@ export function useEntityYjsDoc<K extends DocKind>({
           Underline,
           Link,
           TextAlign,
+          BlockId,
+          EntityLink,
         ] as never);
         const json = JSON.parse(legacyContent);
         const seeded = prosemirrorJSONToYDoc(schema, json, 'default');

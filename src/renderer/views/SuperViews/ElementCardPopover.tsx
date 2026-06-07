@@ -167,7 +167,7 @@ export function ElementCardPopover({
     content: element.contentJson ?? null,
     onPersist: handlePersist,
     autoFocus: false,
-    placeholder: '记 · 传——写此元素的来历、形貌、心性…',
+    placeholder: '故事发生时，这个元素是什么？',
     minHeight: '320px',
   });
 

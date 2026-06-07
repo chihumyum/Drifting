@@ -9,6 +9,8 @@
     "dev:local": "VITE_LOCAL_ONLY_MODE=true VITE_ENABLE_SYNC=false electron-forge start",
     "start": "electron-forge start",
     "package": "electron-forge package",
+    "demo:seed": "ELECTRON_RUN_AS_NODE=1 electron scripts/seed-demo-project.js",
+    "demo:purge-local": "ELECTRON_RUN_AS_NODE=1 electron scripts/seed-demo-project.js --purge-only",
     "db:inspect": "node scripts/inspect-local-db.js",
     "db:inspect:all": "DRIFTING_DB_INSPECT_USERDATA=1 node scripts/inspect-local-db.js",
     "db:push": "pnpm run db:rebuild:electron && ELECTRON_RUN_AS_NODE=1 pnpm exec electron ./node_modules/drizzle-kit/bin.cjs push",

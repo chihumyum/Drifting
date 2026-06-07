@@ -102,6 +102,7 @@ let onlineFlushRegistered = false;
 const FLUSH_DELAY_MS = 800;
 const PULL_INTERVAL_MS = 30_000;
 const OUTBOX_BATCH_SIZE = 50;
+const SQLITE_MAX_INSERT_PARAMS = 800;
 
 type MutationRequest = {
   method: SyncOperationEvent['method'];
@@ -1158,6 +1159,42 @@ function normalizeRows(
   return rows.map(mapper);
 }
 
+async function insertRowsBatched(
+  tx: unknown,
+  table: unknown,
+  rows: Record<string, unknown>[],
+  options: { onConflictDoNothing?: boolean } = {},
+): Promise<void> {
+  if (rows.length === 0) return;
+  const columnCount = Math.max(Object.keys(rows[0] ?? {}).length, 1);
+  const batchSize = Math.max(1, Math.floor(SQLITE_MAX_INSERT_PARAMS / columnCount));
+  const inserter = tx as {
+    insert: (target: unknown) => {
+      values: (values: Record<string, unknown>[]) => unknown;
+    };
+  };
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const query = inserter.insert(table).values(batch);
+    if (options.onConflictDoNothing && hasOnConflictDoNothing(query)) {
+      await query.onConflictDoNothing();
+    } else {
+      await query;
+    }
+  }
+}
+
+function hasOnConflictDoNothing(
+  query: unknown,
+): query is { onConflictDoNothing: () => Promise<unknown> } {
+  return (
+    query !== null &&
+    typeof query === 'object' &&
+    'onConflictDoNothing' in query &&
+    typeof (query as { onConflictDoNothing?: unknown }).onConflictDoNothing === 'function'
+  );
+}
+
 interface EntityRelationKeyInput {
   fromKind: string;
   fromId: string;
@@ -1372,7 +1409,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       deletedAt: nullableDateText(row.deletedAt),
     }));
     if (elementCategories.length > 0) {
-      await tx.insert(ElementCategoryTable).values(elementCategories as any[]);
+      await insertRowsBatched(tx, ElementCategoryTable, elementCategories);
     }
 
     const storylines = normalizeRows(graph.storylines, (row) => ({
@@ -1390,7 +1427,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       deletedAt: nullableDateText(row.deletedAt),
     }));
     if (storylines.length > 0) {
-      await tx.insert(StorylineTable).values(storylines as any[]);
+      await insertRowsBatched(tx, StorylineTable, storylines);
     }
 
     const nodes = normalizeRows(graph.nodes, (row) => {
@@ -1414,7 +1451,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       };
     });
     if (nodes.length > 0) {
-      await tx.insert(BookNodeTable).values(nodes as any[]);
+      await insertRowsBatched(tx, BookNodeTable, nodes);
     }
 
     const nodeContents = normalizeRows(graph.nodeContents, (row) => ({
@@ -1425,7 +1462,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     }));
     if (nodeContents.length > 0) {
-      await tx.insert(NodeContentTable).values(nodeContents as any[]);
+      await insertRowsBatched(tx, NodeContentTable, nodeContents);
     }
 
     // Build a set of category ids that actually live in this hydrate batch.
@@ -1461,7 +1498,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       };
     });
     if (elements.length > 0) {
-      await tx.insert(BookElementTable).values(elements as any[]);
+      await insertRowsBatched(tx, BookElementTable, elements);
     }
 
     const nodeStorylineLinks = normalizeRows(graph.nodeStorylineLinks, (row) => ({
@@ -1470,7 +1507,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
     })).filter((row) => row.nodeId && row.storylineId);
     if (nodeStorylineLinks.length > 0) {
-      await tx.insert(NodeStorylineLinkTable).values(nodeStorylineLinks as any[]);
+      await insertRowsBatched(tx, NodeStorylineLinkTable, nodeStorylineLinks);
     }
 
     const entityRelations = normalizeRows(graph.entityRelations, (row) => ({
@@ -1485,7 +1522,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.fromId && row.toId);
     if (entityRelations.length > 0) {
-      await tx.insert(EntityRelationTable).values(entityRelations as any[]);
+      await insertRowsBatched(tx, EntityRelationTable, entityRelations);
     }
 
     // Restore any local relations the server didn't return — typically created
@@ -1506,10 +1543,9 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         (row) => !currentKeys.has(entityRelationKey(row)),
       );
       if (relationsToRestore.length > 0) {
-        await tx
-          .insert(EntityRelationTable)
-          .values(relationsToRestore as any[])
-          .onConflictDoNothing();
+        await insertRowsBatched(tx, EntityRelationTable, relationsToRestore, {
+          onConflictDoNothing: true,
+        });
       }
     }
 
@@ -1531,7 +1567,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       (row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson,
     );
     if (inlineMentions.length > 0) {
-      await tx.insert(InlineMentionTable).values(inlineMentions as any[]);
+      await insertRowsBatched(tx, InlineMentionTable, inlineMentions);
     }
 
     // ElementPatch rows are owned by their element; they were cascade-deleted
@@ -1552,7 +1588,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.elementId);
     if (entityPatches.length > 0) {
-      await tx.insert(ElementPatchTable).values(entityPatches as any[]);
+      await insertRowsBatched(tx, ElementPatchTable, entityPatches);
     }
 
     // Restore local-only patches that the server didn't send back. Gated on
@@ -1568,10 +1604,9 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         (p) => survivingElementIds.has(p.elementId) && !serverPatchIds.has(p.id),
       );
       if (patchesToRestore.length > 0) {
-        await tx
-          .insert(ElementPatchTable)
-          .values(patchesToRestore as any[])
-          .onConflictDoNothing();
+        await insertRowsBatched(tx, ElementPatchTable, patchesToRestore, {
+          onConflictDoNothing: true,
+        });
       }
     }
 
@@ -1590,7 +1625,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.chapterId);
     if (serverBlockSections.length > 0) {
-      await tx.insert(BlockSectionTable).values(serverBlockSections as any[]);
+      await insertRowsBatched(tx, BlockSectionTable, serverBlockSections);
     }
     if (localBlockSections.length > 0) {
       const survivingChapterIds = new Set(nodes.map((n) => n.id));
@@ -1599,10 +1634,9 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         (s) => survivingChapterIds.has(s.chapterId) && !serverSectionIds.has(s.id),
       );
       if (sectionsToRestore.length > 0) {
-        await tx
-          .insert(BlockSectionTable)
-          .values(sectionsToRestore as any[])
-          .onConflictDoNothing();
+        await insertRowsBatched(tx, BlockSectionTable, sectionsToRestore, {
+          onConflictDoNothing: true,
+        });
       }
     }
 
@@ -1627,7 +1661,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id && row.kind);
     if (libraryItems.length > 0) {
-      await tx.insert(LibraryItemTable).values(libraryItems as any[]);
+      await insertRowsBatched(tx, LibraryItemTable, libraryItems);
     }
 
     const comments = normalizeRows(graph.comments, (row) => ({
@@ -1652,7 +1686,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       updatedAt: dateText(row.updatedAt),
     })).filter((row) => row.id);
     if (comments.length > 0) {
-      await tx.insert(CommentTable).values(comments as any[]);
+      await insertRowsBatched(tx, CommentTable, comments);
     }
 
     const commentActions = normalizeRows(graph.commentActions, (row) => ({
@@ -1671,7 +1705,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       appliedAt: nullableStringValue(row, 'appliedAt'),
     })).filter((row) => row.id && row.commentId && row.kind);
     if (commentActions.length > 0) {
-      await tx.insert(CommentActionTable).values(commentActions as any[]);
+      await insertRowsBatched(tx, CommentActionTable, commentActions);
     }
   });
 
