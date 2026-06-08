@@ -25,8 +25,10 @@ import {
   type AiMode,
   type AgentAuth,
   type AgentEffort,
+  type AgentToolSearch,
   AGENT_MODEL_OPTIONS,
   AGENT_EFFORT_OPTIONS,
+  AGENT_TOOL_SEARCH_OPTIONS,
   type FocusLineMode,
   type LineHeight,
   type LocaleCode,
@@ -3067,6 +3069,8 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
   const setAgentEffort = useSettingsStore((s) => s.setAgentEffort);
   const agentThinking = useSettingsStore((s) => s.agentThinking);
   const setAgentThinking = useSettingsStore((s) => s.setAgentThinking);
+  const agentToolSearch = useSettingsStore((s) => s.agentToolSearch);
+  const setAgentToolSearch = useSettingsStore((s) => s.setAgentToolSearch);
 
   return (
     <section className="set-panel" ref={registerRef} id="agent">
@@ -3143,6 +3147,21 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
               value={agentEffort}
               options={AGENT_EFFORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
               onChange={setAgentEffort}
+            />
+          }
+        />
+      </div>
+
+      <div className="set-sec">
+        <SecHead title="工具检索" hint="TOOL SEARCH" />
+        <Row
+          label="工具检索（实验）"
+          desc="约 49 个工具的定义常驻上下文约 10k tokens。开启后按需检索、每轮只加载相关的 3–5 个，省 token；「自动」仅在工具占比超阈值（约 10%）时才触发，当前规模下基本不启用。需 Sonnet 4+/Opus 4+，Haiku 不支持。"
+          control={
+            <Seg<AgentToolSearch>
+              value={agentToolSearch}
+              options={AGENT_TOOL_SEARCH_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              onChange={setAgentToolSearch}
             />
           }
         />

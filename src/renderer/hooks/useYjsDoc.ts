@@ -3,7 +3,11 @@ import loglevel from 'loglevel';
 import * as Y from 'yjs';
 import { initDatabase } from '../lib/db';
 import { createYjsRepository } from '../sqlite-repo/yjs-repo';
-import { resetCursor, pullUpdates } from '../services/yjs-sync.service';
+import {
+  resetCursor,
+  pullUpdates,
+  compactUpdatesAfterSnapshot,
+} from '../services/yjs-sync.service';
 import { isSyncEnabled } from '../lib/config';
 import { registerLiveYDoc } from '../lib/yjs-doc-registry';
 
@@ -151,6 +155,17 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       });
     };
 
+    // Snapshot the full state, then prune the now-redundant update rows it
+    // absorbed (capped at the push cursor — see compactUpdatesAfterSnapshot).
+    // `fullState` is captured by the caller (synchronously, before the ydoc can
+    // be destroyed on unmount); `coveredId` is read here while the write queue
+    // is idle so it reflects exactly what `fullState` encodes.
+    const persistSnapshotAndCompact = async (fullState: Uint8Array) => {
+      const coveredId = await repo.maxUpdateId(docId);
+      await repo.upsertSnapshot(docId, fullState);
+      await compactUpdatesAfterSnapshot(docId, coveredId, repo);
+    };
+
     const handleUpdate = (update: Uint8Array, origin: unknown) => {
       // 'load' is the replay-from-sqlite path; skip entirely so we don't
       // re-persist what we just loaded.
@@ -174,8 +189,7 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
         localUpdatesSinceSnapshotRef.current += 1;
 
         if (localUpdatesSinceSnapshotRef.current >= SNAPSHOT_EVERY_UPDATES) {
-          const fullState = Y.encodeStateAsUpdate(ydoc);
-          await repo.upsertSnapshot(docId, fullState);
+          await persistSnapshotAndCompact(Y.encodeStateAsUpdate(ydoc));
           localUpdatesSinceSnapshotRef.current = 0;
         }
       });
@@ -186,10 +200,10 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
     return () => {
       ydoc.off('update', handleUpdate);
 
+      // Capture state synchronously — the ydoc.destroy() effect cleanup may run
+      // right after this. The compaction itself happens inside the write queue.
       const fullState = Y.encodeStateAsUpdate(ydoc);
-      enqueueWrite(async () => {
-        await repo.upsertSnapshot(docId, fullState);
-      });
+      enqueueWrite(() => persistSnapshotAndCompact(fullState));
     };
   }, [docId, isReady, repo, ydoc]);
 

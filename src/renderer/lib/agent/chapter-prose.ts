@@ -33,6 +33,7 @@ import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
+import { compactUpdatesAfterSnapshot } from '../../services/yjs-sync.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
 import { countWordsInPmJson } from '../word-count';
@@ -399,7 +400,9 @@ async function writeProseDoc(
       doc.off('update', onUpdate);
 
       for (const u of diff) await yrepo.appendUpdate(docId, u);
+      const coveredId = await yrepo.maxUpdateId(docId);
       await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+      await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
       const contentJson = toJson(doc);
       return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };
     } finally {
@@ -590,7 +593,9 @@ export async function unlinkEntityFromChapterProse(
       doc.off('update', onUpdate);
       if (changed) {
         for (const u of diff) await yrepo.appendUpdate(docId, u);
+        const coveredId = await yrepo.maxUpdateId(docId);
         await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+        await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
         await contentRepo.updateByNodeId(nodeId, {
           contentJson: JSON.stringify(yDocToProsemirrorJSON(doc, 'default')),
         });

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, lte } from 'drizzle-orm';
 import { getDb } from '../lib/db';
 import { yjsSnapshots, yjsUpdates } from '../schema/drizzle';
 
@@ -21,6 +21,14 @@ export interface YjsRepository {
   getSnapshot(docId: string): Promise<YjsSnapshotRow | null>;
   upsertSnapshot(docId: string, stateBlob: Uint8Array): Promise<void>;
   hasDocState(docId: string): Promise<boolean>;
+  /** Highest update id currently stored for this doc, or 0 if none. */
+  maxUpdateId(docId: string): Promise<number>;
+  /**
+   * Delete update rows with id <= maxId for this doc. Used by compaction
+   * once a snapshot has absorbed (and, when syncing, the server has durably
+   * received) those updates. Returns the number of rows pruned.
+   */
+  deleteUpdatesUpTo(docId: string, maxId: number): Promise<number>;
 }
 
 function normalizeBlob(input: unknown): Uint8Array {
@@ -133,11 +141,32 @@ export function createYjsRepository(): YjsRepository {
     return Boolean(snap || latestUpdate[0]);
   };
 
+  const maxUpdateId = async (docId: string): Promise<number> => {
+    const rows = await getDb()
+      .select({ id: yjsUpdates.id })
+      .from(yjsUpdates)
+      .where(eq(yjsUpdates.docId, docId))
+      .orderBy(desc(yjsUpdates.id))
+      .limit(1);
+    return rows[0]?.id ?? 0;
+  };
+
+  const deleteUpdatesUpTo = async (docId: string, maxId: number): Promise<number> => {
+    if (maxId <= 0) return 0;
+    const deleted = await getDb()
+      .delete(yjsUpdates)
+      .where(and(eq(yjsUpdates.docId, docId), lte(yjsUpdates.id, maxId)))
+      .returning({ id: yjsUpdates.id });
+    return deleted.length;
+  };
+
   return {
     listUpdates,
     appendUpdate,
     getSnapshot,
     upsertSnapshot,
     hasDocState,
+    maxUpdateId,
+    deleteUpdatesUpTo,
   };
 }

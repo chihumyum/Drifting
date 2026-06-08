@@ -103,6 +103,18 @@ export type AgentMode = 'oauth' | 'apikey' | 'hosted';
 export type AgentModelChoice = string;
 export type AgentEffortChoice = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type AgentThinkingChoice = 'adaptive' | 'off';
+/**
+ * Tool-search mode (SDK `ENABLE_TOOL_SEARCH`). With ~49 MCP tools the full
+ * definitions cost ~10k tokens up front; tool search defers them and lets the
+ * model fetch only the relevant 3–5 per turn.
+ *   off  → 'false' (always load every tool definition — today's behaviour)
+ *   auto → 'auto'  (SDK default: activates only when tool defs exceed ~10% of
+ *                   the context window; at 49 tools this rarely fires)
+ *   on   → 'true'  (force on — use this to measure the token delta)
+ * Requires Sonnet 4+/Opus 4+; works on the direct (OAuth/API-key) paths and the
+ * hosted path (our /agent/anthropic proxy forwards the raw request unchanged).
+ */
+export type AgentToolSearchChoice = 'off' | 'auto' | 'on';
 
 export interface AgentStartInput {
   prompt: string;
@@ -125,6 +137,8 @@ export interface AgentStartInput {
   effort?: AgentEffortChoice;
   /** Extended-thinking mode. */
   thinking?: AgentThinkingChoice;
+  /** Tool-search mode (ENABLE_TOOL_SEARCH). Omitted → SDK default. */
+  toolSearch?: AgentToolSearchChoice;
   /**
    * The manuscript's writing-language name (e.g. "Simplified Chinese (简体中文)").
    * Injected into the system prompt so the agent writes prose/replies in the
@@ -162,6 +176,19 @@ function buildAgentMeta(input: AgentStartInput): string {
     );
   }
   return parts.length ? '\n\n' + parts.join('\n\n') : '';
+}
+
+/**
+ * Apply the tool-search choice onto the subprocess env (mutates + returns it).
+ * Omitted choice leaves the SDK default untouched.
+ */
+function applyToolSearchEnv(
+  env: Record<string, string>,
+  choice: AgentToolSearchChoice | undefined,
+): Record<string, string> {
+  if (!choice) return env;
+  env.ENABLE_TOOL_SEARCH = choice === 'on' ? 'true' : choice === 'off' ? 'false' : 'auto';
+  return env;
 }
 
 /** Resolve the subprocess env for the chosen mode, or an error to surface. */
@@ -546,7 +573,19 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         // 风物 考据). Filesystem tools (Read/Edit/Bash/…) stay OFF since the
         // manuscript is reached solely via the drifting MCP tools. WebSearch is
         // a hosted Anthropic tool and is billed against whatever auth path runs.
-        tools: ['TodoWrite', 'WebSearch', 'WebFetch'],
+        //
+        // 'ToolSearch' is the SDK's built-in tool-search tool. Because we pass an
+        // explicit `tools` allow-list, ANY built-in we omit is dropped — and the
+        // CLI silently falls back to loading every tool definition ("standard")
+        // when ToolSearch isn't present (its decision: reason 'mcp_search_unavailable').
+        // So we must include it whenever tool search is enabled, or the
+        // ENABLE_TOOL_SEARCH env has no effect.
+        tools: [
+          'TodoWrite',
+          'WebSearch',
+          'WebFetch',
+          ...(input.toolSearch && input.toolSearch !== 'off' ? ['ToolSearch'] : []),
+        ],
         mcpServers: { drifting: driftingServer },
         permissionMode: 'bypassPermissions',
         // Stream token deltas so the panel can render assistant text live.
@@ -556,10 +595,29 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
         ...(input.model && input.model !== 'default' ? { model: input.model } : {}),
         ...(input.effort ? { effort: input.effort } : {}),
         thinking: input.thinking === 'off' ? { type: 'disabled' } : { type: 'adaptive' },
-        env: auth.env,
+        env: applyToolSearchEnv(auth.env, input.toolSearch),
         pathToClaudeCodeExecutable: resolveClaudeBinary(),
+        // DRIFTING_AGENT_DEBUG=1 turns on the CLI's verbose logging so its
+        // tool-search decision ("[ToolSearch:optimistic] … result=" /
+        // "Tool search disabled: <reason>") surfaces via the stderr hook below.
+        ...(process.env.DRIFTING_AGENT_DEBUG ? { debug: true } : {}),
         stderr: (data: string) => console.error('[claude stderr]', data),
       };
+
+      if (process.env.DRIFTING_AGENT_DEBUG) {
+        const baseUrl = auth.env.ANTHROPIC_BASE_URL;
+        let firstParty = true;
+        try {
+          firstParty = !baseUrl || new URL(baseUrl).host === 'api.anthropic.com';
+        } catch {
+          firstParty = false;
+        }
+        console.error(
+          `[agent] tool-search: choice=${input.toolSearch ?? 'unset'} ` +
+            `ENABLE_TOOL_SEARCH=${auth.env.ENABLE_TOOL_SEARCH ?? '(unset)'} ` +
+            `model=${input.model ?? 'default'} mode=${mode} firstParty=${firstParty}`,
+        );
+      }
 
       try {
         const { query } = await import(/* @vite-ignore */ '@anthropic-ai/claude-agent-sdk');

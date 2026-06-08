@@ -102,6 +102,43 @@ export async function resetCursor(docId: string): Promise<void> {
   await getDb().delete(yjsSyncCursor).where(eq(yjsSyncCursor.docId, docId));
 }
 
+// ───── Compaction ─────
+
+/**
+ * Prune the local `yjs_updates` log after a fresh snapshot has been written.
+ *
+ * The snapshot blob is a full-state superset of every update with id <=
+ * `snapshotCoveredId`, so those rows are redundant for local reload. When
+ * sync is on we additionally cap the deletion at the push cursor's
+ * `lastPushedLocalId`, so a local edit the server hasn't durably received
+ * yet is never dropped (it would otherwise never converge to other devices).
+ * In local-only mode there is no server, so the snapshot alone is durable and
+ * we compact up to `snapshotCoveredId`.
+ *
+ * Contract: the caller MUST upsert the snapshot BEFORE calling this, so a
+ * snapshot always covers whatever rows we delete. Returns rows pruned.
+ */
+export async function compactUpdatesAfterSnapshot(
+  docId: string,
+  snapshotCoveredId: number,
+  repo: YjsRepository,
+): Promise<number> {
+  if (snapshotCoveredId <= 0) return 0;
+
+  let bound = snapshotCoveredId;
+  if (isSyncEnabled()) {
+    const cursor = await getCursor(docId);
+    bound = Math.min(bound, cursor.lastPushedLocalId);
+  }
+  if (bound <= 0) return 0;
+
+  const pruned = await repo.deleteUpdatesUpTo(docId, bound);
+  if (pruned > 0) {
+    log.debug(`[compact] ${docId}: pruned ${pruned} updates (id <= ${bound})`);
+  }
+  return pruned;
+}
+
 // ───── Encoding helpers ─────
 
 export function uint8ToBase64(bytes: Uint8Array): string {

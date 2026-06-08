@@ -41,6 +41,24 @@ export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Extended-thinking mode: 'adaptive' = model decides; 'off' = disabled. */
 export type AgentThinking = 'adaptive' | 'off';
 /**
+ * Tool-search mode (SDK ENABLE_TOOL_SEARCH). The ~49 drifting MCP tools cost
+ * ~10k tokens of definitions up front; tool search defers them and fetches only
+ * the relevant 3–5 per turn.
+ *  - 'off':  always load every tool definition (today's behaviour).
+ *  - 'auto': SDK default — only kicks in when tool defs exceed ~10% of context;
+ *            at 49 tools this rarely fires, so it's effectively 'off' for now.
+ *  - 'on':   force on — use this to measure the input-token delta.
+ * Needs Sonnet 4+/Opus 4+; not supported on Haiku.
+ */
+export type AgentToolSearch = 'off' | 'auto' | 'on';
+
+/** Tool-search options for the settings picker. */
+export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string }[] = [
+  { value: 'off', label: '关闭 · 全量加载工具' },
+  { value: 'auto', label: '自动 · 超阈值才启用' },
+  { value: 'on', label: '开启 · 强制工具检索' },
+];
+/**
  * How the agent's prose edits surface in the editor:
  *  - 'auto':    edits apply silently; the editor shows colored scrollbar ticks
  *               and plays a reveal animation as each changed block scrolls in.
@@ -218,6 +236,9 @@ interface SettingsState {
   setAgentEffort: (e: AgentEffort) => void;
   agentThinking: AgentThinking;
   setAgentThinking: (t: AgentThinking) => void;
+  // Tool-search mode (ENABLE_TOOL_SEARCH). See AgentToolSearch.
+  agentToolSearch: AgentToolSearch;
+  setAgentToolSearch: (t: AgentToolSearch) => void;
   // How the agent's prose edits surface (auto reveal vs manual approve). See AgentEditMode.
   agentEditMode: AgentEditMode;
   setAgentEditMode: (m: AgentEditMode) => void;
@@ -393,6 +414,8 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentEffort: (e) => set({ agentEffort: e }),
       agentThinking: 'adaptive',
       setAgentThinking: (t) => set({ agentThinking: t }),
+      agentToolSearch: 'off',
+      setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
       copilotTier: 'standard',

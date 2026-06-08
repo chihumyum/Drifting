@@ -413,6 +413,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       model: settings.agentModel,
       effort: settings.agentEffort,
       thinking: settings.agentThinking,
+      toolSearch: settings.agentToolSearch,
       resume: run.sdkSessionId ?? undefined,
       writingLanguage,
       projectFacts,
