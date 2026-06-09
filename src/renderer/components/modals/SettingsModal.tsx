@@ -45,11 +45,12 @@ import {
   type AgentConversationUsage,
 } from '../../sqlite-repo/agent-conversation-repo';
 import {
+  createMemory,
   listLiveMemories,
   setMemoryStatus,
   softDeleteMemory,
 } from '../../usecase/useAgentMemory';
-import type { AgentMemory } from '../../domain/agent-memory';
+import type { AgentMemory, AgentMemoryKind } from '../../domain/agent-memory';
 import { createAiUsageRepository, type AiUsageSummary } from '../../sqlite-repo/ai-usage-repo';
 import { authClient } from '../../lib/auth-client';
 import { TrashPanel } from '../TrashPanel';
@@ -2764,6 +2765,8 @@ const fmtConvTime = (iso: string): string => {
 function AgentMemorySection({ open }: { open: boolean }) {
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [memories, setMemories] = useState<AgentMemory[]>([]);
+  const [draftKind, setDraftKind] = useState<AgentMemoryKind>('preference');
+  const [draftBody, setDraftBody] = useState('');
 
   useEffect(() => {
     if (!open || !projectId) return;
@@ -2802,14 +2805,55 @@ function AgentMemorySection({ open }: { open: boolean }) {
     if (!window.confirm('删除这条记忆？将不再影响后续对话与审阅。')) return;
     void softDeleteMemory(projectId, id).then(reload);
   };
+  // Manual add — author-authored, active immediately (it's the author's own).
+  const add = () => {
+    const body = draftBody.trim();
+    if (!body || !projectId) return;
+    void createMemory(projectId, { kind: draftKind, body, source: 'author', status: 'active' }).then(
+      () => {
+        setDraftBody('');
+        reload();
+      },
+    );
+  };
 
   return (
     <div className="set-sec">
       <SecHead title="记忆" hint="MEMORY" />
       <p className="set-panel__sub" style={{ marginTop: -2, marginBottom: 12 }}>
         Agent 保存的长期指引——写作偏好、已否决的提案、对内容的指令。会注入到后续对话，并供 Shadow
-        审阅参考；只有「生效」的条目才起作用。在对话里让 Agent 记住某事、确认后即出现在这里。
+        审阅参考；只有「生效」的条目才起作用。Agent 在对话里记下的会出现在这里，你也可以手动新增。
       </p>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <select
+          className="set-input"
+          style={{ flexShrink: 0, width: 84 }}
+          value={draftKind}
+          onChange={(e) => setDraftKind(e.target.value as AgentMemoryKind)}
+        >
+          <option value="preference">偏好</option>
+          <option value="directive">指令</option>
+          <option value="veto">否决</option>
+        </select>
+        <input
+          className="set-input"
+          style={{ flex: 1, minWidth: 0 }}
+          placeholder="手动新增一条记忆……"
+          value={draftBody}
+          onChange={(e) => setDraftBody(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add();
+          }}
+        />
+        <button
+          className="set-btn set-btn--primary"
+          style={{ flexShrink: 0 }}
+          disabled={!draftBody.trim()}
+          onClick={add}
+        >
+          添加
+        </button>
+      </div>
       {visible.length === 0 ? (
         <div
           style={{

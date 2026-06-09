@@ -566,8 +566,8 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'with update_project_facts so they persist and steer future writing. ' +
           'Separately, persist STANDING author guidance with remember — a personal preference, a ' +
           'VETO of a rejected idea (so you never re-propose it), or a directive on how to treat ' +
-          'content; list_memory to review them, forget to retire one (the author confirms saves). ' +
-          'Active memories are already shown to you above when present. ' +
+          'content; it saves immediately. list_memory to review them, forget to retire one (forget ' +
+          'asks the author to confirm). Active memories are already shown to you above when present. ' +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +
           '(node/element/storyline). Track element evolution with create_element_patch / ' +
           'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +

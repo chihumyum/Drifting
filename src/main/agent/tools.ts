@@ -412,7 +412,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- agent memory (author-level standing guidance the agent persists) ----
       tool(
         'remember',
-        "Persist a STANDING piece of author-level guidance so it steers future turns (and the Shadow review engine). Use for: a personal writing PREFERENCE the author states ('对话尽量短句'), a VETO ('写死配角 X 的提案已否, 别再提'), or a DIRECTIVE about how to treat content ('梦境章节不用考虑物理合理性'). NOT for story-world facts (use update_element / facts / patches), NOT for book-level governing KV like 文风/POV/字数 (use update_project_facts), and NOT for an anchored 'THIS passage is intentional' note (use create_comment). The author is asked to confirm before it is saved. Returns { memoryId }.",
+        "Persist a STANDING piece of author-level guidance so it steers future turns (and the Shadow review engine). Use for: a personal writing PREFERENCE the author states ('对话尽量短句'), a VETO ('写死配角 X 的提案已否, 别再提'), or a DIRECTIVE about how to treat content ('梦境章节不用考虑物理合理性'). NOT for story-world facts (use update_element / facts / patches), NOT for book-level governing KV like 文风/POV/字数 (use update_project_facts), and NOT for an anchored 'THIS passage is intentional' note (use create_comment). Saved immediately (no prompt); the author can edit or delete it in settings or the composer 记忆 menu. Returns { memoryId }.",
         {
           kind: z
             .string()

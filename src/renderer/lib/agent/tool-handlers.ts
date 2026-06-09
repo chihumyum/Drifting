@@ -1774,20 +1774,14 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
 }
 
 // ---- agent memory (author-level standing guidance) -------------------------
-// Soft-approval: `remember`/`forget` block on requestAgentConfirm so nothing
-// enters (or leaves) the steering set without an explicit author OK — the same
-// confirm pattern delete_element uses. Confirmed memories are written straight
-// to 'active' (the only status injected into prompts).
+// `remember` writes straight to 'active' (no confirm — saving a memory is cheap
+// and reversible; the author manages/deletes them in 设置 → General Agent or the
+// composer 记忆 menu). Only `forget` blocks on requestAgentConfirm, since a
+// delete is the one destructive memory action.
 
 function coerceMemoryKind(raw: unknown): AgentMemoryKind {
   return raw === 'veto' ? 'veto' : raw === 'directive' ? 'directive' : 'preference';
 }
-
-const MEMORY_KIND_LABEL: Record<AgentMemoryKind, string> = {
-  preference: '偏好',
-  veto: '否决',
-  directive: '指令',
-};
 
 async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>) {
   const body = String(args.body ?? '').trim();
@@ -1813,12 +1807,8 @@ async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>
       ? args.supersedes.trim()
       : null;
 
-  if (
-    !(await requestAgentConfirm(`Agent 想记住一条「${MEMORY_KIND_LABEL[kind]}」：「${body}」。允许吗？`))
-  ) {
-    return { ok: false, declined: true };
-  }
-
+  // Write straight to 'active' — no confirm; the author manages/deletes memories
+  // in settings or the composer 记忆 menu.
   const created = await createMemory(ctx.projectId, {
     kind,
     body,
