@@ -21,6 +21,7 @@ import { getDb } from '../lib/db';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import {
+  AgentMemoryTable,
   BlockSectionTable,
   BookElementTable,
   BookNodeTable,
@@ -66,7 +67,8 @@ export type EntityType =
   | 'libraryItem'
   | 'entityRelation'
   | 'comment'
-  | 'commentAction';
+  | 'commentAction'
+  | 'agentMemory';
 
 // 'softDelete' moves the entity to trash (deletedAt = now); restore clears
 // it back to NULL; 'delete' is still hard-DELETE (used by the Free tier and
@@ -127,6 +129,9 @@ export interface ProjectGraphPayload {
   libraryItems: Record<string, unknown>[];
   comments: Record<string, unknown>[];
   commentActions: Record<string, unknown>[];
+  // Optional: absent from older-server graph responses (partial rollout). Hydrate
+  // treats `?? []` and the unflushed-mutation guard keeps local memories safe.
+  agentMemories?: Record<string, unknown>[];
 }
 
 function shouldPersistOutbox(): boolean {
@@ -618,6 +623,23 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
         endpoint: `/api/projects/${projectId}/comment-actions/${entityId}`,
       };
 
+    // ---- Agent Memory (author-level standing guidance) ----
+    case 'agentMemory':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/agent-memories`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/agent-memories/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/agent-memories/${entityId}` };
+
     default:
       log.warn(`[sync] unknown entity type: ${entityType}`);
       return null;
@@ -795,6 +817,7 @@ export interface PullResult {
   libraryItems?: unknown[];
   comments?: unknown[];
   commentActions?: unknown[];
+  agentMemories?: unknown[];
 }
 
 /**
@@ -820,6 +843,7 @@ export async function pullProjectData(projectId: string): Promise<PullResult> {
     libraryItems: graph.libraryItems,
     comments: graph.comments,
     commentActions: graph.commentActions,
+    agentMemories: graph.agentMemories,
   };
 }
 
@@ -1371,6 +1395,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     await tx.delete(LibraryItemTable).where(eq(LibraryItemTable.projectId, projectId));
     await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
     await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
+    await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
@@ -1706,6 +1731,29 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     })).filter((row) => row.id && row.commentId && row.kind);
     if (commentActions.length > 0) {
       await insertRowsBatched(tx, CommentActionTable, commentActions);
+    }
+
+    // Agent memories — author-level standing guidance. Simple delete+insert like
+    // comments; rollout-safe because a push to a server lacking the route 404s
+    // and stays unflushed, and the unflushed-mutation guard skips hydrate entirely.
+    const agentMemories = normalizeRows(graph.agentMemories ?? [], (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      kind: stringValue(row, 'kind', 'preference') || 'preference',
+      body: stringValue(row, 'body'),
+      targetKind: nullableStringValue(row, 'targetKind'),
+      targetId: nullableStringValue(row, 'targetId'),
+      targetBlockId: nullableStringValue(row, 'targetBlockId'),
+      source: stringValue(row, 'source', 'agent') || 'agent',
+      originRef: nullableStringValue(row, 'originRef'),
+      status: stringValue(row, 'status', 'pending') || 'pending',
+      supersedesId: nullableStringValue(row, 'supersedesId'),
+      deletedAt: nullableStringValue(row, 'deletedAt'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.projectId);
+    if (agentMemories.length > 0) {
+      await insertRowsBatched(tx, AgentMemoryTable, agentMemories);
     }
   });
 

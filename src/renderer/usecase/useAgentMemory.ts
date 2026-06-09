@@ -24,6 +24,29 @@ import type {
   AgentMemoryStatus,
 } from '../domain/agent-memory';
 import type { StructuralEntityKind } from '../domain/entity-kinds';
+import {
+  syncAgentMemoryCreate,
+  syncAgentMemoryUpdate,
+} from './sync-helpers';
+
+// The create payload pushed to the server (projectId is in the URL, not the body).
+function memorySyncPayload(m: AgentMemory): Record<string, unknown> {
+  return {
+    id: m.id,
+    kind: m.kind,
+    body: m.body,
+    targetKind: m.targetKind,
+    targetId: m.targetId,
+    targetBlockId: m.targetBlockId,
+    source: m.source,
+    originRef: m.originRef,
+    status: m.status,
+    supersedesId: m.supersedesId,
+    deletedAt: m.deletedAt,
+    createdAt: m.createdAt,
+    updatedAt: m.updatedAt,
+  };
+}
 
 export interface CreateAgentMemoryInput {
   kind: AgentMemoryKind;
@@ -44,7 +67,7 @@ export async function createMemory(
 ): Promise<AgentMemory> {
   const repo = createAgentMemoryRepository(projectId);
   const now = new Date().toISOString();
-  return repo.create({
+  const created = await repo.create({
     id: uuidv7(),
     projectId,
     kind: input.kind,
@@ -60,6 +83,8 @@ export async function createMemory(
     updatedAt: now,
     deletedAt: null,
   });
+  syncAgentMemoryCreate(created.id, projectId, memorySyncPayload(created));
+  return created;
 }
 
 /** Flip a memory's status (e.g. approve a pending → 'active', or 'dismissed'). */
@@ -69,7 +94,10 @@ export async function setMemoryStatus(
   status: AgentMemoryStatus,
 ): Promise<AgentMemory | null> {
   const repo = createAgentMemoryRepository(projectId);
-  return repo.update(id, { status, updatedAt: new Date().toISOString() });
+  const updatedAt = new Date().toISOString();
+  const row = await repo.update(id, { status, updatedAt });
+  syncAgentMemoryUpdate(id, projectId, { status, updatedAt });
+  return row;
 }
 
 /** Update a memory's body (and optionally retire the one it supersedes). */
@@ -79,13 +107,19 @@ export async function updateMemoryBody(
   body: string,
 ): Promise<AgentMemory | null> {
   const repo = createAgentMemoryRepository(projectId);
-  return repo.update(id, { body, updatedAt: new Date().toISOString() });
+  const updatedAt = new Date().toISOString();
+  const row = await repo.update(id, { body, updatedAt });
+  syncAgentMemoryUpdate(id, projectId, { body, updatedAt });
+  return row;
 }
 
-/** Soft-delete a memory (kept for provenance; drops out of all reads). */
+/** Soft-delete a memory (kept for provenance; drops out of all reads). The
+ *  soft-delete travels to the server as an update carrying deletedAt. */
 export async function softDeleteMemory(projectId: string, id: string): Promise<void> {
   const repo = createAgentMemoryRepository(projectId);
-  await repo.softDelete(id, new Date().toISOString());
+  const deletedAt = new Date().toISOString();
+  await repo.softDelete(id, deletedAt);
+  syncAgentMemoryUpdate(id, projectId, { deletedAt, updatedAt: deletedAt });
 }
 
 /** Live (not deleted) memories for the project, newest first. */

@@ -317,3 +317,29 @@ export function syncCommentActionUpdate(
 export function syncCommentActionDelete(id: string, projectId: string) {
   enqueueSync('commentAction', 'delete', id, projectId);
 }
+
+// ---- Agent Memory ----
+// Author-level standing guidance (preferences / vetoes / directives) the General
+// agent persists. Local-first like the rest; soft-delete travels as an `update`
+// carrying deletedAt (no separate softDelete mutation — the server has no trash
+// route for memory). All write sites in useAgentMemory call these.
+
+export function syncAgentMemoryCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('agentMemory', 'create', id, projectId, payload);
+}
+
+export function syncAgentMemoryUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('agentMemory', 'update', id, projectId, payload);
+}
+
+export function syncAgentMemoryDelete(id: string, projectId: string) {
+  enqueueSync('agentMemory', 'delete', id, projectId);
+}
