@@ -138,5 +138,10 @@ export class LLMClient {
 
 function isRetryable(err: unknown): boolean {
   if (!(err instanceof AIError)) return false;
-  return err.kind === 'rate-limit' || err.kind === 'network';
+  // 'parse' = the model's output didn't parse (e.g. DeepSeek-flash emitting tool
+  // args with an unescaped inner quote). That's a STOCHASTIC glitch — a fresh
+  // sample almost always parses — so re-sampling is the right move (this is the
+  // "retry layer handles that class" the deepseek provider's repair note assumes).
+  // A genuine schema-mismatch is rare here and bounded to maxAttempts; worth it.
+  return err.kind === 'rate-limit' || err.kind === 'network' || err.kind === 'parse';
 }

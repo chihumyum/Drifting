@@ -2443,6 +2443,109 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   return out;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// /goal 一键演化 — element-scoped evolve-critic substrate (shadow/GOAL-EVOLVE.md §4).
+//
+// Reuses the EXACT FC judge wiring (chapter blocks → shadow client → read tools →
+// effective-canon-aware runTool → evaluateSemanticAssertionsFC) but the CRITERION
+// is injected by the caller (lib/goal/evolve-critic) as a bespoke assertion +
+// judgingGuide — NOT the project's review rules. "Shared substrate, forked
+// criterion": coupling the loop to all rules would never converge (an unrelated
+// pre-existing violation would keep a chapter red forever). No traceShadow / job
+// state / changedDeps here — this runs OUTSIDE a shadow_job, driven by the renderer
+// orchestrator. Returns one SemanticViolation[] per assertion, aligned by index.
+// Build the pre-loaded canon block for a targeted critic: the element's FULL
+// current content (name/aliases/summary/facts/body, from live Yjs) + its patches
+// effective for THIS chapter (timeline-filtered). Injected so the evolve critic
+// needn't spend a read_element + get_element_patches round per chapter.
+async function buildPreloadedElementCanon(
+  ctx: AgentToolContext,
+  chapterId: string,
+  elementId: string,
+): Promise<string | undefined> {
+  const el = useDataStore
+    .getState()
+    .bookElements.find((e) => e.id === elementId && e.projectId === ctx.projectId);
+  if (!el) return undefined;
+  const lines: string[] = [`设定《${el.name}》当前内容：`];
+  if (el.aliases.length) lines.push(`别名：${el.aliases.join('、')}`);
+  if (el.summary?.trim()) lines.push(`简介：${el.summary.trim()}`);
+  const facts = parseKv(el.kvJson).filter((kv) => kv.key.trim() || kv.value.trim());
+  if (facts.length) lines.push(`字段：\n${facts.map((kv) => `  - ${kv.key}：${kv.value}`).join('\n')}`);
+  const body = docToPlainText(await getElementContentJson(elementId)).trim();
+  if (body) lines.push(`正文设定：\n${body}`);
+  // Timeline-filtered patches (later-chapter evolutions are withheld, same as the tool).
+  const patches = await shadowEffectivePatchesText(ctx, chapterId, { element: elementId });
+  lines.push(`对本章已生效的演化记录(patch)：\n${patches.content}`);
+  return lines.join('\n');
+}
+
+export async function runEvolveCriticBatch(
+  ctx: AgentToolContext,
+  chapterId: string,
+  assertions: string[],
+  judgingGuide: string,
+  // The element under evolution. When given, its full profile + this-chapter
+  // effective patches are pre-loaded into context so the judge skips the lookups.
+  preloadElementId?: string,
+  signal?: AbortSignal,
+  onTrace?: (step: AgenticTraceStep) => void,
+): Promise<SemanticViolation[][]> {
+  const s = useDataStore.getState();
+  const node = s.bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+  if (!node) throw new Error(`runEvolveCriticBatch: no chapter "${chapterId}"`);
+  if (assertions.length === 0) return [];
+  const blocks = await shadowChapterBlocks(chapterId);
+  if (blocks.length === 0) return assertions.map(() => []);
+
+  // Same warm-start grounding as a review, but the policy is the evolve criterion
+  // (judgingGuide) — no rules, no dep-hint/exceptions/memories. Plus the pre-loaded
+  // element canon so the judge compares directly instead of fetching.
+  const preloadedCanon = preloadElementId
+    ? await buildPreloadedElementCanon(ctx, chapterId, preloadElementId)
+    : undefined;
+  const context: SemanticEvalContext = {
+    summary: node.summary ?? '',
+    ...(await buildWarmStart(ctx, node, blocks)),
+    ...(preloadedCanon ? { preloadedCanon } : {}),
+    judgingGuide,
+  };
+
+  let judgeModel = resolveShadowModel().model;
+  try {
+    ensureShadowModelRoutable(judgeModel);
+  } catch {
+    judgeModel = SHADOW_TIER_MODEL.standard;
+  }
+
+  const client = await buildShadowClient({ logTag: 'goal:evolve-critic' });
+  if (client.supportsTools) {
+    return evaluateSemanticAssertionsFC(
+      assertions,
+      blocks,
+      ctx.projectId,
+      context,
+      client,
+      toAITools(AGENT_READ_TOOLS),
+      makeShadowRunTool(ctx, chapterId),
+      signal,
+      onTrace,
+      (usage) => recordShadowUsage('goal:evolve-critic', judgeModel, usage),
+      judgeModel,
+    );
+  }
+  // No tool loop on this transport → the menu-driven agentic judge (still effective-
+  // canon aware via element_evolution), one assertion at a time.
+  const provider = buildShadowEvidenceProvider(ctx, chapterId);
+  const out: SemanticViolation[][] = [];
+  for (const assertion of assertions) {
+    out.push(
+      await evaluateSemanticAssertionAgentic(assertion, blocks, ctx.projectId, context, provider, signal, onTrace),
+    );
+  }
+  return out;
+}
+
 async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {
   const chapterId = String(args.chapterId ?? '');
   const stale = useDataStore

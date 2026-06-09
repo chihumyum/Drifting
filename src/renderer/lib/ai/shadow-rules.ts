@@ -121,6 +121,11 @@ export interface SemanticEvalContext {
   // vetoes / directives), already kind-labelled. Advisory background the judge
   // weighs but does not contradict.
   memories?: string[];
+  // Pre-loaded canon for a TARGETED critic (e.g. /goal evolve): the element's full
+  // current content + its effective patches for THIS chapter, injected so the judge
+  // need not spend a read_element / get_element_patches round. Only the evolve critic
+  // sets this; the normal rule judge leaves it undefined (and fetches on demand).
+  preloadedCanon?: string;
 }
 
 // One changed-canon pointer forwarded to the judge. `fact` = which field moved;
@@ -167,6 +172,11 @@ function buildBackground(context?: SemanticEvalContext): string {
       '【作者长期约定（参考）】作者保存的偏好/否决/指令，审阅时纳入考量、不要与之对着干：\n' +
         memories.map((m) => `- ${m.trim()}`).join('\n'),
     );
+  }
+  // Pre-loaded canon (evolve critic): the full element + its in-effect patches are
+  // handed up front so the judge compares directly instead of fetching them.
+  if (context?.preloadedCanon?.trim()) {
+    lines.push(`【已提供的设定全文与对本章生效的演化记录（直接据此核对，无需再查）】\n${context.preloadedCanon.trim()}`);
   }
   return lines.length > 0 ? lines.join('\n') : '（无额外背景）';
 }

@@ -22,6 +22,7 @@ import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
 import { ArcSection } from '../components/editor/ArcSection';
+import { EvolveSection } from '../components/editor/EvolveSection';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -654,6 +655,9 @@ export function ElementEditorView({
             )}
             {elementId && projectId && (
               <ArcSection elementId={elementId} projectId={projectId} />
+            )}
+            {elementId && projectId && (
+              <EvolveSection elementId={elementId} projectId={projectId} />
             )}
           </article>
           {marginNotes && (

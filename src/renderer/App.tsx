@@ -34,6 +34,7 @@ import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
 import { useAgentToolBridge } from './lib/agent/useAgentToolBridge';
+import './lib/goal/dev-harness'; // /goal 演化 first-slice smoke: mounts window.__goalEvolve (GOAL-EVOLVE.md §12)
 import { EditorFindPanel } from './components/search/EditorFindPanel';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { AgentConfirmDialog } from './components/agent/AgentConfirmDialog';
