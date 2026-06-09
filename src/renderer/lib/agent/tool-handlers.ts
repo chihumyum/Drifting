@@ -406,7 +406,7 @@ function proseEntityResult(entityType: ProseEntityType, id: string): Record<stri
 /**
  * The structural entities (elements / nodes / storylines …) a chapter references
  * in its prose, deduped by `${kind}:${id}`. Derived from the inline-mention
- * projection. Shared by read_node and get_node_context.
+ * projection. Used by read_node's header.
  */
 async function listChapterReferences(
   s: DataState,
@@ -424,28 +424,23 @@ async function listChapterReferences(
   return references;
 }
 
-async function readChapter(ctx: AgentToolContext, nodeId: string) {
+async function readChapter(ctx: AgentToolContext, nodeId: string, includeProse = true) {
   const s = useDataStore.getState();
   const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
   if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
-  const content = await createBookContentRepository().findByNodeId(nodeId);
-  // Read the live Yjs truth (what the editor shows), not just the contentJson
-  // cache, so the numbering the agent edits against matches the open editor.
-  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
-  const blocks = docToBlocks(truthJson);
   // Compact numbered rendering — the leading number is the handle for edit_block.
   const header = `${node.kind} "${node.title}" · ${node.writingStatus} · ${node.wordCount}字`;
   const summaryLine = `summary: ${node.summary || '(none)'}`;
   // Which elements/entities appear in this chapter (recorded inline mentions),
-  // so the agent has context without a separate get_node_context call.
+  // surfaced inline so the chapter's graph context rides along with its prose.
   const refs = await listChapterReferences(s, nodeId);
   // Names are project-unique, so list appearances by name+kind (no long ids).
   const appearsLine = refs.length
     ? `appears: ${refs.map((r) => `${r.label} (${r.kind})`).join(', ')}`
     : 'appears: (none recorded)';
   // Structural context inline (storylines + curated relations) so read_node is
-  // self-sufficient — the agent needn't call get_node_context first just to know
-  // what a chapter connects to before reading/editing it. Both are cheap
+  // self-sufficient — the agent knows what a chapter connects to before
+  // reading/editing it (and prose:false yields just this header). Both are cheap
   // in-memory store reads; lines are omitted when empty (drifts stay identical).
   const storylineIds = s.nodeStorylineMapping[nodeId] ?? [];
   const storylineLine = storylineIds.length
@@ -466,10 +461,18 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
       .map((r) => `${entityLabel(s, r.fromKind, r.fromId)} (${r.fromKind}) → ${r.kind || 'related'}`),
   ];
   const relationsLine = relParts.length ? `relations: ${relParts.join(', ')}` : null;
-  const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   const head = [header, summaryLine, appearsLine, storylineLine, relationsLine]
     .filter(Boolean)
     .join('\n');
+  // prose:false → header-only triage view; skip the (potentially expensive) live
+  // Yjs read entirely. read_node(prose:false) replaces the old get_node_context.
+  if (!includeProse) return head;
+  // Read the live Yjs truth (what the editor shows), not just the contentJson
+  // cache, so the numbering the agent edits against matches the open editor.
+  const content = await createBookContentRepository().findByNodeId(nodeId);
+  const truthJson = await getChapterContentJson(nodeId, content?.contentJson ?? null);
+  const blocks = docToBlocks(truthJson);
+  const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${head}\n\n${body}`;
 }
 
@@ -480,11 +483,15 @@ async function readChapter(ctx: AgentToolContext, nodeId: string) {
  * count / inline-mention projection, so emitting those lines would be misleading.
  */
 async function readEntityBlocks(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const includeProse = args.prose !== false;
   const { entityType, id } = resolveProseTarget(ctx, args);
-  if (entityType === 'node') return readChapter(ctx, id);
+  if (entityType === 'node') return readChapter(ctx, id, includeProse);
+  const label = entityLabel(useDataStore.getState(), entityType, id);
+  // element/storyline/category bodies carry no header — prose:false leaves just
+  // the label line (no graph context to surface like a chapter has).
+  if (!includeProse) return `${entityType} "${label}"`;
   const truthJson = await getEntityContentJson(entityType, id);
   const blocks = docToBlocks(truthJson);
-  const label = entityLabel(useDataStore.getState(), entityType, id);
   const body = blocks.length ? blocksToCompactText(blocks) : '(empty)';
   return `${entityType} "${label}"\n\n${body}`;
 }
@@ -538,54 +545,6 @@ function searchProject(ctx: AgentToolContext, query: string) {
     if (sl.name.toLowerCase().includes(q)) matches.push({ kind: 'storyline', label: sl.name });
   }
   return { matches };
-}
-
-/**
- * Resolve an entity NAME to its id (exact, case-insensitive) so the agent can
- * address entities by name instead of long uuids. Names are kept project-unique
- * per kind (#11), so this normally returns one id; if a name still collides
- * (e.g. legacy duplicates) it returns `ambiguous` rather than guessing.
- */
-function resolveEntity(ctx: AgentToolContext, args: Record<string, unknown>) {
-  const kind = String(args.kind ?? '').trim();
-  const name = String(args.name ?? '').trim().toLowerCase();
-  if (!name) throw new Error('resolve_entity requires a name');
-  const s = useDataStore.getState();
-  const matches: Array<{ kind: string; id: string; label: string }> = [];
-  const wantNode = !kind || kind === 'node' || kind === 'chapter' || kind === 'drift';
-
-  if (!kind || kind === 'element') {
-    for (const e of s.bookElements) {
-      if (e.projectId !== ctx.projectId) continue;
-      if ([e.name, ...e.aliases].some((n) => n.trim().toLowerCase() === name)) {
-        matches.push({ kind: 'element', id: e.id, label: e.name });
-      }
-    }
-  }
-  if (wantNode) {
-    for (const n of s.bookNodes) {
-      if (n.projectId !== ctx.projectId) continue;
-      if (n.title.trim().toLowerCase() === name) matches.push({ kind: n.kind, id: n.id, label: n.title });
-    }
-  }
-  if (!kind || kind === 'storyline') {
-    for (const sl of s.storylines) {
-      if (sl.projectId !== ctx.projectId) continue;
-      if (sl.name.trim().toLowerCase() === name) matches.push({ kind: 'storyline', id: sl.id, label: sl.name });
-    }
-  }
-  if (!kind || kind === 'category') {
-    for (const c of s.bookElementCategories) {
-      if (c.projectId !== ctx.projectId) continue;
-      if (c.name.trim().toLowerCase() === name) matches.push({ kind: 'category', id: c.id, label: c.name });
-    }
-  }
-
-  if (matches.length === 0) return { found: false, matches: [] };
-  if (matches.length === 1) {
-    return { found: true, id: matches[0].id, kind: matches[0].kind, label: matches[0].label };
-  }
-  return { found: true, ambiguous: matches };
 }
 
 // ---- Relational / context reads (point → surface) --------------------------
@@ -808,58 +767,6 @@ function getStoryline(ctx: AgentToolContext, storylineId: string) {
     .filter((x): x is NonNullable<typeof x> => x !== null)
     .sort((a, b) => (a.bookOrder ?? 0) - (b.bookOrder ?? 0));
   return { name: sl.name, summary: sl.summary, facts: parseKv(sl.kvJson), chapters };
-}
-
-/**
- * Cheap "what is this chapter about + what it connects to" — summary, rolling
- * block-section summaries, referenced elements, storylines and relations —
- * WITHOUT pulling the full prose. Call this before read_node.
- */
-async function getChapterContext(ctx: AgentToolContext, nodeId: string) {
-  if (!nodeId) throw new Error('get_node_context requires node');
-  const s = useDataStore.getState();
-  const node = s.bookNodes.find((n) => n.id === nodeId && n.projectId === ctx.projectId);
-  if (!node) throw new Error(`No chapter/node found with id "${nodeId}"`);
-
-  const storylineIds = s.nodeStorylineMapping[nodeId] ?? [];
-  const storylines = storylineIds.map((id) => ({
-    name: entityLabel(s, 'storyline', id),
-    primary: s.primaryStorylineByNode[nodeId] === id,
-  }));
-  const rollingSummaries = s.blockSections
-    .filter((b) => b.chapterId === nodeId)
-    .map((b) => b.summary)
-    .filter(Boolean);
-
-  // Elements (and other structural entities) this node references in prose, by name.
-  const references = (await listChapterReferences(s, nodeId)).map((r) => ({
-    kind: r.kind,
-    name: r.label,
-  }));
-
-  const rels = s.entityRelations.filter((r) => r.projectId === ctx.projectId);
-  const relations = [
-    ...rels
-      .filter((r) => r.fromKind === 'node' && r.fromId === nodeId)
-      .map((r) => ({ dir: 'out' as const, relation: r.kind, kind: r.toKind, name: entityLabel(s, r.toKind, r.toId) })),
-    ...rels
-      .filter((r) => r.toKind === 'node' && r.toId === nodeId)
-      .map((r) => ({ dir: 'in' as const, relation: r.kind, kind: r.fromKind, name: entityLabel(s, r.fromKind, r.fromId) })),
-  ];
-
-  return {
-    title: node.title,
-    kind: node.kind,
-    summary: node.summary,
-    wordCount: node.wordCount,
-    writingStatus: node.writingStatus,
-    bookOrder: node.bookOrder,
-    narrativeOrder: node.narrativeOrder,
-    storylines,
-    rollingSummaries,
-    references,
-    relations,
-  };
 }
 
 /** Full-text search over chapter/drift prose and element bodies, with snippets. */
@@ -1881,9 +1788,9 @@ const shadowConsultedByChapter = new Map<string, Map<string, ShadowConsultedRef>
 
 // Which specific canon entity (if any) a read-tool call consulted. Only the tools
 // that read ONE named entity's content count — broad discovery/scan calls
-// (search_*, list_*, get_project_brief, where_does_entity_appear, resolve_entity)
-// are deliberately excluded: they aren't a dependency on a particular entity, so
-// folding them in would re-inflate the edge set back toward mention-level noise.
+// (search_*, list_*, get_project_brief, where_does_entity_appear) are deliberately
+// excluded: they aren't a dependency on a particular entity, so folding them in
+// would re-inflate the edge set back toward mention-level noise.
 function consultedRefFor(
   ctx: AgentToolContext,
   name: string,
@@ -1899,9 +1806,6 @@ function consultedRefFor(
     } else if (name === 'read_element' || name === 'get_element_patches') {
       kind = 'element';
       id = resolveRef(ctx, 'element', String(cleanArgs.element ?? cleanArgs.elementId ?? ''));
-    } else if (name === 'get_node_context') {
-      kind = 'node';
-      id = resolveRef(ctx, 'node', String(cleanArgs.node ?? cleanArgs.chapter ?? cleanArgs.nodeId ?? ''));
     } else if (name === 'get_storyline') {
       kind = 'storyline';
       id = resolveRef(ctx, 'storyline', String(cleanArgs.storyline ?? cleanArgs.storylineId ?? ''));
@@ -2536,8 +2440,6 @@ export async function runAgentTool(
       return readElement(ctx, String(args.elementId ?? ''));
     case 'search_project':
       return searchProject(ctx, String(args.query ?? ''));
-    case 'resolve_entity':
-      return resolveEntity(ctx, args);
     // relational / context reads (point → surface)
     case 'get_overview':
       return getOverview(ctx);
@@ -2549,8 +2451,6 @@ export async function runAgentTool(
       return getEntityRelations(ctx, args);
     case 'get_storyline':
       return getStoryline(ctx, String(args.storylineId ?? ''));
-    case 'get_node_context':
-      return getChapterContext(ctx, String(args.nodeId ?? ''));
     case 'search_prose':
       return searchProse(ctx, args);
     case 'get_element_patches':

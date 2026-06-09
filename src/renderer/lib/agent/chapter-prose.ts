@@ -66,7 +66,7 @@ function setBlockText(el: Y.XmlElement, text: string): void {
  * Re-derive entityLink marks on the given just-edited blocks. The agent writes
  * blocks as PLAIN text, so without this an edit silently strips the inline
  * @-mention marks the inline-mention projection — and where_does_entity_appear /
- * get_node_context — read. Mirrors the editor's auto-detect (same registered
+ * read_node — read. Mirrors the editor's auto-detect (same registered
  * targets), idempotent (re-formatting the same span is a no-op). Must run INSIDE
  * the agent transaction so the marks land with the edit. Each touched block is
  * plain text at this point (just written), so positions align with the string.

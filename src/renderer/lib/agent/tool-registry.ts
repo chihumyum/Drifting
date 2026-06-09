@@ -64,26 +64,15 @@ export const AGENT_READ_TOOLS: RegisteredTool[] = [
     access: 'read',
   },
   {
-    name: 'get_node_context',
-    description:
-      '章节/drift 的廉价概览(不含全文正文):标题、梗概、字数、状态、滚动小节摘要、它引用的元素、所属故事线、关系(都按名)。先调它,真需要再 read_node。',
-    parametersSchema: {
-      type: 'object',
-      properties: { node: str('章节或 drift 名') },
-      required: ['node'],
-      additionalProperties: false,
-    },
-    access: 'read',
-  },
-  {
     name: 'read_node',
     description:
-      '把一段正文读成按段编号的紧凑列表(每段一行 `<n>\\t<text>`)。章节/drift 还会带标题/状态/字数表头、梗概、appears 行。读元素/故事线/类目正文则设 kind。',
+      '把一段正文读成按段编号的紧凑列表(每段一行 `<n>\\t<text>`)。章节/drift 还会带标题/状态/字数表头、梗概、appears、所属故事线、关系行。传 prose:false 只取该表头(不含正文)——廉价地浏览一章的梗概/关系而不拉全文。读元素/故事线/类目正文则设 kind。',
     parametersSchema: {
       type: 'object',
       properties: {
         node: str('章节/drift 名(或元素/故事线/类目名,配合 kind)'),
         kind: str('element / storyline / category 时读对应正文;省略=章节/drift'),
+        prose: { type: 'boolean', description: '是否含正文(默认 true);传 false 只取表头概览' },
       },
       required: ['node'],
       additionalProperties: false,
@@ -154,20 +143,6 @@ export const AGENT_READ_TOOLS: RegisteredTool[] = [
       type: 'object',
       properties: { query: str('要检索的文本') },
       required: ['query'],
-      additionalProperties: false,
-    },
-    access: 'read',
-  },
-  {
-    name: 'resolve_entity',
-    description: '把一个名字消歧/取回底层 id(返回 {found,id,kind,label} 或 {ambiguous:[…]})。一般用不到。',
-    parametersSchema: {
-      type: 'object',
-      properties: {
-        name: str('实体确切名称'),
-        kind: str('限定类型 element/node/storyline/category(可选)'),
-      },
-      required: ['name'],
       additionalProperties: false,
     },
     access: 'read',

@@ -519,9 +519,7 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'Gather context by TRAVERSING the graph instead of reading every node: ' +
           'where_does_entity_appear (all scenes mentioning a character/place/item), ' +
           'get_entity_relations (curated story-graph edges, both directions), ' +
-          'get_storyline (a storyline + its chapters), get_node_context (prose-FREE node overview ' +
-          "for triaging chapters — read_node already includes a chapter's summary, referenced " +
-          'elements, storylines and relations inline, so you need not call this before reading), ' +
+          'get_storyline (a storyline + its chapters), ' +
           'get_element_patches (how an element evolves), list_comments (editorial notes). ' +
           'Search with search_project (titles/names) or search_prose (inside the prose, with snippets). ' +
           'Entity reference args are NAMES (project-unique) — never ids: pass the entity by name via ' +
@@ -529,8 +527,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           'e.g. read_node({node:"第三章"}), update_element({element:"林夏"}). Tool RESULTS are by name ' +
           'too. The only opaque handles are for things with no name — blockId (prose blocks), ' +
           'commentId, relationId, patchId — and you only ever copy those back from the read tool ' +
-          'that returned them. resolve_entity is a rarely-needed fallback for an ambiguous name. ' +
-          'Read full detail only when needed: read_node, read_element. ' +
+          'that returned them. If a name is ambiguous a tool errors and lists the matching ids — ' +
+          'pass one of those ids instead. ' +
+          'Read full detail only when needed: read_node (pass prose:false for a header-only ' +
+          'overview when triaging a chapter without its full text), read_element. ' +
           'You can also edit: update_element (incl. category to recategorize, facts to set ' +
           'structured kv), create_element, rename_node, set_node_summary, edit_block (replace ' +
           'one prose block by its number from read_node; use edit_blocks for several blocks ' +

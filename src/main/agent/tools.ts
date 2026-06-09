@@ -63,8 +63,14 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'read_node',
-        "Read a prose body as a compact numbered list, one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote); pass the leading number <n> to edit_block (and to the structural tools). For a chapter/drift node it also prefixes the chapter's context inline — a header line (title · status · words), `summary:`, `appears:` (elements mentioned), and, when present, `storylines:` and `relations:` — so you normally do NOT need a separate get_node_context call before reading/editing. Set `kind` to read an element / storyline / category body instead (body-only, no header).",
-        { ...proseTarget },
+        "Read a prose body as a compact numbered list, one block per line as `<n>\\t<text>` (non-paragraph blocks prefixed by type, e.g. '# ' heading, '> ' quote); pass the leading number <n> to edit_block (and to the structural tools). For a chapter/drift node it also prefixes the chapter's context inline — a header line (title · status · words), `summary:`, `appears:` (elements mentioned), and, when present, `storylines:` and `relations:`. Pass `prose:false` to get JUST that header (no body) — the cheap way to TRIAGE a chapter's summary/appears/storylines/relations without pulling its full text. Set `kind` to read an element / storyline / category body instead (body-only, no header).",
+        {
+          ...proseTarget,
+          prose: z
+            .boolean()
+            .optional()
+            .describe('Include the prose body (default true); pass false for a prose-free, header-only overview'),
+        },
         (args) => run('read_node', args),
       ),
       tool(
@@ -78,18 +84,6 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         'Fast metadata search across chapter/drift titles, element names/summaries/aliases, and storyline names (no prose body). Returns matching {kind, label} where label is the (unique) name — pass it straight to the read/edit tools. For searching inside prose text use search_prose.',
         { query: z.string().describe('Text to search for') },
         (args) => run('search_project', args),
-      ),
-      tool(
-        'resolve_entity',
-        'LEGACY/rarely needed — every tool already addresses entities BY NAME, so you normally never call this. Use it only to disambiguate a name you suspect is duplicated (returns {ambiguous:[…]}), or to recover the underlying id of a named entity. Returns {found:true,id,kind,label} on a single match, {found:false} on none.',
-        {
-          name: z.string().describe('The exact entity name/title'),
-          kind: z
-            .string()
-            .optional()
-            .describe('Restrict to a kind: element / node (chapter|drift) / storyline / category'),
-        },
-        (args) => run('resolve_entity', args),
       ),
       // ---- relational / context reads (traverse the graph, don't brute-force) ----
       tool(
@@ -129,12 +123,6 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         "A storyline's summary, key/value facts, and its member chapters in reading order (with which one is primary).",
         { storyline: z.string().describe('Storyline NAME (or id)') },
         (args) => run('get_storyline', args),
-      ),
-      tool(
-        'get_node_context',
-        "Prose-FREE overview of a chapter/drift node: title, summary, word count, status, rolling block-section summaries, referenced elements, storylines, and relations (all by name). Use it to TRIAGE/scan many chapters cheaply without pulling prose. NOT a required pre-step for read_node — read_node already includes summary/appears/storylines/relations inline, so go straight to it when you're going to read the chapter anyway. (Only get_node_context adds the rolling block-section summaries.)",
-        { node: z.string().describe('Node NAME (chapter or drift)') },
-        (args) => run('get_node_context', args),
       ),
       tool(
         'search_prose',
@@ -434,7 +422,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- summary (reverse-generate: read the content yourself, then write) ----
       tool(
         'set_summary',
-        "Write a summary onto an entity. To (re)generate a summary, read the content first (get_node_context / read_node / read_element) then call this. targetKind is node (chapter/drift) / element / storyline.",
+        "Write a summary onto an entity. To (re)generate a summary, read the content first (read_node / read_element) then call this. targetKind is node (chapter/drift) / element / storyline.",
         {
           targetKind: z.string().describe('node / element / storyline'),
           target: z.string().describe('Target entity NAME'),

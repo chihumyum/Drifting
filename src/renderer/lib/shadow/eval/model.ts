@@ -131,8 +131,7 @@ export function makeModelRunTool(project: EvalProject, searchProse?: ProseSearch
           ? { content: renderElement(e), status: 'ok' }
           : { content: `（eval：无设定「${ref}」）`, status: 'denied', note: '未知设定' };
       }
-      case 'read_node':
-      case 'get_node_context': {
+      case 'read_node': {
         const kind = String(args.kind ?? 'node');
         if (kind === 'element') {
           const e = elByName.get(ref);

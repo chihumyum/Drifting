@@ -38,7 +38,6 @@ export interface ToolEntityRef {
 const ARG_TOOLS: Record<string, { entityType: ActivityEntityType; op: ActivityOp }> = {
   // node (chapter / drift)
   read_node: { entityType: 'node', op: 'read' },
-  get_node_context: { entityType: 'node', op: 'read' },
   read_block: { entityType: 'node', op: 'read' },
   lookup_block: { entityType: 'node', op: 'read' },
   rename_node: { entityType: 'node', op: 'write' },

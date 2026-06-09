@@ -92,7 +92,7 @@ export interface SemanticEvalContext {
   storyline?: { name?: string; summary?: string; facts?: Record<string, string> };
   // Chapter IDENTITY — so the judge KNOWS which node it is reviewing and can
   // address it by name with the read tools, instead of guessing node titles
-  // (`get_node_context 未知章节`) or re-searching the project for its own prose.
+  // (`read_node 未知章节`) or re-searching the project for its own prose.
   identity?: { title: string; kind: 'chapter' | 'drift'; position?: string };
   // Warm-start hints so deep rules don't burn rounds rediscovering the obvious:
   // who's actually on stage (prose-scanned, NOT just linked mentions — bare-name
@@ -482,7 +482,7 @@ export async function evaluateSemanticAssertionAgentic(
 // Function-calling (FC) semantic judge — the freer cousin of the Path-A loop.
 //
 // On an OpenAI-compatible substrate that supports a real tool loop, the judge
-// gets the project's READ tools (read_element, search_prose, get_node_context,
+// gets the project's READ tools (read_element, search_prose, read_node,
 // …) and calls whatever it needs, in any order, with free arguments — then calls
 // the terminal `submit_verdicts` tool to rule. We (the harness) execute each tool,
 // thread results back as tool messages, and enforce guardrails: a hard cap on
