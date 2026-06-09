@@ -219,6 +219,75 @@
   flex-shrink: 0;
 }
 
+/* ---- manage-memory submenu rows ----------------------------------------- */
+.agt-menu__row--empty {
+  justify-content: center;
+}
+.agt-mem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+}
+.agt-mem:hover {
+  background: hsl(var(--ink-1) / 0.06);
+}
+.agt-mem__main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.agt-mem__kind {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: hsl(var(--ink-3));
+  background: hsl(var(--ink-1) / 0.07);
+}
+.agt-mem__kind--veto {
+  color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.1);
+}
+.agt-mem__kind--directive {
+  background: hsl(var(--ink-1) / 0.1);
+}
+.agt-mem__body {
+  min-width: 0;
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agt-mem__acts {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.agt-mem__btn {
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.agt-mem__btn:hover {
+  background: hsl(var(--ink-1) / 0.1);
+  color: hsl(var(--ink-1));
+}
+.agt-mem__btn--del:hover {
+  color: hsl(0 70% 55%);
+}
+
 /* ---- inline controls inside the menu ------------------------------------- */
 
 /* effort: a 5-dot strength meter (low→max) */

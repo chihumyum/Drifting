@@ -1,13 +1,19 @@
 // Comments are the single home for {block-anchored notes, chapter-anchored
 // TODOs, floating TODOs, AI suggestions}. `kind` distinguishes 'note' (the
-// classic Word-style marginal annotation) from 'todo' (surfaces in the
-// right-sidebar TODO list and is what agent pipelines consume). target_* are
-// nullable so a comment can sit at block / chapter / nowhere — see drizzle.ts
-// for the anchor matrix.
+// classic Word-style marginal annotation), 'todo' (surfaces in the
+// right-sidebar TODO list and is what agent pipelines consume), and 'exception'
+// (a manual, block-anchored "this is intentional" the author writes for the
+// Shadow review engine to read as context — so it doesn't re-flag the passage).
+// target_* are nullable so a comment can sit at block / chapter / nowhere — see
+// drizzle.ts for the anchor matrix.
 import type { CommentTargetKind } from './entity-kinds';
 export type { CommentTargetKind };
 
-export type CommentKind = 'note' | 'todo';
+// 'exception' is kind-only (no migration — `kind` is unconstrained text). It is
+// meaningful on manual comments (source='manual'); Shadow reads these to know a
+// flagged-looking passage is deliberate. See agent-memory.ts for the un-anchored
+// counterpart (standing directives live in memory, not comments).
+export type CommentKind = 'note' | 'todo' | 'exception';
 export type CommentStatus = 'open' | 'resolved' | 'converted';
 export type CommentAuthorKind = 'user' | 'ai' | 'copilot' | 'external';
 export type CommentSource = 'manual' | 'shadow' | 'copilot' | 'api';

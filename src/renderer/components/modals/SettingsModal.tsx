@@ -44,6 +44,12 @@ import {
   createAgentConversationRepository,
   type AgentConversationUsage,
 } from '../../sqlite-repo/agent-conversation-repo';
+import {
+  listLiveMemories,
+  setMemoryStatus,
+  softDeleteMemory,
+} from '../../usecase/useAgentMemory';
+import type { AgentMemory } from '../../domain/agent-memory';
 import { createAiUsageRepository, type AiUsageSummary } from '../../sqlite-repo/ai-usage-repo';
 import { authClient } from '../../lib/auth-client';
 import { TrashPanel } from '../TrashPanel';
@@ -2751,6 +2757,145 @@ const fmtConvTime = (iso: string): string => {
   }
 };
 
+// Author-facing management of the agent's saved memories (preferences / vetoes /
+// directives — see domain/agent-memory). The fuller surface vs the agt-menu mini
+// list: view + approve a pending memory + delete. Open-gated load like the usage
+// section; all setState in async callbacks (clear of set-state-in-effect).
+function AgentMemorySection({ open }: { open: boolean }) {
+  const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
+  const [memories, setMemories] = useState<AgentMemory[]>([]);
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    void listLiveMemories(projectId)
+      .then((rows) => {
+        if (!cancelled) setMemories(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setMemories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  const reload = () => {
+    if (!projectId) return;
+    void listLiveMemories(projectId)
+      .then(setMemories)
+      .catch(() => setMemories([]));
+  };
+
+  // Hide dismissed (retired/superseded); show active + pending.
+  const visible = memories.filter((m) => m.status !== 'dismissed');
+
+  const kindLabel = (k: AgentMemory['kind']) =>
+    k === 'veto' ? '否决' : k === 'directive' ? '指令' : '偏好';
+
+  const approve = (id: string) => {
+    if (!projectId) return;
+    void setMemoryStatus(projectId, id, 'active').then(reload);
+  };
+  const remove = (id: string) => {
+    if (!projectId) return;
+    if (!window.confirm('删除这条记忆？将不再影响后续对话与审阅。')) return;
+    void softDeleteMemory(projectId, id).then(reload);
+  };
+
+  return (
+    <div className="set-sec">
+      <SecHead title="记忆" hint="MEMORY" />
+      <p className="set-panel__sub" style={{ marginTop: -2, marginBottom: 12 }}>
+        Agent 保存的长期指引——写作偏好、已否决的提案、对内容的指令。会注入到后续对话，并供 Shadow
+        审阅参考；只有「生效」的条目才起作用。在对话里让 Agent 记住某事、确认后即出现在这里。
+      </p>
+      {visible.length === 0 ? (
+        <div
+          style={{
+            border: '1px dashed hsl(var(--rule))',
+            borderRadius: 5,
+            padding: '16px',
+            color: 'hsl(var(--ink-4))',
+            fontSize: 12.5,
+          }}
+        >
+          暂无记忆。
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {visible.map((m) => {
+            const pending = m.status === 'pending';
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  border: '1px solid hsl(var(--rule))',
+                  borderRadius: 5,
+                  background: 'hsl(var(--surface))',
+                  padding: '10px 12px',
+                }}
+              >
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9.5,
+                    letterSpacing: '0.04em',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    marginTop: 1,
+                    color:
+                      m.kind === 'veto' ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
+                    background:
+                      m.kind === 'veto'
+                        ? 'hsl(var(--accent) / 0.1)'
+                        : 'hsl(var(--ink-1) / 0.07)',
+                  }}
+                >
+                  {kindLabel(m.kind)}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: 'hsl(var(--ink-1))', lineHeight: 1.5 }}>
+                    {m.body}
+                  </div>
+                  {pending && (
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9.5,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: 'hsl(var(--accent))',
+                        marginTop: 4,
+                      }}
+                    >
+                      待批准
+                    </div>
+                  )}
+                </div>
+                <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+                  {pending && (
+                    <button className="set-btn" onClick={() => approve(m.id)}>
+                      批准
+                    </button>
+                  )}
+                  <button className="set-btn set-btn--danger" onClick={() => remove(m.id)}>
+                    删除
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgentUsageSection({ open }: { open: boolean }) {
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [rows, setRows] = useState<AgentConversationUsage[]>([]);
@@ -3166,6 +3311,8 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
           }
         />
       </div>
+
+      <AgentMemorySection open={open} />
 
       <AgentUsageSection open={open} />
     </section>

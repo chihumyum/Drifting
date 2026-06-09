@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Eye, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, Eye, EyeOff, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
   commentBelongsToEntity,
@@ -694,6 +694,7 @@ export function CommentRail({
     const colorKey = commentColorKey(comment);
     const isCopilot = comment.source === 'copilot';
     const isTodo = comment.kind === 'todo';
+    const isException = comment.kind === 'exception';
     const isResolved = comment.status === 'resolved';
     const isOrphan = orphanIds.has(comment.id);
     const busy = busyId === comment.id;
@@ -860,6 +861,41 @@ export function CommentRail({
               <span>转 TODO</span>
             </button>
           )}
+          {/* Manual comments can be marked as a Shadow 'exception' — an author
+              "this is intentional" the review engine reads so it won't re-flag
+              the passage. Only on manual rows (not shadow/copilot). */}
+          {comment.source === 'manual' &&
+            (isException ? (
+              <button
+                type="button"
+                className="mnote__btn mnote__btn--ghost"
+                disabled={busy}
+                title="取消例外标记"
+                onClick={() =>
+                  void runAction(comment.id, () =>
+                    commentUsecases.setCommentKind(comment.id, 'note'),
+                  )
+                }
+              >
+                <EyeOff size={12} />
+                <span>取消例外</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="mnote__btn"
+                disabled={busy}
+                title="标为例外：Shadow 审阅时把这段视为有意，不再报错"
+                onClick={() =>
+                  void runAction(comment.id, () =>
+                    commentUsecases.setCommentKind(comment.id, 'exception'),
+                  )
+                }
+              >
+                <EyeOff size={12} />
+                <span>标为例外</span>
+              </button>
+            ))}
           <button
             type="button"
             className="mnote__btn"

@@ -409,6 +409,42 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         },
         (args) => run('update_project_facts', args),
       ),
+      // ---- agent memory (author-level standing guidance the agent persists) ----
+      tool(
+        'remember',
+        "Persist a STANDING piece of author-level guidance so it steers future turns (and the Shadow review engine). Use for: a personal writing PREFERENCE the author states ('对话尽量短句'), a VETO ('写死配角 X 的提案已否, 别再提'), or a DIRECTIVE about how to treat content ('梦境章节不用考虑物理合理性'). NOT for story-world facts (use update_element / facts / patches), NOT for book-level governing KV like 文风/POV/字数 (use update_project_facts), and NOT for an anchored 'THIS passage is intentional' note (use create_comment). The author is asked to confirm before it is saved. Returns { memoryId }.",
+        {
+          kind: z
+            .string()
+            .describe("'preference' (personal style/working pref) | 'veto' (a rejected proposal) | 'directive' (standing instruction on how to treat content)"),
+          body: z.string().describe('The memory text — one self-contained sentence.'),
+          target: z
+            .string()
+            .optional()
+            .describe('Optional entity NAME this memory is about (e.g. the element a veto concerns)'),
+          targetKind: z
+            .string()
+            .optional()
+            .describe('Kind of `target`: node | element | storyline | category'),
+          supersedes: z
+            .string()
+            .optional()
+            .describe('memoryId of an existing memory this one replaces (it is retired) — use to EVOLVE a memory instead of duplicating it'),
+        },
+        (args) => run('remember', args),
+      ),
+      tool(
+        'list_memory',
+        'List the saved author-level memories (preferences / vetoes / directives) — both active and pending. Check this before remember to avoid duplicates or to find the memoryId to supersede/forget. Returns each as { memoryId, kind, status, body, target }.',
+        {},
+        () => run('list_memory', {}),
+      ),
+      tool(
+        'forget',
+        'Retire a saved memory by its memoryId (from list_memory) — e.g. a preference the author reversed. The author is asked to confirm. Soft-delete: kept for provenance but no longer steers anything.',
+        { memoryId: z.string().describe('The memoryId from list_memory') },
+        (args) => run('forget', args),
+      ),
       tool(
         'create_node',
         "Create a new chapter or drift node. kind is 'chapter' (sits on the reading order, optionally linked to a storyline) or 'drift' (free-floating note).",
@@ -460,10 +496,10 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       // ---- comments / TODOs (a TODO is a comment with kind='todo') ----
       tool(
         'create_comment',
-        "Create a comment or TODO. kind='note' is an editor annotation, kind='todo' shows in the right-sidebar TODO list. Attach it to an entity via targetKind + target (the entity NAME). Add targetBlockId to anchor to a specific prose block, or omit it to attach to the whole chapter/element — an entity-level note shows in a stack at the bottom of that entity's editor. Omit all targets for a floating project-level TODO.",
+        "Create a comment, TODO, or Shadow exception. kind='note' is an editor annotation, kind='todo' shows in the right-sidebar TODO list, kind='exception' marks a block-anchored note as an author-sanctioned exception the Shadow review engine reads — use it to tell Shadow a flagged-looking passage is INTENTIONAL (anchor it via targetKind='node' + target + targetBlockId). Attach it to an entity via targetKind + target (the entity NAME). Add targetBlockId to anchor to a specific prose block, or omit it to attach to the whole chapter/element — an entity-level note shows in a stack at the bottom of that entity's editor. Omit all targets for a floating project-level TODO.",
         {
           body: z.string().describe('The comment / TODO text'),
-          kind: z.string().optional().describe("'note' (default) or 'todo'"),
+          kind: z.string().optional().describe("'note' (default), 'todo', or 'exception'"),
           targetKind: z.string().optional().describe('node (chapter/drift) / element / storyline / …'),
           target: z.string().optional().describe('Entity NAME (matched to targetKind)'),
           targetBlockId: z.string().optional().describe('Prose block uuid to anchor to (optional)'),
@@ -484,7 +520,7 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
       ),
       tool(
         'set_comment_kind',
-        "Convert a comment between a note and a TODO. kind is 'todo' or 'note'.",
+        "Change a comment's kind. kind is 'todo', 'note', or 'exception' (mark a manual block note as an author-sanctioned Shadow exception — Shadow then treats that passage as intentional).",
         { commentId: z.string(), kind: z.string() },
         (args) => run('set_comment_kind', args),
       ),

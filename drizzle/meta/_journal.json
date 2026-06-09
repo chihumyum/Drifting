@@ -344,6 +344,13 @@
       "when": 1783300000000,
       "tag": "0048_ai_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1783400000000,
+      "tag": "0049_agent_memory",
+      "breakpoints": true
     }
   ]
 }

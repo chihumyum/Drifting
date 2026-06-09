@@ -750,6 +750,50 @@ export const AgentConversationTable = sqliteTable(
   ],
 );
 
+// Agent Memory
+// A small, evolving store of author-level guidance that BOTH the General agent
+// and the Shadow review engine read as auxiliary context. Distinct from canon
+// (the story world) and project facts (the structured governing KV): it holds
+// the standing, cross-cutting meta — personal writing preferences, vetoed
+// proposals, and standing directives. Anchored/block-local guidance lives in
+// `comment` (source='manual', kind='exception'); this table is for the
+// un-anchored / standing kind.
+//   kind:   'preference' | 'veto' | 'directive'  (reserve 'episode' for session memory)
+//   status: 'pending' | 'active' | 'dismissed'   — ONLY 'active' is ever fed to
+//           an agent/judge; 'pending' awaits the author's soft-approval.
+//   source: 'author' | 'agent'
+// Local-only for now (no sync helper yet); the shape is sync-ready — projectId +
+// updatedAt + deletedAt soft-delete — for when the outbox/server routes land.
+export const AgentMemoryTable = sqliteTable(
+  'agent_memory',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // 'preference' | 'veto' | 'directive'
+    body: text('body').notNull().default(''),
+    // Optional anchor (StructuralEntityKind) — veto/directive may point at an
+    // entity; null for a standing, un-anchored memory.
+    targetKind: text('target_kind'),
+    targetId: text('target_id'),
+    targetBlockId: text('target_block_id'),
+    source: text('source').notNull().default('agent'), // 'author' | 'agent'
+    originRef: text('origin_ref'), // conversation / finding id it was captured from
+    status: text('status').notNull().default('pending'), // 'pending' | 'active' | 'dismissed'
+    supersedesId: text('supersedes_id'), // the older memory this one replaces
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_agent_memory_project').on(t.projectId),
+    index('idx_agent_memory_project_status').on(t.projectId, t.status),
+    index('idx_agent_memory_project_kind_status').on(t.projectId, t.kind, t.status),
+    index('idx_agent_memory_target').on(t.targetKind, t.targetId),
+  ],
+);
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {

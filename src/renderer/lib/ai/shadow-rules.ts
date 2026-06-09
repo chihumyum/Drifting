@@ -112,6 +112,15 @@ export interface SemanticEvalContext {
   // (replaces the global heuristic canon-truth injection). See shadow/DESIGN.md §6/④.
   ruleKind?: string;
   judgingGuide?: string;
+  // Author-sanctioned EXCEPTIONS for this chapter: manual block notes the author
+  // marked kind='exception' ("this flagged-looking passage is intentional"). The
+  // judge must NOT raise a finding that one of these explains. blockId = the
+  // anchored block (null = chapter-level). See domain/comment.ts + agent-memory.
+  exceptions?: { blockId: string | null; text: string }[];
+  // Active agent memories — the author's saved standing guidance (preferences /
+  // vetoes / directives), already kind-labelled. Advisory background the judge
+  // weighs but does not contradict.
+  memories?: string[];
 }
 
 // One changed-canon pointer forwarded to the judge. `fact` = which field moved;
@@ -141,6 +150,23 @@ function buildBackground(context?: SemanticEvalContext): string {
     if (sl.summary?.trim()) lines.push(`${label}梗概：${sl.summary.trim()}`);
     const slFacts = factLines(sl.facts);
     if (slFacts.length > 0) lines.push(`${label}设定/事实：\n${slFacts.join('\n')}`);
+  }
+  // Author overrides. Exceptions are HARD: the author has declared these passages
+  // intentional, so a suspected problem they explain must be dropped (this is the
+  // sanctioned escape hatch alongside element_patch). Memories are soft, advisory.
+  const exceptions = (context?.exceptions ?? []).filter((e) => e.text?.trim());
+  if (exceptions.length > 0) {
+    lines.push(
+      '【作者已标注的例外（须遵守）】作者就本章下列内容明确说明是有意为之；命中这些情形的疑似问题不要报：\n' +
+        exceptions.map((e) => `- ${e.text.trim()}`).join('\n'),
+    );
+  }
+  const memories = (context?.memories ?? []).filter((m) => m?.trim());
+  if (memories.length > 0) {
+    lines.push(
+      '【作者长期约定（参考）】作者保存的偏好/否决/指令，审阅时纳入考量、不要与之对着干：\n' +
+        memories.map((m) => `- ${m.trim()}`).join('\n'),
+    );
   }
   return lines.length > 0 ? lines.join('\n') : '（无额外背景）';
 }

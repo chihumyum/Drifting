@@ -151,6 +151,13 @@ export interface AgentStartInput {
    * constraints. Empty/omitted → no style steer (the model's default voice).
    */
   projectFacts?: { key: string; value: string }[];
+  /**
+   * The project's ACTIVE agent memories — author-level standing guidance the
+   * agent has persisted (preferences / vetoes / directives, see
+   * domain/agent-memory). Injected so past decisions keep steering future turns.
+   * Only 'active' (author-approved) memories are passed; empty → no steer.
+   */
+  memories?: { kind: string; body: string }[];
 }
 
 /**
@@ -173,6 +180,18 @@ function buildAgentMeta(input: AgentStartInput): string {
         'constraints when writing or editing prose: match the stated style and voice, write in the ' +
         'specified person/POV, and aim chapters at any target word count. Storyline-specific ' +
         'preferences, when present, live in that storyline’s facts (get_storyline).\n' + lines,
+    );
+  }
+  const memories = (input.memories ?? []).filter((m) => m.body?.trim());
+  if (memories.length) {
+    const label = (k: string) =>
+      k === 'veto' ? 'VETO' : k === 'directive' ? 'DIRECTIVE' : 'PREFERENCE';
+    const lines = memories.map((m) => `- [${label(m.kind)}] ${m.body}`).join('\n');
+    parts.push(
+      'Author memory — standing guidance the author has saved (personal writing PREFERENCES, ' +
+        'VETOes of rejected ideas, and DIRECTIVEs on how to treat content). Honor these unless the ' +
+        'author overrides one now; do not re-propose a vetoed idea. To record a new one (or evolve an ' +
+        'old one) call remember; the author confirms before it is saved.\n' + lines,
     );
   }
   return parts.length ? '\n\n' + parts.join('\n\n') : '';
@@ -545,6 +564,10 @@ export function registerAgentIpc(getWindow: () => BrowserWindow | null): void {
           "update_category (element template facts), create_node (a 'chapter' or 'drift'). " +
           'Record book-level writing preferences (文风 / 写作人称 / 章节目标字数 / 目标 / 对标作品) ' +
           'with update_project_facts so they persist and steer future writing. ' +
+          'Separately, persist STANDING author guidance with remember — a personal preference, a ' +
+          'VETO of a rejected idea (so you never re-propose it), or a directive on how to treat ' +
+          'content; list_memory to review them, forget to retire one (the author confirms saves). ' +
+          'Active memories are already shown to you above when present. ' +
           'Summaries: to (re)generate a summary, read the content then call set_summary ' +
           '(node/element/storyline). Track element evolution with create_element_patch / ' +
           'update_element_patch / delete_element_patch. Notes & tasks: create_comment ' +

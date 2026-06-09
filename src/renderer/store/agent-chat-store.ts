@@ -28,6 +28,7 @@ import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { parseKv } from '../domain/kv';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
+import { loadActiveMemoryHints } from '../usecase/useAgentMemory';
 import { createAgentConversationRepository } from '../sqlite-repo/agent-conversation-repo';
 import type {
   AgentChatMessage as ChatMsg,
@@ -406,6 +407,9 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     const project = useProjectStore.getState().currentProject;
     const projectFacts = project && project.id === projectId ? parseKv(project.kvJson) : [];
     const writingLanguage = resolveWritingLanguage(projectId);
+    // Active agent memories (author-approved standing guidance) — injected into
+    // the system prompt so past preferences/vetoes/directives keep steering.
+    const memories = await loadActiveMemoryHints(projectId).catch(() => []);
 
     const r = await api.start({
       prompt: promptToSend,
@@ -417,6 +421,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       resume: run.sdkSessionId ?? undefined,
       writingLanguage,
       projectFacts,
+      memories,
       turnId,
     });
     // !ok only fires for pre-flight failures (e.g. auth) that emitted no events

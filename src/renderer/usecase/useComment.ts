@@ -344,6 +344,43 @@ export function useComment({ projectId, userId }: UseCommentContext) {
     [ensureDb, projectId, commentRepo],
   );
 
+  // Generalized in-place kind flip (note | todo | exception). convertToTodo /
+  // revertToNote are the note↔todo special cases; this also reaches 'exception'
+  // — a manual, block-anchored "this is intentional" the Shadow engine reads so
+  // it won't re-flag the passage. Block anchor + body are preserved; same
+  // optimistic-update + sync path as the note/todo flips.
+  const setCommentKind = useCallback(
+    async (id: string, kind: CommentKind) => {
+      await ensureDb();
+      const comments = useDataStore.getState().comments;
+      const existing = comments.find((comment) => comment.id === id);
+      if (!existing) throw new Error(`Comment with id ${id} not found`);
+      if (existing.kind === kind) return existing;
+
+      const now = new Date().toISOString();
+      const updated: Comment = { ...existing, kind, updatedAt: now };
+
+      return withOptimisticUpdate({
+        apply: () =>
+          useDataStore
+            .getState()
+            .setComments(comments.map((c) => (c.id === id ? updated : c))),
+        rollback: () => useDataStore.getState().setComments(comments),
+        effect: async () => {
+          const persisted = await commentRepo.update(id, {
+            kind: updated.kind,
+            updatedAt: updated.updatedAt,
+          });
+          if (!persisted) throw new Error(`Comment with id ${id} not found`);
+          return persisted;
+        },
+        sync: (persisted) =>
+          syncCommentUpdate(persisted.id, projectId, { kind: persisted.kind }),
+      });
+    },
+    [ensureDb, projectId, commentRepo],
+  );
+
   const createCopilotSuggestion = useCallback(
     async (input: CreateCopilotSuggestionInput) => {
       await ensureDb();
@@ -506,6 +543,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       deleteComment,
       convertToTodo,
       revertToNote,
+      setCommentKind,
       createCopilotSuggestion,
       acceptCopilotSuggestion,
       rejectCopilotSuggestion,
@@ -518,6 +556,7 @@ export function useComment({ projectId, userId }: UseCommentContext) {
       deleteComment,
       convertToTodo,
       revertToNote,
+      setCommentKind,
       createCopilotSuggestion,
       acceptCopilotSuggestion,
       rejectCopilotSuggestion,

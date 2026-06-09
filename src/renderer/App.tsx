@@ -246,6 +246,7 @@ function Layout() {
     reopenComment: commentUsecases.reopenComment,
     convertToTodo: commentUsecases.convertToTodo,
     revertToNote: commentUsecases.revertToNote,
+    setCommentKind: commentUsecases.setCommentKind,
   });
 
   // Reset ready state when project or user changes — syncing to an external

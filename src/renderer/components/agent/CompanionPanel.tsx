@@ -28,6 +28,8 @@ import {
   selectRunning,
   selectOtherRunning,
 } from '../../store/agent-chat-store';
+import { useProjectStore } from '../../store/project-store';
+import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -151,8 +153,12 @@ function ComposerConfig() {
   const agentEditMode = useSettingsStore((s) => s.agentEditMode);
   const setAgentEditMode = useSettingsStore((s) => s.setAgentEditMode);
 
+  const projectId = useProjectStore((s) => s.currentProject?.id ?? '');
+  const memory = useAgentMemory(projectId);
+  const visibleMemories = memory.memories.filter((m) => m.status !== 'dismissed');
+
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'main' | 'model'>('main');
+  const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
 
   const modelShort = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel)?.short ?? agentModel;
   const effortShort = AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
@@ -239,8 +245,24 @@ function ComposerConfig() {
                     onClick={() => setAgentEditMode(agentEditMode === 'approve' ? 'auto' : 'approve')}
                   />
                 </div>
+                <div className="agt-menu__divider" />
+                <div className="agt-menu__sec">记忆</div>
+                <div
+                  className="agt-menu__row agt-menu__row--btn"
+                  title="agent 记住的偏好 / 否决 / 指令；会注入到后续对话与 Shadow 审阅。"
+                  onClick={() => {
+                    void memory.refresh();
+                    setView('memory');
+                  }}
+                >
+                  <span>管理记忆</span>
+                  <span className="agt-menu__val">
+                    {visibleMemories.length || '无'}
+                    <span className="agt-menu__caret">›</span>
+                  </span>
+                </div>
               </>
-            ) : (
+            ) : view === 'model' ? (
               <>
                 <div className="agt-menu__back" onClick={() => setView('main')}>
                   ‹ 模型
@@ -258,6 +280,52 @@ function ComposerConfig() {
                     {m.value === agentModel && <span className="agt-menu__check">●</span>}
                   </div>
                 ))}
+              </>
+            ) : (
+              <>
+                <div className="agt-menu__back" onClick={() => setView('main')}>
+                  ‹ 记忆
+                </div>
+                {visibleMemories.length === 0 ? (
+                  <div className="agt-menu__row agt-menu__row--empty">
+                    <span style={{ opacity: 0.6 }}>暂无记忆</span>
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    {visibleMemories.map((m) => (
+                      <div key={m.id} className="agt-mem">
+                        <div className="agt-mem__main">
+                          <span className={'agt-mem__kind agt-mem__kind--' + m.kind}>
+                            {m.kind === 'veto' ? '否决' : m.kind === 'directive' ? '指令' : '偏好'}
+                          </span>
+                          <span className="agt-mem__body" title={m.body}>
+                            {m.body}
+                          </span>
+                        </div>
+                        <div className="agt-mem__acts">
+                          {m.status === 'pending' && (
+                            <button
+                              type="button"
+                              className="agt-mem__btn"
+                              title="批准（开始生效）"
+                              onClick={() => void memory.approve(m.id)}
+                            >
+                              ✓
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="agt-mem__btn agt-mem__btn--del"
+                            title="删除"
+                            onClick={() => void memory.remove(m.id)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>

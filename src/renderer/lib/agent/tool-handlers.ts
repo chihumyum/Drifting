@@ -54,16 +54,27 @@ import { parseKv, stringifyKv, type KvEntry } from '../../domain/kv';
 import {
   commentIdsRelatedToEntity,
   createPlainCommentDoc,
+  extractTextFromCommentBody,
   getBlockSnapshotFromAnchor,
   getSelectedTextFromAnchor,
 } from '../../domain/comment';
 import type { CreateCommentInput } from '../../usecase/useComment';
+import type { CommentKind } from '../../domain/comment';
+import {
+  createMemory,
+  listLiveMemories,
+  loadActiveMemories,
+  setMemoryStatus,
+  softDeleteMemory,
+} from '../../usecase/useAgentMemory';
+import type { AgentMemoryKind } from '../../domain/agent-memory';
 import type { NodeContent } from '../../domain/node-content';
 import {
   isEntityKind,
   isStructuralEntityKind,
   type EntityRefSourceKind,
   type EntityRefTargetKind,
+  type StructuralEntityKind,
 } from '../../domain/entity-kinds';
 import type {
   CreateBookElementInput,
@@ -216,6 +227,7 @@ export interface AgentWriteApi {
   reopenComment: (id: string) => Promise<unknown>;
   convertToTodo: (id: string) => Promise<unknown>;
   revertToNote: (id: string) => Promise<unknown>;
+  setCommentKind: (id: string, kind: CommentKind) => Promise<unknown>;
 }
 
 export interface AgentToolContext {
@@ -1699,7 +1711,7 @@ async function createComment(ctx: AgentToolContext, args: Record<string, unknown
   const body = String(args.body ?? '').trim();
   if (!body) throw new Error('create_comment requires body');
   const input: CreateCommentInput = {
-    kind: args.kind === 'todo' ? 'todo' : 'note',
+    kind: args.kind === 'todo' ? 'todo' : args.kind === 'exception' ? 'exception' : 'note',
     bodyJson: createPlainCommentDoc(body),
   };
   // Unlike the *Id args, targetKind/targetId aren't touched by resolveArgsRefs,
@@ -1756,8 +1768,99 @@ async function setCommentKind(ctx: AgentToolContext, args: Record<string, unknow
   if (!id) throw new Error('set_comment_kind requires commentId');
   if (kind === 'todo') await ctx.write.convertToTodo(id);
   else if (kind === 'note') await ctx.write.revertToNote(id);
-  else throw new Error(`kind must be 'todo' or 'note', got "${kind}"`);
+  else if (kind === 'exception') await ctx.write.setCommentKind(id, 'exception');
+  else throw new Error(`kind must be 'todo', 'note' or 'exception', got "${kind}"`);
   return { ok: true, commentId: id, kind };
+}
+
+// ---- agent memory (author-level standing guidance) -------------------------
+// Soft-approval: `remember`/`forget` block on requestAgentConfirm so nothing
+// enters (or leaves) the steering set without an explicit author OK — the same
+// confirm pattern delete_element uses. Confirmed memories are written straight
+// to 'active' (the only status injected into prompts).
+
+function coerceMemoryKind(raw: unknown): AgentMemoryKind {
+  return raw === 'veto' ? 'veto' : raw === 'directive' ? 'directive' : 'preference';
+}
+
+const MEMORY_KIND_LABEL: Record<AgentMemoryKind, string> = {
+  preference: '偏好',
+  veto: '否决',
+  directive: '指令',
+};
+
+async function rememberTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const body = String(args.body ?? '').trim();
+  if (!body) throw new Error('remember requires body');
+  const kind = coerceMemoryKind(args.kind);
+
+  // Optional anchor: the agent passes an entity NAME; resolve it to a real id +
+  // canonical kind, mirroring create_comment.
+  let targetKind: StructuralEntityKind | null = null;
+  let targetId: string | null = null;
+  const targetRef = typeof args.target === 'string' ? args.target.trim() : '';
+  if (targetRef && typeof args.targetKind === 'string' && args.targetKind.trim()) {
+    const rawKind = args.targetKind.trim();
+    const norm = (normalizeEntityKind(rawKind) ?? rawKind) as string;
+    if (isStructuralEntityKind(norm)) {
+      targetKind = norm;
+      targetId = resolveByKind(ctx, rawKind, targetRef);
+    }
+  }
+
+  const supersedesId =
+    typeof args.supersedes === 'string' && args.supersedes.trim()
+      ? args.supersedes.trim()
+      : null;
+
+  if (
+    !(await requestAgentConfirm(`Agent 想记住一条「${MEMORY_KIND_LABEL[kind]}」：「${body}」。允许吗？`))
+  ) {
+    return { ok: false, declined: true };
+  }
+
+  const created = await createMemory(ctx.projectId, {
+    kind,
+    body,
+    source: 'agent',
+    status: 'active',
+    targetKind,
+    targetId,
+    supersedesId,
+  });
+  // Evolution: retire the memory this one replaces so it stops steering.
+  if (supersedesId) await setMemoryStatus(ctx.projectId, supersedesId, 'dismissed');
+
+  return { ok: true, memoryId: created.id };
+}
+
+async function listMemoryTool(ctx: AgentToolContext, _args: Record<string, unknown>) {
+  const rows = await listLiveMemories(ctx.projectId);
+  const s = useDataStore.getState();
+  return {
+    memories: rows
+      .filter((m) => m.status !== 'dismissed')
+      .map((m) => ({
+        memoryId: m.id,
+        kind: m.kind,
+        status: m.status,
+        body: m.body,
+        target:
+          m.targetKind && m.targetId
+            ? (entityLabel(s, m.targetKind, m.targetId) ?? m.targetId)
+            : undefined,
+      })),
+  };
+}
+
+async function forgetTool(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const id = String(args.memoryId ?? '');
+  if (!id) throw new Error('forget requires memoryId');
+  if (!(await requestAgentConfirm('Agent 想删除一条记忆。允许吗？'))) {
+    return { ok: false, declined: true };
+  }
+  await softDeleteMemory(ctx.projectId, id);
+  return { ok: true, memoryId: id };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2249,6 +2352,26 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
   // rule through evaluateSemanticBatch → injected into the judge's prompt for this rule.
   const ruleKind = typeof args.ruleKind === 'string' ? args.ruleKind : undefined;
   const judgingGuide = typeof args.judgingGuide === 'string' ? args.judgingGuide : undefined;
+  // Author overrides for the judge (the cross-agent share — see agent-memory):
+  //  - exceptions: manual block notes the author marked kind='exception' on THIS
+  //    chapter ("this flagged-looking passage is intentional"). Shadow's own
+  //    comments are excluded (source!=='shadow').
+  //  - memories: the project's ACTIVE agent memories (preferences/vetoes/directives).
+  const exceptions = s.comments
+    .filter(
+      (c) =>
+        c.projectId === ctx.projectId &&
+        c.source !== 'shadow' &&
+        c.kind === 'exception' &&
+        c.targetKind === 'node' &&
+        c.targetId === chapterId,
+    )
+    .map((c) => ({ blockId: c.targetBlockId, text: extractTextFromCommentBody(c.bodyJson) }))
+    .filter((e) => e.text.trim());
+  const memoryLabel = (k: string) => (k === 'veto' ? '否决' : k === 'directive' ? '指令' : '偏好');
+  const memories = (await loadActiveMemories(ctx.projectId).catch(() => []))
+    .map((m) => `[${memoryLabel(m.kind)}] ${m.body}`.trim())
+    .filter(Boolean);
   const context: SemanticEvalContext = {
     facts,
     summary,
@@ -2256,6 +2379,8 @@ async function shadowEvalSemanticBatch(ctx: AgentToolContext, args: Record<strin
     ...(changedDeps.length ? { changedDeps } : {}),
     ...(ruleKind ? { ruleKind } : {}),
     ...(judgingGuide?.trim() ? { judgingGuide } : {}),
+    ...(exceptions.length ? { exceptions } : {}),
+    ...(memories.length ? { memories } : {}),
   };
   if (changedDeps.length) {
     void traceShadow(chapterId, ctx.projectId, 'gather', `依赖变更提示 ${changedDeps.length} 项`, {
@@ -2510,6 +2635,13 @@ export async function runAgentTool(
       return updateCategoryTemplate(ctx, args);
     case 'update_project_facts':
       return updateProjectFacts(ctx, args);
+    // agent memory (author-level standing guidance)
+    case 'remember':
+      return rememberTool(ctx, args);
+    case 'list_memory':
+      return listMemoryTool(ctx, args);
+    case 'forget':
+      return forgetTool(ctx, args);
     case 'create_node':
       return createNodeTool(ctx, args);
     // summary (reverse-generate)
