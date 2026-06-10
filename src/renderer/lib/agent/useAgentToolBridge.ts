@@ -7,7 +7,12 @@
  * subscription is set up once yet always calls the current usecase functions.
  */
 import { useEffect, useRef } from 'react';
-import { runAgentTool, type AgentToolContext, type AgentWriteApi } from './tool-handlers';
+import {
+  runAgentTool,
+  setActiveAgentToolContext,
+  type AgentToolContext,
+  type AgentWriteApi,
+} from './tool-handlers';
 
 /** Compact, low-noise summary of a tool call's key id args for the log. */
 function summarizeArgs(args: Record<string, unknown>): Record<string, unknown> {
@@ -28,7 +33,16 @@ function logToolCall(name: string, args: Record<string, unknown>, ok: boolean, m
 
 export function useAgentToolBridge(projectId: string, write: AgentWriteApi): void {
   const ctxRef = useRef<AgentToolContext>({ projectId, write });
-  ctxRef.current = { projectId, write };
+
+  // Refresh the ref AFTER each commit (not during render — the compiler forbids ref
+  // writes in render), and publish the same ctx so non-React callers (the Shadow-FC
+  // evolve editor) reuse the live write usecases. Clear only on unmount, so a
+  // concurrent evolve never reads a momentary null.
+  useEffect(() => {
+    ctxRef.current = { projectId, write };
+    setActiveAgentToolContext(ctxRef.current);
+  });
+  useEffect(() => () => setActiveAgentToolContext(null), []);
 
   useEffect(() => {
     const api = window.electronAPI?.agent;

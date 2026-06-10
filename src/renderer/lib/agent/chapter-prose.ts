@@ -31,7 +31,7 @@ import { proseDocId, type ProseEntityType } from '../yjs-doc-id';
 import { getLiveYDoc } from '../yjs-doc-registry';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
-import { useSettingsStore } from '../../store/settings-store';
+import { effectiveAgentEditMode } from './agent-edit-mode';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { compactUpdatesAfterSnapshot } from '../../services/yjs-sync.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
@@ -516,7 +516,7 @@ export async function writeEntityProse(
   if (changes.length) {
     useAgentEditStore
       .getState()
-      .record(entityType, id, changes, useSettingsStore.getState().agentEditMode);
+      .record(entityType, id, changes, effectiveAgentEditMode());
   }
 
   return { contentJson, blockIds, changes };

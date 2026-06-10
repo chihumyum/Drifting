@@ -7,6 +7,7 @@
  * the loop can be smoked with stubs.
  */
 import type { AgentBlockChange } from '../agent/block-diff';
+import type { AgenticTraceStep } from '../ai/shadow-rules';
 
 /** A single element-setting change to propagate into the prose. */
 export interface ElementChange {
@@ -75,14 +76,38 @@ export interface EvolveError {
   error: string;
 }
 
-/** Injected leaves — lets the orchestrator run with stubs for smoke tests. */
+/** One inspectable step of the run — a critic 查证/裁决 round or an editor tool-call
+ *  batch, tagged with where in the loop it happened. Streams to the evolve UI so the
+ *  author can watch (and afterwards audit) what each agent actually did. */
+export interface EvolveTraceStep {
+  /** 0 = round-0 detect; 1.. = edit↔verify rounds. */
+  round: number;
+  phase: 'detect' | 'edit' | 'verify';
+  chapterId: string;
+  chapterTitle: string;
+  actor: 'critic' | 'editor';
+  /** The leaf's own trail step (label + bullet items + tool calls). */
+  step: AgenticTraceStep;
+}
+
+/** Injected leaves — lets the orchestrator run with stubs for smoke tests. The
+ *  optional signal lets a manual STOP abort in-flight model calls mid-turn; the
+ *  optional onTrace streams the leaf's tool calls / verdicts for inspection. */
 export interface EvolveLeaves {
-  critique: (chapterId: string, title: string, change: ElementChange) => Promise<ContradictionSpot[]>;
+  critique: (
+    chapterId: string,
+    title: string,
+    change: ElementChange,
+    signal?: AbortSignal,
+    onTrace?: (step: AgenticTraceStep) => void,
+  ) => Promise<ContradictionSpot[]>;
   edit: (
     chapterId: string,
     title: string,
     change: ElementChange,
     spots: ContradictionSpot[],
+    signal?: AbortSignal,
+    onTrace?: (step: AgenticTraceStep) => void,
   ) => Promise<EditTurnResult>;
 }
 
@@ -98,7 +123,10 @@ export type EvolveStopReason =
   /** The change is a fundamental essence/nature rewrite (of a character, place,
    *  rule, …) — the critic's blind spot (contradiction-anchored → under-detects).
    *  Declined before scoping; the loop would give a false "done". Force overrides. */
-  | 'out-of-scope';
+  | 'out-of-scope'
+  /** The author hit STOP. The loop returns whatever it had reached; edits already
+   *  staged stay staged (still under the human gate) — nothing is rolled back. */
+  | 'aborted';
 
 /** Semantic class of the change — decides whether the evolve loop is the right
  *  tool. Element-agnostic (character / place / object / faction / rule …):
@@ -118,6 +146,10 @@ export interface EvolveResult {
   scoped: ScopedChapter[];
   rounds: number;
   stopReason: EvolveStopReason;
+  /** EVERY contradiction the round-0 detect found (the full discovery list, before
+   *  any editing). Kept for a readable "发现了什么矛盾" log — `residual` is only the
+   *  unresolved tail, so it can't tell the author what was found-and-fixed. */
+  initialSpots: ContradictionSpot[];
   /** Initial contradictions that are no longer open. */
   resolvedCount: number;
   /** Still-open contradictions handed to the human. */

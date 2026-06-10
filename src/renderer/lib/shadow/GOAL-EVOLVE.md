@@ -114,10 +114,10 @@ E 的**全量当前内容** + **本章 effective-canon(patch)** 由 orchestrator
 Phase 0  Intake      取 (E, origin: base|patch, fieldDiff)；origin 定 effectiveFrom
 Phase 1  Scope       listBacklinksToTarget(E) ∩ {order ≥ effectiveFrom} = 候选集 C
 Phase 2  Detect      对 C 跑 E-scoped critic → 矛盾 spot 集 S（候选 ≠ 工作清单，critic 筛出真要改的）
-Phase 3  Resolve     ┌ 一章一个 agent turn（同 doc 不并行，跨章可 fan-out），mode='approve'
+Phase 3  Resolve     ┌ 按章流水线（轮内无屏障）：每章 edit → 改完【立刻】verify，
+                     │ 同时下一章的 edit 已在跑（edit / critique 两条独立并发 lane）
                      │ runScopedAgentTurn(promptFor(ch, E.old→new, spotsOf(ch)))
-                     ├ 只对动过的章重跑 critic → 新 S
-                     └ 严格收缩判据（§6）：清零 / 上界 / 停滞 → 退出
+                     └ 全章汇齐 → 严格收缩判据（§6）：清零 / 上界 / 停滞 → 退出
 Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6）
 ```
 
@@ -125,7 +125,18 @@ Phase 4  Terminate   所有编辑 pending 在 edit-store；批量交人审（§6
   *（备选：edit-first 盲改全部 deps 再验——覆盖更全但更贵、会动没问题的章。v1 默认 review 起手。）*
 - **`runScopedAgentTurn`**：renderer 里包一层 promise——`agent.start({prompt, turnId})` [index.ts:477](../../../main/agent/index.ts) → 订阅 `onEvent` 等该 `turnId` 的 `done` → 读 `useAgentEditStore.getState().pending` [agent-edit-store.ts:99](../../store/agent-edit-store.ts) 拿这章改了啥。**不用新 IPC**。
 - **编辑落 live Yjs**：`writeEntityProse` [chapter-prose.ts:497](../agent/chapter-prose.ts)，agent 按 **name** 引用实体 [tool-entity-ref.ts](../agent/tool-entity-ref.ts)。
-- **`mode='approve'`**：编辑只 stage，不 auto-commit，留给 §6 人工闸门。
+- **editor 引擎可切**（设置 `evolveEditorEngine`）：
+  - `agent-sdk`（默认）= 复用 Claude Agent SDK（文笔最好，但**绑死 general agent 的 Anthropic auth**；shadow provider 喂不进 SDK，shadow-only 用户跑不了改稿）。`runScopedAgentTurn`。
+  - `shadow-fc` = 自建 FC editor，**跑在 shadow provider**（BYOK 一致、零 Anthropic 依赖；文笔受所选 shadow 模型限）。`runShadowEditBatch`（[tool-handlers.ts](../agent/tool-handlers.ts)）：tiny 写工具集 edit_block/edit_blocks/finish_edits，经 `runAgentTool` 落 live Yjs。**不需要 LangGraph**——和 critic 同构的 FC loop。
+- **edit-mode 按模块分流**：evolve 编辑记 `shadowEditMode`（默认 `approve`，批量+critic 可错），不是 general agent 的 `agentEditMode`。机制：`setAgentEditModeOverride`（[agent-edit-mode.ts](../agent/agent-edit-mode.ts)），写路径 `.record` 读 `effectiveAgentEditMode()`。两引擎都吃这个 override。
+- **`approve` 模式**：编辑只 stage，不 auto-commit，留给 §6 人工闸门。
+- **并发=两条 lane + 按章流水线**：`makeLimiter` 信号量两条——edit lane（`shadow-fc`=3 跨章独立 fan-out；`agent-sdk`=1 必须串行，共用 ONE main-process agent）和 critique lane（=5，只读）。轮内**无 edit/verify 屏障**：一章改完立刻进 critique lane 验，同时 edit lane 已在改下一章——对抗检查紧跟每次编辑，不等全轮改完。agent-sdk 下收益最大（旧屏障版 = sum(edits)+verifies；流水线 = verify 全部隐藏在 edit 串行链后面）。轮与轮之间仍有屏障（收缩判据要全集）。
+- **手动停止**：`AbortSignal` 一路穿到两叶 + critic/edit FC batch；STOP 即中止在途 model 调用，loop 以 `stopReason:'aborted'` 收尾，**已 stage 的改动保留待审**（不回滚）。
+- **草稿过滤**：`includeDrafts`（默认 false，镜像 arc 派生）——只把 `writingStatus==='finished'` 的章纳入 scope，不改半成品草稿。
+- **只动 chapter**：scope 显式 `isChapter(node)` 闸——drift 节点（自由灵感）永不自动改。不能只靠 writingStatus 滤（drift 的 'drifting'/'resting' 只是碰巧不等于 'finished'，含草稿章一开就漏进来）。
+- **结果只报本次**：scope 后先 `pendingSnapshot`（每章已 pending 的 blockId 集），`harvestPending` 只报快照外的新增——上一轮未审完的暂存不再混进下一轮的结果 UI。
+- **过程可检视（trace）**：`EvolveOpts.onTrace` 流式收 `EvolveTraceStep{round, phase, chapter, actor, step}`——critic 的查证/裁决轮（FC judge 原生 `AgenticTraceStep`）+ 两个 editor 的 tool call（shadow-fc 按轮发 edit_block/edit_blocks/finish 摘要；agent-sdk 从事件流捕 tool_use/tool_result）。evolve-store 按 element 收（cap 800），UI「过程」面板跑时自动展开、跑完折叠待查。
+- **运行态 per-element**：run/phase/result 存 `evolve-store`（keyed by elementId，非组件局部 state）→ 每个 element editor 各看各的演化、切换不串台、跑动中离开再回来仍在。AbortController 存组件外 Map（非渲染态）。
 - **持久化**：给 `shadow_job` 加一种 kind（`evolve`）或新 `goal_run` 行，白嫖 durable 队列 + trace + 顶栏 pill，支持长跑/重启续跑 [job-recorder.ts](job-recorder.ts)、[shadow-job-repo.ts](../../sqlite-repo/shadow-job-repo.ts)。
 
 ## 6. 终止 / 收敛 / 交人

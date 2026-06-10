@@ -28,6 +28,8 @@ import {
   SHADOW_TIER_MODEL,
 } from '../shadow/model-routing';
 import { recordShadowUsage } from '../shadow/usage';
+import { resolveWritingLanguage } from '../ai/output-language';
+import type { AIMessage, AITool, AIToolCall } from '../ai/types';
 import { AGENT_READ_TOOLS, toAITools } from './tool-registry';
 import { yieldToMain } from '../async/yield-to-main';
 import {
@@ -37,7 +39,7 @@ import {
   registerShadowAborter,
 } from '../shadow/job-recorder';
 import { computeChangedDeps, snapshotConsulted } from '../shadow/dep-snapshot';
-import type { ShadowConsultedKind, ShadowConsultedRef } from '../../domain/shadow-job';
+import type { ShadowConsultedKind, ShadowConsultedRef, ShadowToolCall } from '../../domain/shadow-job';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import {
   createElementPatchRepository,
@@ -119,7 +121,7 @@ import { getLiveYDoc } from '../yjs-doc-registry';
 import { eventBus } from '../events';
 import { requestAgentConfirm } from '../../store/agent-confirm-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
-import { useSettingsStore } from '../../store/settings-store';
+import { effectiveAgentEditMode } from './agent-edit-mode';
 import type { AgentBlockChange } from './block-diff';
 import { entityKey, type ActivityEntityType } from './tool-entity-ref';
 import { summaryFieldChange, kvFieldChanges, patchFieldChange, fieldBlockId } from './field-diff';
@@ -154,7 +156,7 @@ function recordFieldChanges(
   if (changes.length === 0) return;
   useAgentEditStore
     .getState()
-    .record(entityType, id, changes, useSettingsStore.getState().agentEditMode);
+    .record(entityType, id, changes, effectiveAgentEditMode());
 }
 
 /** Patch ids this element has SOFT-deleted (agent ran delete_element_patch, but
@@ -233,6 +235,20 @@ export interface AgentWriteApi {
 export interface AgentToolContext {
   projectId: string;
   write: AgentWriteApi;
+}
+
+/** The live tool context (projectId + write usecases) published by the mounted
+ *  useAgentToolBridge. Lets NON-React callers reuse the SAME write usecases the chat
+ *  agent uses: the Shadow-FC evolve editor runs runAgentTool('edit_block', …) directly
+ *  in the renderer, and without a real `write` every edit throws "Cannot read
+ *  properties of undefined (reading 'updateContentByNodeId')". null when no project
+ *  Layout is mounted (e.g. the dev harness). */
+let activeAgentToolContext: AgentToolContext | null = null;
+export function setActiveAgentToolContext(ctx: AgentToolContext | null): void {
+  activeAgentToolContext = ctx;
+}
+export function getActiveAgentToolContext(): AgentToolContext | null {
+  return activeAgentToolContext;
 }
 
 // Names are project-unique, so the list/read tools return NAMES (not long
@@ -2544,6 +2560,168 @@ export async function runEvolveCriticBatch(
     );
   }
   return out;
+}
+
+// ── /goal evolve · self-built FC editor (Shadow provider) ────────────────────
+// Write-tools the editor loop may call. Kept TINY (only block edits + finish) so a
+// shadow-provider model can't reach create/delete tools — the loop edits one fixed
+// chapter, the chapter ref is injected by the executor (model only gives block+text).
+const EVOLVE_EDIT_BLOCK_TOOL: AITool = {
+  name: 'edit_block',
+  description: '替换某一段的文本（按段编号，1 起）。只对与设定改动直接冲突处做最小改动。',
+  parametersSchema: {
+    type: 'object',
+    properties: {
+      block: { type: 'number', description: '段编号(1 起，对应上文「正文」的编号)' },
+      text: { type: 'string', description: '该段改写后的完整文本' },
+    },
+    required: ['block', 'text'],
+  },
+};
+const EVOLVE_EDIT_BLOCKS_TOOL: AITool = {
+  name: 'edit_blocks',
+  description: '一次替换多段文本（按段编号）。',
+  parametersSchema: {
+    type: 'object',
+    properties: {
+      edits: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { block: { type: 'number' }, text: { type: 'string' } },
+          required: ['block', 'text'],
+        },
+      },
+    },
+    required: ['edits'],
+  },
+};
+const EVOLVE_FINISH_TOOL: AITool = {
+  name: 'finish_edits',
+  description: '所有需要的最小改动已完成（或本章无需改动）。',
+  parametersSchema: { type: 'object', properties: {} },
+};
+
+// Runs on the SHADOW provider (no Anthropic dependency). Mirrors runEvolveCriticBatch's
+// loop, but the tools WRITE: the model calls edit_block/edit_blocks (dispatched through
+// runAgentTool → live Yjs + soft-approval, recorded with shadowEditMode via the override)
+// and finish_edits to stop. Returns the block ids it changed.
+export async function runShadowEditBatch(
+  ctx: AgentToolContext,
+  chapterId: string,
+  instruction: string,
+  signal?: AbortSignal,
+  onTrace?: (step: AgenticTraceStep) => void,
+): Promise<{ ok: boolean; editedBlockIds: string[]; error?: string }> {
+  const node = useDataStore.getState().bookNodes.find((n) => n.id === chapterId && n.projectId === ctx.projectId);
+  if (!node) throw new Error(`runShadowEditBatch: no chapter "${chapterId}"`);
+  const blocks = await shadowChapterBlocks(chapterId);
+  if (blocks.length === 0) return { ok: true, editedBlockIds: [] };
+  const numbered = blocks.map((b, i) => `[${i + 1}] ${b.text}`).join('\n');
+
+  let model = resolveShadowModel().model;
+  try {
+    ensureShadowModelRoutable(model);
+  } catch {
+    model = SHADOW_TIER_MODEL.standard;
+  }
+  const client = await buildShadowClient({ logTag: 'goal:evolve-edit' });
+  if (!client.supportsTools) {
+    return {
+      ok: false,
+      editedBlockIds: [],
+      error: 'Shadow provider 不支持工具调用，无法用自建 FC editor（改用 Agent SDK 引擎）',
+    };
+  }
+
+  const tools = [EVOLVE_EDIT_BLOCK_TOOL, EVOLVE_EDIT_BLOCKS_TOOL, EVOLVE_FINISH_TOOL];
+  const system = [
+    '你是小说写作的定向改稿器。给你一章正文(按段编号)和一项设定改动 + 需修正的冲突点。',
+    '只对与该设定改动【直接冲突】的段落做【最小】改动，使其符合新设定；不要改无关内容、不要新增设定外的事实、不要整段重写语气。',
+    '用 edit_block / edit_blocks 按段编号替换文本；全部改完（或本章无需改动）就调用 finish_edits。',
+    `用 ${resolveWritingLanguage(ctx.projectId)} 写。`,
+  ].join('\n');
+  const messages: AIMessage[] = [
+    { role: 'user', content: `${instruction}\n\n正文（按段编号）：\n${numbered}` },
+  ];
+
+  const editedBlockIds: string[] = [];
+  const maxRounds = 8;
+  const maxToolCalls = 16;
+  let toolCalls = 0;
+  for (let round = 0; round < maxRounds; round++) {
+    const resp = await client.complete({
+      model,
+      system,
+      messages,
+      tools,
+      toolChoice: 'auto',
+      thinking: false,
+      signal,
+      metadata: { feature: 'goal-evolve-edit' },
+    });
+    if (resp.usage) recordShadowUsage('goal:evolve-edit', model, resp.usage);
+    const calls: AIToolCall[] = resp.toolCalls ?? (resp.toolCall ? [resp.toolCall] : []);
+    if (calls.length === 0) {
+      // Model answered in prose without editing → stop.
+      if (resp.text?.trim()) onTrace?.({ label: '改稿器以文字收尾（未再调工具）', detail: resp.text.trim().slice(0, 200) });
+      break;
+    }
+    messages.push({ role: 'model', content: resp.text ?? '', toolCalls: calls });
+
+    let finished = false;
+    const traceCalls: ShadowToolCall[] = [];
+    for (const call of calls) {
+      if (call.name === 'finish_edits') {
+        finished = true;
+        messages.push({ role: 'tool', toolCallId: call.id, content: 'ok' });
+        traceCalls.push({ tool: 'finish_edits', status: 'ok' });
+        continue;
+      }
+      toolCalls += 1;
+      const args =
+        call.arguments && typeof call.arguments === 'object' ? (call.arguments as Record<string, unknown>) : {};
+      // Trace summary: which blocks, and a peek at the replacement text.
+      const argsLabel =
+        call.name === 'edit_block'
+          ? `段${String(args.block)}：${String(args.text ?? '').slice(0, 80)}`
+          : call.name === 'edit_blocks' && Array.isArray(args.edits)
+            ? `段${(args.edits as { block?: unknown }[]).map((e) => String(e?.block)).join('、')}`
+            : undefined;
+      try {
+        let res: unknown;
+        if (call.name === 'edit_block') {
+          res = await runAgentTool('edit_block', { node: chapterId, block: args.block, text: args.text }, ctx);
+        } else if (call.name === 'edit_blocks') {
+          res = await runAgentTool('edit_blocks', { node: chapterId, edits: args.edits }, ctx);
+        } else {
+          messages.push({
+            role: 'tool',
+            toolCallId: call.id,
+            content: `没有名为「${call.name}」的工具，只能用 edit_block / edit_blocks / finish_edits`,
+          });
+          traceCalls.push({ tool: call.name, status: 'denied', note: '未知工具' });
+          continue;
+        }
+        const ids = (res as { blockIds?: string[] }).blockIds;
+        if (ids) editedBlockIds.push(...ids);
+        messages.push({ role: 'tool', toolCallId: call.id, content: '已应用' });
+        traceCalls.push({ tool: call.name, args: argsLabel, status: 'ok', result: '已应用' });
+      } catch (e) {
+        if (e instanceof Error && e.name === 'ShadowCancelledError') throw e;
+        const msg = e instanceof Error ? e.message : String(e);
+        messages.push({ role: 'tool', toolCallId: call.id, content: `（改动失败：${msg}）` });
+        traceCalls.push({ tool: call.name, args: argsLabel, status: 'error', note: msg });
+      }
+    }
+    if (traceCalls.length) {
+      const bad = traceCalls.filter((c) => c.status !== 'ok').length;
+      onTrace?.({ label: bad ? `改稿 · 第 ${round + 1} 轮（${bad} 失败）` : `改稿 · 第 ${round + 1} 轮`, calls: traceCalls });
+    }
+    if (finished || toolCalls >= maxToolCalls) break;
+    await yieldToMain();
+  }
+  return { ok: true, editedBlockIds: [...new Set(editedBlockIds)] };
 }
 
 async function shadowClearComments(ctx: AgentToolContext, args: Record<string, unknown>) {

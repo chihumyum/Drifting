@@ -68,6 +68,12 @@ export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string 
  */
 export type AgentEditMode = 'auto' | 'approve';
 
+// Which engine drives /goal evolve's prose edits. 'agent-sdk' reuses the Claude
+// Agent SDK (best prose, but bound to the general agent's Anthropic auth);
+// 'shadow-fc' is a self-built FC editor on the Shadow provider (BYOK-consistent,
+// no Anthropic dependency — quality bounded by the chosen Shadow model).
+export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
+
 /**
  * The model picker's catalog (shared by Settings and the input-bar switcher).
  * `short` is the compact label for the narrow in-panel picker. Tier aliases
@@ -242,6 +248,13 @@ interface SettingsState {
   // How the agent's prose edits surface (auto reveal vs manual approve). See AgentEditMode.
   agentEditMode: AgentEditMode;
   setAgentEditMode: (m: AgentEditMode) => void;
+  // /goal evolve's OWN edit-surface mode (it's a Shadow-module op, not the general
+  // agent) + which engine edits the prose. Kept separate from agentEditMode so the
+  // general agent's preference doesn't govern a batch cross-chapter evolve.
+  shadowEditMode: AgentEditMode;
+  setShadowEditMode: (m: AgentEditMode) => void;
+  evolveEditorEngine: EvolveEditorEngine;
+  setEvolveEditorEngine: (e: EvolveEditorEngine) => void;
 
   // Copilot (任务自动化, 没有续写)
   /**
@@ -418,6 +431,12 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentToolSearch: (t) => set({ agentToolSearch: t }),
       agentEditMode: 'auto',
       setAgentEditMode: (m) => set({ agentEditMode: m }),
+      // Default 'approve': a batch cross-chapter evolve on a fallible critic warrants
+      // explicit per-block review. Default engine = the Claude Agent SDK (best prose).
+      shadowEditMode: 'approve',
+      setShadowEditMode: (m) => set({ shadowEditMode: m }),
+      evolveEditorEngine: 'agent-sdk',
+      setEvolveEditorEngine: (e) => set({ evolveEditorEngine: e }),
       copilotTier: 'standard',
       setCopilotTier: (t) => set({ copilotTier: t }),
 

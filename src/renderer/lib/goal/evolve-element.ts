@@ -7,26 +7,49 @@
 import { runEvolve, type EvolveOpts } from './orchestrator';
 import { critiqueChapter } from './evolve-critic';
 import { runScopedAgentTurn } from './run-scoped-agent-turn';
+import { runShadowEditTurn } from './run-shadow-edit-turn';
 import { classifyChange } from './classify-change';
-import type { AgentToolContext } from '../agent/tool-handlers';
+import { setAgentEditModeOverride } from '../agent/agent-edit-mode';
+import { useSettingsStore } from '../../store/settings-store';
+import { getActiveAgentToolContext, type AgentToolContext } from '../agent/tool-handlers';
 import type { ElementChange, EvolveLeaves, EvolveResult } from './types';
 
 export async function evolveElement(
   projectId: string,
   change: ElementChange,
-  opts: { effectiveFromOrder?: number } & EvolveOpts = {},
+  opts: { effectiveFromOrder?: number; includeDrafts?: boolean } & EvolveOpts = {},
 ): Promise<EvolveResult> {
-  // ctx.write is unused: the critic is read-only; the editor leaf writes through the
-  // agent IPC bridge, not this ctx.
-  const ctx = { projectId } as AgentToolContext;
+  const settings = useSettingsStore.getState();
+  const shadowFc = settings.evolveEditorEngine === 'shadow-fc';
+  // The Shadow-FC editor runs runAgentTool('edit_block', …) in-renderer → it needs the
+  // REAL `write` usecases (else writeEntityProse throws "updateContentByNodeId of
+  // undefined" and every edit fails). Borrow them from the mounted bridge; keep this
+  // run's projectId. The critic ignores `write` (read-only), and the Agent-SDK editor
+  // writes through the IPC bridge's own ctx, so both tolerate a missing bridge.
+  const ctx = { projectId, write: getActiveAgentToolContext()?.write } as AgentToolContext;
   const leaves: EvolveLeaves = {
-    critique: (chapterId, title, ch) => critiqueChapter(ctx, chapterId, title, ch),
-    edit: (chapterId, title, ch, spots) => runScopedAgentTurn(chapterId, title, ch, spots),
+    critique: (chapterId, title, ch, signal, onTrace) => critiqueChapter(ctx, chapterId, title, ch, signal, onTrace),
+    edit: shadowFc
+      ? (chapterId, title, ch, spots, signal, onTrace) => runShadowEditTurn(ctx, chapterId, title, ch, spots, signal, onTrace)
+      : (chapterId, title, ch, spots, signal, onTrace) => runScopedAgentTurn(chapterId, title, ch, spots, signal, onTrace),
   };
-  const { effectiveFromOrder = Number.NEGATIVE_INFINITY, ...rest } = opts;
-  return runEvolve(
-    { projectId, change, effectiveFromOrder },
-    leaves,
-    { classify: () => classifyChange(projectId, change), ...rest },
-  );
+  const { effectiveFromOrder = Number.NEGATIVE_INFINITY, includeDrafts = false, ...rest } = opts;
+  // Evolve is a Shadow-module op → its edits record with shadowEditMode (default
+  // 'approve'), NOT the general agent's agentEditMode. Scoped to this run.
+  setAgentEditModeOverride(settings.shadowEditMode);
+  try {
+    return await runEvolve(
+      { projectId, change, effectiveFromOrder, includeDrafts },
+      leaves,
+      {
+        classify: () => classifyChange(projectId, change),
+        // Shadow-FC edits are independent per chapter → fan out; the Agent-SDK editor
+        // shares ONE main-process agent → must stay serial (1).
+        editConcurrency: shadowFc ? 3 : 1,
+        ...rest,
+      },
+    );
+  } finally {
+    setAgentEditModeOverride(null);
+  }
 }

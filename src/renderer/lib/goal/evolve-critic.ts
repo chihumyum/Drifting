@@ -8,6 +8,7 @@
  * never converge. So: only report prose that DIRECTLY contradicts the new value.
  */
 import { runEvolveCriticBatch, type AgentToolContext } from '../agent/tool-handlers';
+import type { AgenticTraceStep } from '../ai/shadow-rules';
 import type { ElementChange, ContradictionSpot } from './types';
 
 /** Judging policy injected as `judgingGuide` — REPLACES the project rule sweep. */
@@ -45,6 +46,7 @@ export async function critiqueChapter(
   chapterTitle: string,
   change: ElementChange,
   signal?: AbortSignal,
+  onTrace?: (step: AgenticTraceStep) => void,
 ): Promise<ContradictionSpot[]> {
   const assertion = buildEvolveAssertion(change);
   const [violations = []] = await runEvolveCriticBatch(
@@ -54,6 +56,7 @@ export async function critiqueChapter(
     EVOLVE_CRITIC_POLICY,
     change.elementId, // pre-load this element's profile + effective patches
     signal,
+    onTrace,
   );
   return violations.map((v) => ({
     chapterId,

@@ -18,37 +18,14 @@ import { useProjectStore } from '../../store/project-store';
 import { resolveWritingLanguage } from '../ai/output-language';
 import { parseKv } from '../../domain/kv';
 import { entityKey } from '../agent/tool-entity-ref';
+import { buildEditInstruction } from './edit-prompt';
+import type { AgenticTraceStep } from '../ai/shadow-rules';
 import type { ElementChange, ContradictionSpot, EditTurnResult } from './types';
 
-function buildEditPrompt(
-  chapterTitle: string,
-  change: ElementChange,
-  spots: ContradictionSpot[],
-): string {
-  const field = change.field ? `（${change.field}）` : '';
-  const list = spots
-    .map((s, i) => {
-      const where = s.blockIds.length ? `第 ${s.blockIds.join('、')} 块` : '本章（整章级）';
-      return `${i + 1}. ${where}：${s.reason}`;
-    })
-    .join('\n');
-  return [
-    `设定《${change.elementName}》${field}已更新：`,
-    `  旧值：${change.oldSetting || '（未给）'}`,
-    `  新值：${change.newSetting}`,
-    '',
-    change.profile
-      ? `该设定的当前完整内容（已提供，无需再 read_element 查）：\n${change.profile}\n`
-      : '',
-    `请在《${chapterTitle}》中，对下列与新设定冲突的位置做【最小】改动，使正文符合新设定。只改真正冲突处，不要顺手改写无关内容，不要新增设定以外的事实。`,
-    '',
-    '需修正的冲突：',
-    list,
-    '',
-    '用 edit_block / edit_blocks 直接改对应段落（按段编号定位）。改完即可，无需解释。',
-  ]
-    .filter((l) => l !== '')
-    .join('\n');
+// The Agent-SDK editor reads the prose via its own tools, so it gets the shared
+// task instruction + a tool tail (no pre-loaded blocks; the SDK agent read_node's).
+function buildEditPrompt(chapterTitle: string, change: ElementChange, spots: ContradictionSpot[]): string {
+  return `${buildEditInstruction(chapterTitle, change, spots)}\n\n用 edit_block / edit_blocks 直接改对应段落（按段编号定位）。改完即可，无需解释。`;
 }
 
 export async function runScopedAgentTurn(
@@ -56,10 +33,13 @@ export async function runScopedAgentTurn(
   chapterTitle: string,
   change: ElementChange,
   spots: ContradictionSpot[],
+  signal?: AbortSignal,
+  onTrace?: (step: AgenticTraceStep) => void,
 ): Promise<EditTurnResult> {
   const api = window.electronAPI?.agent;
   if (!api) return { chapterId, ok: false, editedBlockIds: [], error: 'agent api unavailable' };
   if (spots.length === 0) return { chapterId, ok: true, editedBlockIds: [] };
+  if (signal?.aborted) return { chapterId, ok: false, editedBlockIds: [], error: 'aborted' };
 
   const settings = useSettingsStore.getState();
   const projectId = useProjectStore.getState().currentProject?.id;
@@ -73,16 +53,51 @@ export async function runScopedAgentTurn(
   );
 
   let lastError: string | undefined;
+  // STOP → abort the singleton main-process agent (evolve assumes exclusive use of
+  // it) and stop awaiting. Edits already landed in Yjs stay staged.
+  let onAbort: (() => void) | undefined;
+  // Pair tool_use → tool_result by id so the trace shows one entry per completed
+  // SDK tool call (name, args peek, ok/error) — same shape the shadow-FC editor emits.
+  const inFlight = new Map<string, string>();
+  const summarizeInput = (input: unknown): string | undefined => {
+    if (input === undefined || input === null) return undefined;
+    try {
+      const s = typeof input === 'string' ? input : JSON.stringify(input);
+      return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+    } catch {
+      return undefined;
+    }
+  };
   const done = new Promise<void>((resolve) => {
     const off = api.onEvent((env) => {
       if (env.turnId !== turnId) return;
       const ev = env.event;
+      if (ev.type === 'tool_use') {
+        const args = summarizeInput(ev.input);
+        inFlight.set(ev.id, args ? `${ev.name}(${args})` : ev.name);
+        onTrace?.({ label: `调用 ${ev.name}`, calls: [{ tool: ev.name, args, status: 'ok' }] });
+      }
+      if (ev.type === 'tool_result' && !ev.ok) {
+        onTrace?.({
+          label: `工具失败：${inFlight.get(ev.id) ?? ev.id}`,
+          detail: ev.text.slice(0, 200),
+        });
+      }
       if (ev.type === 'error') lastError = ev.message;
       if (ev.type === 'done') {
         off();
         resolve();
       }
     });
+    if (signal) {
+      onAbort = () => {
+        off();
+        void api.abort();
+        lastError = lastError ?? 'aborted';
+        resolve();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
   });
 
   const r = await api.start({
@@ -98,9 +113,13 @@ export async function runScopedAgentTurn(
     newConversation: true,
     turnId,
   });
-  if (!r.ok) return { chapterId, ok: false, editedBlockIds: [], error: r.error };
+  if (!r.ok) {
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
+    return { chapterId, ok: false, editedBlockIds: [], error: r.error };
+  }
 
   await done;
+  if (onAbort) signal?.removeEventListener('abort', onAbort);
 
   const after = useAgentEditStore.getState().pending[key]?.changes ?? [];
   const editedBlockIds = after.map((c) => c.blockId).filter((id) => !before.has(id));

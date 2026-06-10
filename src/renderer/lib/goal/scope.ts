@@ -8,6 +8,7 @@
  */
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { useDataStore } from '../../store/data-store';
+import { isChapter } from '../../domain/book-node';
 import type { ScopedChapter, ElementAppearance } from './types';
 
 /** narrativeOrder (story time) ?? bookOrder (reading order) — same axis Shadow's
@@ -17,11 +18,13 @@ const timelineKey = (n: { narrativeOrder: number | null; bookOrder: number | nul
 
 /** The element's appearances at/after the cutoff, each chapter carrying the block
  *  ids where it's mentioned. The primitive both scopeChapters and the essence
- *  worklist build on. */
+ *  worklist build on. `includeDrafts` mirrors arc derivation: false ⇒ only chapters
+ *  the author marked 「finished」 are in scope (don't rewrite half-written drafts). */
 export async function scopeAppearances(
   projectId: string,
   elementId: string,
   effectiveFromOrder: number,
+  includeDrafts = false,
 ): Promise<ElementAppearance[]> {
   const backlinks = await createInlineMentionRepository().listBacklinksToTarget('element', elementId);
   const nodes = useDataStore.getState().bookNodes;
@@ -30,6 +33,11 @@ export async function scopeAppearances(
     if (b.fromKind !== 'node') continue;
     const node = nodes.find((x) => x.id === b.fromId && x.projectId === projectId);
     if (!node) continue;
+    // CHAPTERS only — drift nodes are free-floating inspiration, never auto-edited.
+    // Must be an explicit kind gate: a drift's writingStatus ('drifting'/'resting')
+    // only dodges the draft filter by accident, and 含草稿章 would let it through.
+    if (!isChapter(node)) continue;
+    if (!includeDrafts && node.writingStatus !== 'finished') continue;
     const order = timelineKey(node);
     if (order < effectiveFromOrder) continue;
     let entry = byChapter.get(b.fromId);
@@ -48,8 +56,9 @@ export async function scopeChapters(
   projectId: string,
   elementId: string,
   effectiveFromOrder: number,
+  includeDrafts = false,
 ): Promise<ScopedChapter[]> {
-  const apps = await scopeAppearances(projectId, elementId, effectiveFromOrder);
+  const apps = await scopeAppearances(projectId, elementId, effectiveFromOrder, includeDrafts);
   return apps.map(({ chapterId, title, order }) => ({ chapterId, title, order }));
 }
 
