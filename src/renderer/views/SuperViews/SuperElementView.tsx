@@ -591,6 +591,10 @@ interface CategoryBoxProps {
   onCategoryClick: (categoryId: string) => void;
   /** Element id currently flagged as the link source (shift-click pending). */
   linkSourceElementId?: string | null;
+  /** Element whose popover is open — anchor of the click-focus highlight. */
+  focusedElementId?: string | null;
+  /** Elements sharing an edge with the focused one — drawn highlighted. */
+  connectedElementIds?: ReadonlySet<string> | null;
   /**
    * Mutable map the parent owns so it can read element-card DOM rects for
    * drift-edge geometry. Each card writes itself in on mount and removes
@@ -612,6 +616,8 @@ function CategoryBox({
   onElementClick,
   onCategoryClick,
   linkSourceElementId,
+  focusedElementId,
+  connectedElementIds,
   elementCardRefs,
   onElementContextMenu,
   onCategoryContextMenu,
@@ -762,6 +768,12 @@ function CategoryBox({
           const width = colStep;
           const height = CELL_H;
           const isLinkSource = linkSourceElementId === element.id;
+          // Click-focus highlight: the popover's element + its edge
+          // neighbors share the hover treatment (accent border + deep bg),
+          // held while the popover is open.
+          const isFocusLit =
+            !isLinkSource &&
+            (focusedElementId === element.id || !!connectedElementIds?.has(element.id));
           return (
             <div
               key={element.id}
@@ -789,9 +801,13 @@ function CategoryBox({
                 top: top + 3,
                 width: width - 6,
                 height: height - 6,
-                border: isLinkSource ? `1.5px solid ${accent}` : '1px solid hsl(var(--rule))',
+                border:
+                  isLinkSource || isFocusLit
+                    ? `1.5px solid ${accent}`
+                    : '1px solid hsl(var(--rule))',
                 borderRadius: 2,
-                background: isLinkSource ? 'hsl(var(--paper-deep))' : 'hsl(var(--paper))',
+                background:
+                  isLinkSource || isFocusLit ? 'hsl(var(--paper-deep))' : 'hsl(var(--paper))',
                 outline: isLinkSource ? `2px dashed ${accent}` : 'none',
                 outlineOffset: isLinkSource ? '1px' : 0,
                 padding: '5px 7px',
@@ -803,12 +819,12 @@ function CategoryBox({
                 overflow: 'hidden',
               }}
               onMouseEnter={(e) => {
-                if (isLinkSource) return;
+                if (isLinkSource || isFocusLit) return;
                 e.currentTarget.style.background = 'hsl(var(--paper-deep))';
                 e.currentTarget.style.borderColor = accent;
               }}
               onMouseLeave={(e) => {
-                if (isLinkSource) return;
+                if (isLinkSource || isFocusLit) return;
                 e.currentTarget.style.background = 'hsl(var(--paper))';
                 e.currentTarget.style.borderColor = 'hsl(var(--rule))';
               }}
@@ -908,6 +924,26 @@ export function SuperElementView() {
     elementId: string;
     anchor: AnchorRect;
   } | null>(null);
+
+  // Click-focus neighborhood: while an element's popover is open, the
+  // elements it shares an edge with — and those edges — light up so the
+  // clicked card's graph neighborhood reads at a glance. Cleared with the
+  // popover.
+  const focusedElementId = activePopover?.elementId ?? null;
+  const focusConnected = useMemo(() => {
+    if (!focusedElementId) return null;
+    const elementIds = new Set<string>();
+    const edgeIds = new Set<string>();
+    for (const r of entityRelations) {
+      const fromHit = r.fromKind === 'element' && r.fromId === focusedElementId;
+      const toHit = r.toKind === 'element' && r.toId === focusedElementId;
+      if (!fromHit && !toHit) continue;
+      edgeIds.add(r.id);
+      if (fromHit && r.toKind === 'element') elementIds.add(r.toId);
+      if (toHit && r.fromKind === 'element') elementIds.add(r.fromId);
+    }
+    return { elementIds, edgeIds };
+  }, [focusedElementId, entityRelations]);
 
   // Selection / linking / drift-panel state — declared up front so the ESC
   // stack and pointer-dismiss listener below can reference them. Their
@@ -2326,6 +2362,8 @@ export function SuperElementView() {
                 linkSourceElementId={
                   linkSource?.kind === 'element' ? linkSource.id : null
                 }
+                focusedElementId={focusedElementId}
+                connectedElementIds={focusConnected?.elementIds ?? null}
                 elementCardRefs={elementCardRefs}
                 onElementClick={(element, rect, opts) => {
                   handleEntityClick('element', element.id, rect, opts);
@@ -2382,7 +2420,10 @@ export function SuperElementView() {
             }}
           >
             {worldEdges.map((edge) => {
-              const selected = selectedEdgeId === edge.id;
+              // Click-focus: edges touching the popover's element render at
+              // selected strength so the lit neighborhood includes its links.
+              const selected =
+                selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
               const kindLabel = edge.kind ?? '未分类';
               return (
@@ -2484,7 +2525,9 @@ export function SuperElementView() {
           >
             <style>{`svg.super-viewport-edges[data-panning='1'] { visibility: hidden; }`}</style>
             {viewportEdgeGeom.map((edge) => {
-              const selected = selectedEdgeId === edge.id;
+              // Same click-focus boost as the world-space layer above.
+              const selected =
+                selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
               const kindLabel = edge.kind ?? '未分类';
               return (
