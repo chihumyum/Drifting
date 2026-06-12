@@ -5,6 +5,7 @@ import { getChapterContentJson } from '../../lib/agent/chapter-prose';
 import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { ReferencesPanel } from '../editor/ReferencesPanel';
+import { WRITING_STATUS_LABELS } from '../editor/EditorTopBar';
 import { events } from '../../lib/events';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
@@ -353,7 +354,14 @@ function StatsView({
     const nodes = nodeIds
       .map((id) => bookNodes.find((n) => n.id === id))
       .filter((n): n is NonNullable<typeof n> => Boolean(n));
-    return <StorylineStats storyline={storyline} nodes={nodes} />;
+    return (
+      <StorylineStats
+        storyline={storyline}
+        nodes={nodes}
+        bookElements={bookElements}
+        categories={categories}
+      />
+    );
   }
   if (target.kind === 'element') {
     const element = bookElements.find((e) => e.id === target.id);
@@ -365,7 +373,14 @@ function StatsView({
     const category = categories.find((c) => c.id === target.id);
     if (!category) return <EmptyState message="找不到当前类目。" />;
     const cElements = bookElements.filter((e) => e.categoryId === category.id);
-    return <CategoryStats category={category} elements={cElements} />;
+    return (
+      <CategoryStats
+        category={category}
+        elements={cElements}
+        storylines={storylines}
+        primaryStorylineByNode={primaryStorylineByNode}
+      />
+    );
   }
   return <EmptyState message="项目主页暂无单项统计。打开一个章节、元素或故事线查看详情。" />;
 }
@@ -425,6 +440,123 @@ function useChapterStatsData(nodeId: string, updatedAt: string | number | Date) 
   }, [nodeId, updatedAt]);
 
   return { stats, elements };
+}
+
+/**
+ * Aggregated element mentions across a set of chapters — the storyline's
+ * "core cast". One listMentionsFromSource query per member chapter, async.
+ * null while loading.
+ */
+function useStorylineCoreElements(nodeIds: string[]) {
+  const [rows, setRows] = useState<ChapterElementStat[] | null>(null);
+  const idsKey = nodeIds.join(',');
+  useEffect(() => {
+    let alive = true;
+    const ids = idsKey ? idsKey.split(',') : [];
+    void (async () => {
+      try {
+        const repo = createInlineMentionRepository();
+        // Promise.all([]) resolves in a microtask, so the empty case still
+        // sets state asynchronously (no sync setState inside the effect).
+        const perNode = await Promise.all(ids.map((id) => repo.listMentionsFromSource('node', id)));
+        if (!alive) return;
+        const counts = new Map<string, number>();
+        for (const mentions of perNode) {
+          for (const m of mentions) {
+            if (m.toKind !== 'element') continue;
+            let n = 1;
+            try {
+              const spans: unknown = JSON.parse(m.fromSpansJson);
+              if (Array.isArray(spans)) n = Math.max(1, spans.length);
+            } catch {
+              /* malformed spans row — count the row itself */
+            }
+            counts.set(m.toId, (counts.get(m.toId) ?? 0) + n);
+          }
+        }
+        setRows(
+          [...counts.entries()]
+            .map(([elementId, mentionCount]) => ({ elementId, mentionCount }))
+            .sort((a, b) => b.mentionCount - a.mentionCount),
+        );
+      } catch {
+        if (alive) setRows([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [idsKey]);
+  return rows;
+}
+
+interface CategoryHealth {
+  /** Elements with ≥1 prose appearance (mentioned from a chapter/drift). */
+  appearedIds: Set<string>;
+  /** elementId → distinct chapters it appears in. */
+  chapterCounts: Map<string, number>;
+  /** primary storylineId ('' = 未归线/漂浮) → distinct elements appearing there. */
+  byStoryline: Map<string, number>;
+}
+
+/**
+ * Appearance health for a category's elements: one backlink query per element
+ * (categories are small), nodes mapped to their primary storyline for the
+ * per-storyline distribution. null while loading.
+ */
+function useCategoryHealth(
+  elementIds: string[],
+  primaryStorylineByNode: Record<string, string | null>,
+) {
+  const [health, setHealth] = useState<CategoryHealth | null>(null);
+  const idsKey = elementIds.join(',');
+  useEffect(() => {
+    let alive = true;
+    const ids = idsKey ? idsKey.split(',') : [];
+    void (async () => {
+      try {
+        const repo = createInlineMentionRepository();
+        const perElement = await Promise.all(
+          ids.map((id) => repo.listBacklinksToTarget('element', id)),
+        );
+        if (!alive) return;
+        const appearedIds = new Set<string>();
+        const chapterCounts = new Map<string, number>();
+        const byStorylineSets = new Map<string, Set<string>>();
+        ids.forEach((elId, i) => {
+          const fromNodes = new Set(
+            perElement[i].filter((b) => b.fromKind === 'node').map((b) => b.fromId),
+          );
+          if (fromNodes.size === 0) return;
+          appearedIds.add(elId);
+          chapterCounts.set(elId, fromNodes.size);
+          for (const nodeId of fromNodes) {
+            const sl = primaryStorylineByNode[nodeId] ?? '';
+            let set = byStorylineSets.get(sl);
+            if (!set) {
+              set = new Set();
+              byStorylineSets.set(sl, set);
+            }
+            set.add(elId);
+          }
+        });
+        setHealth({
+          appearedIds,
+          chapterCounts,
+          byStoryline: new Map([...byStorylineSets.entries()].map(([k, v]) => [k, v.size])),
+        });
+      } catch {
+        if (alive) setHealth(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // primaryStorylineByNode identity churns with the store; idsKey is the
+    // meaningful trigger and the mapping is read fresh on each run anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+  return health;
 }
 
 /**
@@ -550,11 +682,11 @@ function ChapterStats({
               if (!el) return null;
               const cat = categories.find((c) => c.id === el.categoryId);
               return (
-                <ChapterElementRow
+                <StatsLinkRow
                   key={elementId}
                   name={el.name || 'Untitled'}
                   color={cat?.color}
-                  mentionCount={mentionCount}
+                  meta={`×${mentionCount}`}
                   onOpen={() => openEntity({ entityType: 'element', id: elementId })}
                 />
               );
@@ -570,16 +702,18 @@ function ChapterStats({
   );
 }
 
-/** "● name ……… ×N" row in the 本章元素 list — click opens the element. */
-function ChapterElementRow({
+/** "● name ……… meta" navigable row used by the stats lists (本章元素 /
+ *  本线核心元素 / 未出场元素 / 故事线分布). */
+function StatsLinkRow({
   name,
   color,
-  mentionCount,
+  meta,
   onOpen,
 }: {
   name: string;
   color?: string;
-  mentionCount: number;
+  /** Optional right-aligned mono annotation, e.g. "×12" or "3 个元素". */
+  meta?: string;
   onOpen: () => void;
 }) {
   return (
@@ -624,32 +758,66 @@ function ChapterElementRow({
       >
         {name}
       </span>
-      <span
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'hsl(var(--ink-3))',
-          flexShrink: 0,
-        }}
-      >
-        ×{mentionCount}
-      </span>
+      {meta && (
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'hsl(var(--ink-3))',
+            flexShrink: 0,
+          }}
+        >
+          {meta}
+        </span>
+      )}
     </div>
   );
 }
 
+/** Manual-pick chapter statuses, in stacked-bar order (most → least done). */
+const STORYLINE_STATUS_ORDER = ['finished', 'revising', 'waiting_review', 'draft'] as const;
+const STORYLINE_STATUS_OPACITY: Record<(typeof STORYLINE_STATUS_ORDER)[number], number> = {
+  finished: 1,
+  revising: 0.65,
+  waiting_review: 0.4,
+  draft: 0.18,
+};
+
 function StorylineStats({
   storyline,
   nodes,
+  bookElements,
+  categories,
 }: {
   storyline: ReturnType<typeof useDataStore.getState>['storylines'][number];
   nodes: ReturnType<typeof useDataStore.getState>['bookNodes'];
+  bookElements: ReturnType<typeof useDataStore.getState>['bookElements'];
+  categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
 }) {
   const total = nodes.length;
   const totalWc = nodes.reduce((a, n) => a + (n.wordCount || 0), 0);
-  const targetWc = total > 0 ? total * 2800 : 1;
   const avgWc = total ? Math.round(totalWc / total) : 0;
-  const wcPct = Math.min(100, (totalWc / targetWc) * 100);
+  const { openEntity } = useProjectNavigation();
+
+  // Writing-status distribution over the member chapters. Discarded chapters
+  // are parked, not progress — they're excluded from the bar and listed as a
+  // trailing count instead.
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of nodes) {
+      if (isDrift(n)) continue;
+      counts.set(n.writingStatus, (counts.get(n.writingStatus) ?? 0) + 1);
+    }
+    return counts;
+  }, [nodes]);
+  const discarded = statusCounts.get('discarded') ?? 0;
+  const activeTotal = STORYLINE_STATUS_ORDER.reduce(
+    (a, s) => a + (statusCounts.get(s) ?? 0),
+    0,
+  );
+
+  const coreElements = useStorylineCoreElements(useMemo(() => nodes.map((n) => n.id), [nodes]));
+
   return (
     <div style={{ padding: 12 }}>
       <StatsSection title="故事线坐标">
@@ -661,27 +829,97 @@ function StorylineStats({
           </MetaV>
           <MetaK>章数</MetaK>
           <MetaV>{total} 章</MetaV>
-        </MetaGrid>
-      </StatsSection>
-
-      <StatsSection title="字数 · 进度" topBorder>
-        <StatsRow
-          k="已写 / 目标"
-          v={`${(totalWc / 1000).toFixed(1)}k / ${(targetWc / 1000).toFixed(0)}k`}
-        >
-          <ProgressBar pct={wcPct} color={storyline.color} />
-        </StatsRow>
-        <StatsRow k="平均字数" v={`${avgWc.toLocaleString()} 字 / 章`} />
-        <StatsRow k="章节总数" v={`${total}`} />
-      </StatsSection>
-
-      <StatsSection title="最近修改" topBorder>
-        <MetaGrid>
           <MetaK>最近</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(storyline.updatedAt)}</SerifSpan>
           </MetaV>
         </MetaGrid>
+      </StatsSection>
+
+      <StatsSection title="写作进度" topBorder>
+        {activeTotal === 0 ? (
+          <Notes>这条线还没有章节。</Notes>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                height: 5,
+                borderRadius: 2,
+                overflow: 'hidden',
+                background: 'hsl(var(--rule))',
+                marginBottom: 8,
+              }}
+            >
+              {STORYLINE_STATUS_ORDER.map((s) => {
+                const n = statusCounts.get(s) ?? 0;
+                if (n === 0) return null;
+                return (
+                  <div
+                    key={s}
+                    title={`${WRITING_STATUS_LABELS[s]} ${n} 章`}
+                    style={{
+                      width: `${(n / activeTotal) * 100}%`,
+                      background: storyline.color,
+                      opacity: STORYLINE_STATUS_OPACITY[s],
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'hsl(var(--ink-3))',
+                lineHeight: 1.7,
+              }}
+            >
+              {STORYLINE_STATUS_ORDER.filter((s) => (statusCounts.get(s) ?? 0) > 0)
+                .map((s) => `${WRITING_STATUS_LABELS[s]} ${statusCounts.get(s)}`)
+                .join(' · ') || '—'}
+              {discarded > 0 && `（弃用 ${discarded}）`}
+            </div>
+            <StatsRow k="平均字数" v={`${avgWc.toLocaleString()} 字 / 章`} />
+          </>
+        )}
+      </StatsSection>
+
+      <StatsSection title="本线核心元素" topBorder>
+        {coreElements === null ? (
+          <Notes>统计加载中…</Notes>
+        ) : coreElements.length === 0 ? (
+          <Notes>本线章节正文尚未 @ 提及任何元素。</Notes>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {coreElements.slice(0, 8).map(({ elementId, mentionCount }) => {
+              const el = bookElements.find((e) => e.id === elementId);
+              if (!el) return null;
+              const cat = categories.find((c) => c.id === el.categoryId);
+              return (
+                <StatsLinkRow
+                  key={elementId}
+                  name={el.name || 'Untitled'}
+                  color={cat?.color}
+                  meta={`×${mentionCount}`}
+                  onOpen={() => openEntity({ entityType: 'element', id: elementId })}
+                />
+              );
+            })}
+            {coreElements.length > 8 && (
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  color: 'hsl(var(--ink-4))',
+                  padding: '6px 2px 0',
+                }}
+              >
+                还有 {coreElements.length - 8} 个元素出场较少
+              </div>
+            )}
+          </div>
+        )}
       </StatsSection>
 
       <SnapshotEntryButton entityKind="storyline" entityId={storyline.id} />
@@ -737,11 +975,42 @@ function ElementStats({
 function CategoryStats({
   category,
   elements,
+  storylines,
+  primaryStorylineByNode,
 }: {
   category: ReturnType<typeof useDataStore.getState>['bookElementCategories'][number];
   elements: ReturnType<typeof useDataStore.getState>['bookElements'];
+  storylines: ReturnType<typeof useDataStore.getState>['storylines'];
+  primaryStorylineByNode: ReturnType<
+    typeof useDataStore.getState
+  >['primaryStorylineByNode'];
 }) {
   const total = elements.length;
+  const { openEntity } = useProjectNavigation();
+  const health = useCategoryHealth(
+    useMemo(() => elements.map((e) => e.id), [elements]),
+    primaryStorylineByNode,
+  );
+
+  const appeared = health?.appearedIds.size ?? 0;
+  const unappeared = health ? elements.filter((e) => !health.appearedIds.has(e.id)) : [];
+  const avgChapters =
+    health && appeared > 0
+      ? [...health.chapterCounts.values()].reduce((a, n) => a + n, 0) / appeared
+      : 0;
+  // Storyline distribution rows, count desc; '' bucket = chapters without a
+  // primary storyline (drift / unaffiliated).
+  const storylineRows = useMemo(() => {
+    if (!health) return [];
+    return [...health.byStoryline.entries()]
+      .map(([slId, count]) => ({
+        slId,
+        count,
+        storyline: slId ? storylines.find((s) => s.id === slId) : undefined,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [health, storylines]);
+
   return (
     <div style={{ padding: 12 }}>
       <StatsSection title="类目坐标">
@@ -757,13 +1026,105 @@ function CategoryStats({
       </StatsSection>
 
       <StatsSection title="健康度" topBorder>
-        <StatsRow k="已出场" v="—" placeholder>
-          <ProgressBar pct={0} color={category.color} />
-        </StatsRow>
-        <StatsRow k="≥10 mentions" v="—" placeholder />
-        <StatsRow k="未出场" v="—" placeholder />
-        <StatsRow k="平均出场" v="—" placeholder />
+        {health === null ? (
+          <Notes>统计加载中…</Notes>
+        ) : total === 0 ? (
+          <Notes>类目下还没有元素。</Notes>
+        ) : (
+          <>
+            <StatsRow k="已出场" v={`${appeared} / ${total}`}>
+              <ProgressBar pct={(appeared / total) * 100} color={category.color} />
+            </StatsRow>
+            <StatsRow
+              k="平均出场"
+              v={appeared > 0 ? `${avgChapters.toFixed(1)} 章 / 元素` : '—'}
+              placeholder={appeared === 0}
+            />
+          </>
+        )}
       </StatsSection>
+
+      {health !== null && total > 0 && (
+        <StatsSection title="未出场元素" topBorder>
+          {unappeared.length === 0 ? (
+            <Notes>所有元素都已在正文出场。</Notes>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {unappeared.slice(0, 20).map((el) => (
+                <StatsLinkRow
+                  key={el.id}
+                  name={el.name || 'Untitled'}
+                  color={category.color}
+                  onOpen={() => openEntity({ entityType: 'element', id: el.id })}
+                />
+              ))}
+              {unappeared.length > 20 && (
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'hsl(var(--ink-4))',
+                    padding: '6px 2px 0',
+                  }}
+                >
+                  还有 {unappeared.length - 20} 个未出场
+                </div>
+              )}
+            </div>
+          )}
+        </StatsSection>
+      )}
+
+      {storylineRows.length > 0 && (
+        <StatsSection title="故事线分布" topBorder>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {storylineRows.map(({ slId, count, storyline }) =>
+              storyline ? (
+                <StatsLinkRow
+                  key={slId}
+                  name={storyline.name}
+                  color={storyline.color}
+                  meta={`${count} 个元素`}
+                  onOpen={() => openEntity({ entityType: 'storyline', id: slId })}
+                />
+              ) : (
+                <div
+                  key="unaffiliated"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '5px 2px',
+                    borderBottom: '1px dotted hsl(var(--rule))',
+                    fontSize: 12,
+                  }}
+                >
+                  <Dot color="hsl(var(--ink-4))" />
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontSize: 13,
+                      color: 'hsl(var(--ink-3))',
+                      flex: 1,
+                    }}
+                  >
+                    漂浮 / 未归线
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      color: 'hsl(var(--ink-3))',
+                    }}
+                  >
+                    {count} 个元素
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
+        </StatsSection>
+      )}
 
       <SnapshotEntryButton entityKind="category" entityId={category.id} />
     </div>
