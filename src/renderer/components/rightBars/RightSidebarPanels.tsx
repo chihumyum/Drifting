@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
 import { isDrift } from '../../domain/book-node';
+import { getChapterContentJson } from '../../lib/agent/chapter-prose';
+import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
+import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
@@ -333,6 +336,8 @@ function StatsView({
       <ChapterStats
         node={node}
         storylines={storylines}
+        bookElements={bookElements}
+        categories={categories}
         target={target}
         primaryStorylineId={primaryStorylineByNode[node.id] ?? null}
       />
@@ -362,14 +367,75 @@ function StatsView({
   return <EmptyState message="项目主页暂无单项统计。打开一个章节、元素或故事线查看详情。" />;
 }
 
+/** One element mentioned in the chapter's prose, with its mention count. */
+interface ChapterElementStat {
+  elementId: string;
+  mentionCount: number;
+}
+
+/**
+ * Loads the chapter's CURRENT prose (Yjs truth, falling back to the
+ * contentJson cache) and its inline-mention rows, and derives the prose-shape
+ * stats + per-element mention counts. Re-runs when the node is touched
+ * (updatedAt) so the panel tracks edits without subscribing to the live doc.
+ */
+function useChapterStatsData(nodeId: string, updatedAt: string | number | Date) {
+  const [stats, setStats] = useState<ProseStats | null>(null);
+  const [elements, setElements] = useState<ChapterElementStat[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const [contentJson, mentions] = await Promise.all([
+          getChapterContentJson(nodeId, null),
+          createInlineMentionRepository().listMentionsFromSource('node', nodeId),
+        ]);
+        if (!alive) return;
+        setStats(computeProseStats(contentJson));
+        const counts = new Map<string, number>();
+        for (const m of mentions) {
+          if (m.toKind !== 'element') continue;
+          let n = 1;
+          try {
+            const spans: unknown = JSON.parse(m.fromSpansJson);
+            if (Array.isArray(spans)) n = Math.max(1, spans.length);
+          } catch {
+            /* malformed spans row — count the row itself */
+          }
+          counts.set(m.toId, (counts.get(m.toId) ?? 0) + n);
+        }
+        setElements(
+          [...counts.entries()]
+            .map(([elementId, mentionCount]) => ({ elementId, mentionCount }))
+            .sort((a, b) => b.mentionCount - a.mentionCount),
+        );
+      } catch {
+        if (!alive) return;
+        setStats(null);
+        setElements(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [nodeId, updatedAt]);
+
+  return { stats, elements };
+}
+
 function ChapterStats({
   node,
   storylines,
+  bookElements,
+  categories,
   target,
   primaryStorylineId,
 }: {
   node: ReturnType<typeof useDataStore.getState>['bookNodes'][number];
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
+  bookElements: ReturnType<typeof useDataStore.getState>['bookElements'];
+  categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
   target: ResolvedTarget;
   primaryStorylineId: string | null;
 }) {
@@ -378,6 +444,8 @@ function ChapterStats({
     : undefined;
   const targetWc = 3000; // placeholder until per-chapter goals exist
   const wcPct = Math.min(100, (node.wordCount / targetWc) * 100);
+  const { stats, elements } = useChapterStatsData(node.id, node.updatedAt);
+  const dialoguePct = stats ? Math.round(stats.dialogueRatio * 100) : 0;
   return (
     <div style={{ padding: 12 }}>
       <StatsSection title={target.kind === 'drift' ? '浮缀坐标' : '章节坐标'}>
@@ -415,14 +483,92 @@ function ChapterStats({
         <StatsRow k="已写 / 目标" v={`${node.wordCount.toLocaleString()} / ${targetWc.toLocaleString()}`}>
           <ProgressBar pct={wcPct} />
         </StatsRow>
-        <StatsRow k="段落 / 句" v="—" placeholder />
-        <StatsRow k="对白比" v="—" placeholder />
-        <StatsRow k="修订" v="—" placeholder />
+        <StatsRow
+          k="段落 / 句"
+          v={stats ? `${stats.paragraphs} 段 · ${stats.sentences} 句` : '—'}
+          placeholder={!stats}
+        />
+        <StatsRow k="对白比" v={stats ? `${dialoguePct}%` : '—'} placeholder={!stats}>
+          {stats && <ProgressBar pct={dialoguePct} />}
+        </StatsRow>
+      </StatsSection>
+
+      <StatsSection title={target.kind === 'drift' ? '本篇元素' : '本章元素'} topBorder>
+        {elements && elements.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {elements.map(({ elementId, mentionCount }) => {
+              const el = bookElements.find((e) => e.id === elementId);
+              if (!el) return null;
+              const cat = categories.find((c) => c.id === el.categoryId);
+              return (
+                <ChapterElementRow
+                  key={elementId}
+                  name={el.name || 'Untitled'}
+                  color={cat?.color}
+                  mentionCount={mentionCount}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <Notes>{elements ? '正文尚未 @ 提及任何元素。' : '统计加载中…'}</Notes>
+        )}
       </StatsSection>
 
       <StatsSection title="案头札记" topBorder>
         <Notes>暂未记录札记。</Notes>
       </StatsSection>
+    </div>
+  );
+}
+
+/** "● name ……… ×N" row in the 本章元素 list. */
+function ChapterElementRow({
+  name,
+  color,
+  mentionCount,
+}: {
+  name: string;
+  color?: string;
+  mentionCount: number;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 0',
+        borderBottom: '1px dotted hsl(var(--rule))',
+        fontSize: 12,
+        minWidth: 0,
+      }}
+    >
+      <Dot color={color} />
+      <span
+        style={{
+          fontFamily: 'var(--font-serif)',
+          fontSize: 13,
+          color: 'hsl(var(--ink-1))',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        {name}
+      </span>
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'hsl(var(--ink-3))',
+          flexShrink: 0,
+        }}
+      >
+        ×{mentionCount}
+      </span>
     </div>
   );
 }
