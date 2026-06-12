@@ -12,6 +12,7 @@ import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/Edit
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { isChapter, type ChapterNode } from '../domain/book-node';
+import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import type { OutlineItem } from '../lib/outline';
@@ -62,6 +63,7 @@ export function AllChaptersEditorView() {
   if (!userId) throw new Error('AllChaptersEditorView requires a logged-in user');
 
   const { bookNodes, storylines, primaryStorylineByNode } = useDataStore();
+  const bookActs = useDataStore((s) => s.bookActs);
   const currentProject = useProjectStore((s) => s.currentProject);
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Untitled';
@@ -117,6 +119,36 @@ export function AllChaptersEditorView() {
     () => orderedNodes.reduce((sum, n) => sum + (n.wordCount || 0), 0),
     [orderedNodes],
   );
+
+  // Interleave act dividers into the read-through. Chapter indices keep
+  // counting straight through (the Roman numeral sequence ignores acts);
+  // empty acts still render their divider — a planned 幕 with no chapters
+  // is a deliberate authoring signal, not a data glitch. No acts → plain
+  // chapter list, zero overhead.
+  type ReadRow =
+    | { kind: 'act'; act: BookAct; count: number; words: number }
+    | { kind: 'chapter'; node: ChapterNode; idx: number };
+  const readRows = useMemo<ReadRow[]>(() => {
+    const segments = deriveActSegments(bookActs, orderedNodes);
+    if (segments.length === 0) {
+      return orderedNodes.map((node, idx) => ({ kind: 'chapter' as const, node, idx }));
+    }
+    const rows: ReadRow[] = [];
+    let idx = 0;
+    for (const seg of segments) {
+      rows.push({
+        kind: 'act',
+        act: seg.act,
+        count: seg.chapters.length,
+        words: seg.chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
+      });
+      for (const node of seg.chapters) {
+        rows.push({ kind: 'chapter', node, idx });
+        idx += 1;
+      }
+    }
+    return rows;
+  }, [bookActs, orderedNodes]);
 
   const storylineById = useMemo(
     () => new Map(storylines.map((s) => [s.id, s])),
@@ -466,7 +498,64 @@ export function AllChaptersEditorView() {
           emptyHint="— 尚无章节 —"
         />
         <div className="editor-scroll" ref={scrollRef}>
-          {orderedNodes.map((node, idx) => {
+          {readRows.map((row) => {
+            if (row.kind === 'act') {
+              const tint = row.act.color || 'hsl(var(--ink-4))';
+              return (
+                <div
+                  key={`act-${row.act.id}`}
+                  style={{
+                    padding: '52px 24px 28px',
+                    textAlign: 'center',
+                    borderBottom: '1px solid hsl(var(--rule))',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 2,
+                      margin: '0 auto 14px',
+                      background: tint,
+                      opacity: 0.7,
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 600,
+                      letterSpacing: '0.12em',
+                      color: 'hsl(var(--ink-1))',
+                    }}
+                  >
+                    {row.act.name}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10.5,
+                      color: 'hsl(var(--ink-4))',
+                    }}
+                  >
+                    {row.count} 章 · {(row.words / 1000).toFixed(1)}k 字
+                  </div>
+                  {row.act.summary && (
+                    <div
+                      style={{
+                        margin: '10px auto 0',
+                        maxWidth: 480,
+                        fontSize: 12.5,
+                        lineHeight: 1.7,
+                        color: 'hsl(var(--ink-3))',
+                      }}
+                    >
+                      {row.act.summary}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            const { node, idx } = row;
             const primaryId = primaryStorylineByNode[node.id] ?? null;
             const storyline = primaryId ? storylineById.get(primaryId) : undefined;
             return (
