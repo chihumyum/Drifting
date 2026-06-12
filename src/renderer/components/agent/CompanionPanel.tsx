@@ -31,6 +31,8 @@ import {
 import { useProjectStore } from '../../store/project-store';
 import { useAgentMemory } from '../../usecase/useAgentMemory';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
+import { useAgentCheckpointStore } from '../../store/agent-checkpoint-store';
+import { revertToTurn } from '../../lib/agent/turn-revert';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
@@ -572,7 +574,23 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
 
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // Turn-checkpoint list (回退到某轮之前) + its two-step confirm / busy state.
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [confirmTurnId, setConfirmTurnId] = useState<string | null>(null);
+  const [reverting, setReverting] = useState(false);
+  const [revertNote, setRevertNote] = useState<string | null>(null);
+  const allCheckpoints = useAgentCheckpointStore((s) => s.checkpoints);
+  const checkpoints = useMemo(
+    () => allCheckpoints.filter((c) => c.projectId === projectId).reverse(),
+    [allCheckpoints, projectId],
+  );
   const [atBottom, setAtBottom] = useState(true);
+  // History / snapshots dropdowns: refs for outside-click dismissal. The toggle
+  // buttons (toolbarRight) are excluded — they own their open/close, and closing
+  // on their pointerdown would make the click reopen what it just closed.
+  const historyPanelRef = useRef<HTMLDivElement>(null);
+  const snapshotsPanelRef = useRef<HTMLDivElement>(null);
+  const toolbarRightRef = useRef<HTMLDivElement>(null);
   // Inline rename: the header edits the active conversation; a history row edits
   // whichever entry is `editingItemId`.
   const [editingHeaderId, setEditingHeaderId] = useState<string | null>(null);
@@ -617,6 +635,46 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   useEffect(() => {
     bindProject(projectId);
   }, [projectId, bindProject]);
+
+  // Dismiss the history / snapshots dropdowns on outside pointerdown or Escape.
+  // Capture phase so we beat React's synthetic delegation for clicks that land
+  // outside this component (same pattern as EntityCellContextMenu).
+  useEffect(() => {
+    if (!showHistory && !showSnapshots) return undefined;
+    const closeBoth = () => {
+      setShowHistory(false);
+      setShowSnapshots(false);
+      setConfirmTurnId(null);
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (historyPanelRef.current?.contains(t)) return;
+      if (snapshotsPanelRef.current?.contains(t)) return;
+      if (toolbarRightRef.current?.contains(t)) return;
+      closeBoth();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // A rename input inside the dropdown handles Escape itself (cancels the
+      // edit) — don't yank the whole panel out from under it.
+      const t = e.target as HTMLElement;
+      if (
+        (historyPanelRef.current?.contains(t) || snapshotsPanelRef.current?.contains(t)) &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')
+      ) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      closeBoth();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [showHistory, showSnapshots]);
 
   // Auto-follow the stream only while pinned to the bottom.
   useEffect(() => {
@@ -726,6 +784,31 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
     [openEntity],
   );
 
+  // Revert the manuscript to the state before this turn (and every later turn)
+  // ran. Disabled while any turn is in flight — reverting under a writing agent
+  // would race its edits.
+  const handleRevert = useCallback(
+    async (turnId: string) => {
+      setReverting(true);
+      setRevertNote(null);
+      try {
+        const r = await revertToTurn(projectId, turnId);
+        const parts = [`已回退 ${r.turns} 轮`];
+        if (r.blocks) parts.push(`${r.blocks} 处正文`);
+        if (r.fields) parts.push(`${r.fields} 个字段`);
+        setRevertNote(
+          r.skipped.length ? `${parts.join(' · ')}；${r.skipped.length} 项无法自动还原` : parts.join(' · '),
+        );
+      } catch (err) {
+        setRevertNote(`回退失败：${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setReverting(false);
+        setConfirmTurnId(null);
+      }
+    },
+    [projectId],
+  );
+
   const beginHeaderRename = useCallback(() => {
     if (!activeConv) return;
     setHeaderDraft(activeConv.title || '');
@@ -825,11 +908,28 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             {sessionName}
           </button>
         )}
-        <div style={toolbarRight}>
+        <div style={toolbarRight} ref={toolbarRightRef}>
+          {checkpoints.length > 0 && (
+            <button
+              type="button"
+              style={ghostBtn}
+              onClick={() => {
+                setShowSnapshots((s) => !s);
+                setShowHistory(false);
+                setConfirmTurnId(null);
+              }}
+              title="回退到某一轮 agent 改动之前"
+            >
+              ↺ 快照 · {checkpoints.length}
+            </button>
+          )}
           <button
             type="button"
             style={ghostBtn}
-            onClick={() => setShowHistory((s) => !s)}
+            onClick={() => {
+              setShowHistory((s) => !s);
+              setShowSnapshots(false);
+            }}
             title="历史对话"
           >
             ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
@@ -840,8 +940,79 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      {showSnapshots && (
+        <div style={historyPanel} ref={snapshotsPanelRef}>
+          {revertNote && (
+            <div style={{ padding: '8px 12px', fontSize: 11.5, color: 'hsl(var(--ink-2))' }}>
+              {revertNote}
+            </div>
+          )}
+          {checkpoints.length === 0 ? (
+            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无可回退的改动快照</div>
+          ) : (
+            checkpoints.map((cp, i) => {
+              const entityCount = Object.keys(cp.entities).length;
+              const changeCount = Object.values(cp.entities).reduce(
+                (n, e) => n + e.changes.length,
+                0,
+              );
+              const confirming = confirmTurnId === cp.turnId;
+              return (
+                <div key={cp.turnId} style={historyItem}>
+                  <span style={historyTitle} title={cp.label}>
+                    {cp.label || '(空指令)'}
+                  </span>
+                  <span style={historyTime}>
+                    {relTime(new Date(cp.ts).toISOString())} · {changeCount} 处 / {entityCount} 实体
+                  </span>
+                  {confirming ? (
+                    <>
+                      <button
+                        type="button"
+                        style={{ ...historyAct, color: 'hsl(var(--accent))' }}
+                        disabled={reverting}
+                        title={
+                          i === 0
+                            ? '撤销这一轮的全部改动'
+                            : `撤销这一轮及其后 ${i} 轮的全部改动`
+                        }
+                        onClick={() => void handleRevert(cp.turnId)}
+                      >
+                        {reverting ? '回退中…' : '确认回退'}
+                      </button>
+                      <button
+                        type="button"
+                        style={historyAct}
+                        disabled={reverting}
+                        onClick={() => setConfirmTurnId(null)}
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      style={historyAct}
+                      disabled={reverting || running || otherRunning}
+                      title={
+                        running || otherRunning
+                          ? 'agent 正在运行，结束后才能回退'
+                          : '回退到这一轮改动之前'
+                      }
+                      onClick={() => setConfirmTurnId(cp.turnId)}
+                    >
+                      ↺ 回退
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {showHistory && (
-        <div style={historyPanel}>
+        <div style={historyPanel} ref={historyPanelRef}>
           {convList.length === 0 ? (
             <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无历史对话</div>
           ) : (

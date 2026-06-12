@@ -25,6 +25,7 @@ import { useProjectStore } from './project-store';
 import { useAgentActivityStore } from './agent-activity-store';
 import { useDataStore } from './data-store';
 import { useAgentEditStore, type RevertRecord } from './agent-edit-store';
+import { useAgentCheckpointStore } from './agent-checkpoint-store';
 import type { ActivityEntityType } from '../lib/agent/tool-entity-ref';
 import { parseKv } from '../domain/kv';
 import { resolveWritingLanguage } from '../lib/ai/output-language';
@@ -396,6 +397,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       runningTurnId: turnId,
       runningConvId: cid,
     }));
+    // Open this turn's checkpoint: writes the agent makes are folded into it so
+    // the user can later revert the whole turn (see lib/agent/turn-revert).
+    useAgentCheckpointStore.getState().beginTurn({
+      turnId,
+      convId: cid,
+      projectId,
+      label: text.length > 48 ? `${text.slice(0, 48)}…` : text,
+    });
     // Remember this as the project's last-active conversation so it re-opens on
     // next launch.
     useSettingsStore.getState().setLastAgentConv(projectId, cid);
@@ -429,6 +438,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     // 'error'/'done' stream. So surface this one and clear the in-flight turn.
     if (!r.ok) {
       turnConv.delete(turnId);
+      useAgentCheckpointStore.getState().endTurn(turnId);
       set((st) => {
         const cur = st.runs[cid];
         const runs = cur
@@ -601,6 +611,7 @@ function handleEvent(env: AgentEventEnvelope): void {
 
   if (ev.type === 'done') {
     turnConv.delete(turnId);
+    useAgentCheckpointStore.getState().endTurn(turnId);
     useAgentActivityStore.getState().onTurnEnd();
     useAgentChatStore.setState((s) =>
       s.runningTurnId === turnId ? { runningTurnId: null, runningConvId: null } : s,
