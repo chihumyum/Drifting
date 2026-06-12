@@ -8,6 +8,7 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
 import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
@@ -92,6 +93,12 @@ export function DriftPanel() {
     | { x: number; y: number; nodeId: string; writingStatus: BookNode['writingStatus'] }
     | null
   >(null);
+  // Hover summary card (same affordance as the element panel's).
+  const {
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+  } = useHoverPreview<BookNode>();
 
   const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -166,13 +173,16 @@ export function DriftPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
+          hoverEnter(node, event.currentTarget.getBoundingClientRect());
         }}
         onMouseLeave={(event) => {
           if (!selected) {
             event.currentTarget.style.background = 'transparent';
           }
+          hoverLeave();
         }}
         onClick={() => {
+          hoverLeave();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           openEntity({ entityType: 'node', id: node.id });
         }}
@@ -182,6 +192,7 @@ export function DriftPanel() {
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
+          hoverLeave();
           setContextMenu({
             x: event.clientX,
             y: event.clientY,
@@ -449,6 +460,17 @@ export function DriftPanel() {
             </div>
           )}
         </div>
+      )}
+
+      {hoverPreview && (
+        <PanelHoverPreview
+          glyph="❦"
+          accentColor="hsl(var(--ink-3))"
+          title={hoverPreview.data.title}
+          summary={hoverPreview.data.summary}
+          top={hoverPreview.top}
+          left={hoverPreview.left}
+        />
       )}
 
       {contextMenu && (

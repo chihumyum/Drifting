@@ -13,6 +13,7 @@ import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { PanelHoverPreview } from './PanelHoverPreview';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
@@ -837,9 +838,11 @@ export function ElementPanel() {
       </div>
 
       {hoverPreview && (
-        <ElementHoverPreview
-          element={hoverPreview.element}
-          categoryColor={hoverPreview.categoryColor}
+        <PanelHoverPreview
+          glyph="◆"
+          accentColor={hoverPreview.categoryColor}
+          title={hoverPreview.element.name}
+          summary={hoverPreview.element.summary}
           top={hoverPreview.top}
           left={hoverPreview.left}
         />
@@ -869,93 +872,6 @@ export function ElementPanel() {
         .left-panel-cat-footer { scrollbar-width: none; }
         .left-panel-cat-footer::-webkit-scrollbar { width: 0; height: 0; display: none; }
       `}</style>
-    </div>
-  );
-}
-
-function ElementHoverPreview({
-  element,
-  categoryColor,
-  top,
-  left,
-}: {
-  element: BookElement;
-  categoryColor: string;
-  top: number;
-  left: number;
-}) {
-  const summary = element.summary?.trim() ?? '';
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top,
-        left,
-        width: 260,
-        maxHeight: 200,
-        background: 'hsl(var(--surface))',
-        border: '1px solid hsl(var(--rule-strong))',
-        boxShadow: '0 6px 18px hsl(var(--ink-1) / 0.15)',
-        zIndex: 10000,
-        pointerEvents: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        fontFamily: 'var(--font-sans)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 10px',
-          borderBottom: '1px solid hsl(var(--rule) / 0.6)',
-          background: 'hsl(var(--paper))',
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: 11,
-            color: categoryColor,
-            lineHeight: 1,
-          }}
-        >
-          ◆
-        </span>
-        <span
-          style={{
-            fontSize: 12,
-            color: 'hsl(var(--ink-1))',
-            fontWeight: 500,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {element.name || 'Untitled'}
-        </span>
-      </div>
-      <div
-        style={{
-          padding: '8px 10px',
-          fontSize: 11.5,
-          lineHeight: 1.5,
-          color: summary ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
-          fontStyle: summary ? 'normal' : 'italic',
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: 8,
-          whiteSpace: 'pre-wrap',
-          wordWrap: 'break-word',
-        }}
-      >
-        {summary || 'No summary'}
-      </div>
     </div>
   );
 }

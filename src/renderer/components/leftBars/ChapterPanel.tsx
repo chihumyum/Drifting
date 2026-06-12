@@ -6,6 +6,7 @@ import type { BookNode } from '../../domain/book-node';
 import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
 import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
@@ -195,6 +196,12 @@ export function ChapterPanel() {
     | { x: number; y: number; storylineId: string }
     | null
   >(null);
+  // Hover summary card (same affordance as the element panel's).
+  const {
+    preview: hoverPreview,
+    onEnter: hoverEnter,
+    onLeave: hoverLeave,
+  } = useHoverPreview<{ node: BookNode; accent: string }>();
   // Outer column ref — measure the available height for the drag clamp so the
   // footer can't grow past the panel itself.
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -314,13 +321,19 @@ export function ChapterPanel() {
           if (!selected) {
             event.currentTarget.style.background = 'hsl(var(--ink-1) / 0.03)';
           }
+          hoverEnter(
+            { node, accent: storyline?.color ?? 'hsl(var(--ink-3))' },
+            event.currentTarget.getBoundingClientRect(),
+          );
         }}
         onMouseLeave={(event) => {
           if (!selected) {
             event.currentTarget.style.background = 'transparent';
           }
+          hoverLeave();
         }}
         onClick={() => {
+          hoverLeave();
           if (agentChanged) useAgentActivityStore.getState().clearTouched('node', node.id);
           openEntity({ entityType: 'node', id: node.id });
         }}
@@ -330,6 +343,7 @@ export function ChapterPanel() {
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
+          hoverLeave();
           setContextMenu({
             x: event.clientX,
             y: event.clientY,
@@ -665,6 +679,17 @@ export function ChapterPanel() {
             </div>
           )}
         </div>
+      )}
+
+      {hoverPreview && (
+        <PanelHoverPreview
+          glyph="§"
+          accentColor={hoverPreview.data.accent}
+          title={hoverPreview.data.node.title}
+          summary={hoverPreview.data.node.summary}
+          top={hoverPreview.top}
+          left={hoverPreview.left}
+        />
       )}
 
       {contextMenu && (
