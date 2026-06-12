@@ -16,6 +16,7 @@ import {
   type CopilotTaskId,
   type CopilotOutputLang,
 } from '../../store/settings-store';
+import { getCopilotCapability } from '../../lib/copilot/capability';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import '../../../styles/copilot-surface.css';
@@ -44,8 +45,6 @@ export function CopilotBottomMenu() {
 
   const autoTrigger = useSettingsStore((s) => s.copilotAutoTrigger);
   const setAutoTrigger = useSettingsStore((s) => s.setCopilotAutoTrigger);
-  const taskConfigs = useSettingsStore((s) => s.copilotTaskConfigs);
-  const setTaskEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
   const { projectId } = useProjectNavigation();
   const outputLang =
     useSettingsStore((s) => (projectId ? s.copilotOutputLangByProject[projectId] : undefined)) ??
@@ -140,13 +139,7 @@ export function CopilotBottomMenu() {
           <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
           <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>自动任务</div>
           {COPILOT_TASKS.map((t) => (
-            <ToggleRow
-              key={t.id}
-              label={t.label}
-              desc={t.desc}
-              checked={!!taskConfigs[t.id]?.enabled}
-              onChange={(on) => setTaskEnabled(t.id as CopilotTaskId, on)}
-            />
+            <TaskRow key={t.id} taskId={t.id} label={t.label} desc={t.desc} />
           ))}
 
           <button
@@ -173,6 +166,57 @@ export function CopilotBottomMenu() {
           </>,
           document.body,
         )}
+    </div>
+  );
+}
+
+const DEBOUNCE_MIN_SEC = 1;
+const DEBOUNCE_MAX_SEC = 60;
+
+/**
+ * One auto-task row: enable toggle + (when wired & enabled) a compact debounce
+ * slider. Same store fields as the Settings panel's CopilotTaskRow, so the two
+ * surfaces stay in sync.
+ */
+function TaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string; desc: string }) {
+  const cfg = useSettingsStore((s) => s.copilotTaskConfigs[taskId]);
+  const setEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
+  const setDebounceMs = useSettingsStore((s) => s.setCopilotTaskDebounceMs);
+
+  const cap = getCopilotCapability(taskId);
+  const enabled = cfg?.enabled ?? false;
+  const effectiveMs = cfg?.debounceMs ?? cap?.defaultDebounceMs ?? 5000;
+  const effectiveSec = Math.round(effectiveMs / 1000);
+
+  return (
+    <div>
+      <ToggleRow label={label} desc={desc} checked={enabled} onChange={(on) => setEnabled(taskId, on)} />
+      {cap && enabled && (
+        <div style={{ padding: '0 4px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="range"
+            min={DEBOUNCE_MIN_SEC}
+            max={DEBOUNCE_MAX_SEC}
+            step={1}
+            value={Math.min(DEBOUNCE_MAX_SEC, Math.max(DEBOUNCE_MIN_SEC, effectiveSec))}
+            onChange={(e) => setDebounceMs(taskId, parseInt(e.target.value, 10) * 1000)}
+            style={{ flex: 1, minWidth: 0, accentColor: 'var(--copilot-accent)', height: 12 }}
+            title="停笔多久后自动触发"
+          />
+          <span
+            style={{
+              flex: '0 0 auto',
+              fontSize: 10.5,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--copilot-text-dim)',
+              minWidth: 30,
+              textAlign: 'right',
+            }}
+          >
+            {effectiveSec}s
+          </span>
+        </div>
+      )}
     </div>
   );
 }
