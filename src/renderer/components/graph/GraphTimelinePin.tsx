@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TimelineMarker } from '../../domain/timeline-marker';
+import { TimelinePinMenu } from './TimelinePinMenu';
 
 // Mirrors BottomTimeline's TimelinePin one-to-one (head dot + editable
 // label) but is sized for the story graph view's axis row. Drag the head to
 // reposition; double-click the label to rename. The vertical line that
 // spans the full canvas is rendered separately by the parent so it can
 // sit at a different z-index than this head/label widget.
+//
+// A pin bound to a drift node (marker.driftNodeId) renders the DRIFT's title
+// instead of its own label, double-click OPENS the drift's editor (no inline
+// rename — the caption is the drift's name), and the context menu offers
+// 解绑/打开 instead of 绑定/重命名.
 
 export interface GraphTimelinePinProps {
   marker: TimelineMarker;
@@ -18,11 +24,20 @@ export interface GraphTimelinePinProps {
   pinHeight: number;
   isDragging: boolean;
   editOnMount?: boolean;
-  onChange: (patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label'>>) => void;
+  onChange: (
+    patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label' | 'driftNodeId'>>,
+  ) => void;
   onDelete: () => void;
   // null when drag ends; otherwise the cursor's pixel X (canvas-content
   // coords) so the parent can render a vertical drop indicator.
   onDragMove: (nextPixelX: number | null) => void;
+  // ---- Drift binding (see domain/timeline-marker.ts) ----
+  /** Live title of the bound drift; null when unbound (or drift unresolved). */
+  boundDriftTitle?: string | null;
+  /** Drifts not yet bound to any marker — the bind picker's options. */
+  unboundDrifts?: Array<{ id: string; title: string }>;
+  /** Open the bound drift's editor tab. */
+  onOpenDrift?: () => void;
 }
 
 export function GraphTimelinePin({
@@ -35,8 +50,13 @@ export function GraphTimelinePin({
   onChange,
   onDelete,
   onDragMove,
+  boundDriftTitle = null,
+  unboundDrifts = [],
+  onOpenDrift,
 }: GraphTimelinePinProps) {
-  const [editing, setEditing] = useState(editOnMount);
+  const isBound = Boolean(marker.driftNodeId);
+  const [editing, setEditing] = useState(editOnMount && !isBound);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const x = orderToX(marker.narrativeOrder);
 
@@ -90,16 +110,35 @@ export function GraphTimelinePin({
     }
   }, [editing]);
 
+  // Unbind keeps the pin captioned: an own label wins, else the drift title.
+  const handleUnbind = useCallback(() => {
+    onChange({
+      driftNodeId: null,
+      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? '标记'),
+    });
+  }, [onChange, marker.label, boundDriftTitle]);
+
   const className = [
     'graph-pin',
     isDragging ? 'is-dragging' : '',
     editing ? 'is-editing' : '',
+    isBound ? 'is-bound' : '',
   ]
     .filter(Boolean)
     .join(' ');
 
+  const displayLabel = isBound ? (boundDriftTitle || '未命名') : marker.label;
+
   return (
-    <div className={className} style={{ left: x, height: pinHeight }}>
+    <div
+      className={className}
+      style={{ left: x, height: pinHeight }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenu({ x: e.clientX + 2, y: e.clientY - 2 });
+      }}
+    >
       <div
         ref={labelRef}
         className="graph-pin__label"
@@ -107,12 +146,15 @@ export function GraphTimelinePin({
         suppressContentEditableWarning
         onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
         onDoubleClick={(e) => {
-          if (!editing) {
-            e.stopPropagation();
-            setEditing(true);
+          e.stopPropagation();
+          if (isBound) {
+            onOpenDrift?.();
+            return;
           }
+          if (!editing) setEditing(true);
         }}
         onBlur={(e) => {
+          if (isBound) return;
           const text = (e.currentTarget.textContent ?? '').trim();
           setEditing(false);
           if (!text) onDelete();
@@ -128,11 +170,31 @@ export function GraphTimelinePin({
             (e.currentTarget as HTMLDivElement).blur();
           }
         }}
-        title={editing ? '回车保存，留空删除' : '双击编辑名称'}
+        title={
+          isBound
+            ? '已绑定漂浮节点 · 双击打开'
+            : editing
+              ? '回车保存，留空删除'
+              : '双击编辑名称'
+        }
       >
-        {marker.label}
+        {displayLabel}
       </div>
       <div className="graph-pin__head" onMouseDown={startDrag} title="拖动调整位置" />
+      {menu && (
+        <TimelinePinMenu
+          x={menu.x}
+          y={menu.y}
+          isBound={isBound}
+          unboundDrifts={unboundDrifts}
+          onOpenDrift={() => onOpenDrift?.()}
+          onUnbind={handleUnbind}
+          onBind={(driftId) => onChange({ driftNodeId: driftId })}
+          onRename={() => setEditing(true)}
+          onDelete={onDelete}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

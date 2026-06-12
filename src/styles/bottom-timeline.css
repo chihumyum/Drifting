@@ -553,6 +553,22 @@
   opacity: 0;
   pointer-events: none;
 }
+/* Bound pin — the marker carries a drift node as its content. Label shows
+   the drift's live title; double-click opens its editor. Accent border +
+   filled head signal "this is a thing, not just a caption". */
+.btl-pin.is-bound .btl-pin__label {
+  border-color: hsl(var(--accent) / 0.55);
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.btl-pin.is-bound .btl-pin__label:hover {
+  background: hsl(var(--accent) / 0.08);
+}
+.btl-pin.is-bound .btl-pin__head {
+  border-top-color: hsl(var(--accent));
+}
 /* Pin grid line — rendered inside each storyline track so it paints
    below the chapter clips. */
 .btl-pin-line {

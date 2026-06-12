@@ -752,6 +752,20 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   opacity: 0;
   pointer-events: none;
 }
+/* Bound pin — see .btl-pin.is-bound; same semantics in the graph axis. */
+.graph-pin.is-bound .graph-pin__label {
+  border-color: hsl(var(--accent) / 0.55);
+  color: hsl(var(--ink-1));
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.graph-pin.is-bound .graph-pin__label:hover {
+  background: hsl(var(--accent) / 0.08);
+}
+.graph-pin.is-bound .graph-pin__head {
+  border-top-color: hsl(var(--accent));
+}
 
 /* Vertical line that pierces every storyline track for a given pin.
    Sits BEHIND tiles (z-index 0) at rest and IN FRONT (z-index 5) while

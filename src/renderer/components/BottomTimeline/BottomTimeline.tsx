@@ -3,7 +3,7 @@ import { useMatch } from 'react-router-dom';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
-import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
+import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../../domain/book-node';
 import { useAuthStore } from '../../store/auth';
 import { NodeHoverPreview } from '../NodeHoverPreview';
 import { useDataStore } from '../../store/data-store';
@@ -14,6 +14,7 @@ import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
 import { EntityCellContextMenu } from '../leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
+import { TimelinePinMenu } from '../graph/TimelinePinMenu';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
 import type { TimelineNode } from './types';
@@ -72,11 +73,22 @@ interface TimelinePinProps {
   isDragging: boolean;
   pinHeight: number;
   editOnMount?: boolean;
-  onChange: (patch: { narrativeOrder?: number; label?: string }) => void;
+  onChange: (patch: {
+    narrativeOrder?: number;
+    label?: string;
+    driftNodeId?: string | null;
+  }) => void;
   onDelete: () => void;
   onDragMove: (nextPixelX: number | null) => void;
+  // ---- Drift binding (see domain/timeline-marker.ts) ----
+  boundDriftTitle?: string | null;
+  unboundDrifts?: Array<{ id: string; title: string }>;
+  onOpenDrift?: () => void;
 }
 
+// A pin bound to a drift node renders the DRIFT's title instead of its own
+// label; double-click OPENS the drift's editor instead of inline-renaming,
+// and the context menu offers 解绑/打开 instead of 绑定/重命名.
 function TimelinePin({
   marker,
   snapValues,
@@ -88,8 +100,13 @@ function TimelinePin({
   onChange,
   onDelete,
   onDragMove,
+  boundDriftTitle = null,
+  unboundDrifts = [],
+  onOpenDrift,
 }: TimelinePinProps) {
-  const [editing, setEditing] = useState(editOnMount);
+  const isBound = Boolean(marker.driftNodeId);
+  const [editing, setEditing] = useState(editOnMount && !isBound);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   // Pin head/label stays anchored to the persisted narrativeOrder during a
   // drag. A separate timeline-level overlay follows the cursor as the drop
@@ -147,12 +164,35 @@ function TimelinePin({
     }
   }, [editing]);
 
-  const className = ['btl-pin', isDragging ? 'is-dragging' : '', editing ? 'is-editing' : '']
+  // Unbind keeps the pin captioned: an own label wins, else the drift title.
+  const handleUnbind = useCallback(() => {
+    onChange({
+      driftNodeId: null,
+      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? '标记'),
+    });
+  }, [onChange, marker.label, boundDriftTitle]);
+
+  const className = [
+    'btl-pin',
+    isDragging ? 'is-dragging' : '',
+    editing ? 'is-editing' : '',
+    isBound ? 'is-bound' : '',
+  ]
     .filter(Boolean)
     .join(' ');
 
+  const displayLabel = isBound ? (boundDriftTitle || '未命名') : marker.label;
+
   return (
-    <div className={className} style={{ left: x, height: pinHeight }}>
+    <div
+      className={className}
+      style={{ left: x, height: pinHeight }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenu({ x: e.clientX + 2, y: e.clientY - 2 });
+      }}
+    >
       <div
         ref={labelRef}
         className="btl-pin__label"
@@ -160,12 +200,15 @@ function TimelinePin({
         suppressContentEditableWarning
         onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
         onDoubleClick={(e) => {
-          if (!editing) {
-            e.stopPropagation();
-            setEditing(true);
+          e.stopPropagation();
+          if (isBound) {
+            onOpenDrift?.();
+            return;
           }
+          if (!editing) setEditing(true);
         }}
         onBlur={(e) => {
+          if (isBound) return;
           const text = (e.currentTarget.textContent ?? '').trim();
           setEditing(false);
           if (!text) onDelete();
@@ -181,11 +224,31 @@ function TimelinePin({
             (e.currentTarget as HTMLDivElement).blur();
           }
         }}
-        title={editing ? '回车保存，留空删除' : '双击编辑名称'}
+        title={
+          isBound
+            ? '已绑定漂浮节点 · 双击打开'
+            : editing
+              ? '回车保存，留空删除'
+              : '双击编辑名称'
+        }
       >
-        {marker.label}
+        {displayLabel}
       </div>
       <div className="btl-pin__head" onMouseDown={startDrag} title="拖动调整位置" />
+      {menu && (
+        <TimelinePinMenu
+          x={menu.x}
+          y={menu.y}
+          isBound={isBound}
+          unboundDrifts={unboundDrifts}
+          onOpenDrift={() => onOpenDrift?.()}
+          onUnbind={handleUnbind}
+          onBind={(driftId) => onChange({ driftNodeId: driftId })}
+          onRename={() => setEditing(true)}
+          onDelete={onDelete}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -228,7 +291,21 @@ export function BottomTimeline() {
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+  const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
+    useTimelineMarkers(projectId);
+  // Drift binding lookups for the narrative pins: live titles for bound
+  // pins, and the not-yet-bound set for the bind picker.
+  const driftById = useMemo(() => {
+    const m = new Map<string, { id: string; title: string }>();
+    for (const n of bookNodes) {
+      if (isDrift(n)) m.set(n.id, { id: n.id, title: n.title });
+    }
+    return m;
+  }, [bookNodes]);
+  const unboundDrifts = useMemo(
+    () => Array.from(driftById.values()).filter((d) => !boundDriftIds.has(d.id)),
+    [driftById, boundDriftIds],
+  );
   const bookActs = useDataStore((s) => s.bookActs);
   const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
     projectId: projectId ?? '',
@@ -1508,6 +1585,13 @@ export function BottomTimeline() {
                 deleteMarker(m.id);
               }}
               onDragMove={(nextPixelX) => handlePinDragMove(m.id, nextPixelX)}
+              boundDriftTitle={m.driftNodeId ? (driftById.get(m.driftNodeId)?.title ?? null) : null}
+              unboundDrifts={unboundDrifts}
+              onOpenDrift={() => {
+                if (m.driftNodeId) {
+                  openEntity({ entityType: 'node', id: m.driftNodeId }, { preview: false });
+                }
+              }}
             />
           ))}
 

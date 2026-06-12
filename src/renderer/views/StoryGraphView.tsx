@@ -160,7 +160,8 @@ export function StoryGraphView() {
     projectId: projectId ?? '',
     userId: user?.id ?? '',
   });
-  const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+  const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
+    useTimelineMarkers(projectId);
   const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
     projectId: projectId ?? '',
   });
@@ -510,6 +511,22 @@ export function StoryGraphView() {
   }, [bookNodes, orderOf]);
 
   const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
+
+  // The bottom drawer hides drifts that are BOUND to a timeline marker —
+  // they've "landed" on the narrative axis and live there now (deleting or
+  // unbinding the marker puts them straight back; the bound set is derived
+  // from the marker table, no status flag involved). driftIds above stays
+  // the FULL set on purpose: edge classification still needs to know a
+  // bound drift is a drift.
+  const visibleDriftNodes = useMemo(
+    () => driftNodes.filter((n) => !boundDriftIds.has(n.id)),
+    [driftNodes, boundDriftIds],
+  );
+  // Bind-picker options + live titles for bound pins.
+  const unboundDrifts = useMemo(
+    () => visibleDriftNodes.map((n) => ({ id: n.id, title: n.title })),
+    [visibleDriftNodes],
+  );
 
   // Whole-project lookup. positionedById only covers storyline nodes that
   // have an order in the current view, so dialogs and edge endpoints that
@@ -906,7 +923,7 @@ export function StoryGraphView() {
       el.style.transition = 'transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s';
       el.style.transform = '';
     });
-  }, [driftNodes]);
+  }, [visibleDriftNodes]);
 
   const computeDriftShift = useCallback(
     (index: number): string => {
@@ -1547,6 +1564,34 @@ export function StoryGraphView() {
               <div
                 className="graph-axis-track-cell"
                 style={{ width: canvasContentWidth }}
+                onDragOver={(e) => {
+                  // Drift card hovering the axis — accept: dropping anchors
+                  // the drift as a bound marker at that slot.
+                  if (!draggedDrift) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  if (!draggedDrift || snapValues.length === 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const px = e.clientX - rect.left;
+                  let target = snapValues[0];
+                  let bestDist = Infinity;
+                  for (const s of snapValues) {
+                    const d = Math.abs(orderToX(s) - px);
+                    if (d < bestDist) {
+                      bestDist = d;
+                      target = s;
+                    }
+                  }
+                  // Label stays empty — a bound pin renders the drift's
+                  // live title; the label only matters after a later unbind.
+                  addMarker(target, '', { driftNodeId: draggedDrift.id });
+                  setDraggedDrift(null);
+                  setDriftDropIndex(null);
+                }}
               >
                 {markers
                   .filter(
@@ -1570,6 +1615,18 @@ export function StoryGraphView() {
                       onDelete={() => {
                         if (m.id === newlyAddedPinId) setNewlyAddedPinId(null);
                         deleteMarker(m.id);
+                      }}
+                      boundDriftTitle={
+                        m.driftNodeId ? (nodeById.get(m.driftNodeId)?.title ?? null) : null
+                      }
+                      unboundDrifts={unboundDrifts}
+                      onOpenDrift={() => {
+                        if (m.driftNodeId) {
+                          openEntity(
+                            { entityType: 'node', id: m.driftNodeId },
+                            { preview: false },
+                          );
+                        }
                       }}
                       onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
                     />
@@ -1888,7 +1945,7 @@ export function StoryGraphView() {
           selection visual language; the hand-level drop handler is passed
           through handDragHandlers. */}
       <DriftPanel
-        count={driftNodes.length}
+        count={visibleDriftNodes.length}
         mounted={driftPanelMounted}
         open={driftPanelOpen}
         closing={driftPanelClosing}
@@ -1918,12 +1975,14 @@ export function StoryGraphView() {
           },
         }}
       >
-        {driftNodes.length === 0 ? (
+        {visibleDriftNodes.length === 0 ? (
           <div className="drift-card__empty">
-            还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记
+            {driftNodes.length > 0
+              ? '所有浮缀都已锚定在叙事时间轴上'
+              : '还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记'}
           </div>
         ) : (
-          driftNodes.map((node, index) => {
+          visibleDriftNodes.map((node, index) => {
             const isLinkSource = linkSource === node.id;
             const isDragged = draggedDrift?.id === node.id;
             const isResting = node.writingStatus === 'resting';

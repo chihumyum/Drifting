@@ -3,6 +3,7 @@ import { useDataStore } from '../../store/data-store';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
 import { isChapter, isDrift } from '../../domain/book-node';
@@ -1233,13 +1234,17 @@ export function SuperElementView() {
   ]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
+  // Drifts BOUND to a timeline marker are excluded: they've "landed" on the
+  // narrative axis (StoryGraphView) and shouldn't float in the drawer too.
+  // Bound-ness derives from the marker table — no status flag.
+  const { boundDriftIds } = useTimelineMarkers(projectId);
   const driftNodes = useMemo(
     () =>
       bookNodes
         .filter(isDrift)
-        .slice()
+        .filter((n) => !boundDriftIds.has(n.id))
         .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)),
-    [bookNodes],
+    [bookNodes, boundDriftIds],
   );
 
   // ---- Reference / edge state ----
@@ -1255,7 +1260,13 @@ export function SuperElementView() {
   // or element ↔ node (we don't render pure node ↔ node, that's StoryGraphView's
   // job). Drift-touching edges are also dropped here and rendered by the
   // viewport-space drift layer instead.
-  const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
+  // FULL drift set on purpose (not the panel-filtered list above): the edge
+  // filters below must keep treating a marker-bound drift as a drift, or its
+  // refs would leak into the world-edge layer with no position to anchor to.
+  const driftIds = useMemo(
+    () => new Set(bookNodes.filter(isDrift).map((n) => n.id)),
+    [bookNodes],
+  );
 
   type WorldEdge = {
     id: string;
