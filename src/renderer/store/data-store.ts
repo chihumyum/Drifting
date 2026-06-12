@@ -7,6 +7,8 @@ import type { LibraryItem } from '../domain/library-item';
 import type { Comment, CommentAction } from '../domain/comment';
 import type { ShadowJob } from '../domain/shadow-job';
 import type { BlockSection } from '../domain/block-section';
+import type { BookAct } from '../domain/book-act';
+import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
 // User-curated cross-entity link. Mirrors the `entity_relation` table row.
@@ -131,6 +133,26 @@ interface DataState {
   addBlockSection: (section: BlockSection) => void;
   updateBlockSection: (id: string, updates: Partial<BlockSection>) => void;
   removeBlockSection: (id: string) => void;
+
+  /** Acts (幕) — boundary segments of the global reading axis. Unsorted;
+   *  consumers derive via domain sortActs/deriveActSegments. */
+  bookActs: BookAct[];
+  setBookActs: (acts: BookAct[]) => void;
+  addBookAct: (act: BookAct) => void;
+  updateBookAct: (id: string, updates: Partial<BookAct>) => void;
+  removeBookAct: (id: string) => void;
+
+  /** Narrative-axis time pins (optionally drift-bound). Kept sorted by
+   *  narrativeOrder by the setters so consumers can render directly. */
+  timelineMarkers: TimelineMarker[];
+  setTimelineMarkers: (markers: TimelineMarker[]) => void;
+  addTimelineMarker: (marker: TimelineMarker) => void;
+  updateTimelineMarker: (id: string, updates: Partial<TimelineMarker>) => void;
+  removeTimelineMarker: (id: string) => void;
+}
+
+function sortMarkers(markers: TimelineMarker[]): TimelineMarker[] {
+  return markers.slice().sort((a, b) => a.narrativeOrder - b.narrativeOrder);
 }
 
 function deriveNodeStorylineMapping(
@@ -375,5 +397,31 @@ export const useDataStore = create<DataState>((set) => ({
   removeBlockSection: (id) =>
     set((state) => ({
       blockSections: state.blockSections.filter((s) => s.id !== id),
+    })),
+
+  bookActs: [],
+  setBookActs: (bookActs) => set({ bookActs }),
+  addBookAct: (act) => set((state) => ({ bookActs: [...state.bookActs, act] })),
+  updateBookAct: (id, updates) =>
+    set((state) => ({
+      bookActs: state.bookActs.map((act) => (act.id === id ? { ...act, ...updates } : act)),
+    })),
+  removeBookAct: (id) =>
+    set((state) => ({ bookActs: state.bookActs.filter((act) => act.id !== id) })),
+
+  timelineMarkers: [],
+  setTimelineMarkers: (timelineMarkers) =>
+    set({ timelineMarkers: sortMarkers(timelineMarkers) }),
+  addTimelineMarker: (marker) =>
+    set((state) => ({ timelineMarkers: sortMarkers([...state.timelineMarkers, marker]) })),
+  updateTimelineMarker: (id, updates) =>
+    set((state) => ({
+      timelineMarkers: sortMarkers(
+        state.timelineMarkers.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+      ),
+    })),
+  removeTimelineMarker: (id) =>
+    set((state) => ({
+      timelineMarkers: state.timelineMarkers.filter((m) => m.id !== id),
     })),
 }));

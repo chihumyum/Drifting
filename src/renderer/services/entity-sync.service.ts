@@ -23,6 +23,7 @@ import { events, type SyncOperationEvent } from '../lib/events';
 import {
   AgentMemoryTable,
   BlockSectionTable,
+  BookActTable,
   BookElementTable,
   BookNodeTable,
   CommentActionTable,
@@ -37,6 +38,7 @@ import {
   NodeStorylineLinkTable,
   ProjectTable,
   StorylineTable,
+  TimelineMarkerTable,
 } from '../schema/drizzle';
 import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
@@ -68,7 +70,9 @@ export type EntityType =
   | 'entityRelation'
   | 'comment'
   | 'commentAction'
-  | 'agentMemory';
+  | 'agentMemory'
+  | 'bookAct'
+  | 'timelineMarker';
 
 // 'softDelete' moves the entity to trash (deletedAt = now); restore clears
 // it back to NULL; 'delete' is still hard-DELETE (used by the Free tier and
@@ -132,6 +136,9 @@ export interface ProjectGraphPayload {
   // Optional: absent from older-server graph responses (partial rollout). Hydrate
   // treats `?? []` and the unflushed-mutation guard keeps local memories safe.
   agentMemories?: Record<string, unknown>[];
+  // Optional for the same partial-rollout reason as agentMemories.
+  bookActs?: Record<string, unknown>[];
+  timelineMarkers?: Record<string, unknown>[];
 }
 
 function shouldPersistOutbox(): boolean {
@@ -640,6 +647,39 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/agent-memories/${entityId}` };
 
+    // ---- Book Act (幕) ----
+    case 'bookAct':
+      if (mutationType === 'create') {
+        return { method: 'POST', endpoint: `/api/projects/${projectId}/acts`, data: payload };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/acts/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/acts/${entityId}` };
+
+    // ---- Timeline Marker ----
+    case 'timelineMarker':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/timeline-markers`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/timeline-markers/${entityId}`,
+          data: payload,
+        };
+      }
+      return {
+        method: 'DELETE',
+        endpoint: `/api/projects/${projectId}/timeline-markers/${entityId}`,
+      };
+
     default:
       log.warn(`[sync] unknown entity type: ${entityType}`);
       return null;
@@ -1096,6 +1136,36 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       updatedAt: dateText(row.updatedAt),
     })),
   );
+  dataStore.setBookActs(
+    (graph.bookActs ?? []).map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      name: stringValue(row, 'name'),
+      summary: stringValue(row, 'summary'),
+      color: nullableStringValue(row, 'color'),
+      startOrder: nullableNumberValue(row, 'startOrder'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  const liveNodeIds = new Set(liveNodes.map((row) => stringValue(row, 'id')));
+  dataStore.setTimelineMarkers(
+    (graph.timelineMarkers ?? [])
+      .map((row) => {
+        const driftNodeId = nullableStringValue(row, 'driftNodeId');
+        return {
+          id: stringValue(row, 'id'),
+          projectId: stringValue(row, 'projectId'),
+          narrativeOrder: numberValue(row, 'narrativeOrder'),
+          label: stringValue(row, 'label'),
+          // Bindings to trashed/vanished drifts render as plain pins.
+          driftNodeId: driftNodeId && liveNodeIds.has(driftNodeId) ? driftNodeId : null,
+          createdAt: dateText(row.createdAt),
+          updatedAt: dateText(row.updatedAt),
+        };
+      })
+      .filter((row) => row.id),
+  );
   dataStore.setBlockSections(
     (graph.blockSections ?? []).map((row) => ({
       id: stringValue(row, 'id'),
@@ -1396,6 +1466,8 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     await tx.delete(CommentActionTable).where(eq(CommentActionTable.projectId, projectId));
     await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
     await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
+    await tx.delete(BookActTable).where(eq(BookActTable.projectId, projectId));
+    await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
@@ -1754,6 +1826,42 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     })).filter((row) => row.id && row.projectId);
     if (agentMemories.length > 0) {
       await insertRowsBatched(tx, AgentMemoryTable, agentMemories);
+    }
+
+    // Acts + timeline markers — wipe-and-reinsert like agentMemory; both have
+    // sync helpers from day one, and the unflushed-mutation guard skips
+    // hydrate when local writes haven't shipped, so no preserve pass needed.
+    // Markers go after the BookNode insert above (drift_node_id reference).
+    const bookActs = normalizeRows(graph.bookActs ?? [], (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      name: stringValue(row, 'name'),
+      summary: stringValue(row, 'summary'),
+      color: nullableStringValue(row, 'color'),
+      startOrder: nullableNumberValue(row, 'startOrder'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.projectId);
+    if (bookActs.length > 0) {
+      await insertRowsBatched(tx, BookActTable, bookActs);
+    }
+
+    const survivingNodeIds = new Set(nodes.map((n) => n.id));
+    const timelineMarkers = normalizeRows(graph.timelineMarkers ?? [], (row) => {
+      const driftNodeId = nullableStringValue(row, 'driftNodeId');
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        narrativeOrder: numberValue(row, 'narrativeOrder'),
+        label: stringValue(row, 'label'),
+        // Detach bindings whose drift didn't survive the hydrate (stale row).
+        driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    }).filter((row) => row.id && row.projectId);
+    if (timelineMarkers.length > 0) {
+      await insertRowsBatched(tx, TimelineMarkerTable, timelineMarkers);
     }
   });
 

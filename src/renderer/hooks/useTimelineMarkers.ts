@@ -1,54 +1,137 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+/**
+ * Timeline markers — narrative-axis time pins, now a synced table (formerly
+ * localStorage; see domain/timeline-marker.ts for the model + the drift-
+ * binding contract).
+ *
+ * The store-of-truth is the `timeline_marker` SQLite table mirrored into
+ * useDataStore.timelineMarkers. Mutations here are optimistic: the store
+ * updates synchronously (so `addMarker` can still return the created marker
+ * to its caller), persistence + sync ride behind as fire-and-forget — the
+ * same pattern the marker UI relied on when this was localStorage.
+ */
+import { useCallback, useMemo } from 'react';
+import { v7 as uuidv7 } from 'uuid';
+
 import type { TimelineMarker } from '../domain/timeline-marker';
+import { useDataStore } from '../store/data-store';
+import { createTimelineMarkerRepository } from '../sqlite-repo/timeline-marker-repo';
+import {
+  syncTimelineMarkerCreate,
+  syncTimelineMarkerDelete,
+  syncTimelineMarkerUpdate,
+} from '../usecase/sync-helpers';
+import loglevel from 'loglevel';
 
-// Module-level pub-sub so every hook instance (BottomTimeline, StoryGraphView,
-// any future consumer) re-renders when ANY instance persists a change.
-// Without this, StoryGraphView's drag-to-reposition only bumps StoryGraphView's
-// local state — BottomTimeline keeps showing the pre-drag positions
-// until the user refreshes or otherwise triggers a re-render.
-const markerSubscribers = new Set<() => void>();
-function notifyMarkerSubscribers() {
-  markerSubscribers.forEach((cb) => cb());
-}
+const log = loglevel.getLogger('useTimelineMarkers');
+log.setLevel(loglevel.levels.WARN);
 
-// localStorage key is per-project so switching projects keeps markers
-// independent. Bump `STORAGE_VERSION` to invalidate older payloads — we
-// just did when renaming the position field from `start` to `narrativeOrder`.
-const STORAGE_PREFIX = 'drifting:timeline-markers';
-const STORAGE_VERSION = 2;
+// ---- Legacy localStorage import (pre-2026-06 storage) ----
 
-interface StoredPayload {
+const LEGACY_STORAGE_PREFIX = 'drifting:timeline-markers';
+const LEGACY_STORAGE_VERSION = 2;
+
+interface LegacyStoredPayload {
   v: number;
-  markers: TimelineMarker[];
+  markers: Array<{ id: string; narrativeOrder: number; label: string; createdAt: string }>;
 }
 
-function storageKey(projectId: string | null | undefined) {
-  return projectId ? `${STORAGE_PREFIX}:${projectId}` : null;
-}
-
-function readMarkers(projectId: string | null | undefined): TimelineMarker[] {
-  const key = storageKey(projectId);
-  if (!key || typeof localStorage === 'undefined') return [];
+function readLegacyMarkers(projectId: string): LegacyStoredPayload['markers'] {
+  if (typeof localStorage === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as StoredPayload;
-    if (!parsed || parsed.v !== STORAGE_VERSION || !Array.isArray(parsed.markers)) return [];
+    const parsed = JSON.parse(raw) as LegacyStoredPayload;
+    if (!parsed || parsed.v !== LEGACY_STORAGE_VERSION || !Array.isArray(parsed.markers)) {
+      return [];
+    }
     return parsed.markers;
   } catch {
     return [];
   }
 }
 
-function writeMarkers(projectId: string, markers: TimelineMarker[]) {
-  const key = storageKey(projectId);
-  if (!key) return;
-  const payload: StoredPayload = { v: STORAGE_VERSION, markers };
-  localStorage.setItem(key, JSON.stringify(payload));
+/**
+ * App bootstrap: load the project's markers into the data store. Runs the
+ * one-time legacy import first — localStorage markers are inserted as real
+ * rows (ids preserved), pushed through sync, and the legacy key removed so
+ * the import can't double-run.
+ */
+export async function loadTimelineMarkers(projectId: string): Promise<void> {
+  const repo = createTimelineMarkerRepository(projectId);
+  let markers = await repo.findAll();
+
+  if (markers.length === 0) {
+    const legacy = readLegacyMarkers(projectId);
+    if (legacy.length > 0) {
+      for (const m of legacy) {
+        const row: TimelineMarker = {
+          id: m.id,
+          projectId,
+          narrativeOrder: m.narrativeOrder,
+          label: m.label,
+          driftNodeId: null,
+          createdAt: m.createdAt,
+          updatedAt: m.createdAt,
+        };
+        try {
+          await repo.create(row);
+          syncTimelineMarkerCreate(row.id, projectId, markerPayload(row));
+        } catch (error) {
+          log.warn('legacy marker import failed for', m.id, error);
+        }
+      }
+      markers = await repo.findAll();
+    }
+  }
+  // Remove the legacy key even when the table already had rows — the table
+  // is authoritative from now on either way.
+  try {
+    localStorage.removeItem(`${LEGACY_STORAGE_PREFIX}:${projectId}`);
+  } catch {
+    /* ignore */
+  }
+
+  useDataStore.getState().setTimelineMarkers(markers);
 }
 
-function makeId() {
-  return `mk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+function markerPayload(marker: TimelineMarker): Record<string, unknown> {
+  return {
+    id: marker.id,
+    narrativeOrder: marker.narrativeOrder,
+    label: marker.label,
+    driftNodeId: marker.driftNodeId,
+    createdAt: marker.createdAt,
+    updatedAt: marker.updatedAt,
+  };
+}
+
+/**
+ * Clear the binding on every marker pointing at a drift. MUST be called when
+ * a drift is deleted/trashed or converted to a chapter — SQLite FKs aren't
+ * enforced in this app, so nothing else will. `fallbackLabel` (the drift's
+ * title) captions markers that had no label of their own.
+ */
+export async function unbindMarkersForDrift(
+  projectId: string,
+  driftNodeId: string,
+  fallbackLabel: string,
+): Promise<void> {
+  const repo = createTimelineMarkerRepository(projectId);
+  const now = new Date().toISOString();
+  const updated = await repo.unbindForDrift(driftNodeId, fallbackLabel.trim() || '标记', now);
+  const store = useDataStore.getState();
+  for (const marker of updated) {
+    store.updateTimelineMarker(marker.id, {
+      driftNodeId: null,
+      label: marker.label,
+      updatedAt: now,
+    });
+    syncTimelineMarkerUpdate(marker.id, projectId, {
+      driftNodeId: null,
+      label: marker.label,
+      updatedAt: now,
+    });
+  }
 }
 
 function parseNumeric(label: string): number | null {
@@ -63,10 +146,16 @@ function parseNumeric(label: string): number | null {
 
 export interface TimelineMarkersApi {
   markers: TimelineMarker[];
-  addMarker: (narrativeOrder: number, label: string) => TimelineMarker | null;
+  /** Ids of drifts currently bound to a marker — drift panels filter these out. */
+  boundDriftIds: Set<string>;
+  addMarker: (
+    narrativeOrder: number,
+    label: string,
+    options?: { driftNodeId?: string },
+  ) => TimelineMarker | null;
   updateMarker: (
     id: string,
-    patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label'>>,
+    patch: Partial<Pick<TimelineMarker, 'narrativeOrder' | 'label' | 'driftNodeId'>>,
   ) => void;
   deleteMarker: (id: string) => void;
   // Converts a narrativeOrder position to a numeric "time" value if at least
@@ -79,74 +168,71 @@ export interface TimelineMarkersApi {
 }
 
 export function useTimelineMarkers(projectId: string | null | undefined): TimelineMarkersApi {
-  // The store-of-truth is localStorage; bump is a re-render trigger that
-  // forces the markers memo to re-read after a mutation. We avoid the
-  // setState-in-effect anti-pattern by reading fresh on every render
-  // (cheap: a single localStorage.getItem + JSON.parse on ~tens of items).
-  const [bump, setBump] = useState(0);
-  const markers = useMemo(() => {
-    void bump; // re-read trigger after mutations
-    return readMarkers(projectId);
-  }, [projectId, bump]);
-
-  // Re-render this instance whenever ANY instance persists, so a drag in
-  // StoryGraphView is immediately reflected in BottomTimeline (and vice versa).
-  useEffect(() => {
-    const cb = () => setBump((n) => n + 1);
-    markerSubscribers.add(cb);
-    return () => {
-      markerSubscribers.delete(cb);
-    };
-  }, []);
-
-  const persist = useCallback(
-    (next: TimelineMarker[]) => {
-      if (!projectId) return;
-      writeMarkers(projectId, next);
-      notifyMarkerSubscribers();
-    },
+  const markers = useDataStore((s) => s.timelineMarkers);
+  const repo = useMemo(
+    () => (projectId ? createTimelineMarkerRepository(projectId) : null),
     [projectId],
   );
 
+  const boundDriftIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const m of markers) if (m.driftNodeId) ids.add(m.driftNodeId);
+    return ids;
+  }, [markers]);
+
   const addMarker = useCallback<TimelineMarkersApi['addMarker']>(
-    (narrativeOrder, label) => {
-      if (!projectId) return null;
+    (narrativeOrder, label, options) => {
+      if (!projectId || !repo) return null;
       const trimmed = label.trim();
-      if (!trimmed) return null;
+      // A bound marker is captioned by its drift; only label-less UNBOUND
+      // markers are rejected (nothing to render).
+      if (!trimmed && !options?.driftNodeId) return null;
+      const now = new Date().toISOString();
       const marker: TimelineMarker = {
-        id: makeId(),
+        id: uuidv7(),
+        projectId,
         narrativeOrder,
         label: trimmed,
-        createdAt: new Date().toISOString(),
+        driftNodeId: options?.driftNodeId ?? null,
+        createdAt: now,
+        updatedAt: now,
       };
-      const next = [...markers, marker].sort((a, b) => a.narrativeOrder - b.narrativeOrder);
-      persist(next);
+      useDataStore.getState().addTimelineMarker(marker);
+      void repo
+        .create(marker)
+        .then(() => syncTimelineMarkerCreate(marker.id, projectId, markerPayload(marker)))
+        .catch((error) => {
+          log.error('marker create failed:', error);
+          useDataStore.getState().removeTimelineMarker(marker.id);
+        });
       return marker;
     },
-    [markers, persist, projectId],
+    [projectId, repo],
   );
 
   const updateMarker = useCallback<TimelineMarkersApi['updateMarker']>(
     (id, patch) => {
-      let changed = false;
-      const next = markers
-        .map((m) => {
-          if (m.id !== id) return m;
-          changed = true;
-          return { ...m, ...patch };
-        })
-        .sort((a, b) => a.narrativeOrder - b.narrativeOrder);
-      if (changed) persist(next);
+      if (!projectId || !repo) return;
+      const updatedAt = new Date().toISOString();
+      useDataStore.getState().updateTimelineMarker(id, { ...patch, updatedAt });
+      void repo
+        .update(id, { ...patch, updatedAt })
+        .then(() => syncTimelineMarkerUpdate(id, projectId, { ...patch, updatedAt }))
+        .catch((error) => log.error('marker update failed:', error));
     },
-    [markers, persist],
+    [projectId, repo],
   );
 
   const deleteMarker = useCallback<TimelineMarkersApi['deleteMarker']>(
     (id) => {
-      const next = markers.filter((m) => m.id !== id);
-      if (next.length !== markers.length) persist(next);
+      if (!projectId || !repo) return;
+      useDataStore.getState().removeTimelineMarker(id);
+      void repo
+        .delete(id)
+        .then(() => syncTimelineMarkerDelete(id, projectId))
+        .catch((error) => log.error('marker delete failed:', error));
     },
-    [markers, persist],
+    [projectId, repo],
   );
 
   // Pre-compute the two reference points used for linear conversion. Pick
@@ -184,5 +270,13 @@ export function useTimelineMarkers(projectId: string | null | undefined): Timeli
     [conversion],
   );
 
-  return { markers, addMarker, updateMarker, deleteMarker, orderToTime, timeToOrder };
+  return {
+    markers,
+    boundDriftIds,
+    addMarker,
+    updateMarker,
+    deleteMarker,
+    orderToTime,
+    timeToOrder,
+  };
 }

@@ -794,6 +794,56 @@ export const AgentMemoryTable = sqliteTable(
   ],
 );
 
+// Act (幕) — boundary-based segment of the GLOBAL reading axis (bookOrder).
+// Stores only where the act STARTS (`start_order`, REAL for fractional
+// midpoint boundaries); membership derives as bookOrder >= startOrder and
+// < the next act's startOrder. Exactly one act per project may carry
+// start_order = NULL — the opener, covering from the book head. Empty acts
+// (a planned 幕 with no chapters yet) are legal by construction. See
+// domain/book-act.ts for derivation + the 打散 boundary-repair contract.
+export const BookActTable = sqliteTable(
+  'book_act',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    summary: text('summary').notNull().default(''),
+    color: text('color'),
+    startOrder: real('start_order'), // null = book head (the opener act)
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [index('idx_book_act_project').on(t.projectId)],
+);
+
+// Timeline marker — user-pinned label on the NARRATIVE axis (narrativeOrder),
+// optionally binding a drift node as its content (see domain/timeline-marker.ts
+// for the binding contract). drift_node_id's SET NULL is declarative only —
+// PRAGMA foreign_keys is off in this app, so drift delete / drift→chapter
+// conversion unbind explicitly via unbindMarkersForDrift.
+export const TimelineMarkerTable = sqliteTable(
+  'timeline_marker',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    narrativeOrder: real('narrative_order').notNull(),
+    label: text('label').notNull().default(''),
+    driftNodeId: text('drift_node_id').references(() => BookNodeTable.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_timeline_marker_project').on(t.projectId),
+    index('idx_timeline_marker_drift').on(t.driftNodeId),
+  ],
+);
+
 // Entity snapshot history — the local "time machine" trail. One row per
 // captured save-point of a prose entity (node/element/storyline/category):
 // the full Yjs state, a contentJson preview (stale-OK, for the history UI),

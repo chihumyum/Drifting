@@ -318,6 +318,57 @@ export function syncCommentActionDelete(id: string, projectId: string) {
   enqueueSync('commentAction', 'delete', id, projectId);
 }
 
+// ---- Book Act (幕) ----
+// Boundary-based segments of the global reading axis. Plain scalar rows —
+// last-write-wins like everything else. All write sites live in
+// usecase/useBookAct.ts.
+
+export function syncBookActCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('bookAct', 'create', id, projectId, payload);
+}
+
+export function syncBookActUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('bookAct', 'update', id, projectId, payload);
+}
+
+export function syncBookActDelete(id: string, projectId: string) {
+  enqueueSync('bookAct', 'delete', id, projectId);
+}
+
+// ---- Timeline Marker ----
+// Narrative-axis time pins, promoted from localStorage to a synced table
+// because drift binding is a cross-device fact. Write sites:
+// hooks/useTimelineMarkers.ts (incl. the one-time localStorage import and
+// unbindMarkersForDrift).
+
+export function syncTimelineMarkerCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('timelineMarker', 'create', id, projectId, payload);
+}
+
+export function syncTimelineMarkerUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('timelineMarker', 'update', id, projectId, payload);
+}
+
+export function syncTimelineMarkerDelete(id: string, projectId: string) {
+  enqueueSync('timelineMarker', 'delete', id, projectId);
+}
+
 // ---- Agent Memory ----
 // Author-level standing guidance (preferences / vetoes / directives) the General
 // agent persists. Local-first like the rest; soft-delete travels as an `update`

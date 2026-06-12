@@ -5,7 +5,8 @@ import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo.ts';
 import { createBookContentRepository } from '../sqlite-repo/content-repo.ts';
 import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline-link-repo.ts';
 import type { BookNode } from '../domain/book-node.ts';
-import { compareBookOrder, isChapter, makeUniqueNodeTitle } from '../domain/book-node.ts';
+import { compareBookOrder, isChapter, isDrift, makeUniqueNodeTitle } from '../domain/book-node.ts';
+import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
 import { initDatabase, getDb } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
@@ -425,6 +426,17 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
 
       const nextNodes = prevNodes.filter((node) => node.id !== id);
       useUiStore.getState().closeTabsForEntity(activeProjectId, { entityType: 'node', id });
+
+      // A drift leaving the board releases any timeline marker bound to it —
+      // FKs aren't enforced (no PRAGMA foreign_keys), so this is the only
+      // unbind path. Runs before the delete: if the delete then fails and
+      // rolls back, an unbound marker is a cosmetic loss, while a dangling
+      // binding the pin can't resolve is worse.
+      if (isDrift(existing)) {
+        await unbindMarkersForDrift(activeProjectId, id, existing.title).catch((error) =>
+          log.warn('marker unbind on drift delete failed:', error),
+        );
+      }
 
       // Paywall: Pro/Studio users send the entity to the trash (soft-delete);
       // Free users get the historical hard-DELETE behavior. The server-side

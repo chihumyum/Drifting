@@ -66,6 +66,8 @@ import { useElementCategory } from './usecase/useElementCategory';
 import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
 import { useComment } from './usecase/useComment';
+import { loadBookActs } from './usecase/useBookAct';
+import { loadTimelineMarkers } from './hooks/useTimelineMarkers';
 import { useProject } from './usecase/useProject';
 import { AppTopbar } from './views/AppTopbar';
 import { EditorShell } from './views/EditorShell';
@@ -377,6 +379,8 @@ function Layout() {
           relationUsecases.loadInitial(),
           commentUsecases.loadInitial(),
           shadowJobUsecases.loadInitial(),
+          loadBookActs(projectId),
+          loadTimelineMarkers(projectId),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.
         await storylineUsecases.loadNodeStorylineMapping();
