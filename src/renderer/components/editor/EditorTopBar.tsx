@@ -8,7 +8,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import { DRIFT_STATUSES, type WritingStatus } from '../../domain/book-node';
+import {
+  DRIFT_STATUSES,
+  MANUAL_CHAPTER_WRITING_STATUSES,
+  type WritingStatus,
+} from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
 
 export type EditorType = 'node' | 'element' | 'category' | 'storyline';
@@ -262,10 +266,11 @@ function EditorBarMenu({
   const statusOptions: readonly WritingStatus[] = showStatus
     ? nodeStatusKind === 'drift'
       ? DRIFT_STATUSES
-      : // Only the two stable, user-pickable chapter states. waiting_review /
-        // revising / discarded are system-driven (shadow review) and never offered;
-        // picking 'finished' routes through the shadow gate (see NodeEditorView).
-        (['draft', 'finished'] as WritingStatus[])
+      : // Hand-pickable chapter states (shared with the chapter panel's cell
+        // context menu). waiting_review / revising are system-driven (shadow
+        // review) and never offered; picking 'finished' routes through the
+        // shadow gate (see NodeEditorView).
+        MANUAL_CHAPTER_WRITING_STATUSES
     : [];
   if (items.length === 0 && !showStatus) return null;
 

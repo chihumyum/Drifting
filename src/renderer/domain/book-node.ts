@@ -1,9 +1,9 @@
 // Author-facing chapter status. `draft`, `finished`, and `discarded` are
-// user-selectable from the editor menu; `waiting_review` and `revising` are
-// reserved for the AI-review pipeline: marking a draft "finished" will
-// eventually route through waiting_review (AI running) → revising (user
-// acting on AI feedback) → finished. The pipeline isn't built yet, so today
-// the user can also pick the intermediate states directly for testing.
+// user-selectable (MANUAL_CHAPTER_WRITING_STATUSES, offered by the editor
+// top-bar menu and the chapter panel's cell context menu); `waiting_review`
+// and `revising` are reserved for the AI-review pipeline: marking a draft
+// "finished" routes through waiting_review (AI running) → revising (user
+// acting on AI feedback) → finished.
 // `discarded` is the soft-delete state — the chapter stays on the timeline
 // (no data loss) but is styled as set-aside so the author can tell at a
 // glance which chapters they've parked.
@@ -37,6 +37,15 @@ export const CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
   'draft',
   'waiting_review',
   'revising',
+  'finished',
+  'discarded',
+];
+
+// The subset the author can pick by hand (editor top-bar menu AND the chapter
+// panel cell's context menu — keep the two surfaces identical). waiting_review
+// / revising stay system-driven by the AI-review pipeline.
+export const MANUAL_CHAPTER_WRITING_STATUSES: readonly ChapterWritingStatus[] = [
+  'draft',
   'finished',
   'discarded',
 ];
