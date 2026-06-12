@@ -11,7 +11,8 @@ import { useStoryline } from '../usecase/useStoryline';
 import { useEntityRelations } from '../usecase/useEntityRelations';
 import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
-import { FullBookLane } from '../components/BottomTimeline/FullBookLane';
+import { ActRail } from '../components/BottomTimeline/ActRail';
+import { useBookAct } from '../usecase/useBookAct';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
@@ -142,6 +143,7 @@ const UNAFFILIATED_LANE_ID = '__unaffiliated__';
 export function StoryGraphView() {
   const { bookNodes, storylines, nodeStorylineMapping, entityRelations, primaryStorylineByNode } =
     useDataStore();
+  const bookActs = useDataStore((s) => s.bookActs);
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const { user } = useAuthStore();
   const { projectId, openEntity } = useProjectNavigation();
@@ -159,6 +161,9 @@ export function StoryGraphView() {
     userId: user?.id ?? '',
   });
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+  const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
+    projectId: projectId ?? '',
+  });
 
   // Story-graph edges are the subset of manual entity references that connect
   // two node rows (chapter or drift); kept as a stable derived array so the
@@ -354,20 +359,26 @@ export function StoryGraphView() {
   const isNarrative = viewMode === 'narrative';
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
 
+  // Act rail (幕) — book-mode in-flow row at the top of the scroll content
+  // (replaced the old FullBookLane sibling). Occupies height only when the
+  // project actually has acts; every content-Y offset below must include it.
+  const actRailHeight =
+    !isNarrative && bookActs.length > 0 ? GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
+
   // Vertical offset from the scroll content's top to a tile's CENTER y,
   // used only for the SVG edge geometry (tiles themselves are now flow
   // children of their lane row, positioned via `top: TRACK_HEIGHT −
   // TILE_HEIGHT`). The formula `tileTopOffset + node.y` happens to yield
   // the same global tile-center y under both layouts:
-  //   book mode  → 0 (no leading axis) + (rowIdx*TRACK_HEIGHT + 112)
-  //              = AXIS_HEIGHT + node.y         (with tileTopOffset = AXIS_HEIGHT)
+  //   book mode  → actRailHeight (leading act rail) + (rowIdx*TRACK_HEIGHT + 112)
+  //              = actRailHeight + AXIS_HEIGHT + node.y
   //   narrative  → AXIS_HEIGHT + (rowIdx*TRACK_HEIGHT + 112)
   //              = AXIS_HEIGHT*2 + node.y       (with tileTopOffset = AXIS_HEIGHT*2)
   // Kept as a derived constant so the SVG / delete-badge code reads the
   // same as it did pre-refactor.
   const tileTopOffset = isNarrative
     ? GRAPH_CONFIG.AXIS_HEIGHT * 2
-    : GRAPH_CONFIG.AXIS_HEIGHT;
+    : GRAPH_CONFIG.AXIS_HEIGHT + actRailHeight;
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
@@ -753,6 +764,16 @@ export function StoryGraphView() {
     for (let i = lo; i <= hi; i++) out.push(i);
     return out;
   }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
+  // Same integer grid for the act rail's boundary drag, but on the BOOK
+  // axis — snapValues above is narrative-only by design.
+  const actSnapOrders = useMemo(() => {
+    if (isNarrative || placedNodes.length === 0) return [] as number[];
+    const lo = Math.floor(orderSpan.min);
+    const hi = Math.ceil(orderSpan.max);
+    const out: number[] = [];
+    for (let i = lo; i <= hi; i++) out.push(i);
+    return out;
+  }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
   const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
   const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
   const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
@@ -775,19 +796,32 @@ export function StoryGraphView() {
       .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
     const SPACING = CHAPTER_ORDER_STRIDE;
     const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
+    // Full old→new maps (not just the changed subset): the act-boundary
+    // repair below needs every chapter's position to find the straddling
+    // pair for each boundary.
+    const oldOrderById = new Map<string, number>();
+    const newOrderById = new Map<string, number>();
     const updates: Array<{ id: string; newOrder: number }> = [];
     sorted.forEach((node, i) => {
       const newOrder = startOrder + i * SPACING;
+      oldOrderById.set(node.id, orderOf(node) ?? 0);
+      newOrderById.set(node.id, newOrder);
       if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
     });
     try {
       for (const u of updates) {
         await updateNode(u.id, { [orderField]: u.newOrder });
       }
+      // Spread rewrote the bookOrder axis — remap act boundaries against the
+      // same old→new mapping so each boundary keeps sitting between the same
+      // two chapters. Narrative spread doesn't touch bookOrder; skip.
+      if (!isNarrative && updates.length > 0) {
+        await remapAfterSpread(oldOrderById, newOrderById);
+      }
     } catch (err) {
       log.error('Failed to spread graph nodes', err);
     }
-  }, [placedNodes, orderOf, updateNode, orderField]);
+  }, [placedNodes, orderOf, updateNode, orderField, isNarrative, remapAfterSpread]);
 
   const handleAddPin = useCallback(() => {
     if (!isNarrative || snapValues.length === 0) return;
@@ -1056,14 +1090,14 @@ export function StoryGraphView() {
   // drop targets and resolve like any other lane.
   const storylineAtY = useCallback(
     (yInContent: number): string | null => {
-      const offset = isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0;
+      const offset = isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight;
       const relative = yInContent - offset;
       if (relative < 0) return null;
       const idx = Math.floor(relative / GRAPH_CONFIG.TRACK_HEIGHT);
       if (idx < 0 || idx >= lanesToRender.length) return null;
       return lanesToRender[idx]?.id ?? null;
     },
-    [isNarrative, lanesToRender],
+    [isNarrative, actRailHeight, lanesToRender],
   );
 
   const handleTracksDragOver = (e: React.DragEvent) => {
@@ -1261,6 +1295,44 @@ export function StoryGraphView() {
               <span>打散</span>
             </button>
 
+            {/* +幕 — book mode. Drops an act boundary at the chapter nearest
+                the viewport center; precise placement lives on the rail's own
+                band menu (在此处开始新幕) once acts exist. */}
+            {!isNarrative && (
+              <button
+                type="button"
+                className="graph-head__spread-btn"
+                disabled={placedNodes.length === 0}
+                onClick={() => {
+                  if (actSnapOrders.length === 0) return;
+                  const canvas = canvasRef.current;
+                  let target = actSnapOrders[0];
+                  if (canvas) {
+                    const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
+                    let bestDist = Infinity;
+                    for (const s of actSnapOrders) {
+                      const d = Math.abs(orderToX(s) - centerContentX);
+                      if (d < bestDist) {
+                        bestDist = d;
+                        target = s;
+                      }
+                    }
+                  }
+                  void splitAtOrder(target);
+                }}
+                title={
+                  placedNodes.length === 0
+                    ? '需要至少一个章节才能分幕'
+                    : bookActs.length === 0
+                      ? '分幕：在视野中央的章节处划下第一道幕边界'
+                      : '在视野中央插入新的幕边界'
+                }
+                aria-label="分幕"
+              >
+                <span>+幕</span>
+              </button>
+            )}
+
             {/* Unplaced chapters — narrative mode only. Same role as the
                 equivalent control in BottomTimeline: surface chapters
                 that have no narrativeOrder yet so they can be dragged
@@ -1391,35 +1463,6 @@ export function StoryGraphView() {
       />
 
       <div className="graph-body">
-        {/* Book-mode reading-order summary. Sibling of (not inside) the
-            scroll container so its own horizontal scroll stays independent
-            of the storyline tracks — chips are packed in book order, not
-            positioned by it, so scrolling them shouldn't move the rows
-            beneath and vice versa. Matches BottomTimeline's placement. */}
-        {!isNarrative && (
-          <FullBookLane
-            nodes={placedNodes}
-            storylines={storylines}
-            primaryStorylineId={(n) => primaryStorylineId(n)}
-            activeNodeId={null}
-            trackOffsetX={GRAPH_CONFIG.RAIL_WIDTH}
-            onNodeClick={(id) => {
-              const target = positionedNodes.find((n) => n.id === id);
-              const scroll = canvasRef.current;
-              if (!target || !scroll) return;
-              const tileW = GRAPH_CONFIG.TILE_WIDTH_UNITS * GRAPH_CONFIG.GRID_UNIT;
-              const left =
-                GRAPH_CONFIG.RAIL_WIDTH +
-                target.x +
-                tileW / 2 -
-                scroll.clientWidth / 2;
-              scroll.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-            }}
-            height={GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT}
-            railLabel="阅读"
-          />
-        )}
-
         {/* Single scroll container for the whole grid (vertical for
             many storylines, horizontal for many chapters). Rail labels
             stick to the left via `position: sticky` so they stay aligned
@@ -1453,6 +1496,27 @@ export function StoryGraphView() {
             });
           }}
         >
+          {/* Act rail (幕) — book mode, only when acts exist. In-flow row
+              inside the scroll container (track coordinate space, replaced
+              the old FullBookLane sibling) so act bands align with chapter
+              columns and scroll with them; sticky-top like the time axis. */}
+          {actRailHeight > 0 && (
+            <ActRail
+              className="actrail--sticky-top"
+              acts={bookActs}
+              chapters={placedNodes}
+              railWidth={GRAPH_CONFIG.RAIL_WIDTH}
+              trackWidth={canvasContentWidth}
+              height={actRailHeight}
+              orderToX={orderToX}
+              snapOrders={actSnapOrders}
+              onRenameAct={(id, name) => void updateAct(id, { name })}
+              onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
+              onDeleteAct={(id) => void deleteAct(id)}
+              onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
+            />
+          )}
+
           {/* Narrative time-axis row — sticky-top.
               Rail cell is sticky-left + sticky-top (the corner); the
               track cell carries the draggable pin heads/labels. */}
@@ -1706,7 +1770,7 @@ export function StoryGraphView() {
               className="graph-edges"
               width={canvasContentWidth}
               height={
-                (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0) +
+                (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) +
                 lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT
               }
               style={{ top: 0, left: GRAPH_CONFIG.RAIL_WIDTH }}
@@ -1808,7 +1872,7 @@ export function StoryGraphView() {
                 className="graph-drop-indicator"
                 style={{
                   left: dragOver.indicatorX,
-                  top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : 0) + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
+                  top: (isNarrative ? GRAPH_CONFIG.AXIS_HEIGHT : actRailHeight) + rowIdx * GRAPH_CONFIG.TRACK_HEIGHT,
                   height: GRAPH_CONFIG.TRACK_HEIGHT,
                   background: rowStoryline?.color || 'hsl(var(--accent))',
                 }}

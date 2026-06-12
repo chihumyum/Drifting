@@ -14,7 +14,8 @@ import { useBottomTimelineSelectors } from './useBottomTimelineSelectors';
 import { useBottomTimelineInteractionState } from './useBottomTimelineInteractionState';
 import { EntityCellContextMenu } from '../leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
-import { FullBookLane } from './FullBookLane';
+import { ActRail } from './ActRail';
+import { useBookAct } from '../../usecase/useBookAct';
 import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
@@ -27,11 +28,10 @@ log.setLevel(loglevel.levels.WARN);
 //   - book      — tiles sorted by node.bookOrder
 //   - narrative — tiles sorted by node.narrativeOrder; nodes without one
 //                 sit in the holding popover (top-right of the head).
-// In book view, a FullBookLane runs across the top — the "global reading
-// order" reference and the home of the playhead. Chips pack from the left
-// (bookOrder-sorted, not bookOrder-positioned); reordering animates via
-// CSS transition. Narrative view skips the lane (its time axis takes the
-// same vertical slot instead).
+// In book view, the ActRail (幕 strip) runs across the top — act bands in
+// track coordinate space, aligned with the chapter columns below (it
+// replaced the old packed-chip FullBookLane). Narrative view skips it (its
+// time axis takes the same vertical slot instead).
 //
 // The old collapsed (strip) state is gone — the timeline is either visible
 // or hidden, controlled by the global BottomStatusBar. Visibility lives in
@@ -229,6 +229,10 @@ export function BottomTimeline() {
   const { projectId, navigateToNode, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
+  const bookActs = useDataStore((s) => s.bookActs);
+  const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
+    projectId: projectId ?? '',
+  });
   const { createNode, updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
@@ -412,25 +416,6 @@ export function BottomTimeline() {
       return node.storylines[0]?.id ?? null;
     },
     [primaryStorylineByNode],
-  );
-
-  // Drift nodes (no storyline) don't appear on the global reading lane —
-  // they're floating notes, not part of the book sequence.
-  const bookLaneNodes = useMemo(
-    () =>
-      nodesWithStorylines.filter((n) => primaryStorylineId(n) != null),
-    [nodesWithStorylines, primaryStorylineId],
-  );
-
-  // Resolver for FullBookLane chip color — looks up the node's primary
-  // storyline so the chip dot matches its track on the rows below.
-  const laneprimaryStorylineId = useCallback(
-    (n: { id: string }) => {
-      const tn = nodesWithStorylines.find((nw) => nw.id === n.id);
-      if (!tn) return null;
-      return primaryStorylineId(tn);
-    },
-    [nodesWithStorylines, primaryStorylineId],
   );
 
   const getTimelineHeight = () =>
@@ -783,9 +768,9 @@ export function BottomTimeline() {
     const defaultColor = '#2D4A6B';
     const clipColor = storyline?.color || defaultColor;
     const leftPosition = orderToPosition(order);
-    // Mutually-exclusive status classes — see FullBookLane for the same
-    // logic. waiting_review / revising are visually treated as draft until
-    // the AI-review pipeline ships its own affordances.
+    // Mutually-exclusive status classes. waiting_review / revising are
+    // visually treated as draft until the AI-review pipeline ships its own
+    // affordances.
     const status = node.writingStatus;
     const stateClass =
       status === 'finished'
@@ -1024,11 +1009,14 @@ export function BottomTimeline() {
 
   // ---- Layout math ----
   const totalHeight = getTimelineHeight();
-  // FullBookLane is a book-mode-only summary track. Narrative mode skips it
-  // — narrativeOrder doesn't define reading order, so a "reading-order"
-  // summary above the narrative axis would just be a misleading repetition
-  // of bookOrder layout that doesn't match the axis below.
-  const fullBookLaneHeight = isNarrative ? 0 : TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT;
+  // ActRail (幕) replaced FullBookLane as the book-mode top strip. Unlike
+  // the old packed lane it lives INSIDE the scroll container, in track
+  // coordinate space, so act bands align with the chapter columns below.
+  // It only occupies height when the project actually has acts; narrative
+  // mode never shows it (acts segment bookOrder, and projecting them onto
+  // the narrative axis would shred them across flashbacks).
+  const actRailHeight =
+    !isNarrative && bookActs.length > 0 ? TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
   const axisHeight = isNarrative ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
 
   // Lanes to render: real storylines + at most one synthetic lane.
@@ -1079,10 +1067,12 @@ export function BottomTimeline() {
 
   const rowsAreaHeight = Math.max(
     0,
-    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - fullBookLaneHeight - axisHeight,
+    totalHeight - TIMELINE_CONFIG.HEAD_HEIGHT - actRailHeight - axisHeight,
   );
   const rowHeight = lanesToRender.length > 0 ? rowsAreaHeight / lanesToRender.length : 0;
-  const overlayTopOffset = axisHeight;
+  // Vertical offset of the lane rows inside the scroll content: the time
+  // axis (narrative) or the act rail (book) renders above them in-flow.
+  const overlayTopOffset = axisHeight + actRailHeight;
   const rowCenterY = (idx: number) => overlayTopOffset + idx * rowHeight + rowHeight / 2;
   const scrollContentWidth = TIMELINE_CONFIG.RAIL_WIDTH + timelineWidth;
   const railOffset = TIMELINE_CONFIG.RAIL_WIDTH;
@@ -1123,19 +1113,55 @@ export function BottomTimeline() {
       .sort((a, b) => (orderOf(a) ?? 0) - (orderOf(b) ?? 0));
     const SPACING = CHAPTER_ORDER_STRIDE;
     const startOrder = Math.min(orderOf(sorted[0]) ?? 1, 1);
+    // Full old→new maps (not just the changed subset): the act-boundary
+    // repair below needs every chapter's position to find the straddling
+    // pair for each boundary.
+    const oldOrderById = new Map<string, number>();
+    const newOrderById = new Map<string, number>();
     const updates: Array<{ id: string; newOrder: number }> = [];
     sorted.forEach((node, i) => {
       const newOrder = startOrder + i * SPACING;
+      oldOrderById.set(node.id, orderOf(node) ?? 0);
+      newOrderById.set(node.id, newOrder);
       if (orderOf(node) !== newOrder) updates.push({ id: node.id, newOrder });
     });
     try {
       for (const u of updates) {
         await updateNode(u.id, { [orderField]: u.newOrder });
       }
+      // Spread rewrote the bookOrder axis — remap act boundaries against the
+      // same old→new mapping so each boundary keeps sitting between the same
+      // two chapters. Narrative spread doesn't touch bookOrder; skip.
+      if (!isNarrative && updates.length > 0) {
+        await remapAfterSpread(oldOrderById, newOrderById);
+      }
     } catch (err) {
       log.error('Failed to spread timeline nodes', err);
     }
-  }, [placedNodes, orderOf, updateNode, orderField]);
+  }, [placedNodes, orderOf, updateNode, orderField, isNarrative, remapAfterSpread]);
+
+  // "+幕" head button — drops an act boundary at the chapter nearest the
+  // viewport center (same center-pick as handleAddPin). The bootstrap path
+  // for projects with zero acts; precise placement lives on the track
+  // context menu (从此处开始新幕) and on the rail itself afterwards.
+  const handleAddActSplit = useCallback(() => {
+    if (snapValues.length === 0) return;
+    const container = scrollContainerRef.current;
+    let target = snapValues[0];
+    if (container) {
+      const centerX =
+        container.scrollLeft + container.clientWidth / 2 - TIMELINE_CONFIG.RAIL_WIDTH;
+      let bestDist = Infinity;
+      for (const s of snapValues) {
+        const d = Math.abs(orderToPosition(s) - centerX);
+        if (d < bestDist) {
+          bestDist = d;
+          target = s;
+        }
+      }
+    }
+    void splitAtOrder(target);
+  }, [snapValues, orderToPosition, splitAtOrder]);
 
   const handleAddPin = useCallback(() => {
     if (snapValues.length === 0) return;
@@ -1313,6 +1339,25 @@ export function BottomTimeline() {
               create button now — surfacing it here too made the affordance
               redundant. The timeline keeps only the layout / navigation
               controls below. */}
+          {!isNarrative && (
+            <button
+              className="btl__head-btn"
+              title={
+                placedNodes.length === 0
+                  ? '需要至少一个章节才能分幕'
+                  : bookActs.length === 0
+                    ? '分幕：在视野中央的章节处划下第一道幕边界'
+                    : '在视野中央插入新的幕边界'
+              }
+              disabled={placedNodes.length === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddActSplit();
+              }}
+            >
+              +幕
+            </button>
+          )}
           <button
             className="btl__head-btn"
             title={
@@ -1377,8 +1422,6 @@ export function BottomTimeline() {
     );
   };
 
-  const activeNodeId = selectedNodeUiId ?? nodeId ?? null;
-
   return (
     <div
       ref={timelineRef}
@@ -1407,38 +1450,6 @@ export function BottomTimeline() {
 
       {renderHead()}
 
-      {/* The lane scrolls independently from the storyline-tracks below —
-          it's "the global reading order, packed", so its horizontal
-          position has no relation to where the active view's tiles sit.
-          Sibling of (not inside) the scroll container. */}
-      {!isNarrative && (
-        <FullBookLane
-          nodes={bookLaneNodes}
-          storylines={storylines}
-          primaryStorylineId={laneprimaryStorylineId}
-          activeNodeId={activeNodeId}
-          trackOffsetX={TIMELINE_CONFIG.RAIL_WIDTH}
-          onNodeClick={(id) => {
-            setNodeSelection(id, 'ui');
-            // Scroll the storyline rows below so the clicked chapter's
-            // tile lands roughly centered in the viewport. Smooth scroll
-            // gives the "fast, dynamic" feel the user asked for.
-            const target = nodeById.get(id);
-            const container = scrollContainerRef.current;
-            if (!target || !container) return;
-            const ord = orderOf(target);
-            if (ord == null) return;
-            const left =
-              TIMELINE_CONFIG.RAIL_WIDTH +
-              orderToPosition(ord) +
-              nodeWidth / 2 -
-              container.clientWidth / 2;
-            container.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-          }}
-          height={fullBookLaneHeight || TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT}
-        />
-      )}
-
       <div
         ref={scrollContainerRef}
         data-timeline-container
@@ -1449,6 +1460,25 @@ export function BottomTimeline() {
         onTouchCancel={touchHandlers.onTouchCancel}
         style={{ touchAction: 'pan-x pinch-zoom' }}
       >
+        {/* Act rail (幕) — book mode, only when acts exist. Lives inside the
+            scroll container in track coordinate space so the bands align
+            with the chapter columns and scroll with them. */}
+        {actRailHeight > 0 && (
+          <ActRail
+            acts={bookActs}
+            chapters={placedNodes}
+            railWidth={TIMELINE_CONFIG.RAIL_WIDTH}
+            trackWidth={timelineWidth}
+            height={actRailHeight}
+            orderToX={orderToPosition}
+            snapOrders={snapValues}
+            onRenameAct={(id, name) => void updateAct(id, { name })}
+            onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
+            onDeleteAct={(id) => void deleteAct(id)}
+            onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
+          />
+        )}
+
         {renderTimeAxis()}
 
         {lanesToRender.map((lane) =>
@@ -1494,9 +1524,9 @@ export function BottomTimeline() {
             {crossStorylineLinks.map((link) => {
               const x1 = railOffset + link.fromX;
               const x2 = railOffset + link.toX;
-              // SVG sits inside .btl__scroll which contains axis + rows.
-              // The FullBookLane is a SIBLING of the scroll container so
-              // its height doesn't enter this Y offset.
+              // SVG sits inside .btl__scroll which contains the act rail /
+              // time axis + rows; both leading strips are folded into
+              // overlayTopOffset, which rowCenterY already applies.
               const y1 = rowCenterY(link.fromY);
               const y2 = rowCenterY(link.toY);
               const midY = (y1 + y2) / 2;
@@ -1579,12 +1609,26 @@ export function BottomTimeline() {
           editorType="storyline"
           extraGroups={[
             contextMenu.position !== undefined
-              ? [{ action: 'createChapterHere', label: '在此处新建章节' }]
+              ? [
+                  { action: 'createChapterHere', label: '在此处新建章节' },
+                  // Acts live on the bookOrder axis only — narrative-mode
+                  // positions are narrativeOrder values, wrong axis.
+                  ...(!isNarrative
+                    ? [{ action: 'startActHere', label: '从此处开始新幕' }]
+                    : []),
+                ]
               : [],
           ]}
           onAction={(action) => {
             if (action === 'createChapterHere') {
               void handleContextMenuAction(action);
+              return;
+            }
+            if (action === 'startActHere') {
+              if (contextMenu.position !== undefined) {
+                void splitAtOrder(contextMenu.position);
+              }
+              clearContextMenu();
               return;
             }
             const sid = contextMenu.storylineId;

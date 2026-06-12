@@ -12,7 +12,7 @@
   position: relative;
   /* Visible overflow lets the narrative-view "未放置" popover open
      UPWARD past the head bar into the editor area, as requested.
-     Inner scroll containers (.btl__scroll, .fbl) own their own clipping
+     The inner scroll container (.btl__scroll) owns its own clipping
      so we don't leak horizontal content outside the dock. */
   overflow: visible;
   font-family: var(--font-sans);
@@ -572,10 +572,8 @@
   z-index: 12;
 }
 
-/* Playhead removed: the FullBookLane now hosts it (see full-book-lane.css).
-   bookOrder is non-null for every node, so the lane-hosted playhead is
-   always renderable — unlike the old row-level playhead that disappeared
-   in narrative view when narrativeOrder was missing. */
+/* Playhead removed — the active tile's own selected styling carries the
+   "current chapter" signal in the rows. */
 
 /* ---------------- Clip (chapter card) ---------------- */
 .btl-clip {
@@ -719,7 +717,8 @@
 }
 
 
-/* Minimap removed: the FullBookLane now serves the "overview" role. */
+/* Minimap removed: the ActRail (act-rail.css) + storyline rows serve the
+   "overview" role. */
 
 /* ---------------- Context menu (right-click on timeline) ----------------
    Matches the v2 design-spec `.user-menu` aesthetic: small serif glyph

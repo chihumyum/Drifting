@@ -488,12 +488,11 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   white-space: nowrap;
 }
 
-/* ---------------- Body (header lane + scroll grid) ----------------
-   The body is a flex column. Book mode prepends the FullBookLane (its
-   own horizontal scroll). Below it, `.graph-scroll` is the single
-   scroll container for everything else — rail labels stick to the
-   left and the narrative axis row sticks to the top, so vertical and
-   horizontal navigation are both a single gesture. Mirrors the layout
+/* ---------------- Body (scroll grid) ----------------
+   The body is a flex column hosting `.graph-scroll`, the single scroll
+   container for everything — rail labels stick to the left; the act
+   rail (book mode) and the narrative axis row stick to the top, so
+   vertical and horizontal navigation are both a single gesture. Mirrors
    pattern that BottomTimeline already uses (`.btl__scroll` + sticky
    `.btl-rail`). */
 .graph-body {

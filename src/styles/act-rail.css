@@ -1,0 +1,165 @@
+/* ============================================================
+   ActRail — 幕 strip in track coordinate space.
+   Replaced FullBookLane in book mode: bands span the same x-range
+   as the chapter columns below (host passes orderToX), so the act
+   structure reads vertically against the storyline tracks. Shared
+   between BottomTimeline and StoryGraphView.
+   ============================================================ */
+
+.actrail {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  background: hsl(var(--paper));
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+/* StoryGraphView modifier: the graph canvas scrolls vertically through many
+   lanes — pin the rail to the top, same recipe as .graph-axis-row. */
+.actrail--sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+}
+
+.actrail__rail {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-right: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  z-index: 21;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: hsl(var(--ink-4));
+}
+
+.actrail__track {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.actrail__band {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-radius: 3px;
+  background: hsl(var(--ink-4) / 0.08);
+  cursor: default;
+  user-select: none;
+}
+.actrail__band.is-alt {
+  background: hsl(var(--ink-4) / 0.16);
+}
+.actrail__band.has-color {
+  background: color-mix(in srgb, var(--act-color) 16%, transparent);
+}
+
+.actrail__label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.actrail__name {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: hsl(var(--ink-2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.actrail__count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: hsl(var(--ink-4));
+}
+
+.actrail__edit {
+  width: 100%;
+  min-width: 48px;
+  border: none;
+  outline: 1px solid hsl(var(--accent) / 0.6);
+  border-radius: 2px;
+  padding: 1px 4px;
+  font-size: 10.5px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-1));
+}
+
+.actrail__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  margin-left: -3.5px;
+  cursor: col-resize;
+  z-index: 3;
+}
+.actrail__divider::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 3px;
+  width: 1.5px;
+  background: hsl(var(--rule-strong));
+}
+.actrail__divider:hover::after {
+  background: hsl(var(--accent));
+  width: 2px;
+}
+
+.actrail__ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: hsl(var(--accent));
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Band context menu — portaled to body (position: fixed) so it escapes the
+   modern-skin backdrop-filter containing block, same as every other popover. */
+.actrail__menu {
+  z-index: 1000;
+  min-width: 168px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 6px;
+  box-shadow: 0 8px 24px hsl(var(--ink-1) / 0.14);
+}
+.actrail__menu button {
+  appearance: none;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+}
+.actrail__menu button:hover {
+  background: hsl(var(--ink-4) / 0.12);
+}
+.actrail__menu button.is-danger {
+  color: hsl(var(--accent));
+}
+.actrail__menu button.is-danger:hover {
+  background: hsl(var(--accent) / 0.08);
+}
