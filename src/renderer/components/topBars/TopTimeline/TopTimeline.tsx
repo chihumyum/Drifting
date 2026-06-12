@@ -928,7 +928,12 @@ function LeafTabSlot({
           fontFamily: 'var(--font-sans)',
           fontSize: 12.5,
           color: isActive ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-          fontWeight: isActive ? 500 : 400,
+          // Constant weight: bolding the active tab widens its glyphs, so at
+          // the same fixed tab width the SELECTED label ellipsized earlier
+          // than unselected ones. Emphasis comes from a metric-neutral
+          // text-shadow instead.
+          fontWeight: 400,
+          textShadow: isActive ? '0 0 0.6px currentcolor' : 'none',
           fontStyle: tab.isPreview ? 'italic' : 'normal',
           borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent',
           // Needed so the drop indicator (absolute child below) measures
@@ -1198,11 +1203,14 @@ function SplitSubLabel({
         fontFamily: 'var(--font-sans)',
         fontSize: 12,
         color: isFocused ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-3))',
-        fontWeight: isFocused ? 500 : 400,
+        // Metric-neutral emphasis (see LeafTabSlot): real bold widens the
+        // focused label and truncates it earlier than the unfocused side.
+        fontWeight: 400,
+        textShadow: isFocused ? '0 0 0.6px currentcolor' : 'none',
         fontStyle: isPreview ? 'italic' : 'normal',
         // Sub-tab keeps transparent bg. The parent SplitTabSlot already
         // paints its tone-selected bg when the split is active, and the
-        // focused side is signalled by `color` + `fontWeight` — an extra
+        // focused side is signalled by `color` + the text-shadow — an extra
         // accent tint here just reads as visual clutter.
         background: 'transparent',
         transition: 'background 0.15s, color 0.15s',

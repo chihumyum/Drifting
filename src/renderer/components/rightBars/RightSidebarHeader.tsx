@@ -263,7 +263,8 @@ function RightPanelTab({
         background: active ? 'hsl(var(--surface))' : 'transparent',
         cursor: 'pointer',
         whiteSpace: 'nowrap',
-        borderRadius: 3,
+        // Concentric with the tray frame: tray radius 4 − 2px padding = 2.
+        borderRadius: 2,
         boxShadow: active ? '0 1px 2px hsl(var(--ink-1) / 0.06)' : 'none',
         transition: 'background 0.15s, color 0.15s',
         ...extraStyle,
