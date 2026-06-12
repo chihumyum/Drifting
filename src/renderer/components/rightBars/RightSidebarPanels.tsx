@@ -4,6 +4,9 @@ import { isDrift } from '../../domain/book-node';
 import { getChapterContentJson } from '../../lib/agent/chapter-prose';
 import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
+import { ReferencesPanel } from '../editor/ReferencesPanel';
+import { events } from '../../lib/events';
+import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { RightSidebarHeader } from './RightSidebarHeader';
@@ -424,6 +427,51 @@ function useChapterStatsData(nodeId: string, updatedAt: string | number | Date) 
   return { stats, elements };
 }
 
+/**
+ * The stats panel's entry into the entity time machine — opens the globally
+ * mounted EntitySnapshotHistoryModal. This is the ONLY entry point (the
+ * editor / cell context menus deliberately don't carry it).
+ */
+function SnapshotEntryButton({
+  entityKind,
+  entityId,
+}: {
+  entityKind: ProseEntityType;
+  entityId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => events.emit('snapshot-history:open', { entityKind, entityId })}
+      title="浏览并恢复这个实体的历史版本（30 天）"
+      style={{
+        width: '100%',
+        marginTop: 14,
+        padding: '7px 10px',
+        border: '1px solid hsl(var(--rule))',
+        borderRadius: 4,
+        background: 'transparent',
+        color: 'hsl(var(--ink-2))',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.06em',
+        cursor: 'pointer',
+        transition: 'background 0.12s, color 0.12s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'hsl(var(--rule) / 0.3)';
+        e.currentTarget.style.color = 'hsl(var(--ink-1))';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = 'hsl(var(--ink-2))';
+      }}
+    >
+      ↺ 历史快照…
+    </button>
+  );
+}
+
 function ChapterStats({
   node,
   storylines,
@@ -446,6 +494,7 @@ function ChapterStats({
   const wcPct = Math.min(100, (node.wordCount / targetWc) * 100);
   const { stats, elements } = useChapterStatsData(node.id, node.updatedAt);
   const dialoguePct = stats ? Math.round(stats.dialogueRatio * 100) : 0;
+  const { openEntity } = useProjectNavigation();
   return (
     <div style={{ padding: 12 }}>
       <StatsSection title={target.kind === 'drift' ? '浮缀坐标' : '章节坐标'}>
@@ -506,6 +555,7 @@ function ChapterStats({
                   name={el.name || 'Untitled'}
                   color={cat?.color}
                   mentionCount={mentionCount}
+                  onOpen={() => openEntity({ entityType: 'element', id: elementId })}
                 />
               );
             })}
@@ -515,33 +565,48 @@ function ChapterStats({
         )}
       </StatsSection>
 
-      <StatsSection title="案头札记" topBorder>
-        <Notes>暂未记录札记。</Notes>
-      </StatsSection>
+      <SnapshotEntryButton entityKind="node" entityId={node.id} />
     </div>
   );
 }
 
-/** "● name ……… ×N" row in the 本章元素 list. */
+/** "● name ……… ×N" row in the 本章元素 list — click opens the element. */
 function ChapterElementRow({
   name,
   color,
   mentionCount,
+  onOpen,
 }: {
   name: string;
   color?: string;
   mentionCount: number;
+  onOpen: () => void;
 }) {
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onOpen();
+      }}
+      title={`打开元素「${name}」`}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        padding: '5px 0',
+        padding: '5px 2px',
         borderBottom: '1px dotted hsl(var(--rule))',
         fontSize: 12,
         minWidth: 0,
+        cursor: 'pointer',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'hsl(var(--rule) / 0.3)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
       }}
     >
       <Dot color={color} />
@@ -618,6 +683,8 @@ function StorylineStats({
           </MetaV>
         </MetaGrid>
       </StatsSection>
+
+      <SnapshotEntryButton entityKind="storyline" entityId={storyline.id} />
     </div>
   );
 }
@@ -649,11 +716,20 @@ function ElementStats({
         </MetaGrid>
       </StatsSection>
 
-      <StatsSection title="出场密度" topBorder>
-        <StatsRow k="出场次数" v="—" placeholder />
-        <StatsRow k="首次出场" v="—" placeholder />
-        <StatsRow k="末次出场" v="—" placeholder />
+      {/* 被引用 / 引用其他 — the same read-only projections the element
+          editor used to host in its body; the editor keeps only the
+          editable 关联 section. */}
+      <StatsSection title="引用" topBorder>
+        <ReferencesPanel
+          entityKind="element"
+          entityId={element.id}
+          projectId={element.projectId}
+          sections={['incoming', 'outgoing']}
+          numStart={null}
+        />
       </StatsSection>
+
+      <SnapshotEntryButton entityKind="element" entityId={element.id} />
     </div>
   );
 }
@@ -688,6 +764,8 @@ function CategoryStats({
         <StatsRow k="未出场" v="—" placeholder />
         <StatsRow k="平均出场" v="—" placeholder />
       </StatsSection>
+
+      <SnapshotEntryButton entityKind="category" entityId={category.id} />
     </div>
   );
 }

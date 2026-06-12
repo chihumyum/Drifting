@@ -18,6 +18,10 @@ import { events } from '../../lib/events';
 const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
 
+type ReferencesSection = 'relations' | 'incoming' | 'outgoing';
+
+const CN_NUMS = ['一', '二', '三', '四', '五', '六', '七'];
+
 interface ReferencesPanelProps {
   // The entity this panel is showing references for. Both directions are
   // queried — incoming (backlinks) and outgoing (mentions in this entity's
@@ -25,6 +29,12 @@ interface ReferencesPanelProps {
   entityKind: EntityKind;
   entityId: string;
   projectId: string;
+  /** Which sections to render, in this order. Default: all three. Lets the
+   *  editor keep just 关联 while the stats sidebar hosts 被引用/引用其他. */
+  sections?: ReferencesSection[];
+  /** CN numeral index (1-based) of the FIRST rendered section; following
+   *  sections increment. null hides the numerals (sidebar usage). */
+  numStart?: number | null;
 }
 
 interface IncomingGroup {
@@ -64,7 +74,13 @@ function safeParseSpans(json: string | null): unknown[] {
   }
 }
 
-export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesPanelProps) {
+export function ReferencesPanel({
+  entityKind,
+  entityId,
+  projectId,
+  sections = ['relations', 'incoming', 'outgoing'],
+  numStart = 3,
+}: ReferencesPanelProps) {
   const { navigateToNode, navigateToElement, navigateToCategory, navigateToStoryline } =
     useProjectNavigation();
   const { bookElements, bookNodes, bookElementCategories, storylines } = useDataStore();
@@ -383,12 +399,24 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
 
   const kindClass = (kind: EntityKind) => `refs-kind-${kind}`;
 
+  // Numeral follows render order within the CALLER's chosen sections, so the
+  // editor (relations only, numStart 4) and a full panel both number cleanly.
+  const sectionNum = (section: ReferencesSection): string | null => {
+    if (numStart == null) return null;
+    const idx = sections.indexOf(section);
+    if (idx < 0) return null;
+    return CN_NUMS[numStart - 1 + idx] ?? '';
+  };
+
   return (
     <div className="references-panel">
-      {/* 三 · 关联 — manual whole-entity links */}
+      {/* 关联 — manual whole-entity links */}
+      {sections.includes('relations') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          <span className="refs-section__num">三</span>
+          {sectionNum('relations') && (
+            <span className="refs-section__num">{sectionNum('relations')}</span>
+          )}
           <span className="refs-section__title">关联</span>
           <span className="refs-section__count">{manualRelations.length}</span>
           <button
@@ -491,11 +519,15 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
           )
         )}
       </section>
+      )}
 
-      {/* 四 · 被引用 — incoming inline mentions */}
+      {/* 被引用 — incoming inline mentions */}
+      {sections.includes('incoming') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          <span className="refs-section__num">四</span>
+          {sectionNum('incoming') && (
+            <span className="refs-section__num">{sectionNum('incoming')}</span>
+          )}
           <span className="refs-section__title">被引用</span>
           <span className="refs-section__count">{incomingGroups.length}</span>
         </div>
@@ -525,12 +557,15 @@ export function ReferencesPanel({ entityKind, entityId, projectId }: ReferencesP
           </div>
         )}
       </section>
+      )}
 
-      {/* 五 · 引用其他 — outgoing inline mentions (element only) */}
-      {entityKind === 'element' && (
+      {/* 引用其他 — outgoing inline mentions (element only) */}
+      {sections.includes('outgoing') && entityKind === 'element' && (
         <section className="refs-section">
           <div className="refs-section__header">
-            <span className="refs-section__num">五</span>
+            {sectionNum('outgoing') && (
+              <span className="refs-section__num">{sectionNum('outgoing')}</span>
+            )}
             <span className="refs-section__title">引用其他</span>
             <span className="refs-section__count">{outgoingGroups.length}</span>
           </div>

@@ -645,10 +645,17 @@ export function ElementEditorView({
               <EditorContent editor={editor} />
             </div>
 
-            {/* References + patches kept below the main body. These will move
-                into the right margin column once the annotation system lands. */}
+            {/* Manual relations stay in the body (they're authored here, with
+                the link picker); 被引用/引用其他 are read-only projections and
+                live in the right sidebar's stats panel instead. */}
             {elementId && projectId && (
-              <ReferencesPanel entityKind="element" entityId={elementId} projectId={projectId} />
+              <ReferencesPanel
+                entityKind="element"
+                entityId={elementId}
+                projectId={projectId}
+                sections={['relations']}
+                numStart={4}
+              />
             )}
             {elementId && projectId && (
               <PatchesSection elementId={elementId} projectId={projectId} />
