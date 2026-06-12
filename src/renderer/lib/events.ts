@@ -103,6 +103,13 @@ export type AppEvents = {
   // (e.g. user menu "键盘快捷键" → opens settings scrolled to the keys
   // panel). Empty payload = open at last position.
   'settings:open': { railId?: string };
+  // Open the entity time-machine (snapshot history) modal for one prose
+  // entity. Emitted by the editor three-dot menu and the panel cell context
+  // menu; consumed by the globally-mounted EntitySnapshotHistoryModal.
+  'snapshot-history:open': {
+    entityKind: 'node' | 'element' | 'storyline' | 'category';
+    entityId: string;
+  };
   'search:open': void;
   'import:open': void;
   'left-sidebar:toggle': void;

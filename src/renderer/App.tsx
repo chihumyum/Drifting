@@ -30,6 +30,7 @@ import { EditorMainArea } from './components/editor/EditorMainArea';
 import { useSyncSplitFocusedUrl } from './components/editor/useSyncSplitFocusedUrl';
 import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { EntitySnapshotHistoryModal } from './components/modals/EntitySnapshotHistoryModal';
 import { ImportDialog } from './components/modals/ImportDialog';
 import { EditChapterStorylineModal } from './components/modals/EditChapterStorylineModal';
 import { SyncStatusHUD } from './components/sync/SyncStatusHUD';
@@ -850,6 +851,7 @@ function Layout() {
         }}
       />
       <ImportDialog open={isImportOpen} onClose={() => setIsImportOpen(false)} />
+      <EntitySnapshotHistoryModal />
       {chapterStorylineEditorNodeId && (
         <EditChapterStorylineModal
           nodeId={chapterStorylineEditorNodeId}

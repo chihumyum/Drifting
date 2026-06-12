@@ -34,6 +34,7 @@ import { useAgentEditStore } from '../../store/agent-edit-store';
 import { effectiveAgentEditMode } from './agent-edit-mode';
 import { createYjsRepository } from '../../sqlite-repo/yjs-repo';
 import { compactUpdatesAfterSnapshot } from '../../services/yjs-sync.service';
+import { maybeCaptureSnapshotHistory } from '../../services/snapshot-history.service';
 import { createBookContentRepository } from '../../sqlite-repo/content-repo';
 import { hydrateProseJson } from './prose-hydrate-client';
 import { countWordsInPmJson } from '../word-count';
@@ -401,7 +402,11 @@ async function writeProseDoc(
 
       for (const u of diff) await yrepo.appendUpdate(docId, u);
       const coveredId = await yrepo.maxUpdateId(docId);
-      await yrepo.upsertSnapshot(docId, Y.encodeStateAsUpdate(doc));
+      const fullState = Y.encodeStateAsUpdate(doc);
+      await yrepo.upsertSnapshot(docId, fullState);
+      // Time-machine trail for closed-doc agent writes (live-doc writes are
+      // captured by useYjsDoc's own snapshot path).
+      maybeCaptureSnapshotHistory(docId, fullState);
       await compactUpdatesAfterSnapshot(docId, coveredId, yrepo);
       const contentJson = toJson(doc);
       return { contentJson, blockIds, changes: computeBlockChanges(beforeJson, contentJson) };

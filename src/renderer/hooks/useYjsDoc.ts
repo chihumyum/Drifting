@@ -8,6 +8,7 @@ import {
   pullUpdates,
   compactUpdatesAfterSnapshot,
 } from '../services/yjs-sync.service';
+import { maybeCaptureSnapshotHistory } from '../services/snapshot-history.service';
 import { isSyncEnabled } from '../lib/config';
 import { registerLiveYDoc } from '../lib/yjs-doc-registry';
 
@@ -160,9 +161,16 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
     // `fullState` is captured by the caller (synchronously, before the ydoc can
     // be destroyed on unmount); `coveredId` is read here while the write queue
     // is idle so it reflects exactly what `fullState` encodes.
-    const persistSnapshotAndCompact = async (fullState: Uint8Array) => {
+    const persistSnapshotAndCompact = async (
+      fullState: Uint8Array,
+      reason: 'periodic' | 'close' = 'periodic',
+    ) => {
       const coveredId = await repo.maxUpdateId(docId);
       await repo.upsertSnapshot(docId, fullState);
+      // Time-machine trail: every materialized snapshot is a capture
+      // opportunity (15-min gated inside; 'close' bypasses the gate so a
+      // short writing session's final state isn't lost).
+      maybeCaptureSnapshotHistory(docId, fullState, reason);
       await compactUpdatesAfterSnapshot(docId, coveredId, repo);
     };
 
@@ -203,7 +211,7 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
       // Capture state synchronously — the ydoc.destroy() effect cleanup may run
       // right after this. The compaction itself happens inside the write queue.
       const fullState = Y.encodeStateAsUpdate(ydoc);
-      enqueueWrite(() => persistSnapshotAndCompact(fullState));
+      enqueueWrite(() => persistSnapshotAndCompact(fullState, 'close'));
     };
   }, [docId, isReady, repo, ydoc]);
 

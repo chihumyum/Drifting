@@ -794,6 +794,32 @@ export const AgentMemoryTable = sqliteTable(
   ],
 );
 
+// Entity snapshot history — the local "time machine" trail. One row per
+// captured save-point of a prose entity (node/element/storyline/category):
+// the full Yjs state, a contentJson preview (stale-OK, for the history UI),
+// and a JSON bag of the entity's restorable metadata fields at capture time.
+// Captured at most every 15 min per entity when the body actually changed
+// (see services/snapshot-history.service.ts), thinned Time-Machine style and
+// dropped after 30 days. Mirrors the server's `entity_snapshot` table so the
+// same capture can be pushed to the cloud for synced users.
+export const EntitySnapshotHistoryTable = sqliteTable(
+  'entity_snapshot_history',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull(),
+    entityKind: text('entity_kind').notNull(), // 'node' | 'element' | 'storyline' | 'category'
+    entityId: text('entity_id').notNull(),
+    stateBlob: blob('state_blob').notNull(),
+    contentJson: text('content_json'),
+    metaJson: text('meta_json'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_entity_snapshot_entity').on(t.entityKind, t.entityId, t.createdAt),
+    index('idx_entity_snapshot_project').on(t.projectId),
+  ],
+);
+
 export const yjsUpdates = sqliteTable(
   'yjs_updates',
   {

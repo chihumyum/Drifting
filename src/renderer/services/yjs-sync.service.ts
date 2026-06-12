@@ -8,6 +8,7 @@ import { getDb } from '../lib/db';
 import { yjsSyncCursor } from '../schema/drizzle';
 import { isSyncEnabled } from '../lib/config';
 import { apiClient } from '../lib/axios-config';
+import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
 import { getDeviceId } from '../lib/device-id';
 import { events, type SyncOperationEvent } from '../lib/events';
 import { createYjsRepository, type YjsRepository } from '../sqlite-repo/yjs-repo';
@@ -354,6 +355,9 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
     // Save a snapshot after applying remote updates
     const fullState = Y.encodeStateAsUpdate(ydoc);
     await r.upsertSnapshot(docId, fullState);
+    // Time-machine trail: remote edits arriving on this device are capture
+    // moments too (15-min gated + deduped inside).
+    maybeCaptureSnapshotHistory(docId, fullState);
 
     await updateCursor(docId, { lastServerSeq: maxSeq });
     emitSyncOperation({
