@@ -162,6 +162,19 @@ export async function createDriftingMcpServer(getWindow: () => BrowserWindow | n
         },
         (args) => run('read_block', args),
       ),
+      // ---- materials (素材库) ----
+      tool(
+        'list_materials',
+        "List the project's 素材库 (library materials) BY TITLE: title · kind (text/image/pdf/url) · source, with `chars` for text materials. Text materials are reference prose / reusable snippets the author saved — read one with read_material.",
+        {},
+        () => run('list_materials', {}),
+      ),
+      tool(
+        'read_material',
+        "Read one 素材 (library material) by TITLE. A 'text' material returns its full body — treat it as author-provided reference or a reusable snippet (quote or adapt it via the block edit tools when asked). Other kinds (image/pdf/url) return metadata (uri, mime, size). Author notes attached to the item come back as `notes`.",
+        { material: z.string().describe('Material TITLE (from list_materials)') },
+        (args) => run('read_material', args),
+      ),
       // ---- writes ----
       tool(
         'update_element',

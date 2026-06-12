@@ -575,6 +575,78 @@ function searchProject(ctx: AgentToolContext, query: string) {
   return { matches };
 }
 
+// ---- Materials (素材库 library items) ---------------------------------------
+
+/**
+ * A material's body/notes as plain text. The field holds either a TipTap doc
+ * JSON (MaterialPreviewPopover writes docs) or raw plain text (the panel's
+ * quick textarea writes strings) — sniff and flatten accordingly.
+ */
+function materialBodyText(raw: string | null): string {
+  if (!raw) return '';
+  const t = raw.trim();
+  if (t.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(t) as { type?: string };
+      if (parsed && parsed.type === 'doc') return docToPlainText(t);
+    } catch {
+      /* plain text that happens to start with '{' */
+    }
+  }
+  return raw;
+}
+
+/** list_materials — the project's library items by TITLE, with kind hints. */
+function listMaterials(ctx: AgentToolContext) {
+  const items = useDataStore
+    .getState()
+    .libraryItems.filter((m) => m.projectId === ctx.projectId)
+    .slice()
+    .sort((a, b) => a.orderKey - b.orderKey);
+  return {
+    materials: items.map((m) => ({
+      title: m.title || '(untitled)',
+      kind: m.kind,
+      source: m.source,
+      // Text materials advertise their length so the agent can pick a
+      // reusable snippet without reading every item.
+      chars: m.kind === 'text' ? materialBodyText(m.bodyJson).length : undefined,
+    })),
+  };
+}
+
+/** read_material — one item by TITLE: body text for 'text', metadata otherwise. */
+function readMaterial(ctx: AgentToolContext, args: Record<string, unknown>) {
+  const ref = String(args.material ?? '').trim();
+  if (!ref) throw new Error('missing `material` (the material TITLE)');
+  const items = useDataStore
+    .getState()
+    .libraryItems.filter((m) => m.projectId === ctx.projectId);
+  const lower = ref.toLowerCase();
+  const matches = items.filter((m) => (m.title || '').toLowerCase() === lower);
+  if (matches.length > 1) {
+    throw new Error(
+      `${matches.length} materials share the title "${ref}" — retitle them in the 素材 panel so the reference is unambiguous`,
+    );
+  }
+  const item = matches[0] ?? items.find((m) => m.id === ref);
+  if (!item) throw new Error(`No material titled "${ref}" — call list_materials for the titles`);
+  const notes = materialBodyText(item.notesJson).trim();
+  return {
+    title: item.title,
+    kind: item.kind,
+    source: item.source,
+    ...(item.kind === 'text'
+      ? { body: materialBodyText(item.bodyJson) || '(empty)' }
+      : {
+          uri: item.uri,
+          mime: item.mime ?? undefined,
+          sizeBytes: item.sizeBytes ?? undefined,
+        }),
+    ...(notes ? { notes } : {}),
+  };
+}
+
 // ---- Relational / context reads (point → surface) --------------------------
 // These expose the projections the app already maintains (inline mentions,
 // curated relations, storyline membership, rolling summaries, KV facts) so the
@@ -2853,6 +2925,11 @@ export async function runAgentTool(
       return getElementPatches(ctx, String(args.elementId ?? ''));
     case 'list_comments':
       return listComments(ctx, args);
+    // materials (素材库)
+    case 'list_materials':
+      return listMaterials(ctx);
+    case 'read_material':
+      return readMaterial(ctx, args);
     // writes
     case 'update_element':
       return updateElement(ctx, args);

@@ -147,6 +147,25 @@ export const AGENT_READ_TOOLS: RegisteredTool[] = [
     },
     access: 'read',
   },
+  {
+    name: 'list_materials',
+    description:
+      '按标题列出项目素材库:title · kind (text/image/pdf/url) · source,text 类附 chars。text 素材是作者存的参考文本/可复用片段,用 read_material 读取。',
+    parametersSchema: noArgs,
+    access: 'read',
+  },
+  {
+    name: 'read_material',
+    description:
+      '按标题读一个素材。text 类返回全文正文(作者提供的参考/可复用片段);image/pdf/url 返回元数据(uri/mime/size)。作者批注以 notes 返回。',
+    parametersSchema: {
+      type: 'object',
+      properties: { material: str('素材标题(来自 list_materials)') },
+      required: ['material'],
+      additionalProperties: false,
+    },
+    access: 'read',
+  },
 ];
 
 export const READ_TOOL_NAMES = new Set(AGENT_READ_TOOLS.map((t) => t.name));
