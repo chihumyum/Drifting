@@ -38,6 +38,8 @@ interface ActRailProps {
   onMoveBoundary: (id: string, startOrder: number) => void;
   onDeleteAct: (id: string) => void;
   onSplitAt: (startOrder: number) => void;
+  /** Create an act at the viewport center (the rail head cell's ＋ button). */
+  onAddAct?: () => void;
   railLabel?: string;
   /** Extra root class — StoryGraphView passes its sticky-top modifier. */
   className?: string;
@@ -63,6 +65,7 @@ export function ActRail({
   onMoveBoundary,
   onDeleteAct,
   onSplitAt,
+  onAddAct,
   railLabel = '幕',
   className,
 }: ActRailProps) {
@@ -98,8 +101,6 @@ export function ActRail({
     };
   }, [menu]);
 
-  if (segments.length === 0) return null;
-
   // Invert orderToX for cursor positions. The mapping is affine
   // (px = (order - minOrder) * unit), so two probes recover it exactly.
   const xToOrder = (px: number): number => {
@@ -109,6 +110,61 @@ export function ActRail({
     if (unit === 0) return 0;
     return (px - x0) / unit;
   };
+
+  // Rail head cell — mirrors the narrative time-axis head ("TIME ＋"): the
+  // 幕 label plus a ＋ that drops a new act at the viewport center. This is
+  // the primary create entry (the old header 「+幕」button was retired).
+  const railHead =
+    railWidth > 0 ? (
+      <div className="actrail__rail" style={{ width: railWidth }}>
+        <span>{railLabel}</span>
+        {onAddAct && (
+          <button
+            type="button"
+            className="actrail__rail-add"
+            disabled={snapOrders.length === 0}
+            title={snapOrders.length === 0 ? '需要至少一个章节才能分幕' : '新建幕'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddAct();
+            }}
+          >
+            +
+          </button>
+        )}
+      </div>
+    ) : null;
+
+  // No acts yet — the rail still shows (book mode always renders it now, so
+  // the 幕 feature is discoverable). The empty track invites a first split:
+  // double-click at a position, or right-click for the same; the head ＋ is
+  // the primary entry.
+  if (segments.length === 0) {
+    return (
+      <div className={`actrail actrail--empty${className ? ` ${className}` : ''}`} style={{ height }}>
+        {railHead}
+        <div
+          className="actrail__track actrail__track--empty"
+          style={{ minWidth: trackWidth }}
+          title="双击或右键此处开始分幕"
+          onDoubleClick={(e) => {
+            const rect = trackRef.current?.getBoundingClientRect();
+            const px = rect ? e.clientX - rect.left : 0;
+            onSplitAt(Math.round(xToOrder(px)));
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            const rect = trackRef.current?.getBoundingClientRect();
+            const px = rect ? e.clientX - rect.left : 0;
+            onSplitAt(Math.round(xToOrder(px)));
+          }}
+          ref={trackRef}
+        >
+          <span className="actrail__empty-hint">未分幕 · 双击此处或点 ＋ 划分</span>
+        </div>
+      </div>
+    );
+  }
 
   const bandEdges = (i: number): { left: number; right: number } => {
     const left = i === 0 ? 0 : orderToX(segments[i].act.startOrder ?? 0);
@@ -121,6 +177,7 @@ export function ActRail({
 
   const startBoundaryDrag = (e: React.PointerEvent, segIndex: number) => {
     // segIndex >= 1 — the opener has no draggable left edge.
+    if (e.button !== 0) return; // left button only; right-click is free for future menus
     e.preventDefault();
     e.stopPropagation();
     const act = segments[segIndex].act;
@@ -173,11 +230,7 @@ export function ActRail({
 
   return (
     <div className={`actrail${className ? ` ${className}` : ''}`} style={{ height }}>
-      {railWidth > 0 && (
-        <div className="actrail__rail" style={{ width: railWidth }}>
-          <span>{railLabel}</span>
-        </div>
-      )}
+      {railHead}
       <div ref={trackRef} className="actrail__track" style={{ minWidth: trackWidth }}>
         {segments.map((seg, i) => {
           const { left, right } = bandEdges(i);

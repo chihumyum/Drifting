@@ -361,10 +361,10 @@ export function StoryGraphView() {
   const orderField: 'bookOrder' | 'narrativeOrder' = isNarrative ? 'narrativeOrder' : 'bookOrder';
 
   // Act rail (幕) — book-mode in-flow row at the top of the scroll content
-  // (replaced the old FullBookLane sibling). Occupies height only when the
-  // project actually has acts; every content-Y offset below must include it.
-  const actRailHeight =
-    !isNarrative && bookActs.length > 0 ? GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
+  // (replaced the old FullBookLane sibling). Always present in book mode
+  // (even with zero acts — the empty rail keeps the feature discoverable);
+  // every content-Y offset below must include it.
+  const actRailHeight = !isNarrative ? GRAPH_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
 
   // Vertical offset from the scroll content's top to a tile's CENTER y,
   // used only for the SVG edge geometry (tiles themselves are now flow
@@ -840,6 +840,27 @@ export function StoryGraphView() {
     }
   }, [placedNodes, orderOf, updateNode, orderField, isNarrative, remapAfterSpread]);
 
+  // 「+幕」— drops an act boundary at the chapter nearest the viewport center
+  // (book mode). Lives behind the act rail's head-cell ＋. Splitting an empty
+  // book bootstraps the opener too (see useBookAct.splitAtOrder).
+  const handleAddActSplit = useCallback(() => {
+    if (actSnapOrders.length === 0) return;
+    const canvas = canvasRef.current;
+    let target = actSnapOrders[0];
+    if (canvas) {
+      const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
+      let bestDist = Infinity;
+      for (const s of actSnapOrders) {
+        const d = Math.abs(orderToX(s) - centerContentX);
+        if (d < bestDist) {
+          bestDist = d;
+          target = s;
+        }
+      }
+    }
+    void splitAtOrder(target);
+  }, [actSnapOrders, orderToX, splitAtOrder]);
+
   const handleAddPin = useCallback(() => {
     if (!isNarrative || snapValues.length === 0) return;
     const canvas = canvasRef.current;
@@ -1312,43 +1333,8 @@ export function StoryGraphView() {
               <span>打散</span>
             </button>
 
-            {/* +幕 — book mode. Drops an act boundary at the chapter nearest
-                the viewport center; precise placement lives on the rail's own
-                band menu (在此处开始新幕) once acts exist. */}
-            {!isNarrative && (
-              <button
-                type="button"
-                className="graph-head__spread-btn"
-                disabled={placedNodes.length === 0}
-                onClick={() => {
-                  if (actSnapOrders.length === 0) return;
-                  const canvas = canvasRef.current;
-                  let target = actSnapOrders[0];
-                  if (canvas) {
-                    const centerContentX = canvas.scrollLeft + canvas.clientWidth / 2;
-                    let bestDist = Infinity;
-                    for (const s of actSnapOrders) {
-                      const d = Math.abs(orderToX(s) - centerContentX);
-                      if (d < bestDist) {
-                        bestDist = d;
-                        target = s;
-                      }
-                    }
-                  }
-                  void splitAtOrder(target);
-                }}
-                title={
-                  placedNodes.length === 0
-                    ? '需要至少一个章节才能分幕'
-                    : bookActs.length === 0
-                      ? '分幕：在视野中央的章节处划下第一道幕边界'
-                      : '在视野中央插入新的幕边界'
-                }
-                aria-label="分幕"
-              >
-                <span>+幕</span>
-              </button>
-            )}
+            {/* The 「+幕」act-create action moved into the act rail's head cell
+                (mirrors the narrative TIME ＋), so it's no longer in the header. */}
 
             {/* Unplaced chapters — narrative mode only. Same role as the
                 equivalent control in BottomTimeline: surface chapters
@@ -1531,6 +1517,7 @@ export function StoryGraphView() {
               onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
               onDeleteAct={(id) => void deleteAct(id)}
               onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
+              onAddAct={handleAddActSplit}
             />
           )}
 

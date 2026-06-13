@@ -115,6 +115,11 @@ function TimelinePin({
 
   const startDrag = useCallback(
     (e: React.MouseEvent) => {
+      // Left button only. A right-click must fall through to onContextMenu —
+      // if startDrag runs it flips the pin into is-dragging (opacity:0,
+      // pointer-events:none) synchronously, so the contextmenu event then
+      // resolves to whatever sits BEHIND the pin and the menu never opens.
+      if (e.button !== 0) return;
       if (editing) return;
       if (snapValues.length === 0) return;
       e.preventDefault();
@@ -1089,11 +1094,11 @@ export function BottomTimeline() {
   // ActRail (幕) replaced FullBookLane as the book-mode top strip. Unlike
   // the old packed lane it lives INSIDE the scroll container, in track
   // coordinate space, so act bands align with the chapter columns below.
-  // It only occupies height when the project actually has acts; narrative
-  // mode never shows it (acts segment bookOrder, and projecting them onto
-  // the narrative axis would shred them across flashbacks).
-  const actRailHeight =
-    !isNarrative && bookActs.length > 0 ? TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
+  // Always present in book mode (even with zero acts — the empty rail keeps
+  // the 幕 feature discoverable and invites a first split); narrative mode
+  // never shows it (acts segment bookOrder, and projecting them onto the
+  // narrative axis would shred them across flashbacks).
+  const actRailHeight = !isNarrative ? TIMELINE_CONFIG.FULL_BOOK_LANE_HEIGHT : 0;
   const axisHeight = isNarrative ? TIMELINE_CONFIG.AXIS_HEIGHT : 0;
 
   // Lanes to render: real storylines + at most one synthetic lane.
@@ -1413,28 +1418,9 @@ export function BottomTimeline() {
         </div>
         <div className="btl__head-right">
           {/* New-storyline action lives on the ChapterPanel subheader's primary
-              create button now — surfacing it here too made the affordance
-              redundant. The timeline keeps only the layout / navigation
-              controls below. */}
-          {!isNarrative && (
-            <button
-              className="btl__head-btn"
-              title={
-                placedNodes.length === 0
-                  ? '需要至少一个章节才能分幕'
-                  : bookActs.length === 0
-                    ? '分幕：在视野中央的章节处划下第一道幕边界'
-                    : '在视野中央插入新的幕边界'
-              }
-              disabled={placedNodes.length === 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAddActSplit();
-              }}
-            >
-              +幕
-            </button>
-          )}
+              create button now; the 「+幕」act-create action moved into the
+              act rail's head cell (mirrors the narrative TIME ＋). The header
+              keeps only the layout / navigation controls below. */}
           <button
             className="btl__head-btn"
             title={
@@ -1537,9 +1523,10 @@ export function BottomTimeline() {
         onTouchCancel={touchHandlers.onTouchCancel}
         style={{ touchAction: 'pan-x pinch-zoom' }}
       >
-        {/* Act rail (幕) — book mode, only when acts exist. Lives inside the
-            scroll container in track coordinate space so the bands align
-            with the chapter columns and scroll with them. */}
+        {/* Act rail (幕) — book mode, always present (empty rail when no acts).
+            Lives inside the scroll container in track coordinate space so the
+            bands align with the chapter columns and scroll with them. The ＋
+            in its head cell is the create entry. */}
         {actRailHeight > 0 && (
           <ActRail
             acts={bookActs}
@@ -1553,6 +1540,7 @@ export function BottomTimeline() {
             onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
             onDeleteAct={(id) => void deleteAct(id)}
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
+            onAddAct={handleAddActSplit}
           />
         )}
 

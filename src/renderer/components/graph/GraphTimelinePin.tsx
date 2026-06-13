@@ -62,6 +62,11 @@ export function GraphTimelinePin({
 
   const startDrag = useCallback(
     (e: React.MouseEvent) => {
+      // Left button only. A right-click must fall through to onContextMenu —
+      // if startDrag runs it flips the pin into is-dragging (opacity:0,
+      // pointer-events:none) synchronously, so the contextmenu event then
+      // resolves to whatever sits BEHIND the pin and the menu never opens.
+      if (e.button !== 0) return;
       if (editing) return;
       if (snapValues.length === 0) return;
       e.preventDefault();

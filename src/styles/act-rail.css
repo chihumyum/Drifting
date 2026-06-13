@@ -28,7 +28,8 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  justify-content: space-between;
+  padding: 0 10px 0 16px;
   border-right: 1px solid hsl(var(--rule));
   background: hsl(var(--paper));
   z-index: 21;
@@ -38,10 +39,63 @@
   letter-spacing: 0.14em;
   color: hsl(var(--ink-4));
 }
+/* ＋ new-act button — mirrors the narrative axis head's add button
+   (.btl-axis__rail-add / .graph-rail__axis-add) so book + narrative modes
+   share the same "add to this rail" affordance. */
+.actrail__rail-add {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: hsl(var(--ink-4));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  margin-left: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.actrail__rail-add:hover:not(:disabled) {
+  background: hsl(var(--rule));
+  color: hsl(var(--ink-1));
+}
+.actrail__rail-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .actrail__track {
   position: relative;
   flex-shrink: 0;
+}
+
+/* Empty state — book mode renders the rail even with zero acts so the
+   feature is discoverable. The track reads as a faint dashed invitation. */
+.actrail__track--empty {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.actrail__track--empty::before {
+  content: '';
+  position: absolute;
+  inset: 3px 6px;
+  border: 1px dashed hsl(var(--rule-strong));
+  border-radius: 3px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.actrail__empty-hint {
+  position: sticky;
+  left: 12px;
+  padding-left: 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink-4));
+  pointer-events: none;
 }
 
 .actrail__band {
