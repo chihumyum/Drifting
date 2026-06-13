@@ -4,7 +4,7 @@
  * spread repair) lives in domain/book-act.ts, and orchestration (opener
  * promotion on delete, auto-naming) in usecase/useBookAct.ts.
  */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { getDb, type DbExecutor } from '../lib/db';
 import { BookActTable } from '../schema/drizzle';
 import type { BookAct } from '../domain/book-act';
@@ -20,6 +20,13 @@ export interface BookActRepository {
   create(input: BookAct): Promise<BookAct>;
   update(id: string, data: BookActUpdateData): Promise<BookAct | null>;
   delete(id: string): Promise<boolean>;
+  /**
+   * Clear the drift binding on every act pointing at a drift (the drift is
+   * being deleted or converted to a chapter). Returns the affected rows so
+   * the caller can mirror the change into the store + sync. FKs aren't
+   * enforced here, so this is the only unbind path.
+   */
+  unbindForDrift(driftNodeId: string, now: string): Promise<BookAct[]>;
 }
 
 function toDomain(record: typeof BookActTable.$inferSelect): BookAct {
@@ -30,6 +37,7 @@ function toDomain(record: typeof BookActTable.$inferSelect): BookAct {
     summary: record.summary,
     color: record.color,
     startOrder: record.startOrder,
+    driftNodeId: record.driftNodeId,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -70,6 +78,7 @@ export function createBookActRepository(
         summary: input.summary,
         color: input.color,
         startOrder: input.startOrder,
+        driftNodeId: input.driftNodeId,
         createdAt: input.createdAt,
         updatedAt: input.updatedAt,
       });
@@ -84,6 +93,7 @@ export function createBookActRepository(
       if (data.summary !== undefined) values.summary = data.summary;
       if (data.color !== undefined) values.color = data.color;
       if (data.startOrder !== undefined) values.startOrder = data.startOrder;
+      if (data.driftNodeId !== undefined) values.driftNodeId = data.driftNodeId;
       await dbProvider().update(BookActTable).set(values).where(eq(BookActTable.id, id));
       return findById(id);
     },
@@ -91,6 +101,23 @@ export function createBookActRepository(
     delete: async (id) => {
       await dbProvider().delete(BookActTable).where(eq(BookActTable.id, id));
       return true;
+    },
+
+    unbindForDrift: async (driftNodeId, now) => {
+      const rows = await dbProvider()
+        .select()
+        .from(BookActTable)
+        .where(
+          and(eq(BookActTable.projectId, projectId), eq(BookActTable.driftNodeId, driftNodeId)),
+        );
+      if (rows.length === 0) return [];
+      await dbProvider()
+        .update(BookActTable)
+        .set({ driftNodeId: null, updatedAt: now })
+        .where(
+          and(eq(BookActTable.projectId, projectId), eq(BookActTable.driftNodeId, driftNodeId)),
+        );
+      return rows.map((r) => ({ ...toDomain(r), driftNodeId: null, updatedAt: now }));
     },
   };
 }

@@ -812,10 +812,19 @@ export const BookActTable = sqliteTable(
     summary: text('summary').notNull().default(''),
     color: text('color'),
     startOrder: real('start_order'), // null = book head (the opener act)
+    // Optional bound drift node — the act's free-form notes / 大纲. SET NULL
+    // is declarative only (PRAGMA foreign_keys off); unbind on drift delete /
+    // drift→chapter conversion happens in useBookAct.unbindActsForDrift.
+    driftNodeId: text('drift_node_id').references(() => BookNodeTable.id, {
+      onDelete: 'set null',
+    }),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (t) => [index('idx_book_act_project').on(t.projectId)],
+  (t) => [
+    index('idx_book_act_project').on(t.projectId),
+    index('idx_book_act_drift').on(t.driftNodeId),
+  ],
 );
 
 // Timeline marker — user-pinned label on the NARRATIVE axis (narrativeOrder),

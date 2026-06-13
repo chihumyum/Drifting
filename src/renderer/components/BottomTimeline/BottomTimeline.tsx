@@ -17,6 +17,7 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { TimelinePinMenu } from '../graph/TimelinePinMenu';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
+import { actBoundDriftIds } from '../../domain/book-act';
 import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
@@ -307,14 +308,22 @@ export function BottomTimeline() {
     }
     return m;
   }, [bookNodes]);
-  const unboundDrifts = useMemo(
-    () => Array.from(driftById.values()).filter((d) => !boundDriftIds.has(d.id)),
-    [driftById, boundDriftIds],
-  );
   const bookActs = useDataStore((s) => s.bookActs);
-  const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
-    projectId: projectId ?? '',
-  });
+  // A drift is "bound" if any marker OR any act references it — both rails
+  // share the floating-drift pool. The bind picker offers only the rest.
+  const allBoundDriftIds = useMemo(() => {
+    const ids = new Set(boundDriftIds);
+    for (const id of actBoundDriftIds(bookActs)) ids.add(id);
+    return ids;
+  }, [boundDriftIds, bookActs]);
+  const unboundDrifts = useMemo(
+    () => Array.from(driftById.values()).filter((d) => !allBoundDriftIds.has(d.id)),
+    [driftById, allBoundDriftIds],
+  );
+  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
+    useBookAct({
+      projectId: projectId ?? '',
+    });
   const { createNode, updateNode } = useBookNode({
     projectId: projectId ?? '',
     userId: user?.id ?? '',
@@ -1541,6 +1550,13 @@ export function BottomTimeline() {
             onDeleteAct={(id) => void deleteAct(id)}
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
             onAddAct={handleAddActSplit}
+            unboundDrifts={unboundDrifts}
+            driftTitleById={(id) => driftById.get(id)?.title ?? null}
+            onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
+            onUnbindDrift={(id) => void unbindDrift(id)}
+            onOpenDrift={(driftNodeId) =>
+              openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
+            }
           />
         )}
 

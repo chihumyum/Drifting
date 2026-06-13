@@ -28,8 +28,24 @@ export interface BookAct {
   color: string | null;
   /** Boundary on the bookOrder axis; null = book head (first act only). */
   startOrder: number | null;
+  /**
+   * Optional bound drift node serving as this act's free-form notes / 大纲
+   * (mirrors a marker binding a drift — see domain/timeline-marker.ts).
+   * "Is bound" is always derived from this column; deleting/converting the
+   * drift unbinds via useBookAct.unbindActsForDrift (FKs aren't enforced).
+   * A bound drift is hidden from the floating drift panel.
+   */
+  driftNodeId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Drift ids currently bound to an act (its notes). Union with the marker-
+ *  bound set for drift-panel filtering + the bind picker's exclusions. */
+export function actBoundDriftIds(acts: BookAct[]): Set<string> {
+  const ids = new Set<string>();
+  for (const a of acts) if (a.driftNodeId) ids.add(a.driftNodeId);
+  return ids;
 }
 
 /** Sorted for rendering/derivation: the null-start opener first, then ascending. */

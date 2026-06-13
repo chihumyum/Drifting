@@ -40,6 +40,14 @@ interface ActRailProps {
   onSplitAt: (startOrder: number) => void;
   /** Create an act at the viewport center (the rail head cell's ＋ button). */
   onAddAct?: () => void;
+  // ---- Drift binding (an act may bind a drift as its 大纲/notes) ----
+  /** Drifts not yet bound to any act/marker — the bind picker's options. */
+  unboundDrifts?: Array<{ id: string; title: string }>;
+  /** Resolve a bound drift's live title (for the ⚓ tooltip). */
+  driftTitleById?: (id: string) => string | null;
+  onBindDrift?: (actId: string, driftNodeId: string) => void;
+  onUnbindDrift?: (actId: string) => void;
+  onOpenDrift?: (driftNodeId: string) => void;
   railLabel?: string;
   /** Extra root class — StoryGraphView passes its sticky-top modifier. */
   className?: string;
@@ -51,6 +59,8 @@ interface BandMenuState {
   y: number;
   /** Order value under the cursor at menu-open — target for 在此处开始新幕. */
   orderAtCursor: number;
+  /** Two-level menu: the root actions, or the drift-bind picker. */
+  view: 'root' | 'pick';
 }
 
 export function ActRail({
@@ -66,6 +76,11 @@ export function ActRail({
   onDeleteAct,
   onSplitAt,
   onAddAct,
+  unboundDrifts = [],
+  driftTitleById,
+  onBindDrift,
+  onUnbindDrift,
+  onOpenDrift,
   railLabel = '幕',
   className,
 }: ActRailProps) {
@@ -136,32 +151,24 @@ export function ActRail({
     ) : null;
 
   // No acts yet — the rail still shows (book mode always renders it now, so
-  // the 幕 feature is discoverable). The empty track invites a first split:
-  // double-click at a position, or right-click for the same; the head ＋ is
-  // the primary entry.
+  // the 幕 feature stays discoverable via the head ＋). The empty track is
+  // plain (no dashed invitation); double-clicking it still drops a first
+  // split for users who reach for it.
   if (segments.length === 0) {
     return (
       <div className={`actrail actrail--empty${className ? ` ${className}` : ''}`} style={{ height }}>
         {railHead}
         <div
-          className="actrail__track actrail__track--empty"
+          ref={trackRef}
+          className="actrail__track"
           style={{ minWidth: trackWidth }}
-          title="双击或右键此处开始分幕"
+          title="双击此处分幕，或点头部 ＋"
           onDoubleClick={(e) => {
             const rect = trackRef.current?.getBoundingClientRect();
             const px = rect ? e.clientX - rect.left : 0;
             onSplitAt(Math.round(xToOrder(px)));
           }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            const rect = trackRef.current?.getBoundingClientRect();
-            const px = rect ? e.clientX - rect.left : 0;
-            onSplitAt(Math.round(xToOrder(px)));
-          }}
-          ref={trackRef}
-        >
-          <span className="actrail__empty-hint">未分幕 · 双击此处或点 ＋ 划分</span>
-        </div>
+        />
       </div>
     );
   }
@@ -261,9 +268,14 @@ export function ActRail({
                   x: e.clientX + 2,
                   y: e.clientY - 2,
                   orderAtCursor: Math.round(xToOrder(px)),
+                  view: 'root',
                 });
               }}
-              title={`${seg.act.name} · ${seg.chapters.length} 章${seg.act.summary ? `\n${seg.act.summary}` : ''}`}
+              title={`${seg.act.name} · ${seg.chapters.length} 章${
+                seg.act.driftNodeId
+                  ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? '幕笔记'}`
+                  : ''
+              }${seg.act.summary ? `\n${seg.act.summary}` : ''}`}
             >
               {isEditing ? (
                 <input
@@ -282,6 +294,19 @@ export function ActRail({
                 />
               ) : (
                 <span className="actrail__label">
+                  {seg.act.driftNodeId && onOpenDrift && (
+                    <button
+                      type="button"
+                      className="actrail__anchor"
+                      title="打开幕笔记（绑定的漂浮节点）"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenDrift(seg.act.driftNodeId!);
+                      }}
+                    >
+                      ⚓
+                    </button>
+                  )}
                   <span className="actrail__name">{seg.act.name}</span>
                   <span className="actrail__count">{seg.chapters.length}章</span>
                 </span>
@@ -311,40 +336,116 @@ export function ActRail({
 
       {menu &&
         createPortal(
-          <div
-            className="actrail__menu"
-            style={{ position: 'fixed', left: menu.x, top: menu.y }}
-            onContextMenu={(e) => e.preventDefault()}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                setEditingId(menu.actId);
-              }}
-            >
-              重命名
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(null);
-                onSplitAt(menu.orderAtCursor);
-              }}
-            >
-              在此处开始新幕
-            </button>
-            <button
-              type="button"
-              className="is-danger"
-              onClick={() => {
-                setMenu(null);
-                onDeleteAct(menu.actId);
-              }}
-            >
-              {actIndexOf(menu.actId) === 0 ? '删除此幕（并入下一幕）' : '删除此幕（并入前一幕）'}
-            </button>
-          </div>,
+          (() => {
+            const menuAct = acts.find((a) => a.id === menu.actId) ?? null;
+            const isBound = Boolean(menuAct?.driftNodeId);
+            const canBind = Boolean(onBindDrift) && unboundDrifts.length > 0;
+            if (menu.view === 'pick') {
+              return (
+                <div
+                  className="actrail__menu"
+                  style={{ position: 'fixed', left: menu.x, top: menu.y }}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  <button
+                    type="button"
+                    className="actrail__menu-back"
+                    onClick={() => setMenu({ ...menu, view: 'root' })}
+                  >
+                    ‹ 返回
+                  </button>
+                  <div className="actrail__menu-list">
+                    {unboundDrifts.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => {
+                          setMenu(null);
+                          onBindDrift?.(menu.actId, d.id);
+                        }}
+                      >
+                        {d.title || '未命名'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div
+                className="actrail__menu"
+                style={{ position: 'fixed', left: menu.x, top: menu.y }}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(null);
+                    setEditingId(menu.actId);
+                  }}
+                >
+                  重命名
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(null);
+                    onSplitAt(menu.orderAtCursor);
+                  }}
+                >
+                  在此处开始新幕
+                </button>
+                {/* Drift binding — bound acts open / unbind; unbound acts pick. */}
+                {isBound ? (
+                  <>
+                    {onOpenDrift && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenu(null);
+                          if (menuAct?.driftNodeId) onOpenDrift(menuAct.driftNodeId);
+                        }}
+                      >
+                        打开幕笔记
+                      </button>
+                    )}
+                    {onUnbindDrift && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenu(null);
+                          onUnbindDrift(menu.actId);
+                        }}
+                      >
+                        解绑漂浮节点
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  onBindDrift && (
+                    <button
+                      type="button"
+                      disabled={!canBind}
+                      title={canBind ? undefined : '没有可绑定的漂浮节点（都已绑定或不存在）'}
+                      onClick={() => setMenu({ ...menu, view: 'pick' })}
+                    >
+                      绑定漂浮节点…
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  className="is-danger"
+                  onClick={() => {
+                    setMenu(null);
+                    onDeleteAct(menu.actId);
+                  }}
+                >
+                  {actIndexOf(menu.actId) === 0 ? '删除此幕（并入下一幕）' : '删除此幕（并入前一幕）'}
+                </button>
+              </div>
+            );
+          })(),
           document.body,
         )}
     </div>

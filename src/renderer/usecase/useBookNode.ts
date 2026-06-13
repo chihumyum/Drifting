@@ -7,6 +7,7 @@ import { createNodeStorylineLinkRepository } from '../sqlite-repo/node-storyline
 import type { BookNode } from '../domain/book-node.ts';
 import { compareBookOrder, isChapter, isDrift, makeUniqueNodeTitle } from '../domain/book-node.ts';
 import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
+import { unbindActsForDrift } from './useBookAct';
 import { initDatabase, getDb } from '../lib/db';
 import { v7 as uuidv7 } from 'uuid';
 import loglevel from 'loglevel';
@@ -435,6 +436,9 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
       if (isDrift(existing)) {
         await unbindMarkersForDrift(activeProjectId, id, existing.title).catch((error) =>
           log.warn('marker unbind on drift delete failed:', error),
+        );
+        await unbindActsForDrift(activeProjectId, id).catch((error) =>
+          log.warn('act unbind on drift delete failed:', error),
         );
       }
 

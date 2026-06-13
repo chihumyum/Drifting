@@ -13,6 +13,7 @@ import { useTimelineMarkers } from '../hooks/useTimelineMarkers';
 import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMeta';
 import { ActRail } from '../components/BottomTimeline/ActRail';
 import { useBookAct } from '../usecase/useBookAct';
+import { actBoundDriftIds } from '../domain/book-act';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
@@ -162,9 +163,10 @@ export function StoryGraphView() {
   });
   const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
     useTimelineMarkers(projectId);
-  const { splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread } = useBookAct({
-    projectId: projectId ?? '',
-  });
+  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
+    useBookAct({
+      projectId: projectId ?? '',
+    });
 
   // Story-graph edges are the subset of manual entity references that connect
   // two node rows (chapter or drift); kept as a stable derived array so the
@@ -512,17 +514,22 @@ export function StoryGraphView() {
 
   const driftIds = useMemo(() => new Set(driftNodes.map((n) => n.id)), [driftNodes]);
 
-  // The bottom drawer hides drifts that are BOUND to a timeline marker —
-  // they've "landed" on the narrative axis and live there now (deleting or
-  // unbinding the marker puts them straight back; the bound set is derived
-  // from the marker table, no status flag involved). driftIds above stays
-  // the FULL set on purpose: edge classification still needs to know a
-  // bound drift is a drift.
+  // The bottom drawer hides drifts BOUND to a timeline marker OR an act —
+  // they've "landed" (on the narrative axis / as an act's notes) and live
+  // there now (deleting or unbinding puts them straight back; both bound
+  // sets derive from their tables, no status flag). driftIds above stays the
+  // FULL set on purpose: edge classification still needs to know a bound
+  // drift is a drift.
+  const allBoundDriftIds = useMemo(() => {
+    const ids = new Set(boundDriftIds);
+    for (const id of actBoundDriftIds(bookActs)) ids.add(id);
+    return ids;
+  }, [boundDriftIds, bookActs]);
   const visibleDriftNodes = useMemo(
-    () => driftNodes.filter((n) => !boundDriftIds.has(n.id)),
-    [driftNodes, boundDriftIds],
+    () => driftNodes.filter((n) => !allBoundDriftIds.has(n.id)),
+    [driftNodes, allBoundDriftIds],
   );
-  // Bind-picker options + live titles for bound pins.
+  // Bind-picker options + live titles for bound pins/acts.
   const unboundDrifts = useMemo(
     () => visibleDriftNodes.map((n) => ({ id: n.id, title: n.title })),
     [visibleDriftNodes],
@@ -1518,6 +1525,13 @@ export function StoryGraphView() {
               onDeleteAct={(id) => void deleteAct(id)}
               onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
               onAddAct={handleAddActSplit}
+              unboundDrifts={unboundDrifts}
+              driftTitleById={(id) => nodeById.get(id)?.title ?? null}
+              onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
+              onUnbindDrift={(id) => void unbindDrift(id)}
+              onOpenDrift={(driftNodeId) =>
+                openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
+              }
             />
           )}
 

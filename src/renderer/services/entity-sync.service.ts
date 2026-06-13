@@ -946,6 +946,9 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
   // keeps the rows (with deletedAt) for the trash panel — see the hydrate below.
   const liveStorylines = graph.storylines.filter((row) => !isDeleted(row));
   const liveNodes = graph.nodes.filter((row) => !isDeleted(row));
+  // Surviving node ids — act/marker drift bindings to a trashed node render
+  // as plain (unbound) rather than dangling.
+  const liveNodeIds = new Set(liveNodes.map((row) => stringValue(row, 'id')));
   const liveCategories = graph.elementCategories.filter((row) => !isDeleted(row));
   const liveElements = graph.elements.filter((row) => !isDeleted(row));
   const deletedNodeIds = new Set(
@@ -1137,18 +1140,22 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
     })),
   );
   dataStore.setBookActs(
-    (graph.bookActs ?? []).map((row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      summary: stringValue(row, 'summary'),
-      color: nullableStringValue(row, 'color'),
-      startOrder: nullableNumberValue(row, 'startOrder'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })),
+    (graph.bookActs ?? []).map((row) => {
+      const driftNodeId = nullableStringValue(row, 'driftNodeId');
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        name: stringValue(row, 'name'),
+        summary: stringValue(row, 'summary'),
+        color: nullableStringValue(row, 'color'),
+        startOrder: nullableNumberValue(row, 'startOrder'),
+        // A binding to a trashed/vanished drift renders as a plain act.
+        driftNodeId: driftNodeId && liveNodeIds.has(driftNodeId) ? driftNodeId : null,
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    }),
   );
-  const liveNodeIds = new Set(liveNodes.map((row) => stringValue(row, 'id')));
   dataStore.setTimelineMarkers(
     (graph.timelineMarkers ?? [])
       .map((row) => {
@@ -1832,21 +1839,25 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     // sync helpers from day one, and the unflushed-mutation guard skips
     // hydrate when local writes haven't shipped, so no preserve pass needed.
     // Markers go after the BookNode insert above (drift_node_id reference).
-    const bookActs = normalizeRows(graph.bookActs ?? [], (row) => ({
-      id: stringValue(row, 'id'),
-      projectId: stringValue(row, 'projectId'),
-      name: stringValue(row, 'name'),
-      summary: stringValue(row, 'summary'),
-      color: nullableStringValue(row, 'color'),
-      startOrder: nullableNumberValue(row, 'startOrder'),
-      createdAt: dateText(row.createdAt),
-      updatedAt: dateText(row.updatedAt),
-    })).filter((row) => row.id && row.projectId);
+    const survivingNodeIds = new Set(nodes.map((n) => n.id));
+    const bookActs = normalizeRows(graph.bookActs ?? [], (row) => {
+      const driftNodeId = nullableStringValue(row, 'driftNodeId');
+      return {
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'projectId'),
+        name: stringValue(row, 'name'),
+        summary: stringValue(row, 'summary'),
+        color: nullableStringValue(row, 'color'),
+        startOrder: nullableNumberValue(row, 'startOrder'),
+        driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,
+        createdAt: dateText(row.createdAt),
+        updatedAt: dateText(row.updatedAt),
+      };
+    }).filter((row) => row.id && row.projectId);
     if (bookActs.length > 0) {
       await insertRowsBatched(tx, BookActTable, bookActs);
     }
 
-    const survivingNodeIds = new Set(nodes.map((n) => n.id));
     const timelineMarkers = normalizeRows(graph.timelineMarkers ?? [], (row) => {
       const driftNodeId = nullableStringValue(row, 'driftNodeId');
       return {

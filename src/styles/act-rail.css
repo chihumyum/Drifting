@@ -73,29 +73,9 @@
 }
 
 /* Empty state — book mode renders the rail even with zero acts so the
-   feature is discoverable. The track reads as a faint dashed invitation. */
-.actrail__track--empty {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-.actrail__track--empty::before {
-  content: '';
-  position: absolute;
-  inset: 3px 6px;
-  border: 1px dashed hsl(var(--rule-strong));
-  border-radius: 3px;
-  opacity: 0.5;
-  pointer-events: none;
-}
-.actrail__empty-hint {
-  position: sticky;
-  left: 12px;
-  padding-left: 6px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: hsl(var(--ink-4));
-  pointer-events: none;
+   feature stays discoverable via the head ＋. The track itself is plain. */
+.actrail--empty .actrail__track {
+  cursor: default;
 }
 
 .actrail__band {
@@ -124,6 +104,22 @@
   align-items: baseline;
   gap: 6px;
   min-width: 0;
+}
+/* ⚓ — the act binds a drift as its notes; click opens it. */
+.actrail__anchor {
+  align-self: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-right: 1px;
+  font-size: 10px;
+  line-height: 1;
+  color: hsl(var(--accent));
+  cursor: pointer;
+  opacity: 0.85;
+}
+.actrail__anchor:hover {
+  opacity: 1;
 }
 .actrail__name {
   font-size: 10.5px;
@@ -208,12 +204,26 @@
   color: hsl(var(--ink-2));
   cursor: pointer;
 }
-.actrail__menu button:hover {
+.actrail__menu button:hover:not(:disabled) {
   background: hsl(var(--ink-4) / 0.12);
+}
+.actrail__menu button:disabled {
+  color: hsl(var(--ink-4));
+  cursor: default;
 }
 .actrail__menu button.is-danger {
   color: hsl(var(--accent));
 }
 .actrail__menu button.is-danger:hover {
   background: hsl(var(--accent) / 0.08);
+}
+.actrail__menu-back {
+  font-family: var(--font-mono);
+  color: hsl(var(--ink-4)) !important;
+}
+.actrail__menu-list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }

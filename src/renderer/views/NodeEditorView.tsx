@@ -20,6 +20,7 @@ import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
 import { unbindMarkersForDrift } from '../hooks/useTimelineMarkers';
+import { unbindActsForDrift } from '../usecase/useBookAct';
 import type { OutlineItem } from '../lib/outline';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import {
@@ -571,8 +572,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           bookOrder: maxChapterOrder + CHAPTER_ORDER_STRIDE,
         });
         // The node now lives on the book axis — release any timeline marker
-        // bound to it while it was a drift (binding is drift-only).
+        // or act bound to it while it was a drift (binding is drift-only).
         await unbindMarkersForDrift(activeProjectId, nodeId, curNode.title).catch(() => {});
+        await unbindActsForDrift(activeProjectId, nodeId).catch(() => {});
       } else {
         // Element conversion is destructive: we lift the drift's title /
         // summary / content into a brand-new BookElement, then delete the

@@ -4,6 +4,7 @@ import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
+import { actBoundDriftIds } from '../../domain/book-act';
 import type { BookElement, BookElementCategory } from '../../domain/book-element';
 import type { BookNode } from '../../domain/book-node';
 import { isChapter, isDrift } from '../../domain/book-node';
@@ -1234,17 +1235,23 @@ export function SuperElementView() {
   ]);
 
   // Drift no longer has a bookOrder — sort by recency (matches DriftPanel).
-  // Drifts BOUND to a timeline marker are excluded: they've "landed" on the
-  // narrative axis (StoryGraphView) and shouldn't float in the drawer too.
-  // Bound-ness derives from the marker table — no status flag.
+  // Drifts BOUND to a timeline marker OR an act are excluded: they've
+  // "landed" (narrative axis / act notes) and shouldn't float in the drawer
+  // too. Bound-ness derives from the marker + act tables — no status flag.
   const { boundDriftIds } = useTimelineMarkers(projectId);
+  const bookActs = useDataStore((s) => s.bookActs);
+  const allBoundDriftIds = useMemo(() => {
+    const ids = new Set(boundDriftIds);
+    for (const id of actBoundDriftIds(bookActs)) ids.add(id);
+    return ids;
+  }, [boundDriftIds, bookActs]);
   const driftNodes = useMemo(
     () =>
       bookNodes
         .filter(isDrift)
-        .filter((n) => !boundDriftIds.has(n.id))
+        .filter((n) => !allBoundDriftIds.has(n.id))
         .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)),
-    [bookNodes, boundDriftIds],
+    [bookNodes, allBoundDriftIds],
   );
 
   // ---- Reference / edge state ----

@@ -52,6 +52,27 @@ export interface UpdateBookActInput {
   summary?: string;
   color?: string | null;
   startOrder?: number;
+  driftNodeId?: string | null;
+}
+
+/**
+ * Clear the drift binding on every act pointing at a drift. MUST be called
+ * when a drift is deleted/trashed or converted to a chapter — FKs aren't
+ * enforced, so nothing else will. Parallels unbindMarkersForDrift; both run
+ * on the drift-leaves-the-board paths.
+ */
+export async function unbindActsForDrift(
+  projectId: string,
+  driftNodeId: string,
+): Promise<void> {
+  const repo = createBookActRepository(projectId);
+  const now = new Date().toISOString();
+  const updated = await repo.unbindForDrift(driftNodeId, now);
+  const store = useDataStore.getState();
+  for (const act of updated) {
+    store.updateBookAct(act.id, { driftNodeId: null, updatedAt: now });
+    syncBookActUpdate(act.id, projectId, { driftNodeId: null, updatedAt: now });
+  }
 }
 
 export function useBookAct({ projectId }: UseBookActContext) {
@@ -79,6 +100,7 @@ export function useBookAct({ projectId }: UseBookActContext) {
           summary: act.summary,
           color: act.color,
           startOrder: act.startOrder,
+          driftNodeId: act.driftNodeId,
           createdAt: act.createdAt,
           updatedAt: act.updatedAt,
         });
@@ -92,6 +114,7 @@ export function useBookAct({ projectId }: UseBookActContext) {
           summary: '',
           color: null,
           startOrder: null,
+          driftNodeId: null,
           createdAt: now,
           updatedAt: now,
         };
@@ -113,6 +136,7 @@ export function useBookAct({ projectId }: UseBookActContext) {
         summary: '',
         color: null,
         startOrder,
+        driftNodeId: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -138,6 +162,17 @@ export function useBookAct({ projectId }: UseBookActContext) {
   // between neighboring boundaries (the rail does); this just persists.
   const moveBoundary = useCallback(
     (id: string, startOrder: number) => updateAct(id, { startOrder }),
+    [updateAct],
+  );
+
+  // Bind / unbind a drift node as the act's notes. Thin wrappers over
+  // updateAct so the store + sync paths stay single-sourced.
+  const bindDrift = useCallback(
+    (id: string, driftNodeId: string) => updateAct(id, { driftNodeId }),
+    [updateAct],
+  );
+  const unbindDrift = useCallback(
+    (id: string) => updateAct(id, { driftNodeId: null }),
     [updateAct],
   );
 
@@ -194,7 +229,15 @@ export function useBookAct({ projectId }: UseBookActContext) {
   );
 
   return useMemo(
-    () => ({ splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread }),
-    [splitAtOrder, updateAct, moveBoundary, deleteAct, remapAfterSpread],
+    () => ({
+      splitAtOrder,
+      updateAct,
+      moveBoundary,
+      bindDrift,
+      unbindDrift,
+      deleteAct,
+      remapAfterSpread,
+    }),
+    [splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread],
   );
 }
