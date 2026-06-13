@@ -217,13 +217,3 @@
 .actrail__menu button.is-danger:hover {
   background: hsl(var(--accent) / 0.08);
 }
-.actrail__menu-back {
-  font-family: var(--font-mono);
-  color: hsl(var(--ink-4)) !important;
-}
-.actrail__menu-list {
-  max-height: 200px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}

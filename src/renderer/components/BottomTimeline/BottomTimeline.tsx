@@ -17,7 +17,7 @@ import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { TimelinePinMenu } from '../graph/TimelinePinMenu';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
-import { actBoundDriftIds } from '../../domain/book-act';
+import { events } from '../../lib/events';
 import type { TimelineNode } from './types';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
 import { useTimelineMarkers } from '../../hooks/useTimelineMarkers';
@@ -83,7 +83,7 @@ interface TimelinePinProps {
   onDragMove: (nextPixelX: number | null) => void;
   // ---- Drift binding (see domain/timeline-marker.ts) ----
   boundDriftTitle?: string | null;
-  unboundDrifts?: Array<{ id: string; title: string }>;
+  onRequestBind?: () => void;
   onOpenDrift?: () => void;
 }
 
@@ -102,7 +102,7 @@ function TimelinePin({
   onDelete,
   onDragMove,
   boundDriftTitle = null,
-  unboundDrifts = [],
+  onRequestBind,
   onOpenDrift,
 }: TimelinePinProps) {
   const isBound = Boolean(marker.driftNodeId);
@@ -246,10 +246,9 @@ function TimelinePin({
           x={menu.x}
           y={menu.y}
           isBound={isBound}
-          unboundDrifts={unboundDrifts}
           onOpenDrift={() => onOpenDrift?.()}
           onUnbind={handleUnbind}
-          onBind={(driftId) => onChange({ driftNodeId: driftId })}
+          onRequestBind={() => onRequestBind?.()}
           onRename={() => setEditing(true)}
           onDelete={onDelete}
           onClose={() => setMenu(null)}
@@ -297,8 +296,7 @@ export function BottomTimeline() {
   const selectedNodeUiId = useUiStore((state) => state.nodeUi.selectedId);
   const { projectId, navigateToNode, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
-  const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
-    useTimelineMarkers(projectId);
+  const { markers, addMarker, updateMarker, deleteMarker } = useTimelineMarkers(projectId);
   // Drift binding lookups for the narrative pins: live titles for bound
   // pins, and the not-yet-bound set for the bind picker.
   const driftById = useMemo(() => {
@@ -309,18 +307,7 @@ export function BottomTimeline() {
     return m;
   }, [bookNodes]);
   const bookActs = useDataStore((s) => s.bookActs);
-  // A drift is "bound" if any marker OR any act references it — both rails
-  // share the floating-drift pool. The bind picker offers only the rest.
-  const allBoundDriftIds = useMemo(() => {
-    const ids = new Set(boundDriftIds);
-    for (const id of actBoundDriftIds(bookActs)) ids.add(id);
-    return ids;
-  }, [boundDriftIds, bookActs]);
-  const unboundDrifts = useMemo(
-    () => Array.from(driftById.values()).filter((d) => !allBoundDriftIds.has(d.id)),
-    [driftById, allBoundDriftIds],
-  );
-  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
+  const { splitAtOrder, updateAct, moveBoundary, unbindDrift, deleteAct, remapAfterSpread } =
     useBookAct({
       projectId: projectId ?? '',
     });
@@ -1550,9 +1537,10 @@ export function BottomTimeline() {
             onDeleteAct={(id) => void deleteAct(id)}
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
             onAddAct={handleAddActSplit}
-            unboundDrifts={unboundDrifts}
             driftTitleById={(id) => driftById.get(id)?.title ?? null}
-            onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
+            onRequestBind={(id) =>
+              events.emit('drift-bind:open', { target: { kind: 'act', id } })
+            }
             onUnbindDrift={(id) => void unbindDrift(id)}
             onOpenDrift={(driftNodeId) =>
               openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
@@ -1590,7 +1578,9 @@ export function BottomTimeline() {
               }}
               onDragMove={(nextPixelX) => handlePinDragMove(m.id, nextPixelX)}
               boundDriftTitle={m.driftNodeId ? (driftById.get(m.driftNodeId)?.title ?? null) : null}
-              unboundDrifts={unboundDrifts}
+              onRequestBind={() =>
+                events.emit('drift-bind:open', { target: { kind: 'marker', id: m.id } })
+              }
               onOpenDrift={() => {
                 if (m.driftNodeId) {
                   openEntity({ entityType: 'node', id: m.driftNodeId }, { preview: false });

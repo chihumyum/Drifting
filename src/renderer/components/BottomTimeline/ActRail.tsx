@@ -41,11 +41,10 @@ interface ActRailProps {
   /** Create an act at the viewport center (the rail head cell's ＋ button). */
   onAddAct?: () => void;
   // ---- Drift binding (an act may bind a drift as its 大纲/notes) ----
-  /** Drifts not yet bound to any act/marker — the bind picker's options. */
-  unboundDrifts?: Array<{ id: string; title: string }>;
   /** Resolve a bound drift's live title (for the ⚓ tooltip). */
   driftTitleById?: (id: string) => string | null;
-  onBindDrift?: (actId: string, driftNodeId: string) => void;
+  /** Open the standalone drift-bind picker (DriftBindModal) for an act. */
+  onRequestBind?: (actId: string) => void;
   onUnbindDrift?: (actId: string) => void;
   onOpenDrift?: (driftNodeId: string) => void;
   railLabel?: string;
@@ -59,8 +58,6 @@ interface BandMenuState {
   y: number;
   /** Order value under the cursor at menu-open — target for 在此处开始新幕. */
   orderAtCursor: number;
-  /** Two-level menu: the root actions, or the drift-bind picker. */
-  view: 'root' | 'pick';
 }
 
 export function ActRail({
@@ -76,9 +73,8 @@ export function ActRail({
   onDeleteAct,
   onSplitAt,
   onAddAct,
-  unboundDrifts = [],
   driftTitleById,
-  onBindDrift,
+  onRequestBind,
   onUnbindDrift,
   onOpenDrift,
   railLabel = '幕',
@@ -268,7 +264,6 @@ export function ActRail({
                   x: e.clientX + 2,
                   y: e.clientY - 2,
                   orderAtCursor: Math.round(xToOrder(px)),
-                  view: 'root',
                 });
               }}
               title={`${seg.act.name} · ${seg.chapters.length} 章${
@@ -339,38 +334,6 @@ export function ActRail({
           (() => {
             const menuAct = acts.find((a) => a.id === menu.actId) ?? null;
             const isBound = Boolean(menuAct?.driftNodeId);
-            const canBind = Boolean(onBindDrift) && unboundDrifts.length > 0;
-            if (menu.view === 'pick') {
-              return (
-                <div
-                  className="actrail__menu"
-                  style={{ position: 'fixed', left: menu.x, top: menu.y }}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <button
-                    type="button"
-                    className="actrail__menu-back"
-                    onClick={() => setMenu({ ...menu, view: 'root' })}
-                  >
-                    ‹ 返回
-                  </button>
-                  <div className="actrail__menu-list">
-                    {unboundDrifts.map((d) => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => {
-                          setMenu(null);
-                          onBindDrift?.(menu.actId, d.id);
-                        }}
-                      >
-                        {d.title || '未命名'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
             return (
               <div
                 className="actrail__menu"
@@ -395,7 +358,8 @@ export function ActRail({
                 >
                   在此处开始新幕
                 </button>
-                {/* Drift binding — bound acts open / unbind; unbound acts pick. */}
+                {/* Drift binding — bound acts open / unbind; unbound acts open
+                    the standalone bind picker (DriftBindModal). */}
                 {isBound ? (
                   <>
                     {onOpenDrift && (
@@ -422,12 +386,13 @@ export function ActRail({
                     )}
                   </>
                 ) : (
-                  onBindDrift && (
+                  onRequestBind && (
                     <button
                       type="button"
-                      disabled={!canBind}
-                      title={canBind ? undefined : '没有可绑定的漂浮节点（都已绑定或不存在）'}
-                      onClick={() => setMenu({ ...menu, view: 'pick' })}
+                      onClick={() => {
+                        setMenu(null);
+                        onRequestBind(menu.actId);
+                      }}
                     >
                       绑定漂浮节点…
                     </button>

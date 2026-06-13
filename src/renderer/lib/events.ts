@@ -110,6 +110,12 @@ export type AppEvents = {
     entityKind: 'node' | 'element' | 'storyline' | 'category';
     entityId: string;
   };
+  // Open the drift-binding picker modal for a timeline marker or an act.
+  // Emitted by the marker pin / act band context menus; consumed by the
+  // globally-mounted DriftBindModal, which performs the bind itself.
+  'drift-bind:open': {
+    target: { kind: 'marker' | 'act'; id: string };
+  };
   'search:open': void;
   'import:open': void;
   'left-sidebar:toggle': void;

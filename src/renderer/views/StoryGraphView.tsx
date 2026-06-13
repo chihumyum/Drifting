@@ -14,6 +14,7 @@ import { useEdgeKindMeta, UNCATEGORIZED_META_KEY } from '../hooks/useEdgeKindMet
 import { ActRail } from '../components/BottomTimeline/ActRail';
 import { useBookAct } from '../usecase/useBookAct';
 import { actBoundDriftIds } from '../domain/book-act';
+import { events } from '../lib/events';
 import { NodeCardPopover, type AnchorRect } from '../components/graph/NodeCardPopover';
 import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
@@ -163,7 +164,7 @@ export function StoryGraphView() {
   });
   const { markers, addMarker, updateMarker, deleteMarker, boundDriftIds } =
     useTimelineMarkers(projectId);
-  const { splitAtOrder, updateAct, moveBoundary, bindDrift, unbindDrift, deleteAct, remapAfterSpread } =
+  const { splitAtOrder, updateAct, moveBoundary, unbindDrift, deleteAct, remapAfterSpread } =
     useBookAct({
       projectId: projectId ?? '',
     });
@@ -528,11 +529,6 @@ export function StoryGraphView() {
   const visibleDriftNodes = useMemo(
     () => driftNodes.filter((n) => !allBoundDriftIds.has(n.id)),
     [driftNodes, allBoundDriftIds],
-  );
-  // Bind-picker options + live titles for bound pins/acts.
-  const unboundDrifts = useMemo(
-    () => visibleDriftNodes.map((n) => ({ id: n.id, title: n.title })),
-    [visibleDriftNodes],
   );
 
   // Whole-project lookup. positionedById only covers storyline nodes that
@@ -1525,9 +1521,10 @@ export function StoryGraphView() {
               onDeleteAct={(id) => void deleteAct(id)}
               onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
               onAddAct={handleAddActSplit}
-              unboundDrifts={unboundDrifts}
               driftTitleById={(id) => nodeById.get(id)?.title ?? null}
-              onBindDrift={(id, driftNodeId) => void bindDrift(id, driftNodeId)}
+              onRequestBind={(id) =>
+                events.emit('drift-bind:open', { target: { kind: 'act', id } })
+              }
               onUnbindDrift={(id) => void unbindDrift(id)}
               onOpenDrift={(driftNodeId) =>
                 openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
@@ -1620,7 +1617,9 @@ export function StoryGraphView() {
                       boundDriftTitle={
                         m.driftNodeId ? (nodeById.get(m.driftNodeId)?.title ?? null) : null
                       }
-                      unboundDrifts={unboundDrifts}
+                      onRequestBind={() =>
+                        events.emit('drift-bind:open', { target: { kind: 'marker', id: m.id } })
+                      }
                       onOpenDrift={() => {
                         if (m.driftNodeId) {
                           openEntity(

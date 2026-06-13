@@ -41,13 +41,3 @@
 .tlpin-menu button.is-danger:hover {
   background: hsl(var(--accent) / 0.08);
 }
-.tlpin-menu__back {
-  font-family: var(--font-mono);
-  color: hsl(var(--ink-4)) !important;
-}
-.tlpin-menu__list {
-  max-height: 200px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}

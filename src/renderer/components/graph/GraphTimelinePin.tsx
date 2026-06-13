@@ -34,8 +34,8 @@ export interface GraphTimelinePinProps {
   // ---- Drift binding (see domain/timeline-marker.ts) ----
   /** Live title of the bound drift; null when unbound (or drift unresolved). */
   boundDriftTitle?: string | null;
-  /** Drifts not yet bound to any marker — the bind picker's options. */
-  unboundDrifts?: Array<{ id: string; title: string }>;
+  /** Open the standalone drift-bind picker (DriftBindModal) for this marker. */
+  onRequestBind?: () => void;
   /** Open the bound drift's editor tab. */
   onOpenDrift?: () => void;
 }
@@ -51,7 +51,7 @@ export function GraphTimelinePin({
   onDelete,
   onDragMove,
   boundDriftTitle = null,
-  unboundDrifts = [],
+  onRequestBind,
   onOpenDrift,
 }: GraphTimelinePinProps) {
   const isBound = Boolean(marker.driftNodeId);
@@ -191,10 +191,9 @@ export function GraphTimelinePin({
           x={menu.x}
           y={menu.y}
           isBound={isBound}
-          unboundDrifts={unboundDrifts}
           onOpenDrift={() => onOpenDrift?.()}
           onUnbind={handleUnbind}
-          onBind={(driftId) => onChange({ driftNodeId: driftId })}
+          onRequestBind={() => onRequestBind?.()}
           onRename={() => setEditing(true)}
           onDelete={onDelete}
           onClose={() => setMenu(null)}
