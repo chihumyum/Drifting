@@ -39,61 +39,12 @@
   flex-shrink: 0;
   background: hsl(var(--paper-deep));
   gap: 12px;
-  /* Establish a query container so the count meta below can collapse to
-     glyphs based on the head's own width (the title was removed for space). */
-  container-type: inline-size;
-  container-name: btlhead;
 }
 .btl__head-left {
   display: flex;
   align-items: center;
   gap: 14px;
   min-width: 0;
-}
-/* Count meta ("N storylines · N chapters"). It is the only flexible element
-   in the head-left cluster: when the bar gets narrow it collapses to glyph
-   form (see the @container rule below) while the toggles stay full width. */
-.btl__head-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 1;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  color: hsl(var(--ink-4));
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-.btl__head-meta-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-}
-.btl__head-meta-num {
-  color: hsl(var(--ink-3));
-}
-.btl__head-meta-sep {
-  color: hsl(var(--ink-4));
-}
-/* Glyph stand-ins for the words — hidden until the @container breakpoint. */
-.btl__head-meta-glyph {
-  display: none;
-  font-size: 12px;
-  line-height: 1;
-  color: hsl(var(--ink-3));
-}
-@container btlhead (max-width: 560px) {
-  .btl__head-meta {
-    gap: 6px;
-  }
-  .btl__head-meta-word {
-    display: none;
-  }
-  .btl__head-meta-glyph {
-    display: inline;
-  }
 }
 .btl__head-right {
   display: flex;
