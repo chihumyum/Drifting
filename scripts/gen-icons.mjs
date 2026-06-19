@@ -12,7 +12,7 @@
 //   pnpm icons
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, mkdirSync, openSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, openSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,30 +54,18 @@ const resizeFrom = (src, size, dest) => sh('sips', ['-z', String(size), String(s
 const resize = (size, dest) => resizeFrom(master, size, dest);
 
 try {
-  // macOS master, in order of fidelity:
-  //   1. icon-mac.png exists → a 1024² PNG exported from Apple's icon template
-  //      (native shadow + continuous squircle baked in). Used as-is.
-  //   2. otherwise → approximate it: scale art to the 824 body, pad + round on
-  //      a transparent canvas (no shadow, circular corners).
-  //   3. --full-bleed-mac → square master, no shaping at all.
-  // The .icns is built from this; Win/Linux always stay full-bleed.
-  const macTemplate = path.join(assets, 'icon-mac.png');
+  // Build the macOS-styled 1024² master (the .icns is downscaled from it):
+  //   - --full-bleed-mac → square master, no shaping.
+  //   - master already a shaped squircle (transparent corners, e.g. an Icon
+  //     Composer export) → just scale into the 824 body and pad; re-rounding
+  //     would fight its own corners.
+  //   - full-bleed square → scale to 824, pad + apply the rounded mask.
   let macMaster;
   let macNote;
-  if (existsSync(macTemplate)) {
-    const dims = sh('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', macTemplate]).toString();
-    const mw = +(dims.match(/pixelWidth: (\d+)/)?.[1] ?? 0);
-    if (mw && mw < MAC_CANVAS) console.warn(`⚠ icon-mac.png is ${mw}px — under ${MAC_CANVAS} blurs the @2x slot.`);
-    macMaster = macTemplate;
-    macNote = ' (from icon-mac.png template export)';
-  } else if (fullBleedMac) {
+  if (fullBleedMac) {
     macMaster = master;
     macNote = ' (full-bleed)';
   } else {
-    // If the master is already a shaped squircle (transparent corners, e.g. an
-    // Icon Composer / template export), just scale it into the 824 body and pad
-    // — re-rounding would fight its own corners. A full-bleed square gets the
-    // rounded mask instead.
     const preShaped = cornersAreTransparent(master);
     const body = path.join(tmp, 'mac-body.png');
     macMaster = path.join(tmp, 'mac-master.png');
@@ -85,6 +73,12 @@ try {
     shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS, round: !preShaped });
     macNote = preShaped ? ' (pre-shaped art, padded)' : ' (padded + rounded, approx)';
   }
+
+  // Persist the macOS-styled PNG. Packaged builds get their icon from the
+  // .icns, but `electron-forge start` sets the Dock icon at runtime via
+  // app.dock.setIcon() and needs a PNG with the same padding/rounding.
+  copyFileSync(macMaster, path.join(assets, 'icon-mac.png'));
+  console.log(`✓ src/assets/icon-mac.png${macNote}`);
 
   // ---- macOS .icns ----
   const iconset = path.join(tmp, 'icon.iconset');
@@ -100,7 +94,7 @@ try {
     resizeFrom(macMaster, size, path.join(iconset, `icon_${label}.png`));
   }
   sh('iconutil', ['-c', 'icns', iconset, '-o', path.join(assets, 'icon.icns')]);
-  console.log(`✓ src/assets/icon.icns${macNote}`);
+  console.log('✓ src/assets/icon.icns');
 
   // ---- Linux .png (512) ----
   resize(512, path.join(assets, 'icon.png'));

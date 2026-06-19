@@ -57,21 +57,23 @@ function decodePng(path) {
     }
     off += 12 + len;
   }
-  if (bitDepth !== 8 || (colorType !== 2 && colorType !== 6)) {
-    throw new Error(`Unsupported PNG (bitDepth=${bitDepth}, colorType=${colorType}); need 8-bit RGB/RGBA`);
+  if ((bitDepth !== 8 && bitDepth !== 16) || (colorType !== 2 && colorType !== 6)) {
+    throw new Error(`Unsupported PNG (bitDepth=${bitDepth}, colorType=${colorType}); need 8/16-bit RGB/RGBA`);
   }
   const ch = colorType === 6 ? 4 : 3;
+  const sampleBytes = bitDepth / 8;  // 1 (8-bit) or 2 (16-bit, big-endian)
+  const bpp = ch * sampleBytes;      // filter operates on whole pixels (bytes)
   const raw = zlib.inflateSync(Buffer.concat(idat));
-  const stride = width * ch;
+  const stride = width * bpp;
   const recon = Buffer.alloc(height * stride);
   let pos = 0;
   for (let y = 0; y < height; y++) {
     const filter = raw[pos++];
     for (let x = 0; x < stride; x++) {
       const rawByte = raw[pos++];
-      const a = x >= ch ? recon[y * stride + x - ch] : 0;
+      const a = x >= bpp ? recon[y * stride + x - bpp] : 0;
       const up = y > 0 ? recon[(y - 1) * stride + x] : 0;
-      const ul = x >= ch && y > 0 ? recon[(y - 1) * stride + x - ch] : 0;
+      const ul = x >= bpp && y > 0 ? recon[(y - 1) * stride + x - bpp] : 0;
       let val;
       switch (filter) {
         case 0: val = rawByte; break;
@@ -84,13 +86,14 @@ function decodePng(path) {
       recon[y * stride + x] = val & 0xff;
     }
   }
-  // Normalize to RGBA.
+  // Normalize to 8-bit RGBA (16-bit samples are big-endian → take the high byte).
   const data = Buffer.alloc(width * height * 4);
   for (let i = 0, j = 0; i < width * height; i++) {
-    data[j++] = recon[i * ch];
-    data[j++] = recon[i * ch + 1];
-    data[j++] = recon[i * ch + 2];
-    data[j++] = ch === 4 ? recon[i * ch + 3] : 255;
+    const base = i * bpp;
+    data[j++] = recon[base];
+    data[j++] = recon[base + sampleBytes];
+    data[j++] = recon[base + 2 * sampleBytes];
+    data[j++] = ch === 4 ? recon[base + 3 * sampleBytes] : 255;
   }
   return { width, height, data };
 }
@@ -182,10 +185,13 @@ export function shapeMacIcon({ bodyPngPath, outPngPath, canvas, bodySize, radius
   encodePng(outPngPath, canvas, canvas, out);
 }
 
-// True when all four corner pixels are (near-)transparent — i.e. the art is
+// True when all four corner pixels are mostly transparent — i.e. the art is
 // already a shaped squircle rather than a full-bleed square. Lets the icon
-// pipeline skip a redundant (and mismatched) second rounding pass.
-export function cornersAreTransparent(pngPath, threshold = 8) {
+// pipeline skip a redundant (and mismatched) second rounding pass. The
+// threshold sits at half-opacity so soft/anti-aliased squircle corners (an
+// Icon Composer @1x export can leave ~37% alpha in a corner) still count as
+// shaped, while a true full-bleed square (opaque corners ≈255) does not.
+export function cornersAreTransparent(pngPath, threshold = 128) {
   const { width: w, height: h, data } = decodePng(pngPath);
   const alpha = (x, y) => data[(y * w + x) * 4 + 3];
   return (

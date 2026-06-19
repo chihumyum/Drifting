@@ -110,29 +110,30 @@ let mainWindow: BrowserWindow | null = null;
 // circuits instead of looping forever.
 let quitFlushDone = false;
 
-// Resolve the app icon for development. Packaged builds get their icon from
-// the app bundle (forge `packagerConfig.icon`), so this is only needed under
-// `electron-forge start`, where the Dock / taskbar would otherwise fall back
-// to the default Electron mark. In dev, `__dirname` is `.vite/build`, so the
-// source asset sits two levels up.
-function devAppIcon(): Electron.NativeImage | undefined {
+// Load a dev-only icon asset as a NativeImage. Packaged builds get their icon
+// from the app bundle (forge `packagerConfig.icon`), so this is only needed
+// under `electron-forge start`, where the Dock / taskbar would otherwise fall
+// back to the default Electron mark. In dev, `__dirname` is `.vite/build`, so
+// the source assets sit two levels up.
+function devIcon(file: string): Electron.NativeImage | undefined {
   if (app.isPackaged) return undefined;
-  const img = nativeImage.createFromPath(
-    path.join(__dirname, '../../src/assets/icon.png'),
-  );
+  const img = nativeImage.createFromPath(path.join(__dirname, '../../src/assets', file));
   return img.isEmpty() ? undefined : img;
 }
 
 const createWindow = () => {
-  const appIcon = devAppIcon();
-  // macOS shows no per-window icon; the Dock icon must be set explicitly in dev.
-  if (process.platform === 'darwin' && appIcon) {
-    app.dock?.setIcon(appIcon);
+  // macOS Dock wants the padded/rounded macOS icon (icon-mac.png); Win/Linux
+  // taskbars want the full-bleed one (icon.png). macOS ignores the per-window
+  // icon, so it only gets the Dock treatment.
+  const dockIcon = devIcon('icon-mac.png');
+  if (process.platform === 'darwin' && dockIcon) {
+    app.dock?.setIcon(dockIcon);
   }
+  const windowIcon = devIcon('icon.png');
 
   // Create the browser window
   mainWindow = new BrowserWindow({
-    icon: appIcon, // Win/Linux taskbar in dev; ignored on macOS
+    icon: windowIcon, // Win/Linux taskbar in dev; ignored on macOS
     width: screen.getPrimaryDisplay().workAreaSize.width,
     height: screen.getPrimaryDisplay().workAreaSize.height,
     minWidth: 1000,
