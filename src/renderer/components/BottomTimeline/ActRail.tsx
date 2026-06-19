@@ -46,7 +46,14 @@ interface ActRailProps {
   /** Open the standalone drift-bind picker (DriftBindModal) for an act. */
   onRequestBind?: (actId: string) => void;
   onUnbindDrift?: (actId: string) => void;
-  onOpenDrift?: (driftNodeId: string) => void;
+  /** Open a bound drift. `anchor` (the clicked element's viewport rect) lets
+      the host anchor a preview popover instead of jumping to the editor — the
+      graph view uses it for the same two-step card as the drift panel; the
+      bottom timeline ignores it and opens the editor directly. */
+  onOpenDrift?: (
+    driftNodeId: string,
+    anchor?: { left: number; top: number; width: number; height: number },
+  ) => void;
   railLabel?: string;
   /** Extra root class — StoryGraphView passes its sticky-top modifier. */
   className?: string;
@@ -296,7 +303,13 @@ export function ActRail({
                       title="打开幕笔记（绑定的漂浮节点）"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenDrift(seg.act.driftNodeId!);
+                        const r = e.currentTarget.getBoundingClientRect();
+                        onOpenDrift(seg.act.driftNodeId!, {
+                          left: r.left,
+                          top: r.top,
+                          width: r.width,
+                          height: r.height,
+                        });
                       }}
                     >
                       ⚓
@@ -367,7 +380,13 @@ export function ActRail({
                         type="button"
                         onClick={() => {
                           setMenu(null);
-                          if (menuAct?.driftNodeId) onOpenDrift(menuAct.driftNodeId);
+                          if (menuAct?.driftNodeId)
+                            onOpenDrift(menuAct.driftNodeId, {
+                              left: menu.x,
+                              top: menu.y,
+                              width: 0,
+                              height: 0,
+                            });
                         }}
                       >
                         打开幕笔记

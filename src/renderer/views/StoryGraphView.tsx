@@ -1526,8 +1526,20 @@ export function StoryGraphView() {
                 events.emit('drift-bind:open', { target: { kind: 'act', id } })
               }
               onUnbindDrift={(id) => void unbindDrift(id)}
-              onOpenDrift={(driftNodeId) =>
-                openEntity({ entityType: 'node', id: driftNodeId }, { preview: false })
+              onOpenDrift={(driftNodeId, anchor) =>
+                // Match the drift-panel card: open the two-step NodeCardPopover
+                // anchored to the ⚓, NOT a hard jump to the editor (that's the
+                // bottom-timeline behavior). The popover itself offers "open in
+                // editor" as its second step.
+                setPopover({
+                  nodeId: driftNodeId,
+                  anchor: anchor ?? {
+                    left: window.innerWidth / 2,
+                    top: window.innerHeight / 2,
+                    width: 0,
+                    height: 0,
+                  },
+                })
               }
             />
           )}
