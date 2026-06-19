@@ -3,73 +3,49 @@
    A top dock between the editor bar and the prose, pushing the
    editor down. Hosts a lightweight "mini-Excel" grid used to draft
    a chapter's plot before writing. Decoupled from the prose — pure
-   scratchpad. Resized by its BOTTOM border.
+   scratchpad. Resized by its BOTTOM border. No header text: the
+   grid is centered in a faintly recessed tray; the top-bar button
+   is the only toggle.
+
+   Cell style follows the active skin (html[data-skin]):
+     modern  → cards (gaps, rounded, hover-lift)
+     classic → sheet (collapsed gridlines)
+   Row/col headers render as borderless italic labels in both.
    ============================================================ */
 
 .plot-planner {
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  position: relative;
+  overflow: hidden;
   background: hsl(var(--paper-deep));
   border-bottom: 1px solid hsl(var(--rule-strong));
-  overflow: hidden;
+  box-shadow: inset 0 8px 14px -12px hsl(var(--ink-1) / 0.22);
   font-family: var(--font-sans);
 }
-
-/* ---------------- Header ---------------- */
-.plot-planner__header {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  height: 30px;
-  flex-shrink: 0;
-  padding: 0 12px;
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper-deep));
+@media (prefers-reduced-motion: no-preference) {
+  .plot-planner {
+    animation: plPlannerIn 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
 }
-.plot-planner__title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: hsl(var(--ink));
-}
-.plot-planner__hint {
-  font-size: 11px;
-  color: hsl(var(--muted));
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.plot-planner__close {
-  margin-left: auto;
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: hsl(var(--muted));
-  cursor: pointer;
-}
-.plot-planner__close:hover {
-  background: hsl(var(--paper));
-  color: hsl(var(--ink));
+@keyframes plPlannerIn {
+  from {
+    opacity: 0.4;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-/* ---------------- Body (scrolls both axes) ---------------- */
 .plot-planner__body {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 10px 12px 14px;
 }
 
-/* ---------------- Resize (bottom border) ---------------- */
 .plot-planner__resize {
   position: absolute;
   bottom: 0;
@@ -79,140 +55,242 @@
   cursor: ns-resize;
   z-index: 30;
 }
-.plot-planner__resize:hover {
-  background: hsl(var(--accent) / 0.35);
+
+/* ── centered grid ── */
+.planner-wrap {
+  display: flex;
+  justify-content: safe center;
+  align-items: flex-start;
+  padding: 22px 40px 40px;
+}
+.planner {
+  position: relative;
+  display: inline-block;
 }
 
-/* ============================================================
-   Grid
-   ============================================================ */
-.plot-grid {
-  display: inline-block; /* fit-content so a wide grid scrolls in the body */
-}
-.plot-grid__table {
+/* ── table ── */
+.pl-table {
   border-collapse: separate;
+}
+html[data-skin='modern'] .pl-table {
+  border-spacing: 7px;
+}
+html[data-skin='classic'] .pl-table {
   border-spacing: 0;
 }
 
-.plot-grid__corner {
-  width: 96px;
-  background: hsl(var(--paper-deep));
-  border-right: 1px solid hsl(var(--rule));
-  border-bottom: 1px solid hsl(var(--rule));
+.pl-corner {
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 
-/* Header cells (row + column labels) */
-.plot-grid__colhead,
-.plot-grid__rowhead {
+/* ── headers: borderless italic labels, centered text ── */
+.pl-head {
   position: relative;
-  background: hsl(var(--paper-deep));
-  border-right: 1px solid hsl(var(--rule));
-  border-bottom: 1px solid hsl(var(--rule));
-  vertical-align: top;
-}
-.plot-grid__colhead {
-  min-width: 150px;
-}
-.plot-grid__rowhead {
-  width: 96px;
-  min-width: 96px;
-}
-.plot-grid__head-input {
-  width: 100%;
-  border: none;
   background: transparent;
-  resize: none;
-  padding: 6px 8px;
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: hsl(var(--ink));
-  line-height: 1.4;
-  outline: none;
-  overflow: hidden;
-}
-.plot-grid__head-input::placeholder {
-  color: hsl(var(--muted) / 0.7);
-  font-weight: 500;
-}
-
-/* Data cells */
-.plot-grid__cell {
-  border-right: 1px solid hsl(var(--rule));
-  border-bottom: 1px solid hsl(var(--rule));
-  background: hsl(var(--paper));
-  vertical-align: top;
-  min-width: 150px;
-}
-.plot-grid__cell-input {
-  width: 100%;
-  min-height: 2.8em;
-  border: none;
-  background: transparent;
-  resize: none;
-  padding: 6px 8px;
-  font-family: inherit;
-  font-size: 12.5px;
-  color: hsl(var(--ink));
-  line-height: 1.5;
-  outline: none;
-}
-.plot-grid__cell:focus-within {
-  box-shadow: inset 0 0 0 2px hsl(var(--accent) / 0.55);
-}
-
-/* Spacer column on the right keeps the +col button off the last cell border */
-.plot-grid__spacer {
-  width: 100%;
-}
-
-/* Add row / add column buttons */
-.plot-grid__addcell {
-  background: hsl(var(--paper-deep));
+  border: 0;
+  padding: 0 8px 6px;
+  vertical-align: middle;
+  font-family: var(--font-serif);
+  font-style: normal;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: hsl(var(--ink-3));
   text-align: center;
-  padding: 2px;
 }
-.plot-grid__add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1px dashed hsl(var(--rule-strong));
-  border-radius: 6px;
-  background: transparent;
-  color: hsl(var(--muted));
-  cursor: pointer;
+/* Italic labels only in classic; modern (sans) stays upright. */
+html[data-skin='classic'] .pl-head {
+  font-style: italic;
 }
-.plot-grid__add:hover {
-  border-color: hsl(var(--accent));
-  color: hsl(var(--accent));
+.pl-head--row {
+  padding: 0 12px;
+  white-space: nowrap;
+}
+.pl-head__text {
+  display: inline-block;
+  outline: none;
+  min-width: 14px;
+  border-radius: 4px;
+  padding: 1px 4px;
+  transition: background 0.12s, color 0.12s;
+}
+.pl-head__text:focus {
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-1));
+}
+.pl-head__text:empty::before {
+  content: attr(data-ph);
+  color: hsl(var(--ink-5));
 }
 
-/* Delete row / column — revealed on header hover */
-.plot-grid__del {
+/* header delete (×) — revealed on header hover */
+.pl-head__del {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 16px;
   height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: hsl(var(--paper));
-  color: hsl(var(--muted));
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: hsl(var(--surface));
+  color: hsl(var(--ink-4));
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.1s ease;
+  transition: opacity 0.12s, color 0.12s;
 }
-.plot-grid__colhead:hover .plot-grid__del,
-.plot-grid__rowhead:hover .plot-grid__del {
+/* Both deletes sit at the header's outer corner. */
+.pl-head--col .pl-head__del {
+  top: -6px;
+  right: -4px;
+}
+.pl-head--row .pl-head__del {
+  top: -6px;
+  left: -4px;
+}
+.pl-head:hover .pl-head__del {
   opacity: 1;
 }
-.plot-grid__del:hover {
-  background: hsl(var(--accent) / 0.15);
+.pl-head__del:hover {
   color: hsl(var(--accent));
+}
+
+/* ── content cells ── */
+.pl-cell-td {
+  padding: 0;
+  vertical-align: top;
+}
+.pl-cell {
+  position: relative;
+  width: var(--pl-cell-w, 184px);
+  min-height: var(--pl-cell-h, 96px);
+  padding: 11px 12px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.55;
+  color: hsl(var(--ink-2));
+  outline: none;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* faint guide-dot in empty cells, fades on hover/focus */
+.pl-cell[data-empty='1']::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: hsl(var(--ink-5) / 0.6);
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.pl-cell[data-empty='1']:hover::before,
+.pl-cell[data-empty='1']:focus::before {
+  opacity: 0;
+}
+
+/* modern → cards */
+html[data-skin='modern'] .pl-cell {
+  background: linear-gradient(158deg, hsl(var(--page)) 0%, hsl(var(--surface)) 100%);
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 7px;
+  box-shadow: 0 1px 2px hsl(var(--ink-1) / 0.05);
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+html[data-skin='modern'] .pl-cell:hover {
+  border-color: hsl(var(--accent) / 0.4);
+  box-shadow: 0 3px 10px hsl(var(--ink-1) / 0.08);
+  transform: translateY(-1px);
+}
+html[data-skin='modern'] .pl-cell:focus {
+  border-color: hsl(var(--accent) / 0.55);
+  box-shadow: 0 0 0 3px hsl(var(--accent) / 0.12), 0 3px 10px hsl(var(--ink-1) / 0.08);
+  transform: translateY(-1px);
+}
+
+/* classic → sheet (collapsed gridlines) */
+html[data-skin='classic'] .pl-cell {
+  background: hsl(var(--page));
+  border: 1px solid hsl(var(--rule));
+  margin: -0.5px; /* overlap shared borders into single lines */
+}
+html[data-skin='classic'] .pl-cell:focus {
+  box-shadow: inset 0 0 0 2px hsl(var(--accent) / 0.5);
+  z-index: 2;
+}
+
+/* ── add row / col (floating, revealed on grid hover) ── */
+.pl-add {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px dashed hsl(var(--rule-strong));
+  border-radius: 6px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-4));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.14s, color 0.14s, border-color 0.14s, background 0.14s;
+}
+.planner:hover .pl-add {
+  opacity: 1;
+}
+.pl-add:hover {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.5);
+  background: hsl(var(--page));
+}
+.pl-add svg {
+  width: 14px;
+  height: 14px;
+}
+/* Bars align to the DATA region only (exclude the header row/col), measured
+   into --pl-data-* by the component. */
+.pl-add--col {
+  top: var(--pl-data-top, 0);
+  height: var(--pl-data-h, 100%);
+  right: -30px;
+  width: 22px;
+}
+.pl-add--row {
+  left: var(--pl-data-left, 0);
+  width: var(--pl-data-w, 100%);
+  bottom: -30px;
+  height: 22px;
+}
+
+/* corner grip — drag to resize cells (size + proportions) */
+.pl-resize-grip {
+  position: absolute;
+  left: calc(var(--pl-data-left, 0px) + var(--pl-data-w, 0px));
+  top: calc(var(--pl-data-top, 0px) + var(--pl-data-h, 0px));
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: hsl(var(--paper));
+  color: hsl(var(--ink-4));
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.14s, color 0.14s, background 0.14s;
+  z-index: 4;
+}
+.planner:hover .pl-resize-grip {
+  opacity: 0.75;
+}
+.pl-resize-grip:hover {
+  opacity: 1;
+  color: hsl(var(--accent));
+  background: hsl(var(--page));
+}
+.pl-resize-grip svg {
+  width: 12px;
+  height: 12px;
 }
