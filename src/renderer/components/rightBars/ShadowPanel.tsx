@@ -9,14 +9,13 @@
  *   - 强制通过 — resolve all remaining comments + push the chapter to finished, or
  *   - once the user has cleared every comment (待办归零): 通过 (finish) / 重跑.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Clock,
   Loader2,
   RotateCw,
@@ -24,6 +23,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAuthStore } from '../../store/auth';
@@ -307,9 +307,7 @@ export function ShadowPanel() {
   const staleReviews = useStaleReviews(projectId);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [footerHeight, setFooterHeight] = useState(220);
   const [expandedArchived, setExpandedArchived] = useState<Set<string>>(new Set());
-  const footerDragRef = useRef<{ startY: number; startH: number } | null>(null);
 
   const repo = useMemo(() => createShadowJobRepository(), []);
 
@@ -488,23 +486,6 @@ export function ShadowPanel() {
     setShowArchived(false); // nothing left to show — fold the drawer back up
   };
 
-  const startFooterDrag = (e: React.MouseEvent) => {
-    e.preventDefault();
-    footerDragRef.current = { startY: e.clientY, startH: footerHeight };
-    const onMove = (ev: MouseEvent) => {
-      if (!footerDragRef.current) return;
-      const delta = footerDragRef.current.startY - ev.clientY;
-      setFooterHeight(Math.max(60, Math.min(600, footerDragRef.current.startH + delta)));
-    };
-    const onUp = () => {
-      footerDragRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
   const toggleArchived = (id: string) => {
     setExpandedArchived((prev) => {
       const next = new Set(prev);
@@ -517,8 +498,8 @@ export function ShadowPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div
-        className="shadow-panel-scroll"
-        style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 16px', scrollbarWidth: 'none' }}
+        className="scroll-no-bar"
+        style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 16px' }}
       >
         {mine.length === 0 ? (
           <div
@@ -657,235 +638,162 @@ export function ShadowPanel() {
         )}
       </div>
 
-      <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          // Mirror the todo panel's ResolvedTodoArchive box model exactly: the
-          // 1px top border lives INSIDE a fixed border-box height (Tailwind
-          // preflight makes box-sizing:border-box global), so the collapsed
-          // footer is 28px total. Previously the border sat on a separate row
-          // ABOVE the 28px header (1px + 28px = 29px), which floated the whole
-          // footer 1px higher than the todo footer it sits beside.
-          borderTop: '1px solid hsl(var(--rule))',
-          height: showArchived ? footerHeight : 28,
-          minHeight: 28,
-          // Smooth the open/close toggle; kill the transition mid-drag so the
-          // resize cursor stays glued to the edge — mirrors ResolvedTodoArchive.
-          transition: footerDragRef.current ? 'none' : 'height 0.18s ease',
-        }}
-      >
-          <style>{`.shadow-archived-list::-webkit-scrollbar,.shadow-panel-scroll::-webkit-scrollbar{display:none}`}</style>
-          {/* Resize grip — only while expanded, overlaying the top border.
-              Mirrors ResolvedTodoArchive's absolute drag handle. */}
-          {showArchived && (
-            <div
-              onMouseDown={startFooterDrag}
-              style={{
-                position: 'absolute',
-                top: -3,
-                left: 0,
-                right: 0,
-                height: 6,
-                cursor: 'ns-resize',
-                zIndex: 1,
-              }}
-              aria-hidden
-            />
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, height: 28 }}>
+      <CollapsibleFooter
+        label="已归档"
+        count={archived.length}
+        expanded={showArchived}
+        onExpandedChange={setShowArchived}
+        expandTitle="展开已归档"
+        collapseTitle="收起已归档"
+        headerActions={
+          archived.length > 0 ? (
             <button
               type="button"
-              onClick={() => setShowArchived((v) => !v)}
+              onClick={() => void deleteAllArchived()}
+              title="清空已归档"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                flex: 1,
-                height: '100%',
+                gap: 3,
                 border: 'none',
                 background: 'transparent',
-                color: 'hsl(var(--ink-4))',
+                color: 'hsl(0 50% 55%)',
                 cursor: 'pointer',
-                padding: '0 12px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
+                fontSize: 11,
+                padding: '2px 10px 2px 4px',
+                borderRadius: 4,
+                flexShrink: 0,
               }}
             >
-              <ChevronUp
-                size={11}
-                style={{
-                  transform: showArchived ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.18s ease',
-                }}
-              />
-              已归档 · {archived.length}
+              <Trash2 size={12} /> 清空
             </button>
-            {showArchived && archived.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void deleteAllArchived()}
-                title="清空已归档"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'hsl(0 50% 55%)',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  padding: '2px 10px 2px 4px',
-                  borderRadius: 4,
-                  flexShrink: 0,
-                }}
-              >
-                <Trash2 size={12} /> 清空
-              </button>
-            )}
+          ) : null
+        }
+        bodyStyle={{ padding: '0 8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}
+      >
+        {archived.length === 0 && (
+          <div
+            style={{
+              fontSize: 11,
+              color: 'hsl(var(--ink-4))',
+              fontStyle: 'italic',
+              padding: '8px 4px',
+            }}
+          >
+            无已归档任务
           </div>
-          {showArchived && (
+        )}
+        {archived.map((job) => {
+          const sv = statusView(job, reviewOf(job));
+          const isOpen = expandedArchived.has(job.id);
+          return (
             <div
-              className="shadow-archived-list"
+              key={job.id}
               style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '0 8px 10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                scrollbarWidth: 'none',
+                border: '1px solid hsl(var(--rule) / 0.6)',
+                borderRadius: 5,
+                background: 'hsl(var(--paper-deep) / 0.5)',
+                overflow: 'hidden',
+                flexShrink: 0,
               }}
             >
-              {archived.length === 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
                 <div
-                  style={{
-                    fontSize: 11,
-                    color: 'hsl(var(--ink-4))',
-                    fontStyle: 'italic',
-                    padding: '8px 4px',
-                  }}
+                  onClick={() => toggleArchived(job.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, cursor: 'pointer' }}
                 >
-                  无已归档任务
-                </div>
-              )}
-              {archived.map((job) => {
-                const sv = statusView(job, reviewOf(job));
-                const isOpen = expandedArchived.has(job.id);
-                return (
-                  <div
-                    key={job.id}
+                  <ChevronRight
+                    size={12}
                     style={{
-                      border: '1px solid hsl(var(--rule) / 0.6)',
-                      borderRadius: 5,
-                      background: 'hsl(var(--paper-deep) / 0.5)',
-                      overflow: 'hidden',
+                      color: 'hsl(var(--ink-4))',
                       flexShrink: 0,
+                      transform: isOpen ? 'rotate(90deg)' : 'none',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                  <span style={{ color: sv.color, display: 'flex', flexShrink: 0 }}>{sv.icon}</span>
+                  <span
+                    onClick={(e) => { e.stopPropagation(); navigateToNode(job.chapterId); }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: 12,
+                      color: 'hsl(var(--ink-2))',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
-                      <div
-                        onClick={() => toggleArchived(job.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, cursor: 'pointer' }}
-                      >
-                        <ChevronRight
-                          size={12}
-                          style={{
-                            color: 'hsl(var(--ink-4))',
-                            flexShrink: 0,
-                            transform: isOpen ? 'rotate(90deg)' : 'none',
-                            transition: 'transform 0.15s ease',
-                          }}
-                        />
-                        <span style={{ color: sv.color, display: 'flex', flexShrink: 0 }}>{sv.icon}</span>
-                        <span
-                          onClick={(e) => { e.stopPropagation(); navigateToNode(job.chapterId); }}
-                          style={{
-                            flex: 1,
-                            minWidth: 0,
-                            fontSize: 12,
-                            color: 'hsl(var(--ink-2))',
-                            cursor: 'pointer',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {job.chapterTitle || '章节'}
-                        </span>
-                      </div>
-                      <button type="button" onClick={() => deleteOne(job.id)} title="彻底删除" style={iconBtn}>
-                        <X size={13} />
-                      </button>
-                    </div>
-                    {isOpen && (
-                      <div
-                        style={{
-                          borderTop: '1px solid hsl(var(--rule) / 0.5)',
-                          padding: '8px 10px 10px',
-                          background: 'hsl(var(--paper-deep) / 0.3)',
-                          maxHeight: 240,
-                          overflowY: 'auto',
-                        }}
-                      >
-                        {job.trace.length === 0 ? (
-                          <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无轨迹记录</div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                            {job.trace.map((step, i) => (
-                              <div key={i} style={{ display: 'flex', gap: 7 }}>
-                                <span
-                                  style={{
-                                    flexShrink: 0,
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: 8.5,
-                                    letterSpacing: '0.04em',
-                                    color: 'hsl(var(--ink-4))',
-                                    background: 'hsl(var(--paper-deep))',
-                                    border: '1px solid hsl(var(--rule))',
-                                    borderRadius: 3,
-                                    padding: '1px 4px',
-                                    height: 'fit-content',
-                                    marginTop: 1,
-                                  }}
-                                >
-                                  {PHASE_LABEL[step.phase]}
-                                </span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-1))', fontWeight: 500 }}>
-                                    {step.label}
-                                  </div>
-                                  {step.detail && (
-                                    <div style={{ fontSize: 11, color: 'hsl(var(--ink-3))', marginTop: 1, lineHeight: 1.4 }}>
-                                      {step.detail}
-                                    </div>
-                                  )}
-                                  {step.items && step.items.length > 0 && (
-                                    <ul style={{ margin: '3px 0 0', paddingLeft: 14 }}>
-                                      {step.items.map((it, k) => (
-                                        <li key={k} style={{ fontSize: 11, color: 'hsl(var(--ink-3))', lineHeight: 1.45 }}>
-                                          {it}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
+                    {job.chapterTitle || '章节'}
+                  </span>
+                </div>
+                <button type="button" onClick={() => deleteOne(job.id)} title="彻底删除" style={iconBtn}>
+                  <X size={13} />
+                </button>
+              </div>
+              {isOpen && (
+                <div
+                  style={{
+                    borderTop: '1px solid hsl(var(--rule) / 0.5)',
+                    padding: '8px 10px 10px',
+                    background: 'hsl(var(--paper-deep) / 0.3)',
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {job.trace.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无轨迹记录</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      {job.trace.map((step, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 7 }}>
+                          <span
+                            style={{
+                              flexShrink: 0,
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 8.5,
+                              letterSpacing: '0.04em',
+                              color: 'hsl(var(--ink-4))',
+                              background: 'hsl(var(--paper-deep))',
+                              border: '1px solid hsl(var(--rule))',
+                              borderRadius: 3,
+                              padding: '1px 4px',
+                              height: 'fit-content',
+                              marginTop: 1,
+                            }}
+                          >
+                            {PHASE_LABEL[step.phase]}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-1))', fontWeight: 500 }}>
+                              {step.label}
+                            </div>
+                            {step.detail && (
+                              <div style={{ fontSize: 11, color: 'hsl(var(--ink-3))', marginTop: 1, lineHeight: 1.4 }}>
+                                {step.detail}
                               </div>
-                            ))}
+                            )}
+                            {step.items && step.items.length > 0 && (
+                              <ul style={{ margin: '3px 0 0', paddingLeft: 14 }}>
+                                {step.items.map((it, k) => (
+                                  <li key={k} style={{ fontSize: 11, color: 'hsl(var(--ink-3))', lineHeight: 1.45 }}>
+                                    {it}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })}
+      </CollapsibleFooter>
     </div>
   );
 }

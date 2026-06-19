@@ -1,5 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { ChevronUp } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
@@ -9,6 +8,7 @@ import { GroupHeaderCell } from './GroupHeaderCell';
 import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
 import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
+import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
@@ -26,12 +26,7 @@ log.setLevel(loglevel.levels.ERROR);
 // 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
 const DATE_HIDE_WIDTH = 200;
 
-const UNAFFILIATED_HEADER_HEIGHT = 28;
-// Vertical drag-handle on the footer's top edge — sized for easy grabbing
-// without visually intruding on the underlying border.
-const FOOTER_RESIZE_HANDLE_HEIGHT = 6;
-
-const formatShortDate = (input: string | number | Date) => {
+const formatShortDate =(input: string | number | Date) => {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
@@ -171,12 +166,8 @@ export function ChapterPanel() {
         .sort(buildChapterComparator(storylineInnerSortMode)),
     [bookNodes, primaryStorylineByNode, storylineInnerSortMode, buildChapterComparator],
   );
-  // Expanded state survives an empty bucket — the placeholder hint serves as
-  // the content. (Auto-collapsing here caused a flash: click → expand → effect
-  // fires because length is 0 → re-collapse.)
-  const [unaffiliatedExpanded, setUnaffiliatedExpanded] = useState(false);
   // Drag-resize the unaffiliated footer's height while expanded. Persisted
-  // in ui-store; null = use the default ratio of the panel.
+  // in ui-store; null = use CollapsibleFooter's default height.
   const footerHeight = useUiStore((s) => s.chapterUnaffiliatedFooterHeight);
   const setFooterHeight = useUiStore((s) => s.setChapterUnaffiliatedFooterHeight);
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
@@ -202,47 +193,6 @@ export function ChapterPanel() {
     onEnter: hoverEnter,
     onLeave: hoverLeave,
   } = useHoverPreview<{ node: BookNode; accent: string }>();
-  // Outer column ref — measure the available height for the drag clamp so the
-  // footer can't grow past the panel itself.
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
-
-  const startFooterResize = useCallback(
-    (event: React.MouseEvent) => {
-      if (!containerRef.current) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const startY = event.clientY;
-      // Snapshot the panel's height at drag-start so the clamp doesn't
-      // chase a layout that's mid-resize itself.
-      const panelHeight = containerRef.current.getBoundingClientRect().height;
-      const headerH = UNAFFILIATED_HEADER_HEIGHT;
-      const startHeight =
-        footerHeight ?? Math.max(headerH + 1, Math.round(panelHeight * 0.4));
-      const min = headerH + 40;
-      // Leave a small strip for the storyline list above; clamping to 90%
-      // matches the feel of the ElementPanel footer drag.
-      const max = Math.max(min, Math.round(panelHeight * 0.9));
-      setIsResizing(true);
-      const onMove = (ev: MouseEvent) => {
-        const next = startHeight + (startY - ev.clientY);
-        const clamped = Math.max(min, Math.min(max, next));
-        setFooterHeight(clamped);
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        setIsResizing(false);
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-      document.body.style.cursor = 'ns-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [footerHeight, setFooterHeight],
-  );
 
   const nodesByStoryline = useMemo(() => {
     const grouped: Record<string, BookNode[]> = {};
@@ -446,7 +396,6 @@ export function ChapterPanel() {
 
   return (
     <div
-      ref={containerRef}
       style={{
         height: '100%',
         display: 'flex',
@@ -558,127 +507,53 @@ export function ChapterPanel() {
           drag handle when expanded so the user can pull the footer up to claim
           more of the panel for the unaffiliated bucket. */}
       {viewMode === 'storyline' && (
-        <div
-          style={{
-            borderTop: '1px solid hsl(var(--rule))',
-            background: 'hsl(var(--paper-deep) / 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            // Collapsed: just the header strip. Expanded: persisted height
-            // (or 40% default). The transition only fires on the expand/
-            // collapse toggle — during a live drag the height updates on
-            // every move, so we drop the transition to avoid lag.
-            height: unaffiliatedExpanded
-              ? footerHeight ?? '40%'
-              : UNAFFILIATED_HEADER_HEIGHT,
-            transition: isResizing ? 'none' : 'height 0.18s ease',
-            overflow: 'hidden',
-            position: 'relative',
-          }}
+        <CollapsibleFooter
+          label="未归属"
+          count={unaffiliatedChapters.length}
+          headerExtra={
+            !unaffiliatedActivity.busy && unaffiliatedActivity.doneCount > 0 ? (
+              <AgentCountBadge
+                count={unaffiliatedActivity.doneCount}
+                title="未查看的 Agent 改动"
+              />
+            ) : unaffiliatedActivity.busy ? (
+              <span
+                aria-hidden
+                className="agent-glyph-busy"
+                title="Agent 正在处理"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 2,
+                  background: 'hsl(var(--accent))',
+                  flexShrink: 0,
+                }}
+              />
+            ) : null
+          }
+          height={footerHeight}
+          onHeightChange={setFooterHeight}
+          expandTitle="展开未归属"
+          collapseTitle="收起未归属"
+          bodyStyle={{ padding: '4px 0 12px' }}
         >
-          {unaffiliatedExpanded && (
+          {unaffiliatedChapters.length > 0 ? (
+            unaffiliatedChapters.map((node) => renderNodeCard(node))
+          ) : (
             <div
-              onMouseDown={startFooterResize}
-              title="拖动调整未归属高度"
               style={{
-                position: 'absolute',
-                top: -FOOTER_RESIZE_HANDLE_HEIGHT / 2,
-                left: 0,
-                right: 0,
-                height: FOOTER_RESIZE_HANDLE_HEIGHT,
-                cursor: 'ns-resize',
-                zIndex: 5,
-              }}
-            />
-          )}
-          <button
-            type="button"
-            onClick={() => setUnaffiliatedExpanded((v) => !v)}
-            style={{
-              all: 'unset',
-              boxSizing: 'border-box',
-              height: UNAFFILIATED_HEADER_HEIGHT,
-              padding: '0 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              cursor: 'pointer',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'hsl(var(--ink-3))',
-              fontFamily: 'var(--font-mono)',
-              flexShrink: 0,
-            }}
-            aria-expanded={unaffiliatedExpanded}
-            title={unaffiliatedExpanded ? '收起未归属' : '展开未归属'}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>未归属</span>
-              <span style={{ color: 'hsl(var(--ink-4))' }}>
-                {unaffiliatedChapters.length}
-              </span>
-              {!unaffiliatedActivity.busy && unaffiliatedActivity.doneCount > 0 ? (
-                <AgentCountBadge
-                  count={unaffiliatedActivity.doneCount}
-                  title="未查看的 Agent 改动"
-                />
-              ) : (
-                unaffiliatedActivity.busy && (
-                  <span
-                    aria-hidden
-                    className="agent-glyph-busy"
-                    title="Agent 正在处理"
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 2,
-                      background: 'hsl(var(--accent))',
-                      flexShrink: 0,
-                    }}
-                  />
-                )
-              )}
-            </span>
-            <ChevronUp
-              size={12}
-              style={{
-                transform: unaffiliatedExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.18s ease',
-              }}
-            />
-          </button>
-          {unaffiliatedExpanded && (
-            <div
-              className="left-panel-scroll-hidden"
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                padding: '4px 0 12px',
+                fontSize: 11.5,
+                fontFamily: 'var(--font-serif)',
+                fontStyle: 'italic',
+                color: 'hsl(var(--ink-4))',
+                padding: '16px 20px',
+                textAlign: 'center',
               }}
             >
-              {unaffiliatedChapters.length > 0 ? (
-                unaffiliatedChapters.map((node) => renderNodeCard(node))
-              ) : (
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    fontFamily: 'var(--font-serif)',
-                    fontStyle: 'italic',
-                    color: 'hsl(var(--ink-4))',
-                    padding: '16px 20px',
-                    textAlign: 'center',
-                  }}
-                >
-                  no unaffiliated chapters.
-                </div>
-              )}
+              no unaffiliated chapters.
             </div>
           )}
-        </div>
+        </CollapsibleFooter>
       )}
 
       {hoverPreview && (

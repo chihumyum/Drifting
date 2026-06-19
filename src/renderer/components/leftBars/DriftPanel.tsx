@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { isDrift, type BookNode } from '../../domain/book-node';
 import { useDataStore } from '../../store/data-store';
@@ -11,6 +10,7 @@ import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
 import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
+import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 
@@ -26,12 +26,6 @@ const formatShortDate = (input: string | number | Date) => {
   const day = `${d.getDate()}`.padStart(2, '0');
   return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
 };
-
-// Resting drawer sizing — purely component-local so it resets per session;
-// no need for persistence layer churn.
-const RESTING_MIN_HEIGHT = 80;
-const RESTING_DEFAULT_HEIGHT = 200;
-const RESTING_HEADER_HEIGHT = 28;
 
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
@@ -77,15 +71,6 @@ export function DriftPanel() {
     return { driftingNodes: drifting, restingNodes: resting };
   }, [bookNodes, sortMode]);
 
-  // Resting drawer state — collapsed by default. Height is the expanded
-  // total (header + body); collapsed shows just the header strip.
-  const [restingExpanded, setRestingExpanded] = useState(false);
-  const [restingHeight, setRestingHeight] = useState(RESTING_DEFAULT_HEIGHT);
-
-  // Expanded state survives an empty bucket — the placeholder hint serves as
-  // the content. (Auto-collapsing here caused a flash: click → expand → effect
-  // fires because length is 0 → re-collapse.)
-
   // Per-cell context menu — reuses the editor top-bar three-dot menu items
   // via EntityCellContextMenu so drift context options match the editor.
   const dispatchEntityAction = useEntityCellAction();
@@ -99,48 +84,6 @@ export function DriftPanel() {
     onEnter: hoverEnter,
     onLeave: hoverLeave,
   } = useHoverPreview<BookNode>();
-
-  const dragStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
-
-  const handleDragMove = useCallback((event: PointerEvent) => {
-    const state = dragStateRef.current;
-    if (!state) return;
-    // Pointer moves down → drawer shrinks; moves up → grows.
-    const delta = state.startY - event.clientY;
-    const next = Math.max(RESTING_MIN_HEIGHT, state.startHeight + delta);
-    setRestingHeight(next);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    dragStateRef.current = null;
-    window.removeEventListener('pointermove', handleDragMove);
-    window.removeEventListener('pointerup', handleDragEnd);
-    window.removeEventListener('pointercancel', handleDragEnd);
-  }, [handleDragMove]);
-
-  const handleDragStart = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!restingExpanded) return;
-      event.preventDefault();
-      dragStateRef.current = { startY: event.clientY, startHeight: restingHeight };
-      window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', handleDragEnd);
-      window.addEventListener('pointercancel', handleDragEnd);
-    },
-    [handleDragEnd, handleDragMove, restingExpanded, restingHeight],
-  );
-
-  useEffect(() => {
-    // Belt-and-braces: if the component unmounts mid-drag, tear down the
-    // global listeners so we don't leak handlers.
-    return () => {
-      if (dragStateRef.current) {
-        window.removeEventListener('pointermove', handleDragMove);
-        window.removeEventListener('pointerup', handleDragEnd);
-        window.removeEventListener('pointercancel', handleDragEnd);
-      }
-    };
-  }, [handleDragEnd, handleDragMove]);
 
   const renderNodeCard = (node: BookNode, opts?: { muted?: boolean }) => {
     const selected = node.id === selectedNodeId;
@@ -282,21 +225,33 @@ export function DriftPanel() {
     );
   };
 
-  // Resting footer is always visible so the user has a permanent affordance
-  // to park / surface resting drifts, regardless of whether there's anything
-  // resting at the moment. Expanding into an empty list is fine — it shows
-  // an "no resting drifts" placeholder.
-  const showRestingFooter = true;
-  const footerHeight = restingExpanded ? restingHeight : RESTING_HEADER_HEIGHT;
   const totalDrift = driftingNodes.length + restingNodes.length;
 
   // Agent activity rolled up over resting drifts — surfaced on the footer
-  // header so changes hidden inside the (default-collapsed) drawer register (#17).
+  // header (as a badge or busy glyph) so changes hidden inside the
+  // (default-collapsed) drawer still register (#17).
   const restingActivity = aggregateActivity(
     agentActive,
     agentTouched,
     restingNodes.map((n) => entityKey('node', n.id)),
   );
+  const restingHeaderExtra =
+    !restingActivity.busy && restingActivity.doneCount > 0 ? (
+      <AgentCountBadge count={restingActivity.doneCount} title="未查看的 Agent 改动" />
+    ) : restingActivity.busy ? (
+      <span
+        aria-hidden
+        className="agent-glyph-busy"
+        title="Agent 正在处理"
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: 2,
+          background: 'hsl(var(--accent))',
+          flexShrink: 0,
+        }}
+      />
+    ) : null;
 
   return (
     <div
@@ -347,120 +302,35 @@ export function DriftPanel() {
         )}
       </div>
 
-      {showRestingFooter && (
-        <div
-          style={{
-            height: footerHeight,
-            borderTop: '1px solid hsl(var(--rule))',
-            background: 'hsl(var(--paper-deep) / 0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: RESTING_HEADER_HEIGHT,
-            // Smooth the open/close toggle, but skip transitions while
-            // actively drag-resizing so the cursor stays glued to the edge.
-            transition: dragStateRef.current ? 'none' : 'height 0.18s ease',
-            flexShrink: 0,
-          }}
-        >
-          {/* Drag handle — only meaningful when expanded. Kept on top of
-              the header so the visible affordance lines up with the seam
-              between scroll list and footer. */}
+      {/* Resting footer is always visible so the user has a permanent
+          affordance to park / surface resting drifts, regardless of whether
+          there's anything resting at the moment. Expanding into an empty list
+          is fine — it shows a "no resting drifts" placeholder. */}
+      <CollapsibleFooter
+        label="休眠"
+        count={restingNodes.length}
+        headerExtra={restingHeaderExtra}
+        expandTitle="展开休眠"
+        collapseTitle="收起休眠"
+        bodyStyle={{ padding: '4px 0 12px' }}
+      >
+        {restingNodes.length > 0 ? (
+          restingNodes.map((node) => renderNodeCard(node, { muted: true }))
+        ) : (
           <div
-            onPointerDown={handleDragStart}
             style={{
-              height: 4,
-              marginTop: -2,
-              cursor: restingExpanded ? 'ns-resize' : 'default',
-              userSelect: 'none',
+              fontSize: 11.5,
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              color: 'hsl(var(--ink-4))',
+              padding: '16px 20px',
+              textAlign: 'center',
             }}
-            aria-hidden
-          />
-          <button
-            type="button"
-            onClick={() => setRestingExpanded((prev) => !prev)}
-            style={{
-              all: 'unset',
-              boxSizing: 'border-box',
-              height: RESTING_HEADER_HEIGHT - 4,
-              padding: '0 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-              cursor: 'pointer',
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'hsl(var(--ink-3))',
-              fontFamily: 'var(--font-mono)',
-              flexShrink: 0,
-            }}
-            aria-expanded={restingExpanded}
-            title={restingExpanded ? '收起休眠' : '展开休眠'}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>休眠</span>
-              <span style={{ color: 'hsl(var(--ink-4))' }}>{restingNodes.length}</span>
-              {!restingActivity.busy && restingActivity.doneCount > 0 ? (
-                <AgentCountBadge
-                  count={restingActivity.doneCount}
-                  title="未查看的 Agent 改动"
-                />
-              ) : (
-                restingActivity.busy && (
-                  <span
-                    aria-hidden
-                    className="agent-glyph-busy"
-                    title="Agent 正在处理"
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: 2,
-                      background: 'hsl(var(--accent))',
-                      flexShrink: 0,
-                    }}
-                  />
-                )
-              )}
-            </span>
-            <ChevronUp
-              size={12}
-              style={{
-                transform: restingExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.18s ease',
-              }}
-            />
-          </button>
-          {restingExpanded && (
-            <div
-              className="left-panel-scroll-hidden"
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                padding: '4px 0 12px',
-              }}
-            >
-              {restingNodes.length > 0 ? (
-                restingNodes.map((node) => renderNodeCard(node, { muted: true }))
-              ) : (
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    fontFamily: 'var(--font-serif)',
-                    fontStyle: 'italic',
-                    color: 'hsl(var(--ink-4))',
-                    padding: '16px 20px',
-                    textAlign: 'center',
-                  }}
-                >
-                  no resting drifts.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            no resting drifts.
+          </div>
+        )}
+      </CollapsibleFooter>
 
       {hoverPreview && (
         <PanelHoverPreview

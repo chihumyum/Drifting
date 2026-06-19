@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronUp, Link2, Link2Off, Plus } from 'lucide-react';
+import { Link2, Link2Off, Plus } from 'lucide-react';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
 // Electron 40's V8. The legacy build ships the polyfill.
@@ -19,6 +19,7 @@ import type { EntityKind } from '../../lib/extensions/entity-link';
 import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
+import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import '../../../styles/bottom-timeline.css';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -2034,10 +2035,6 @@ export const LIBRARY_ITEM_KIND_LABEL: Record<LibraryItemKind, string> = {
 // TODOs, mirroring the old ResolvedArchive layout but with the simpler
 // open/resolved bucket the comment model gives us (no three-state machine).
 
-const RESOLVED_TODO_MIN_HEIGHT = 80;
-const RESOLVED_TODO_DEFAULT_HEIGHT = 200;
-const RESOLVED_TODO_HEADER_HEIGHT = 28;
-
 export function ResolvedTodoArchive({
   todos,
   onReopen,
@@ -2047,177 +2044,84 @@ export function ResolvedTodoArchive({
   onReopen: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [height, setHeight] = useState(RESOLVED_TODO_DEFAULT_HEIGHT);
-  const dragStart = useRef<{ y: number; h: number } | null>(null);
-
-  const onDragMove = useCallback((e: MouseEvent) => {
-    if (!dragStart.current) return;
-    const delta = dragStart.current.y - e.clientY;
-    const next = Math.max(RESOLVED_TODO_MIN_HEIGHT, dragStart.current.h + delta);
-    setHeight(next);
-  }, []);
-  const onDragEnd = useCallback(() => {
-    dragStart.current = null;
-    window.removeEventListener('mousemove', onDragMove);
-    window.removeEventListener('mouseup', onDragEnd);
-  }, [onDragMove]);
-
-  const onDragStart = (e: React.MouseEvent) => {
-    if (!open) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragStart.current = { y: e.clientY, h: height };
-    window.addEventListener('mousemove', onDragMove);
-    window.addEventListener('mouseup', onDragEnd);
-  };
-
   return (
-    <div
-      style={{
-        borderTop: '1px solid hsl(var(--rule))',
-        background: 'hsl(var(--paper))',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: RESOLVED_TODO_HEADER_HEIGHT,
-        height: open ? height : RESOLVED_TODO_HEADER_HEIGHT,
-        // Smooth the open/close toggle and any user resize easings, but kill
-        // the transition mid-drag so the cursor stays glued to the edge —
-        // mirrors DriftPanel's resting drawer.
-        transition: dragStart.current ? 'none' : 'height 0.18s ease',
-        position: 'relative',
-      }}
+    <CollapsibleFooter
+      label="已完成"
+      count={todos.length}
+      expandTitle="展开已完成"
+      collapseTitle="收起已完成"
+      bodyStyle={{ padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}
     >
-      {/* Thin top-border drag handle — only present while the drawer is open
-          so the collapsed state doesn't accidentally start drags. Sits above
-          the header strip so click-to-toggle never competes with mousedown. */}
-      {open && (
+      {todos.length === 0 && (
         <div
-          onMouseDown={onDragStart}
           style={{
-            position: 'absolute',
-            top: -3,
-            left: 0,
-            right: 0,
-            height: 6,
-            cursor: 'ns-resize',
-            zIndex: 1,
-          }}
-          aria-hidden
-        />
-      )}
-      <div
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          height: RESOLVED_TODO_HEADER_HEIGHT,
-          padding: '0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: 'hsl(var(--ink-4))',
-          cursor: 'pointer',
-          userSelect: 'none',
-          gap: 6,
-          flexShrink: 0,
-        }}
-      >
-        <ChevronUp
-          size={11}
-          style={{
-            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.18s ease',
-          }}
-        />
-        <span>已完成 · {todos.length}</span>
-      </div>
-      {open && (
-        <div
-          className="scroll-no-bar"
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '4px 10px 10px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
+            fontSize: 11,
+            color: 'hsl(var(--ink-4))',
+            fontStyle: 'italic',
+            padding: '8px 4px',
           }}
         >
-          {todos.length === 0 && (
-            <div
-              style={{
-                fontSize: 11,
-                color: 'hsl(var(--ink-4))',
-                fontStyle: 'italic',
-                padding: '8px 4px',
-              }}
-            >
-              无已完成 TODO
-            </div>
-          )}
-          {todos.map((todo) => (
-            <div
-              key={todo.id}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 8,
-                padding: '4px 6px',
-                borderRadius: 3,
-                fontSize: 12,
-                color: 'hsl(var(--ink-3))',
-                opacity: 0.7,
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  fontFamily: 'var(--font-serif)',
-                  textDecoration: 'line-through',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {extractTextFromCommentBody(todo.bodyJson) || '(空 TODO)'}
-              </div>
-              <button
-                onClick={() => onReopen(todo.id)}
-                title="重新打开"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: 'hsl(var(--ink-4))',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  padding: '0 4px',
-                }}
-              >
-                ↺
-              </button>
-              <button
-                onClick={() => onDelete(todo.id)}
-                title="删除"
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: 'hsl(var(--ink-4))',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  padding: '0 4px',
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          无已完成 TODO
         </div>
       )}
-    </div>
+      {todos.map((todo) => (
+        <div
+          key={todo.id}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+            padding: '4px 6px',
+            borderRadius: 3,
+            fontSize: 12,
+            color: 'hsl(var(--ink-3))',
+            opacity: 0.7,
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              fontFamily: 'var(--font-serif)',
+              textDecoration: 'line-through',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {extractTextFromCommentBody(todo.bodyJson) || '(空 TODO)'}
+          </div>
+          <button
+            onClick={() => onReopen(todo.id)}
+            title="重新打开"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'hsl(var(--ink-4))',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '0 4px',
+            }}
+          >
+            ↺
+          </button>
+          <button
+            onClick={() => onDelete(todo.id)}
+            title="删除"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: 'hsl(var(--ink-4))',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              padding: '0 4px',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </CollapsibleFooter>
   );
 }
 
