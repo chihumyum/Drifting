@@ -16,6 +16,15 @@ import { existsSync, mkdtempSync, rmSync, mkdirSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { shapeMacIcon } from './macos-icon.mjs';
+
+// macOS icon grid: artwork lives in a rounded rect occupying ~824/1024 of the
+// canvas, leaving a transparent margin (radius ≈ 22.37% of the body). Pass
+// `--full-bleed-mac` to skip the rounding+padding and ship a square macOS icon.
+const MAC_CANVAS = 1024;
+const MAC_BODY = 824;
+const MAC_RADIUS = Math.round(MAC_BODY * 0.2237);
+const fullBleedMac = process.argv.includes('--full-bleed-mac');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assets = path.join(root, 'src', 'assets');
@@ -41,9 +50,20 @@ try {
 } catch { /* sips missing — handled below when we actually use it */ }
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'drifting-icons-'));
-const resize = (size, dest) => sh('sips', ['-z', String(size), String(size), master, '--out', dest]);
+const resizeFrom = (src, size, dest) => sh('sips', ['-z', String(size), String(size), src, '--out', dest]);
+const resize = (size, dest) => resizeFrom(master, size, dest);
 
 try {
+  // macOS-shaped master: scale art to the body size, then pad + round on a
+  // transparent canvas. The .icns is built from this; Win/Linux stay full-bleed.
+  let macMaster = master;
+  if (!fullBleedMac) {
+    const body = path.join(tmp, 'mac-body.png');
+    macMaster = path.join(tmp, 'mac-master.png');
+    resize(MAC_BODY, body);
+    shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS });
+  }
+
   // ---- macOS .icns ----
   const iconset = path.join(tmp, 'icon.iconset');
   mkdirSync(iconset);
@@ -55,10 +75,10 @@ try {
     [512, '512x512'], [1024, '512x512@2x'],
   ];
   for (const [size, label] of icnsSlots) {
-    resize(size, path.join(iconset, `icon_${label}.png`));
+    resizeFrom(macMaster, size, path.join(iconset, `icon_${label}.png`));
   }
   sh('iconutil', ['-c', 'icns', iconset, '-o', path.join(assets, 'icon.icns')]);
-  console.log('✓ src/assets/icon.icns');
+  console.log(`✓ src/assets/icon.icns${fullBleedMac ? ' (full-bleed)' : ' (padded + rounded)'}`);
 
   // ---- Linux .png (512) ----
   resize(512, path.join(assets, 'icon.png'));
