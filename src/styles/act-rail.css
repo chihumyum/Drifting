@@ -84,33 +84,38 @@
   bottom: 2px;
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  padding: 0 6px;
   overflow: hidden;
   white-space: nowrap;
-  /* NO border-radius and NO horizontal inset — bands abut edge-to-edge and
-     must tile into ONE continuous strip. Rounded corners left a paper notch at
-     every act boundary which, now that all bands share one opaque shade, read
-     as a "break" in the strip. Act boundaries are shown by `.actrail__divider`
-     alone. */
-  /* OPAQUE fill on purpose — translucent bands stacked their alpha wherever
-     two segments abutted (the Math.max(width, 2) min-width forces a sliver of
-     overlap on narrow acts), reading as random dark patches. A solid base
-     keeps every act the same shade and immune to that overlap. */
-  background: hsl(var(--paper-deep));
+  /* NO fill. The band is just a positioned hit-area + a home for the label
+     pill; the act reads as a narrative-marker-style chip (see .actrail__label)
+     plus its boundary line (.actrail__divider). An opaque band used to sit
+     ON TOP of the rail and, where two same-shade segments met, the
+     divider/edge read as a "break" — really the rail showing through. With no
+     fill there's nothing to break. */
+  background: transparent;
   cursor: default;
   user-select: none;
 }
-/* Acts with an assigned color get a subtle tint over the SAME opaque base, so
-   colored and plain bands sit at one consistent depth and never double up. */
-.actrail__band.has-color {
-  background: color-mix(in srgb, var(--act-color) 18%, hsl(var(--paper-deep)));
-}
 
+/* The act chip — mirrors the narrative time-pin label (.btl-pin__label /
+   .graph-pin__label): a light paper pill with a hairline border, mono text. */
 .actrail__label {
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
+  max-width: 100%;
+  padding: 1px 6px;
+  background: hsl(var(--paper));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 3px;
+  line-height: 13px;
+}
+/* Colored acts tint the chip's border (no heavy fill), echoing the act color
+   the way a bound pin tints its label border. */
+.actrail__band.has-color .actrail__label {
+  border-color: color-mix(in srgb, var(--act-color) 55%, hsl(var(--rule)));
 }
 /* ⚓ — the act binds a drift as its notes; click opens it. */
 .actrail__anchor {
@@ -129,8 +134,10 @@
   opacity: 1;
 }
 .actrail__name {
-  font-size: 10.5px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  font-weight: 500;
   color: hsl(var(--ink-2));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -165,11 +172,13 @@
 .actrail__divider::after {
   content: '';
   position: absolute;
-  top: 2px;
-  bottom: 2px;
+  top: 0;
+  bottom: 0;
   left: 3px;
-  width: 1.5px;
-  background: hsl(var(--rule-strong));
+  width: 1px;
+  /* Matches the narrative pin's vertical line (1px --rule) so an act boundary
+     and a time marker read as the same visual primitive. */
+  background: hsl(var(--rule));
 }
 .actrail__divider:hover::after {
   background: hsl(var(--accent));
