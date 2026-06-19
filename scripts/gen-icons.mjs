@@ -54,14 +54,31 @@ const resizeFrom = (src, size, dest) => sh('sips', ['-z', String(size), String(s
 const resize = (size, dest) => resizeFrom(master, size, dest);
 
 try {
-  // macOS-shaped master: scale art to the body size, then pad + round on a
-  // transparent canvas. The .icns is built from this; Win/Linux stay full-bleed.
-  let macMaster = master;
-  if (!fullBleedMac) {
+  // macOS master, in order of fidelity:
+  //   1. icon-mac.png exists → a 1024² PNG exported from Apple's icon template
+  //      (native shadow + continuous squircle baked in). Used as-is.
+  //   2. otherwise → approximate it: scale art to the 824 body, pad + round on
+  //      a transparent canvas (no shadow, circular corners).
+  //   3. --full-bleed-mac → square master, no shaping at all.
+  // The .icns is built from this; Win/Linux always stay full-bleed.
+  const macTemplate = path.join(assets, 'icon-mac.png');
+  let macMaster;
+  let macNote;
+  if (existsSync(macTemplate)) {
+    const dims = sh('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', macTemplate]).toString();
+    const mw = +(dims.match(/pixelWidth: (\d+)/)?.[1] ?? 0);
+    if (mw && mw < MAC_CANVAS) console.warn(`⚠ icon-mac.png is ${mw}px — under ${MAC_CANVAS} blurs the @2x slot.`);
+    macMaster = macTemplate;
+    macNote = ' (from icon-mac.png template export)';
+  } else if (fullBleedMac) {
+    macMaster = master;
+    macNote = ' (full-bleed)';
+  } else {
     const body = path.join(tmp, 'mac-body.png');
     macMaster = path.join(tmp, 'mac-master.png');
     resize(MAC_BODY, body);
     shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS });
+    macNote = ' (padded + rounded, approx)';
   }
 
   // ---- macOS .icns ----
@@ -78,7 +95,7 @@ try {
     resizeFrom(macMaster, size, path.join(iconset, `icon_${label}.png`));
   }
   sh('iconutil', ['-c', 'icns', iconset, '-o', path.join(assets, 'icon.icns')]);
-  console.log(`✓ src/assets/icon.icns${fullBleedMac ? ' (full-bleed)' : ' (padded + rounded)'}`);
+  console.log(`✓ src/assets/icon.icns${macNote}`);
 
   // ---- Linux .png (512) ----
   resize(512, path.join(assets, 'icon.png'));
