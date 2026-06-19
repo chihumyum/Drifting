@@ -1291,12 +1291,32 @@ export function BottomTimeline() {
 
   const renderHead = () => {
     const totalNodes = nodesWithStorylines.length;
-    const total = `${storylines.length} ${storylines.length === 1 ? 'storyline' : 'storylines'} · ${totalNodes} ${totalNodes === 1 ? 'chapter' : 'chapters'}`;
+    const slCount = storylines.length;
+    const slWord = slCount === 1 ? 'storyline' : 'storylines';
+    const chWord = totalNodes === 1 ? 'chapter' : 'chapters';
     return (
       <div className="btl__head" onClick={(e) => e.stopPropagation()}>
         <div className="btl__head-left">
-          <span className="btl__head-title">Storyline Timeline</span>
-          <span className="btl__head-meta">{total}</span>
+          {/* Count meta — collapses to glyphs (≡ storylines / § chapters)
+              when the head is too narrow so the action toggles to its right
+              keep their full width. See bottom-timeline.css @container rule. */}
+          <span className="btl__head-meta">
+            <span className="btl__head-meta-stat" title={`${slCount} ${slWord}`}>
+              <span className="btl__head-meta-num">{slCount}</span>
+              <span className="btl__head-meta-word">{slWord}</span>
+              <span className="btl__head-meta-glyph" aria-hidden>
+                ≡
+              </span>
+            </span>
+            <span className="btl__head-meta-sep">·</span>
+            <span className="btl__head-meta-stat" title={`${totalNodes} ${chWord}`}>
+              <span className="btl__head-meta-num">{totalNodes}</span>
+              <span className="btl__head-meta-word">{chWord}</span>
+              <span className="btl__head-meta-glyph" aria-hidden>
+                §
+              </span>
+            </span>
+          </span>
           <div className="btl__view-toggle" title="视图：书序 / 叙事时">
             <button
               className={viewMode === 'book' ? 'is-active' : ''}
