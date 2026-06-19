@@ -242,7 +242,7 @@ export function ActRail({
           return (
             <div
               key={seg.act.id}
-              className={`actrail__band${i % 2 === 1 ? ' is-alt' : ''}${tint ? ' has-color' : ''}`}
+              className={`actrail__band${tint ? ' has-color' : ''}`}
               style={
                 {
                   left,
