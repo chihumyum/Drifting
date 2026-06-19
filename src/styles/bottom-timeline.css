@@ -552,13 +552,22 @@
    filled head signal "this is a thing, not just a caption". */
 .btl-pin.is-bound .btl-pin__label {
   border-color: hsl(var(--accent) / 0.55);
+  background: hsl(var(--accent) / 0.06);
   color: hsl(var(--ink-1));
   font-family: var(--font-sans);
   letter-spacing: 0;
   cursor: pointer;
 }
+/* ⚓ marks the marker as bound to a drift node — same glyph the act rail uses
+   for its bound drift, so the two read as one concept. */
+.btl-pin.is-bound .btl-pin__label::before {
+  content: '⚓';
+  margin-right: 4px;
+  font-size: 9px;
+  color: hsl(var(--accent));
+}
 .btl-pin.is-bound .btl-pin__label:hover {
-  background: hsl(var(--accent) / 0.08);
+  background: hsl(var(--accent) / 0.12);
 }
 .btl-pin.is-bound .btl-pin__head {
   border-top-color: hsl(var(--accent));

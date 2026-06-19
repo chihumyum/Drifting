@@ -7,6 +7,7 @@ export type CreateBookContentInput = {
   nodeId: string;
   contentJson?: string;
   outlineJson?: string;
+  plotGridJson?: string;
 };
 
 export interface BookContentRepository {
@@ -24,6 +25,7 @@ function toNodeContent(record: typeof NodeContentTable.$inferSelect): NodeConten
     nodeId: record.nodeId,
     contentJson: record.contentJson ?? '{}',
     outlineJson: record.outlineJson ?? '[]',
+    plotGridJson: record.plotGridJson ?? '{}',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -51,6 +53,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
       nodeId: input.nodeId,
       contentJson: input.contentJson ?? '{}',
       outlineJson: input.outlineJson ?? '[]',
+      plotGridJson: input.plotGridJson ?? '{}',
       createdAt: now,
       updatedAt: now,
     };
@@ -68,6 +71,7 @@ export function createBookContentRepository(dbOverride?: DbExecutor): BookConten
     if (data.nodeId) updateValues.nodeId = data.nodeId;
     if (data.contentJson !== undefined) updateValues.contentJson = data.contentJson;
     if (data.outlineJson !== undefined) updateValues.outlineJson = data.outlineJson;
+    if (data.plotGridJson !== undefined) updateValues.plotGridJson = data.plotGridJson;
 
     await dbProvider()
       .update(NodeContentTable)

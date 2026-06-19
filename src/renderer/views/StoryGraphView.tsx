@@ -1632,13 +1632,20 @@ export function StoryGraphView() {
                       onRequestBind={() =>
                         events.emit('drift-bind:open', { target: { kind: 'marker', id: m.id } })
                       }
-                      onOpenDrift={() => {
-                        if (m.driftNodeId) {
-                          openEntity(
-                            { entityType: 'node', id: m.driftNodeId },
-                            { preview: false },
-                          );
-                        }
+                      onOpenDrift={(anchor) => {
+                        // Same two-step NodeCardPopover as a drift-panel card /
+                        // a bound act — not a hard editor jump (which read as
+                        // "no reaction" inside the super view).
+                        if (!m.driftNodeId) return;
+                        setPopover({
+                          nodeId: m.driftNodeId,
+                          anchor: anchor ?? {
+                            left: window.innerWidth / 2,
+                            top: window.innerHeight / 2,
+                            width: 0,
+                            height: 0,
+                          },
+                        });
                       }}
                       onDragMove={(nextX) => handlePinDragMove(m.id, nextX)}
                     />

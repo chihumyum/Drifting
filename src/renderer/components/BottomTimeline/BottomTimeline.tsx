@@ -128,9 +128,16 @@ function TimelinePin({
       const startMouseX = e.clientX;
       const startPixel = orderToPosition(marker.narrativeOrder);
       let nearest = marker.narrativeOrder;
-      onDragMove(startPixel);
+      // Don't enter drag state until the mouse passes a small threshold.
+      // Calling onDragMove on mousedown flips the pin to is-dragging
+      // (opacity:0, pointer-events:none) before any movement, which swallowed
+      // plain clicks / double-clicks — so the pin felt "drag only".
+      let dragging = false;
       const onMove = (ev: MouseEvent) => {
-        const newPixel = startPixel + (ev.clientX - startMouseX);
+        const dx = ev.clientX - startMouseX;
+        if (!dragging && Math.abs(dx) < 4) return;
+        dragging = true;
+        const newPixel = startPixel + dx;
         // Smooth drop indicator: report the raw pixel position so the
         // line follows the mouse continuously. Snap is computed locally
         // and only applied on mouseup, matching how chapter-clip drops
@@ -150,6 +157,7 @@ function TimelinePin({
       const onUp = () => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        if (!dragging) return; // a click, not a drag — leave it for dblclick
         onDragMove(null);
         if (nearest !== marker.narrativeOrder) onChange({ narrativeOrder: nearest });
       };

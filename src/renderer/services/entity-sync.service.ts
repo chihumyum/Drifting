@@ -1562,6 +1562,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       nodeId: stringValue(row, 'nodeId'),
       contentJson: stringValue(row, 'contentJson', '{}'),
       outlineJson: stringValue(row, 'outlineJson', '[]'),
+      plotGridJson: stringValue(row, 'plotGridJson', '{}'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     }));

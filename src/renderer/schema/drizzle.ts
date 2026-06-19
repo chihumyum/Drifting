@@ -256,6 +256,11 @@ export const NodeContentTable = sqliteTable(
       .references(() => BookNodeTable.id, { onDelete: 'cascade' }),
     contentJson: text('content_json').default('{}'),
     outlineJson: text('outline_json').default('[]'),
+    // In-chapter plot planner grid (mini-Excel scratchpad). Sparse JSON,
+    // authored upstream of prose — NOT derived from it and NOT part of the
+    // dep-graph/shadow. Lives here for the same per-node 1:1 cache reasons as
+    // outlineJson. See domain/plot-grid.ts for the shape.
+    plotGridJson: text('plot_grid_json').default('{}'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

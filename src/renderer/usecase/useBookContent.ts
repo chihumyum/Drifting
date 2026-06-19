@@ -54,6 +54,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
       syncNodeContentUpdate(nodeId, projectId, {
         contentJson: updatedData.contentJson,
         outlineJson: updatedData.outlineJson,
+        plotGridJson: updatedData.plotGridJson,
       });
       return result;
     },
@@ -78,6 +79,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
       syncNodeContentUpdate(cont.nodeId, projectId, {
         contentJson: updatedData.contentJson,
         outlineJson: updatedData.outlineJson,
+        plotGridJson: updatedData.plotGridJson,
       });
       return result;
     },
@@ -91,11 +93,13 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
         nodeId,
         contentJson: content.contentJson,
         outlineJson: content.outlineJson,
+        plotGridJson: content.plotGridJson,
       });
 
       syncNodeContentUpdate(nodeId, projectId, {
-        contentJson: content.contentJson,
-        outlineJson: content.outlineJson,
+        contentJson: created.contentJson,
+        outlineJson: created.outlineJson,
+        plotGridJson: created.plotGridJson,
       });
 
       return created;
@@ -112,6 +116,21 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
     [contentRepo, ensureDb],
   );
 
+  // Plot planner grid lives on the same NodeContent row but is edited
+  // independently of the prose editor, so it gets its own create-or-update
+  // path (the prose save in NodeEditorView only ever touches content/outline).
+  const updatePlotGridByNodeId = useCallback(
+    async (nodeId: string, plotGridJson: string) => {
+      await ensureDb();
+      const existing = await contentRepo.findByNodeId(nodeId);
+      if (existing) {
+        return updateContentByNodeId(nodeId, { plotGridJson });
+      }
+      return createContent(nodeId, { plotGridJson });
+    },
+    [contentRepo, ensureDb, updateContentByNodeId, createContent],
+  );
+
   return useMemo(
     () => ({
       getContentByNodeId,
@@ -120,6 +139,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
       updateContentByNodeId,
       createContent,
       getOutlineByNodeId,
+      updatePlotGridByNodeId,
     }),
     [
       getContentByNodeId,
@@ -128,6 +148,7 @@ export function useBookContent({ userId, projectId }: UseBookContentContext) {
       updateContentByNodeId,
       createContent,
       getOutlineByNodeId,
+      updatePlotGridByNodeId,
     ],
   );
 }

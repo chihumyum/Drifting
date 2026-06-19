@@ -36,8 +36,15 @@ export interface GraphTimelinePinProps {
   boundDriftTitle?: string | null;
   /** Open the standalone drift-bind picker (DriftBindModal) for this marker. */
   onRequestBind?: () => void;
-  /** Open the bound drift's editor tab. */
-  onOpenDrift?: () => void;
+  /** Open the bound drift. `anchor` (the clicked element's viewport rect) lets
+      the host anchor the same two-step preview popover the drift panel uses,
+      instead of hard-jumping to the editor. */
+  onOpenDrift?: (anchor?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }) => void;
 }
 
 export function GraphTimelinePin({
@@ -74,9 +81,15 @@ export function GraphTimelinePin({
       const startMouseX = e.clientX;
       const startPixel = orderToX(marker.narrativeOrder);
       let nearest = marker.narrativeOrder;
-      onDragMove(startPixel);
+      // Threshold before entering drag state — calling onDragMove on mousedown
+      // flipped the pin to is-dragging (opacity:0, pointer-events:none) before
+      // any movement, swallowing plain clicks / double-clicks (rename / open).
+      let dragging = false;
       const onMove = (ev: MouseEvent) => {
-        const newPixel = startPixel + (ev.clientX - startMouseX);
+        const dx = ev.clientX - startMouseX;
+        if (!dragging && Math.abs(dx) < 4) return;
+        dragging = true;
+        const newPixel = startPixel + dx;
         // Smooth drop indicator: report the raw pixel position so the
         // line follows the mouse continuously. Snap is computed locally
         // and only applied on mouseup — same UX as BottomTimeline pins.
@@ -95,6 +108,7 @@ export function GraphTimelinePin({
       const onUp = () => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        if (!dragging) return; // a click, not a drag — leave it for dblclick
         onDragMove(null);
         if (nearest !== marker.narrativeOrder) onChange({ narrativeOrder: nearest });
       };
@@ -153,7 +167,13 @@ export function GraphTimelinePin({
         onDoubleClick={(e) => {
           e.stopPropagation();
           if (isBound) {
-            onOpenDrift?.();
+            const r = e.currentTarget.getBoundingClientRect();
+            onOpenDrift?.({
+              left: r.left,
+              top: r.top,
+              width: r.width,
+              height: r.height,
+            });
             return;
           }
           if (!editing) setEditing(true);
@@ -191,7 +211,9 @@ export function GraphTimelinePin({
           x={menu.x}
           y={menu.y}
           isBound={isBound}
-          onOpenDrift={() => onOpenDrift?.()}
+          onOpenDrift={() =>
+            onOpenDrift?.({ left: menu.x, top: menu.y, width: 0, height: 0 })
+          }
           onUnbind={handleUnbind}
           onRequestBind={() => onRequestBind?.()}
           onRename={() => setEditing(true)}

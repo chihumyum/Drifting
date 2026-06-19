@@ -372,6 +372,13 @@
       "when": 1783700000000,
       "tag": "0052_book_act_drift_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1783800000000,
+      "tag": "0053_node_content_plot_grid",
+      "breakpoints": true
     }
   ]
 }
