@@ -768,10 +768,13 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 }
 
 /* Vertical line that pierces every storyline track for a given pin.
-   Sits BEHIND tiles (z-index 0) at rest and IN FRONT (z-index 5) while
-   the user is dragging the pin, so the prospective drop target is
-   easy to see. Drift panel (z-index 260, separate stacking context)
-   sits above this regardless.
+   Sits IN FRONT of tiles (z-index 4 > tile z-index 3) so it reads as one
+   CONTINUOUS guide from the axis down through every lane. It used to sit
+   behind tiles (z-index 0), which made the line vanish wherever a chapter
+   card happened to sit on its column — the line looked chopped/broken even
+   though it spans the full height. Kept thin + faint (--rule) so crossing a
+   card stays unobtrusive; dragging bumps it to accent. Drift panel
+   (z-index 260, separate stacking context) sits above this regardless.
    The height is set inline (= scroll content total) because absolute
    children of `.graph-scroll` only see its layout/viewport height,
    not its scrollHeight — `bottom: 0` would clip to the visible region. */
@@ -781,7 +784,7 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   width: 1px;
   background: hsl(var(--rule));
   pointer-events: none;
-  z-index: 0;
+  z-index: 4;
 }
 .graph-pin-line.is-dragging {
   background: hsl(var(--accent));

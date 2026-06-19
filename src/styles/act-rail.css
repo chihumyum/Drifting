@@ -87,7 +87,11 @@
   padding: 0 8px;
   overflow: hidden;
   white-space: nowrap;
-  border-radius: 3px;
+  /* NO border-radius and NO horizontal inset — bands abut edge-to-edge and
+     must tile into ONE continuous strip. Rounded corners left a paper notch at
+     every act boundary which, now that all bands share one opaque shade, read
+     as a "break" in the strip. Act boundaries are shown by `.actrail__divider`
+     alone. */
   /* OPAQUE fill on purpose — translucent bands stacked their alpha wherever
      two segments abutted (the Math.max(width, 2) min-width forces a sliver of
      overlap on narrow acts), reading as random dark patches. A solid base
@@ -161,8 +165,8 @@
 .actrail__divider::after {
   content: '';
   position: absolute;
-  top: 1px;
-  bottom: 1px;
+  top: 2px;
+  bottom: 2px;
   left: 3px;
   width: 1.5px;
   background: hsl(var(--rule-strong));
