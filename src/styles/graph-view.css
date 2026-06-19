@@ -554,6 +554,10 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 .graph-axis-track-cell {
   position: relative;
   flex-shrink: 0;
+  /* Surface at FULL content width (this cell is sized to canvasContentWidth).
+     The parent `.graph-axis-row` is only container-wide, so its background
+     stopped at the pre-scroll right edge — scrolling revealed bare --page. */
+  background: hsl(var(--paper));
 }
 
 /* ---------------- Lane row (rail + track) ----------------

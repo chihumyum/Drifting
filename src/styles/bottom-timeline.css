@@ -470,6 +470,11 @@
   flex: 1;
   height: 100%;
   cursor: default;
+  /* Carry the row's surface at FULL content width. The track cell is the
+     element sized to the scroll content (flex:1 + minWidth:timelineWidth);
+     the parent `.btl-axis` is only as wide as the container, so relying on its
+     background left everything past the pre-scroll right edge bare. */
+  background: hsl(var(--paper));
 }
 
 /* ---------------- Time pin (narrative view, draggable marker) ----------------

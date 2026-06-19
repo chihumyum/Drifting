@@ -70,6 +70,11 @@
 .actrail__track {
   position: relative;
   flex-shrink: 0;
+  /* Surface at FULL content width (sized to trackWidth via inline minWidth).
+     The parent `.actrail` row is only container-wide, so its background ended
+     at the pre-scroll right edge — anything scrolled past it lost its surface
+     and the transparent act bands had nothing behind them. */
+  background: hsl(var(--paper));
 }
 
 /* Empty state — book mode renders the rail even with zero acts so the
