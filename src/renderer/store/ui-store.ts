@@ -186,6 +186,16 @@ interface UiState {
   setBottomTimelineHidden: (hidden: boolean) => void;
   toggleBottomTimelineHidden: () => void;
 
+  // In-chapter plot planner dock (mini-Excel grid). Global visibility flag
+  // like the outline toggle — each node editor renders its OWN node's grid.
+  // Height is shared across nodes; null = default. Both persisted so the
+  // layout sticks across sessions.
+  plotPlannerOpen: boolean;
+  setPlotPlannerOpen: (open: boolean) => void;
+  togglePlotPlannerOpen: () => void;
+  plotPlannerHeight: number | null;
+  setPlotPlannerHeight: (height: number | null) => void;
+
   // Resized height of the ElementPanel category footer. null = natural
   // one-row height (horizontal scroll mode).
   elementCategoryFooterHeight: number | null;
@@ -544,6 +554,13 @@ export const useUiStore = create<UiState>()(
         set({ bottomTimelineUnaffiliatedVisible: visible }),
       toggleBottomTimelineHidden: () =>
         set((state) => ({ bottomTimelineHidden: !state.bottomTimelineHidden })),
+
+      plotPlannerOpen: false,
+      setPlotPlannerOpen: (open) => set({ plotPlannerOpen: open }),
+      togglePlotPlannerOpen: () =>
+        set((state) => ({ plotPlannerOpen: !state.plotPlannerOpen })),
+      plotPlannerHeight: null,
+      setPlotPlannerHeight: (height) => set({ plotPlannerHeight: height }),
 
       resizingSidebar: null,
       setResizingSidebar: (type) => set({ resizingSidebar: type }),
@@ -1262,6 +1279,8 @@ export const useUiStore = create<UiState>()(
         tabsByProject: state.tabsByProject,
         outlineCollapsed: state.outlineCollapsed,
         bottomTimelineHidden: state.bottomTimelineHidden,
+        plotPlannerOpen: state.plotPlannerOpen,
+        plotPlannerHeight: state.plotPlannerHeight,
         elementCategoryFooterHeight: state.elementCategoryFooterHeight,
         chapterUnaffiliatedFooterHeight: state.chapterUnaffiliatedFooterHeight,
         bottomTimelineUnaffiliatedVisible: state.bottomTimelineUnaffiliatedVisible,

@@ -15,6 +15,7 @@ import type { Storyline } from '../domain/storyline';
 import { ChapterEditor, type ChapterEditorRef } from '../components/editor/ChapterEditor';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
+import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
 import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
@@ -166,10 +167,22 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     projectId: activeProjectId,
     userId: activeUserId,
   });
-  const { getContentByNodeId, updateContentByNodeId, createContent } = useBookContent({
-    userId: activeUserId,
-    projectId: activeProjectId,
-  });
+  const { getContentByNodeId, updateContentByNodeId, createContent, updatePlotGridByNodeId } =
+    useBookContent({
+      userId: activeUserId,
+      projectId: activeProjectId,
+    });
+  const plotPlannerOpen = useUiStore((s) => s.plotPlannerOpen);
+  const togglePlotPlanner = useUiStore((s) => s.togglePlotPlannerOpen);
+  // Plot planner grid persists on its own debounce, independent of the prose
+  // save path. Bound to the dock's nodeId (not activeNodeIdRef) so a flush
+  // during a node switch writes to the correct row.
+  const handlePlotGridPersist = useCallback(
+    (targetNodeId: string, serialized: string) => {
+      void updatePlotGridByNodeId(targetNodeId, serialized);
+    },
+    [updatePlotGridByNodeId],
+  );
   // Element usecase — used by the drift→element conversion path (createElement
   // then updateElement to inject the drift's existing content/summary).
   const { createElement, updateElement } = useBookElement({
@@ -657,6 +670,10 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               disabled: false,
               onToggle: toggleComments,
             }}
+            plotPlannerToggle={{
+              enabled: plotPlannerOpen,
+              onToggle: togglePlotPlanner,
+            }}
             right={
               <>
                 <span>{curNode.wordCount.toLocaleString()} 字</span>
@@ -732,6 +749,19 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
             </EditorCrumb>
           </EditorTopBar>
+
+          {/* In-chapter plot planner: a top dock between the bar and the prose,
+              pushing the editor down. Keyed by nodeId so each chapter/drift
+              seeds its own grid. Gated on loadedNodeId so it mounts only once
+              this node's plotGridJson is in hand. */}
+          {plotPlannerOpen && nodeId && loadedNodeId === nodeId && (
+            <PlotPlannerDock
+              key={nodeId}
+              nodeId={nodeId}
+              initialJson={bookContent?.plotGridJson ?? '{}'}
+              onPersist={handlePlotGridPersist}
+            />
+          )}
 
           {/* Editor body: TOC sits OUTSIDE the scroll container as a layout
               sibling, so it stays put without relying on position:sticky. */}

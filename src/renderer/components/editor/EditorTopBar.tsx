@@ -1,4 +1,4 @@
-import { Check, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
+import { Check, LayoutGrid, Link2, ListTree, MessageSquare, MoreVertical } from 'lucide-react';
 import {
   Children,
   Fragment,
@@ -68,6 +68,12 @@ interface EditorTopBarProps {
     enabled: boolean;
     onToggle: () => void;
   };
+  // Toggles the in-chapter plot planner dock (mini-Excel grid). Only wired by
+  // the node editor; absent on element/category/storyline editors.
+  plotPlannerToggle?: {
+    enabled: boolean;
+    onToggle: () => void;
+  };
 }
 
 export function EditorTopBar({
@@ -79,6 +85,7 @@ export function EditorTopBar({
   nodeStatusKind,
   commentToggle,
   referenceLinkToggle,
+  plotPlannerToggle,
 }: EditorTopBarProps) {
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
@@ -101,6 +108,17 @@ export function EditorTopBar({
       </div>
       <div className="editor-bar__right">
         {right}
+        {plotPlannerToggle && (
+          <button
+            type="button"
+            className={`editor-bar__icon editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
+            title={plotPlannerToggle.enabled ? '收起情节规划' : '展开情节规划'}
+            aria-pressed={plotPlannerToggle.enabled}
+            onClick={plotPlannerToggle.onToggle}
+          >
+            <LayoutGrid size={14} />
+          </button>
+        )}
         {referenceLinkToggle && (
           <button
             type="button"

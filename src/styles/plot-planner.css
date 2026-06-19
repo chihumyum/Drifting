@@ -1,0 +1,218 @@
+/* ============================================================
+   In-chapter Plot Planner
+   A top dock between the editor bar and the prose, pushing the
+   editor down. Hosts a lightweight "mini-Excel" grid used to draft
+   a chapter's plot before writing. Decoupled from the prose — pure
+   scratchpad. Resized by its BOTTOM border.
+   ============================================================ */
+
+.plot-planner {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  background: hsl(var(--paper-deep));
+  border-bottom: 1px solid hsl(var(--rule-strong));
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+/* ---------------- Header ---------------- */
+.plot-planner__header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper-deep));
+}
+.plot-planner__title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: hsl(var(--ink));
+}
+.plot-planner__hint {
+  font-size: 11px;
+  color: hsl(var(--muted));
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plot-planner__close {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: hsl(var(--muted));
+  cursor: pointer;
+}
+.plot-planner__close:hover {
+  background: hsl(var(--paper));
+  color: hsl(var(--ink));
+}
+
+/* ---------------- Body (scrolls both axes) ---------------- */
+.plot-planner__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 14px;
+}
+
+/* ---------------- Resize (bottom border) ---------------- */
+.plot-planner__resize {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+  z-index: 30;
+}
+.plot-planner__resize:hover {
+  background: hsl(var(--accent) / 0.35);
+}
+
+/* ============================================================
+   Grid
+   ============================================================ */
+.plot-grid {
+  display: inline-block; /* fit-content so a wide grid scrolls in the body */
+}
+.plot-grid__table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.plot-grid__corner {
+  width: 96px;
+  background: hsl(var(--paper-deep));
+  border-right: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+}
+
+/* Header cells (row + column labels) */
+.plot-grid__colhead,
+.plot-grid__rowhead {
+  position: relative;
+  background: hsl(var(--paper-deep));
+  border-right: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+  vertical-align: top;
+}
+.plot-grid__colhead {
+  min-width: 150px;
+}
+.plot-grid__rowhead {
+  width: 96px;
+  min-width: 96px;
+}
+.plot-grid__head-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  resize: none;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: hsl(var(--ink));
+  line-height: 1.4;
+  outline: none;
+  overflow: hidden;
+}
+.plot-grid__head-input::placeholder {
+  color: hsl(var(--muted) / 0.7);
+  font-weight: 500;
+}
+
+/* Data cells */
+.plot-grid__cell {
+  border-right: 1px solid hsl(var(--rule));
+  border-bottom: 1px solid hsl(var(--rule));
+  background: hsl(var(--paper));
+  vertical-align: top;
+  min-width: 150px;
+}
+.plot-grid__cell-input {
+  width: 100%;
+  min-height: 2.8em;
+  border: none;
+  background: transparent;
+  resize: none;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: hsl(var(--ink));
+  line-height: 1.5;
+  outline: none;
+}
+.plot-grid__cell:focus-within {
+  box-shadow: inset 0 0 0 2px hsl(var(--accent) / 0.55);
+}
+
+/* Spacer column on the right keeps the +col button off the last cell border */
+.plot-grid__spacer {
+  width: 100%;
+}
+
+/* Add row / add column buttons */
+.plot-grid__addcell {
+  background: hsl(var(--paper-deep));
+  text-align: center;
+  padding: 2px;
+}
+.plot-grid__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px dashed hsl(var(--rule-strong));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted));
+  cursor: pointer;
+}
+.plot-grid__add:hover {
+  border-color: hsl(var(--accent));
+  color: hsl(var(--accent));
+}
+
+/* Delete row / column — revealed on header hover */
+.plot-grid__del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: hsl(var(--paper));
+  color: hsl(var(--muted));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.plot-grid__colhead:hover .plot-grid__del,
+.plot-grid__rowhead:hover .plot-grid__del {
+  opacity: 1;
+}
+.plot-grid__del:hover {
+  background: hsl(var(--accent) / 0.15);
+  color: hsl(var(--accent));
+}

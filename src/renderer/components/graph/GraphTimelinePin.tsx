@@ -4,14 +4,15 @@ import { TimelinePinMenu } from './TimelinePinMenu';
 
 // Mirrors BottomTimeline's TimelinePin one-to-one (head dot + editable
 // label) but is sized for the story graph view's axis row. Drag the head to
-// reposition; double-click the label to rename. The vertical line that
-// spans the full canvas is rendered separately by the parent so it can
-// sit at a different z-index than this head/label widget.
+// reposition; double-click the label to rename. A small movement threshold
+// (in startDrag) keeps a click/double-click from being swallowed by the drag
+// state. The vertical line that spans the full canvas is rendered separately
+// by the parent so it can sit at a different z-index than this head/label.
 //
 // A pin bound to a drift node (marker.driftNodeId) renders the DRIFT's title
-// instead of its own label, double-click OPENS the drift's editor (no inline
-// rename — the caption is the drift's name), and the context menu offers
-// 解绑/打开 instead of 绑定/重命名.
+// instead of its own label, opens the drift on SINGLE click (no inline rename
+// — the caption is the drift's name; the host anchors a preview popover to the
+// label), and the context menu offers 解绑/打开 instead of 绑定/重命名.
 
 export interface GraphTimelinePinProps {
   marker: TimelineMarker;
@@ -108,14 +109,26 @@ export function GraphTimelinePin({
       const onUp = () => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
-        if (!dragging) return; // a click, not a drag — leave it for dblclick
+        if (!dragging) {
+          // A click, not a drag. A bound pin opens its drift on SINGLE click,
+          // anchored to the label chip (the caption is the drift's title, so
+          // there's no inline rename reserving dblclick); unbound leaves
+          // dblclick for rename.
+          if (isBound && onOpenDrift) {
+            const r = labelRef.current?.getBoundingClientRect();
+            onOpenDrift(
+              r ? { left: r.left, top: r.top, width: r.width, height: r.height } : undefined,
+            );
+          }
+          return;
+        }
         onDragMove(null);
         if (nearest !== marker.narrativeOrder) onChange({ narrativeOrder: nearest });
       };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editing, snapValues, marker.narrativeOrder, orderToX, onChange, onDragMove],
+    [editing, isBound, onOpenDrift, snapValues, marker.narrativeOrder, orderToX, onChange, onDragMove],
   );
 
   useEffect(() => {
@@ -166,16 +179,9 @@ export function GraphTimelinePin({
         onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          if (isBound) {
-            const r = e.currentTarget.getBoundingClientRect();
-            onOpenDrift?.({
-              left: r.left,
-              top: r.top,
-              width: r.width,
-              height: r.height,
-            });
-            return;
-          }
+          // Bound pins open on single click (handled in startDrag's mouseup);
+          // dblclick is only the rename trigger for unbound pins.
+          if (isBound) return;
           if (!editing) setEditing(true);
         }}
         onBlur={(e) => {
@@ -197,7 +203,7 @@ export function GraphTimelinePin({
         }}
         title={
           isBound
-            ? '已绑定漂浮节点 · 双击打开'
+            ? '已绑定漂浮节点 · 单击打开'
             : editing
               ? '回车保存，留空删除'
               : '双击编辑名称'

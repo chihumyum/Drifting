@@ -157,14 +157,29 @@ function TimelinePin({
       const onUp = () => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
-        if (!dragging) return; // a click, not a drag — leave it for dblclick
+        if (!dragging) {
+          // A click, not a drag. A bound pin opens its drift on SINGLE click
+          // (the caption is the drift's title, so there's no inline rename to
+          // reserve dblclick for); an unbound pin leaves it for dblclick→rename.
+          if (isBound) onOpenDrift?.();
+          return;
+        }
         onDragMove(null);
         if (nearest !== marker.narrativeOrder) onChange({ narrativeOrder: nearest });
       };
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [editing, snapValues, marker.narrativeOrder, orderToPosition, onChange, onDragMove],
+    [
+      editing,
+      isBound,
+      onOpenDrift,
+      snapValues,
+      marker.narrativeOrder,
+      orderToPosition,
+      onChange,
+      onDragMove,
+    ],
   );
 
   useEffect(() => {
@@ -215,10 +230,9 @@ function TimelinePin({
         onMouseDown={editing ? (e) => e.stopPropagation() : startDrag}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          if (isBound) {
-            onOpenDrift?.();
-            return;
-          }
+          // Bound pins open on single click (handled in startDrag's mouseup);
+          // dblclick is only the rename trigger for unbound pins.
+          if (isBound) return;
           if (!editing) setEditing(true);
         }}
         onBlur={(e) => {
@@ -240,7 +254,7 @@ function TimelinePin({
         }}
         title={
           isBound
-            ? '已绑定漂浮节点 · 双击打开'
+            ? '已绑定漂浮节点 · 单击打开'
             : editing
               ? '回车保存，留空删除'
               : '双击编辑名称'
