@@ -143,9 +143,14 @@ function roundedBoxSdf(px, py, cx, cy, halfX, halfY, r) {
  * @param {string} o.outPngPath   destination (canvas×canvas RGBA PNG)
  * @param {number} o.canvas       output edge length (e.g. 1024)
  * @param {number} o.bodySize     body edge length (e.g. 824)
- * @param {number} o.radius       corner radius in canvas px
+ * @param {number} o.radius       corner radius in canvas px (only used when round)
+ * @param {boolean} [o.round]     apply the rounded mask (default true). Pass
+ *                                false when the body is already a shaped
+ *                                squircle (e.g. an Icon Composer export) — then
+ *                                this just scales-in + centers, preserving the
+ *                                source's own alpha, with no second rounding.
  */
-export function shapeMacIcon({ bodyPngPath, outPngPath, canvas, bodySize, radius }) {
+export function shapeMacIcon({ bodyPngPath, outPngPath, canvas, bodySize, radius, round = true }) {
   const body = decodePng(bodyPngPath);
   if (body.width !== bodySize || body.height !== bodySize) {
     throw new Error(`body is ${body.width}×${body.height}, expected ${bodySize}²`);
@@ -160,16 +165,33 @@ export function shapeMacIcon({ bodyPngPath, outPngPath, canvas, bodySize, radius
     for (let x = 0; x < canvas; x++) {
       const sx = x - margin;
       if (sx < 0 || sy < 0 || sx >= bodySize || sy >= bodySize) continue;
-      const d = roundedBoxSdf(x + 0.5, y + 0.5, cx, cy, half, half, radius);
-      const coverage = Math.min(Math.max(0.5 - d, 0), 1);
-      if (coverage <= 0) continue;
+      let coverage = 1;
+      if (round) {
+        const d = roundedBoxSdf(x + 0.5, y + 0.5, cx, cy, half, half, radius);
+        coverage = Math.min(Math.max(0.5 - d, 0), 1);
+        if (coverage <= 0) continue;
+      }
       const si = (sy * bodySize + sx) * 4;
       const di = (y * canvas + x) * 4;
       out[di] = body.data[si];
       out[di + 1] = body.data[si + 1];
       out[di + 2] = body.data[si + 2];
-      out[di + 3] = Math.round(body.data[si + 3] * coverage);
+      out[di + 3] = round ? Math.round(body.data[si + 3] * coverage) : body.data[si + 3];
     }
   }
   encodePng(outPngPath, canvas, canvas, out);
+}
+
+// True when all four corner pixels are (near-)transparent — i.e. the art is
+// already a shaped squircle rather than a full-bleed square. Lets the icon
+// pipeline skip a redundant (and mismatched) second rounding pass.
+export function cornersAreTransparent(pngPath, threshold = 8) {
+  const { width: w, height: h, data } = decodePng(pngPath);
+  const alpha = (x, y) => data[(y * w + x) * 4 + 3];
+  return (
+    alpha(0, 0) < threshold &&
+    alpha(w - 1, 0) < threshold &&
+    alpha(0, h - 1) < threshold &&
+    alpha(w - 1, h - 1) < threshold
+  );
 }

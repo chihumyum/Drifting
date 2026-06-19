@@ -16,7 +16,7 @@ import { existsSync, mkdtempSync, rmSync, mkdirSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shapeMacIcon } from './macos-icon.mjs';
+import { shapeMacIcon, cornersAreTransparent } from './macos-icon.mjs';
 
 // macOS icon grid: artwork lives in a rounded rect occupying ~824/1024 of the
 // canvas, leaving a transparent margin (radius ≈ 22.37% of the body). Pass
@@ -74,11 +74,16 @@ try {
     macMaster = master;
     macNote = ' (full-bleed)';
   } else {
+    // If the master is already a shaped squircle (transparent corners, e.g. an
+    // Icon Composer / template export), just scale it into the 824 body and pad
+    // — re-rounding would fight its own corners. A full-bleed square gets the
+    // rounded mask instead.
+    const preShaped = cornersAreTransparent(master);
     const body = path.join(tmp, 'mac-body.png');
     macMaster = path.join(tmp, 'mac-master.png');
     resize(MAC_BODY, body);
-    shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS });
-    macNote = ' (padded + rounded, approx)';
+    shapeMacIcon({ bodyPngPath: body, outPngPath: macMaster, canvas: MAC_CANVAS, bodySize: MAC_BODY, radius: MAC_RADIUS, round: !preShaped });
+    macNote = preShaped ? ' (pre-shaped art, padded)' : ' (padded + rounded, approx)';
   }
 
   // ---- macOS .icns ----
