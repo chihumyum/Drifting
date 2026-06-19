@@ -19,6 +19,7 @@
     "db:rebuild:electron": "npm_config_cache=./.npm-cache npm_config_devdir=./.node-gyp pnpm exec electron-rebuild -f -w better-sqlite3",
     "db:rebuild:node": "pnpm rebuild better-sqlite3",
     "make": "electron-forge make",
+    "icons": "node scripts/gen-icons.mjs",
     "publish": "electron-forge publish",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",

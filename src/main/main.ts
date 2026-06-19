@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, screen, shell, session } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -110,9 +110,29 @@ let mainWindow: BrowserWindow | null = null;
 // circuits instead of looping forever.
 let quitFlushDone = false;
 
+// Resolve the app icon for development. Packaged builds get their icon from
+// the app bundle (forge `packagerConfig.icon`), so this is only needed under
+// `electron-forge start`, where the Dock / taskbar would otherwise fall back
+// to the default Electron mark. In dev, `__dirname` is `.vite/build`, so the
+// source asset sits two levels up.
+function devAppIcon(): Electron.NativeImage | undefined {
+  if (app.isPackaged) return undefined;
+  const img = nativeImage.createFromPath(
+    path.join(__dirname, '../../src/assets/icon.png'),
+  );
+  return img.isEmpty() ? undefined : img;
+}
+
 const createWindow = () => {
+  const appIcon = devAppIcon();
+  // macOS shows no per-window icon; the Dock icon must be set explicitly in dev.
+  if (process.platform === 'darwin' && appIcon) {
+    app.dock?.setIcon(appIcon);
+  }
+
   // Create the browser window
   mainWindow = new BrowserWindow({
+    icon: appIcon, // Win/Linux taskbar in dev; ignored on macOS
     width: screen.getPrimaryDisplay().workAreaSize.width,
     height: screen.getPrimaryDisplay().workAreaSize.height,
     minWidth: 1000,
