@@ -42,7 +42,7 @@ import { pruneEditorSelectionMemory } from '../../lib/editor-selection-memory';
 //   Dragging within the bar without crossing into the editor area just
 //   reorders tabs (handled in TopTimeline).
 export function EditorMainArea() {
-  const { projectId, openEntity } = useProjectNavigation();
+  const { projectId, openEntity, navigateToHome } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
   const setSplitFocus = useUiStore((s) => s.setSplitFocus);
   const setSplitRatio = useUiStore((s) => s.setSplitRatio);
@@ -137,7 +137,7 @@ export function EditorMainArea() {
         // displaying nothing here is the intended UX per the new "no tabs
         // means empty" rule — dashboard / all-chapters are their own tabs
         // now and won't auto-mount when the user has closed everything.
-        <EmptyEditorState />
+        <EmptyEditorState onOpenDashboard={navigateToHome} />
       ) : (
         // Legacy single-pane path — Outlet renders the matched route element.
         <div style={{ height: '100%', width: '100%' }}>
@@ -294,28 +294,34 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
   }
 }
 
-function EmptyEditorState() {
+function EmptyEditorState({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   return (
     <div
       style={{
         height: '100%',
         width: '100%',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        flexDirection: 'column',
-        gap: 8,
-        color: 'hsl(var(--ink-5))',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        letterSpacing: '0.18em',
-        textTransform: 'uppercase',
+        gap: 4,
       }}
     >
-      <div>— No Tabs Open —</div>
-      <div style={{ textTransform: 'none', letterSpacing: 0, fontSize: 12 }}>
-        点击左上角 Home / 通览全书，或在左栏中选择一项以打开标签页
-      </div>
+      <button
+        type="button"
+        onClick={onOpenDashboard}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          fontSize: 13,
+          color: 'hsl(var(--accent))',
+        }}
+      >
+        打开项目主页
+      </button>
+      <div style={{ fontSize: 12, color: 'hsl(var(--ink-5))' }}>是时候开始写作了</div>
     </div>
   );
 }
