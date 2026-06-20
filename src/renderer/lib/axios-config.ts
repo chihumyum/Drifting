@@ -10,6 +10,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/auth';
 import { getActiveTraceId } from './trace';
 import { getDeviceId } from './device-id';
+import { getSessionToken } from './session-token';
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -18,7 +19,9 @@ const BASE_URL =
 export const apiClient = axios.create({
   baseURL: BASE_URL,
   timeout: 30000,
-  withCredentials: true,
+  // Bearer auth — the session rides the Authorization header (set below), not a
+  // cookie. Sending cookies would re-trigger better-auth's origin/CSRF check.
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,6 +31,10 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const token = getSessionToken();
+    if (token && config.headers) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
     if (config.headers && !('x-trace-id' in config.headers)) {
       config.headers['x-trace-id'] = getActiveTraceId();
     }

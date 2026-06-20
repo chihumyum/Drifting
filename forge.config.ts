@@ -5,12 +5,17 @@ import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { VitePlugin } from '@electron-forge/plugin-vite';
+import path from 'node:path';
+import { cp, mkdir, readFile, readdir } from 'node:fs/promises';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    // Unpack the Claude Agent SDK's per-platform native `claude` binary from
-    // the asar archive — it must be a real file on disk to be spawned.
-    asar: { unpack: '**/@anthropic-ai/claude-agent-sdk-*/**' },
+    asar: {
+      // plugin-vite externalizes native addons + un-bundleable ESM; their .node /
+      // .dylib binaries — and the Claude Agent SDK's spawned `claude` binary — must
+      // be real files on disk, so unpack them out of the asar archive.
+      unpack: '**/{*.node,*.dylib,@anthropic-ai/claude-agent-sdk-*/**}',
+    },
     // Extensionless on purpose: @electron/packager resolves it per-format from
     // src/assets/. On macOS it looks for BOTH, picking the richest the OS can use:
     //   - icon.icon  → Icon Composer source (layered). On macOS 26+ packager runs
@@ -66,6 +71,59 @@ const config: ForgeConfig = {
       ],
     }),
   ],
+  hooks: {
+    // plugin-vite bundles the JS with Vite and deliberately ships ONLY the .vite
+    // output + package.json — node_modules is omitted. So every module marked
+    // `external` in vite.main.config.ts (native addons + ESM Vite can't bundle)
+    // AND its full dependency subtree must be copied into the package by hand, or
+    // the packaged app throws "Cannot find module ...". node_modules here is
+    // hoisted+flat (.npmrc node-linker=hoisted), so each package is a real
+    // top-level directory and a plain recursive copy is enough.
+    async packageAfterCopy(_forgeConfig, buildPath) {
+      const srcRoot = path.resolve(process.cwd(), 'node_modules');
+      const destRoot = path.join(buildPath, 'node_modules');
+
+      const roots = ['better-sqlite3', '@napi-rs/keyring', '@anthropic-ai/claude-agent-sdk'];
+      // Vite externalizes the whole @langchain/* scope — include every installed one.
+      try {
+        for (const name of await readdir(path.join(srcRoot, '@langchain'))) {
+          roots.push(`@langchain/${name}`);
+        }
+      } catch {
+        // no @langchain scope installed — fine
+      }
+
+      // Transitively gather dependencies + optionalDependencies (the latter carry
+      // the per-platform prebuilt binary packages), skipping anything not actually
+      // installed (e.g. other platforms' optional deps).
+      const collected = new Set<string>();
+      const collect = async (name: string): Promise<void> => {
+        if (collected.has(name)) return;
+        let pkg: { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> };
+        try {
+          pkg = JSON.parse(await readFile(path.join(srcRoot, name, 'package.json'), 'utf8'));
+        } catch {
+          return; // not installed for this platform — skip
+        }
+        collected.add(name);
+        const deps = { ...(pkg.dependencies ?? {}), ...(pkg.optionalDependencies ?? {}) };
+        for (const dep of Object.keys(deps)) await collect(dep);
+      };
+      for (const root of roots) await collect(root);
+
+      await Promise.all(
+        [...collected].map(async (name) => {
+          await mkdir(path.dirname(path.join(destRoot, name)), { recursive: true });
+          await cp(path.join(srcRoot, name), path.join(destRoot, name), {
+            recursive: true,
+            preserveTimestamps: true,
+          });
+        }),
+      );
+      // eslint-disable-next-line no-console
+      console.log(`[forge] packageAfterCopy: bundled ${collected.size} runtime modules`);
+    },
+  },
 };
 
 export default config;

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, nativeImage, screen, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, screen, shell, session, protocol, net } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import started from 'electron-squirrel-startup';
 import { setupDatabase } from './database';
 import { registerKeyringIpc } from './keyring-ipc';
@@ -61,6 +62,19 @@ if (started) {
 // Register as default handler for drifting:// deep links
 // Must be called before app.whenReady()
 app.setAsDefaultProtocolClient('drifting');
+
+// Custom scheme for the PACKAGED renderer. Loading from this instead of file://
+// gives the renderer a real, secure origin (drifting-app://app) — file:// sends
+// `Origin: null`, which better-auth's CSRF check rejects. Must be registered as
+// privileged before app is ready; `standard` + `secure` make it a proper secure
+// origin (needed for SameSite=None cookies and a stable Origin header).
+const APP_SCHEME = 'drifting-app';
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
+]);
 
 // macOS: handle deep link when app is already running
 app.on('open-url', (event, url) => {
@@ -166,7 +180,7 @@ const createWindow = () => {
     // Open DevTools in development
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    mainWindow.loadURL(`${APP_SCHEME}://app/index.html`);
   }
 
   mainWindow.on('closed', () => {
@@ -186,6 +200,16 @@ app.whenReady().then(async () => {
   registerAgentIpc(() => mainWindow);
   // Shadow review engine (LangGraph in main; bridges to renderer for data + LLM)
   registerShadowIpc(() => mainWindow);
+
+  // Serve the packaged renderer over the custom scheme. HashRouter keeps every
+  // app route in the URL hash (never sent here), so this only serves the built
+  // static files; the root path maps to index.html.
+  protocol.handle(APP_SCHEME, (request) => {
+    const { pathname } = new URL(request.url);
+    const rel = pathname === '/' ? '/index.html' : pathname;
+    const file = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}`, decodeURIComponent(rel));
+    return net.fetch(pathToFileURL(file).toString());
+  });
 
   createWindow();
 

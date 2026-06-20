@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { authClient } from '../lib/auth-client';
 import type { Session } from '../lib/auth-client';
+import { clearSessionToken } from '../lib/session-token';
 import { isAuthRequired } from '../lib/config';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { initDatabase, resetDatabase } from '../lib/db';
@@ -244,6 +245,8 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           log.error('[Auth] Logout API call failed:', error);
         }
+        // Drop the bearer token so the next session starts clean.
+        clearSessionToken();
 
         // 清除本地状态
         set({
