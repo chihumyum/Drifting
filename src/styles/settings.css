@@ -421,6 +421,11 @@
   cursor: pointer;
 }
 .set-btn:hover { border-color: hsl(var(--ink-4)); color: hsl(var(--ink-1)); }
+.set-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.set-btn:disabled:hover { border-color: hsl(var(--rule-strong)); color: hsl(var(--ink-2)); }
 .set-btn--primary {
   background: hsl(var(--accent));
   border-color: hsl(var(--accent));
@@ -698,6 +703,13 @@
   position: relative;
 }
 .set-tier:hover { border-color: hsl(var(--rule-strong)); }
+/* Shown-but-unavailable (e.g. hosted tier in a BYOK-only build): greyed + inert. */
+.set-tier--disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.set-tier--disabled:hover { border-color: hsl(var(--rule)); }
 .set-tier--active {
   border-color: hsl(var(--accent));
   box-shadow: 0 0 0 1px hsl(var(--accent));

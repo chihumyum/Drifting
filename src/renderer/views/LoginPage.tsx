@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { authClient } from '../lib/auth-client';
@@ -46,6 +46,13 @@ const SOCIAL_PROVIDERS: SocialProvider[] = [
     sub: 'WeChat',
   },
 ];
+
+// Social sign-in is OFF for the BYOK-only beta. Google OAuth still injects a
+// cookie (broken under the new bearer-token flow), and Apple/WeChat are mere
+// placeholders. The whole block is kept in code behind this flag for a proper
+// pass later. Typed `boolean` (not literal false) so the gated JSX still
+// type-checks and its handlers don't read as dead code.
+const SOCIAL_LOGIN_ENABLED: boolean = false;
 
 interface LoginPageProps {
   initialMode?: Exclude<Mode, 'forgot'>;
@@ -356,9 +363,11 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               <span className="si-submit__arrow">→</span>
             </button>
 
-            <div className="si-or">OR · 用第三方</div>
+            {SOCIAL_LOGIN_ENABLED && (
+              <>
+                <div className="si-or">OR · 用第三方</div>
 
-            <div className="si-social">
+                <div className="si-social">
               {SOCIAL_PROVIDERS.map((p) => {
                 const enabled = !!p.oauth;
                 const loading = p.oauth && oauthLoading === p.oauth;
@@ -385,7 +394,9 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                   </button>
                 );
               })}
-            </div>
+                </div>
+              </>
+            )}
 
             <div className="si-foot-right">
               {mode === 'signin' ? (
@@ -624,10 +635,14 @@ const VerifyAfterSignupForm = ({
     }
   };
 
-  // Fire-and-forget on mount. If the user navigates away (cancel) and comes
-  // back via the same email later, the resend button covers the recovery.
+  // Fire-and-forget on mount, exactly once per email. The ref guard survives
+  // StrictMode's dev-only double-invoke of mount effects (setup→cleanup→setup
+  // on the same instance keeps the ref) so the user gets ONE code, not two.
+  // The resend button covers recovery if they navigate away and back.
+  const sentForEmailRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!email) return;
+    if (!email || sentForEmailRef.current === email) return;
+    sentForEmailRef.current = email;
     void sendOtp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BYOKProvider } from '../lib/byok-keychain';
+import { APP_CONFIG } from '../lib/config';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AppearanceSkin = 'classic' | 'modern';
@@ -399,7 +400,8 @@ export const useSettingsStore = create<SettingsState>()(
       dateFormat: 'cjk',
       setDateFormat: (f) => set({ dateFormat: f }),
 
-      copilotAiMode: 'hosted',
+      // Fresh installs start on BYOK in a BYOK-only build (no hosted key server-side).
+      copilotAiMode: APP_CONFIG.BYOK_ONLY ? 'byok' : 'hosted',
       setCopilotAiMode: (m) => set({ copilotAiMode: m }),
       copilotByokProvider: 'deepseek',
       setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
@@ -409,7 +411,7 @@ export const useSettingsStore = create<SettingsState>()(
       // for a quality-sensitive consistency judge / arc derive (steadier reasoning,
       // far fewer JSON-format failures than flash). Dial down to 低 for flash, or
       // switch to BYOK to pin your own model.
-      shadowAiMode: 'hosted',
+      shadowAiMode: APP_CONFIG.BYOK_ONLY ? 'byok' : 'hosted',
       setShadowAiMode: (m) => set({ shadowAiMode: m }),
       shadowTier: 'standard',
       setShadowTier: (t) => set({ shadowTier: t }),
@@ -708,6 +710,20 @@ export const useSettingsStore = create<SettingsState>()(
           next = { ...next, copilotTaskConfigs: configs as Record<CopilotTaskId, CopilotTaskConfig> };
         }
         return next;
+      },
+      // BYOK-only builds (VITE_BYOK_ONLY) disable the hosted AI tier — the server
+      // carries no hosted key. Coerce any persisted 'hosted' to its BYOK equivalent
+      // on EVERY load (migrate only fires on a version bump, which wouldn't catch an
+      // already-migrated install), so a saved 'hosted' can never silently route to
+      // the keyless server. Otherwise preserves the default shallow-merge semantics.
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<SettingsState>) };
+        if (APP_CONFIG.BYOK_ONLY) {
+          if (merged.copilotAiMode === 'hosted') merged.copilotAiMode = 'byok';
+          if (merged.shadowAiMode === 'hosted') merged.shadowAiMode = 'byok';
+          if (merged.agentAuth === 'hosted') merged.agentAuth = 'oauth';
+        }
+        return merged;
       },
     },
   ),

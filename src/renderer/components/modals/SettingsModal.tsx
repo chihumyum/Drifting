@@ -7,6 +7,7 @@ import {
   type BYOKProvider,
 } from '../../lib/byok-keychain';
 import { apiClient } from '../../lib/axios-config';
+import { isByokOnly } from '../../lib/config';
 import { getCopilotCapability } from '../../lib/copilot/capability';
 import { events } from '../../lib/events';
 import { SyncActivityPanel } from '../sync/SyncActivityPanel';
@@ -1015,12 +1016,6 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
           <span>返回订阅</span>
         </button>
         <PanelHead kicker="升级 / 降级" title="挑一个更合脚的方案。" />
-        {!configured && (
-          <div className="set-note" style={{ marginBottom: 16 }}>
-            支付通道暂未配置 <b>STRIPE_NOT_CONFIGURED</b>。后台填入 <code>STRIPE_SECRET_KEY</code>{' '}
-            后立即可用。
-          </div>
-        )}
         <div className="set-plans">
           <PlanCard
             kicker="免费"
@@ -1148,10 +1143,7 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
               当前方案 <em className="set-italic">{planName.toUpperCase()}</em> · {renewLine}
             </>
           ) : (
-            <>
-              支付通道暂未配置。填入 <code>STRIPE_SECRET_KEY</code> 后立即可用。中国区可同步评估
-              微信 / 支付宝 商户号方案。
-            </>
+            <>当前为免费方案。</>
           )
         }
       />
@@ -1167,7 +1159,12 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
           </div>
         </div>
         <div className="set-plan-current__cta">
-          <button className="set-btn" onClick={() => setView('plans')}>
+          <button
+            className="set-btn"
+            onClick={isByokOnly() ? undefined : () => setView('plans')}
+            disabled={isByokOnly()}
+            title={isByokOnly() ? '托管方案即将开放' : undefined}
+          >
             升级 / 降级
           </button>
           <button className="set-btn" onClick={() => setView('invoices')}>
@@ -2172,6 +2169,12 @@ function ProviderRow({
 // Shadow model routing modes — like Copilot's, but Shadow has its own slice
 // (governs BOTH chapter-CI review and element-arc derive). BYOK is DeepSeek-only
 // for now (the substrate routes DeepSeek directly; Sonnet is hosted-only).
+// BYOK-only beta build: the hosted tier stays VISIBLE but disabled (greyed out)
+// in every AI routing selector below — the server carries no hosted key.
+// Selection is blocked; the settings store also coerces any persisted 'hosted'
+// to BYOK so it can never actually route.
+const HOSTED_TIER_DISABLED = isByokOnly();
+
 const SHADOW_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
   {
     value: 'hosted',
@@ -2246,17 +2249,29 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-sec">
         <SecHead title="AI 调用方式" hint="ROUTING" />
         <div className="set-tiers">
-          {SHADOW_AI_MODES.map((m) => (
-            <button
-              key={m.value}
-              className={'set-tier' + (shadowAiMode === m.value ? ' set-tier--active' : '')}
-              onClick={() => setShadowAiMode(m.value)}
-            >
-              <div className="set-tier__kicker">{m.kicker}</div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
-            </button>
-          ))}
+          {SHADOW_AI_MODES.map((m) => {
+            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
+            return (
+              <button
+                key={m.value}
+                className={
+                  'set-tier' +
+                  (shadowAiMode === m.value ? ' set-tier--active' : '') +
+                  (disabled ? ' set-tier--disabled' : '')
+                }
+                onClick={disabled ? undefined : () => setShadowAiMode(m.value)}
+                disabled={disabled}
+                title={disabled ? '托管暂不可用 · 测试版仅支持自带 Key' : undefined}
+              >
+                <div className="set-tier__kicker">
+                  {m.kicker}
+                  {disabled ? ' · 暂不可用' : ''}
+                </div>
+                <div className="set-tier__name">{m.name}</div>
+                <div className="set-tier__desc">{m.desc}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -2592,17 +2607,29 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-sec">
         <SecHead title="AI 调用方式" hint="ROUTING" />
         <div className="set-tiers">
-          {COPILOT_AI_MODES.map((m) => (
-            <button
-              key={m.value}
-              className={'set-tier' + (copilotAiMode === m.value ? ' set-tier--active' : '')}
-              onClick={() => setCopilotAiMode(m.value)}
-            >
-              <div className="set-tier__kicker">{m.kicker}</div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
-            </button>
-          ))}
+          {COPILOT_AI_MODES.map((m) => {
+            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
+            return (
+              <button
+                key={m.value}
+                className={
+                  'set-tier' +
+                  (copilotAiMode === m.value ? ' set-tier--active' : '') +
+                  (disabled ? ' set-tier--disabled' : '')
+                }
+                onClick={disabled ? undefined : () => setCopilotAiMode(m.value)}
+                disabled={disabled}
+                title={disabled ? '托管暂不可用 · 测试版仅支持自带 Key' : undefined}
+              >
+                <div className="set-tier__kicker">
+                  {m.kicker}
+                  {disabled ? ' · 暂不可用' : ''}
+                </div>
+                <div className="set-tier__name">{m.name}</div>
+                <div className="set-tier__desc">{m.desc}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -3278,17 +3305,29 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       <div className="set-sec">
         <SecHead title="调用方式" hint="ROUTING" />
         <div className="set-tiers">
-          {AGENT_AUTH_OPTIONS.map((m) => (
+          {AGENT_AUTH_OPTIONS.map((m) => {
+            const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
+            return (
             <button
               key={m.value}
-              className={'set-tier' + (agentAuth === m.value ? ' set-tier--active' : '')}
-              onClick={() => setAgentAuth(m.value)}
+              className={
+                'set-tier' +
+                (agentAuth === m.value ? ' set-tier--active' : '') +
+                (disabled ? ' set-tier--disabled' : '')
+              }
+              onClick={disabled ? undefined : () => setAgentAuth(m.value)}
+              disabled={disabled}
+              title={disabled ? '托管暂不可用 · 测试版用你自己的 Claude 账号或 Key' : undefined}
             >
-              <div className="set-tier__kicker">{m.kicker}</div>
+              <div className="set-tier__kicker">
+                {m.kicker}
+                {disabled ? ' · 暂不可用' : ''}
+              </div>
               <div className="set-tier__name">{m.name}</div>
               <div className="set-tier__desc">{m.desc}</div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 
