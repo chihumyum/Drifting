@@ -8,7 +8,6 @@ import {
   Keyboard,
   Upload,
   BookOpenText,
-  CircleDot,
   HelpCircle,
   Palette,
   LogOut,

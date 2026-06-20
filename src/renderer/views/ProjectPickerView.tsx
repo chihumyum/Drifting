@@ -190,11 +190,6 @@ export function ProjectPickerView() {
     paused:  decorated.filter((d) => d.status === 'paused').length,
   }), [decorated]);
 
-  const recent = useMemo(
-    () => [...decorated].slice(0, 4),
-    [decorated],
-  );
-
   const handleOpen = useCallback((id: string) => {
     navigate(`/project/${id}`);
   }, [navigate]);
