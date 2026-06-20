@@ -14,8 +14,8 @@
  * length"; raising the heap doesn't help because it's a length cap, not a
  * memory cap, and it's a worker isolate anyway).
  *
- * So we list all 8 binary packages in the workspace root
- * `pnpm.ignoredOptionalDependencies`, which makes pnpm skip fetching/hashing
+ * So we list all 8 binary packages under `ignoredOptionalDependencies` in the
+ * workspace-root `pnpm-workspace.yaml`, which makes pnpm skip fetching/hashing
  * them entirely, and this script downloads + extracts only the one matching
  * the current machine via `npm pack` + `tar` (the big file is never hashed by
  * Node, so there is no OOM).
