@@ -336,6 +336,16 @@ function StatsView({
   if (target.kind === 'chapter' || target.kind === 'drift') {
     const node = bookNodes.find((n) => n.id === target.id);
     if (!node) return <EmptyState message="找不到当前章节。" />;
+    // Reading-order rank among chapters (1-based). bookOrder is a sparse,
+    // dev-only sort key; surface the chapter's position instead. Drifts have
+    // a null bookOrder and are excluded, so they get no chapter number.
+    const chapterNumber =
+      node.bookOrder != null
+        ? bookNodes
+            .filter((n): n is typeof n & { bookOrder: number } => n.bookOrder != null)
+            .sort((a, b) => a.bookOrder - b.bookOrder)
+            .findIndex((n) => n.id === node.id) + 1
+        : null;
     return (
       <ChapterStats
         node={node}
@@ -344,6 +354,7 @@ function StatsView({
         categories={categories}
         target={target}
         primaryStorylineId={primaryStorylineByNode[node.id] ?? null}
+        chapterNumber={chapterNumber}
       />
     );
   }
@@ -611,6 +622,7 @@ function ChapterStats({
   categories,
   target,
   primaryStorylineId,
+  chapterNumber,
 }: {
   node: ReturnType<typeof useDataStore.getState>['bookNodes'][number];
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
@@ -618,6 +630,7 @@ function ChapterStats({
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
   target: ResolvedTarget;
   primaryStorylineId: string | null;
+  chapterNumber: number | null;
 }) {
   const storyline = primaryStorylineId
     ? storylines.find((s) => s.id === primaryStorylineId)
@@ -647,10 +660,10 @@ function ChapterStats({
               </MetaV>
             </>
           )}
-          {node.bookOrder != null && (
+          {chapterNumber != null && (
             <>
-              <MetaK>书序</MetaK>
-              <MetaV>第 {node.bookOrder} 章</MetaV>
+              <MetaK>全书位置</MetaK>
+              <MetaV>第 {chapterNumber} 章</MetaV>
             </>
           )}
           <MetaK>最近修改</MetaK>
