@@ -7,7 +7,7 @@ export interface SortMenuOption<T extends string> {
   label: string;
 }
 
-interface SortMenuProps<T extends string> {
+interface SortMenuProps<T extends string, S extends string = string> {
   triggerRef: React.RefObject<HTMLElement | null>;
   open: boolean;
   onClose: () => void;
@@ -15,12 +15,19 @@ interface SortMenuProps<T extends string> {
   value: T;
   onChange: (next: T) => void;
   title?: string;
+  // Optional second radio group rendered below a divider — used for the node
+  // cell's right-edge meta toggle (日期 vs 字数), which is a separate dimension
+  // from the sort order but shares this same menu.
+  secondaryTitle?: string;
+  secondaryOptions?: SortMenuOption<S>[];
+  secondaryValue?: S;
+  secondaryOnChange?: (next: S) => void;
 }
 
 // Small radio-style popover anchored under a trigger button. Used by the
 // left sidebar sub-header to switch each panel's sort mode. Mirrors UserMenu's
 // portal / scrim / Escape pattern so dismissal behaviour matches.
-export function SortMenu<T extends string>({
+export function SortMenu<T extends string, S extends string = string>({
   triggerRef,
   open,
   onClose,
@@ -28,7 +35,11 @@ export function SortMenu<T extends string>({
   value,
   onChange,
   title,
-}: SortMenuProps<T>) {
+  secondaryTitle,
+  secondaryOptions,
+  secondaryValue,
+  secondaryOnChange,
+}: SortMenuProps<T, S>) {
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
 
   useEffect(() => {
@@ -55,6 +66,12 @@ export function SortMenu<T extends string>({
   }, [open, onClose]);
 
   if (!open || !position) return null;
+
+  const hasSecondary =
+    secondaryOptions &&
+    secondaryOptions.length > 0 &&
+    secondaryValue !== undefined &&
+    secondaryOnChange;
 
   return createPortal(
     <>
@@ -86,84 +103,121 @@ export function SortMenu<T extends string>({
           }
         `}</style>
 
-        {title && (
-          <div
-            style={{
-              padding: '8px 12px 6px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              textTransform: 'uppercase',
-              letterSpacing: '0.12em',
-              color: 'hsl(var(--ink-4))',
-              borderBottom: '1px solid hsl(var(--rule))',
-            }}
-          >
-            {title}
-          </div>
-        )}
+        {title && <GroupTitle>{title}</GroupTitle>}
 
         <div style={{ padding: '4px' }}>
-          {options.map((opt) => {
-            const active = opt.value === value;
-            return (
-              <div
-                key={opt.value}
-                onClick={() => {
-                  onChange(opt.value);
-                  onClose();
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 10px 7px 8px',
-                  fontSize: 12.5,
-                  color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
-                  cursor: 'pointer',
-                  borderRadius: 3,
-                  transition: 'background 0.12s ease, color 0.12s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'hsl(var(--paper-deep))';
-                  e.currentTarget.style.color = 'hsl(var(--ink-1))';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = active
-                    ? 'hsl(var(--ink-1))'
-                    : 'hsl(var(--ink-2))';
-                }}
-              >
-                <span
-                  style={{
-                    width: 14,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'hsl(var(--accent))',
-                    flexShrink: 0,
-                  }}
-                >
-                  {active ? <Check size={12} strokeWidth={2.2} /> : null}
-                </span>
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontWeight: active ? 500 : 400,
-                  }}
-                >
-                  {opt.label}
-                </span>
-              </div>
-            );
-          })}
+          {options.map((opt) => (
+            <SortMenuRow
+              key={opt.value}
+              label={opt.label}
+              active={opt.value === value}
+              onSelect={() => {
+                onChange(opt.value);
+                onClose();
+              }}
+            />
+          ))}
         </div>
+
+        {hasSecondary && (
+          <>
+            <div style={{ height: 1, background: 'hsl(var(--rule))' }} />
+            {secondaryTitle && <GroupTitle>{secondaryTitle}</GroupTitle>}
+            <div style={{ padding: '4px' }}>
+              {secondaryOptions.map((opt) => (
+                <SortMenuRow
+                  key={opt.value}
+                  label={opt.label}
+                  active={opt.value === secondaryValue}
+                  onSelect={() => {
+                    secondaryOnChange(opt.value);
+                    onClose();
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </>,
     document.body,
+  );
+}
+
+function GroupTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: '8px 12px 6px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 9.5,
+        textTransform: 'uppercase',
+        letterSpacing: '0.12em',
+        color: 'hsl(var(--ink-4))',
+        borderBottom: '1px solid hsl(var(--rule))',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SortMenuRow({
+  label,
+  active,
+  onSelect,
+}: {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '7px 10px 7px 8px',
+        fontSize: 12.5,
+        color: active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))',
+        cursor: 'pointer',
+        borderRadius: 3,
+        transition: 'background 0.12s ease, color 0.12s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+        e.currentTarget.style.color = 'hsl(var(--ink-1))';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = active ? 'hsl(var(--ink-1))' : 'hsl(var(--ink-2))';
+      }}
+    >
+      <span
+        style={{
+          width: 14,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'hsl(var(--accent))',
+          flexShrink: 0,
+        }}
+      >
+        {active ? <Check size={12} strokeWidth={2.2} /> : null}
+      </span>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontWeight: active ? 500 : 400,
+        }}
+      >
+        {label}
+      </span>
+    </div>
   );
 }

@@ -10,6 +10,7 @@ import type {
   ChapterGlobalSortMode,
   ChapterStorylineInnerSortMode,
   ElementSortMode,
+  NodeCellMeta,
 } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -165,6 +166,10 @@ export function LeftSidebarSubHeader() {
   );
   const elementSortMode = useUiStore((s) => s.elementSortMode);
   const setElementSortMode = useUiStore((s) => s.setElementSortMode);
+  const chapterCellMeta = useUiStore((s) => s.chapterCellMeta);
+  const setChapterCellMeta = useUiStore((s) => s.setChapterCellMeta);
+  const driftCellMeta = useUiStore((s) => s.driftCellMeta);
+  const setDriftCellMeta = useUiStore((s) => s.setDriftCellMeta);
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [
@@ -196,6 +201,14 @@ export function LeftSidebarSubHeader() {
     () => [
       { value: 'alphabet', label: '按字母顺序' },
       { value: 'createdAt', label: '按创建时间' },
+    ],
+    [],
+  );
+  // Right-edge cell meta toggle — shared by the 章节 and 浮缀 menus.
+  const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
+    () => [
+      { value: 'date', label: '显示日期' },
+      { value: 'wordCount', label: '显示字数' },
     ],
     [],
   );
@@ -357,9 +370,9 @@ export function LeftSidebarSubHeader() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* "折叠全部" only applies to panels with collapsible groups (元素 类目).
-            The 章节 panel no longer exposes it — its storyline lanes are toggled
-            individually — so it's hidden there. */}
-        {activeLeftPanel !== 'nodes' && (
+            The 章节 panel toggles its storyline lanes individually and the 浮缀
+            panel has no groups to collapse, so it's elements-only. */}
+        {activeLeftPanel === 'elements' && (
           <SubIconBtn title="折叠全部" onClick={collapseAll}>
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>
@@ -379,7 +392,7 @@ export function LeftSidebarSubHeader() {
           value/onChange aligned with the matching ui-store field. Only the
           active panel's instance is rendered open at a time. */}
       {activeLeftPanel === 'drift' && (
-        <SortMenu<DriftSortMode>
+        <SortMenu<DriftSortMode, NodeCellMeta>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -387,10 +400,14 @@ export function LeftSidebarSubHeader() {
           value={driftSortMode}
           onChange={setDriftSortMode}
           title={sortMenuTitle}
+          secondaryTitle="单元格右侧"
+          secondaryOptions={nodeCellMetaOptions}
+          secondaryValue={driftCellMeta}
+          secondaryOnChange={setDriftCellMeta}
         />
       )}
       {activeLeftPanel === 'nodes' && !chapterIsStoryline && (
-        <SortMenu<ChapterGlobalSortMode>
+        <SortMenu<ChapterGlobalSortMode, NodeCellMeta>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -398,10 +415,14 @@ export function LeftSidebarSubHeader() {
           value={chapterGlobalSortMode}
           onChange={setChapterGlobalSortMode}
           title={sortMenuTitle}
+          secondaryTitle="单元格右侧"
+          secondaryOptions={nodeCellMetaOptions}
+          secondaryValue={chapterCellMeta}
+          secondaryOnChange={setChapterCellMeta}
         />
       )}
       {activeLeftPanel === 'nodes' && chapterIsStoryline && (
-        <SortMenu<ChapterStorylineInnerSortMode>
+        <SortMenu<ChapterStorylineInnerSortMode, NodeCellMeta>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -409,6 +430,10 @@ export function LeftSidebarSubHeader() {
           value={chapterStorylineInnerSortMode}
           onChange={setChapterStorylineInnerSortMode}
           title={sortMenuTitle}
+          secondaryTitle="单元格右侧"
+          secondaryOptions={nodeCellMetaOptions}
+          secondaryValue={chapterCellMeta}
+          secondaryOnChange={setChapterCellMeta}
         />
       )}
       {activeLeftPanel === 'elements' && (
