@@ -192,7 +192,7 @@ export function ElementEditorView({
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
   const outlineIds = [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)];
-  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineIds);
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(scrollEl, outlineIds);
 
   const commitName = async () => {
     if (!elementId) return;
@@ -450,7 +450,10 @@ export function ElementEditorView({
           items={frameworkItems}
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+          onItemClick={(id) => {
+            pinOutline(id);
+            scrollToOutlineAnchor(id, scrollEl);
+          }}
           emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>

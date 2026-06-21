@@ -156,7 +156,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     },
     [setMarginNotes],
   );
-  const activeOutlineId = useOutlineScrollspy(
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
     outline.map((h) => h.id),
   );
@@ -773,7 +773,10 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               title="本章 · OUTLINE"
               items={outlineTree}
               activeId={activeOutlineId}
-              onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+              onItemClick={(id) => {
+                pinOutline(id);
+                scrollToOutlineAnchor(id, scrollEl);
+              }}
               emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>

@@ -269,7 +269,7 @@ export function StorylineEditorView({
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this storyline's body (ticks + reveal/approve).
   useAgentChangeMarks(scrollEl, 'storyline', storylineId);
-  const activeOutlineId = useOutlineScrollspy(
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
     // Flat id list (framework anchors + every heading) — bodyOutlineItems is
     // now a nested tree, so its .map would miss nested heading ids.
@@ -379,7 +379,10 @@ export function StorylineEditorView({
           items={frameworkItems}
           secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+          onItemClick={(id) => {
+            pinOutline(id);
+            scrollToOutlineAnchor(id, scrollEl);
+          }}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
