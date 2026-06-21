@@ -31,6 +31,7 @@ const META_HIDE_WIDTH = 180;
 export function LeftSidebarSubHeader() {
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const nodesViewMode = useUiStore((s) => s.chapterPanelViewMode);
+  const setChapterViewMode = useUiStore((s) => s.setChapterPanelViewMode);
 
   const storylines = useDataStore((s) => s.storylines);
   const bookNodes = useDataStore((s) => s.bookNodes);
@@ -112,18 +113,20 @@ export function LeftSidebarSubHeader() {
     }
   }, [projectId, createCategory]);
 
-  // Chapter panel meta — "N STORYLINES · M 章" only makes sense in
-  // storyline-grouping mode. Global view collapses to a flat chapter list,
-  // and the storyline count is irrelevant chrome there.
-  const showStorylineMeta = nodesViewMode === 'storyline' && storylines.length > 0;
+  // Chapter panel meta — just the chapter count in both view modes. The
+  // storyline count lives on the view-mode switch's adjacent context, not in
+  // the meta text.
   const meta =
     activeLeftPanel === 'nodes'
-      ? showStorylineMeta
-        ? `${storylines.length} STORYLINES · ${storylineNodeCount} 章`
-        : `${storylineNodeCount} 章`
+      ? `${storylineNodeCount} 章`
       : activeLeftPanel === 'elements'
         ? `${bookElementCategories.length} 类 · ${bookElements.length} 元素`
         : `${driftCount} 浮缀`;
+
+  // The 章节 panel's view-mode switch reflects the *effective* mode: a project
+  // with zero storylines is forced to 'global' (mirrors ChapterPanel), so the
+  // switch reads off while empty even if a 'storyline' preference is persisted.
+  const isStorylineView = storylines.length > 0 && nodesViewMode === 'storyline';
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [showMeta, setShowMeta] = useState(true);
@@ -211,10 +214,29 @@ export function LeftSidebarSubHeader() {
           ? '排序故事线内章节'
           : '排序章节';
 
-  // Chapter-panel view mode is no longer controlled here — it lives on a
-  // hover dropdown attached to the 章节 tab itself (see LeftSidebarHeader).
-  // The subheader keeps the value around so it can hide unrelated chrome
-  // (collapse-all, "N STORYLINES" meta) when in global mode.
+  // Chapter-panel view mode is driven by the switch in front of the meta text
+  // (全书总览 ⇄ 按 storyline 分组). Flipping it on with zero storylines bootstraps
+  // the first storyline — migrating existing chapters into it — so the grouped
+  // view has a lane to show, the same gesture the old hover-menu performed.
+  const handleToggleChapterViewMode = useCallback(() => {
+    if (isStorylineView) {
+      setChapterViewMode('global');
+      return;
+    }
+    if (storylines.length === 0) {
+      if (!projectId) return;
+      void (async () => {
+        try {
+          await createStoryline({ projectId, name: 'New Storyline' });
+          setChapterViewMode('storyline');
+        } catch (error) {
+          log.error('Failed to create first storyline', error);
+        }
+      })();
+      return;
+    }
+    setChapterViewMode('storyline');
+  }, [isStorylineView, storylines.length, projectId, createStoryline, setChapterViewMode]);
 
   const renderPrimaryCreate = () => {
     let onClick: () => void;
@@ -313,17 +335,31 @@ export function LeftSidebarSubHeader() {
       }}
     >
       {showMeta && (
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {meta}
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            minWidth: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {/* 全书总览 ⇄ 按 storyline 分组. Only the 章节 panel groups by storyline. */}
+          {activeLeftPanel === 'nodes' && (
+            <ViewModeSwitch on={isStorylineView} onToggle={handleToggleChapterViewMode} />
+          )}
+          <span
+            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
+            {meta}
+          </span>
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {/* "折叠全部" only applies to the storyline-grouping view's expandable
-            storyline rows. In chapter-global view (or other panels without a
-            collapsible structure) the button is meaningless, so we hide it
-            entirely rather than leave it as a dead affordance. */}
-        {(activeLeftPanel !== 'nodes' ||
-          (storylines.length > 0 && nodesViewMode === 'storyline')) && (
+        {/* "折叠全部" only applies to panels with collapsible groups (元素 类目).
+            The 章节 panel no longer exposes it — its storyline lanes are toggled
+            individually — so it's hidden there. */}
+        {activeLeftPanel !== 'nodes' && (
           <SubIconBtn title="折叠全部" onClick={collapseAll}>
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>
@@ -438,6 +474,50 @@ function SubIconBtn({
       }}
     >
       {children}
+    </button>
+  );
+}
+
+/**
+ * Compact view-mode toggle for the 章节 panel — off = 全书总览 (flat chapter
+ * list), on = 按 storyline 分组 (storyline lanes). Sized down to sit inline with
+ * the tiny subheader meta text; mirrors the settings `.tog` switch in shape.
+ */
+function ViewModeSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      title={on ? '按 storyline 分组 · 点此切回全书总览' : '全书总览 · 点此按 storyline 分组'}
+      onClick={onToggle}
+      style={{
+        position: 'relative',
+        width: 22,
+        height: 12,
+        flexShrink: 0,
+        padding: 0,
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        background: on ? 'hsl(var(--accent))' : 'hsl(var(--rule-strong))',
+        transition: 'background 0.15s',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: on ? 12 : 2,
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: on ? 'hsl(var(--paper))' : 'hsl(var(--page))',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+          transition: 'left 0.18s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      />
     </button>
   );
 }
