@@ -134,7 +134,7 @@ export function AllChaptersEditorView() {
   // is a deliberate authoring signal, not a data glitch. No acts → plain
   // chapter list, zero overhead.
   type ReadRow =
-    | { kind: 'act'; act: BookAct; count: number; words: number }
+    | { kind: 'act'; act: BookAct; seq: number; count: number; words: number }
     | { kind: 'chapter'; node: ChapterNode; idx: number };
   const readRows = useMemo<ReadRow[]>(() => {
     const segments = deriveActSegments(bookActs, orderedNodes);
@@ -143,10 +143,11 @@ export function AllChaptersEditorView() {
     }
     const rows: ReadRow[] = [];
     let idx = 0;
-    for (const seg of segments) {
+    segments.forEach((seg, segIdx) => {
       rows.push({
         kind: 'act',
         act: seg.act,
+        seq: segIdx + 1,
         count: seg.chapters.length,
         words: seg.chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
       });
@@ -154,7 +155,7 @@ export function AllChaptersEditorView() {
         rows.push({ kind: 'chapter', node, idx });
         idx += 1;
       }
-    }
+    });
     return rows;
   }, [bookActs, orderedNodes]);
 
@@ -224,6 +225,35 @@ export function AllChaptersEditorView() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
+  // scrollIntoView that emits a stream of scroll events as it animates; if the
+  // scroll-spy reacted to each frame, `activeNodeId` would sweep through every
+  // chapter the animation passes over, and because the outline auto-expands the
+  // active chapter, each one's subtree would mount then unmount in turn — the
+  // open/close flicker the user sees on the destination (made worse by lazy
+  // rows re-measuring their height mid-flight and nudging the active candidate
+  // back and forth). So a TOC click suppresses the spy for the duration of the
+  // jump — re-armed on every scroll event, released once the scroll goes idle —
+  // and, for chapter targets, pins the active row to the clicked chapter so it
+  // expands exactly once.
+  const spySuppressedRef = useRef(false);
+  const spyIdleTimerRef = useRef<number | null>(null);
+  const pinnedChapterRef = useRef<string | null>(null);
+  const armSpySuppression = useCallback((pinnedChapterId: string | null) => {
+    spySuppressedRef.current = true;
+    pinnedChapterRef.current = pinnedChapterId;
+    if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
+    // Safety ceiling: a jump whose target is already in place emits no scroll
+    // events, so the scroll-driven idle release (in the spy effect) would never
+    // fire. Release on a hard timeout too. No recompute is needed here — an
+    // empty jump leaves the rest position, and thus the active row, unchanged.
+    spyIdleTimerRef.current = window.setTimeout(() => {
+      spyIdleTimerRef.current = null;
+      spySuppressedRef.current = false;
+      pinnedChapterRef.current = null;
+    }, 900);
+  }, []);
+
   const scrollToNodeId = useCallback((nodeId: string) => {
     const root = scrollRef.current;
     if (!root) return;
@@ -262,6 +292,10 @@ export function AllChaptersEditorView() {
     let raf = 0;
     const recompute = () => {
       raf = 0;
+      // A TOC click is driving a smooth scroll right now: leave the active row
+      // pinned to the click target and ignore the transient frames (see
+      // armSpySuppression) so the outline doesn't sweep-flicker.
+      if (spySuppressedRef.current) return;
       const rows = root.querySelectorAll<HTMLElement>('[data-chapter-id]');
       if (rows.length === 0) return;
       // The chapter "in focus" is the last one whose top is above the
@@ -280,6 +314,23 @@ export function AllChaptersEditorView() {
       }
     };
     const onScroll = () => {
+      // While a programmatic jump is in flight every scroll frame just bumps
+      // the idle timer; once the animation stops emitting events the spy is
+      // released (and re-synced to the rest position unless the click pinned a
+      // chapter). This is what keeps the destination from flickering open/shut.
+      if (spySuppressedRef.current) {
+        if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
+        spyIdleTimerRef.current = window.setTimeout(() => {
+          spyIdleTimerRef.current = null;
+          spySuppressedRef.current = false;
+          if (pinnedChapterRef.current != null) {
+            pinnedChapterRef.current = null; // chapter click owns its active row
+          } else {
+            recompute(); // act / heading jump: re-sync to where we landed
+          }
+        }, 140);
+        return;
+      }
       if (raf) return;
       raf = requestAnimationFrame(recompute);
     };
@@ -413,14 +464,20 @@ export function AllChaptersEditorView() {
   const handleOutlineClick = useCallback(
     (id: string) => {
       if (id.startsWith(ACT_TOC_PREFIX)) {
+        armSpySuppression(null); // act jump: let the spy re-sync once it settles
         scrollToActId(id.slice(ACT_TOC_PREFIX.length));
       } else if (orderedNodeIds.has(id)) {
+        // Pin the active row to the clicked chapter up front so it expands once
+        // and stays put — the smooth scroll won't sweep the outline behind it.
+        armSpySuppression(id);
+        setActiveNodeId(id);
         scrollToNodeId(id);
       } else {
+        armSpySuppression(null); // heading anchor: spy re-syncs to its chapter
         scrollToOutlineAnchor(id, scrollRef.current);
       }
     },
-    [orderedNodeIds, scrollToNodeId, scrollToActId],
+    [orderedNodeIds, scrollToNodeId, scrollToActId, armSpySuppression],
   );
 
   if (orderedNodes.length === 0) {
@@ -497,60 +554,18 @@ export function AllChaptersEditorView() {
         <div className="editor-scroll" ref={scrollRef}>
           {readRows.map((row) => {
             if (row.kind === 'act') {
-              const tint = row.act.color || 'hsl(var(--ink-4))';
               return (
                 <div
                   key={`act-${row.act.id}`}
                   data-act-id={row.act.id}
-                  style={{
-                    padding: '52px 24px 28px',
-                    textAlign: 'center',
-                    borderBottom: '1px solid hsl(var(--rule))',
-                    scrollMarginTop: 24,
-                  }}
+                  className="act-break"
                 >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 2,
-                      margin: '0 auto 14px',
-                      background: tint,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 600,
-                      letterSpacing: '0.12em',
-                      color: 'hsl(var(--ink-1))',
-                    }}
-                  >
-                    {row.act.name}
+                  <div className="act-break__num">{toRoman(row.seq)}</div>
+                  <div className="act-break__label">{row.act.name}</div>
+                  <div className="act-break__meta">
+                    {row.count} 章<span className="d">·</span>
+                    {(row.words / 1000).toFixed(1)}k 字
                   </div>
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10.5,
-                      color: 'hsl(var(--ink-4))',
-                    }}
-                  >
-                    {row.count} 章 · {(row.words / 1000).toFixed(1)}k 字
-                  </div>
-                  {row.act.summary && (
-                    <div
-                      style={{
-                        margin: '10px auto 0',
-                        maxWidth: 480,
-                        fontSize: 12.5,
-                        lineHeight: 1.7,
-                        color: 'hsl(var(--ink-3))',
-                      }}
-                    >
-                      {row.act.summary}
-                    </div>
-                  )}
                 </div>
               );
             }
