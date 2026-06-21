@@ -5,15 +5,19 @@
  * CONTEXT (the author's own text) and consumes the stream.
  *
  * Transport: native `fetch` (NOT axios — axios buffers the body, defeating
- * streaming) to `POST /api/ai/stream/inline-ask` with the better-auth cookie
- * (credentials: 'include'). The server replies with NDJSON frames: {delta} per
- * chunk, a terminal {usage}, or {error} on failure. We yield each delta string,
- * so the popover consumer (`for await (const delta of ...)`) is unchanged.
+ * streaming) to `POST /api/ai/stream/inline-ask`. Auth rides the bearer token
+ * (Authorization header), NOT cookies — same as the shared axios client. Cookies
+ * are omitted on purpose: a cookie-bearing cross-site/custom-scheme request has
+ * no usable Origin and better-auth rejects it (MISSING_OR_NULL_ORIGIN). The
+ * server replies with NDJSON frames: {delta} per chunk, a terminal {usage}, or
+ * {error} on failure. We yield each delta string, so the popover consumer
+ * (`for await (const delta of ...)`) is unchanged.
  *
  * Nothing is persisted — this is an ephemeral chat living only in the popover.
  */
 import { AIError, type AIErrorKind } from '../ai/types';
 import { aiByokHeaders } from '../ai/remote/byok-headers';
+import { getSessionToken } from '../session-token';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -59,11 +63,15 @@ export async function* runInlineAskStream(params: {
 
   let res: Response;
   try {
+    const token = getSessionToken();
     res = await fetch(`${API_BASE_URL}/api/ai/stream/inline-ask`, {
       method: 'POST',
-      credentials: 'include',
+      // Bearer auth, no cookies — see file header. Cookies would re-trigger
+      // better-auth's origin/CSRF check on a request that has no Origin.
+      credentials: 'omit',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         // BYOK key (when ai_mode='byok'); empty for the hosted path.
         ...(await aiByokHeaders()),
       },

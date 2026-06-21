@@ -211,6 +211,33 @@ app.whenReady().then(async () => {
     return net.fetch(pathToFileURL(file).toString());
   });
 
+  // Restore the renderer's Origin on API requests. Chromium omits the Origin
+  // header on custom-scheme (drifting-app://) POSTs, but better-auth's
+  // first-login CSRF check (sign-in / sign-up) force-validates Origin even for
+  // cookie-less bearer requests — a missing Origin → MISSING_OR_NULL_ORIGIN
+  // (403). We re-assert the app's true origin; the server trusts
+  // `drifting-app://app`. Scoped to the API host, and only set when absent so
+  // dev (real localhost Origin) and GET requests are left untouched.
+  const apiBaseForOrigin = process.env.API_BASE_URL ?? 'http://localhost:3000';
+  let apiOriginFilter: string;
+  try {
+    apiOriginFilter = `${new URL(apiBaseForOrigin).origin}/*`;
+  } catch {
+    apiOriginFilter = 'http://localhost:3000/*';
+  }
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: [apiOriginFilter] },
+    (details, callback) => {
+      const hasOrigin = Object.keys(details.requestHeaders).some(
+        (k) => k.toLowerCase() === 'origin',
+      );
+      if (!hasOrigin) {
+        details.requestHeaders['Origin'] = `${APP_SCHEME}://app`;
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    },
+  );
+
   createWindow();
 
   app.on('activate', () => {
