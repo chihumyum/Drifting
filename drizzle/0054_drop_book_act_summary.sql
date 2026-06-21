@@ -1,0 +1,11 @@
+-- Drop the unused `book_act.summary` column (mirrors private service
+-- drizzle/0043). No code path ever wrote it: acts are created with summary=''
+-- and updateAct only ever sends name / startOrder / driftNodeId. An act's
+-- free-form notes live in the bound drift node (book_act.drift_node_id)
+-- instead — summary predates that binding. Schema, repo, usecase, sync and
+-- the reader/ActRail reads are removed alongside this migration.
+--
+-- `summary` is a plain non-FK column, so the simple DROP works — no table
+-- rebuild needed (unlike 0017/0026, which dropped FK columns). PRAGMA
+-- foreign_keys stays untouched.
+ALTER TABLE `book_act` DROP COLUMN `summary`;

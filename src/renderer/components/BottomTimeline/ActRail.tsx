@@ -290,7 +290,7 @@ export function ActRail({
             seg.act.driftNodeId
               ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? '幕笔记'}`
               : ''
-          }${seg.act.summary ? `\n${seg.act.summary}` : ''}`;
+          }`;
           // Drag the chip to move the act's boundary (= its position) — same
           // gesture/clamping as the divider. The first act (opener, no
           // boundary) is fixed at the book head, so its chip isn't draggable.

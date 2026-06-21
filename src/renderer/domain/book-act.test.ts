@@ -13,7 +13,6 @@ function act(id: string, startOrder: number | null, name = id): BookAct {
     id,
     projectId: 'p',
     name,
-    summary: '',
     color: null,
     startOrder,
     driftNodeId: null,
