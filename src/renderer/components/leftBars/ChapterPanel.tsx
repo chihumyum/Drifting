@@ -57,6 +57,9 @@ export function ChapterPanel() {
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const cellMeta = useUiStore((s) => s.chapterCellMeta);
   const showMeta = sidebarWidth >= META_HIDE_WIDTH;
+  // When on, a chapter linked to multiple storylines is listed only under its
+  // primary storyline's group instead of duplicated across every group.
+  const primaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -212,10 +215,21 @@ export function ChapterPanel() {
         .map((id) => nodeById.get(id))
         .filter((n): n is BookNode => Boolean(n))
         .filter(isChapter)
+        .filter(
+          (n) => !primaryOnly || (primaryStorylineByNode[n.id] ?? null) === s.id,
+        )
         .sort(cmp);
     });
     return grouped;
-  }, [storylines, storylineNodeMapping, nodeById, storylineInnerSortMode, buildChapterComparator]);
+  }, [
+    storylines,
+    storylineNodeMapping,
+    nodeById,
+    storylineInnerSortMode,
+    buildChapterComparator,
+    primaryOnly,
+    primaryStorylineByNode,
+  ]);
 
   const handleCreateNode = useCallback(
     async (preferredStorylineId: string | null) => {
@@ -374,7 +388,7 @@ export function ChapterPanel() {
           <span>{node.title || 'Untitled'}</span>
         </div>
 
-        {showMeta && (
+        {showMeta && cellMeta !== 'none' && (
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -386,7 +400,9 @@ export function ChapterPanel() {
           >
             {cellMeta === 'wordCount'
               ? formatWordCount(node.wordCount)
-              : formatShortDate(node.updatedAt)}
+              : cellMeta === 'both'
+                ? `${formatWordCount(node.wordCount)} · ${formatShortDate(node.updatedAt)}`
+                : formatShortDate(node.updatedAt)}
           </span>
         )}
       </div>

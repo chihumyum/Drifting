@@ -217,7 +217,7 @@ export function DriftPanel() {
           <span>{node.title || 'Untitled'}</span>
         </div>
 
-        {showMeta && (
+        {showMeta && cellMeta !== 'none' && (
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -229,7 +229,9 @@ export function DriftPanel() {
           >
             {cellMeta === 'wordCount'
               ? formatWordCount(node.wordCount)
-              : formatShortDate(node.updatedAt)}
+              : cellMeta === 'both'
+                ? `${formatWordCount(node.wordCount)} · ${formatShortDate(node.updatedAt)}`
+                : formatShortDate(node.updatedAt)}
           </span>
         )}
       </div>

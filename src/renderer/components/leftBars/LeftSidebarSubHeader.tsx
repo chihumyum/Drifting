@@ -18,7 +18,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
-import { SortMenu, type SortMenuOption } from './SortMenu';
+import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -170,6 +170,8 @@ export function LeftSidebarSubHeader() {
   const setChapterCellMeta = useUiStore((s) => s.setChapterCellMeta);
   const driftCellMeta = useUiStore((s) => s.driftCellMeta);
   const setDriftCellMeta = useUiStore((s) => s.setDriftCellMeta);
+  const chapterStorylinePrimaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
+  const setChapterStorylinePrimaryOnly = useUiStore((s) => s.setChapterStorylinePrimaryOnly);
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [
@@ -209,6 +211,17 @@ export function LeftSidebarSubHeader() {
     () => [
       { value: 'date', label: '显示日期' },
       { value: 'wordCount', label: '显示字数' },
+      { value: 'both', label: '显示字数和日期' },
+      { value: 'none', label: '都不显示' },
+    ],
+    [],
+  );
+  // Storyline-grouped chapter view only: whether a chapter linked to several
+  // storylines shows in every group or just its primary one.
+  const chapterDuplicateOptions = useMemo<SortMenuOption<'all' | 'primary'>[]>(
+    () => [
+      { value: 'all', label: '在每个所属分组显示' },
+      { value: 'primary', label: '仅在主线分组显示' },
     ],
     [],
   );
@@ -392,7 +405,7 @@ export function LeftSidebarSubHeader() {
           value/onChange aligned with the matching ui-store field. Only the
           active panel's instance is rendered open at a time. */}
       {activeLeftPanel === 'drift' && (
-        <SortMenu<DriftSortMode, NodeCellMeta>
+        <SortMenu<DriftSortMode>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -400,14 +413,18 @@ export function LeftSidebarSubHeader() {
           value={driftSortMode}
           onChange={setDriftSortMode}
           title={sortMenuTitle}
-          secondaryTitle="单元格右侧"
-          secondaryOptions={nodeCellMetaOptions}
-          secondaryValue={driftCellMeta}
-          secondaryOnChange={setDriftCellMeta}
+          groups={[
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: driftCellMeta,
+              onChange: setDriftCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'nodes' && !chapterIsStoryline && (
-        <SortMenu<ChapterGlobalSortMode, NodeCellMeta>
+        <SortMenu<ChapterGlobalSortMode>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -415,14 +432,18 @@ export function LeftSidebarSubHeader() {
           value={chapterGlobalSortMode}
           onChange={setChapterGlobalSortMode}
           title={sortMenuTitle}
-          secondaryTitle="单元格右侧"
-          secondaryOptions={nodeCellMetaOptions}
-          secondaryValue={chapterCellMeta}
-          secondaryOnChange={setChapterCellMeta}
+          groups={[
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: chapterCellMeta,
+              onChange: setChapterCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'nodes' && chapterIsStoryline && (
-        <SortMenu<ChapterStorylineInnerSortMode, NodeCellMeta>
+        <SortMenu<ChapterStorylineInnerSortMode>
           triggerRef={sortBtnRef}
           open={sortMenuOpen}
           onClose={() => setSortMenuOpen(false)}
@@ -430,10 +451,20 @@ export function LeftSidebarSubHeader() {
           value={chapterStorylineInnerSortMode}
           onChange={setChapterStorylineInnerSortMode}
           title={sortMenuTitle}
-          secondaryTitle="单元格右侧"
-          secondaryOptions={nodeCellMetaOptions}
-          secondaryValue={chapterCellMeta}
-          secondaryOnChange={setChapterCellMeta}
+          groups={[
+            sortMenuGroup({
+              title: '多线章节',
+              options: chapterDuplicateOptions,
+              value: chapterStorylinePrimaryOnly ? 'primary' : 'all',
+              onChange: (v) => setChapterStorylinePrimaryOnly(v === 'primary'),
+            }),
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: chapterCellMeta,
+              onChange: setChapterCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'elements' && (
