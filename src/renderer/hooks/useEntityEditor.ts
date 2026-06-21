@@ -15,6 +15,7 @@ import loglevel from 'loglevel';
 import { extractOutlineFromDoc, serializeOutline, type OutlineItem } from '../lib/outline';
 import { DecorationSet } from '@tiptap/pm/view';
 import { BlockId, isBlockType } from '../lib/extensions/block-id';
+import { ParagraphIndent } from '../lib/extensions/paragraph-indent';
 import {
   AgentDiffDecoration,
   AgentDiffPluginKey,
@@ -814,6 +815,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         // edits, never a peer's.
         ...(ydoc ? [Collaboration.configure({ document: ydoc, field: 'default' })] : []),
         BlockId,
+        // Tab / Shift-Tab block indent. Without this Tab has no binding (lists
+        // are disabled, so listKeymap is gone) and the browser default blurs
+        // the editor. Always consumes Tab.
+        ParagraphIndent,
         // In-place agent-edit diff decorations (approve mode). Inert until
         // useEntityEditor pushes a DecorationSet for node editors (below).
         AgentDiffDecoration,

@@ -291,6 +291,8 @@ function Layout() {
   const editorLineHeight = useSettingsStore((s) => s.lineHeight);
   const maxLineWidth = useSettingsStore((s) => s.maxLineWidth);
   const paragraphIndent = useSettingsStore((s) => s.paragraphIndent);
+  const editorIndentStep = useSettingsStore((s) => s.editorIndentStep);
+  const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
   const focusLine = useSettingsStore((s) => s.focusLine);
   const entityHighlight = useSettingsStore((s) => s.entityHighlight);
   const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
@@ -300,6 +302,8 @@ function Layout() {
       lineHeight: editorLineHeight,
       maxLineWidth,
       paragraphIndent,
+      editorIndentStep,
+      paragraphSpacing,
       focusLine,
       entityHighlight,
       entityLinkInteractive,
@@ -309,6 +313,8 @@ function Layout() {
     editorLineHeight,
     maxLineWidth,
     paragraphIndent,
+    editorIndentStep,
+    paragraphSpacing,
     focusLine,
     entityHighlight,
     entityLinkInteractive,

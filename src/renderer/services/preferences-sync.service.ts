@@ -40,6 +40,8 @@ type SyncableSlice = {
   bodyFontSize: unknown;
   lineHeight: unknown;
   paragraphIndent: unknown;
+  editorIndentStep: unknown;
+  paragraphSpacing: unknown;
   maxLineWidth: unknown;
   focusLine: unknown;
   entityHighlight: unknown;
@@ -88,6 +90,8 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'bodyFontSize',
   'lineHeight',
   'paragraphIndent',
+  'editorIndentStep',
+  'paragraphSpacing',
   'maxLineWidth',
   'focusLine',
   'entityHighlight',
@@ -205,8 +209,19 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
   const setterByKey: Record<string, (v: unknown) => void> = {
     themeMode: (v) => store.setThemeMode(v as never),
     bodyFontSize: (v) => store.setBodyFontSize(Number(v)),
-    lineHeight: (v) => store.setLineHeight(v as never),
+    lineHeight: (v) => {
+      const n = Number(v);
+      if (Number.isFinite(n)) store.setLineHeight(n);
+    },
     paragraphIndent: (v) => store.setParagraphIndent(v as never),
+    editorIndentStep: (v) => {
+      const n = Number(v);
+      if (Number.isFinite(n)) store.setEditorIndentStep(n);
+    },
+    paragraphSpacing: (v) => {
+      const n = Number(v);
+      if (Number.isFinite(n)) store.setParagraphSpacing(n);
+    },
     maxLineWidth: (v) => store.setMaxLineWidth(Number(v)),
     focusLine: (v) => store.setFocusLine(v as never),
     entityHighlight: (v) => store.setEntityHighlight(!!v),

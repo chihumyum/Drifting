@@ -7,7 +7,29 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type AppearanceSkin = 'classic' | 'modern';
 export type FocusLineMode = 'off' | 'paragraph' | 'line' | 'sentence';
 export type ParagraphIndent = 'none' | 'one' | 'two';
-export type LineHeight = 1.5 | 1.65 | 1.72 | 1.8 | 2.0;
+/** Editor line height, a free ratio in [1.0, 2.0] (slider, clamped on set). */
+export type LineHeight = number;
+
+/**
+ * Recommended editor typography / layout defaults. Single source of truth for
+ * both the store's initial state and the "还原推荐样式" reset action, so the two
+ * can never drift apart.
+ */
+export const EDITOR_STYLE_DEFAULTS = {
+  bodyFontSize: 17,
+  lineHeight: 1.5,
+  paragraphIndent: 'none',
+  editorIndentStep: 2,
+  paragraphSpacing: 1.0,
+  maxLineWidth: 720,
+} satisfies {
+  bodyFontSize: number;
+  lineHeight: LineHeight;
+  paragraphIndent: ParagraphIndent;
+  editorIndentStep: number;
+  paragraphSpacing: number;
+  maxLineWidth: number;
+};
 export type ModelTier = 'lite' | 'standard' | 'pro';
 export type CopilotMode = 'local' | 'cloud';
 /**
@@ -171,8 +193,17 @@ interface SettingsState {
   setLineHeight: (h: LineHeight) => void;
   paragraphIndent: ParagraphIndent;
   setParagraphIndent: (indent: ParagraphIndent) => void;
+  // Em per Tab indent level (block left-indent, ParagraphIndent extension).
+  editorIndentStep: number;
+  setEditorIndentStep: (em: number) => void;
+  // Vertical gap between paragraphs (em), editor view only.
+  paragraphSpacing: number;
+  setParagraphSpacing: (em: number) => void;
   maxLineWidth: number;
   setMaxLineWidth: (px: number) => void;
+  // Restore all of the above editor typography/layout fields to
+  // EDITOR_STYLE_DEFAULTS in one shot.
+  resetEditorStyle: () => void;
   focusLine: FocusLineMode;
   setFocusLine: (mode: FocusLineMode) => void;
   entityHighlight: boolean;
@@ -359,6 +390,14 @@ function clamp(n: number, lo: number, hi: number, fallback: number): number {
   return Math.max(lo, Math.min(hi, Math.floor(n)));
 }
 
+// Like clamp, but preserves fractional values (clamp floors to an integer,
+// which is right for px counts but wrong for typographic ratios like line
+// height / paragraph spacing / indent-step em).
+function clampFloat(n: number, lo: number, hi: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -374,14 +413,19 @@ export const useSettingsStore = create<SettingsState>()(
       appearanceSkin: 'classic',
       setAppearanceSkin: (skin) => set({ appearanceSkin: skin }),
 
-      bodyFontSize: 17,
+      bodyFontSize: EDITOR_STYLE_DEFAULTS.bodyFontSize,
       setBodyFontSize: (px) => set({ bodyFontSize: clamp(px, 12, 28, 17) }),
-      lineHeight: 1.72,
-      setLineHeight: (h) => set({ lineHeight: h }),
-      paragraphIndent: 'none',
+      lineHeight: EDITOR_STYLE_DEFAULTS.lineHeight,
+      setLineHeight: (h) => set({ lineHeight: clampFloat(h, 1.0, 2.0, 1.5) }),
+      paragraphIndent: EDITOR_STYLE_DEFAULTS.paragraphIndent,
       setParagraphIndent: (i) => set({ paragraphIndent: i }),
-      maxLineWidth: 720,
+      editorIndentStep: EDITOR_STYLE_DEFAULTS.editorIndentStep,
+      setEditorIndentStep: (em) => set({ editorIndentStep: clampFloat(em, 0.5, 6, 2) }),
+      paragraphSpacing: EDITOR_STYLE_DEFAULTS.paragraphSpacing,
+      setParagraphSpacing: (em) => set({ paragraphSpacing: clampFloat(em, 0, 3, 1.0) }),
+      maxLineWidth: EDITOR_STYLE_DEFAULTS.maxLineWidth,
       setMaxLineWidth: (px) => set({ maxLineWidth: clamp(px, 480, 1280, 720) }),
+      resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
       focusLine: 'paragraph',
       setFocusLine: (m) => set({ focusLine: m }),
       entityHighlight: true,

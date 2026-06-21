@@ -255,7 +255,8 @@
 /* Section block */
 .set-sec { margin-bottom: 32px; }
 .set-sec__head {
-  display: flex; align-items: baseline; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
   padding: 0 0 8px;
   margin-bottom: 14px;
   border-bottom: 1px solid hsl(var(--rule));
@@ -273,6 +274,12 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: hsl(var(--ink-4));
+}
+/* Right side of a section header: the hint plus any optional action button. */
+.set-sec__head-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 /* Row */
@@ -1052,8 +1059,56 @@
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: hsl(var(--ink-3));
-  width: 36px;
+  min-width: 50px;
   letter-spacing: 0.04em;
+}
+
+/* Typography preview — mirrors the real editor by reading the same global
+   --editor-* CSS variables (set by applyEditorPreferences), so 字号 / 行距 /
+   段间距 / 段首缩进 and the Tab 缩进 width all reflect live as the controls below
+   them change. The box's OWN width tracks 纸张宽度 (--editor-max-width), capped to
+   the settings column, so narrowing the page narrows the preview too. */
+.set-preview {
+  box-sizing: border-box;
+  /* The box's OWN width = 纸张宽度 (--editor-max-width), and it's allowed to grow
+     PAST the 760px settings column. It breaks out and centers on the editor
+     area via margin-left:50% + translateX(-50%), capped to the viewport (minus
+     the rail + gutters) so it never spills into a page-wide horizontal scroll.
+     Both skins keep it contained: classic clips nothing because it stays in
+     bounds; modern's .set-main has overflow-x:hidden as a backstop. */
+  width: var(--editor-max-width, 720px);
+  max-width: calc(100vw - 320px);
+  margin: 4px 0 0 50%;
+  transform: translateX(-50%);
+  padding: 16px 18px;
+  border: 1px solid hsl(var(--rule));
+  border-radius: 4px;
+  background: hsl(var(--paper-deep));
+  font-family: var(--font-serif);
+  font-size: var(--editor-font-size, 17.5px);
+  line-height: var(--editor-line-height, 1.75);
+  color: hsl(var(--ink-1));
+  font-feature-settings: 'liga', 'kern', 'onum';
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+  /* Self-contained scroll: sample text can be long, but the preview stays a
+     fixed window so it never pushes the controls below it off-screen. */
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.set-preview::-webkit-scrollbar { width: 8px; }
+.set-preview::-webkit-scrollbar-thumb {
+  background: hsl(var(--rule-strong));
+  border-radius: 4px;
+}
+.set-preview p {
+  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
+  text-indent: var(--editor-indent, 0);
+}
+.set-preview p:last-child { margin-bottom: 0; }
+.set-preview p[data-indent='1'] {
+  margin-inline-start: calc(var(--editor-indent-step, 2em) * 1);
 }
 
 /* Danger zone */

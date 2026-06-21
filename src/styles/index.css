@@ -73,10 +73,15 @@
     --el-period:             var(--story-2);
     --el-lex:                var(--story-5);
 
-    /* Type stacks */
-    --font-serif:  'Newsreader', 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', Georgia, serif;
-    --font-sans:   'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
-    --font-mono:   'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+    /* Type stacks. The '* Variable' faces are bundled locally (@fontsource-variable,
+       imported in main.tsx) and lead each stack so packaged builds get true,
+       weight-correct rendering offline. The bundled CJK serif ('Noto Serif SC
+       Variable') sits just ahead of the bare system 'Noto Serif SC' so Chinese
+       body text never falls back to the system variable font's thin ExtraLight
+       default; a locally-installed 'Source Han Serif SC' still wins if present. */
+    --font-serif:  'Newsreader Variable', 'Newsreader', 'Source Han Serif SC', 'Noto Serif SC Variable', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+    --font-sans:   'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+    --font-mono:   'JetBrains Mono Variable', 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
 
     /* Surface used by chrome elements (sidebars, topbar, status bar). Opaque
        in classic — visually identical to the previous hard-coded paper bg.
@@ -158,11 +163,11 @@
     --story-6:               182 42% 58%;   /* teal        — extra  */
 
     /* Body / titles / dashboard glyphs collapse to sans. */
-    --font-serif: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+    --font-serif: 'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
     /* Modern routes the mono stack to sans too — every chrome label that
        reads `var(--font-mono)` (kicker badges, breadcrumbs, status bar,
        word-count chips, panel titles) becomes the unified sans face. */
-    --font-mono: 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
+    --font-mono: 'Inter Tight Variable', 'Inter Tight', 'PingFang SC', 'Hiragino Sans GB', -apple-system, system-ui, sans-serif;
 
     /* Frosted chrome — semi-transparent paper that picks up whatever's
        behind via backdrop-filter (see `.app-chrome` rule). Opacity tuned
@@ -1065,7 +1070,11 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 
 .page {
   position: relative;
-  max-width: 720px;
+  /* The configurable dial is the PAPER width (this surface), not the text
+     column. The body text fills this minus the fixed 48px side padding below,
+     so widening the page widens the paper and lets the prose breathe to its
+     original margins — it doesn't just stretch a centered text ribbon. */
+  max-width: var(--editor-max-width, 720px);
   margin: 0 auto;
   padding: 48px 48px 80px;
   background: hsl(var(--page));
@@ -1153,12 +1162,12 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   color: hsl(var(--ink-1));
   text-wrap: pretty;
   font-feature-settings: 'liga', 'kern', 'onum';
-  max-width: var(--editor-max-width, none);
-  margin-left: auto;
-  margin-right: auto;
+  /* No own width cap: the prose fills the .page content box (paper width minus
+     the .page side padding). Paper width is the dial now (--editor-max-width on
+     .page above). */
 }
 .page__body .ProseMirror p {
-  margin: 0 0 1.1em;
+  margin: 0 0 var(--editor-paragraph-spacing, 1.1em);
   text-indent: var(--editor-indent, 0);
 }
 
@@ -1286,9 +1295,9 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 }
 .editor__spread .page {
   margin: 0;
-  flex: 0 1 720px;
+  flex: 0 1 var(--editor-max-width, 720px);
   min-width: 0;
-  max-width: 720px;
+  max-width: var(--editor-max-width, 720px);
 }
 /* Comment rail — anchored to the right edge of .editor-body, mirrors the
    EditorOutlinePanel pattern on the left. Absolute positioning means the
@@ -2712,7 +2721,7 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   text-wrap: pretty;
 }
 .elem-body .ProseMirror { outline: none; min-height: 120px; }
-.elem-body .ProseMirror p { margin: 0 0 1em; }
+.elem-body .ProseMirror p { margin: 0 0 var(--editor-paragraph-spacing, 1em); }
 .elem-body .ProseMirror em { font-style: italic; color: hsl(var(--ink-2)); }
 
 /* ============================================================

@@ -14,6 +14,10 @@ export interface EditorPreferences {
   lineHeight: LineHeight;
   maxLineWidth: number;
   paragraphIndent: ParagraphIndent;
+  /** Em per Tab indent level (drives --editor-indent-step). */
+  editorIndentStep: number;
+  /** Vertical gap between paragraphs in em (drives --editor-paragraph-spacing). */
+  paragraphSpacing: number;
   focusLine: FocusLineMode;
   entityHighlight: boolean;
   entityLinkInteractive: boolean;
@@ -31,6 +35,8 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-line-height', String(prefs.lineHeight));
   root.style.setProperty('--editor-max-width', `${prefs.maxLineWidth}px`);
   root.style.setProperty('--editor-indent', INDENT_EM[prefs.paragraphIndent]);
+  root.style.setProperty('--editor-indent-step', `${prefs.editorIndentStep}em`);
+  root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing}em`);
   root.setAttribute('data-focus-line', prefs.focusLine);
   root.setAttribute('data-entity-highlight', prefs.entityHighlight ? 'on' : 'off');
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');

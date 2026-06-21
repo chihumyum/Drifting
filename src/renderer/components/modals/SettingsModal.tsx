@@ -31,7 +31,6 @@ import {
   AGENT_EFFORT_OPTIONS,
   AGENT_TOOL_SEARCH_OPTIONS,
   type FocusLineMode,
-  type LineHeight,
   type LocaleCode,
   type ModelTier,
   type ParagraphIndent,
@@ -426,11 +425,22 @@ function PanelHead({
   );
 }
 
-function SecHead({ title, hint }: { title: string; hint?: string }) {
+function SecHead({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="set-sec__head">
       <div className="set-sec__title">{title}</div>
-      {hint && <div className="set-sec__hint">{hint}</div>}
+      <div className="set-sec__head-right">
+        {hint && <div className="set-sec__hint">{hint}</div>}
+        {action}
+      </div>
     </div>
   );
 }
@@ -499,6 +509,8 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   const [sessions, setSessions] = useState<
     Awaited<ReturnType<typeof accountService.listSessions>> | null
   >(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   useEffect(() => {
     void accountService.getDeletionStatus().then(setDeletion).catch(() => undefined);
@@ -587,6 +599,20 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
       setVerifyError(err instanceof Error ? err.message : String(err));
     } finally {
       setVerifyBusy(false);
+    }
+  };
+
+  const handleRevokeSession = async (id: string) => {
+    setRevokingId(id);
+    setRevokeError(null);
+    try {
+      await accountService.revokeSession(id);
+      const next = await accountService.listSessions();
+      setSessions(next);
+    } catch (err) {
+      setRevokeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRevokingId(null);
     }
   };
 
@@ -848,18 +874,18 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
               </div>
               <button
                 className="set-btn set-btn--ghost"
-                onClick={() =>
-                  s.isCurrent
-                    ? handleLogout()
-                    : accountService
-                        .revokeSession(s.id)
-                        .then(() => accountService.listSessions().then(setSessions))
-                }
+                onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id))}
+                disabled={revokingId === s.id}
               >
-                {s.isCurrent ? '登出本机' : '撤销'}
+                {s.isCurrent ? '登出本机' : revokingId === s.id ? '撤销中…' : '撤销'}
               </button>
             </div>
           ))
+        )}
+        {revokeError && (
+          <div className="set-row__desc" style={{ color: 'hsl(var(--accent))' }}>
+            撤销失败：{revokeError}
+          </div>
         )}
       </div>
 
@@ -1481,8 +1507,13 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
     setLineHeight,
     paragraphIndent,
     setParagraphIndent,
+    editorIndentStep,
+    setEditorIndentStep,
+    paragraphSpacing,
+    setParagraphSpacing,
     maxLineWidth,
     setMaxLineWidth,
+    resetEditorStyle,
     focusLine,
     setFocusLine,
     entityHighlight,
@@ -1502,7 +1533,44 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
       />
 
       <div className="set-sec">
-        <SecHead title="排版" hint="TYPESETTING" />
+        <SecHead title="预览" hint="PREVIEW" />
+        {/* Live sample — reads the same --editor-* CSS variables the real editor
+            does (set by applyEditorPreferences), so 字号 / 行距 / 段间距 / 段首缩进
+            and the Tab 缩进 width all update here as the controls below change. */}
+        {/* The box's own width tracks 纸张宽度 (--editor-max-width), capped to the
+            settings column, so narrowing the page narrows the preview too. */}
+        <div className="set-preview" aria-hidden="true">
+          <p>
+            沉默在两人之间蔓延，像潮水漫过礁石。她终于开口，声音轻得几乎被海风吹散，落在他听不真切的地方。海面上最后一缕光正缓缓收拢，把两人的影子拉得很长。
+          </p>
+          <p>
+            “你还会回来吗？”他没有立刻回答，只是望着那轮渐渐沉入海平线的夕阳，许久才轻轻点头。可那点头里有太多迟疑，连他自己也分不清是承诺，还是不忍。
+          </p>
+          <p>
+            风从堤岸的另一头吹来，带着咸涩与潮湿的气息。她把外套裹得更紧了些，没有再追问，只是把那句话默默记在心里——有些答案，问出口反而会碎。
+          </p>
+          <p>
+            远处的灯塔一明一灭，像是替谁数着无法言说的心事。海浪一遍遍冲刷着脚下的礁石，把白日里说过的、没说出口的，都揉进了潮声里。
+          </p>
+          <p data-indent="1">
+            很多年后，他仍记得那个傍晚——以及那句始终没有说出口的告别。每当海风再次掠过窗棂，那一刻的沉默便会重新浮上来，清晰得仿佛从未走远。（此段演示 Tab 缩进）
+          </p>
+          <p>
+            后来他们各自走进了不同的人生，城市的灯火把记忆冲淡又点亮。可只要提起海，提起夕阳，那个傍晚总会准时回到眼前，温柔而固执。
+          </p>
+        </div>
+      </div>
+
+      <div className="set-sec">
+        <SecHead
+          title="排版"
+          hint="TYPESETTING"
+          action={
+            <button type="button" className="set-btn set-btn--ghost" onClick={resetEditorStyle}>
+              还原推荐样式
+            </button>
+          }
+        />
         <Row
           label="字号"
           desc="编辑视图字号；导出稿件不受影响。"
@@ -1523,11 +1591,18 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
         <Row
           label="行距"
           control={
-            <Seg<string>
-              value={String(lineHeight)}
-              options={['1.5', '1.65', '1.72', '1.8', '2.0'].map((v) => ({ value: v, label: v }))}
-              onChange={(v) => setLineHeight(Number(v) as LineHeight)}
-            />
+            <div className="set-slider">
+              <input
+                type="range"
+                min={1.0}
+                max={2.0}
+                step={0.02}
+                value={lineHeight}
+                onChange={(e) => setLineHeight(Number(e.target.value))}
+                style={{ width: 140 }}
+              />
+              <span className="set-slider__val">{lineHeight.toFixed(2)}</span>
+            </div>
           }
         />
         <Row
@@ -1546,18 +1621,50 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
         <Row
-          label="最大行宽"
-          desc="单页中央栏的最大宽度。"
+          label="Tab 缩进"
+          desc="按 Tab 给段落整体左缩进一级的宽度；Shift+Tab 退回。"
           control={
-            <input
-              className="set-input set-input--mono"
-              style={{ minWidth: 120 }}
-              value={`${maxLineWidth} px`}
-              onChange={(e) => {
-                const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                if (Number.isFinite(n)) setMaxLineWidth(n);
-              }}
+            <Seg<string>
+              value={String(editorIndentStep)}
+              options={['1', '2', '3', '4'].map((v) => ({ value: v, label: `${v} 字符` }))}
+              onChange={(v) => setEditorIndentStep(Number(v))}
             />
+          }
+        />
+        <Row
+          label="段间距"
+          desc="段落之间的垂直间距；仅编辑视图。"
+          control={
+            <div className="set-slider">
+              <input
+                type="range"
+                min={0}
+                max={2.5}
+                step={0.05}
+                value={paragraphSpacing}
+                onChange={(e) => setParagraphSpacing(Number(e.target.value))}
+                style={{ width: 140 }}
+              />
+              <span className="set-slider__val">{paragraphSpacing.toFixed(2)} em</span>
+            </div>
+          }
+        />
+        <Row
+          label="纸张宽度"
+          desc="编辑器中部纸张的宽度；正文按固定边距填满纸张。"
+          control={
+            <div className="set-slider">
+              <input
+                type="range"
+                min={480}
+                max={1280}
+                step={10}
+                value={maxLineWidth}
+                onChange={(e) => setMaxLineWidth(Number(e.target.value))}
+                style={{ width: 140 }}
+              />
+              <span className="set-slider__val">{maxLineWidth} px</span>
+            </div>
           }
         />
       </div>
