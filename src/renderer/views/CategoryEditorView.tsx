@@ -11,7 +11,7 @@ import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
-import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { ElementTemplateEditor } from '../components/editor/ElementTemplateEditor';
 import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReviewStrip } from '../components/editor/FieldReview';
@@ -242,20 +242,19 @@ export function CategoryEditorView({
   const frameworkItems: OutlineEntry[] = sections.map((s, i) => ({
     id: s.id,
     level: 2,
+    kind: 'section',
     num: cnums[i],
     text: s.text,
   }));
-  const bodyOutlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
-    id: h.id,
-    level: h.level,
-    text: h.text,
-  }));
+  const bodyOutlineItems: OutlineEntry[] = nestHeadings(outline);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this category's body (ticks + reveal/approve).
   useAgentChangeMarks(scrollEl, 'category', categoryId);
   const activeOutlineId = useOutlineScrollspy(
     scrollEl,
-    [...frameworkItems, ...bodyOutlineItems].map((i) => i.id),
+    // Flat id list (framework anchors + every heading) — bodyOutlineItems is
+    // now a nested tree, so its .map would miss nested heading ids.
+    [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)],
   );
 
   const handleContextAction = useCallback(

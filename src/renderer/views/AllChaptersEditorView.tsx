@@ -8,7 +8,7 @@ import { useBookContent } from '../usecase/useBookContent';
 import { useBookNode } from '../usecase/useBookNode';
 import { useProjectStore } from '../store/project-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { isChapter, type ChapterNode } from '../domain/book-node';
@@ -44,6 +44,14 @@ function toRoman(n: number): string {
 
 function anchorId(nodeId: string): string {
   return `all-chap-${nodeId}`;
+}
+
+// Outline-entry id namespace for act rows. Node ids are uuids, so the `act:`
+// prefix never collides with a chapter entry id — the TOC click dispatcher
+// and the act expand state both key off it.
+const ACT_TOC_PREFIX = 'act:';
+function actTocId(actId: string): string {
+  return `${ACT_TOC_PREFIX}${actId}`;
 }
 
 // "Read the whole book" mode — every chapter in bookOrder concatenated into
@@ -224,6 +232,14 @@ export function AllChaptersEditorView() {
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
+  const scrollToActId = useCallback((actId: string) => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const target = root.querySelector(`[data-act-id="${CSS.escape(actId)}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   // Note: we deliberately do NOT subscribe to nodeUi.selectedId here to
   // scroll on sidebar clicks. The all-chapters view used to be a magnet
   // for outside selections (sidebar / timeline clicks while reading) but
@@ -363,53 +379,32 @@ export function AllChaptersEditorView() {
     return () => clearInterval(id);
   }, [updateNode]);
 
-  // Hierarchical outline: each chapter is a top-level entry; its TipTap
-  // body's H1/H2/H3 outline nests under it. Chapters are collapsed by
-  // default. The scroll-spy-focused chapter is auto-expanded, but the
-  // user can override that per-chapter via the chevron.
-  //
-  // We store the manual override only — if the user toggled an entry, the
-  // map remembers that boolean; otherwise the entry falls back to the
-  // default ("expanded iff this is the currently scrolled-to chapter").
-  // Derived state instead of an effect-driven set so the active chapter
-  // change cascades to the outline naturally without an extra render.
-  const [manualExpand, setManualExpand] = useState<Map<string, boolean>>(new Map());
-  const isChapterExpanded = useCallback(
-    (nodeId: string): boolean => {
-      if (manualExpand.has(nodeId)) return manualExpand.get(nodeId)!;
-      return nodeId === activeNodeId;
-    },
-    [manualExpand, activeNodeId],
-  );
-  const toggleExpand = useCallback(
-    (id: string) => {
-      setManualExpand((prev) => {
-        const current = prev.has(id) ? prev.get(id)! : id === activeNodeId;
-        const next = new Map(prev);
-        next.set(id, !current);
-        return next;
-      });
-    },
-    [activeNodeId],
-  );
-
-  // Map orderedNodes → outline entries. Chapter-row id is the bare nodeId
-  // (so toggleExpand can use it directly); nested heading ids are TipTap
-  // block-ids straight from `outlineByNodeId`.
-  const outlineItems = useMemo<OutlineEntry[]>(
-    () =>
-      orderedNodes.map((n) => {
-        const headings = outlineByNodeId[n.id] ?? [];
-        return {
-          id: n.id,
-          level: 2,
-          text: n.title || 'Untitled',
-          isExpanded: isChapterExpanded(n.id),
-          children: headings.map((h) => ({ id: h.id, level: h.level, text: h.text })),
-        };
-      }),
-    [orderedNodes, outlineByNodeId, isChapterExpanded],
-  );
+  // Whole-book outline → a flat sequence of act dividers (L1) interleaved
+  // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
+  // scene/beat/note (L3-L5). Acts are centred dividers, NOT containers — the
+  // chapters that follow an act belong to it visually, the way readRows lays
+  // them out. Expansion is owned by EditorOutlinePanel (autoCollapseInactive),
+  // so only the chapter you're reading expands its subtree. No acts → a plain
+  // chapter list (matching readRows' no-act path).
+  const outlineItems = useMemo<OutlineEntry[]>(() => {
+    const buildChapter = (n: ChapterNode): OutlineEntry => ({
+      id: n.id,
+      level: 2,
+      kind: 'chapter',
+      text: n.title || 'Untitled',
+      children: nestHeadings(outlineByNodeId[n.id] ?? []),
+    });
+    const segments = deriveActSegments(bookActs, orderedNodes);
+    if (segments.length === 0) {
+      return orderedNodes.map(buildChapter);
+    }
+    const rows: OutlineEntry[] = [];
+    for (const seg of segments) {
+      rows.push({ id: actTocId(seg.act.id), level: 1, kind: 'act', text: seg.act.name });
+      for (const n of seg.chapters) rows.push(buildChapter(n));
+    }
+    return rows;
+  }, [orderedNodes, outlineByNodeId, bookActs]);
 
   // TOC click dispatcher: top-level entries scroll to the chapter section;
   // nested entries are TipTap heading anchors — scope to this view's scroll
@@ -417,13 +412,15 @@ export function AllChaptersEditorView() {
   const orderedNodeIds = useMemo(() => new Set(orderedNodes.map((n) => n.id)), [orderedNodes]);
   const handleOutlineClick = useCallback(
     (id: string) => {
-      if (orderedNodeIds.has(id)) {
+      if (id.startsWith(ACT_TOC_PREFIX)) {
+        scrollToActId(id.slice(ACT_TOC_PREFIX.length));
+      } else if (orderedNodeIds.has(id)) {
         scrollToNodeId(id);
       } else {
         scrollToOutlineAnchor(id, scrollRef.current);
       }
     },
-    [orderedNodeIds, scrollToNodeId],
+    [orderedNodeIds, scrollToNodeId, scrollToActId],
   );
 
   if (orderedNodes.length === 0) {
@@ -494,7 +491,7 @@ export function AllChaptersEditorView() {
           items={outlineItems}
           activeId={activeNodeId}
           onItemClick={handleOutlineClick}
-          onToggleExpand={toggleExpand}
+          autoCollapseInactive
           emptyHint="— 尚无章节 —"
         />
         <div className="editor-scroll" ref={scrollRef}>
@@ -504,10 +501,12 @@ export function AllChaptersEditorView() {
               return (
                 <div
                   key={`act-${row.act.id}`}
+                  data-act-id={row.act.id}
                   style={{
                     padding: '52px 24px 28px',
                     textAlign: 'center',
                     borderBottom: '1px solid hsl(var(--rule))',
+                    scrollMarginTop: 24,
                   }}
                 >
                   <div
