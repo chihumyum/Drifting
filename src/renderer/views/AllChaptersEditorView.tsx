@@ -8,7 +8,7 @@ import { useBookContent } from '../usecase/useBookContent';
 import { useBookNode } from '../usecase/useBookNode';
 import { useProjectStore } from '../store/project-store';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
-import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
 import { isChapter, type ChapterNode } from '../domain/book-node';
@@ -44,6 +44,14 @@ function toRoman(n: number): string {
 
 function anchorId(nodeId: string): string {
   return `all-chap-${nodeId}`;
+}
+
+// Outline-entry id namespace for act rows. Node ids are uuids, so the `act:`
+// prefix never collides with a chapter entry id — the TOC click dispatcher
+// and the act expand state both key off it.
+const ACT_TOC_PREFIX = 'act:';
+function actTocId(actId: string): string {
+  return `${ACT_TOC_PREFIX}${actId}`;
 }
 
 // "Read the whole book" mode — every chapter in bookOrder concatenated into
@@ -126,7 +134,7 @@ export function AllChaptersEditorView() {
   // is a deliberate authoring signal, not a data glitch. No acts → plain
   // chapter list, zero overhead.
   type ReadRow =
-    | { kind: 'act'; act: BookAct; count: number; words: number }
+    | { kind: 'act'; act: BookAct; seq: number; count: number; words: number }
     | { kind: 'chapter'; node: ChapterNode; idx: number };
   const readRows = useMemo<ReadRow[]>(() => {
     const segments = deriveActSegments(bookActs, orderedNodes);
@@ -135,10 +143,11 @@ export function AllChaptersEditorView() {
     }
     const rows: ReadRow[] = [];
     let idx = 0;
-    for (const seg of segments) {
+    segments.forEach((seg, segIdx) => {
       rows.push({
         kind: 'act',
         act: seg.act,
+        seq: segIdx + 1,
         count: seg.chapters.length,
         words: seg.chapters.reduce((sum, c) => sum + (c.wordCount || 0), 0),
       });
@@ -146,7 +155,7 @@ export function AllChaptersEditorView() {
         rows.push({ kind: 'chapter', node, idx });
         idx += 1;
       }
-    }
+    });
     return rows;
   }, [bookActs, orderedNodes]);
 
@@ -216,10 +225,44 @@ export function AllChaptersEditorView() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
+  // scrollIntoView that emits a stream of scroll events as it animates; if the
+  // scroll-spy reacted to each frame, `activeNodeId` would sweep through every
+  // chapter the animation passes over, so the active-row highlight would race
+  // down the whole outline before landing on the target. So a TOC click
+  // suppresses the spy for the duration of the jump — re-armed on every scroll
+  // event, released once the scroll goes idle — and, for chapter targets, pins
+  // the active row to the clicked chapter so the highlight lands on it directly.
+  const spySuppressedRef = useRef(false);
+  const spyIdleTimerRef = useRef<number | null>(null);
+  const pinnedChapterRef = useRef<string | null>(null);
+  const armSpySuppression = useCallback((pinnedChapterId: string | null) => {
+    spySuppressedRef.current = true;
+    pinnedChapterRef.current = pinnedChapterId;
+    if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
+    // Safety ceiling: a jump whose target is already in place emits no scroll
+    // events, so the scroll-driven idle release (in the spy effect) would never
+    // fire. Release on a hard timeout too. No recompute is needed here — an
+    // empty jump leaves the rest position, and thus the active row, unchanged.
+    spyIdleTimerRef.current = window.setTimeout(() => {
+      spyIdleTimerRef.current = null;
+      spySuppressedRef.current = false;
+      pinnedChapterRef.current = null;
+    }, 900);
+  }, []);
+
   const scrollToNodeId = useCallback((nodeId: string) => {
     const root = scrollRef.current;
     if (!root) return;
     const target = root.querySelector(`[data-chapter-id="${CSS.escape(nodeId)}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const scrollToActId = useCallback((actId: string) => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const target = root.querySelector(`[data-act-id="${CSS.escape(actId)}"]`);
     if (!target) return;
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
@@ -246,6 +289,10 @@ export function AllChaptersEditorView() {
     let raf = 0;
     const recompute = () => {
       raf = 0;
+      // A TOC click is driving a smooth scroll right now: leave the active row
+      // pinned to the click target and ignore the transient frames (see
+      // armSpySuppression) so the highlight doesn't race down the outline.
+      if (spySuppressedRef.current) return;
       const rows = root.querySelectorAll<HTMLElement>('[data-chapter-id]');
       if (rows.length === 0) return;
       // The chapter "in focus" is the last one whose top is above the
@@ -264,6 +311,23 @@ export function AllChaptersEditorView() {
       }
     };
     const onScroll = () => {
+      // While a programmatic jump is in flight every scroll frame just bumps
+      // the idle timer; once the animation stops emitting events the spy is
+      // released (and re-synced to the rest position unless the click pinned a
+      // chapter). This is what keeps the destination from flickering open/shut.
+      if (spySuppressedRef.current) {
+        if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
+        spyIdleTimerRef.current = window.setTimeout(() => {
+          spyIdleTimerRef.current = null;
+          spySuppressedRef.current = false;
+          if (pinnedChapterRef.current != null) {
+            pinnedChapterRef.current = null; // chapter click owns its active row
+          } else {
+            recompute(); // act / heading jump: re-sync to where we landed
+          }
+        }, 140);
+        return;
+      }
       if (raf) return;
       raf = requestAnimationFrame(recompute);
     };
@@ -363,53 +427,33 @@ export function AllChaptersEditorView() {
     return () => clearInterval(id);
   }, [updateNode]);
 
-  // Hierarchical outline: each chapter is a top-level entry; its TipTap
-  // body's H1/H2/H3 outline nests under it. Chapters are collapsed by
-  // default. The scroll-spy-focused chapter is auto-expanded, but the
-  // user can override that per-chapter via the chevron.
-  //
-  // We store the manual override only — if the user toggled an entry, the
-  // map remembers that boolean; otherwise the entry falls back to the
-  // default ("expanded iff this is the currently scrolled-to chapter").
-  // Derived state instead of an effect-driven set so the active chapter
-  // change cascades to the outline naturally without an extra render.
-  const [manualExpand, setManualExpand] = useState<Map<string, boolean>>(new Map());
-  const isChapterExpanded = useCallback(
-    (nodeId: string): boolean => {
-      if (manualExpand.has(nodeId)) return manualExpand.get(nodeId)!;
-      return nodeId === activeNodeId;
-    },
-    [manualExpand, activeNodeId],
-  );
-  const toggleExpand = useCallback(
-    (id: string) => {
-      setManualExpand((prev) => {
-        const current = prev.has(id) ? prev.get(id)! : id === activeNodeId;
-        const next = new Map(prev);
-        next.set(id, !current);
-        return next;
-      });
-    },
-    [activeNodeId],
-  );
-
-  // Map orderedNodes → outline entries. Chapter-row id is the bare nodeId
-  // (so toggleExpand can use it directly); nested heading ids are TipTap
-  // block-ids straight from `outlineByNodeId`.
-  const outlineItems = useMemo<OutlineEntry[]>(
-    () =>
-      orderedNodes.map((n) => {
-        const headings = outlineByNodeId[n.id] ?? [];
-        return {
-          id: n.id,
-          level: 2,
-          text: n.title || 'Untitled',
-          isExpanded: isChapterExpanded(n.id),
-          children: headings.map((h) => ({ id: h.id, level: h.level, text: h.text })),
-        };
-      }),
-    [orderedNodes, outlineByNodeId, isChapterExpanded],
-  );
+  // Whole-book outline → a flat sequence of act dividers (L1) interleaved
+  // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
+  // scene/beat/note (L3-L5). Acts are centred dividers, NOT containers — the
+  // chapters that follow an act belong to it visually, the way readRows lays
+  // them out. Expansion is owned by EditorOutlinePanel (collapseChaptersByDefault),
+  // so chapters start collapsed and the user opens subtrees by hand — scrolling
+  // never expands them. No acts → a plain chapter list (matching readRows'
+  // no-act path).
+  const outlineItems = useMemo<OutlineEntry[]>(() => {
+    const buildChapter = (n: ChapterNode): OutlineEntry => ({
+      id: n.id,
+      level: 2,
+      kind: 'chapter',
+      text: n.title || 'Untitled',
+      children: nestHeadings(outlineByNodeId[n.id] ?? []),
+    });
+    const segments = deriveActSegments(bookActs, orderedNodes);
+    if (segments.length === 0) {
+      return orderedNodes.map(buildChapter);
+    }
+    const rows: OutlineEntry[] = [];
+    for (const seg of segments) {
+      rows.push({ id: actTocId(seg.act.id), level: 1, kind: 'act', text: seg.act.name });
+      for (const n of seg.chapters) rows.push(buildChapter(n));
+    }
+    return rows;
+  }, [orderedNodes, outlineByNodeId, bookActs]);
 
   // TOC click dispatcher: top-level entries scroll to the chapter section;
   // nested entries are TipTap heading anchors — scope to this view's scroll
@@ -417,13 +461,21 @@ export function AllChaptersEditorView() {
   const orderedNodeIds = useMemo(() => new Set(orderedNodes.map((n) => n.id)), [orderedNodes]);
   const handleOutlineClick = useCallback(
     (id: string) => {
-      if (orderedNodeIds.has(id)) {
+      if (id.startsWith(ACT_TOC_PREFIX)) {
+        armSpySuppression(null); // act jump: let the spy re-sync once it settles
+        scrollToActId(id.slice(ACT_TOC_PREFIX.length));
+      } else if (orderedNodeIds.has(id)) {
+        // Pin the active highlight to the clicked chapter up front so it lands
+        // there directly instead of racing down the outline behind the scroll.
+        armSpySuppression(id);
+        setActiveNodeId(id);
         scrollToNodeId(id);
       } else {
+        armSpySuppression(null); // heading anchor: spy re-syncs to its chapter
         scrollToOutlineAnchor(id, scrollRef.current);
       }
     },
-    [orderedNodeIds, scrollToNodeId],
+    [orderedNodeIds, scrollToNodeId, scrollToActId, armSpySuppression],
   );
 
   if (orderedNodes.length === 0) {
@@ -494,64 +546,24 @@ export function AllChaptersEditorView() {
           items={outlineItems}
           activeId={activeNodeId}
           onItemClick={handleOutlineClick}
-          onToggleExpand={toggleExpand}
+          collapseChaptersByDefault
           emptyHint="— 尚无章节 —"
         />
         <div className="editor-scroll" ref={scrollRef}>
           {readRows.map((row) => {
             if (row.kind === 'act') {
-              const tint = row.act.color || 'hsl(var(--ink-4))';
               return (
                 <div
                   key={`act-${row.act.id}`}
-                  style={{
-                    padding: '52px 24px 28px',
-                    textAlign: 'center',
-                    borderBottom: '1px solid hsl(var(--rule))',
-                  }}
+                  data-act-id={row.act.id}
+                  className="act-break"
                 >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 2,
-                      margin: '0 auto 14px',
-                      background: tint,
-                      opacity: 0.7,
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 600,
-                      letterSpacing: '0.12em',
-                      color: 'hsl(var(--ink-1))',
-                    }}
-                  >
-                    {row.act.name}
+                  <div className="act-break__num">{toRoman(row.seq)}</div>
+                  <div className="act-break__label">{row.act.name}</div>
+                  <div className="act-break__meta">
+                    {row.count} 章<span className="d">·</span>
+                    {(row.words / 1000).toFixed(1)}k 字
                   </div>
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10.5,
-                      color: 'hsl(var(--ink-4))',
-                    }}
-                  >
-                    {row.count} 章 · {(row.words / 1000).toFixed(1)}k 字
-                  </div>
-                  {row.act.summary && (
-                    <div
-                      style={{
-                        margin: '10px auto 0',
-                        maxWidth: 480,
-                        fontSize: 12.5,
-                        lineHeight: 1.7,
-                        color: 'hsl(var(--ink-3))',
-                      }}
-                    >
-                      {row.act.summary}
-                    </div>
-                  )}
                 </div>
               );
             }

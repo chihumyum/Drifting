@@ -16,7 +16,7 @@ import { ChapterEditor, type ChapterEditorRef } from '../components/editor/Chapt
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
 import { PlotPlannerDock } from '../components/editor/PlotPlannerDock';
-import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlinePanel, nestHeadings } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { useOutlineScrollspy } from '../components/editor/use-outline-scrollspy';
 import { useAgentChangeMarks } from '../hooks/useAgentChangeMarks';
@@ -160,6 +160,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     scrollEl,
     outline.map((h) => h.id),
   );
+  // Nest the flat H1/H2/H3 outline into the scene/beat/note tree so this
+  // single-chapter TOC reads identically to the same chapter inside 通览全书.
+  const outlineTree = useMemo(() => nestHeadings(outline), [outline]);
 
   const wordCountBackfillRef = useRef<string | null>(null);
   // usecases
@@ -768,11 +771,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           <div className="editor-body">
             <EditorOutlinePanel
               title="本章 · OUTLINE"
-              items={outline.map<OutlineEntry>((h) => ({
-                id: h.id,
-                level: h.level,
-                text: h.text,
-              }))}
+              items={outlineTree}
               activeId={activeOutlineId}
               onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
               emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"

@@ -346,7 +346,18 @@ export function useProject({ userId }: UseProjectContext) {
   const loadProject = useCallback(
     async (id: string): Promise<Project | null> => {
       await ensureDb();
-      return await repo.findById(id);
+      const project = await repo.findById(id);
+      if (project) {
+        // Seed the in-memory store from local SQLite so the dashboard title
+        // (and other subscribers) paint the real name on first render after a
+        // refresh, instead of flashing the placeholder until the network graph
+        // pull returns. pullAndHydrateProjectGraph still runs afterwards and
+        // overwrites this with fresh server data when sync is enabled.
+        const store = useProjectStore.getState();
+        store.setCurrentProject(project);
+        store.setProjects([project, ...store.projects.filter((p) => p.id !== project.id)]);
+      }
+      return project;
     },
     [repo, ensureDb],
   );

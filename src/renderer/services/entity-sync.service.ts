@@ -1146,7 +1146,6 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
         name: stringValue(row, 'name'),
-        summary: stringValue(row, 'summary'),
         color: nullableStringValue(row, 'color'),
         startOrder: nullableNumberValue(row, 'startOrder'),
         // A binding to a trashed/vanished drift renders as a plain act.
@@ -1847,7 +1846,6 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         id: stringValue(row, 'id'),
         projectId: stringValue(row, 'projectId'),
         name: stringValue(row, 'name'),
-        summary: stringValue(row, 'summary'),
         color: nullableStringValue(row, 'color'),
         startOrder: nullableNumberValue(row, 'startOrder'),
         driftNodeId: driftNodeId && survivingNodeIds.has(driftNodeId) ? driftNodeId : null,

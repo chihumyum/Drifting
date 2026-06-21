@@ -24,7 +24,6 @@ export interface BookAct {
   id: string;
   projectId: string;
   name: string;
-  summary: string;
   color: string | null;
   /** Boundary on the bookOrder axis; null = book head (first act only). */
   startOrder: number | null;

@@ -49,7 +49,6 @@ export interface UseBookActContext {
 
 export interface UpdateBookActInput {
   name?: string;
-  summary?: string;
   color?: string | null;
   startOrder?: number;
   driftNodeId?: string | null;
@@ -97,7 +96,6 @@ export function useBookAct({ projectId }: UseBookActContext) {
         syncBookActCreate(act.id, projectId, {
           id: act.id,
           name: act.name,
-          summary: act.summary,
           color: act.color,
           startOrder: act.startOrder,
           driftNodeId: act.driftNodeId,
@@ -111,7 +109,6 @@ export function useBookAct({ projectId }: UseBookActContext) {
           id: uuidv7(),
           projectId,
           name: defaultActName(1),
-          summary: '',
           color: null,
           startOrder: null,
           driftNodeId: null,
@@ -133,7 +130,6 @@ export function useBookAct({ projectId }: UseBookActContext) {
         id: uuidv7(),
         projectId,
         name: defaultActName(position),
-        summary: '',
         color: null,
         startOrder,
         driftNodeId: null,

@@ -477,12 +477,28 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
   const addNodeToStoryline = useCallback(
     async (nodeId: string, storylineId: string): Promise<void> => {
       await ensureDb();
+      // Invariant: a node that belongs to ≥1 storyline always has a primary.
+      // When it has none yet, this new membership becomes the primary — so a
+      // single-storyline chapter is never left in the degenerate "member but no
+      // primary" state, which renders grouped under the lane with no color
+      // stripe and simultaneously lingers in the 未归属 bucket.
+      const prevPrimary = useDataStore.getState().primaryStorylineByNode[nodeId] ?? null;
+      const makePrimary = prevPrimary == null;
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
       return withOptimisticUpdate({
-        apply: () => addNodeToStorylineMappingState(storylineId, nodeId),
-        rollback: () => setStorylineNodeMappingState(prevMapping),
-        effect: () => linkRepo.addNodeToStoryline(nodeId, storylineId),
-        sync: () => syncNodeStorylineLinkCreate(nodeId, storylineId, activeProjectId),
+        apply: () => {
+          addNodeToStorylineMappingState(storylineId, nodeId);
+          if (makePrimary) useDataStore.getState().setNodePrimaryStoryline(nodeId, storylineId);
+        },
+        rollback: () => {
+          setStorylineNodeMappingState(prevMapping);
+          if (makePrimary) useDataStore.getState().setNodePrimaryStoryline(nodeId, prevPrimary);
+        },
+        effect: () => linkRepo.addNodeToStoryline(nodeId, storylineId, { isPrimary: makePrimary }),
+        sync: () =>
+          syncNodeStorylineLinkCreate(nodeId, storylineId, activeProjectId, {
+            isPrimary: makePrimary,
+          }),
       });
     },
     [
@@ -564,18 +580,37 @@ export function useStoryline({ projectId, userId }: UseStorylineContext) {
       // is_primary row survives the bulk replace.
       const currentPrimary =
         useDataStore.getState().primaryStorylineByNode[nodeId] ?? null;
-      const primaryStorylineId =
+      let primaryStorylineId =
         options && 'primaryStorylineId' in options
           ? options.primaryStorylineId ?? null
           : currentPrimary;
+      // Invariant: membership in ≥1 storyline implies a primary. If we'd land
+      // the node into storylines with no primary at all (e.g. a 未归属 chapter
+      // assigned via a path that doesn't name a main), pin the first as primary
+      // so it isn't left grouped-but-colorless / stuck in 未归属.
+      if (primaryStorylineId == null && storylineIds.length > 0) {
+        primaryStorylineId = storylineIds[0];
+      }
       const effectiveIds: string[] =
         primaryStorylineId && !storylineIds.includes(primaryStorylineId)
           ? [primaryStorylineId, ...storylineIds]
           : storylineIds;
       const prevMapping = cloneStorylineNodeMapping(getStorylineNodeMappingState());
+      // Keep the in-memory primary in lockstep with the DB write so the leading
+      // stripe updates immediately (e.g. cross-storyline drag), not only after
+      // the next sync/reload.
+      const primaryChanged = primaryStorylineId !== currentPrimary;
       return withOptimisticUpdate({
-        apply: () => setNodeStorylinesMappingState(nodeId, effectiveIds),
-        rollback: () => setStorylineNodeMappingState(prevMapping),
+        apply: () => {
+          setNodeStorylinesMappingState(nodeId, effectiveIds);
+          if (primaryChanged)
+            useDataStore.getState().setNodePrimaryStoryline(nodeId, primaryStorylineId);
+        },
+        rollback: () => {
+          setStorylineNodeMappingState(prevMapping);
+          if (primaryChanged)
+            useDataStore.getState().setNodePrimaryStoryline(nodeId, currentPrimary);
+        },
         effect: () => linkRepo.setNodeStorylines(nodeId, effectiveIds, { primaryStorylineId }),
         sync: () =>
           syncNodeStorylinesSet(nodeId, activeProjectId, effectiveIds, { primaryStorylineId }),

@@ -14,8 +14,8 @@ import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
 
-// 宽度低于此值时隐藏 cell 上的日期，优先保证 title 显示。
-const DATE_HIDE_WIDTH = 200;
+// 宽度低于此值时隐藏 cell 右侧的 meta（日期/字数），优先保证 title 显示。
+const META_HIDE_WIDTH = 200;
 
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
@@ -27,11 +27,20 @@ const formatShortDate = (input: string | number | Date) => {
   return sameYear ? `${month}/${day}` : `${d.getFullYear() % 100}/${month}/${day}`;
 };
 
+// Compact word count for the narrow cell slot: raw under 1k, one-decimal k up
+// to 10k, rounded k beyond (e.g. 0 / 521 / 1.2k / 12k).
+const formatWordCount = (n: number) => {
+  if (n < 1000) return `${n}`;
+  if (n < 10000) return `${(n / 1000).toFixed(1)}k`;
+  return `${Math.round(n / 1000)}k`;
+};
+
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
   const { nodeUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
-  const showDate = sidebarWidth >= DATE_HIDE_WIDTH;
+  const cellMeta = useUiStore((s) => s.driftCellMeta);
+  const showMeta = sidebarWidth >= META_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.driftSortMode);
   const { projectId, openEntity } = useProjectNavigation();
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
@@ -208,7 +217,7 @@ export function DriftPanel() {
           <span>{node.title || 'Untitled'}</span>
         </div>
 
-        {showDate && (
+        {showMeta && cellMeta !== 'none' && (
           <span
             style={{
               fontFamily: 'var(--font-mono)',
@@ -218,7 +227,11 @@ export function DriftPanel() {
               letterSpacing: '0.04em',
             }}
           >
-            {formatShortDate(node.updatedAt)}
+            {cellMeta === 'wordCount'
+              ? formatWordCount(node.wordCount)
+              : cellMeta === 'both'
+                ? `${formatWordCount(node.wordCount)} · ${formatShortDate(node.updatedAt)}`
+                : formatShortDate(node.updatedAt)}
           </span>
         )}
       </div>

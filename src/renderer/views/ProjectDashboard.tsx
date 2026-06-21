@@ -11,7 +11,7 @@ import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
 import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
-import { isChapter, type BookNode, type WritingStatus } from '../domain/book-node';
+import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -36,25 +36,6 @@ function hashToToken(id: string): string {
 function resolveColor(rawColor: string | undefined, fallbackKey: string): string {
   if (rawColor && rawColor.trim().length > 0) return rawColor;
   return `hsl(var(${hashToToken(fallbackKey)}))`;
-}
-
-// Buckets the dashboard cares about: done / draft / todo. Maps real
-// writingStatus values (BookNode) so the chips reflect the user's
-// explicit choices rather than guessing from word count.
-//   finished       → done
-//   waiting_review / revising / draft (with content) → draft
-//   draft (no content yet)        → todo
-//   discarded                     → not surfaced here (set-aside)
-//   drift statuses (drifting/resting) — only seen on drift nodes, which
-//   are filtered out of the dashboard before this is called.
-type DerivedStatus = 'done' | 'draft' | 'todo' | 'discarded';
-function deriveStatus(node: { writingStatus: WritingStatus; wordCount: number }): DerivedStatus {
-  const s = node.writingStatus;
-  if (s === 'finished') return 'done';
-  if (s === 'discarded') return 'discarded';
-  if (s === 'draft' && (node.wordCount || 0) === 0) return 'todo';
-  if (s === 'draft' || s === 'waiting_review' || s === 'revising') return 'draft';
-  return 'todo';
 }
 
 function formatRelativeTime(iso: string): string {
@@ -87,7 +68,6 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
   return (
     <div className="dash-profile">
       <label className="dash-profile__field">
-        <span className="dash-profile__label">图书简介 · SUMMARY</span>
         <textarea
           className="dash-profile__textarea"
           value={draft}
@@ -97,8 +77,6 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
           rows={5}
         />
       </label>
-
-      <span className="dash-profile__hint">失焦后自动保存。副标题、体裁等扩展信息可在本书字段中维护。</span>
     </div>
   );
 }
@@ -260,8 +238,29 @@ export function ProjectDashboard() {
   ];
 
   // ─── Derived hero meta ─────────────────────────────────
-  const heroProjectTitle =
-    currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Drifting';
+  // The hero title doubles as an inline rename field — mirrors the storyline
+  // editor's name pattern (controlled draft + IME composition guard).
+  const editableProjectId = currentProject?.id ?? projectId ?? null;
+  const currentProjectName =
+    currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
+  const [nameDraft, setNameDraft] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isComposingName, setIsComposingName] = useState(false);
+  const displayedName = isEditingName ? nameDraft : currentProjectName;
+
+  const commitName = async () => {
+    const next = nameDraft.trim();
+    // Persist BEFORE leaving edit mode. If we dropped out of editing first,
+    // `displayedName` would briefly fall back to the stale `currentProjectName`
+    // (the store hasn't taken the write yet) and the title would flash the old
+    // name until the async update lands. Awaiting keeps the draft on screen
+    // until the store holds the new value, so the swap is seamless.
+    if (editableProjectId && next && next !== currentProjectName) {
+      await updateProject(editableProjectId, { name: next });
+    }
+    setIsEditingName(false);
+  };
+
   const heroProjectSummary = currentProject?.summary;
   const lastTouchedNode = useMemo(() => {
     if (!bookNodes.length) return null;
@@ -345,9 +344,39 @@ export function ProjectDashboard() {
               <span>SINCE {projectSinceLabel}</span>
             </div>
 
-            <h1 className="dash-hero__title">
-              {heroProjectTitle}
-            </h1>
+            <input
+              type="text"
+              className="dash-hero__title dash-hero__title-input"
+              value={displayedName}
+              readOnly={!editableProjectId}
+              placeholder="Drifting"
+              aria-label="项目名称"
+              title="点击重命名项目"
+              onFocus={() => {
+                setNameDraft(currentProjectName);
+                setIsEditingName(true);
+              }}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onCompositionStart={() => setIsComposingName(true)}
+              onCompositionEnd={(e) => {
+                setIsComposingName(false);
+                setNameDraft(e.currentTarget.value);
+              }}
+              onBlur={() => {
+                if (isComposingName) setIsEditingName(false);
+                else void commitName();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isComposingName) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+                if (e.key === 'Escape') {
+                  setNameDraft(currentProjectName);
+                  e.currentTarget.blur();
+                }
+              }}
+            />
 
             {heroProjectSummary && (
               <p className="dash-hero__sub">

@@ -814,7 +814,6 @@ export const BookActTable = sqliteTable(
       .notNull()
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    summary: text('summary').notNull().default(''),
     color: text('color'),
     startOrder: real('start_order'), // null = book head (the opener act)
     // Optional bound drift node — the act's free-form notes / 大纲. SET NULL

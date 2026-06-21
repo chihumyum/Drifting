@@ -34,7 +34,6 @@ function toDomain(record: typeof BookActTable.$inferSelect): BookAct {
     id: record.id,
     projectId: record.projectId,
     name: record.name,
-    summary: record.summary,
     color: record.color,
     startOrder: record.startOrder,
     driftNodeId: record.driftNodeId,
@@ -75,7 +74,6 @@ export function createBookActRepository(
         id: input.id,
         projectId: input.projectId,
         name: input.name,
-        summary: input.summary,
         color: input.color,
         startOrder: input.startOrder,
         driftNodeId: input.driftNodeId,
@@ -90,7 +88,6 @@ export function createBookActRepository(
         updatedAt: data.updatedAt,
       };
       if (data.name !== undefined) values.name = data.name;
-      if (data.summary !== undefined) values.summary = data.summary;
       if (data.color !== undefined) values.color = data.color;
       if (data.startOrder !== undefined) values.startOrder = data.startOrder;
       if (data.driftNodeId !== undefined) values.driftNodeId = data.driftNodeId;

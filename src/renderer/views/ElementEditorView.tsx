@@ -12,7 +12,7 @@ import { useElementCategory } from '../usecase/useElementCategory';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
-import { EditorOutlinePanel, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
+import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { KvEditor } from '../components/editor/KvEditor';
 import { FieldReview, FieldReviewStrip } from '../components/editor/FieldReview';
 import { useFieldReview } from '../hooks/useFieldReview';
@@ -184,17 +184,15 @@ export function ElementEditorView({
   // extracted live from the body editor. Built before the early return below
   // so the scrollspy hook always runs (Rules of Hooks).
   const frameworkItems: OutlineEntry[] = [
-    { id: 'el-overview', level: 2, num: '一', text: '概述' },
-    { id: 'el-kv', level: 2, num: '二', text: '字段 · facts' },
-    { id: 'el-bio', level: 2, num: '三', text: '传 · biography' },
+    { id: 'el-overview', level: 2, kind: 'section', num: '一', text: '概述' },
+    { id: 'el-kv', level: 2, kind: 'section', num: '二', text: '字段 · facts' },
+    { id: 'el-bio', level: 2, kind: 'section', num: '三', text: '传 · biography' },
   ];
-  const bodyOutlineItems: OutlineEntry[] = outline.map<OutlineEntry>((h) => ({
-    id: h.id,
-    level: h.level,
-    text: h.text,
-  }));
-  const outlineItems: OutlineEntry[] = [...frameworkItems, ...bodyOutlineItems];
-  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineItems.map((i) => i.id));
+  const bodyOutlineItems: OutlineEntry[] = nestHeadings(outline);
+  // Scrollspy needs the FLAT id list (framework anchors + every heading),
+  // not just the nested tree's roots.
+  const outlineIds = [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)];
+  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineIds);
 
   const commitName = async () => {
     if (!elementId) return;

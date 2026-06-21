@@ -69,6 +69,44 @@ export function createNodeStorylineLinkRepository(
     }
   };
 
+  // Invariant: a node that belongs to ≥1 storyline always has exactly one
+  // primary. If a mutation leaves it with memberships but no primary, promote
+  // the membership whose storyline has the lowest orderKey (deterministic
+  // tiebreak by id). This is the structural backstop that keeps a chapter from
+  // ever being "member but no primary" — a state that renders grouped under a
+  // lane with no color stripe and simultaneously lingers in the 未归属 bucket.
+  // Must run inside the same transaction as the mutation that could violate it.
+  const ensurePrimaryInvariant = async (tx: DbExecutor, nodeId: string): Promise<void> => {
+    const primaryRows = await tx
+      .select({ storylineId: NodeStorylineLinkTable.storylineId })
+      .from(NodeStorylineLinkTable)
+      .where(
+        and(
+          eq(NodeStorylineLinkTable.nodeId, nodeId),
+          eq(NodeStorylineLinkTable.isPrimary, true),
+        ),
+      )
+      .limit(1);
+    if (primaryRows[0]) return; // already has a primary
+    const candidate = await tx
+      .select({ storylineId: NodeStorylineLinkTable.storylineId })
+      .from(NodeStorylineLinkTable)
+      .innerJoin(StorylineTable, eq(StorylineTable.id, NodeStorylineLinkTable.storylineId))
+      .where(eq(NodeStorylineLinkTable.nodeId, nodeId))
+      .orderBy(asc(StorylineTable.orderKey), asc(StorylineTable.id))
+      .limit(1);
+    if (!candidate[0]) return; // no memberships → legitimately no primary (未归属)
+    await tx
+      .update(NodeStorylineLinkTable)
+      .set({ isPrimary: true })
+      .where(
+        and(
+          eq(NodeStorylineLinkTable.nodeId, nodeId),
+          eq(NodeStorylineLinkTable.storylineId, candidate[0].storylineId),
+        ),
+      );
+  };
+
   const addNodeToStoryline = async (
     nodeId: string,
     storylineId: string,
@@ -110,6 +148,9 @@ export function createNodeStorylineLinkRepository(
           .values({ nodeId, storylineId, isPrimary: false })
           .onConflictDoNothing();
       }
+      // A non-primary add onto a node that has no primary yet promotes this new
+      // membership; no-op when a primary already exists.
+      await ensurePrimaryInvariant(tx, nodeId);
     });
   };
 
@@ -144,14 +185,19 @@ export function createNodeStorylineLinkRepository(
   };
 
   const removeNodeFromStoryline = async (nodeId: string, storylineId: string): Promise<void> => {
-    await dbProvider()
-      .delete(NodeStorylineLinkTable)
-      .where(
-        and(
-          eq(NodeStorylineLinkTable.nodeId, nodeId),
-          eq(NodeStorylineLinkTable.storylineId, storylineId),
-        ),
-      );
+    await dbProvider().transaction(async (tx) => {
+      await tx
+        .delete(NodeStorylineLinkTable)
+        .where(
+          and(
+            eq(NodeStorylineLinkTable.nodeId, nodeId),
+            eq(NodeStorylineLinkTable.storylineId, storylineId),
+          ),
+        );
+      // Removing a secondary membership is a no-op for the invariant; removing
+      // the primary while other memberships remain re-promotes the next one.
+      await ensurePrimaryInvariant(tx, nodeId);
+    });
   };
 
   const getStorylinesByNode = async (nodeId: string): Promise<Storyline[]> => {
@@ -248,6 +294,9 @@ export function createNodeStorylineLinkRepository(
           })),
         );
       }
+      // Non-empty membership with no primary named (primaryStorylineId null)
+      // gets a deterministic primary so the node is never grouped-but-colorless.
+      await ensurePrimaryInvariant(tx, nodeId);
     });
   };
 

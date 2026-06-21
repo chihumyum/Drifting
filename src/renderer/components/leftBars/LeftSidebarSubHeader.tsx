@@ -10,6 +10,7 @@ import type {
   ChapterGlobalSortMode,
   ChapterStorylineInnerSortMode,
   ElementSortMode,
+  NodeCellMeta,
 } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -17,7 +18,7 @@ import { useStoryline } from '../../usecase/useStoryline';
 import { useElementCategory } from '../../usecase/useElementCategory';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
-import { SortMenu, type SortMenuOption } from './SortMenu';
+import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
 
 const log = loglevel.getLogger('LeftSidebarSubHeader');
 log.setLevel(loglevel.levels.ERROR);
@@ -165,6 +166,12 @@ export function LeftSidebarSubHeader() {
   );
   const elementSortMode = useUiStore((s) => s.elementSortMode);
   const setElementSortMode = useUiStore((s) => s.setElementSortMode);
+  const chapterCellMeta = useUiStore((s) => s.chapterCellMeta);
+  const setChapterCellMeta = useUiStore((s) => s.setChapterCellMeta);
+  const driftCellMeta = useUiStore((s) => s.driftCellMeta);
+  const setDriftCellMeta = useUiStore((s) => s.setDriftCellMeta);
+  const chapterStorylinePrimaryOnly = useUiStore((s) => s.chapterStorylinePrimaryOnly);
+  const setChapterStorylinePrimaryOnly = useUiStore((s) => s.setChapterStorylinePrimaryOnly);
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [
@@ -196,6 +203,25 @@ export function LeftSidebarSubHeader() {
     () => [
       { value: 'alphabet', label: '按字母顺序' },
       { value: 'createdAt', label: '按创建时间' },
+    ],
+    [],
+  );
+  // Right-edge cell meta toggle — shared by the 章节 and 浮缀 menus.
+  const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
+    () => [
+      { value: 'date', label: '显示日期' },
+      { value: 'wordCount', label: '显示字数' },
+      { value: 'both', label: '显示字数和日期' },
+      { value: 'none', label: '都不显示' },
+    ],
+    [],
+  );
+  // Storyline-grouped chapter view only: whether a chapter linked to several
+  // storylines shows in every group or just its primary one.
+  const chapterDuplicateOptions = useMemo<SortMenuOption<'all' | 'primary'>[]>(
+    () => [
+      { value: 'all', label: '在每个所属分组显示' },
+      { value: 'primary', label: '仅在主线分组显示' },
     ],
     [],
   );
@@ -357,9 +383,9 @@ export function LeftSidebarSubHeader() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* "折叠全部" only applies to panels with collapsible groups (元素 类目).
-            The 章节 panel no longer exposes it — its storyline lanes are toggled
-            individually — so it's hidden there. */}
-        {activeLeftPanel !== 'nodes' && (
+            The 章节 panel toggles its storyline lanes individually and the 浮缀
+            panel has no groups to collapse, so it's elements-only. */}
+        {activeLeftPanel === 'elements' && (
           <SubIconBtn title="折叠全部" onClick={collapseAll}>
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>
@@ -387,6 +413,14 @@ export function LeftSidebarSubHeader() {
           value={driftSortMode}
           onChange={setDriftSortMode}
           title={sortMenuTitle}
+          groups={[
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: driftCellMeta,
+              onChange: setDriftCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'nodes' && !chapterIsStoryline && (
@@ -398,6 +432,14 @@ export function LeftSidebarSubHeader() {
           value={chapterGlobalSortMode}
           onChange={setChapterGlobalSortMode}
           title={sortMenuTitle}
+          groups={[
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: chapterCellMeta,
+              onChange: setChapterCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'nodes' && chapterIsStoryline && (
@@ -409,6 +451,20 @@ export function LeftSidebarSubHeader() {
           value={chapterStorylineInnerSortMode}
           onChange={setChapterStorylineInnerSortMode}
           title={sortMenuTitle}
+          groups={[
+            sortMenuGroup({
+              title: '多线章节',
+              options: chapterDuplicateOptions,
+              value: chapterStorylinePrimaryOnly ? 'primary' : 'all',
+              onChange: (v) => setChapterStorylinePrimaryOnly(v === 'primary'),
+            }),
+            sortMenuGroup({
+              title: '单元格右侧',
+              options: nodeCellMetaOptions,
+              value: chapterCellMeta,
+              onChange: setChapterCellMeta,
+            }),
+          ]}
         />
       )}
       {activeLeftPanel === 'elements' && (

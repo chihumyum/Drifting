@@ -17,6 +17,11 @@ export type ChapterGlobalSortMode =
 export type ChapterStorylineInnerSortMode = 'bookOrder' | 'narrativeOrder';
 export type ElementSortMode = 'alphabet' | 'createdAt';
 
+// What the right edge of a node cell (章节 / 浮缀) shows. The 章节 and 浮缀
+// panels each keep their own preference (toggled from their respective
+// SortMenu); this is just the shared value type.
+export type NodeCellMeta = 'date' | 'wordCount' | 'both' | 'none';
+
 export type TabEntityType =
   | 'node'
   | 'storyline'
@@ -261,6 +266,19 @@ interface UiState {
   setChapterStorylineInnerSortMode: (mode: ChapterStorylineInnerSortMode) => void;
   elementSortMode: ElementSortMode;
   setElementSortMode: (mode: ElementSortMode) => void;
+
+  // Right-edge meta shown on node cells (date vs. word count). The 章节 and 浮缀
+  // panels keep independent preferences, each toggled from its own SortMenu.
+  chapterCellMeta: NodeCellMeta;
+  setChapterCellMeta: (mode: NodeCellMeta) => void;
+  driftCellMeta: NodeCellMeta;
+  setDriftCellMeta: (mode: NodeCellMeta) => void;
+
+  // Storyline-grouped chapter view: a chapter belongs to every storyline it's
+  // linked to, so by default it appears in each of those groups. When true it
+  // shows only in its primary storyline's group (no cross-group duplicates).
+  chapterStorylinePrimaryOnly: boolean;
+  setChapterStorylinePrimaryOnly: (only: boolean) => void;
 
   // The right sidebar splits its tabs into two groups, toggled by a switch at
   // the right end of the tab row. Each group remembers its own active tab.
@@ -593,6 +611,14 @@ export const useUiStore = create<UiState>()(
         set({ chapterStorylineInnerSortMode: mode }),
       elementSortMode: 'alphabet',
       setElementSortMode: (mode) => set({ elementSortMode: mode }),
+
+      chapterCellMeta: 'date',
+      setChapterCellMeta: (mode) => set({ chapterCellMeta: mode }),
+      driftCellMeta: 'date',
+      setDriftCellMeta: (mode) => set({ driftCellMeta: mode }),
+      chapterStorylinePrimaryOnly: false,
+      setChapterStorylinePrimaryOnly: (only) =>
+        set({ chapterStorylinePrimaryOnly: only }),
       rightPanelGroup: 'content',
       setRightPanelGroup: (group) => set({ rightPanelGroup: group }),
       // Selecting a tab also marks its group current — so in flat mode (all
@@ -1288,6 +1314,9 @@ export const useUiStore = create<UiState>()(
         chapterGlobalSortMode: state.chapterGlobalSortMode,
         chapterStorylineInnerSortMode: state.chapterStorylineInnerSortMode,
         elementSortMode: state.elementSortMode,
+        chapterCellMeta: state.chapterCellMeta,
+        driftCellMeta: state.driftCellMeta,
+        chapterStorylinePrimaryOnly: state.chapterStorylinePrimaryOnly,
       }),
       // v1 → v2 migration adds the `kind` discriminator to every tab so the
       // store can tell leaf tabs from split tabs. v1 only had flat Tab[]
