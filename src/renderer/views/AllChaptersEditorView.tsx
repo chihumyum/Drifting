@@ -227,27 +227,23 @@ export function AllChaptersEditorView() {
 
   // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
   // scrollIntoView that emits a stream of scroll events as it animates; if the
-  // scroll-spy reacted to each frame, `activeNodeId` would sweep through every
-  // chapter the animation passes over, so the active-row highlight would race
-  // down the whole outline before landing on the target. So a TOC click
-  // suppresses the spy for the duration of the jump — re-armed on every scroll
-  // event, released once the scroll goes idle — and, for chapter targets, pins
-  // the active row to the clicked chapter so the highlight lands on it directly.
+  // scroll-spy reacted to each frame, the active row would race down the whole
+  // outline before landing on the target. So a TOC click suppresses the spy for
+  // the duration of the jump — re-armed on every scroll event, released once the
+  // scroll goes idle, then re-synced. The click also lights the target up front
+  // (and, for headings, pins it via pinnedOutlineRef until it scrolls away).
   const spySuppressedRef = useRef(false);
   const spyIdleTimerRef = useRef<number | null>(null);
-  const pinnedChapterRef = useRef<string | null>(null);
-  const armSpySuppression = useCallback((pinnedChapterId: string | null) => {
+  const armSpySuppression = useCallback(() => {
     spySuppressedRef.current = true;
-    pinnedChapterRef.current = pinnedChapterId;
     if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
     // Safety ceiling: a jump whose target is already in place emits no scroll
     // events, so the scroll-driven idle release (in the spy effect) would never
-    // fire. Release on a hard timeout too. No recompute is needed here — an
-    // empty jump leaves the rest position, and thus the active row, unchanged.
+    // fire. Release on a hard timeout too — the up-front setActiveOutline has
+    // already lit the target, and the heading pin engages on the next scroll.
     spyIdleTimerRef.current = window.setTimeout(() => {
       spyIdleTimerRef.current = null;
       spySuppressedRef.current = false;
-      pinnedChapterRef.current = null;
     }, 900);
   }, []);
 
@@ -275,13 +271,32 @@ export function AllChaptersEditorView() {
   // timeline node clicks now always navigate. In-view navigation between
   // chapters lives in the hierarchical TOC below.
 
-  // Scroll-spy: highlight the chapter whose top edge is just above the
-  // viewport's top (i.e. "current reading position"). Updates the outline
-  // active row only — deliberately does NOT push selection to the global
-  // ui-store. Letting scroll position drive the left sidebar's node panel
-  // highlight was confusing: reading through 通览全书 silently moved the
-  // selected node in the sidebar, which made it look like a navigation.
-  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  // Scroll-spy: highlight the current reading position in the outline. Unlike a
+  // plain chapter highlight this can resolve to a heading id deep inside a
+  // chapter — the spy tracks the deepest heading above the reading line so the
+  // highlight reaches into the expanded scene/beat/note rows (the panel lights
+  // the chapter→…→heading path) instead of stopping at the chapter (L2).
+  // Reading the intro before any heading keeps the chapter itself active.
+  // Deliberately does NOT push selection to the global ui-store: letting scroll
+  // position drive the left sidebar's node panel highlight was confusing —
+  // reading through 通览全书 silently moved the selected node, which read as a
+  // navigation.
+  const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
+  const activeOutlineIdRef = useRef<string | null>(null);
+  const setActiveOutline = useCallback((id: string | null) => {
+    if (id === activeOutlineIdRef.current) return;
+    activeOutlineIdRef.current = id;
+    setActiveOutlineId(id);
+  }, []);
+  // Latest per-chapter outline, read by the spy without re-subscribing the
+  // scroll listener every time a chapter publishes its headings.
+  const outlineByNodeIdRef = useRef(outlineByNodeId);
+  useEffect(() => {
+    outlineByNodeIdRef.current = outlineByNodeId;
+  }, [outlineByNodeId]);
+  // A clicked heading we hold selected until it scrolls out of the viewport.
+  const pinnedOutlineRef = useRef<string | null>(null);
+
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -289,42 +304,70 @@ export function AllChaptersEditorView() {
     let raf = 0;
     const recompute = () => {
       raf = 0;
-      // A TOC click is driving a smooth scroll right now: leave the active row
-      // pinned to the click target and ignore the transient frames (see
-      // armSpySuppression) so the highlight doesn't race down the outline.
+      // A TOC click is driving a smooth scroll right now: ignore the transient
+      // frames (see armSpySuppression) so the highlight doesn't race.
       if (spySuppressedRef.current) return;
+      const rootRect = root.getBoundingClientRect();
+      // A pinned (just-clicked) heading wins while it is still on-screen — this
+      // is what lets a click on a heading already fully in view take the
+      // highlight, instead of the threshold rule holding a higher heading. Once
+      // it leaves the viewport, drop the pin and resume normal tracking.
+      // Chapters are never pinned: they're tall, so a pin would freeze heading
+      // tracking for the whole chapter.
+      const pinned = pinnedOutlineRef.current;
+      if (pinned) {
+        const el = root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(pinned)}"]`);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          if (r.bottom > rootRect.top && r.top < rootRect.bottom) {
+            setActiveOutline(pinned);
+            return;
+          }
+        }
+        pinnedOutlineRef.current = null;
+      }
       const rows = root.querySelectorAll<HTMLElement>('[data-chapter-id]');
       if (rows.length === 0) return;
-      // The chapter "in focus" is the last one whose top is above the
-      // viewport's top by less than the viewport height — i.e. the chapter
-      // currently occupying the upper third of the screen.
-      const rootRect = root.getBoundingClientRect();
+      // The chapter "in focus" is the last one whose top is above the reading
+      // line (upper third of the viewport).
       const threshold = rootRect.top + rootRect.height * 0.33;
-      let candidateId: string | null = null;
+      let chapterId: string | null = null;
       for (const row of Array.from(rows)) {
-        const rect = row.getBoundingClientRect();
-        if (rect.top <= threshold) candidateId = row.dataset.chapterId || null;
+        if (row.getBoundingClientRect().top <= threshold) chapterId = row.dataset.chapterId || null;
         else break;
       }
-      if (candidateId !== activeNodeId) {
-        setActiveNodeId(candidateId);
+      // Within that chapter, the deepest heading above the reading line — the
+      // last/closest one — so the highlight extends down into the expanded inner
+      // rows. No heading above the line (chapter intro) → the chapter stays active.
+      let headingId: string | null = null;
+      if (chapterId) {
+        let bestDist = Infinity;
+        for (const h of outlineByNodeIdRef.current[chapterId] ?? []) {
+          const el = root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(h.id)}"]`);
+          if (!el) continue;
+          const top = el.getBoundingClientRect().top;
+          if (top <= threshold + 24) {
+            const dist = threshold - top;
+            if (dist < bestDist) {
+              bestDist = dist;
+              headingId = h.id;
+            }
+          }
+        }
       }
+      setActiveOutline(headingId ?? chapterId);
     };
     const onScroll = () => {
-      // While a programmatic jump is in flight every scroll frame just bumps
-      // the idle timer; once the animation stops emitting events the spy is
-      // released (and re-synced to the rest position unless the click pinned a
-      // chapter). This is what keeps the destination from flickering open/shut.
+      // While a programmatic jump is in flight every scroll frame just bumps the
+      // idle timer; once the animation stops emitting events the spy is released
+      // and re-synced (which also engages the heading pin set by the click).
+      // This is what keeps the destination from flickering open/shut.
       if (spySuppressedRef.current) {
         if (spyIdleTimerRef.current != null) window.clearTimeout(spyIdleTimerRef.current);
         spyIdleTimerRef.current = window.setTimeout(() => {
           spyIdleTimerRef.current = null;
           spySuppressedRef.current = false;
-          if (pinnedChapterRef.current != null) {
-            pinnedChapterRef.current = null; // chapter click owns its active row
-          } else {
-            recompute(); // act / heading jump: re-sync to where we landed
-          }
+          recompute();
         }, 140);
         return;
       }
@@ -337,7 +380,7 @@ export function AllChaptersEditorView() {
       root.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [activeNodeId, orderedNodes.length]);
+  }, [orderedNodes.length, setActiveOutline]);
 
   // Wire chapter content / title / summary updates back to the data layer.
   // These mirror NodeEditorView's handlers but operate on whichever chapter
@@ -462,20 +505,27 @@ export function AllChaptersEditorView() {
   const handleOutlineClick = useCallback(
     (id: string) => {
       if (id.startsWith(ACT_TOC_PREFIX)) {
-        armSpySuppression(null); // act jump: let the spy re-sync once it settles
+        pinnedOutlineRef.current = null;
+        armSpySuppression(); // act jump: let the spy re-sync once it settles
         scrollToActId(id.slice(ACT_TOC_PREFIX.length));
       } else if (orderedNodeIds.has(id)) {
-        // Pin the active highlight to the clicked chapter up front so it lands
-        // there directly instead of racing down the outline behind the scroll.
-        armSpySuppression(id);
-        setActiveNodeId(id);
+        // Chapter jump: light it up front so it lands directly instead of racing
+        // down the outline; don't pin — heading tracking takes over as the
+        // reader scrolls into the chapter.
+        pinnedOutlineRef.current = null;
+        armSpySuppression();
+        setActiveOutline(id);
         scrollToNodeId(id);
       } else {
-        armSpySuppression(null); // heading anchor: spy re-syncs to its chapter
+        // Heading jump: pin it so the clicked row stays selected until it
+        // scrolls out of view, even if its section was already fully on-screen.
+        pinnedOutlineRef.current = id;
+        armSpySuppression();
+        setActiveOutline(id);
         scrollToOutlineAnchor(id, scrollRef.current);
       }
     },
-    [orderedNodeIds, scrollToNodeId, scrollToActId, armSpySuppression],
+    [orderedNodeIds, scrollToNodeId, scrollToActId, armSpySuppression, setActiveOutline],
   );
 
   if (orderedNodes.length === 0) {
@@ -544,7 +594,7 @@ export function AllChaptersEditorView() {
         <EditorOutlinePanel
           title="通览全书 · OUTLINE"
           items={outlineItems}
-          activeId={activeNodeId}
+          activeId={activeOutlineId}
           onItemClick={handleOutlineClick}
           collapseChaptersByDefault
           emptyHint="— 尚无章节 —"
