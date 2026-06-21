@@ -32,11 +32,12 @@ interface Props {
   // below the static section framework). Separated by a thin horizontal rule
   // only — no label, no count. When empty, nothing is rendered.
   secondaryItems?: OutlineEntry[];
-  // When true, L2 rows (chapters) default to COLLAPSED unless they're the
-  // active row — the whole-book TOC uses this so only the chapter you're
-  // reading expands its scene/beat/note subtree. Other views leave it off and
-  // everything starts expanded.
-  autoCollapseInactive?: boolean;
+  // When true, L2 rows (chapters) start COLLAPSED and expansion is left
+  // entirely to the user's carets — it is NOT coupled to the scroll position.
+  // The whole-book TOC uses this so a fast scroll only slides the active-row
+  // highlight; it never mounts/unmounts subtrees underneath it. Other views
+  // leave it off and everything starts expanded.
+  collapseChaptersByDefault?: boolean;
 }
 
 // Width of the expanded TOC panel.
@@ -90,7 +91,7 @@ export function EditorOutlinePanel({
   onItemClick,
   emptyHint = '— 暂无标题 —',
   secondaryItems,
-  autoCollapseInactive = false,
+  collapseChaptersByDefault = false,
 }: Props) {
   const collapsed = useUiStore((s) => s.outlineCollapsed);
 
@@ -136,9 +137,12 @@ export function EditorOutlinePanel({
   );
 
   // Expansion is owned here: a sparse override map (id → forced open/closed)
-  // layered over per-kind defaults. Defaults react to `activeId`, so in the
-  // whole-book TOC the chapter you scroll to auto-expands and the previous
-  // one auto-collapses — unless the user has toggled it by hand.
+  // layered over per-kind defaults. The defaults are STATIC — they do not react
+  // to `activeId`/scroll. (They used to: the active chapter auto-expanded and
+  // the previous one auto-collapsed. But driving expansion from the scroll
+  // position made fast scrolls churn whole subtrees in and out — flicker, plus
+  // the layout change fed back into the scroller. Now scroll only moves the
+  // highlight; the carets are the only thing that opens/closes a subtree.)
   const [openOverride, setOpenOverride] = useState<Map<string, boolean>>(new Map());
   const toggleOpen = useCallback((id: string, next: boolean) => {
     setOpenOverride((prev) => {
@@ -148,7 +152,10 @@ export function EditorOutlinePanel({
     });
   }, []);
   const defaultOpen = (item: OutlineEntry): boolean => {
-    if (autoCollapseInactive && item.kind === 'chapter') return item.id === activeId;
+    // Chapters in the whole-book TOC start collapsed and only the user's carets
+    // open them; the active chapter is highlighted (see `active` below) but
+    // never force-expanded. Everything else defaults open.
+    if (collapseChaptersByDefault && item.kind === 'chapter') return false;
     return true;
   };
   const isOpen = (item: OutlineEntry): boolean =>

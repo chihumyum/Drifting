@@ -228,14 +228,11 @@ export function AllChaptersEditorView() {
   // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
   // scrollIntoView that emits a stream of scroll events as it animates; if the
   // scroll-spy reacted to each frame, `activeNodeId` would sweep through every
-  // chapter the animation passes over, and because the outline auto-expands the
-  // active chapter, each one's subtree would mount then unmount in turn — the
-  // open/close flicker the user sees on the destination (made worse by lazy
-  // rows re-measuring their height mid-flight and nudging the active candidate
-  // back and forth). So a TOC click suppresses the spy for the duration of the
-  // jump — re-armed on every scroll event, released once the scroll goes idle —
-  // and, for chapter targets, pins the active row to the clicked chapter so it
-  // expands exactly once.
+  // chapter the animation passes over, so the active-row highlight would race
+  // down the whole outline before landing on the target. So a TOC click
+  // suppresses the spy for the duration of the jump — re-armed on every scroll
+  // event, released once the scroll goes idle — and, for chapter targets, pins
+  // the active row to the clicked chapter so the highlight lands on it directly.
   const spySuppressedRef = useRef(false);
   const spyIdleTimerRef = useRef<number | null>(null);
   const pinnedChapterRef = useRef<string | null>(null);
@@ -294,7 +291,7 @@ export function AllChaptersEditorView() {
       raf = 0;
       // A TOC click is driving a smooth scroll right now: leave the active row
       // pinned to the click target and ignore the transient frames (see
-      // armSpySuppression) so the outline doesn't sweep-flicker.
+      // armSpySuppression) so the highlight doesn't race down the outline.
       if (spySuppressedRef.current) return;
       const rows = root.querySelectorAll<HTMLElement>('[data-chapter-id]');
       if (rows.length === 0) return;
@@ -434,9 +431,10 @@ export function AllChaptersEditorView() {
   // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
   // scene/beat/note (L3-L5). Acts are centred dividers, NOT containers — the
   // chapters that follow an act belong to it visually, the way readRows lays
-  // them out. Expansion is owned by EditorOutlinePanel (autoCollapseInactive),
-  // so only the chapter you're reading expands its subtree. No acts → a plain
-  // chapter list (matching readRows' no-act path).
+  // them out. Expansion is owned by EditorOutlinePanel (collapseChaptersByDefault),
+  // so chapters start collapsed and the user opens subtrees by hand — scrolling
+  // never expands them. No acts → a plain chapter list (matching readRows'
+  // no-act path).
   const outlineItems = useMemo<OutlineEntry[]>(() => {
     const buildChapter = (n: ChapterNode): OutlineEntry => ({
       id: n.id,
@@ -467,8 +465,8 @@ export function AllChaptersEditorView() {
         armSpySuppression(null); // act jump: let the spy re-sync once it settles
         scrollToActId(id.slice(ACT_TOC_PREFIX.length));
       } else if (orderedNodeIds.has(id)) {
-        // Pin the active row to the clicked chapter up front so it expands once
-        // and stays put — the smooth scroll won't sweep the outline behind it.
+        // Pin the active highlight to the clicked chapter up front so it lands
+        // there directly instead of racing down the outline behind the scroll.
         armSpySuppression(id);
         setActiveNodeId(id);
         scrollToNodeId(id);
@@ -548,7 +546,7 @@ export function AllChaptersEditorView() {
           items={outlineItems}
           activeId={activeNodeId}
           onItemClick={handleOutlineClick}
-          autoCollapseInactive
+          collapseChaptersByDefault
           emptyHint="— 尚无章节 —"
         />
         <div className="editor-scroll" ref={scrollRef}>

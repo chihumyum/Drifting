@@ -171,7 +171,13 @@ function VirtualChapterRowImpl({
       data-chapter-index={index}
       style={{
         position: 'relative',
-        minHeight: isNear ? undefined : placeholderHeight,
+        // Hold the reserved height until real content has actually arrived.
+        // Releasing it the instant the row mounts (while content is still
+        // loading) collapsed the row to the ~200px Loading box and snapped it
+        // back when prose landed — two height jumps per row, the main source of
+        // the fast-scroll judder. Now: estimate/cached until loaded, natural
+        // height after.
+        minHeight: isNear && content !== undefined ? undefined : placeholderHeight,
       }}
     >
       {isNear ? (
