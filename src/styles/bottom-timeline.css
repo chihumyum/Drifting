@@ -561,8 +561,6 @@
   border-color: hsl(var(--accent) / 0.55);
   background: hsl(var(--accent) / 0.06);
   color: hsl(var(--ink-1));
-  font-family: var(--font-sans);
-  letter-spacing: 0;
   cursor: pointer;
 }
 /* ⚓ marks the marker as bound to a drift node — same glyph the act rail uses
