@@ -2493,13 +2493,12 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   letter-spacing: 0.005em;
   line-height: 1.3;
 }
-/* h1 — top-level framework heading. The strongest step in the outline:
-   largest, boldest, darkest, least indented. */
+/* h1 — top-level framework heading. */
 .toc-item--h1 {
-  font-size: 15px;
-  font-weight: 600;
-  color: hsl(var(--ink-1));
-  padding: 8px 4px 6px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--ink-2));
+  padding: 7px 4px 6px 10px;
 }
 /* h2 — middle step toward h3: smaller, lighter, normal weight, indented. */
 .toc-item--h2 {
