@@ -69,6 +69,29 @@
   margin: 0;
   font-feature-settings: 'cv11', 'ss03';
 }
+/* Title doubles as an inline rename field: strip the native <input> chrome
+   so it reads as the hero <h1>. No hover wash — clicking it just edits. */
+.dash-hero__title-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: text;
+}
+.dash-hero__title-input::placeholder {
+  color: hsl(var(--ink-5));
+}
+.dash-hero__title-input:read-only {
+  cursor: default;
+}
+
 .dash-hero__title-glyph {
   font-style: italic;
   color: hsl(var(--accent));
@@ -1019,13 +1042,6 @@
   flex-direction: column;
   gap: 7px;
 }
-.dash-profile__label {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: hsl(var(--ink-4));
-}
 .dash-profile__textarea {
   width: 100%;
   min-width: 0;
@@ -1050,12 +1066,6 @@
 }
 .dash-profile__textarea::placeholder {
   color: hsl(var(--ink-5));
-}
-.dash-profile__hint {
-  display: block;
-  margin-top: 10px;
-  font-size: 11px;
-  color: hsl(var(--ink-4));
 }
 
 /* ───── BOTTOM EDITORIAL FOOTER ────────────────────────── */

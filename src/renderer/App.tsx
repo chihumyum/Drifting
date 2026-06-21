@@ -378,6 +378,10 @@ function Layout() {
         // Initialize project-specific data (stores etc). Story-graph edges
         // come from entity_relation now and load with relationUsecases.
         await Promise.all([
+          // Seed the project metadata from local SQLite so the dashboard title
+          // shows the real name on first paint (no placeholder flash) — the
+          // network graph pull below still refreshes it afterwards.
+          projectUsecases.loadProject(projectId),
           nodeUsecases.loadNodes(),
           storylineUsecases.loadStorylines(),
           elementUsecases.loadInitial(),

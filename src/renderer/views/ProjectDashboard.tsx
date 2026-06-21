@@ -68,7 +68,6 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
   return (
     <div className="dash-profile">
       <label className="dash-profile__field">
-        <span className="dash-profile__label">图书简介 · SUMMARY</span>
         <textarea
           className="dash-profile__textarea"
           value={draft}
@@ -78,8 +77,6 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
           rows={5}
         />
       </label>
-
-      <span className="dash-profile__hint">失焦后自动保存。副标题、体裁等扩展信息可在本书字段中维护。</span>
     </div>
   );
 }
@@ -241,8 +238,29 @@ export function ProjectDashboard() {
   ];
 
   // ─── Derived hero meta ─────────────────────────────────
-  const heroProjectTitle =
-    currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Drifting';
+  // The hero title doubles as an inline rename field — mirrors the storyline
+  // editor's name pattern (controlled draft + IME composition guard).
+  const editableProjectId = currentProject?.id ?? projectId ?? null;
+  const currentProjectName =
+    currentProject?.name ?? projects.find((p) => p.id === projectId)?.name ?? '';
+  const [nameDraft, setNameDraft] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isComposingName, setIsComposingName] = useState(false);
+  const displayedName = isEditingName ? nameDraft : currentProjectName;
+
+  const commitName = async () => {
+    const next = nameDraft.trim();
+    // Persist BEFORE leaving edit mode. If we dropped out of editing first,
+    // `displayedName` would briefly fall back to the stale `currentProjectName`
+    // (the store hasn't taken the write yet) and the title would flash the old
+    // name until the async update lands. Awaiting keeps the draft on screen
+    // until the store holds the new value, so the swap is seamless.
+    if (editableProjectId && next && next !== currentProjectName) {
+      await updateProject(editableProjectId, { name: next });
+    }
+    setIsEditingName(false);
+  };
+
   const heroProjectSummary = currentProject?.summary;
   const lastTouchedNode = useMemo(() => {
     if (!bookNodes.length) return null;
@@ -326,9 +344,39 @@ export function ProjectDashboard() {
               <span>SINCE {projectSinceLabel}</span>
             </div>
 
-            <h1 className="dash-hero__title">
-              {heroProjectTitle}
-            </h1>
+            <input
+              type="text"
+              className="dash-hero__title dash-hero__title-input"
+              value={displayedName}
+              readOnly={!editableProjectId}
+              placeholder="Drifting"
+              aria-label="项目名称"
+              title="点击重命名项目"
+              onFocus={() => {
+                setNameDraft(currentProjectName);
+                setIsEditingName(true);
+              }}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onCompositionStart={() => setIsComposingName(true)}
+              onCompositionEnd={(e) => {
+                setIsComposingName(false);
+                setNameDraft(e.currentTarget.value);
+              }}
+              onBlur={() => {
+                if (isComposingName) setIsEditingName(false);
+                else void commitName();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isComposingName) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+                if (e.key === 'Escape') {
+                  setNameDraft(currentProjectName);
+                  e.currentTarget.blur();
+                }
+              }}
+            />
 
             {heroProjectSummary && (
               <p className="dash-hero__sub">
