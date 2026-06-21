@@ -17,6 +17,17 @@ interface UseBottomTimelineSelectorsParams {
   // set; narrative order is nullable — nodes with null are filtered out of
   // `placedNodes` (and surface in `unplacedNodes` for the holding drawer).
   orderField: TimelineOrderField;
+  // An order anchor on the active axis that should extend the right extent
+  // PAST the chapters — the furthest timeline marker (narrative view) or act
+  // boundary (book view). Lets pins/acts be dragged or planned beyond the
+  // last chapter; null when nothing sits past the chapters.
+  extraMaxOrder?: number | null;
+  // Fixed runway, in grid units, added beyond the furthest content anchor so
+  // there is always room to drop a pin / plan an act past the end. The track
+  // width derives from the same value, so the droppable range and the visible
+  // range stay in sync and the persisted order is viewport-independent (a
+  // narrower window just scrolls instead of re-clamping).
+  runwayUnits?: number;
 }
 
 export function useBottomTimelineSelectors({
@@ -27,6 +38,8 @@ export function useBottomTimelineSelectors({
   gridUnit,
   nodeDefaultWidth,
   orderField,
+  extraMaxOrder = null,
+  runwayUnits = 0,
 }: UseBottomTimelineSelectorsParams) {
   const orderOf = useCallback(
     (node: TimelineNode): number | null => {
@@ -95,9 +108,17 @@ export function useBottomTimelineSelectors({
     return Math.max(...placedNodes.map((node) => orderOf(node) ?? 0));
   }, [placedNodes, minOrder, nodeDefaultWidth, orderOf]);
 
-  // Each tile occupies `nodeDefaultWidth` grid units, so the rightmost edge
-  // is one tile-width past the last node's order value.
-  const maxOrder = Math.max(maxNodeOrder + nodeDefaultWidth, minOrder + nodeDefaultWidth);
+  // Right extent in order units: the last chapter's tile edge (one tile-width
+  // past its order value), OR a caller-supplied anchor (the furthest marker /
+  // planning act) when it sits past the chapters — PLUS a fixed runway so pins
+  // and acts can always be dropped or planned beyond the last chapter. The
+  // track width below derives from this, so the visible range == the droppable
+  // range and the order stays viewport-independent.
+  const contentMaxOrder = Math.max(
+    maxNodeOrder + nodeDefaultWidth,
+    extraMaxOrder ?? Number.NEGATIVE_INFINITY,
+  );
+  const maxOrder = Math.max(contentMaxOrder, minOrder + nodeDefaultWidth) + runwayUnits;
   const timelineRange = Math.max(maxOrder - minOrder, nodeDefaultWidth);
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const availableWidth = viewportWidth - 40;
@@ -105,7 +126,11 @@ export function useBottomTimelineSelectors({
   // 收起时固定自动缩放；展开时使用手势缩放值
   const collapsedAutoScale = Math.min(1, availableWidth / (timelineRange * gridUnit));
   const scaleFactor = isExpanded ? expandedScale : collapsedAutoScale;
-  const extraSpace = isExpanded ? viewportWidth * 0.25 : 40;
+  // Trailing pixel pad so the right-most pin's label (which now flows to the
+  // RIGHT of the pin, like an act band) isn't clipped at the track edge. Fixed
+  // rather than viewport-derived — the runway folded into maxOrder already
+  // supplies the "place past the end" room, so this is just label breathing.
+  const extraSpace = isExpanded ? 240 : 40;
   const timelineWidth = timelineRange * gridUnit * scaleFactor + extraSpace;
 
   // Fixed tile width — tiles no longer have an `end`, so the visual span

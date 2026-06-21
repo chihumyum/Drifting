@@ -211,7 +211,7 @@ export function GraphTimelinePin({
       >
         {displayLabel}
       </div>
-      <div className="graph-pin__head" onMouseDown={startDrag} title="拖动调整位置" />
+      <div className="graph-pin__line" onMouseDown={startDrag} title="拖动调整位置" />
       {menu && (
         <TimelinePinMenu
           x={menu.x}

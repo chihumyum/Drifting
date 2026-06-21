@@ -36,6 +36,11 @@ interface ActRailProps {
   snapOrders: number[];
   onRenameAct: (id: string, name: string) => void;
   onMoveBoundary: (id: string, startOrder: number) => void;
+  /** Live boundary-drag x (track-relative px, = orderToX coords) while dragging
+      a boundary/chip, null when it ends. Lets the host extend the drop
+      indicator down through the storyline lanes so it reads as one continuous
+      line from the rail to the bottom — same as a timeline marker's. */
+  onBoundaryDragMove?: (x: number | null) => void;
   onDeleteAct: (id: string) => void;
   onSplitAt: (startOrder: number) => void;
   /** Create an act at the viewport center (the rail head cell's ＋ button). */
@@ -59,13 +64,15 @@ interface ActRailProps {
   className?: string;
 }
 
-interface BandMenuState {
-  actId: string;
-  x: number;
-  y: number;
-  /** Order value under the cursor at menu-open — target for 在此处开始新幕. */
-  orderAtCursor: number;
-}
+// Two context menus on the rail, mirroring the timeline-marker rail:
+//   • 'act'  — right-click an act CHIP → manage that act (rename / split /
+//              drift / delete). Carries the act id.
+//   • 'rail' — right-click the bare rail (anywhere but a chip) → 在此处新建幕
+//              only. The chip stops propagation, so this fires on empty rail.
+// Both carry the cursor order so 新建幕 lands where the user clicked.
+type ActMenuState =
+  | { kind: 'act'; actId: string; x: number; y: number; orderAtCursor: number }
+  | { kind: 'rail'; x: number; y: number; orderAtCursor: number };
 
 export function ActRail({
   acts,
@@ -77,6 +84,7 @@ export function ActRail({
   snapOrders,
   onRenameAct,
   onMoveBoundary,
+  onBoundaryDragMove,
   onDeleteAct,
   onSplitAt,
   onAddAct,
@@ -88,7 +96,7 @@ export function ActRail({
   className,
 }: ActRailProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<BandMenuState | null>(null);
+  const [menu, setMenu] = useState<ActMenuState | null>(null);
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -129,6 +137,24 @@ export function ActRail({
     return (px - x0) / unit;
   };
 
+  // Right-click the bare rail (anywhere but an act chip) → 在此处新建幕 only,
+  // mirroring the timeline-marker rail. An act chip's own onContextMenu stops
+  // propagation, so this only fires on empty rail. Needs a chapter to anchor
+  // the order grid, same gate as the head ＋.
+  const handleRailContextMenu = (e: React.MouseEvent) => {
+    if (snapOrders.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = trackRef.current?.getBoundingClientRect();
+    const px = rect ? e.clientX - rect.left : 0;
+    setMenu({
+      kind: 'rail',
+      x: e.clientX + 2,
+      y: e.clientY - 2,
+      orderAtCursor: Math.round(xToOrder(px)),
+    });
+  };
+
   // Rail head cell — mirrors the narrative time-axis head ("TIME ＋"): the
   // 幕 label plus a ＋ that drops a new act at the viewport center. This is
   // the primary create entry (the old header 「+幕」button was retired).
@@ -155,8 +181,8 @@ export function ActRail({
 
   // No acts yet — the rail still shows (book mode always renders it now, so
   // the 幕 feature stays discoverable via the head ＋). The empty track is
-  // plain (no dashed invitation); double-clicking it still drops a first
-  // split for users who reach for it.
+  // plain (no dashed invitation); right-clicking it offers 在此处新建幕, the
+  // same gesture as the populated rail.
   if (segments.length === 0) {
     return (
       <div className={`actrail actrail--empty${className ? ` ${className}` : ''}`} style={{ height }}>
@@ -165,12 +191,8 @@ export function ActRail({
           ref={trackRef}
           className="actrail__track"
           style={{ minWidth: trackWidth }}
-          title="双击此处分幕，或点头部 ＋"
-          onDoubleClick={(e) => {
-            const rect = trackRef.current?.getBoundingClientRect();
-            const px = rect ? e.clientX - rect.left : 0;
-            onSplitAt(Math.round(xToOrder(px)));
-          }}
+          title="右键此处新建幕，或点头部 ＋"
+          onContextMenu={handleRailContextMenu}
         />
       </div>
     );
@@ -185,13 +207,14 @@ export function ActRail({
     return { left, right: Math.max(right, left) };
   };
 
+  // Move an act's boundary (= the act's position). Driven by both the boundary
+  // divider AND the act chip itself (drag the chip to reposition the act). Only
+  // valid for segIndex >= 1 with a real startOrder — the first act (opener) has
+  // no boundary and can't be moved.
   const startBoundaryDrag = (e: React.PointerEvent, segIndex: number) => {
-    // segIndex >= 1 — the opener has no draggable left edge.
-    if (e.button !== 0) return; // left button only; right-click is free for future menus
-    e.preventDefault();
-    e.stopPropagation();
+    if (e.button !== 0) return; // left button only; right-click → context menu
     const act = segments[segIndex].act;
-    if (act.startOrder == null) return;
+    if (segIndex === 0 || act.startOrder == null) return;
     const prevBound = segments[segIndex - 1].act.startOrder ?? Number.NEGATIVE_INFINITY;
     const nextBound =
       segIndex + 1 < segments.length
@@ -201,13 +224,21 @@ export function ActRail({
     // boundary — that would reorder the acts under the user's cursor.
     const candidates = snapOrders.filter((o) => o > prevBound && o < nextBound);
     if (candidates.length === 0) return;
+    // Don't preventDefault on pointerdown: the chip also needs its click /
+    // double-click (rename) / context-menu to fire. The drag runs on window
+    // listeners regardless, and a movement threshold below keeps a plain click
+    // from registering as a drag (and from flashing the ghost line).
+    e.stopPropagation();
 
     const startMouseX = e.clientX;
     const startPixel = orderToX(act.startOrder);
     let nearest = act.startOrder;
-    setDragGhostX(startPixel);
+    let dragging = false;
     const onMove = (ev: PointerEvent) => {
-      const px = startPixel + (ev.clientX - startMouseX);
+      const dx = ev.clientX - startMouseX;
+      if (!dragging && Math.abs(dx) < 4) return;
+      dragging = true;
+      const px = startPixel + dx;
       let best = candidates[0];
       let bestDist = Infinity;
       for (const c of candidates) {
@@ -219,12 +250,14 @@ export function ActRail({
       }
       nearest = best;
       setDragGhostX(px);
+      onBoundaryDragMove?.(px);
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       setDragGhostX(null);
-      if (nearest !== act.startOrder) onMoveBoundary(act.id, nearest);
+      onBoundaryDragMove?.(null);
+      if (dragging && nearest !== act.startOrder) onMoveBoundary(act.id, nearest);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -241,12 +274,33 @@ export function ActRail({
   return (
     <div className={`actrail${className ? ` ${className}` : ''}`} style={{ height }}>
       {railHead}
-      <div ref={trackRef} className="actrail__track" style={{ minWidth: trackWidth }}>
+      <div
+        ref={trackRef}
+        className="actrail__track"
+        style={{ minWidth: trackWidth }}
+        onContextMenu={handleRailContextMenu}
+      >
         {segments.map((seg, i) => {
           const { left, right } = bandEdges(i);
           const isEditing = editingId === seg.act.id;
           const tint = seg.act.color;
+          // Tooltip lives on the chip now (the band is inert), so it reads only
+          // when hovering the act chip — not anywhere across the segment.
+          const chipTitle = `${seg.act.name} · ${seg.chapters.length} 章${
+            seg.act.driftNodeId
+              ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? '幕笔记'}`
+              : ''
+          }${seg.act.summary ? `\n${seg.act.summary}` : ''}`;
+          // Drag the chip to move the act's boundary (= its position) — same
+          // gesture/clamping as the divider. The first act (opener, no
+          // boundary) is fixed at the book head, so its chip isn't draggable.
+          const draggable = i >= 1 && seg.act.startOrder != null;
           return (
+            // The band is now an inert positioning/clip wrapper (pointer-events
+            // off in CSS) — it no longer captures right-click / double-click
+            // across the whole segment. All act interaction lives on the chip
+            // below, so the bare rail between chips reads as empty (→ 新建幕),
+            // exactly like the timeline-marker rail.
             <div
               key={seg.act.id}
               className={`actrail__band${tint ? ' has-color' : ''}`}
@@ -257,27 +311,6 @@ export function ActRail({
                   ...(tint ? { ['--act-color' as string]: tint } : {}),
                 } as React.CSSProperties
               }
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setEditingId(seg.act.id);
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const rect = trackRef.current?.getBoundingClientRect();
-                const px = rect ? e.clientX - rect.left : 0;
-                setMenu({
-                  actId: seg.act.id,
-                  x: e.clientX + 2,
-                  y: e.clientY - 2,
-                  orderAtCursor: Math.round(xToOrder(px)),
-                });
-              }}
-              title={`${seg.act.name} · ${seg.chapters.length} 章${
-                seg.act.driftNodeId
-                  ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? '幕笔记'}`
-                  : ''
-              }${seg.act.summary ? `\n${seg.act.summary}` : ''}`}
             >
               {isEditing ? (
                 <input
@@ -295,13 +328,40 @@ export function ActRail({
                   }}
                 />
               ) : (
-                <span className="actrail__label">
+                <span
+                  className={`actrail__label${draggable ? ' is-draggable' : ''}`}
+                  title={chipTitle}
+                  onPointerDown={draggable ? (e) => startBoundaryDrag(e, i) : undefined}
+                  onDoubleClick={(e) => {
+                    // Rename triggers on the CHIP only (the band is inert).
+                    e.stopPropagation();
+                    setEditingId(seg.act.id);
+                  }}
+                  onContextMenu={(e) => {
+                    // Manage THIS act — the full menu. Stops propagation so the
+                    // rail's 新建幕 menu doesn't also open.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const rect = trackRef.current?.getBoundingClientRect();
+                    const px = rect ? e.clientX - rect.left : 0;
+                    setMenu({
+                      kind: 'act',
+                      actId: seg.act.id,
+                      x: e.clientX + 2,
+                      y: e.clientY - 2,
+                      orderAtCursor: Math.round(xToOrder(px)),
+                    });
+                  }}
+                >
                   {seg.act.driftNodeId && onOpenDrift && (
                     <button
                       type="button"
                       className="actrail__anchor"
                       title="打开幕笔记（绑定的漂浮节点）"
                       onClick={(e) => {
+                        // Drag still arms via the chip's onPointerDown (the
+                        // 4px threshold keeps this a plain click → open drift;
+                        // a drag from the ⚓ moves the act instead).
                         e.stopPropagation();
                         const r = e.currentTarget.getBoundingClientRect();
                         onOpenDrift(seg.act.driftNodeId!, {
@@ -345,6 +405,26 @@ export function ActRail({
       {menu &&
         createPortal(
           (() => {
+            // Bare-rail menu: a single 在此处新建幕, mirroring the marker rail.
+            if (menu.kind === 'rail') {
+              return (
+                <div
+                  className="actrail__menu"
+                  style={{ position: 'fixed', left: menu.x, top: menu.y }}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenu(null);
+                      onSplitAt(menu.orderAtCursor);
+                    }}
+                  >
+                    在此处新建幕
+                  </button>
+                </div>
+              );
+            }
             const menuAct = acts.find((a) => a.id === menu.actId) ?? null;
             const isBound = Boolean(menuAct?.driftNodeId);
             return (

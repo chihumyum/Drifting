@@ -492,13 +492,19 @@
   z-index: 7;
 }
 .btl-pin__label {
+  /* Chip sits AFTER the pin line, flowing rightward — and matches the act
+     chip (.actrail__label / .actrail__name): same paper pill, hairline border,
+     mono 500 text, padding. Unified so an act and a time marker read as the
+     same primitive. The old translateX(-50%) centred it on the pin, so an
+     order-0 pin clipped its left half against the track edge. */
   position: absolute;
-  top: 1px;
-  left: 0;
-  transform: translateX(-50%);
-  padding: 0 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 6px;
+  padding: 1px 6px;
   font-family: var(--font-mono);
   font-size: 9.5px;
+  font-weight: 500;
   line-height: 13px;
   letter-spacing: 0.06em;
   color: hsl(var(--ink-2));
@@ -509,7 +515,7 @@
   cursor: grab;
   outline: none;
   min-width: 22px;
-  text-align: center;
+  text-align: left;
   user-select: none;
   max-width: 200px;
   overflow: hidden;
@@ -529,27 +535,28 @@
   opacity: 0;
   pointer-events: none;
 }
-.btl-pin__head {
+/* Pin line — the rail-height vertical line at the marker's position, mirroring
+   the act boundary line (.actrail__divider::after): same 1px --rule primitive.
+   Replaced the old triangle head. Continues downward as .btl-pin-line through
+   the storyline tracks, so the marker reads as one line from rail to bottom. */
+.btl-pin__line {
   position: absolute;
-  top: 15px;
+  top: 0;
+  bottom: 0;
   left: 0;
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 6px solid hsl(var(--ink-4));
-  transform: translateX(-4px);
+  width: 1px;
+  background: hsl(var(--rule));
   cursor: grab;
   transition: opacity 0.1s ease;
 }
-.btl-pin.is-dragging .btl-pin__head {
+.btl-pin.is-dragging .btl-pin__line {
   cursor: grabbing;
   opacity: 0;
   pointer-events: none;
 }
 /* Bound pin — the marker carries a drift node as its content. Label shows
    the drift's live title; double-click opens its editor. Accent border +
-   filled head signal "this is a thing, not just a caption". */
+   accent line signal "this is a thing, not just a caption". */
 .btl-pin.is-bound .btl-pin__label {
   border-color: hsl(var(--accent) / 0.55);
   background: hsl(var(--accent) / 0.06);
@@ -569,8 +576,8 @@
 .btl-pin.is-bound .btl-pin__label:hover {
   background: hsl(var(--accent) / 0.12);
 }
-.btl-pin.is-bound .btl-pin__head {
-  border-top-color: hsl(var(--accent));
+.btl-pin.is-bound .btl-pin__line {
+  background: hsl(var(--accent));
 }
 /* Pin grid line — rendered inside each storyline track so it paints
    below the chapter clips. */
@@ -585,9 +592,12 @@
   z-index: 0;
 }
 
+/* Active drop indicator (marker OR act drag) — accent, matching the act rail
+   ghost (.actrail__ghost), so the rail half and the lane half read as one
+   continuous accent line. Static lines stay faint --rule (above). */
 .btl-pin-line.is-dragging {
-  width: 1px;
-  background: hsl(var(--rule));
+  width: 1.5px;
+  background: hsl(var(--accent));
   z-index: 12;
 }
 

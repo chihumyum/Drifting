@@ -701,14 +701,20 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   z-index: 7;
 }
 .graph-pin__label {
+  /* Chip sits AFTER the pin line, flowing rightward — and matches the act chip
+     (.actrail__label / .actrail__name): same paper pill, hairline border, mono
+     500 text, padding. Unified so an act and a time marker read as the same
+     primitive. The old translateX(-50%) centred it on the pin, so an order-0
+     pin clipped its left half against the track edge. */
   position: absolute;
-  top: 4px;
-  left: 0;
-  transform: translateX(-50%);
-  padding: 1px 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 6px;
+  padding: 1px 6px;
   font-family: var(--font-mono);
   font-size: 9.5px;
-  line-height: 14px;
+  font-weight: 500;
+  line-height: 13px;
   letter-spacing: 0.06em;
   color: hsl(var(--ink-2));
   background: hsl(var(--paper));
@@ -718,7 +724,7 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   cursor: grab;
   outline: none;
   min-width: 24px;
-  text-align: center;
+  text-align: left;
   user-select: none;
   max-width: 200px;
   overflow: hidden;
@@ -738,20 +744,21 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   opacity: 0;
   pointer-events: none;
 }
-.graph-pin__head {
+/* Pin line — the rail-height vertical line at the marker's position, mirroring
+   the act boundary line (.actrail__divider::after). Replaced the old triangle
+   head. Continues downward as .graph-pin-line through the lanes (behind the
+   sticky axis row), so the marker reads as one line from rail to bottom. */
+.graph-pin__line {
   position: absolute;
-  top: 22px;
+  top: 0;
+  bottom: 0;
   left: 0;
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 7px solid hsl(var(--ink-4));
-  transform: translateX(-5px);
+  width: 1px;
+  background: hsl(var(--rule));
   cursor: grab;
   transition: opacity 0.1s ease;
 }
-.graph-pin.is-dragging .graph-pin__head {
+.graph-pin.is-dragging .graph-pin__line {
   cursor: grabbing;
   opacity: 0;
   pointer-events: none;
@@ -776,8 +783,8 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
 .graph-pin.is-bound .graph-pin__label:hover {
   background: hsl(var(--accent) / 0.12);
 }
-.graph-pin.is-bound .graph-pin__head {
-  border-top-color: hsl(var(--accent));
+.graph-pin.is-bound .graph-pin__line {
+  background: hsl(var(--accent));
 }
 
 /* Vertical line that pierces every storyline track for a given pin.
@@ -799,9 +806,15 @@ button.edge-kind-mgr__name:hover:not(:disabled) {
   pointer-events: none;
   z-index: 4;
 }
+/* Active drop indicator (marker OR act drag). Lifted ABOVE the sticky axis /
+   act rail (z-index 25) so the line shows in the rail too — otherwise the
+   static line sits behind the rail (z-index 4) and the indicator vanished in
+   the rail, only appearing in the lanes. Now it reads as one continuous accent
+   line from the rail to the bottom. */
 .graph-pin-line.is-dragging {
+  width: 1.5px;
   background: hsl(var(--accent));
-  z-index: 5;
+  z-index: 26;
 }
 
 /* ---------------- Tiles ---------------- */

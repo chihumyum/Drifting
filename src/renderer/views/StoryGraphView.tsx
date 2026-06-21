@@ -20,6 +20,7 @@ import { EntityCellContextMenu } from '../components/leftBars/EntityCellContextM
 import { useEntityCellAction } from '../hooks/useEntityCellAction';
 import { EdgeKindManager } from '../components/graph/EdgeKindManager';
 import { GraphTimelinePin } from '../components/graph/GraphTimelinePin';
+import { TimelineRailMenu } from '../components/graph/TimelineRailMenu';
 import { DriftPanel, useDriftPanelAnim } from '../components/DriftPanel';
 import { SuperViewHeader } from '../components/SuperViewHeader';
 import loglevel from 'loglevel';
@@ -89,6 +90,12 @@ const GRAPH_CONFIG = {
   AXIS_HEIGHT: 32,
   FULL_BOOK_LANE_HEIGHT: 32,
   CANVAS_PADDING_X: 24,
+  // Runway (grid units) the canvas extends past the furthest chapter / marker
+  // / act, so pins can be dragged and acts planned beyond the last chapter.
+  RUNWAY_UNITS: 8,
+  // Trailing pixel pad so the right-most pin's label (which flows to the RIGHT
+  // of the pin) isn't clipped at the canvas edge.
+  LABEL_PAD: 220,
 };
 
 function readPersistedView(): StoryGraphViewMode {
@@ -593,16 +600,30 @@ export function StoryGraphView() {
   // Compute the order span across all placed nodes; canvas width derives
   // from this. Pads either side so tiles don't hug the edges.
   const orderSpan = useMemo(() => {
-    if (placedNodes.length === 0) return { min: 1, max: 1 + GRAPH_CONFIG.TILE_WIDTH_UNITS };
+    if (placedNodes.length === 0)
+      return { min: 1, max: 1 + GRAPH_CONFIG.TILE_WIDTH_UNITS + GRAPH_CONFIG.RUNWAY_UNITS };
     const values = placedNodes.map((n) => orderOf(n) ?? 0);
+    // Furthest anchor that should extend the canvas past the chapters: the last
+    // marker (narrative view) or act boundary (book view). A fixed runway is
+    // added beyond it so pins/acts can be dropped or planned past the end; the
+    // canvas grows to match (visible == droppable, order viewport-independent).
+    const anchors = isNarrative
+      ? markers.map((m) => m.narrativeOrder)
+      : bookActs.map((a) => a.startOrder ?? Number.NEGATIVE_INFINITY);
+    const contentRight = Math.max(
+      Math.max(...values) + GRAPH_CONFIG.TILE_WIDTH_UNITS,
+      anchors.length ? Math.max(...anchors) : Number.NEGATIVE_INFINITY,
+    );
     return {
       min: Math.min(...values, 1),
-      max: Math.max(...values) + GRAPH_CONFIG.TILE_WIDTH_UNITS,
+      max: contentRight + GRAPH_CONFIG.RUNWAY_UNITS,
     };
-  }, [placedNodes, orderOf]);
+  }, [placedNodes, orderOf, isNarrative, markers, bookActs]);
 
   const canvasContentWidth =
-    (orderSpan.max - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT + GRAPH_CONFIG.CANVAS_PADDING_X * 2;
+    (orderSpan.max - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT +
+    GRAPH_CONFIG.CANVAS_PADDING_X +
+    GRAPH_CONFIG.LABEL_PAD;
 
   const orderToX = useCallback(
     (order: number) => GRAPH_CONFIG.CANVAS_PADDING_X + (order - orderSpan.min) * GRAPH_CONFIG.GRID_UNIT,
@@ -796,6 +817,11 @@ export function StoryGraphView() {
   }, [isNarrative, placedNodes.length, orderSpan.min, orderSpan.max]);
   const [pinDragXs, setPinDragXs] = useState<Map<string, number>>(new Map());
   const [newlyAddedPinId, setNewlyAddedPinId] = useState<string | null>(null);
+  // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
+  const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
+  // Live x of an in-flight act boundary/chip drag (track-relative px), lifted
+  // from ActRail so the drop indicator can extend down through the lanes.
+  const [actDragX, setActDragX] = useState<number | null>(null);
   const handlePinDragMove = useCallback((id: string, nextX: number | null) => {
     setPinDragXs((prev) => {
       const next = new Map(prev);
@@ -882,6 +908,17 @@ export function StoryGraphView() {
     const created = addMarker(target, '标记');
     if (created) setNewlyAddedPinId(created.id);
   }, [isNarrative, snapValues, addMarker, orderToX]);
+
+  // Drop a marker at a specific order (the rail right-click target), as opposed
+  // to handleAddPin's viewport-center pick.
+  const handleAddPinAtOrder = useCallback(
+    (order: number) => {
+      if (!isNarrative || snapValues.length === 0) return;
+      const created = addMarker(order, '标记');
+      if (created) setNewlyAddedPinId(created.id);
+    },
+    [isNarrative, snapValues.length, addMarker],
+  );
 
   // ---- Drag / drop ----
   // Both book and narrative views support tile drag-to-reorder; the
@@ -1518,6 +1555,7 @@ export function StoryGraphView() {
               snapOrders={actSnapOrders}
               onRenameAct={(id, name) => void updateAct(id, { name })}
               onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
+              onBoundaryDragMove={setActDragX}
               onDeleteAct={(id) => void deleteAct(id)}
               onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
               onAddAct={handleAddActSplit}
@@ -1574,6 +1612,27 @@ export function StoryGraphView() {
               <div
                 className="graph-axis-track-cell"
                 style={{ width: canvasContentWidth }}
+                onContextMenu={(e) => {
+                  // Empty-rail right-click → 新建标记. Right-clicking a pin is
+                  // caught by the pin (it stops propagation), so this only fires
+                  // on blank space. Needs a chapter to anchor the order grid.
+                  if (snapValues.length === 0) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const px = e.clientX - rect.left;
+                  // Snap to the nearest slot, matching the drift-drop logic.
+                  let order = snapValues[0];
+                  let bestDist = Infinity;
+                  for (const s of snapValues) {
+                    const d = Math.abs(orderToX(s) - px);
+                    if (d < bestDist) {
+                      bestDist = d;
+                      order = s;
+                    }
+                  }
+                  setRailMenu({ x: e.clientX + 2, y: e.clientY - 2, order });
+                }}
                 onDragOver={(e) => {
                   // Drift card hovering the axis — accept: dropping anchors
                   // the drift as a bound marker at that slot.
@@ -1654,6 +1713,15 @@ export function StoryGraphView() {
             </div>
           )}
 
+          {railMenu && (
+            <TimelineRailMenu
+              x={railMenu.x}
+              y={railMenu.y}
+              onAddMarker={() => handleAddPinAtOrder(railMenu.order)}
+              onClose={() => setRailMenu(null)}
+            />
+          )}
+
           {/* Vertical pin lines spanning every lane row (narrative only).
               Absolute children of the scroll container; left is in scroll
               content coords (so we add RAIL_WIDTH to the track-relative
@@ -1679,6 +1747,38 @@ export function StoryGraphView() {
                 />
               );
             })}
+
+          {/* Act boundary lines (book view) — same vertical primitive as a
+              marker's line, run down through every lane (behind the sticky act
+              rail) so an act boundary reads top-to-bottom like a time marker. */}
+          {!isNarrative &&
+            bookActs.map((a) =>
+              a.startOrder == null ? null : (
+                <div
+                  key={`actline-${a.id}`}
+                  className="graph-pin-line"
+                  style={{
+                    left: GRAPH_CONFIG.RAIL_WIDTH + orderToX(a.startOrder),
+                    height: actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
+                  }}
+                  aria-hidden
+                />
+              ),
+            )}
+
+          {/* Act drop indicator — follows the boundary/chip drag (x lifted from
+              ActRail) as one accent line from the rail through every lane (the
+              is-dragging z-index lifts it above the sticky act rail). */}
+          {!isNarrative && actDragX !== null && (
+            <div
+              className="graph-pin-line is-dragging"
+              style={{
+                left: GRAPH_CONFIG.RAIL_WIDTH + actDragX,
+                height: actRailHeight + lanesToRender.length * GRAPH_CONFIG.TRACK_HEIGHT,
+              }}
+              aria-hidden
+            />
+          )}
 
           {/* Lane rows — each is a flex row of [sticky-left rail cell |
               track cell with tiles]. The vertical scroll naturally moves

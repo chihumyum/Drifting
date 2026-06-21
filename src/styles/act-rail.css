@@ -92,13 +92,16 @@
   padding: 0 6px;
   overflow: hidden;
   white-space: nowrap;
-  /* NO fill. The band is just a positioned hit-area + a home for the label
-     pill; the act reads as a narrative-marker-style chip (see .actrail__label)
-     plus its boundary line (.actrail__divider). An opaque band used to sit
-     ON TOP of the rail and, where two same-shade segments met, the
-     divider/edge read as a "break" — really the rail showing through. With no
-     fill there's nothing to break. */
+  /* NO fill, and INERT. The band is just a positioned/clip wrapper that homes
+     the act chip (see .actrail__label) at its boundary; the act reads as a
+     narrative-marker-style chip plus its boundary line (.actrail__divider).
+     pointer-events: none means it no longer captures right-click / double-click
+     across the whole segment — all act interaction lives on the chip, so the
+     bare rail between chips reads as empty (→ 在此处新建幕), exactly like the
+     timeline-marker rail. (The full-width opaque band that used to "divide"
+     the rail is gone; only the chip + boundary line remain.) */
   background: transparent;
+  pointer-events: none;
   cursor: default;
   user-select: none;
 }
@@ -116,6 +119,19 @@
   border: 1px solid hsl(var(--rule));
   border-radius: 3px;
   line-height: 13px;
+  /* The chip is the ONLY interactive act surface (the band wrapper is inert):
+     right-click manages the act, double-click renames. Re-enable pointer
+     events the band turned off. */
+  pointer-events: auto;
+  cursor: default;
+}
+/* Draggable chip — every act except the first (opener) can be dragged to move
+   its boundary, so it advertises grab/grabbing like the timeline-marker pin. */
+.actrail__label.is-draggable {
+  cursor: grab;
+}
+.actrail__label.is-draggable:active {
+  cursor: grabbing;
 }
 /* Colored acts tint the chip's border (no heavy fill), echoing the act color
    the way a bound pin tints its label border. */

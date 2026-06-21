@@ -15,6 +15,7 @@ import { useBottomTimelineInteractionState } from './useBottomTimelineInteractio
 import { EntityCellContextMenu } from '../leftBars/EntityCellContextMenu';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { TimelinePinMenu } from '../graph/TimelinePinMenu';
+import { TimelineRailMenu } from '../graph/TimelineRailMenu';
 import { ActRail } from './ActRail';
 import { useBookAct } from '../../usecase/useBookAct';
 import { events } from '../../lib/events';
@@ -47,6 +48,9 @@ const TIMELINE_CONFIG = {
   // Fixed tile width in grid units. Tiles no longer carry an `end`, so all
   // tiles occupy the same horizontal span.
   NODE_DEFAULT_WIDTH: 4,
+  // Runway (grid units) the axis extends past the furthest chapter / marker /
+  // act, so pins can be dragged and acts planned beyond the last chapter.
+  RUNWAY_UNITS: 12,
   NODE_MIN_HEIGHT: 30,
   STORYLINE_GAP: 2,
   RAIL_WIDTH: 148,
@@ -262,7 +266,7 @@ function TimelinePin({
       >
         {displayLabel}
       </div>
-      <div className="btl-pin__head" onMouseDown={startDrag} title="拖动调整位置" />
+      <div className="btl-pin__line" onMouseDown={startDrag} title="拖动调整位置" />
       {menu && (
         <TimelinePinMenu
           x={menu.x}
@@ -483,6 +487,18 @@ export function BottomTimeline() {
     };
   }, [saveScrollPosition]);
 
+  // Furthest order anchor that should push the axis past the chapters: in
+  // narrative view the last marker, in book view the last act boundary. Folded
+  // into the selectors' right extent so a pin/act placed past the end keeps the
+  // axis (and the snap grid) reaching out to it — drag it to the edge and the
+  // axis grows another runway, so the reach is effectively unbounded.
+  const rightAnchorOrder = useMemo(() => {
+    const vals = isNarrative
+      ? markers.map((m) => m.narrativeOrder)
+      : bookActs.map((a) => a.startOrder ?? Number.NEGATIVE_INFINITY);
+    return vals.length ? Math.max(...vals) : null;
+  }, [isNarrative, markers, bookActs]);
+
   const {
     nodeById,
     storylineById,
@@ -504,6 +520,8 @@ export function BottomTimeline() {
     gridUnit: TIMELINE_CONFIG.GRID_UNIT,
     nodeDefaultWidth: TIMELINE_CONFIG.NODE_DEFAULT_WIDTH,
     orderField,
+    extraMaxOrder: rightAnchorOrder,
+    runwayUnits: TIMELINE_CONFIG.RUNWAY_UNITS,
   });
 
   // Helper: which storyline owns this node as its "main" row. Reads the
@@ -1092,6 +1110,27 @@ export function BottomTimeline() {
               );
             })}
 
+          {/* Act boundary lines (book view) — the same vertical primitive as a
+              marker's line, run down through every storyline track so an act
+              boundary reads top-to-bottom like a time marker. */}
+          {!isNarrative &&
+            bookActs.map((a) =>
+              a.startOrder == null ? null : (
+                <div
+                  key={`actline-${a.id}`}
+                  className="btl-pin-line"
+                  style={{ left: orderToPosition(a.startOrder) }}
+                />
+              ),
+            )}
+
+          {/* Lane half of the act drop indicator — follows the boundary/chip
+              drag (x lifted from ActRail) so the rail ghost extends down through
+              the lanes as one continuous line. */}
+          {!isNarrative && actDragX !== null && (
+            <div className="btl-pin-line is-dragging" style={{ left: actDragX }} />
+          )}
+
           {dragOverPosition && dragOverPosition.storylineId === storyline.id && (
             <div
               className="btl-drop-indicator"
@@ -1187,6 +1226,11 @@ export function BottomTimeline() {
   }, [placedNodes.length, minOrder, maxOrder]);
 
   const [newlyAddedMarkerId, setNewlyAddedMarkerId] = useState<string | null>(null);
+  // Right-click on the empty marker rail → "在此处新建标记" at the cursor slot.
+  const [railMenu, setRailMenu] = useState<{ x: number; y: number; order: number } | null>(null);
+  // Live x of an in-flight act boundary/chip drag (track-relative px), lifted
+  // from ActRail so the drop indicator can extend down through the lanes.
+  const [actDragX, setActDragX] = useState<number | null>(null);
   // Live pixel position of each in-flight pin drag (relative to the track).
   // Used to render the vertical drop-indicator line under the cursor; the
   // pin head/label itself stays anchored to the persisted narrativeOrder
@@ -1283,6 +1327,17 @@ export function BottomTimeline() {
     if (created) setNewlyAddedMarkerId(created.id);
   }, [snapValues, addMarker, orderToPosition]);
 
+  // Drop a marker at a specific order (the rail right-click target), as opposed
+  // to handleAddPin's viewport-center pick.
+  const handleAddPinAtOrder = useCallback(
+    (order: number) => {
+      if (snapValues.length === 0) return;
+      const created = addMarker(order, '标记');
+      if (created) setNewlyAddedMarkerId(created.id);
+    },
+    [snapValues.length, addMarker],
+  );
+
   const renderTimeAxis = () => {
     if (!isNarrative) return null;
     return (
@@ -1306,7 +1361,47 @@ export function BottomTimeline() {
             +
           </button>
         </div>
-        <div className="btl-axis__track" style={{ minWidth: timelineWidth }} />
+        <div
+          className="btl-axis__track"
+          style={{ minWidth: timelineWidth }}
+          onContextMenu={(e) => {
+            // Empty-rail right-click → 新建标记. Right-clicking a pin is caught
+            // by the pin itself (it stops propagation), so this only fires on
+            // blank space. Needs at least one chapter to anchor the order grid.
+            if (snapValues.length === 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const px = e.clientX - rect.left;
+            // Snap to the nearest slot, matching how pins snap on drag/drop.
+            let order = snapValues[0];
+            let bestDist = Infinity;
+            for (const s of snapValues) {
+              const d = Math.abs(orderToPosition(s) - px);
+              if (d < bestDist) {
+                bestDist = d;
+                order = s;
+              }
+            }
+            setRailMenu({ x: e.clientX + 2, y: e.clientY - 2, order });
+          }}
+        >
+          {/* Rail half of the marker drop indicator — the pin's own line hides
+              while dragging, so this following line keeps the indicator present
+              in the rail; the lane half is rendered per-track below, so the two
+              read as one continuous line from rail to bottom. */}
+          {markers.map((m) => {
+            const dragX = pinDragXs.get(m.id);
+            if (dragX === undefined) return null;
+            return (
+              <div
+                key={`raildrag-${m.id}`}
+                className="btl-pin-line is-dragging"
+                style={{ left: dragX }}
+              />
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -1552,6 +1647,7 @@ export function BottomTimeline() {
             snapOrders={snapValues}
             onRenameAct={(id, name) => void updateAct(id, { name })}
             onMoveBoundary={(id, startOrder) => void moveBoundary(id, startOrder)}
+            onBoundaryDragMove={setActDragX}
             onDeleteAct={(id) => void deleteAct(id)}
             onSplitAt={(startOrder) => void splitAtOrder(startOrder)}
             onAddAct={handleAddActSplit}
@@ -1606,6 +1702,15 @@ export function BottomTimeline() {
               }}
             />
           ))}
+
+        {railMenu && (
+          <TimelineRailMenu
+            x={railMenu.x}
+            y={railMenu.y}
+            onAddMarker={() => handleAddPinAtOrder(railMenu.order)}
+            onClose={() => setRailMenu(null)}
+          />
+        )}
 
         {crossStorylineLinks.length > 0 && storylines.length > 0 && rowHeight > 0 && (
           <svg
