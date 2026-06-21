@@ -1165,6 +1165,13 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
   text-wrap: pretty;
+  /* Pin the wrapping behaviour prosemirror-view would otherwise inject only on
+     first EditorView construction — the all-chapters read-through renders prose
+     statically (no view) and must wrap pixel-identically to the live editor, or
+     focusing a chapter would reflow every other row. */
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  word-wrap: break-word;
   font-feature-settings: 'liga', 'kern', 'onum';
   /* No own width cap: the prose fills the .page content box (paper width minus
      the .page side padding). Paper width is the dial now (--editor-max-width on
@@ -1238,6 +1245,28 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   font-size: 18px;
   margin: 1.2em 0 0.3em;
 }
+
+/* 通览全书 read-through. Every chapter renders its real prose — statically
+   unless it's the one being edited — so there's no estimated placeholder height
+   to be wrong about and snap the scroll. content-visibility keeps the offscreen
+   rows from costing layout/paint on big books; the row seeds an intrinsic-size
+   guess via --all-chap-row-h and the browser remembers each row's true height
+   after it first displays. */
+.all-chap-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--all-chap-row-h, 600px);
+}
+
+/* The static prose mirror is read-only, never "the line being written", so the
+   focus-line dimming must skip it — otherwise turning focus mode on greys out
+   the entire read-through. */
+.all-chap-static p,
+.all-chap-static h1,
+.all-chap-static h2,
+.all-chap-static h3 {
+  opacity: 1 !important;
+}
+
 .page__ornament {
   text-align: center;
   font-family: var(--font-serif);

@@ -102,18 +102,18 @@ export function AllChaptersEditorView() {
     [getContentByNodeId],
   );
 
-  // Last-measured height per chapter, reused when a row unmounts so the
-  // placeholder doesn't snap back to the wordCount estimate.
-  const [heightCache, setHeightCache] = useState<Record<string, number>>({});
-  const handleHeightMeasured = useCallback((nodeId: string, height: number) => {
-    setHeightCache((prev) => {
-      const existing = prev[nodeId];
-      // Only update on meaningful diffs to avoid render churn on sub-pixel
-      // measurement noise (ResizeObserver fires on every layout pass).
-      if (existing && Math.abs(existing - height) < 4) return prev;
-      return { ...prev, [nodeId]: height };
-    });
-  }, []);
+  // The one chapter the user is actively editing. Only that row mounts a live
+  // ChapterEditor; every other row renders cheap static prose at its real
+  // height. `caret` carries the click point that promoted it, so the editor can
+  // drop the cursor where the user pressed. Null = nothing focused (pure
+  // read-through).
+  const [focus, setFocus] = useState<{ nodeId: string; caret: { clientX: number; clientY: number } } | null>(null);
+  const handleActivate = useCallback(
+    (nodeId: string, coords: { clientX: number; clientY: number }) => {
+      setFocus({ nodeId, caret: coords });
+    },
+    [],
+  );
 
   // Drift nodes (mainStorylineId == null) live outside the book's structural
   // ordering and surface in a dedicated sidebar tab — they shouldn't appear in
@@ -587,13 +587,14 @@ export function AllChaptersEditorView() {
                   projectId={projectId}
                   index={idx}
                   fetchContent={fetchContent}
+                  isFocused={focus?.nodeId === node.id}
+                  onActivate={handleActivate}
+                  activateCaret={focus?.nodeId === node.id ? focus.caret : null}
                   onContentUpdate={handleContentUpdate}
                   onTitleUpdate={handleTitleUpdate}
                   onSummaryUpdate={handleSummaryUpdate}
                   onEntityClick={handleEntityClick}
-                  onHeightMeasured={handleHeightMeasured}
                   onOutlineChange={handleOutlineChange}
-                  cachedHeight={heightCache[node.id]}
                   storylineColor={storyline?.color || undefined}
                   storylineName={storyline?.name || undefined}
                   chapterRoman={toRoman(idx + 1)}

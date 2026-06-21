@@ -67,6 +67,11 @@ interface ChapterEditorProps {
   minHeight?: string;
   compact?: boolean; // 紧凑模式，用于多章节显示
   selectionKey?: string | null;
+  // When set, the editor places the caret at these viewport coords once it has
+  // mounted — used when a click promotes a static all-chapters row to this live
+  // editor, so the cursor lands where the user pressed rather than at the doc
+  // edge. Cleared (null) the rest of the time.
+  activateCaret?: { clientX: number; clientY: number } | null;
 }
 
 export interface ChapterEditorRef {
@@ -96,6 +101,7 @@ export function ChapterEditor({
   minHeight = '300px',
   compact = false,
   selectionKey,
+  activateCaret = null,
 }: ChapterEditorProps) {
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
@@ -172,6 +178,35 @@ export function ChapterEditor({
   useEffect(() => {
     onOutlineChange?.(outline);
   }, [outline, onOutlineChange]);
+
+  // Place the caret where the user clicked when this row was promoted from
+  // static prose to a live editor. Wait two frames so the editor has mounted and
+  // its Yjs-seeded content has laid out before mapping the click coords to a doc
+  // position; fall back to a plain focus if the point misses (e.g. clicked the
+  // page margin).
+  useEffect(() => {
+    if (!editor || !activateCaret) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        const found = editor.view.posAtCoords({
+          left: activateCaret.clientX,
+          top: activateCaret.clientY,
+        });
+        if (found) {
+          editor.chain().setTextSelection(found.pos).focus().run();
+        } else {
+          editor.commands.focus();
+        }
+      });
+    });
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [editor, activateCaret]);
 
   // Expose editor + focus helper to the parent (NodeEditorView's ref).
   useImperativeHandle(
