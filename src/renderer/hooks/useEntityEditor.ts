@@ -38,7 +38,13 @@ import {
   EntityMentionSuggestion,
   type MentionableEntity,
 } from '../lib/extensions/entity-mention-suggestion';
-import { createDefaultSlashMenu, type SlashMenuExtraItem } from '../lib/slash-menu';
+import {
+  createDefaultSlashMenu,
+  getBlockFormatItems,
+  getInlineFormatItems,
+  type BlockFormatItem,
+  type SlashMenuExtraItem,
+} from '../lib/slash-menu';
 import { projectInlineMentionsFromDoc } from '../services/reference-projection.service';
 import { FULL_CHAPTER_CHAR_BUDGET } from '../lib/copilot/adaptive-chapter-context';
 import { createInlineMentionRepository } from '../sqlite-repo/inline-mention-repo';
@@ -128,17 +134,124 @@ function removeCommentContextMenu(): void {
   document.querySelectorAll(`.${COMMENT_CONTEXT_MENU_CLASS}`).forEach((node) => node.remove());
 }
 
-function openCommentContextMenu(
-  request: EditorCommentRequest,
-  onAddCommentRequest: (request: EditorCommentRequest) => void,
-  onCopilot?: () => void,
-  onAddPatch?: () => void,
+interface EditorContextMenuOptions {
+  // The live editor — drives the「格式」flyout. The block-type commands apply
+  // across the whole current selection (multi-block included). Null suppresses
+  // the format entry.
+  editor: Editor | null;
+  clientX: number;
+  clientY: number;
+  // Comment-family entries. Each is omitted when its handler isn't wired, so a
+  // non-commentable-but-editable editor (e.g. a patch body) still gets「格式」.
+  onAddComment?: () => void;
+  onAddPatch?: () => void;
+  onCopilot?: () => void;
+}
+
+// Position a flyout to the right of its parent menu, aligned to the triggering
+// row. Flips to the left edge when it would overflow the viewport on the right,
+// and clamps vertically so the tail of a long list stays on-screen. Mirrors the
+// slash menu's positioner, just simpler (no flip-up animation needed here).
+function positionContextFlyout(
+  menu: HTMLDivElement,
+  row: HTMLElement,
+  flyout: HTMLDivElement,
 ): void {
+  const MARGIN = 6;
+  const menuRect = menu.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  const fw = flyout.offsetWidth || 140;
+  const fh = flyout.offsetHeight || 160;
+
+  let left = menuRect.right + 2;
+  if (left + fw > window.innerWidth - MARGIN) {
+    left = menuRect.left - fw - 2; // not enough room on the right → flip left
+  }
+  let top = rowRect.top - MARGIN; // roughly align the first item with the row
+  if (top + fh > window.innerHeight - MARGIN) {
+    top = Math.max(MARGIN, window.innerHeight - MARGIN - fh);
+  }
+  flyout.style.left = `${Math.max(MARGIN, left)}px`;
+  flyout.style.top = `${top}px`;
+}
+
+// The「格式」row + its hover flyout. The flyout is a CHILD of `menu` (despite
+// being positioned outside its box via position:fixed) so it tears down with
+// the menu in removeCommentContextMenu() AND counts as "inside" for the
+// outside-mousedown close handler. Items reuse the shared format lists, so they
+// batch-format every block / the whole selection — and crucially DON'T delete
+// the selection the way typing "/" over it would. Two groups: block-type
+// transforms (also in the slash menu) and inline marks (flyout-only).
+function appendFormatFlyout(menu: HTMLDivElement, editor: Editor): void {
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'has-flyout';
+  const label = document.createElement('span');
+  label.textContent = '格式';
+  const chevron = document.createElement('span');
+  chevron.className = 'editor-comment-menu__chevron';
+  chevron.textContent = '›';
+  row.append(label, chevron);
+  row.addEventListener('mousedown', (event) => event.preventDefault());
+
+  const flyout = document.createElement('div');
+  // Reuse the menu class so it inherits the menu chrome + teardown selector.
+  flyout.className = `${COMMENT_CONTEXT_MENU_CLASS} editor-comment-menu__flyout`;
+  flyout.style.display = 'none';
+  const addItems = (items: BlockFormatItem[]): void => {
+    for (const item of items) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = item.title;
+      // Snapshot active state at open time (the menu closes on click, so it
+      // never goes stale): bold/heading/etc. already on the selection.
+      if (item.isActive?.(editor)) button.classList.add('is-active');
+      button.addEventListener('mousedown', (event) => event.preventDefault());
+      button.addEventListener('click', () => {
+        removeCommentContextMenu();
+        item.run(editor);
+      });
+      flyout.appendChild(button);
+    }
+  };
+  addItems(getBlockFormatItems());
+  const separator = document.createElement('div');
+  separator.className = 'editor-comment-menu__sep';
+  flyout.appendChild(separator);
+  addItems(getInlineFormatItems());
+
+  let hideTimer: number | undefined;
+  const cancelHide = (): void => {
+    if (hideTimer !== undefined) {
+      window.clearTimeout(hideTimer);
+      hideTimer = undefined;
+    }
+  };
+  const show = (): void => {
+    cancelHide();
+    flyout.style.display = 'flex';
+    positionContextFlyout(menu, row, flyout);
+  };
+  const scheduleHide = (): void => {
+    cancelHide();
+    hideTimer = window.setTimeout(() => {
+      flyout.style.display = 'none';
+    }, 140);
+  };
+  row.addEventListener('mouseenter', show);
+  row.addEventListener('mouseleave', scheduleHide);
+  flyout.addEventListener('mouseenter', cancelHide);
+  flyout.addEventListener('mouseleave', scheduleHide);
+
+  menu.append(row, flyout);
+}
+
+function openEditorContextMenu(opts: EditorContextMenuOptions): void {
   removeCommentContextMenu();
   const menu = document.createElement('div');
   menu.className = COMMENT_CONTEXT_MENU_CLASS;
-  menu.style.left = `${request.clientX}px`;
-  menu.style.top = `${request.clientY}px`;
+  menu.style.left = `${opts.clientX}px`;
+  menu.style.top = `${opts.clientY}px`;
 
   const addButton = (label: string, onClick: () => void): void => {
     const button = document.createElement('button');
@@ -152,12 +265,15 @@ function openCommentContextMenu(
     menu.appendChild(button);
   };
 
-  addButton('添加批注', () => onAddCommentRequest(request));
+  // 格式 first — it's the always-available, selection-scoped action. The
+  // comment-family entries below are conditional on their handlers.
+  if (opts.editor) appendFormatFlyout(menu, opts.editor);
+  if (opts.onAddComment) addButton('添加批注', opts.onAddComment);
   // Anchor a new element patch to the selection (chapter editors). Opens a
   // modal to pick the element + author title/body.
-  if (onAddPatch) addButton('新建补丁', onAddPatch);
+  if (opts.onAddPatch) addButton('新建补丁', opts.onAddPatch);
   // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
-  if (onCopilot) addButton('Copilot 修改', onCopilot);
+  if (opts.onCopilot) addButton('Copilot 修改', opts.onCopilot);
 
   document.body.appendChild(menu);
 
@@ -489,6 +605,11 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
   const onAddCommentRequestRef = useLatestRef(onAddCommentRequest);
   const onAddPatchRequestRef = useLatestRef(onAddPatchRequest);
   const enableInlineCopilotRef = useLatestRef(enableInlineCopilot);
+  // Latest editor instance, read inside the (later-firing) contextmenu handler
+  // to run「格式」block-transform commands on the live selection. Declared up
+  // here because the handler closure lives inside the useEditor config below;
+  // assigned once the editor exists (see effect after useEditor).
+  const editorRef = useRef<Editor | null>(null);
 
   const userId = useAuthStore((state) => state.user?.id);
   const editorUndoDepth = useSettingsStore((state) => state.editorUndoDepth);
@@ -880,12 +1001,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
         },
         handleDOMEvents: {
           contextmenu: (view, event) => {
-            const handler = onAddCommentRequestRef.current;
-            if (!handler) return false;
-            const source = sourceRef.current;
-            if (!source.projectId || !source.sourceId || !isCommentTargetKind(source.sourceKind)) {
-              return false;
-            }
+            // The「格式」entry is available in ANY editable editor, so the menu
+            // opens on any non-empty selection — not only commentable ones. The
+            // comment / patch / Copilot entries layer on top when their handlers
+            // and a commentable source are present (resolved below). Read-only
+            // editors fall through to the native browser menu (copy etc.).
+            if (!view.editable) return false;
             const { selection } = view.state;
             if (selection.empty) return false;
             const selectedText = view.state.doc
@@ -893,124 +1014,148 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               .trim();
             if (!selectedText) return false;
 
-            // Resolve the enclosing block once, so we can grab both its id
-            // and its plain-text snapshot in a single walk. The snapshot
-            // lets the card render the selection in context AND survives
-            // the block being edited or deleted (see CommentRail orphan
-            // handling).
-            const resolved = view.state.doc.resolve(selection.from);
-            let blockId: string | null = null;
-            let blockText = '';
-            let blockStartInDoc = 0;
-            for (let depth = resolved.depth; depth >= 0; depth--) {
-              const node = resolved.node(depth);
-              if (!isBlockType(node.type.name)) continue;
-              const id = node.attrs?.id as string | null | undefined;
-              if (!id) continue;
-              blockId = id;
-              blockText = node.textContent;
-              blockStartInDoc = resolved.before(depth) + 1;
-              break;
-            }
-            if (!blockId) return false;
-
-            // All top-level blocks the selection spans (in order) — for a
-            // multi-block comment anchor. Capture each block's id, original
-            // plain text (so the card can show the source on demand even after
-            // edits/deletes), and doc-start position (to derive char offsets).
-            const spanBlocks: { id: string; text: string; docStart: number }[] = [];
-            view.state.doc.forEach((node, offset) => {
-              if (offset + node.nodeSize > selection.from && offset < selection.to) {
+            // --- Comment-family entries (require a commentable source) --------
+            // Resolve the selection into a comment anchor only when commentable.
+            // Any failure here just leaves these undefined (→「格式」-only menu);
+            // it never aborts the menu.
+            let onAddComment: (() => void) | undefined;
+            let onCopilot: (() => void) | undefined;
+            let onAddPatch: (() => void) | undefined;
+            const handler = onAddCommentRequestRef.current;
+            const source = sourceRef.current;
+            if (source.projectId && source.sourceId && isCommentTargetKind(source.sourceKind)) {
+              // Resolve the enclosing block once, so we can grab both its id
+              // and its plain-text snapshot in a single walk. The snapshot
+              // lets the card render the selection in context AND survives
+              // the block being edited or deleted (see CommentRail orphan
+              // handling).
+              const resolved = view.state.doc.resolve(selection.from);
+              let blockId: string | null = null;
+              let blockText = '';
+              let blockStartInDoc = 0;
+              for (let depth = resolved.depth; depth >= 0; depth--) {
+                const node = resolved.node(depth);
+                if (!isBlockType(node.type.name)) continue;
                 const id = node.attrs?.id as string | null | undefined;
-                if (id) spanBlocks.push({ id, text: node.textContent, docStart: offset + 1 });
+                if (!id) continue;
+                blockId = id;
+                blockText = node.textContent;
+                blockStartInDoc = resolved.before(depth) + 1;
+                break;
               }
-            });
-            if (spanBlocks.length === 0) {
-              spanBlocks.push({ id: blockId, text: blockText, docStart: blockStartInDoc });
-            }
-            const spanBlockIds = spanBlocks.map((b) => b.id);
+              if (blockId) {
+                // All top-level blocks the selection spans (in order) — for a
+                // multi-block comment anchor. Capture each block's id, original
+                // plain text (so the card can show the source on demand even
+                // after edits/deletes), and doc-start position (char offsets).
+                const spanBlocks: { id: string; text: string; docStart: number }[] = [];
+                view.state.doc.forEach((node, offset) => {
+                  if (offset + node.nodeSize > selection.from && offset < selection.to) {
+                    const id = node.attrs?.id as string | null | undefined;
+                    if (id) spanBlocks.push({ id, text: node.textContent, docStart: offset + 1 });
+                  }
+                });
+                if (spanBlocks.length === 0) {
+                  spanBlocks.push({ id: blockId, text: blockText, docStart: blockStartInDoc });
+                }
+                const spanBlockIds = spanBlocks.map((b) => b.id);
 
-            // Map doc-relative selection offsets into blockText-relative ones.
-            // Direct subtraction works for plain prose; inline atoms (entity
-            // links etc.) can shift positions, so we sanity-check against
-            // the actual slice and fall back to indexOf if it doesn't match.
-            let blockSelectionFrom = selection.from - blockStartInDoc;
-            let blockSelectionTo = selection.to - blockStartInDoc;
-            if (blockText.slice(blockSelectionFrom, blockSelectionTo) !== selectedText) {
-              const idx = blockText.indexOf(selectedText);
-              if (idx >= 0) {
-                blockSelectionFrom = idx;
-                blockSelectionTo = idx + selectedText.length;
-              } else {
-                blockSelectionFrom = -1;
-                blockSelectionTo = -1;
+                // Map doc-relative selection offsets into blockText-relative
+                // ones. Direct subtraction works for plain prose; inline atoms
+                // (entity links etc.) can shift positions, so we sanity-check
+                // against the actual slice and fall back to indexOf on mismatch.
+                let blockSelectionFrom = selection.from - blockStartInDoc;
+                let blockSelectionTo = selection.to - blockStartInDoc;
+                if (blockText.slice(blockSelectionFrom, blockSelectionTo) !== selectedText) {
+                  const idx = blockText.indexOf(selectedText);
+                  if (idx >= 0) {
+                    blockSelectionFrom = idx;
+                    blockSelectionTo = idx + selectedText.length;
+                  } else {
+                    blockSelectionFrom = -1;
+                    blockSelectionTo = -1;
+                  }
+                }
+
+                // Precise text anchor: start = first spanned block + its
+                // in-block offset (reuse the validated blockSelectionFrom),
+                // end = last spanned block + the selection-end offset within
+                // it. Drives the hover highlight + text-level change detection.
+                const firstSpan = spanBlocks[0]!;
+                const lastSpan = spanBlocks[spanBlocks.length - 1]!;
+                const startOffset =
+                  blockSelectionFrom >= 0
+                    ? blockSelectionFrom
+                    : Math.max(0, Math.min(firstSpan.text.length, selection.from - firstSpan.docStart));
+                const endOffset =
+                  spanBlocks.length === 1 && blockSelectionTo >= 0
+                    ? blockSelectionTo
+                    : Math.max(0, Math.min(lastSpan.text.length, selection.to - lastSpan.docStart));
+
+                const request: EditorCommentRequest = {
+                  projectId: source.projectId,
+                  sourceKind: source.sourceKind,
+                  sourceId: source.sourceId,
+                  targetBlockId: blockId,
+                  targetBlockIds: spanBlockIds,
+                  selectedText,
+                  anchorJson: JSON.stringify({
+                    selectedText,
+                    selectionFrom: selection.from,
+                    selectionTo: selection.to,
+                    createdAt: new Date().toISOString(),
+                    blockText,
+                    blockSelectionFrom,
+                    blockSelectionTo,
+                    blockSnapshots: spanBlocks.map((b) => ({ blockId: b.id, blockText: b.text })),
+                    textAnchor: {
+                      startBlockId: firstSpan.id,
+                      startOffset,
+                      endBlockId: lastSpan.id,
+                      endOffset,
+                      text: selectedText,
+                    },
+                  }),
+                  clientX: event.clientX,
+                  clientY: event.clientY,
+                };
+                if (handler) onAddComment = () => handler(request);
+                // "Copilot 修改" — same entry as ⇧⌘I, run on the selection.
+                // Always manual (never gated by the auto switch). Chapter only.
+                onCopilot =
+                  enableInlineCopilotRef.current && source.sourceKind === 'node'
+                    ? () => {
+                        const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        });
+                        if (ctx) useCopilotInlineStore.getState().open(ctx);
+                      }
+                    : undefined;
+                // "新建补丁" — chapter editors only (a patch's source is a chapter).
+                const patchHandler = onAddPatchRequestRef.current;
+                onAddPatch =
+                  patchHandler && source.sourceKind === 'node'
+                    ? () => patchHandler(request)
+                    : undefined;
               }
             }
 
-            // Precise text anchor: start = first spanned block + its in-block
-            // offset (reuse the validated blockSelectionFrom), end = last
-            // spanned block + the selection-end offset within it. Drives the
-            // fine-grained hover highlight + text-level change detection.
-            const firstSpan = spanBlocks[0]!;
-            const lastSpan = spanBlocks[spanBlocks.length - 1]!;
-            const startOffset =
-              blockSelectionFrom >= 0
-                ? blockSelectionFrom
-                : Math.max(0, Math.min(firstSpan.text.length, selection.from - firstSpan.docStart));
-            const endOffset =
-              spanBlocks.length === 1 && blockSelectionTo >= 0
-                ? blockSelectionTo
-                : Math.max(0, Math.min(lastSpan.text.length, selection.to - lastSpan.docStart));
-
+            // Nothing to show (no editor for「格式」AND not commentable) → let
+            // the native menu through.
+            if (!editorRef.current && !onAddComment && !onAddPatch && !onCopilot) {
+              return false;
+            }
             event.preventDefault();
             event.stopPropagation();
-            const request: EditorCommentRequest = {
-              projectId: source.projectId,
-              sourceKind: source.sourceKind,
-              sourceId: source.sourceId,
-              targetBlockId: blockId,
-              targetBlockIds: spanBlockIds,
-              selectedText,
-              anchorJson: JSON.stringify({
-                selectedText,
-                selectionFrom: selection.from,
-                selectionTo: selection.to,
-                createdAt: new Date().toISOString(),
-                blockText,
-                blockSelectionFrom,
-                blockSelectionTo,
-                blockSnapshots: spanBlocks.map((b) => ({ blockId: b.id, blockText: b.text })),
-                textAnchor: {
-                  startBlockId: firstSpan.id,
-                  startOffset,
-                  endBlockId: lastSpan.id,
-                  endOffset,
-                  text: selectedText,
-                },
-              }),
+            openEditorContextMenu({
+              editor: editorRef.current,
               clientX: event.clientX,
               clientY: event.clientY,
-            };
-            // Chapter editors also offer "Copilot 修改" — same entry as ⇧⌘I,
-            // run on the selection. Always available (manual, never gated by
-            // the auto switch). Build the inline ctx from the live view.
-            const onCopilot =
-              enableInlineCopilotRef.current && source.sourceKind === 'node'
-                ? () => {
-                    const ctx = buildInlineCopilotCtx(view, source.projectId, source.sourceId, {
-                      clientX: event.clientX,
-                      clientY: event.clientY,
-                    });
-                    if (ctx) useCopilotInlineStore.getState().open(ctx);
-                  }
-                : undefined;
-            // "新建补丁" — only on chapter editors (a patch's source is a chapter).
-            const patchHandler = onAddPatchRequestRef.current;
-            const onAddPatch =
-              patchHandler && source.sourceKind === 'node'
-                ? () => patchHandler(request)
-                : undefined;
-            openCommentContextMenu(request, handler, onCopilot, onAddPatch);
+              onAddComment,
+              onAddPatch,
+              onCopilot,
+            });
             return true;
           },
         },
@@ -1058,6 +1203,10 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       ydoc,
     ],
   );
+
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Keep the entity-link plugin's mutable config in sync with the latest
   // settings + entity list so auto-detect reacts without rebuilding the editor.

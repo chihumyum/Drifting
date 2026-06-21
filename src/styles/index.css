@@ -2397,6 +2397,39 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--accent) / 0.10);
   color: hsl(var(--accent));
 }
+/* 「格式」row carries a right-aligned chevron hinting at its hover flyout. */
+.editor-comment-menu button.has-flyout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.editor-comment-menu__chevron {
+  opacity: 0.45;
+  font-size: 13px;
+  line-height: 1;
+}
+/* The 「格式」 flyout — a child .editor-comment-menu repositioned beside the
+   parent via position:fixed (see appendFormatFlyout). Stacks above the menu so
+   it never tucks behind it; column layout matches the slash menu's list. */
+.editor-comment-menu__flyout {
+  flex-direction: column;
+  z-index: 2001;
+}
+/* Active format (mark/block already applied to the selection), snapshotted at
+   open time. */
+.editor-comment-menu button.is-active {
+  color: hsl(var(--accent));
+  font-weight: 600;
+}
+/* Divider between block transforms and inline marks. flex:none so the 1px row
+   isn't collapsed by the flyout's flex column. */
+.editor-comment-menu__sep {
+  flex: none;
+  height: 1px;
+  margin: 4px 6px;
+  background: hsl(var(--rule-strong) / 0.6);
+}
 
 /* Outline rail — pinned absolutely to the top-left of .editor-body (right
    under the breadcrumb), out of flex flow so toggling never reflows the

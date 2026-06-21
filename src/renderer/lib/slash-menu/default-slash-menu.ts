@@ -2,6 +2,7 @@ import type { Extension, Editor } from '@tiptap/core';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 
+import { getBlockFormatItems } from './block-format-items';
 import SlashMenu from './slash-menu';
 
 // Unique plugin key so the slash menu's @tiptap/suggestion plugin doesn't
@@ -39,37 +40,15 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
     items: ({ query, editor: ed }: Parameters<NonNullable<SuggestionOptions['items']>>[0]) => {
       const resolvedExtraItems = typeof extraItems === 'function' ? extraItems() : extraItems;
       const all = [
-        {
-          id: 'paragraph',
-          title: '正文',
-          run: () => {
-            // 清除格式但保留 elementLink
-            ed.chain()
-              .focus()
-              .clearNodes() // 清除节点格式（heading, blockquote等）
-              .unsetBold() // 清除粗体
-              .unsetItalic() // 清除斜体
-              .unsetStrike() // 清除删除线（如果有）
-              .setParagraph() // 设置为段落
-              .run();
-          },
-        },
-        {
-          id: 'h1',
-          title: '一级标题',
-          run: () => ed.chain().focus().setNode('heading', { level: 1 }).run(),
-        },
-        {
-          id: 'h2',
-          title: '二级标题',
-          run: () => ed.chain().focus().setNode('heading', { level: 2 }).run(),
-        },
-        {
-          id: 'h3',
-          title: '三级标题',
-          run: () => ed.chain().focus().setNode('heading', { level: 3 }).run(),
-        },
-        { id: 'blockquote', title: '引用', run: () => ed.chain().focus().toggleBlockquote().run() },
+        // Block-type transforms shared with the right-click「格式」flyout (see
+        // block-format-items.ts). Bind each to this editor instance.
+        ...getBlockFormatItems().map((item) => ({
+          id: item.id,
+          title: item.title,
+          run: () => item.run(ed),
+        })),
+        // Insert-type: caret-only (it replaces a non-empty selection), so it
+        // stays in the slash menu and is excluded from the selection flyout.
         { id: 'hr', title: '分隔线', run: () => ed.chain().focus().setHorizontalRule().run() },
         ...(resolvedExtraItems ?? []).map((item) => ({
           id: item.id,
