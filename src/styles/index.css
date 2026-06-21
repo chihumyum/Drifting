@@ -2489,14 +2489,25 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
 .toc-item--h1,
 .toc-item--h2 {
   font-family: var(--font-serif);
-  font-size: 14px;
   font-style: italic;
-  color: hsl(var(--ink-2));
-  padding: 7px 4px 6px 10px;
   letter-spacing: 0.005em;
   line-height: 1.3;
 }
-.toc-item--h1 { font-weight: 500; }
+/* h1 — top-level framework heading. The strongest step in the outline:
+   largest, boldest, darkest, least indented. */
+.toc-item--h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: hsl(var(--ink-1));
+  padding: 8px 4px 6px 10px;
+}
+/* h2 — middle step toward h3: smaller, lighter, normal weight, indented. */
+.toc-item--h2 {
+  font-size: 13px;
+  font-weight: 400;
+  color: hsl(var(--ink-2));
+  padding: 6px 4px 6px 18px;
+}
 .toc-item--h1:hover,
 .toc-item--h2:hover { color: hsl(var(--ink-1)); }
 .toc-item--h1.toc-item--active,

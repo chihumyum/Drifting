@@ -71,9 +71,6 @@ export function createDefaultSlashMenu(overrides: CreateDefaultSlashMenuOverride
         },
         { id: 'blockquote', title: '引用', run: () => ed.chain().focus().toggleBlockquote().run() },
         { id: 'hr', title: '分隔线', run: () => ed.chain().focus().setHorizontalRule().run() },
-        { id: 'left', title: '左对齐', run: () => ed.chain().focus().setTextAlign('left').run() },
-        { id: 'center', title: '居中', run: () => ed.chain().focus().setTextAlign('center').run() },
-        { id: 'right', title: '右对齐', run: () => ed.chain().focus().setTextAlign('right').run() },
         ...(resolvedExtraItems ?? []).map((item) => ({
           id: item.id,
           title: item.title,
