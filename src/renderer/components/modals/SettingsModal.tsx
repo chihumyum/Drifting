@@ -602,11 +602,11 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
     }
   };
 
-  const handleRevokeSession = async (id: string) => {
+  const handleRevokeSession = async (id: string, token: string) => {
     setRevokingId(id);
     setRevokeError(null);
     try {
-      await accountService.revokeSession(id);
+      await accountService.revokeSession(token);
       const next = await accountService.listSessions();
       setSessions(next);
     } catch (err) {
@@ -874,7 +874,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
               </div>
               <button
                 className="set-btn set-btn--ghost"
-                onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id))}
+                onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id, s.token))}
                 disabled={revokingId === s.id}
               >
                 {s.isCurrent ? '登出本机' : revokingId === s.id ? '撤销中…' : '撤销'}

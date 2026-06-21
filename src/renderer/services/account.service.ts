@@ -43,6 +43,7 @@ export const accountService = {
   async listSessions(): Promise<
     {
       id: string;
+      token: string;
       userAgent: string | null;
       ipAddress: string | null;
       createdAt: string;
@@ -55,6 +56,9 @@ export const accountService = {
       (await authClient.getSession()).data?.session?.token ?? null;
     return (result.data ?? []).map((s) => ({
       id: s.id,
+      // better-auth identifies sessions by `token`, not the DB `id` — revokeSession
+      // needs this. Surfacing it here (the row keys/UI still use `id`).
+      token: s.token,
       userAgent: s.userAgent ?? null,
       ipAddress: s.ipAddress ?? null,
       createdAt: typeof s.createdAt === 'string' ? s.createdAt : s.createdAt.toISOString(),
