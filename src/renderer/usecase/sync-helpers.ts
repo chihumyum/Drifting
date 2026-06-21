@@ -343,6 +343,32 @@ export function syncBookActDelete(id: string, projectId: string) {
   enqueueSync('bookAct', 'delete', id, projectId);
 }
 
+// ---- Drift Group (左栏分组) ----
+// Nested folders for drift nodes. Plain scalar rows — last-write-wins like
+// bookAct. Nesting / reparent-on-delete is client-side; the server stores the
+// row. All write sites live in usecase/useDriftGroup.ts. (Drift membership
+// itself rides the node update — book_node.drift_group_id — not these.)
+
+export function syncDriftGroupCreate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('driftGroup', 'create', id, projectId, payload);
+}
+
+export function syncDriftGroupUpdate(
+  id: string,
+  projectId: string,
+  payload: Record<string, unknown>,
+) {
+  enqueueSync('driftGroup', 'update', id, projectId, payload);
+}
+
+export function syncDriftGroupDelete(id: string, projectId: string) {
+  enqueueSync('driftGroup', 'delete', id, projectId);
+}
+
 // ---- Timeline Marker ----
 // Narrative-axis time pins, promoted from localStorage to a synced table
 // because drift binding is a cross-device fact. Write sites:

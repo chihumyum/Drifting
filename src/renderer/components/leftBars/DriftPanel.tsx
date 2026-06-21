@@ -1,21 +1,41 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FolderPlus } from 'lucide-react';
+import loglevel from 'loglevel';
 
 import { isDrift, type BookNode } from '../../domain/book-node';
+import {
+  ROOT_GROUP_KEY,
+  buildDriftGroupChildren,
+  collectDescendantGroupIds,
+  type DriftGroup,
+} from '../../domain/drift-group';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useUiStore, usePromoteCurrentTab } from '../../store/ui-store';
+import { useAuthStore } from '../../store/auth';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
+import { useBookNode } from '../../usecase/useBookNode';
+import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
+import { DRIFT_MOVE_TO_GROUP_ACTION } from '../editor/EditorTopBar';
+import { SimpleContextMenu, type SimpleMenuItem } from './SimpleContextMenu';
+import { GroupHeaderCell } from './GroupHeaderCell';
 import { PanelHoverPreview, useHoverPreview } from './PanelHoverPreview';
-import { AgentCountBadge } from './AgentCountBadge';
 import { aggregateActivity } from './agentActivityBubble';
-import { CollapsibleFooter } from '../ui/CollapsibleFooter';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
 import { entityKey } from '../../lib/agent/tool-entity-ref';
+import { events } from '../../lib/events';
+
+const log = loglevel.getLogger('DriftPanel');
+log.setLevel(loglevel.levels.WARN);
 
 // 宽度低于此值时隐藏 cell 右侧的 meta（日期/字数），优先保证 title 显示。
 const META_HIDE_WIDTH = 200;
+// 每嵌套一层向右缩进的像素（与 GroupHeaderCell 内边距 14 对齐）。
+const INDENT_STEP = 14;
+// drift cell 在根层级的左内边距；每层在此基础上 + INDENT_STEP。
+const DRIFT_BASE_PAD_LEFT = 22;
 
 const formatShortDate = (input: string | number | Date) => {
   const d = new Date(input);
@@ -35,14 +55,19 @@ const formatWordCount = (n: number) => {
   return `${Math.round(n / 1000)}k`;
 };
 
+type GroupMenu = { x: number; y: number; groupId: string };
+type MovePicker = { x: number; y: number; kind: 'drift' | 'group'; id: string };
+
 export function DriftPanel() {
   const { bookNodes } = useDataStore();
+  const driftGroups = useDataStore((s) => s.driftGroups);
   const { nodeUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
   const cellMeta = useUiStore((s) => s.driftCellMeta);
   const showMeta = sidebarWidth >= META_HIDE_WIDTH;
   const sortMode = useUiStore((s) => s.driftSortMode);
   const { projectId, openEntity } = useProjectNavigation();
+  const userId = useAuthStore((s) => s.user?.id);
   const promoteCurrentTab = usePromoteCurrentTab(projectId);
   const selectedNodeId = nodeUi.selectedId;
   const agentActive = useAgentActivityStore((s) => s.active);
@@ -50,13 +75,48 @@ export function DriftPanel() {
   // Persisted pending agent edits — keeps "M" visible after a reload.
   const agentPending = useAgentEditStore((s) => s.pending);
 
-  // Split drift nodes by DriftStatus. Anything that isn't explicitly
-  // 'resting' falls into the active list — that includes 'drifting' plus
-  // legacy values like 'draft' from pre-migration rows. Sort key is driven
-  // by the SortMenu in the sub-header; createdAt is the default since
-  // updatedAt gets bumped by wordCount sync and other materialized-field
-  // writes on open (which would reorder the list just from clicking around).
-  const { driftingNodes, restingNodes } = useMemo(() => {
+  const { createNode } = useBookNode({ projectId: projectId ?? '', userId: userId ?? '' });
+  const { createGroup, renameGroup, moveGroup, deleteGroup, moveDriftToGroup } = useDriftGroup({
+    projectId: projectId ?? '',
+  });
+
+  // Collapse is local component state (not persisted), mirroring ChapterPanel's
+  // storyline-collapse. A group id present in the set is collapsed.
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+
+  const toggleCollapsed = useCallback((id: string) => {
+    setCollapsedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const expandGroup = useCallback((id: string) => {
+    setCollapsedGroupIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  // Sub-header broadcasts a collapse-all request (same affordance ChapterPanel
+  // uses). Toggle between "all open" and "all collapsed" based on current state.
+  useEffect(() => {
+    const handler = () => {
+      const ids = useDataStore.getState().driftGroups.map((g) => g.id);
+      setCollapsedGroupIds((prev) => (prev.size > 0 ? new Set() : new Set(ids)));
+    };
+    events.on('left-sidebar:collapse-all', handler);
+    return () => events.off('left-sidebar:collapse-all', handler);
+  }, []);
+
+  // Sort drifts (both drifting + resting, mixed) by the SortMenu mode, then
+  // bucket by their containing group. createdAt is the default since updatedAt
+  // gets bumped by wordCount sync on open (which would reorder on every click).
+  const { driftsByGroup, groupChildren, descendantDriftIds } = useMemo(() => {
     const cmp = (a: BookNode, b: BookNode) => {
       if (sortMode === 'title') {
         return (a.title || '').localeCompare(b.title || '', undefined, {
@@ -70,36 +130,111 @@ export function DriftPanel() {
       if (av === bv) return 0;
       return bv > av ? 1 : -1;
     };
-    const drift = bookNodes.filter(isDrift).slice().sort(cmp);
-    const resting: BookNode[] = [];
-    const drifting: BookNode[] = [];
-    for (const node of drift) {
-      if (node.writingStatus === 'resting') resting.push(node);
-      else drifting.push(node);
-    }
-    return { driftingNodes: drifting, restingNodes: resting };
-  }, [bookNodes, sortMode]);
+    // Defensive: a drift / sub-group whose pointer targets a group that no
+    // longer exists (stale pointer from a cross-device sync race) must fall
+    // back to root rather than bucket under a key nothing renders — otherwise
+    // the drift (user content!) would silently vanish from the panel.
+    const validIds = new Set(driftGroups.map((g) => g.id));
 
-  // Per-cell context menu — reuses the editor top-bar three-dot menu items
-  // via EntityCellContextMenu so drift context options match the editor.
+    const drifts = bookNodes.filter(isDrift).slice().sort(cmp);
+    const byGroup = new Map<string, BookNode[]>();
+    for (const node of drifts) {
+      const gid = node.driftGroupId;
+      const key = gid && validIds.has(gid) ? gid : ROOT_GROUP_KEY;
+      const list = byGroup.get(key);
+      if (list) list.push(node);
+      else byGroup.set(key, [node]);
+    }
+    const normalizedGroups = driftGroups.map((g) =>
+      g.parentGroupId && !validIds.has(g.parentGroupId) ? { ...g, parentGroupId: null } : g,
+    );
+    const children = buildDriftGroupChildren(normalizedGroups);
+
+    // Per-group descendant drift ids (own + all sub-groups), for the header
+    // count + agent rollup — so changes inside a collapsed subtree still surface.
+    const descendants = new Map<string, string[]>();
+    const compute = (groupId: string): string[] => {
+      const cached = descendants.get(groupId);
+      if (cached) return cached;
+      const own = (byGroup.get(groupId) ?? []).map((n) => n.id);
+      const all = [...own];
+      for (const cg of children.get(groupId) ?? []) all.push(...compute(cg.id));
+      descendants.set(groupId, all);
+      return all;
+    };
+    for (const g of driftGroups) compute(g.id);
+
+    return { driftsByGroup: byGroup, groupChildren: children, descendantDriftIds: descendants };
+  }, [bookNodes, driftGroups, sortMode]);
+
+  // Flattened depth-ordered group list, for the move-to-group picker.
+  const flatGroups = useMemo(() => {
+    const out: Array<{ group: DriftGroup; depth: number }> = [];
+    const walk = (key: string, depth: number) => {
+      for (const g of groupChildren.get(key) ?? []) {
+        out.push({ group: g, depth });
+        walk(g.id, depth + 1);
+      }
+    };
+    walk(ROOT_GROUP_KEY, 0);
+    return out;
+  }, [groupChildren]);
+
   const dispatchEntityAction = useEntityCellAction();
   const [contextMenu, setContextMenu] = useState<
-    | { x: number; y: number; nodeId: string; writingStatus: BookNode['writingStatus'] }
+    | {
+        x: number;
+        y: number;
+        nodeId: string;
+        writingStatus: BookNode['writingStatus'];
+      }
     | null
   >(null);
-  // Hover summary card (same affordance as the element panel's).
+  const [groupMenu, setGroupMenu] = useState<GroupMenu | null>(null);
+  const [movePicker, setMovePicker] = useState<MovePicker | null>(null);
+
   const {
     preview: hoverPreview,
     onEnter: hoverEnter,
     onLeave: hoverLeave,
   } = useHoverPreview<BookNode>();
 
-  const renderNodeCard = (node: BookNode, opts?: { muted?: boolean }) => {
+  const createDriftInGroup = useCallback(
+    async (groupId: string) => {
+      if (!projectId) return;
+      try {
+        const created = await createNode({
+          kind: 'drift',
+          title: 'New Drift',
+          bookOrder: null,
+          mainStorylineId: null,
+          driftGroupId: groupId,
+        });
+        expandGroup(groupId);
+        openEntity({ entityType: 'node', id: created.id }, { preview: false });
+      } catch (error) {
+        log.error('Failed to create drift in group', error);
+      }
+    },
+    [projectId, createNode, openEntity, expandGroup],
+  );
+
+  const createSubGroup = useCallback(
+    async (parentGroupId: string) => {
+      const created = await createGroup({ parentGroupId });
+      if (created) expandGroup(parentGroupId);
+    },
+    [createGroup, expandGroup],
+  );
+
+  const renderNodeCard = (node: BookNode, depth: number) => {
     const selected = node.id === selectedNodeId;
     const agentBusy = `node:${node.id}` in agentActive;
     const agentChanged =
       !agentBusy && (`node:${node.id}` in agentTouched || `node:${node.id}` in agentPending);
-    const muted = opts?.muted ?? false;
+    // Merged display: resting drifts aren't bucketed into a separate drawer
+    // anymore — they sit inline, distinguished only by a muted cell style.
+    const muted = node.writingStatus === 'resting';
     return (
       <div
         key={node.id}
@@ -107,7 +242,7 @@ export function DriftPanel() {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '5px 14px 5px 22px',
+          padding: `5px 14px 5px ${DRIFT_BASE_PAD_LEFT + depth * INDENT_STEP}px`,
           cursor: 'pointer',
           position: 'relative',
           background: selected ? 'hsl(var(--accent) / 0.10)' : 'transparent',
@@ -168,24 +303,16 @@ export function DriftPanel() {
           />
         )}
 
-        {/* Drift mark — ❦ glyph, sized to the same 12px-wide chrome slot the
-            chapter stripe / element diamond use so the three left-panel
-            cells line up visually. The leading icon was the drift tab's
-            glyph before it moved here; the tab itself now wears a
-            different glyph. */}
+        {/* Drift mark — ❦ glyph (or "M" once an agent has touched it). */}
         <span
           aria-hidden
           className={agentBusy ? 'agent-glyph-busy' : undefined}
           title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
           style={{
-            // Done swaps the ❦ mark for a plain mono "M" marker; working/rest
-            // keep the italic serif mark.
             fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
             fontStyle: agentChanged ? 'normal' : 'italic',
             fontSize: agentChanged ? 10 : 11,
             fontWeight: agentChanged ? 600 : undefined,
-            // Agent status overrides the mark's resting tint: accent (lit) while
-            // working, muted ink for the done "M". At rest, the ❦ tint.
             color: agentBusy
               ? 'hsl(var(--accent))'
               : agentChanged
@@ -238,33 +365,157 @@ export function DriftPanel() {
     );
   };
 
-  const totalDrift = driftingNodes.length + restingNodes.length;
+  const renderGroup = (group: DriftGroup, depth: number) => {
+    const collapsed = collapsedGroupIds.has(group.id);
+    const descIds = descendantDriftIds.get(group.id) ?? [];
+    const activity = aggregateActivity(
+      agentActive,
+      agentTouched,
+      descIds.map((id) => entityKey('node', id)),
+    );
+    const indentPad = depth * INDENT_STEP;
+    return (
+      <div key={group.id} className="left-sb-group">
+        {renamingGroupId === group.id ? (
+          <GroupRenameRow
+            initial={group.name}
+            paddingLeft={14 + indentPad}
+            onCommit={(name) => {
+              void renameGroup(group.id, name);
+              setRenamingGroupId(null);
+            }}
+            onCancel={() => setRenamingGroupId(null)}
+          />
+        ) : (
+          <div style={{ paddingLeft: indentPad }}>
+            <GroupHeaderCell
+              name={group.name}
+              count={descIds.length}
+              color={group.color || 'hsl(var(--ink-4))'}
+              collapsed={collapsed}
+              onToggleCollapsed={() => toggleCollapsed(group.id)}
+              onClick={() => toggleCollapsed(group.id)}
+              onDoubleClick={() => setRenamingGroupId(group.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setGroupMenu({ x: event.clientX, y: event.clientY, groupId: group.id });
+              }}
+              addButtonTitle="在此新建浮缀"
+              onAdd={() => void createDriftInGroup(group.id)}
+              rightExtra={
+                <button
+                  type="button"
+                  className="left-sb-group-add"
+                  title="新建子分组"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void createSubGroup(group.id);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 18,
+                    height: 18,
+                    borderRadius: 3,
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'hsl(var(--ink-4))',
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'opacity 0.12s, background 0.12s, color 0.12s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+                    e.currentTarget.style.color = 'hsl(var(--ink-1))';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'hsl(var(--ink-4))';
+                  }}
+                >
+                  <FolderPlus size={12} strokeWidth={1.6} />
+                </button>
+              }
+              agentBusy={activity.busy}
+              agentDoneCount={activity.doneCount}
+            />
+          </div>
+        )}
+        {!collapsed && renderGroupBody(group.id, depth + 1)}
+      </div>
+    );
+  };
 
-  // Agent activity rolled up over resting drifts — surfaced on the footer
-  // header (as a badge or busy glyph) so changes hidden inside the
-  // (default-collapsed) drawer still register (#17).
-  const restingActivity = aggregateActivity(
-    agentActive,
-    agentTouched,
-    restingNodes.map((n) => entityKey('node', n.id)),
-  );
-  const restingHeaderExtra =
-    !restingActivity.busy && restingActivity.doneCount > 0 ? (
-      <AgentCountBadge count={restingActivity.doneCount} title="未查看的 Agent 改动" />
-    ) : restingActivity.busy ? (
-      <span
-        aria-hidden
-        className="agent-glyph-busy"
-        title="Agent 正在处理"
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 2,
-          background: 'hsl(var(--accent))',
-          flexShrink: 0,
-        }}
-      />
-    ) : null;
+  // Render the contents (sub-groups then drifts) directly inside a group, or at
+  // the root when groupId is null.
+  const renderGroupBody = (groupId: string | null, depth: number) => {
+    const key = groupId ?? ROOT_GROUP_KEY;
+    const subgroups = groupChildren.get(key) ?? [];
+    const drifts = driftsByGroup.get(key) ?? [];
+    return (
+      <>
+        {subgroups.map((g) => renderGroup(g, depth))}
+        {drifts.map((n) => renderNodeCard(n, depth))}
+      </>
+    );
+  };
+
+  const totalDrift = bookNodes.filter(isDrift).length;
+  const isEmpty = totalDrift === 0 && driftGroups.length === 0;
+
+  // ---- Move-to-group picker items ----
+  const buildMoveItems = (picker: MovePicker): SimpleMenuItem[] => {
+    const items: SimpleMenuItem[] = [];
+    if (picker.kind === 'drift') {
+      const node = bookNodes.find((n) => n.id === picker.id);
+      const current = node?.driftGroupId ?? null;
+      items.push({
+        key: 'root',
+        label: '根层级（移出分组）',
+        disabled: current == null,
+        trailing: current == null ? <span aria-hidden>✓</span> : undefined,
+        onClick: () => void moveDriftToGroup(picker.id, null),
+      });
+      flatGroups.forEach(({ group, depth }, idx) => {
+        items.push({
+          key: group.id,
+          label: group.name,
+          indent: (depth + 1) * 12,
+          dividerBefore: idx === 0,
+          disabled: group.id === current,
+          trailing: group.id === current ? <span aria-hidden>✓</span> : undefined,
+          onClick: () => void moveDriftToGroup(picker.id, group.id),
+        });
+      });
+    } else {
+      const group = driftGroups.find((g) => g.id === picker.id);
+      const currentParent = group?.parentGroupId ?? null;
+      // Can't move a group into itself or its own subtree.
+      const blocked = new Set([picker.id, ...collectDescendantGroupIds(driftGroups, picker.id)]);
+      items.push({
+        key: 'root',
+        label: '根层级（移到顶层）',
+        disabled: currentParent == null,
+        trailing: currentParent == null ? <span aria-hidden>✓</span> : undefined,
+        onClick: () => void moveGroup(picker.id, null),
+      });
+      flatGroups.forEach(({ group: g, depth }, idx) => {
+        const disabled = blocked.has(g.id) || g.id === currentParent;
+        items.push({
+          key: g.id,
+          label: g.name,
+          indent: (depth + 1) * 12,
+          dividerBefore: idx === 0,
+          disabled,
+          trailing: g.id === currentParent ? <span aria-hidden>✓</span> : undefined,
+          onClick: () => void moveGroup(picker.id, g.id),
+        });
+      });
+    }
+    return items;
+  };
 
   return (
     <div
@@ -284,8 +535,7 @@ export function DriftPanel() {
           padding: '6px 0 12px',
         }}
       >
-        {driftingNodes.map((node) => renderNodeCard(node))}
-        {totalDrift === 0 && (
+        {isEmpty ? (
           <div
             style={{
               fontSize: 12,
@@ -298,52 +548,10 @@ export function DriftPanel() {
           >
             no drift notes yet.
           </div>
-        )}
-        {driftingNodes.length === 0 && restingNodes.length > 0 && (
-          <div
-            style={{
-              fontSize: 11.5,
-              fontFamily: 'var(--font-serif)',
-              fontStyle: 'italic',
-              color: 'hsl(var(--ink-3))',
-              padding: '28px 20px 8px',
-              textAlign: 'center',
-            }}
-          >
-            no active drifts · {restingNodes.length} resting below
-          </div>
+        ) : (
+          renderGroupBody(null, 0)
         )}
       </div>
-
-      {/* Resting footer is always visible so the user has a permanent
-          affordance to park / surface resting drifts, regardless of whether
-          there's anything resting at the moment. Expanding into an empty list
-          is fine — it shows a "no resting drifts" placeholder. */}
-      <CollapsibleFooter
-        label="休眠"
-        count={restingNodes.length}
-        headerExtra={restingHeaderExtra}
-        expandTitle="展开休眠"
-        collapseTitle="收起休眠"
-        bodyStyle={{ padding: '4px 0 12px' }}
-      >
-        {restingNodes.length > 0 ? (
-          restingNodes.map((node) => renderNodeCard(node, { muted: true }))
-        ) : (
-          <div
-            style={{
-              fontSize: 11.5,
-              fontFamily: 'var(--font-serif)',
-              fontStyle: 'italic',
-              color: 'hsl(var(--ink-4))',
-              padding: '16px 20px',
-              textAlign: 'center',
-            }}
-          >
-            no resting drifts.
-          </div>
-        )}
-      </CollapsibleFooter>
 
       {hoverPreview && (
         <PanelHoverPreview
@@ -364,6 +572,17 @@ export function DriftPanel() {
           nodeStatusKind="drift"
           nodeWritingStatus={contextMenu.writingStatus}
           onAction={(action) => {
+            // "移动到分组…" is a shared getMenuItems entry — intercept it here to
+            // open the group picker instead of routing to the entity dispatcher.
+            if (action === DRIFT_MOVE_TO_GROUP_ACTION) {
+              setMovePicker({
+                x: contextMenu.x,
+                y: contextMenu.y,
+                kind: 'drift',
+                id: contextMenu.nodeId,
+              });
+              return;
+            }
             void dispatchEntityAction({
               entityType: 'node',
               id: contextMenu.nodeId,
@@ -374,10 +593,115 @@ export function DriftPanel() {
         />
       )}
 
+      {groupMenu && (
+        <SimpleContextMenu
+          x={groupMenu.x}
+          y={groupMenu.y}
+          onClose={() => setGroupMenu(null)}
+          items={[
+            {
+              key: 'new-sub',
+              label: '新建子分组',
+              onClick: () => void createSubGroup(groupMenu.groupId),
+            },
+            {
+              key: 'new-drift',
+              label: '在此新建浮缀',
+              onClick: () => void createDriftInGroup(groupMenu.groupId),
+            },
+            {
+              key: 'rename',
+              label: '重命名',
+              onClick: () => setRenamingGroupId(groupMenu.groupId),
+            },
+            {
+              key: 'move',
+              label: '移动到分组…',
+              onClick: () =>
+                setMovePicker({
+                  x: groupMenu.x,
+                  y: groupMenu.y,
+                  kind: 'group',
+                  id: groupMenu.groupId,
+                }),
+            },
+            {
+              key: 'delete',
+              label: '删除分组',
+              danger: true,
+              dividerBefore: true,
+              onClick: () => void deleteGroup(groupMenu.groupId),
+            },
+          ]}
+        />
+      )}
+
+      {movePicker && (
+        <SimpleContextMenu
+          x={movePicker.x}
+          y={movePicker.y}
+          title={movePicker.kind === 'drift' ? '移动浮缀到分组' : '移动分组到'}
+          onClose={() => setMovePicker(null)}
+          items={buildMoveItems(movePicker)}
+        />
+      )}
+
       <style>{`
+        .left-sb-group-add { opacity: 0; }
+        .left-sb-group:hover .left-sb-group-add { opacity: 1; }
         .left-panel-scroll-hidden { scrollbar-width: none; }
         .left-panel-scroll-hidden::-webkit-scrollbar { width: 0; height: 0; display: none; }
       `}</style>
+    </div>
+  );
+}
+
+// Inline rename row shown in place of a group header while editing its name.
+// Enter / blur commits; Escape cancels. Styled to line up with GroupHeaderCell.
+function GroupRenameRow({
+  initial,
+  paddingLeft,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  paddingLeft: number;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <div style={{ padding: `4px 12px 4px ${paddingLeft}px` }}>
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onCommit(value);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        onBlur={() => onCommit(value)}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '2px 6px',
+          border: '1px solid hsl(var(--accent))',
+          borderRadius: 3,
+          background: 'hsl(var(--paper))',
+          color: 'hsl(var(--ink-1))',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          outline: 'none',
+        }}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import type { Comment, CommentAction } from '../domain/comment';
 import type { ShadowJob } from '../domain/shadow-job';
 import type { BlockSection } from '../domain/block-section';
 import type { BookAct } from '../domain/book-act';
+import type { DriftGroup } from '../domain/drift-group';
 import type { TimelineMarker } from '../domain/timeline-marker';
 import type { EntityKind, StructuralEntityKind } from '../domain/entity-kinds';
 
@@ -141,6 +142,14 @@ interface DataState {
   addBookAct: (act: BookAct) => void;
   updateBookAct: (id: string, updates: Partial<BookAct>) => void;
   removeBookAct: (id: string) => void;
+
+  /** Drift groups (左栏分组) — nested folders for drift nodes. Unsorted;
+   *  the DriftPanel derives the tree via domain/drift-group helpers. */
+  driftGroups: DriftGroup[];
+  setDriftGroups: (groups: DriftGroup[]) => void;
+  addDriftGroup: (group: DriftGroup) => void;
+  updateDriftGroup: (id: string, updates: Partial<DriftGroup>) => void;
+  removeDriftGroup: (id: string) => void;
 
   /** Narrative-axis time pins (optionally drift-bound). Kept sorted by
    *  narrativeOrder by the setters so consumers can render directly. */
@@ -408,6 +417,16 @@ export const useDataStore = create<DataState>((set) => ({
     })),
   removeBookAct: (id) =>
     set((state) => ({ bookActs: state.bookActs.filter((act) => act.id !== id) })),
+
+  driftGroups: [],
+  setDriftGroups: (driftGroups) => set({ driftGroups }),
+  addDriftGroup: (group) => set((state) => ({ driftGroups: [...state.driftGroups, group] })),
+  updateDriftGroup: (id, updates) =>
+    set((state) => ({
+      driftGroups: state.driftGroups.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+    })),
+  removeDriftGroup: (id) =>
+    set((state) => ({ driftGroups: state.driftGroups.filter((g) => g.id !== id) })),
 
   timelineMarkers: [],
   setTimelineMarkers: (timelineMarkers) =>

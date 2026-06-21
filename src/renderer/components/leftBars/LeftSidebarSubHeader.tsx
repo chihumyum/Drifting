@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Minus, ArrowDownUp, Plus } from 'lucide-react';
+import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/auth';
 import { useBookNode } from '../../usecase/useBookNode';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useElementCategory } from '../../usecase/useElementCategory';
+import { useDriftGroup } from '../../usecase/useDriftGroup';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { SortMenu, sortMenuGroup, type SortMenuOption } from './SortMenu';
@@ -57,6 +58,7 @@ export function LeftSidebarSubHeader() {
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
+  const { createGroup } = useDriftGroup({ projectId: projectId ?? '' });
 
   const handleCreateNode = useCallback(async () => {
     if (!projectId) return;
@@ -113,6 +115,15 @@ export function LeftSidebarSubHeader() {
       log.error('Failed to create category', error);
     }
   }, [projectId, createCategory]);
+
+  const handleCreateDriftGroup = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      await createGroup({});
+    } catch (error) {
+      log.error('Failed to create drift group', error);
+    }
+  }, [projectId, createGroup]);
 
   // Chapter panel meta — just the chapter count in both view modes. The
   // storyline count lives on the view-mode switch's adjacent context, not in
@@ -337,8 +348,16 @@ export function LeftSidebarSubHeader() {
   };
 
   const renderSecondaryCreate = () => {
-    // Header-level "+ element" was removed — each category cell carries its
-    // own element-add button. Other panels have nothing to slot here either.
+    // 浮缀 panel: a "+ group" affordance next to "+ drift" (each group cell also
+    // carries its own "+ drift in this group" button). Other panels have
+    // nothing to slot here — the element panel's "+ element" lives per-category.
+    if (activeLeftPanel === 'drift') {
+      return (
+        <SubIconBtn title="新建分组" onClick={() => void handleCreateDriftGroup()}>
+          <FolderPlus size={12} strokeWidth={1.6} />
+        </SubIconBtn>
+      );
+    }
     return null;
   };
 
@@ -382,10 +401,10 @@ export function LeftSidebarSubHeader() {
         </span>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {/* "折叠全部" only applies to panels with collapsible groups (元素 类目).
-            The 章节 panel toggles its storyline lanes individually and the 浮缀
-            panel has no groups to collapse, so it's elements-only. */}
-        {activeLeftPanel === 'elements' && (
+        {/* "折叠全部" applies to panels with collapsible groups (元素 类目 and,
+            now that drifts can be grouped into folders, 浮缀 分组). The 章节 panel
+            toggles its storyline lanes individually, so it's excluded. */}
+        {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
           <SubIconBtn title="折叠全部" onClick={collapseAll}>
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>

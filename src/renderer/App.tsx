@@ -68,6 +68,7 @@ import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
 import { useComment } from './usecase/useComment';
 import { loadBookActs } from './usecase/useBookAct';
+import { loadDriftGroups } from './usecase/useDriftGroup';
 import { loadTimelineMarkers } from './hooks/useTimelineMarkers';
 import { useProject } from './usecase/useProject';
 import { AppTopbar } from './views/AppTopbar';
@@ -391,6 +392,7 @@ function Layout() {
           commentUsecases.loadInitial(),
           shadowJobUsecases.loadInitial(),
           loadBookActs(projectId),
+          loadDriftGroups(projectId),
           loadTimelineMarkers(projectId),
         ]);
         // Node-storyline mapping depends on nodes being loaded first.

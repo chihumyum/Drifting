@@ -227,6 +227,11 @@ export const BookNodeTable = sqliteTable(
     // / unaffiliated chapter); the type was previously forced to drift.
     // See domain/book-node.ts for the WritingStatus enum split.
     kind: text('kind').notNull().default('drift'),
+    // Optional containing drift group (left-panel folder). NULL = root level /
+    // ungrouped. Drift-only: chapters always NULL — grouping is a drift
+    // affordance. Plain column, no declarative FK: PRAGMA foreign_keys is off
+    // and group delete reparents children up in useDriftGroup (not SET NULL).
+    driftGroupId: text('drift_group_id'),
     // Soft-delete marker. Non-null = in trash. List queries must filter
     // `deletedAt IS NULL`. Pro/Studio feature — Free tier still hard-deletes.
     deletedAt: text('deleted_at'),
@@ -241,7 +246,36 @@ export const BookNodeTable = sqliteTable(
     index('idx_book_node_project_book_order').on(t.projectId, t.bookOrder),
     index('idx_book_node_project_narrative_order').on(t.projectId, t.narrativeOrder),
     index('idx_book_node_project_kind').on(t.projectId, t.kind),
+    index('idx_book_node_drift_group').on(t.driftGroupId),
     index('idx_book_node_deleted_at').on(t.deletedAt),
+  ],
+);
+
+// Drift group (左栏分组) — nested folder for organizing drift nodes in the
+// left panel. Multi-level via `parent_group_id` (NULL = root-level group).
+// Drift-only: chapters never carry a group. Membership lives on
+// book_node.drift_group_id. Cascades are client-side (useDriftGroup reparents
+// a deleted group's child groups + drifts up to its parent); the only
+// declarative FK is project_id (cascade) so a project delete sweeps its
+// groups. `sort_order` is reserved for a future manual right-click reorder —
+// NULL in v1, where groups render by createdAt ascending.
+export const DriftGroupTable = sqliteTable(
+  'drift_group',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    parentGroupId: text('parent_group_id'), // null = root-level group
+    color: text('color'),
+    sortOrder: real('sort_order'), // reserved for manual reorder; null in v1
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_drift_group_project').on(t.projectId),
+    index('idx_drift_group_parent').on(t.parentGroupId),
   ],
 );
 

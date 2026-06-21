@@ -42,6 +42,9 @@ export interface CreateNodeUsecaseInput {
   narrativeOrder?: number | null;
   title?: string;
   position?: BookNode['position'];
+  // Optional containing drift group (left-panel folder). Drift-only — ignored
+  // for kind='chapter'. undefined/null = root level / ungrouped.
+  driftGroupId?: string | null;
 }
 
 export interface UseBookNodeContext {
@@ -117,6 +120,8 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
         title: makeUniqueNodeTitle(input.title ?? 'New Node', prevNodes, activeProjectId),
         projectId: activeProjectId,
         narrativeOrder: input.narrativeOrder ?? null,
+        // Drift-only grouping; chapter callers never pass this (stays null).
+        driftGroupId: input.kind === 'drift' ? input.driftGroupId ?? null : null,
         summary: '',
         position: input.position ?? {
           // TODO: properly fit the graph node
@@ -205,6 +210,7 @@ export function useBookNode({ projectId, userId }: UseBookNodeContext) {
             // alongside the book_node insert. It is NOT a column on book_node.
             mainStorylineId: primaryStorylineId,
             kind: created.kind,
+            driftGroupId: created.driftGroupId,
             positionX: created.position.x,
             positionY: created.position.y,
             writingStatus: created.writingStatus,

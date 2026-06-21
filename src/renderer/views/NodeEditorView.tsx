@@ -27,10 +27,13 @@ import type { EntityLinkRef } from '../lib/extensions/entity-link';
 import {
   CONVERT_DRIFT_TO_CHAPTER_ACTION,
   CONVERT_DRIFT_TO_ELEMENT_ACTION,
+  DRIFT_MOVE_TO_GROUP_ACTION,
   EditorCrumb,
   EditorTopBar,
   SET_STATUS_ACTION_PREFIX,
 } from '../components/editor/EditorTopBar';
+import { useDriftGroup } from '../usecase/useDriftGroup';
+import { ROOT_GROUP_KEY, buildDriftGroupChildren } from '../domain/drift-group';
 import { useBookElement } from '../usecase/useBookElement';
 import loglevel from 'loglevel';
 import { useDataStore } from '../store/data-store';
@@ -107,6 +110,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     bookElementCategories,
     primaryStorylineByNode,
   } = useDataStore();
+  const driftGroups = useDataStore((s) => s.driftGroups);
   // this component only render one node
   const [bookContent, setBookContent] = useState<NodeContent | null>(null);
   const [isContentLoaded, setIsContentLoaded] = useState(false);
@@ -199,6 +203,24 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   const [conversionTarget, setConversionTarget] = useState<'chapter' | 'element' | null>(null);
   const [conversionPickedId, setConversionPickedId] = useState<string | null>(null);
   const [conversionBusy, setConversionBusy] = useState(false);
+  // Drift → group move (3-dot menu "移动到分组…"). Mirrors the element editor's
+  // category-picker modal pattern.
+  const { moveDriftToGroup } = useDriftGroup({ projectId: activeProjectId });
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  // Depth-ordered group list for the move modal's <select> (indented by nesting
+  // level via leading spaces — <option> can't be styled).
+  const driftGroupOptions = useMemo(() => {
+    const children = buildDriftGroupChildren(driftGroups);
+    const out: Array<{ id: string; label: string }> = [];
+    const walk = (key: string, depth: number) => {
+      for (const g of children.get(key) ?? []) {
+        out.push({ id: g.id, label: `${'  '.repeat(depth)}${g.name}` });
+        walk(g.id, depth + 1);
+      }
+    };
+    walk(ROOT_GROUP_KEY, 0);
+    return out;
+  }, [driftGroups]);
   // for focus at this level
   const editorRef = useRef<ChapterEditorRef>(null);
   const activeNodeIdRef = useRef<string | null>(nodeId ?? null);
@@ -487,6 +509,12 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
         return;
       }
 
+      if (action === DRIFT_MOVE_TO_GROUP_ACTION) {
+        if (!isDrift(curNode)) return;
+        setShowGroupModal(true);
+        return;
+      }
+
       if (action.startsWith(SET_STATUS_ACTION_PREFIX)) {
         const next = action.slice(SET_STATUS_ACTION_PREFIX.length) as WritingStatus;
         // Only accept values from the enum that matches this node's kind so
@@ -586,6 +614,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           mainStorylineId: conversionPickedId,
           writingStatus: 'draft',
           bookOrder: maxChapterOrder + CHAPTER_ORDER_STRIDE,
+          // Grouping is drift-only — drop the group pointer as the node leaves
+          // the drift panel (parallels the marker/act unbinds below).
+          driftGroupId: null,
         });
         // The node now lives on the book axis — release any timeline marker
         // or act bound to it while it was a drift (binding is drift-only).
@@ -871,6 +902,64 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           }}
           onConfirm={handleConfirmConversion}
         />
+      )}
+
+      {showGroupModal && curNode && isDrift(curNode) && nodeId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(28, 24, 19, 0.32)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowGroupModal(false)}
+        >
+          <div
+            style={{
+              background: 'hsl(var(--page))',
+              border: '1px solid hsl(var(--rule-strong))',
+              borderRadius: 8,
+              padding: 24,
+              minWidth: 360,
+              boxShadow: '0 18px 50px rgba(28, 24, 19, 0.22)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>移动到分组</h3>
+            <select
+              value={curNode.driftGroupId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                void moveDriftToGroup(nodeId, val || null);
+                setShowGroupModal(false);
+              }}
+              autoFocus
+              style={{
+                width: '100%',
+                fontSize: 14,
+                border: '1px solid hsl(var(--rule-strong))',
+                borderRadius: 4,
+                padding: '8px 12px',
+                outline: 'none',
+                cursor: 'pointer',
+                background: 'hsl(var(--surface))',
+                whiteSpace: 'pre',
+              }}
+            >
+              <option value="">（根层级 · 不分组）</option>
+              {driftGroupOptions.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       )}
     </div>
   );
