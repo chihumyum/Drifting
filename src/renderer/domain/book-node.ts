@@ -125,6 +125,27 @@ export function isDrift(node: BookNode): node is DriftNode {
   return node.kind === 'drift';
 }
 
+// Coarse writing-status bucket shared by the dashboard and the all-chapters
+// stats. Collapses the writingStatus enum (+ an empty-draft heuristic) into
+// four progress buckets. Drift nodes carry their own status domain and are
+// filtered out before this is called.
+//   finished                                   → done
+//   waiting_review / revising / draft+content  → draft
+//   draft with no content yet                  → todo
+//   discarded                                  → set-aside, not progress
+export type DerivedStatus = 'done' | 'draft' | 'todo' | 'discarded';
+export function deriveStatus(node: {
+  writingStatus: WritingStatus;
+  wordCount: number;
+}): DerivedStatus {
+  const s = node.writingStatus;
+  if (s === 'finished') return 'done';
+  if (s === 'discarded') return 'discarded';
+  if (s === 'draft' && (node.wordCount || 0) === 0) return 'todo';
+  if (s === 'draft' || s === 'waiting_review' || s === 'revising') return 'draft';
+  return 'todo';
+}
+
 /**
  * A project-unique title for a node (chapters AND drifts share one namespace),
  * so the writing agent can address a node by title instead of its long uuid.

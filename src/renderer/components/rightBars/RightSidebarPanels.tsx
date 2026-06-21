@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '../../store/data-store';
-import { isDrift } from '../../domain/book-node';
+import { isDrift, isChapter, deriveStatus, type DerivedStatus } from '../../domain/book-node';
+import { deriveActSegments, type BookAct } from '../../domain/book-act';
+import { useWritingStatsStore } from '../../store/writing-stats-store';
 import { getChapterContentJson } from '../../lib/agent/chapter-prose';
 import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
@@ -18,7 +20,7 @@ import { ShadowPanel } from './ShadowPanel';
 import type { EntityKind } from '../../lib/extensions/entity-link';
 
 interface ResolvedTarget {
-  kind: 'chapter' | 'storyline' | 'element' | 'category' | 'drift' | 'none';
+  kind: 'chapter' | 'storyline' | 'element' | 'category' | 'drift' | 'all-chapters' | 'none';
   id: string | null;
   title: string;
   kicker: string;
@@ -37,6 +39,7 @@ export function RightSidebarPanels() {
 
   const {
     bookNodes,
+    bookActs,
     bookElements,
     storylines,
     bookElementCategories,
@@ -59,7 +62,9 @@ export function RightSidebarPanels() {
       return { kind: 'none', id: null, title: '项目主页', kicker: '本项目 · 概览' };
     }
     if (leaf.entityType === 'all-chapters') {
-      return { kind: 'none', id: null, title: '通览全书', kicker: '全书 · 长卷阅读' };
+      // kicker only surfaces in the stats tab (library/todo use hardcoded
+      // project-wide kickers), so phrase it for the aggregate stats view.
+      return { kind: 'all-chapters', id: null, title: '通览全书', kicker: '全书 · 节奏统计' };
     }
     if (leaf.entityType === 'node') {
       const node = bookNodes.find((n) => n.id === leaf.id);
@@ -220,6 +225,7 @@ export function RightSidebarPanels() {
         <StatsView
           target={target}
           bookNodes={bookNodes}
+          bookActs={bookActs}
           bookElements={bookElements}
           storylines={storylines}
           categories={bookElementCategories}
@@ -315,6 +321,7 @@ export function RightSidebarPanels() {
 interface StatsViewProps {
   target: ResolvedTarget;
   bookNodes: ReturnType<typeof useDataStore.getState>['bookNodes'];
+  bookActs: ReturnType<typeof useDataStore.getState>['bookActs'];
   bookElements: ReturnType<typeof useDataStore.getState>['bookElements'];
   storylines: ReturnType<typeof useDataStore.getState>['storylines'];
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
@@ -327,12 +334,16 @@ interface StatsViewProps {
 function StatsView({
   target,
   bookNodes,
+  bookActs,
   bookElements,
   storylines,
   categories,
   storylineNodeMapping,
   primaryStorylineByNode,
 }: StatsViewProps) {
+  if (target.kind === 'all-chapters') {
+    return <AllChaptersStats bookNodes={bookNodes} bookActs={bookActs} />;
+  }
   if (target.kind === 'chapter' || target.kind === 'drift') {
     const node = bookNodes.find((n) => n.id === target.id);
     if (!node) return <EmptyState message="找不到当前章节。" />;
@@ -394,6 +405,287 @@ function StatsView({
     );
   }
   return <EmptyState message="项目主页暂无单项统计。打开一个章节、元素或故事线查看详情。" />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// All-chapters (长卷阅读) aggregate stats — book-wide pacing, NOT a per-entity
+// panel. Deliberately a different lens from the project dashboard: it describes
+// the linear reading axis (act balance, chapter-length rhythm) the long-form
+// view renders, rather than project-management progress. Everything here is
+// derived from already-loaded store data — no async queries.
+
+const ALL_CHAPTERS_ACT_TOKENS = [
+  '--story-1',
+  '--story-2',
+  '--story-3',
+  '--story-4',
+  '--story-5',
+  '--story-6',
+] as const;
+
+/** An act's stored color, or a stable hue cycled by reading position. */
+function actColorAt(act: BookAct, i: number): string {
+  if (act.color && act.color.trim().length > 0) return act.color;
+  return `hsl(var(${ALL_CHAPTERS_ACT_TOKENS[i % ALL_CHAPTERS_ACT_TOKENS.length]}))`;
+}
+
+/**
+ * Smooth-scroll the long-form reading view to an act divider / chapter. That
+ * scroll container lives in AllChaptersEditorView; scrollIntoView walks
+ * ancestors, so a document-level lookup reaches it without threading a ref
+ * across the panel boundary. No-op if the row isn't mounted yet (lazy rows).
+ */
+function scrollReadingViewTo(selector: string) {
+  const el = document.querySelector(selector);
+  if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const STATUS_BUCKET_ORDER = ['done', 'draft', 'todo'] as const;
+const STATUS_BUCKET_LABEL: Record<DerivedStatus, string> = {
+  done: '已完成',
+  draft: '草稿',
+  todo: '待写',
+  discarded: '弃用',
+};
+const STATUS_BUCKET_OPACITY: Record<(typeof STATUS_BUCKET_ORDER)[number], number> = {
+  done: 1,
+  draft: 0.5,
+  todo: 0.18,
+};
+
+function AllChaptersStats({
+  bookNodes,
+  bookActs,
+}: {
+  bookNodes: ReturnType<typeof useDataStore.getState>['bookNodes'];
+  bookActs: ReturnType<typeof useDataStore.getState>['bookActs'];
+}) {
+  const { projectId } = useProjectNavigation();
+  const projectWordTarget = useWritingStatsStore((s) =>
+    projectId ? s.plans[projectId]?.projectWordTarget : undefined,
+  );
+
+  // Reading order = chapters only (drifts live off the bookOrder axis), sorted
+  // by bookOrder. Mirrors AllChaptersEditorView so the stats describe exactly
+  // what the long-form view puts on screen.
+  const chapters = useMemo(
+    () => bookNodes.filter(isChapter).sort((a, b) => a.bookOrder - b.bookOrder),
+    [bookNodes],
+  );
+  type Ch = (typeof chapters)[number];
+
+  const totalWc = useMemo(
+    () => chapters.reduce((a, n) => a + (n.wordCount || 0), 0),
+    [chapters],
+  );
+  const count = chapters.length;
+  const avgWc = count ? Math.round(totalWc / count) : 0;
+  const targetPct =
+    projectWordTarget && projectWordTarget > 0
+      ? Math.min(100, (totalWc / projectWordTarget) * 100)
+      : null;
+
+  const segments = useMemo(() => deriveActSegments(bookActs, chapters), [bookActs, chapters]);
+
+  // Per-act aggregates + a chapterId→color map that ties the act bar and the
+  // chapter-rhythm bars to one palette.
+  const { actRows, colorByChapter } = useMemo(() => {
+    const rows = segments.map((seg, i) => {
+      const words = seg.chapters.reduce((a, c) => a + (c.wordCount || 0), 0);
+      const cnt = seg.chapters.length;
+      return {
+        act: seg.act,
+        color: actColorAt(seg.act, i),
+        words,
+        cnt,
+        pct: totalWc ? (words / totalWc) * 100 : 0,
+      };
+    });
+    const map = new Map<string, string>();
+    rows.forEach((r, i) => {
+      for (const c of segments[i].chapters) map.set(c.id, r.color);
+    });
+    return { actRows: rows, colorByChapter: map };
+  }, [segments, totalWc]);
+
+  // Chapter-length rhythm: bars scaled to the longest chapter, floored so a
+  // zero/short chapter still shows a sliver.
+  const maxWc = useMemo(
+    () => chapters.reduce((m, n) => Math.max(m, n.wordCount || 0), 0),
+    [chapters],
+  );
+  const { longest, shortest } = useMemo(() => {
+    let lo: Ch | null = null;
+    let sh: Ch | null = null;
+    for (const n of chapters) {
+      if (!lo || (n.wordCount || 0) > (lo.wordCount || 0)) lo = n;
+      if (!sh || (n.wordCount || 0) < (sh.wordCount || 0)) sh = n;
+    }
+    return { longest: lo, shortest: sh };
+  }, [chapters]);
+
+  const statusCounts = useMemo(() => {
+    const m: Record<DerivedStatus, number> = { done: 0, draft: 0, todo: 0, discarded: 0 };
+    for (const n of chapters) m[deriveStatus(n)] += 1;
+    return m;
+  }, [chapters]);
+  const activeTotal = STATUS_BUCKET_ORDER.reduce((a, s) => a + statusCounts[s], 0);
+  const donePct = count ? Math.round((statusCounts.done / count) * 100) : 0;
+
+  if (count === 0) {
+    return <EmptyState message="全书还没有章节。开始写第一章后，这里会显示全书节奏。" />;
+  }
+
+  return (
+    <div style={{ padding: 12 }}>
+      <StatsSection title="全书概览">
+        <MetaGrid>
+          <MetaK>总字数</MetaK>
+          <MetaV>{totalWc.toLocaleString()} 字</MetaV>
+          <MetaK>章节数</MetaK>
+          <MetaV>{count} 章</MetaV>
+          <MetaK>平均每章</MetaK>
+          <MetaV>{avgWc.toLocaleString()} 字</MetaV>
+        </MetaGrid>
+        {targetPct != null && (
+          <div style={{ marginTop: 8 }}>
+            <StatsRow
+              k="已写 / 目标"
+              v={`${totalWc.toLocaleString()} / ${projectWordTarget!.toLocaleString()}`}
+            >
+              <ProgressBar pct={targetPct} />
+            </StatsRow>
+          </div>
+        )}
+      </StatsSection>
+
+      {actRows.length > 0 && (
+        <StatsSection title="分幕节奏" topBorder>
+          <div
+            style={{
+              display: 'flex',
+              height: 5,
+              borderRadius: 2,
+              overflow: 'hidden',
+              background: 'hsl(var(--rule))',
+              marginBottom: 10,
+            }}
+          >
+            {actRows.map((r) =>
+              r.pct > 0 ? (
+                <div
+                  key={r.act.id}
+                  title={`${r.act.name} · ${r.cnt}章 · ${r.words.toLocaleString()}字`}
+                  style={{ width: `${r.pct}%`, background: r.color }}
+                />
+              ) : null,
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {actRows.map((r) => (
+              <StatsLinkRow
+                key={r.act.id}
+                name={r.act.name}
+                color={r.color}
+                meta={`${r.cnt}章 · ${(r.words / 1000).toFixed(1)}k · ${Math.round(r.pct)}%`}
+                title={`跳到「${r.act.name}」`}
+                onOpen={() => scrollReadingViewTo(`[data-act-id="${CSS.escape(r.act.id)}"]`)}
+              />
+            ))}
+          </div>
+        </StatsSection>
+      )}
+
+      <StatsSection title="章节长度节奏" topBorder>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 46, padding: '2px 0' }}>
+          {chapters.map((n) => {
+            const h = maxWc > 0 ? Math.max(2, ((n.wordCount || 0) / maxWc) * 100) : 2;
+            return (
+              <div
+                key={n.id}
+                title={`${n.title || 'Untitled'} · ${(n.wordCount || 0).toLocaleString()}字`}
+                style={{
+                  flex: 1,
+                  minWidth: 1,
+                  height: `${h}%`,
+                  background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
+                  borderRadius: 1,
+                  opacity: 0.85,
+                }}
+              />
+            );
+          })}
+        </div>
+        {longest && (
+          <div
+            style={{
+              marginTop: 8,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'hsl(var(--ink-3))',
+              lineHeight: 1.7,
+            }}
+          >
+            <div>
+              最长 · {longest.title || 'Untitled'}（{(longest.wordCount || 0).toLocaleString()}字）
+            </div>
+            {shortest && shortest.id !== longest.id && (
+              <div>
+                最短 · {shortest.title || 'Untitled'}（{(shortest.wordCount || 0).toLocaleString()}字）
+              </div>
+            )}
+          </div>
+        )}
+      </StatsSection>
+
+      <StatsSection title="完成度" topBorder>
+        {activeTotal === 0 ? (
+          <Notes>章节都已弃用或暂无进度。</Notes>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                height: 5,
+                borderRadius: 2,
+                overflow: 'hidden',
+                background: 'hsl(var(--rule))',
+                marginBottom: 8,
+              }}
+            >
+              {STATUS_BUCKET_ORDER.map((s) =>
+                statusCounts[s] > 0 ? (
+                  <div
+                    key={s}
+                    title={`${STATUS_BUCKET_LABEL[s]} ${statusCounts[s]} 章`}
+                    style={{
+                      width: `${(statusCounts[s] / activeTotal) * 100}%`,
+                      background: 'hsl(var(--accent))',
+                      opacity: STATUS_BUCKET_OPACITY[s],
+                    }}
+                  />
+                ) : null,
+              )}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'hsl(var(--ink-3))',
+                lineHeight: 1.7,
+              }}
+            >
+              {STATUS_BUCKET_ORDER.filter((s) => statusCounts[s] > 0)
+                .map((s) => `${STATUS_BUCKET_LABEL[s]} ${statusCounts[s]}`)
+                .join(' · ') || '—'}
+              {statusCounts.discarded > 0 && `（弃用 ${statusCounts.discarded}）`}
+            </div>
+            <StatsRow k="已完成" v={`${donePct}%`} />
+          </>
+        )}
+      </StatsSection>
+    </div>
+  );
 }
 
 /** One element mentioned in the chapter's prose, with its mention count. */
@@ -722,12 +1014,15 @@ function StatsLinkRow({
   color,
   meta,
   onOpen,
+  title,
 }: {
   name: string;
   color?: string;
   /** Optional right-aligned mono annotation, e.g. "×12" or "3 个元素". */
   meta?: string;
   onOpen: () => void;
+  /** Hover tooltip; defaults to the element-open phrasing. */
+  title?: string;
 }) {
   return (
     <div
@@ -737,7 +1032,7 @@ function StatsLinkRow({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') onOpen();
       }}
-      title={`打开元素「${name}」`}
+      title={title ?? `打开元素「${name}」`}
       style={{
         display: 'flex',
         alignItems: 'center',

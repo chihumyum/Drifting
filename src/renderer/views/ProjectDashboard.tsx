@@ -11,7 +11,7 @@ import { useRecentEntitiesStore } from '../store/recent-entities-store';
 import { useWritingStatsStore, deriveWritingStats } from '../store/writing-stats-store';
 import { KvEditor } from '../components/editor/KvEditor';
 import { ShadowRulesSection } from '../components/dashboard/ShadowRulesSection';
-import { isChapter, type BookNode, type WritingStatus } from '../domain/book-node';
+import { isChapter, deriveStatus, type BookNode } from '../domain/book-node';
 import loglevel from 'loglevel';
 import '../../styles/dashboard.css';
 
@@ -36,25 +36,6 @@ function hashToToken(id: string): string {
 function resolveColor(rawColor: string | undefined, fallbackKey: string): string {
   if (rawColor && rawColor.trim().length > 0) return rawColor;
   return `hsl(var(${hashToToken(fallbackKey)}))`;
-}
-
-// Buckets the dashboard cares about: done / draft / todo. Maps real
-// writingStatus values (BookNode) so the chips reflect the user's
-// explicit choices rather than guessing from word count.
-//   finished       → done
-//   waiting_review / revising / draft (with content) → draft
-//   draft (no content yet)        → todo
-//   discarded                     → not surfaced here (set-aside)
-//   drift statuses (drifting/resting) — only seen on drift nodes, which
-//   are filtered out of the dashboard before this is called.
-type DerivedStatus = 'done' | 'draft' | 'todo' | 'discarded';
-function deriveStatus(node: { writingStatus: WritingStatus; wordCount: number }): DerivedStatus {
-  const s = node.writingStatus;
-  if (s === 'finished') return 'done';
-  if (s === 'discarded') return 'discarded';
-  if (s === 'draft' && (node.wordCount || 0) === 0) return 'todo';
-  if (s === 'draft' || s === 'waiting_review' || s === 'revising') return 'draft';
-  return 'todo';
 }
 
 function formatRelativeTime(iso: string): string {
