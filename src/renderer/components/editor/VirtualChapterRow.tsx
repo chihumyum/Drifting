@@ -3,7 +3,8 @@ import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
-import type { EntityLinkRef } from '../../lib/extensions/entity-link';
+import { entityLinkConfig } from '../../lib/extensions/entity-link';
+import type { EntityKind, EntityLinkRef } from '../../lib/extensions/entity-link';
 import type { OutlineItem } from '../../lib/outline';
 import { ChapterEditor } from './ChapterEditor';
 import { chapterJsonToHtml } from './chapter-static-html';
@@ -189,6 +190,7 @@ function VirtualChapterRowImpl({
               ready={content !== undefined}
               bodyEstimate={Math.max(240, intrinsicHeight - CHROME_HEIGHT)}
               onActivate={(coords) => onActivate(node.id, coords)}
+              onEntityClick={onEntityClick}
             />
           )}
 
@@ -212,6 +214,7 @@ function StaticChapterBody({
   ready,
   bodyEstimate,
   onActivate,
+  onEntityClick,
 }: {
   title: string;
   summary: string;
@@ -219,13 +222,43 @@ function StaticChapterBody({
   ready: boolean;
   bodyEstimate: number;
   onActivate: (coords: { clientX: number; clientY: number }) => void;
+  onEntityClick?: (ref: EntityLinkRef) => void;
 }) {
   const handleMouseDown = useCallback(
     (event: React.MouseEvent) => {
       if (event.button !== 0) return; // primary click only
+
+      // A click on an entity-link navigates to its target, mirroring the live
+      // editor's entity-link handleClick. We act on mousedown (not click)
+      // because promoting the row to a live editor swaps the static span out
+      // before a `click` could ever land on it. Falls through to normal row
+      // activation when interaction is off, the target isn't a link, or it
+      // carries no id.
+      if (entityLinkConfig.interactionEnabled) {
+        const linkEl = (event.target as HTMLElement | null)?.closest(
+          '.entity-link',
+        ) as HTMLElement | null;
+        const targetId = linkEl?.getAttribute('data-target-id');
+        if (linkEl && targetId) {
+          event.preventDefault();
+          const targetKind =
+            (linkEl.getAttribute('data-target-kind') as EntityKind) ?? 'element';
+          // Non-alive target (trashed/gone): swallow — don't navigate to a
+          // phantom, don't place a caret mid-word. Matches the plugin's guard.
+          if (entityLinkConfig.resolveTargetState(targetKind, targetId) === 'alive') {
+            onEntityClick?.({
+              targetKind,
+              targetId,
+              targetBlockId: linkEl.getAttribute('data-target-block-id'),
+            });
+          }
+          return;
+        }
+      }
+
       onActivate({ clientX: event.clientX, clientY: event.clientY });
     },
-    [onActivate],
+    [onActivate, onEntityClick],
   );
 
   return (
