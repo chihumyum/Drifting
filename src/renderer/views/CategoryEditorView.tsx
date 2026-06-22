@@ -363,11 +363,6 @@ export function CategoryEditorView({
                   <span className="elem-portrait__hint">◆ {curCategory.name}</span>
                 </div>
                 <div className="elem-hero__main">
-                  <div className="elem-hero__kicker">
-                    <span className="elem-hero__kicker-dot" style={{ background: categoryColor }} />
-                    <span>CATEGORY</span>
-                  </div>
-
                   <input
                     type="text"
                     className="elem-hero__name"

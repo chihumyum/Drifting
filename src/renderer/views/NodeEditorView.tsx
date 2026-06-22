@@ -301,12 +301,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       .sort((a, b) => a.bookOrder - b.bookOrder);
   }, [bookNodeById, mainStoryline, storylineNodeMapping]);
 
-  const chapterIndex = useMemo(() => {
-    if (!nodeId) return 0;
-    const idx = sameStorylineNodes.findIndex((n) => n.id === nodeId);
-    return idx >= 0 ? idx + 1 : 0;
-  }, [nodeId, sameStorylineNodes]);
-
   // Nodes shown in the title-level breadcrumb dropdown:
   // - drift node → all drift nodes (so users can jump between drifts)
   // - chapter in a storyline → chapters in that storyline (current behavior)
@@ -691,7 +685,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
   ]);
 
   const storylineColor = mainStoryline?.color || '#8A2A1E';
-  const chapterRoman = chapterIndex > 0 ? toRoman(chapterIndex) : '–';
 
   return (
     <div
@@ -869,7 +862,6 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   {!isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
                       <span className="page__folio-line">Chapter</span>
-                      <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
                       {mainStoryline && (
                         <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
                           {mainStoryline.name}
@@ -879,8 +871,16 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                     </div>
                   )}
 
-                  {!isDriftNode && mainStoryline && (
-                    <div className="page__chapter-mark">— {mainStoryline.name} —</div>
+                  {isDriftNode && (
+                    <div className="page__folio" aria-hidden="true">
+                      <span className="page__folio-line">Drift</span>
+                      {driftGroupChain.length > 0 && (
+                        <span className="page__folio-line page__folio-line--accent">
+                          {driftGroupChain.map((g) => g.name).join(' - ')}
+                        </span>
+                      )}
+                      <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                    </div>
                   )}
 
                   <ChapterEditor

@@ -390,11 +390,6 @@ export function StorylineEditorView({
                   <span className="elem-portrait__hint">{currentStoryline.name}</span>
                 </div>
                 <div className="elem-hero__main">
-                  <div className="elem-hero__kicker">
-                    <span className="elem-hero__kicker-dot" style={{ background: storylineColor }} />
-                    <span>STORYLINE</span>
-                  </div>
-
                   <input
                     type="text"
                     className="elem-hero__name"
