@@ -940,6 +940,18 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   color: hsl(var(--ink-3));
   text-transform: uppercase;
 }
+/* Non-clickable label at the top of the menu naming its target (e.g. the
+   chapter the all-chapters menu acts on). */
+.editor-bar__menu-header {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: hsl(var(--ink-2));
+  font-weight: 500;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .editor-bar__menu-divider {
   height: 1px;
   margin: 5px 4px;
@@ -952,10 +964,13 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 6px;
   border-radius: 3px;
-  cursor: pointer;
+  cursor: default;
   white-space: nowrap;
 }
-.editor-crumb:hover { background: hsl(var(--rule) / 0.7); color: hsl(var(--ink-1)); }
+/* Pointer + hover only when the crumb actually does something on click
+   (it carries an onClick or a dropdown). Inert label crumbs stay static. */
+.editor-crumb--interactive { cursor: pointer; }
+.editor-crumb--interactive:hover { background: hsl(var(--rule) / 0.7); color: hsl(var(--ink-1)); }
 .editor-crumb-storyline { color: var(--crumb-color, hsl(var(--ink-2))); }
 .editor-crumb-dot {
   width: 7px; height: 7px; border-radius: 2px;

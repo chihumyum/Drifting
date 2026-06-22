@@ -315,6 +315,16 @@ export function ElementEditorView({
     void applyGroup(trimmed === '' ? null : trimmed);
   };
 
+  // Sibling elements in the same category — drives the title-crumb dropdown so
+  // the user can jump between elements without leaving the editor. Mirrors the
+  // chapter breadcrumb's sibling switcher (chapters in a storyline).
+  const siblingElements = useMemo(() => {
+    if (!curElement) return [];
+    return bookElements
+      .filter((el) => el.categoryId === curElement.categoryId)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [bookElements, curElement]);
+
   // All distinct groupNames currently used by elements in this element's
   // category — drives the combobox list in the group modal.
   const groupOptions = useMemo(() => {
@@ -443,31 +453,31 @@ export function ElementEditorView({
           </EditorCrumb>
         )}
         {curElement.groupName && (
-          <EditorCrumb
-            dropdown={
-              <>
-                <div
-                  className="crumb-dropdown__item"
-                  onClick={() => void applyGroup(null)}
-                >
-                  <span>未分组</span>
-                </div>
-                {groupOptions.map((name) => (
-                  <div
-                    key={name}
-                    className={`crumb-dropdown__item${name === curElement.groupName ? ' crumb-dropdown__item--active' : ''}`}
-                    onClick={() => void applyGroup(name)}
-                  >
-                    <span>{name}</span>
-                  </div>
-                ))}
-              </>
-            }
-          >
+          // Group is display-only context. Switching it here used to MOVE the
+          // element between groups, which read as a navigation; relocation now
+          // lives only in the 3-dot menu's「Change Group」flow.
+          <EditorCrumb>
             <span>{curElement.groupName}</span>
           </EditorCrumb>
         )}
-        <EditorCrumb>
+        <EditorCrumb
+          dropdown={
+            siblingElements.map((el) => {
+              const isActive = el.id === curElement.id;
+              return (
+                <div
+                  key={el.id}
+                  className={`crumb-dropdown__item${isActive ? ' crumb-dropdown__item--active' : ''}`}
+                  onClick={() => {
+                    if (!isActive) navigate(`/project/${projectId}/element/${el.id}`);
+                  }}
+                >
+                  <span>{el.name || 'Untitled Element'}</span>
+                </div>
+              );
+            })
+          }
+        >
           <span className="editor-crumb-title">{curElement.name || 'Untitled Element'}</span>
         </EditorCrumb>
       </EditorTopBar>

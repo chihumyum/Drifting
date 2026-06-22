@@ -58,6 +58,11 @@ interface EditorTopBarProps {
   // supplied together for the section to render.
   nodeWritingStatus?: WritingStatus;
   nodeStatusKind?: NodeStatusKind;
+  // Optional non-clickable label pinned to the top of the three-dot menu,
+  // naming what the menu acts on. Used by the all-chapters view, where the menu
+  // targets the chapter at the reading line (not the whole book) — without this
+  // the menu would read as operating on 通览全书.
+  menuHeader?: ReactNode;
   commentToggle?: {
     enabled: boolean;
     count: number;
@@ -83,6 +88,7 @@ export function EditorTopBar({
   onMenuAction,
   nodeWritingStatus,
   nodeStatusKind,
+  menuHeader,
   commentToggle,
   referenceLinkToggle,
   plotPlannerToggle,
@@ -157,6 +163,7 @@ export function EditorTopBar({
             onAction={onMenuAction}
             nodeWritingStatus={nodeWritingStatus}
             nodeStatusKind={nodeStatusKind}
+            menuHeader={menuHeader}
           />
         )}
       </div>
@@ -186,7 +193,11 @@ interface EditorCrumbProps {
 export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCrumbProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement>(null);
-  const className = dotColor ? 'editor-crumb editor-crumb-storyline' : 'editor-crumb';
+  // Only crumbs that actually do something on click get the pointer cursor +
+  // hover affordance. A plain label crumb (project name, view title) is inert,
+  // so it must read as inert rather than dangling a dead hover/click.
+  const interactive = Boolean(onClick || dropdown);
+  const className = `${dotColor ? 'editor-crumb editor-crumb-storyline' : 'editor-crumb'}${interactive ? ' editor-crumb--interactive' : ''}`;
   const style = dotColor ? ({ ['--crumb-color' as string]: dotColor } as React.CSSProperties) : undefined;
 
   useEffect(() => {
@@ -223,7 +234,12 @@ export function EditorCrumb({ children, dotColor, dropdown, onClick }: EditorCru
   };
 
   return (
-    <span ref={rootRef} className={className} style={style} onClick={handleClick}>
+    <span
+      ref={rootRef}
+      className={className}
+      style={style}
+      onClick={interactive ? handleClick : undefined}
+    >
       {dotColor && <span className="editor-crumb-dot" />}
       {children}
       {open && dropdown && (
@@ -240,6 +256,7 @@ interface EditorBarMenuProps {
   onAction: (action: string) => void;
   nodeWritingStatus?: WritingStatus;
   nodeStatusKind?: NodeStatusKind;
+  menuHeader?: ReactNode;
 }
 
 function EditorBarMenu({
@@ -247,6 +264,7 @@ function EditorBarMenu({
   onAction,
   nodeWritingStatus,
   nodeStatusKind,
+  menuHeader,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -290,7 +308,7 @@ function EditorBarMenu({
         // shadow gate (see NodeEditorView).
         MANUAL_CHAPTER_WRITING_STATUSES
     : [];
-  if (items.length === 0 && !showStatus) return null;
+  if (items.length === 0 && !showStatus && !menuHeader) return null;
 
   return (
     <div ref={menuRef} style={{ position: 'relative' }}>
@@ -306,6 +324,12 @@ function EditorBarMenu({
 
       {isOpen && (
         <div className="editor-bar__menu">
+          {menuHeader && (
+            <>
+              <div className="editor-bar__menu-header">{menuHeader}</div>
+              {(showStatus || items.length > 0) && <div className="editor-bar__menu-divider" />}
+            </>
+          )}
           {showStatus && nodeStatusKind && (
             <>
               <div className="editor-bar__menu-section-label">

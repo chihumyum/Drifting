@@ -762,41 +762,15 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             )}
 
             {/* Drift folder path — the group hierarchy (≤2 levels) the drift
-                lives in. The leaf (immediate group) crumb carries a dropdown to
-                relocate the drift; parent crumbs are display-only (groups have
-                no editor of their own). */}
+                lives in. Display-only context: groups have no editor of their
+                own, and relocating the drift here read as a navigation. Moving
+                between groups now lives only in the 3-dot menu's「移动到分组…」. */}
             {isDriftNode &&
-              driftGroupChain.map((g, idx) => {
-                const isLeaf = idx === driftGroupChain.length - 1;
-                return (
-                  <EditorCrumb
-                    key={g.id}
-                    dropdown={
-                      isLeaf ? (
-                        <>
-                          <div
-                            className={`crumb-dropdown__item${!curNode.driftGroupId ? ' crumb-dropdown__item--active' : ''}`}
-                            onClick={() => nodeId && void moveDriftToGroup(nodeId, null)}
-                          >
-                            <span>未分组</span>
-                          </div>
-                          {driftGroupOptions.map((opt) => (
-                            <div
-                              key={opt.id}
-                              className={`crumb-dropdown__item${opt.id === curNode.driftGroupId ? ' crumb-dropdown__item--active' : ''}`}
-                              onClick={() => nodeId && void moveDriftToGroup(nodeId, opt.id)}
-                            >
-                              <span style={{ whiteSpace: 'pre' }}>{opt.label}</span>
-                            </div>
-                          ))}
-                        </>
-                      ) : undefined
-                    }
-                  >
-                    <span>{g.name}</span>
-                  </EditorCrumb>
-                );
-              })}
+              driftGroupChain.map((g) => (
+                <EditorCrumb key={g.id}>
+                  <span>{g.name}</span>
+                </EditorCrumb>
+              ))}
 
             <EditorCrumb
               dropdown={
