@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Track which outline anchor is currently "active" as the user scrolls the
 // editor body. Active = the last heading whose top has scrolled past a
@@ -8,13 +8,27 @@ import { useEffect, useState } from 'react';
 // than a plain ref so the effect re-runs when the element first attaches.
 // Anchors are resolved by `data-block-id` first (headings inside the editor)
 // then by `getElementById` (static section anchors).
+//
+// Returns the active id plus a `pin(id)` callback the view should call when the
+// user clicks a TOC row. Pinning holds the highlight on the clicked anchor
+// until that anchor scrolls out of the viewport. Without it, clicking a row
+// whose section is already fully on-screen wouldn't move the highlight: the
+// scroll barely changes, so the threshold rule keeps the *previous* (higher)
+// heading active. The pin lets the clicked row win until the reader scrolls
+// its section away, at which point the normal scroll-spy resumes.
 export function useOutlineScrollspy(
   scrollRoot: HTMLElement | null,
   ids: string[],
   offset = 80,
-): string | null {
+): { activeId: string | null; pin: (id: string) => void } {
   const idsKey = ids.join('|');
   const [active, setActive] = useState<string | null>(ids[0] ?? null);
+  const pinnedRef = useRef<string | null>(null);
+
+  const pin = useCallback((id: string) => {
+    pinnedRef.current = id;
+    setActive(id);
+  }, []);
 
   useEffect(() => {
     if (!scrollRoot || ids.length === 0) {
@@ -29,6 +43,23 @@ export function useOutlineScrollspy(
       );
     };
     const recompute = () => {
+      // A pinned (just-clicked) anchor wins as long as it is still on-screen.
+      // Once it leaves the viewport — or can't be resolved — drop the pin and
+      // fall through to the normal threshold scan.
+      const pinned = pinnedRef.current;
+      if (pinned) {
+        const el = resolve(pinned);
+        if (el) {
+          const rootRect = scrollRoot.getBoundingClientRect();
+          const r = el.getBoundingClientRect();
+          const inView = r.bottom > rootRect.top && r.top < rootRect.bottom;
+          if (inView) {
+            setActive(pinned);
+            return;
+          }
+        }
+        pinnedRef.current = null;
+      }
       const rootTop = scrollRoot.getBoundingClientRect().top + offset;
       let bestId: string | null = null;
       let bestDist = Infinity;
@@ -58,5 +89,5 @@ export function useOutlineScrollspy(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollRoot, idsKey, offset]);
 
-  return active;
+  return { activeId: active, pin };
 }

@@ -28,6 +28,8 @@ export interface BookNodeUpdateData {
   position?: { x?: number | null; y?: number | null };
   wordCount?: number;
   writingStatus?: ChapterWritingStatus | DriftStatus;
+  // Drift group membership (null = move to root / ungrouped). Drift-only.
+  driftGroupId?: string | null;
   updatedAt: string;
 }
 
@@ -53,6 +55,7 @@ function toBookNode(record: typeof BookNodeTable.$inferSelect): BookNode {
     title: record.title,
     summary: record.summary,
     narrativeOrder: record.narrativeOrder ?? null,
+    driftGroupId: record.driftGroupId ?? null,
     position: { x: record.positionX, y: record.positionY },
     wordCount: record.wordCount ?? 0,
     createdAt: record.createdAt,
@@ -138,6 +141,7 @@ export function createBookNodeSqliteRepository(
         narrativeOrder: data.narrativeOrder,
         summary: data.summary,
         kind: data.kind,
+        driftGroupId: data.driftGroupId ?? null,
         positionX: data.position.x,
         positionY: data.position.y,
         wordCount: data.wordCount ?? 0,
@@ -179,6 +183,7 @@ export function createBookNodeSqliteRepository(
       if (updates.projectId !== undefined) updateValues.projectId = updates.projectId;
       if (updates.wordCount !== undefined) updateValues.wordCount = updates.wordCount;
       if (updates.writingStatus !== undefined) updateValues.writingStatus = updates.writingStatus;
+      if (updates.driftGroupId !== undefined) updateValues.driftGroupId = updates.driftGroupId;
 
       if (updates.position) {
         if (updates.position.x !== undefined && updates.position.x !== null)

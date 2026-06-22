@@ -40,6 +40,12 @@ export interface CreateBookElementInput {
    * means the element starts with no summary (user fills in later).
    */
   summary?: string;
+  /**
+   * Optional initial secondary group (groupName) within the category. Used by
+   * the "+ element in this group" affordance on a group header. null/omitted =
+   * ungrouped.
+   */
+  groupName?: string | null;
 }
 export type UpdateElementUsecaseInput = Partial<
   Omit<BookElement, 'id' | 'updatedAt' | 'projectId' | 'createdAt'>
@@ -145,7 +151,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         contentJson: seededContentJson,
         kvJson: seededKvJson,
         aliases: resolvedAliases,
-        groupName: null,
+        groupName: input.groupName?.trim() || null,
         createdAt: now,
         updatedAt: now,
       };

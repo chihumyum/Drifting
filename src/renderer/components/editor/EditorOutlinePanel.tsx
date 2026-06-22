@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUiStore } from '../../store/ui-store';
 
 export interface OutlineEntry {
@@ -161,6 +161,33 @@ export function EditorOutlinePanel({
   const isOpen = (item: OutlineEntry): boolean =>
     openOverride.has(item.id) ? openOverride.get(item.id)! : defaultOpen(item);
 
+  // The "you are here" trail: the active row PLUS every ancestor up to its root.
+  // The scroll-spy reports a single deepest id (e.g. a heading buried in a
+  // chapter); lighting only that row would make the highlight stop at whatever
+  // level the id sits on. By marking the whole chain we let it read as one
+  // continuous path — chapter (L2 wash) → … → inner heading (accent) — instead
+  // of snapping to a lone row. Empty when nothing is active.
+  const activePathIds = useMemo(() => {
+    const path = new Set<string>();
+    if (activeId == null) return path;
+    const walk = (entry: OutlineEntry, ancestors: string[]): boolean => {
+      if (entry.id === activeId) {
+        for (const a of ancestors) path.add(a);
+        path.add(entry.id);
+        return true;
+      }
+      if (entry.children) {
+        const next = [...ancestors, entry.id];
+        for (const child of entry.children) if (walk(child, next)) return true;
+      }
+      return false;
+    };
+    for (const root of [...items, ...(secondaryItems ?? [])]) {
+      if (walk(root, [])) break;
+    }
+    return path;
+  }, [items, secondaryItems, activeId]);
+
   const renderEntry = (item: OutlineEntry): React.ReactNode => {
     // L1 · act — a centred divider flanked by hairlines, never a list row.
     if (item.kind === 'act') {
@@ -181,10 +208,12 @@ export function EditorOutlinePanel({
             : 'l5';
     const hasChildren = !!item.children?.length;
     const open = hasChildren && isOpen(item);
-    const active = activeId != null && activeId === item.id;
-    // Two-stage "you are here": L2 (chapter/section) gets the wash; deeper
-    // rows get accent text only — no spine, no wash (house style).
-    const activeClass = active ? (tier === 'l2' ? ' is-active' : ' is-current') : '';
+    // Any row on the active path lights up (not just the deepest active id), so
+    // the highlight extends from the chapter down to the inner heading. Two-stage
+    // "you are here": L2 (chapter/section) gets the wash; deeper rows get accent
+    // text only — no spine, no wash (house style).
+    const onActivePath = activePathIds.has(item.id);
+    const activeClass = onActivePath ? (tier === 'l2' ? ' is-active' : ' is-current') : '';
 
     return (
       <div key={item.id} className={`toc-block toc-block--${tier}`}>

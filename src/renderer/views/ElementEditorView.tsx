@@ -180,19 +180,24 @@ export function ElementEditorView({
         : null,
   });
 
-  // Outline = framework anchors (overview / 字段 / 传) plus headings
-  // extracted live from the body editor. Built before the early return below
-  // so the scrollspy hook always runs (Rules of Hooks).
+  // Outline = framework anchors for every section of the element editor, in
+  // document order: 概述 → 记·传 (with its body headings nested as sub-structure)
+  // → 字段 → 关联 → 补丁 → 弧线 → 演化. Sections carry no ordinal — the order is
+  // the only ranking. Built before the early return below so the scrollspy hook
+  // always runs (Rules of Hooks).
   const frameworkItems: OutlineEntry[] = [
-    { id: 'el-overview', level: 2, kind: 'section', num: '一', text: '概述' },
-    { id: 'el-kv', level: 2, kind: 'section', num: '二', text: '字段 · facts' },
-    { id: 'el-bio', level: 2, kind: 'section', num: '三', text: '传 · biography' },
+    { id: 'el-overview', level: 2, kind: 'section', text: '概述' },
+    { id: 'el-bio', level: 2, kind: 'section', text: '传 · biography', children: nestHeadings(outline) },
+    { id: 'el-kv', level: 2, kind: 'section', text: '字段 · facts' },
+    { id: 'el-relations', level: 2, kind: 'section', text: '关联' },
+    { id: 'el-patches', level: 2, kind: 'section', text: '补丁' },
+    { id: 'el-arc', level: 2, kind: 'section', text: '弧线 · ARC' },
+    { id: 'el-evolve', level: 2, kind: 'section', text: '演化 · EVOLVE' },
   ];
-  const bodyOutlineItems: OutlineEntry[] = nestHeadings(outline);
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
   const outlineIds = [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)];
-  const activeOutlineId = useOutlineScrollspy(scrollEl, outlineIds);
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(scrollEl, outlineIds);
 
   const commitName = async () => {
     if (!elementId) return;
@@ -448,9 +453,11 @@ export function ElementEditorView({
         <EditorOutlinePanel
           title={`${curElement.name || 'ELEMENT'} · OUTLINE`}
           items={frameworkItems}
-          secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+          onItemClick={(id) => {
+            pinOutline(id);
+            scrollToOutlineAnchor(id, scrollEl);
+          }}
           emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
@@ -613,10 +620,19 @@ export function ElementEditorView({
               </div>
             </section>
 
-            {/* 二 · 字段 — element's own KV facts. Seeded at creation
-                from the category's elementTemplateKvJson; owned thereafter. */}
+            {/* 记·传 — the element's free-form biography (TipTap body). Sits
+                directly under the hero so the prose leads; structured 字段
+                follow. Its H1/H2/H3 headings nest under this anchor in the TOC. */}
+            <h2 id="el-bio" className="page__scene">
+              <span className="page__scene-title">记 · 传</span>
+            </h2>
+            <div className="elem-body">
+              <EditorContent editor={editor} />
+            </div>
+
+            {/* 字段 — element's own KV facts. Seeded at creation from the
+                category's elementTemplateKvJson; owned thereafter. */}
             <h2 id="el-kv" className="page__scene">
-              <span className="page__scene-num">二</span>
               <span className="page__scene-title">字段 · facts</span>
               <span className="page__scene-meta">alias / 类目 / 生年 / 首次出场 …</span>
             </h2>
@@ -635,34 +651,33 @@ export function ElementEditorView({
               />
             </div>
 
-            <h2 id="el-bio" className="page__scene">
-              <span className="page__scene-num">三</span>
-              <span className="page__scene-title">记 · 传</span>
-            </h2>
-            <div className="elem-body">
-              <EditorContent editor={editor} />
-            </div>
-
             {/* Manual relations stay in the body (they're authored here, with
                 the link picker); 被引用/引用其他 are read-only projections and
                 live in the right sidebar's stats panel instead. */}
             {elementId && projectId && (
-              <ReferencesPanel
-                entityKind="element"
-                entityId={elementId}
-                projectId={projectId}
-                sections={['relations']}
-                numStart={4}
-              />
+              <div id="el-relations" style={{ scrollMarginTop: 24 }}>
+                <ReferencesPanel
+                  entityKind="element"
+                  entityId={elementId}
+                  projectId={projectId}
+                  sections={['relations']}
+                />
+              </div>
             )}
             {elementId && projectId && (
-              <PatchesSection elementId={elementId} projectId={projectId} />
+              <div id="el-patches" style={{ scrollMarginTop: 24 }}>
+                <PatchesSection elementId={elementId} projectId={projectId} />
+              </div>
             )}
             {elementId && projectId && (
-              <ArcSection elementId={elementId} projectId={projectId} />
+              <div id="el-arc" style={{ scrollMarginTop: 24 }}>
+                <ArcSection elementId={elementId} projectId={projectId} />
+              </div>
             )}
             {elementId && projectId && (
-              <EvolveSection elementId={elementId} projectId={projectId} />
+              <div id="el-evolve" style={{ scrollMarginTop: 24 }}>
+                <EvolveSection elementId={elementId} projectId={projectId} />
+              </div>
             )}
           </article>
           {marginNotes && (

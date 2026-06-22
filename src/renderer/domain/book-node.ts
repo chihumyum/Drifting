@@ -80,6 +80,10 @@ interface BookNodeBase {
   // on the narrative axis. Both chapters and drift may sit on the graph view
   // and the narrative axis — only bookOrder is chapter-only.
   narrativeOrder: number | null;
+  // Containing drift group (left-panel folder). null = root level / ungrouped.
+  // Drift-only: chapters are always null — grouping is a drift affordance.
+  // See domain/drift-group.ts and useDriftGroup.
+  driftGroupId: string | null;
   position: StoryGraphViewNodePosition;
   /**
    * Materialized word count derived from this node's content.

@@ -1165,6 +1165,13 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
   line-height: var(--editor-line-height, 1.75);
   color: hsl(var(--ink-1));
   text-wrap: pretty;
+  /* Pin the wrapping behaviour prosemirror-view would otherwise inject only on
+     first EditorView construction — the all-chapters read-through renders prose
+     statically (no view) and must wrap pixel-identically to the live editor, or
+     focusing a chapter would reflow every other row. */
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  word-wrap: break-word;
   font-feature-settings: 'liga', 'kern', 'onum';
   /* No own width cap: the prose fills the .page content box (paper width minus
      the .page side padding). Paper width is the dial now (--editor-max-width on
@@ -1238,6 +1245,28 @@ html[data-entity-link-interactive='off'] .entity-link--deep::after {
   font-size: 18px;
   margin: 1.2em 0 0.3em;
 }
+
+/* 通览全书 read-through. Every chapter renders its real prose — statically
+   unless it's the one being edited — so there's no estimated placeholder height
+   to be wrong about and snap the scroll. content-visibility keeps the offscreen
+   rows from costing layout/paint on big books; the row seeds an intrinsic-size
+   guess via --all-chap-row-h and the browser remembers each row's true height
+   after it first displays. */
+.all-chap-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--all-chap-row-h, 600px);
+}
+
+/* The static prose mirror is read-only, never "the line being written", so the
+   focus-line dimming must skip it — otherwise turning focus mode on greys out
+   the entire read-through. */
+.all-chap-static p,
+.all-chap-static h1,
+.all-chap-static h2,
+.all-chap-static h3 {
+  opacity: 1 !important;
+}
+
 .page__ornament {
   text-align: center;
   font-family: var(--font-serif);
@@ -2718,15 +2747,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   font-weight: 500;
 }
 .page__scene:first-of-type { margin-top: 8px; }
-.page__scene-num {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 14px;
-  font-weight: 400;
-  color: hsl(var(--accent));
-  text-transform: none;
-  letter-spacing: 0;
-}
 .page__scene-title {
   font-family: var(--font-serif);
   font-size: 16px;
@@ -2907,12 +2927,6 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   padding: 0 0 6px;
   border-bottom: 1px dotted hsl(var(--rule));
 }
-.refs-section__num {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 14px;
-  color: hsl(var(--accent));
-}
 .refs-section__title {
   font-family: var(--font-serif);
   font-style: italic;
@@ -2953,73 +2967,129 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   padding: 2px 0 4px;
 }
 
-/* Manual relation chips — chip-style horizontal row. */
-.refs-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.refs-chip {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 4px 10px 4px 9px;
-  border: 1px solid hsl(var(--rule-strong));
-  border-radius: 14px;
-  background: transparent;
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-  position: relative;
+/* Manual relation cards — editable grid. Each card carries the linked entity's
+   kind + name (click → navigate), a direction arrow, and an inline-editable
+   relation-kind tag (e.g. 「宿敌」). */
+.refs-rel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
 }
-.refs-chip:hover {
+.refs-rel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px 11px;
+  border: 1px solid hsl(var(--rule-strong));
+  border-radius: 7px;
+  background: transparent;
+  transition: border-color 0.12s, background 0.12s;
+}
+.refs-rel-card:hover {
   border-color: hsl(var(--ink-4));
   background: hsl(var(--surface));
 }
-.refs-chip__dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--ref-color, hsl(var(--ink-4)));
-  flex-shrink: 0;
+.refs-rel-card__top {
+  display: flex; align-items: center; gap: 6px;
 }
-.refs-chip__name {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: hsl(var(--ink-1));
-  white-space: nowrap;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.refs-chip__dir {
+.refs-rel-card__kind {
+  display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font-mono);
   font-size: 9px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
+}
+.refs-rel-card__dir {
+  font-family: var(--font-mono);
+  font-size: 9px;
   color: hsl(var(--ink-5));
 }
-.refs-chip__remove {
+.refs-rel-card__remove {
+  margin-left: auto;
   background: transparent;
   border: 0;
-  padding: 0 0 0 2px;
-  margin: 0;
+  padding: 0;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   color: hsl(var(--ink-5));
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, color 0.12s;
 }
-.refs-chip:hover .refs-chip__remove { opacity: 1; }
-.refs-chip__remove:hover { color: hsl(var(--accent)); }
-.refs-chip--add {
+.refs-rel-card:hover .refs-rel-card__remove { opacity: 1; }
+.refs-rel-card__remove:hover { color: hsl(var(--accent)); }
+.refs-rel-card__title {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 15px;
+  color: hsl(var(--ink-1));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s;
+}
+.refs-rel-card__title:hover { color: hsl(var(--accent)); }
+.refs-rel-card__tag {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 9px;
+  border: 1px solid var(--ref-color, hsl(var(--rule-strong)));
+  border-radius: 11px;
+  background: hsl(var(--surface));
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: hsl(var(--ink-2));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s, border-color 0.12s;
+}
+.refs-rel-card__tag:hover { color: hsl(var(--ink-1)); }
+.refs-rel-card__tag--empty {
   border-style: dashed;
+  border-color: hsl(var(--rule-strong));
+  background: transparent;
+  color: hsl(var(--ink-4));
+}
+.refs-rel-card__tag-input {
+  align-self: stretch;
+  padding: 2px 8px;
+  border: 1px solid hsl(var(--ink-3));
+  border-radius: 11px;
+  background: hsl(var(--page));
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: hsl(var(--ink-1));
+  outline: 0;
+}
+.refs-rel-card--add {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 78px;
+  border-style: dashed;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: hsl(var(--ink-4));
   cursor: pointer;
 }
-.refs-chip--add .refs-chip__name {
-  color: hsl(var(--ink-4));
-  font-size: 12px;
-}
-.refs-chip--add:hover {
+.refs-rel-card--add:hover {
   border-style: solid;
   border-color: hsl(var(--accent) / 0.5);
+  color: hsl(var(--accent));
+  background: transparent;
 }
-.refs-chip--add:hover .refs-chip__name { color: hsl(var(--accent)); }
 
 /* Mention cards — inline backlinks / outgoing reference rows. */
 .refs-cards { display: flex; flex-direction: column; }

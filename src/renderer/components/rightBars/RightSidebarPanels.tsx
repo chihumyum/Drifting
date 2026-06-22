@@ -440,6 +440,101 @@ function scrollReadingViewTo(selector: string) {
   if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+type RhythmChapter = { id: string; title?: string | null; wordCount?: number | null };
+
+/**
+ * Chapter-length rhythm — one horizontal bar per chapter, laid out as a
+ * vertical list so it scales to any chapter count without the bars thinning to
+ * unhoverable slivers; each bar's width is scaled to the longest chapter.
+ * Hovering a bar reads its title + word count out in the caption below and dims
+ * the rest; clicking smooth-scrolls the long-form reading view to that chapter,
+ * reusing the same jump path as the act rows and the TOC.
+ */
+function ChapterRhythmChart({
+  chapters,
+  maxWc,
+  colorByChapter,
+  longest,
+  shortest,
+}: {
+  chapters: RhythmChapter[];
+  maxWc: number;
+  colorByChapter: Map<string, string>;
+  longest: RhythmChapter | null;
+  shortest: RhythmChapter | null;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const active = hovered != null ? chapters[hovered] : null;
+
+  return (
+    <>
+      <div style={{ padding: '2px 0' }} onMouseLeave={() => setHovered(null)}>
+        {chapters.map((n, i) => {
+          const w = maxWc > 0 ? Math.max(2, ((n.wordCount || 0) / maxWc) * 100) : 2;
+          const isHovered = hovered === i;
+          return (
+            <div
+              key={n.id}
+              role="button"
+              tabIndex={-1}
+              title={`跳到「${n.title || 'Untitled'}」`}
+              onMouseEnter={() => setHovered(i)}
+              onClick={() => scrollReadingViewTo(`[data-chapter-id="${CSS.escape(n.id)}"]`)}
+              // Contiguous full-width rows (no gaps) keep the whole column a
+              // single easy hover/click strip; the visible bar stays thin.
+              style={{
+                padding: '1px 0',
+                cursor: 'pointer',
+                opacity: hovered == null ? 0.85 : isHovered ? 1 : 0.3,
+                transition: 'opacity 0.12s ease',
+              }}
+            >
+              <div
+                style={{
+                  width: `${w}%`,
+                  minWidth: 2,
+                  height: 3,
+                  background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
+                  borderRadius: 1,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div
+        // Reserve two lines so the readout swapping in on hover doesn't shift
+        // the layout.
+        style={{
+          marginTop: 8,
+          minHeight: 34,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'hsl(var(--ink-3))',
+          lineHeight: 1.7,
+        }}
+      >
+        {active ? (
+          <div style={{ color: 'hsl(var(--ink-1))' }}>
+            {active.title || 'Untitled'}（{(active.wordCount || 0).toLocaleString()}字）
+          </div>
+        ) : longest ? (
+          <>
+            <div>
+              最长 · {longest.title || 'Untitled'}（{(longest.wordCount || 0).toLocaleString()}字）
+            </div>
+            {shortest && shortest.id !== longest.id && (
+              <div>
+                最短 · {shortest.title || 'Untitled'}（{(shortest.wordCount || 0).toLocaleString()}字）
+              </div>
+            )}
+          </>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 const STATUS_BUCKET_ORDER = ['done', 'draft', 'todo'] as const;
 const STATUS_BUCKET_LABEL: Record<DerivedStatus, string> = {
   done: '已完成',
@@ -596,48 +691,6 @@ function AllChaptersStats({
         </StatsSection>
       )}
 
-      <StatsSection title="章节长度节奏" topBorder>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 46, padding: '2px 0' }}>
-          {chapters.map((n) => {
-            const h = maxWc > 0 ? Math.max(2, ((n.wordCount || 0) / maxWc) * 100) : 2;
-            return (
-              <div
-                key={n.id}
-                title={`${n.title || 'Untitled'} · ${(n.wordCount || 0).toLocaleString()}字`}
-                style={{
-                  flex: 1,
-                  minWidth: 1,
-                  height: `${h}%`,
-                  background: colorByChapter.get(n.id) || 'hsl(var(--ink-4))',
-                  borderRadius: 1,
-                  opacity: 0.85,
-                }}
-              />
-            );
-          })}
-        </div>
-        {longest && (
-          <div
-            style={{
-              marginTop: 8,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'hsl(var(--ink-3))',
-              lineHeight: 1.7,
-            }}
-          >
-            <div>
-              最长 · {longest.title || 'Untitled'}（{(longest.wordCount || 0).toLocaleString()}字）
-            </div>
-            {shortest && shortest.id !== longest.id && (
-              <div>
-                最短 · {shortest.title || 'Untitled'}（{(shortest.wordCount || 0).toLocaleString()}字）
-              </div>
-            )}
-          </div>
-        )}
-      </StatsSection>
-
       <StatsSection title="完成度" topBorder>
         {activeTotal === 0 ? (
           <Notes>章节都已弃用或暂无进度。</Notes>
@@ -683,6 +736,16 @@ function AllChaptersStats({
             <StatsRow k="已完成" v={`${donePct}%`} />
           </>
         )}
+      </StatsSection>
+
+      <StatsSection title="章节长度节奏" topBorder>
+        <ChapterRhythmChart
+          chapters={chapters}
+          maxWc={maxWc}
+          colorByChapter={colorByChapter}
+          longest={longest}
+          shortest={shortest}
+        />
       </StatsSection>
     </div>
   );
@@ -1271,7 +1334,6 @@ function ElementStats({
           entityId={element.id}
           projectId={element.projectId}
           sections={['incoming', 'outgoing']}
-          numStart={null}
         />
       </StatsSection>
 

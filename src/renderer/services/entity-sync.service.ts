@@ -24,6 +24,7 @@ import {
   AgentMemoryTable,
   BlockSectionTable,
   BookActTable,
+  DriftGroupTable,
   BookElementTable,
   BookNodeTable,
   CommentActionTable,
@@ -72,6 +73,7 @@ export type EntityType =
   | 'commentAction'
   | 'agentMemory'
   | 'bookAct'
+  | 'driftGroup'
   | 'timelineMarker';
 
 // 'softDelete' moves the entity to trash (deletedAt = now); restore clears
@@ -138,6 +140,7 @@ export interface ProjectGraphPayload {
   agentMemories?: Record<string, unknown>[];
   // Optional for the same partial-rollout reason as agentMemories.
   bookActs?: Record<string, unknown>[];
+  driftGroups?: Record<string, unknown>[];
   timelineMarkers?: Record<string, unknown>[];
 }
 
@@ -660,6 +663,23 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
       }
       return { method: 'DELETE', endpoint: `/api/projects/${projectId}/acts/${entityId}` };
 
+    // ---- Drift Group (左栏分组) ----
+    case 'driftGroup':
+      if (mutationType === 'create') {
+        return {
+          method: 'POST',
+          endpoint: `/api/projects/${projectId}/drift-groups`,
+          data: payload,
+        };
+      } else if (mutationType === 'update') {
+        return {
+          method: 'PATCH',
+          endpoint: `/api/projects/${projectId}/drift-groups/${entityId}`,
+          data: payload,
+        };
+      }
+      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/drift-groups/${entityId}` };
+
     // ---- Timeline Marker ----
     case 'timelineMarker':
       if (mutationType === 'create') {
@@ -1019,6 +1039,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         title: stringValue(row, 'title'),
         summary: stringValue(row, 'summary'),
         narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
+        driftGroupId: row.driftGroupId == null ? null : stringValue(row, 'driftGroupId'),
         position: {
           x: numberValue(row, 'positionX'),
           y: numberValue(row, 'positionY'),
@@ -1154,6 +1175,18 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         updatedAt: dateText(row.updatedAt),
       };
     }),
+  );
+  dataStore.setDriftGroups(
+    (graph.driftGroups ?? []).map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      name: stringValue(row, 'name'),
+      parentGroupId: nullableStringValue(row, 'parentGroupId'),
+      color: nullableStringValue(row, 'color'),
+      sortOrder: nullableNumberValue(row, 'sortOrder'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
   );
   dataStore.setTimelineMarkers(
     (graph.timelineMarkers ?? [])
@@ -1473,6 +1506,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     await tx.delete(CommentTable).where(eq(CommentTable.projectId, projectId));
     await tx.delete(AgentMemoryTable).where(eq(AgentMemoryTable.projectId, projectId));
     await tx.delete(BookActTable).where(eq(BookActTable.projectId, projectId));
+    await tx.delete(DriftGroupTable).where(eq(DriftGroupTable.projectId, projectId));
     await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
@@ -1544,6 +1578,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         bookOrder: row.bookOrder == null ? null : numberValue(row, 'bookOrder'),
         narrativeOrder: row.narrativeOrder == null ? null : numberValue(row, 'narrativeOrder'),
         kind,
+        driftGroupId: nullableStringValue(row, 'driftGroupId'),
         positionX: numberValue(row, 'positionX'),
         positionY: numberValue(row, 'positionY'),
         wordCount: numberValue(row, 'wordCount'),
@@ -1855,6 +1890,23 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     }).filter((row) => row.id && row.projectId);
     if (bookActs.length > 0) {
       await insertRowsBatched(tx, BookActTable, bookActs);
+    }
+
+    // Drift groups — wipe-and-reinsert like acts. Plain nested folders; the
+    // book_node.drift_group_id pointer is a plain column (no enforced FK), so
+    // insert order vs nodes doesn't matter.
+    const driftGroups = normalizeRows(graph.driftGroups ?? [], (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      name: stringValue(row, 'name'),
+      parentGroupId: nullableStringValue(row, 'parentGroupId'),
+      color: nullableStringValue(row, 'color'),
+      sortOrder: nullableNumberValue(row, 'sortOrder'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.projectId);
+    if (driftGroups.length > 0) {
+      await insertRowsBatched(tx, DriftGroupTable, driftGroups);
     }
 
     const timelineMarkers = normalizeRows(graph.timelineMarkers ?? [], (row) => {

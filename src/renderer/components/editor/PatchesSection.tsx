@@ -93,7 +93,6 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   return (
     <section className="refs-section patches-section">
       <div className="refs-section__header">
-        <span className="refs-section__num">六</span>
         <span className="refs-section__title">补丁</span>
         <span className="refs-section__count">{patches.length}</span>
         <button type="button" onClick={handleAddFloating} className="refs-section__action">

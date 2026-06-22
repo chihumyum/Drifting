@@ -360,6 +360,10 @@ export interface MenuItem {
 // exports so NodeEditorView can branch on them without string duplication.
 export const CONVERT_DRIFT_TO_CHAPTER_ACTION = 'convertDriftToChapter';
 export const CONVERT_DRIFT_TO_ELEMENT_ACTION = 'convertDriftToElement';
+// Move a drift into / out of a left-panel group (folder). Surfaced as a named
+// export so both the left-panel cell menu (DriftPanel) and the editor top-bar
+// menu (NodeEditorView) branch on the same action — single source of truth.
+export const DRIFT_MOVE_TO_GROUP_ACTION = 'driftMoveToGroup';
 
 // Exported so left-sidebar panel cells can render the same per-entity
 // context menu as the editor top bar — single source of truth for menu
@@ -375,6 +379,7 @@ export function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatus
         return [
           { action: CONVERT_DRIFT_TO_CHAPTER_ACTION, label: '转换为章节…' },
           { action: CONVERT_DRIFT_TO_ELEMENT_ACTION, label: '转换为元素…' },
+          { action: DRIFT_MOVE_TO_GROUP_ACTION, label: '移动到分组…' },
           { action: 'deleteNode', label: 'Delete Node', danger: true },
         ];
       }

@@ -66,7 +66,7 @@ function libraryItemPdfSrc(m: LibraryItem): string | null {
 }
 
 function clampLibraryItemPreviewScale(scale: number): number {
-  return Math.min(6, Math.max(1, scale));
+  return Math.min(6, Math.max(0.5, scale));
 }
 
 /** Close a transient surface (dialog / dropdown / popover) on Escape, and
@@ -1517,7 +1517,8 @@ function zoomLibraryItemPreviewAt(
   anchorFromCenterY: number,
 ): LibraryItemPreviewViewport {
   if (scale === prev.scale) return prev;
-  if (scale <= 1) return { scale: 1, panX: 0, panY: 0 };
+  // 缩到适配尺寸以内（≤1）时图片小于视口，无需平移：保留缩放值、居中复位。
+  if (scale <= 1) return { scale, panX: 0, panY: 0 };
 
   const ratio = scale / prev.scale;
   return {
@@ -1679,6 +1680,10 @@ export function LibraryItemFullscreenPreview({
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
+            // grid item 默认 min-width/min-height: auto 会解析成图片的内在尺寸，
+            // 压过上面的 maxWidth/maxHeight，导致超大图溢出屏幕、无法适配。归零解除。
+            minWidth: 0,
+            minHeight: 0,
             objectFit: 'contain',
             display: 'block',
             transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.scale})`,

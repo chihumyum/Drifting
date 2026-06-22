@@ -239,40 +239,25 @@ export function StorylineEditorView({
       : null,
   });
 
-  // Two-block TOC: outer (frameworkItems) = static section anchors —
-  // 概述 / 字段 / 章节模版 / 章节序列 / 札记. Inner (bodyOutlineItems) =
-  // headings parsed from the 札记 TipTap body at their natural h1/h2/h3
-  // levels. The two render as separate groups in the TOC so the body outline
-  // reads as its own hierarchy rather than blurring into the framework.
-  //
-  // Section numbering is dynamic — the chapter list collapses to "no section"
-  // when the storyline has zero chapters, so the trailing 札记 anchor
-  // re-numbers accordingly.
-  const CN_NUMS = ['一', '二', '三', '四', '五', '六'] as const;
-  const sections: { id: string; text: string }[] = [
-    { id: 'sl-overview', text: '概述' },
-    { id: 'sl-kv', text: '字段 · facts' },
-    { id: 'sl-node-template', text: '章节模版 · node template' },
+  // TOC framework anchors in document order: 概述 → 札记 (with its body
+  // headings nested as sub-structure) → 字段 → 章节模版 → 章节序列. Sections carry
+  // no ordinal — order is the only ranking. 章节序列 is omitted when the storyline
+  // has no chapters.
+  const frameworkItems: OutlineEntry[] = [
+    { id: 'sl-overview', level: 2, kind: 'section', text: '概述' },
+    { id: 'sl-scratch', level: 2, kind: 'section', text: '札记', children: nestHeadings(outline) },
+    { id: 'sl-kv', level: 2, kind: 'section', text: '字段 · facts' },
+    { id: 'sl-node-template', level: 2, kind: 'section', text: '章节模版 · node template' },
   ];
   if (sNodes.length > 0) {
-    sections.push({ id: 'sl-chapters', text: '章节序列' });
+    frameworkItems.push({ id: 'sl-chapters', level: 2, kind: 'section', text: '章节序列' });
   }
-  sections.push({ id: 'sl-scratch', text: '札记' });
-  const frameworkItems: OutlineEntry[] = sections.map((s, i) => ({
-    id: s.id,
-    level: 2,
-    kind: 'section',
-    num: CN_NUMS[i],
-    text: s.text,
-  }));
-  const bodyOutlineItems: OutlineEntry[] = nestHeadings(outline);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this storyline's body (ticks + reveal/approve).
   useAgentChangeMarks(scrollEl, 'storyline', storylineId);
-  const activeOutlineId = useOutlineScrollspy(
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
-    // Flat id list (framework anchors + every heading) — bodyOutlineItems is
-    // now a nested tree, so its .map would miss nested heading ids.
+    // Flat id list (framework anchors + every body heading).
     [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)],
   );
 
@@ -377,9 +362,11 @@ export function StorylineEditorView({
         <EditorOutlinePanel
           title={`${currentStoryline.name || 'STORYLINE'} · OUTLINE`}
           items={frameworkItems}
-          secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+          onItemClick={(id) => {
+            pinOutline(id);
+            scrollToOutlineAnchor(id, scrollEl);
+          }}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
@@ -481,10 +468,19 @@ export function StorylineEditorView({
               </div>
             </section>
 
-            {/* 二 · 字段 — storyline's own KV facts (seeded from project's
-                storyline template at creation, owned thereafter). */}
+            {/* 札记 — free-form notes (TipTap body). Leads the sections, right
+                under the hero; its H1/H2/H3 headings nest under this anchor in
+                the TOC. */}
+            <h2 id="sl-scratch" className="page__scene">
+              <span className="page__scene-title">札记 · scratch</span>
+            </h2>
+            <div className="elem-body">
+              <EditorContent editor={editor} />
+            </div>
+
+            {/* 字段 — storyline's own KV facts (seeded from project's storyline
+                template at creation, owned thereafter). */}
             <h2 id="sl-kv" className="page__scene">
-              <span className="page__scene-num">二</span>
               <span className="page__scene-title">字段 · facts</span>
               <span className="page__scene-meta">本线的 key/value 备忘</span>
             </h2>
@@ -503,11 +499,10 @@ export function StorylineEditorView({
               />
             </div>
 
-            {/* 三 · 章节模版 — TipTap doc seeded into new nodes under this
+            {/* 章节模版 — TipTap doc seeded into new nodes under this
                 storyline. Editing only affects future nodes; existing nodes
                 are untouched. */}
             <h2 id="sl-node-template" className="page__scene">
-              <span className="page__scene-num">三</span>
               <span className="page__scene-title">章节模版 · node template</span>
               <span className="page__scene-meta">新章节的默认骨架</span>
             </h2>
@@ -520,11 +515,10 @@ export function StorylineEditorView({
               />
             </div>
 
-            {/* 四 · 章节序列 (drops to 五 if we ever add a section before it) */}
+            {/* 章节序列 — chapters on this storyline (omitted when none). */}
             {sNodes.length > 0 && (
               <>
                 <h2 id="sl-chapters" className="page__scene">
-                  <span className="page__scene-num">四</span>
                   <span className="page__scene-title">章节序列</span>
                   <span className="page__scene-meta">
                     {sNodes.length} 章 · {(totalWc / 1000).toFixed(1)}k 字
@@ -597,15 +591,6 @@ export function StorylineEditorView({
               </>
             )}
 
-            {/* 札记 — last numbered section. Drops one ordinal when there
-                are no chapters (the 章节序列 section above is conditional). */}
-            <h2 id="sl-scratch" className="page__scene">
-              <span className="page__scene-num">{sNodes.length > 0 ? '五' : '四'}</span>
-              <span className="page__scene-title">札记 · scratch</span>
-            </h2>
-            <div className="elem-body">
-              <EditorContent editor={editor} />
-            </div>
           </article>
           {marginNotes && (
             <CommentRail

@@ -223,37 +223,25 @@ export function CategoryEditorView({
       : null,
   });
 
-  // Two-block TOC: outer (frameworkItems) = static section anchors —
-  // 概述 / 元素模版 / 元素清单 / 札记. Inner (bodyOutlineItems) = headings
-  // parsed from the 札记 TipTap body at their natural h1/h2/h3 levels.
-  // Rendered as separate groups so the body outline reads as its own
-  // hierarchy rather than blurring into the framework.
-  const CN_NUMS = ['一', '二', '三', '四', '五'] as const;
-  const cnums = [...CN_NUMS];
-  const sections: { id: string; text: string }[] = [
-    { id: 'cat-overview', text: '概述' },
-    { id: 'cat-template', text: '元素模版' },
-    { id: 'cat-template-kv', text: '字段模版 · template kv' },
+  // TOC framework anchors in document order: 概述 → 札记 (with its body headings
+  // nested as sub-structure) → 元素模版 → 字段模版 → 元素清单. Sections carry no
+  // ordinal — order is the only ranking. 元素清单 is omitted when the category has
+  // no elements.
+  const frameworkItems: OutlineEntry[] = [
+    { id: 'cat-overview', level: 2, kind: 'section', text: '概述' },
+    { id: 'cat-scratch', level: 2, kind: 'section', text: '札记', children: nestHeadings(outline) },
+    { id: 'cat-template', level: 2, kind: 'section', text: '元素模版' },
+    { id: 'cat-template-kv', level: 2, kind: 'section', text: '字段模版 · template kv' },
   ];
   if (cEls.length > 0) {
-    sections.push({ id: 'cat-elements', text: '元素清单' });
+    frameworkItems.push({ id: 'cat-elements', level: 2, kind: 'section', text: '元素清单' });
   }
-  sections.push({ id: 'cat-scratch', text: '札记' });
-  const frameworkItems: OutlineEntry[] = sections.map((s, i) => ({
-    id: s.id,
-    level: 2,
-    kind: 'section',
-    num: cnums[i],
-    text: s.text,
-  }));
-  const bodyOutlineItems: OutlineEntry[] = nestHeadings(outline);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this category's body (ticks + reveal/approve).
   useAgentChangeMarks(scrollEl, 'category', categoryId);
-  const activeOutlineId = useOutlineScrollspy(
+  const { activeId: activeOutlineId, pin: pinOutline } = useOutlineScrollspy(
     scrollEl,
-    // Flat id list (framework anchors + every heading) — bodyOutlineItems is
-    // now a nested tree, so its .map would miss nested heading ids.
+    // Flat id list (framework anchors + every body heading).
     [...frameworkItems.map((i) => i.id), ...outline.map((h) => h.id)],
   );
 
@@ -348,9 +336,11 @@ export function CategoryEditorView({
         <EditorOutlinePanel
           title={`${curCategory.name} · OUTLINE`}
           items={frameworkItems}
-          secondaryItems={bodyOutlineItems}
           activeId={activeOutlineId}
-          onItemClick={(id) => scrollToOutlineAnchor(id, scrollEl)}
+          onItemClick={(id) => {
+            pinOutline(id);
+            scrollToOutlineAnchor(id, scrollEl);
+          }}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
@@ -425,11 +415,20 @@ export function CategoryEditorView({
               </div>
             </section>
 
-            {/* 二 · 元素模版 — TipTap doc seeded into newly-created elements
-                under this category. Editing here only affects future elements;
+            {/* 札记 — free-form notes (TipTap body). Leads the sections, right
+                under the hero; its H1/H2/H3 headings nest under this anchor in
+                the TOC. */}
+            <h2 id="cat-scratch" className="page__scene">
+              <span className="page__scene-title">札记 · scratch</span>
+            </h2>
+            <div className="elem-body">
+              <EditorContent editor={editor} />
+            </div>
+
+            {/* 元素模版 — TipTap doc seeded into newly-created elements under
+                this category. Editing here only affects future elements;
                 existing element bodies are untouched. */}
             <h2 id="cat-template" className="page__scene">
-              <span className="page__scene-num">二</span>
               <span className="page__scene-title">元素模版 · template</span>
               <span className="page__scene-meta">新元素的默认骨架</span>
             </h2>
@@ -442,11 +441,10 @@ export function CategoryEditorView({
               />
             </div>
 
-            {/* 三 · 字段模版 — KV template seeded into new elements under
-                this category. Existing elements stay untouched when this
-                changes (same contract as the TipTap template above). */}
+            {/* 字段模版 — KV template seeded into new elements under this
+                category. Existing elements stay untouched when this changes
+                (same contract as the TipTap template above). */}
             <h2 id="cat-template-kv" className="page__scene">
-              <span className="page__scene-num">三</span>
               <span className="page__scene-title">字段模版 · template kv</span>
               <span className="page__scene-meta">新元素的默认字段</span>
             </h2>
@@ -466,11 +464,10 @@ export function CategoryEditorView({
               />
             </div>
 
-            {/* 四 · 元素清单 */}
+            {/* 元素清单 — elements in this category (omitted when none). */}
             {cEls.length > 0 && (
               <>
                 <h2 id="cat-elements" className="page__scene">
-                  <span className="page__scene-num">四</span>
                   <span className="page__scene-title">元素清单</span>
                   <span className="page__scene-meta">{cEls.length} 个</span>
                 </h2>
@@ -531,15 +528,6 @@ export function CategoryEditorView({
               </>
             )}
 
-            {/* 札记 — drops one ordinal when there are no elements, since
-                the 元素清单 section above is conditional. */}
-            <h2 id="cat-scratch" className="page__scene">
-              <span className="page__scene-num">{cEls.length > 0 ? '五' : '四'}</span>
-              <span className="page__scene-title">札记 · scratch</span>
-            </h2>
-            <div className="elem-body">
-              <EditorContent editor={editor} />
-            </div>
           </article>
           {marginNotes && (
             <CommentRail

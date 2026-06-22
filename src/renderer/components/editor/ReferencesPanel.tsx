@@ -5,13 +5,10 @@ import {
   type InlineMentionBacklink,
   type InlineMentionRecord,
 } from '../../sqlite-repo/inline-mention-repo';
-import {
-  createEntityRelationRepository,
-  type EntityRelationBacklink,
-  type EntityRelationRecord,
-} from '../../sqlite-repo/entity-relation-repo';
 import type { EntityKind, StructuralEntityKind } from '../../domain/entity-kinds';
 import { useDataStore } from '../../store/data-store';
+import { useAuthStore } from '../../store/auth';
+import { useEntityRelations } from '../../usecase/useEntityRelations';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 
@@ -19,8 +16,6 @@ const log = loglevel.getLogger('ReferencesPanel');
 log.setLevel(loglevel.levels.ERROR);
 
 type ReferencesSection = 'relations' | 'incoming' | 'outgoing';
-
-const CN_NUMS = ['一', '二', '三', '四', '五', '六', '七'];
 
 interface ReferencesPanelProps {
   // The entity this panel is showing references for. Both directions are
@@ -32,9 +27,6 @@ interface ReferencesPanelProps {
   /** Which sections to render, in this order. Default: all three. Lets the
    *  editor keep just 关联 while the stats sidebar hosts 被引用/引用其他. */
   sections?: ReferencesSection[];
-  /** CN numeral index (1-based) of the FIRST rendered section; following
-   *  sections increment. null hides the numerals (sidebar usage). */
-  numStart?: number | null;
 }
 
 interface IncomingGroup {
@@ -61,6 +53,8 @@ interface ManualRelation {
   otherKind: EntityKind;
   otherId: string;
   otherTitle: string;
+  // Free-form relation category (e.g. 「宿敌」). Editable inline on the card.
+  kind: string | null;
   direction: 'outgoing' | 'incoming'; // panel entity is from or to
 }
 
@@ -74,23 +68,90 @@ function safeParseSpans(json: string | null): unknown[] {
   }
 }
 
+// Inline-editable relation-kind label on a relation card. Click to edit; Enter /
+// blur commits, Escape reverts. Empty renders a dashed "＋ 关系类型" affordance.
+function RelationKindTag({
+  value,
+  onCommit,
+}: {
+  value: string | null;
+  onCommit: (next: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  // Draft is only read while editing; it's seeded fresh from `value` each time
+  // the user enters edit mode (see the button's onClick), so no effect is needed
+  // to keep it in sync — the resting display reads `value` directly.
+  const [draft, setDraft] = useState('');
+
+  const commit = () => {
+    setEditing(false);
+    const next = draft.trim() || null;
+    if (next !== (value ?? null)) onCommit(next);
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className="refs-rel-card__tag-input"
+        value={draft}
+        maxLength={24}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+          if (e.key === 'Escape') {
+            setDraft(value ?? '');
+            setEditing(false);
+          }
+        }}
+        placeholder="关系类型…"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(value ?? '');
+        setEditing(true);
+      }}
+      className={`refs-rel-card__tag${value ? '' : ' refs-rel-card__tag--empty'}`}
+      title="点击编辑关系类型"
+    >
+      {value || '＋ 关系类型'}
+    </button>
+  );
+}
+
 export function ReferencesPanel({
   entityKind,
   entityId,
   projectId,
   sections = ['relations', 'incoming', 'outgoing'],
-  numStart = 3,
 }: ReferencesPanelProps) {
   const { navigateToNode, navigateToElement, navigateToCategory, navigateToStoryline } =
     useProjectNavigation();
-  const { bookElements, bookNodes, bookElementCategories, storylines } = useDataStore();
+  const { bookElements, bookNodes, bookElementCategories, storylines, entityRelations } =
+    useDataStore();
+  const userId = useAuthStore((s) => s.user?.id);
+  // Mutations route through the usecase (store + optimistic + server sync) — the
+  // raw repo path used previously skipped both, so panel-authored relations never
+  // reached the story-graph or the server.
+  const { addRelation, removeRelation, updateRelationKind } = useEntityRelations({
+    projectId,
+    userId: userId ?? '',
+  });
 
-  // Incoming inline mentions + manual relations to this entity.
+  // Inline mention rows for this entity (both directions). Manual relations are
+  // derived reactively from the store's `entityRelations` below — so add / remove
+  // / kind edits reflect immediately and stay in sync with graph + server.
   const [inlineBacklinks, setInlineBacklinks] = useState<InlineMentionBacklink[]>([]);
-  const [relationBacklinks, setRelationBacklinks] = useState<EntityRelationBacklink[]>([]);
-  // Outgoing inline mentions + manual relations from this entity.
   const [inlineOutgoing, setInlineOutgoing] = useState<InlineMentionRecord[]>([]);
-  const [relationOutgoing, setRelationOutgoing] = useState<EntityRelationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLinkPicker, setShowLinkPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
@@ -110,7 +171,6 @@ export function ReferencesPanel({
       if (!targetId) return;
       try {
         const mentionRepo = createInlineMentionRepository();
-        const relationRepo = createEntityRelationRepository();
         // Inline mentions are constrained to structural target kinds, so skip
         // the inline queries when the panel is open on a memo / material (they
         // never appear as inline-mention targets anyway).
@@ -120,23 +180,17 @@ export function ReferencesPanel({
           targetKind === 'patch' ||
           targetKind === 'category' ||
           targetKind === 'storyline';
-        const [ibl, rbl, iout, rout] = await Promise.all([
+        const [ibl, iout] = await Promise.all([
           isStructural
             ? mentionRepo.listBacklinksToTarget(targetKind, targetId)
             : Promise.resolve([] as InlineMentionBacklink[]),
           isStructural
-            ? relationRepo.listBacklinksToTarget(targetKind, targetId)
-            : Promise.resolve([] as EntityRelationBacklink[]),
-          isStructural
             ? mentionRepo.listMentionsFromSource(targetKind, targetId)
             : Promise.resolve([] as InlineMentionRecord[]),
-          relationRepo.listRelationsFromSource(targetKind, targetId),
         ]);
         if (!shouldApply()) return;
         setInlineBacklinks(ibl);
-        setRelationBacklinks(rbl);
         setInlineOutgoing(iout);
-        setRelationOutgoing(rout);
       } catch (error) {
         log.error('Failed to load references:', error);
       } finally {
@@ -256,30 +310,41 @@ export function ReferencesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inlineOutgoing, bookElements, bookElementCategories, bookNodes, storylines]);
 
-  // User-curated relations on either side, keyed by the *other* entity.
+  // User-curated relations on either side, derived from the store and keyed by
+  // the *other* entity. Reactive: a usecase mutation re-renders this list.
   const manualRelations: ManualRelation[] = useMemo(() => {
     const result: ManualRelation[] = [];
-    for (const row of relationBacklinks) {
-      result.push({
-        id: row.id,
-        otherKind: row.fromKind,
-        otherId: row.fromId,
-        otherTitle: row.fromTitle || lookupTitle(row.fromKind, row.fromId),
-        direction: 'incoming',
-      });
+    for (const r of entityRelations) {
+      const isFrom = r.fromKind === entityKind && r.fromId === entityId;
+      const isTo = r.toKind === entityKind && r.toId === entityId;
+      if (!isFrom && !isTo) continue;
+      // A self-relation lands on both sides; show it once (as outgoing).
+      if (isFrom) {
+        result.push({
+          id: r.id,
+          otherKind: r.toKind,
+          otherId: r.toId,
+          otherTitle: lookupTitle(r.toKind, r.toId),
+          kind: r.kind ?? null,
+          direction: 'outgoing',
+        });
+      } else {
+        result.push({
+          id: r.id,
+          otherKind: r.fromKind,
+          otherId: r.fromId,
+          otherTitle: lookupTitle(r.fromKind, r.fromId),
+          kind: r.kind ?? null,
+          direction: 'incoming',
+        });
+      }
     }
-    for (const row of relationOutgoing) {
-      result.push({
-        id: row.id,
-        otherKind: row.toKind,
-        otherId: row.toId,
-        otherTitle: lookupTitle(row.toKind, row.toId),
-        direction: 'outgoing',
-      });
-    }
+    // Newest first — uuidv7 ids are time-ordered, so a descending id sort
+    // surfaces the most recently added relation at the top of the grid.
+    result.sort((a, b) => (a.id < b.id ? 1 : -1));
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relationBacklinks, relationOutgoing, bookElements, bookElementCategories, bookNodes, storylines]);
+  }, [entityRelations, entityKind, entityId, bookElements, bookElementCategories, bookNodes, storylines]);
 
   // Picker exclusion: only existing *manual* relations (and self). Inline
   // mentions don't block manual linking — the two are independent assertions
@@ -354,11 +419,10 @@ export function ReferencesPanel({
 
   const handleAddManual = async (otherKind: StructuralEntityKind, otherId: string) => {
     try {
-      const relationRepo = createEntityRelationRepository();
       // Convention: panel entity is the from-side of a relation it owns. So
       // "+ Link" inside element X's panel produces (from=element X,
       // to=otherKind/otherId).
-      await relationRepo.addRelation(projectId, entityKind, entityId, otherKind, otherId);
+      await addRelation(entityKind, entityId, otherKind, otherId);
       events.emit('references:changed', {
         projectId,
         fromKind: entityKind,
@@ -367,7 +431,6 @@ export function ReferencesPanel({
       });
       setShowLinkPicker(false);
       setPickerQuery('');
-      void reload();
     } catch (error) {
       log.error('Failed to add manual relation:', error);
     }
@@ -375,8 +438,7 @@ export function ReferencesPanel({
 
   const handleRemoveManual = async (rel: ManualRelation) => {
     try {
-      const relationRepo = createEntityRelationRepository();
-      await relationRepo.removeRelation(rel.id);
+      await removeRelation(rel.id);
       events.emit('references:changed', {
         projectId,
         fromKind: rel.direction === 'outgoing' ? entityKind : rel.otherKind,
@@ -387,9 +449,16 @@ export function ReferencesPanel({
             : `${entityKind}:${entityId}`,
         ],
       });
-      void reload();
     } catch (error) {
       log.error('Failed to remove manual relation:', error);
+    }
+  };
+
+  const handleUpdateKind = async (rel: ManualRelation, kind: string | null) => {
+    try {
+      await updateRelationKind(rel.id, kind);
+    } catch (error) {
+      log.error('Failed to update relation kind:', error);
     }
   };
 
@@ -399,24 +468,12 @@ export function ReferencesPanel({
 
   const kindClass = (kind: EntityKind) => `refs-kind-${kind}`;
 
-  // Numeral follows render order within the CALLER's chosen sections, so the
-  // editor (relations only, numStart 4) and a full panel both number cleanly.
-  const sectionNum = (section: ReferencesSection): string | null => {
-    if (numStart == null) return null;
-    const idx = sections.indexOf(section);
-    if (idx < 0) return null;
-    return CN_NUMS[numStart - 1 + idx] ?? '';
-  };
-
   return (
     <div className="references-panel">
       {/* 关联 — manual whole-entity links */}
       {sections.includes('relations') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          {sectionNum('relations') && (
-            <span className="refs-section__num">{sectionNum('relations')}</span>
-          )}
           <span className="refs-section__title">关联</span>
           <span className="refs-section__count">{manualRelations.length}</span>
           <button
@@ -460,7 +517,6 @@ export function ReferencesPanel({
                   <button
                     key={`${c.kind}:${c.id}`}
                     type="button"
-                    // eslint-disable-next-line react-hooks/refs
                     onClick={() => handleAddManual(c.kind, c.id)}
                     className="refs-picker__item"
                   >
@@ -476,48 +532,45 @@ export function ReferencesPanel({
           </div>
         )}
 
-        {manualRelations.length === 0 && !showLinkPicker ? (
-          <div className="refs-chips">
-            <button
-              type="button"
-              onClick={() => setShowLinkPicker(true)}
-              className="refs-chip refs-chip--add"
-            >
-              <span className="refs-chip__name">＋ 关联一个实体…</span>
-            </button>
-          </div>
-        ) : (
-          manualRelations.length > 0 && (
-            <div className="refs-chips">
-              {manualRelations.map((rel) => (
-                <div
-                  key={rel.id}
-                  className={`refs-chip ${kindClass(rel.otherKind)}`}
-                  onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="refs-chip__dot" />
-                  <span className="refs-chip__name">{rel.otherTitle}</span>
-                  <span className="refs-chip__dir">
+        <div className="refs-rel-grid">
+          {manualRelations.map((rel) => (
+            <div key={rel.id} className={`refs-rel-card ${kindClass(rel.otherKind)}`}>
+              <div className="refs-rel-card__top">
+                <span className="refs-rel-card__kind">
+                  <span className="refs-card__kind-dot" />
+                  {labelForKind(rel.otherKind)}
+                  <span className="refs-rel-card__dir">
                     {rel.direction === 'outgoing' ? '→' : '←'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleRemoveManual(rel);
-                    }}
-                    className="refs-chip__remove"
-                    aria-label="移除关联"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleRemoveManual(rel)}
+                  className="refs-rel-card__remove"
+                  aria-label="移除关联"
+                >
+                  ×
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
+                className="refs-rel-card__title"
+                title="跳转到该实体"
+              >
+                {rel.otherTitle}
+              </button>
+              <RelationKindTag value={rel.kind} onCommit={(k) => void handleUpdateKind(rel, k)} />
             </div>
-          )
-        )}
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowLinkPicker(true)}
+            className="refs-rel-card refs-rel-card--add"
+          >
+            ＋ 关联实体
+          </button>
+        </div>
       </section>
       )}
 
@@ -525,9 +578,6 @@ export function ReferencesPanel({
       {sections.includes('incoming') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          {sectionNum('incoming') && (
-            <span className="refs-section__num">{sectionNum('incoming')}</span>
-          )}
           <span className="refs-section__title">被引用</span>
           <span className="refs-section__count">{incomingGroups.length}</span>
         </div>
@@ -563,9 +613,6 @@ export function ReferencesPanel({
       {sections.includes('outgoing') && entityKind === 'element' && (
         <section className="refs-section">
           <div className="refs-section__header">
-            {sectionNum('outgoing') && (
-              <span className="refs-section__num">{sectionNum('outgoing')}</span>
-            )}
             <span className="refs-section__title">引用其他</span>
             <span className="refs-section__count">{outgoingGroups.length}</span>
           </div>
