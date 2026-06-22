@@ -442,6 +442,31 @@ export function ElementEditorView({
             <span>{currentCategory.name}</span>
           </EditorCrumb>
         )}
+        {curElement.groupName && (
+          <EditorCrumb
+            dropdown={
+              <>
+                <div
+                  className="crumb-dropdown__item"
+                  onClick={() => void applyGroup(null)}
+                >
+                  <span>未分组</span>
+                </div>
+                {groupOptions.map((name) => (
+                  <div
+                    key={name}
+                    className={`crumb-dropdown__item${name === curElement.groupName ? ' crumb-dropdown__item--active' : ''}`}
+                    onClick={() => void applyGroup(name)}
+                  >
+                    <span>{name}</span>
+                  </div>
+                ))}
+              </>
+            }
+          >
+            <span>{curElement.groupName}</span>
+          </EditorCrumb>
+        )}
         <EditorCrumb>
           <span className="editor-crumb-title">{curElement.name || 'Untitled Element'}</span>
         </EditorCrumb>
@@ -466,7 +491,10 @@ export function ElementEditorView({
             <div className="page__folio" aria-hidden="true">
               <span className="page__folio-line">Element</span>
               {currentCategory && (
-                <span className="page__folio-line page__folio-line--accent">{currentCategory.name}</span>
+                <span className="page__folio-line page__folio-line--accent">
+                  {currentCategory.name}
+                  {curElement.groupName ? ` - ${curElement.groupName}` : ''}
+                </span>
               )}
             </div>
 
@@ -478,11 +506,6 @@ export function ElementEditorView({
                   </span>
                 </div>
                 <div className="elem-hero__main">
-                  <div className="elem-hero__kicker">
-                    <span className="elem-hero__kicker-dot" style={{ background: categoryColor }} />
-                    <span>{(currentCategory?.name || 'ELEMENT').toUpperCase()}</span>
-                  </div>
-
                   <input
                     type="text"
                     className="elem-hero__name"

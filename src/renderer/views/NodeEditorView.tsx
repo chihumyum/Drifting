@@ -250,6 +250,22 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
 
   const curNodePrimaryStorylineId = curNode ? primaryStorylineByNode[curNode.id] ?? null : null;
 
+  // Folder path (top-down, ≤2 levels under the nesting cap) of the drift's
+  // containing group, for the editor breadcrumb. Empty for chapters / ungrouped.
+  const driftGroupChain = useMemo(() => {
+    if (!curNode || !isDrift(curNode) || !curNode.driftGroupId) return [];
+    const byId = new Map(driftGroups.map((g) => [g.id, g]));
+    const chain: typeof driftGroups = [];
+    const seen = new Set<string>();
+    let cur = byId.get(curNode.driftGroupId) ?? null;
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      chain.unshift(cur);
+      cur = cur.parentGroupId ? byId.get(cur.parentGroupId) ?? null : null;
+    }
+    return chain;
+  }, [curNode, driftGroups]);
+
   const currentStorylineIds = useMemo(() => {
     if (!nodeId || !curNode) return [];
     const mappedIds = nodeStorylineMapping[nodeId] ?? [];
@@ -751,6 +767,43 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 <span>{mainStoryline?.name ?? 'No storyline'}</span>
               </EditorCrumb>
             )}
+
+            {/* Drift folder path — the group hierarchy (≤2 levels) the drift
+                lives in. The leaf (immediate group) crumb carries a dropdown to
+                relocate the drift; parent crumbs are display-only (groups have
+                no editor of their own). */}
+            {isDriftNode &&
+              driftGroupChain.map((g, idx) => {
+                const isLeaf = idx === driftGroupChain.length - 1;
+                return (
+                  <EditorCrumb
+                    key={g.id}
+                    dropdown={
+                      isLeaf ? (
+                        <>
+                          <div
+                            className={`crumb-dropdown__item${!curNode.driftGroupId ? ' crumb-dropdown__item--active' : ''}`}
+                            onClick={() => nodeId && void moveDriftToGroup(nodeId, null)}
+                          >
+                            <span>未分组</span>
+                          </div>
+                          {driftGroupOptions.map((opt) => (
+                            <div
+                              key={opt.id}
+                              className={`crumb-dropdown__item${opt.id === curNode.driftGroupId ? ' crumb-dropdown__item--active' : ''}`}
+                              onClick={() => nodeId && void moveDriftToGroup(nodeId, opt.id)}
+                            >
+                              <span style={{ whiteSpace: 'pre' }}>{opt.label}</span>
+                            </div>
+                          ))}
+                        </>
+                      ) : undefined
+                    }
+                  >
+                    <span>{g.name}</span>
+                  </EditorCrumb>
+                );
+              })}
 
             <EditorCrumb
               dropdown={

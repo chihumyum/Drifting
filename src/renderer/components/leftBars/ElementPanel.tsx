@@ -1024,7 +1024,7 @@ function ElementGroupHeader({
         {name}
       </span>
       <span style={{ color: 'hsl(var(--ink-4))' }}>· {count}</span>
-      {canAdd && hovered && (
+      {canAdd && (
         <button
           type="button"
           title="在此分组新建元素"
@@ -1032,6 +1032,9 @@ function ElementGroupHeader({
             e.stopPropagation();
             onAddElement();
           }}
+          // Always rendered so the row height stays constant; hover only flips
+          // opacity / interactivity (rendering it conditionally made the 15px
+          // button push the row taller on hover — the height jump).
           style={{
             marginLeft: 'auto',
             display: 'flex',
@@ -1046,6 +1049,9 @@ function ElementGroupHeader({
             cursor: 'pointer',
             padding: 0,
             flexShrink: 0,
+            opacity: hovered ? 1 : 0,
+            pointerEvents: hovered ? 'auto' : 'none',
+            transition: 'opacity 0.12s, background 0.12s, color 0.12s',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'hsl(var(--paper-deep))';
