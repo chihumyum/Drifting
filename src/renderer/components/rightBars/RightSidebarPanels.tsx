@@ -1334,7 +1334,6 @@ function ElementStats({
           entityId={element.id}
           projectId={element.projectId}
           sections={['incoming', 'outgoing']}
-          numStart={null}
         />
       </StatsSection>
 

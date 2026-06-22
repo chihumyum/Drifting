@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import type { BookElement } from '../../domain/book-element';
@@ -13,6 +14,7 @@ import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { events } from '../../lib/events';
 import { EntityCellContextMenu } from './EntityCellContextMenu';
 import { GroupHeaderCell } from './GroupHeaderCell';
+import { ElementGroupPicker } from './ElementGroupPicker';
 import { PanelHoverPreview } from './PanelHoverPreview';
 import { aggregateActivity } from './agentActivityBubble';
 import { useEntityCellAction } from '../../hooks/useEntityCellAction';
@@ -63,7 +65,7 @@ export function ElementPanel() {
     return projectId;
   }, [projectId]);
 
-  const { createElement } = useBookElement({
+  const { createElement, updateElement } = useBookElement({
     projectId: activeProjectId,
     userId: userId ?? '',
   });
@@ -99,6 +101,10 @@ export function ElementPanel() {
   const [contextMenu, setContextMenu] = useState<
     | { x: number; y: number; entityType: EditorType; id: string }
     | null
+  >(null);
+  // In-place "change group" picker (replaces the old jump-to-editor modal).
+  const [groupPicker, setGroupPicker] = useState<
+    { x: number; y: number; elementId: string } | null
   >(null);
   const [hoverPreview, setHoverPreview] = useState<{
     element: BookElement;
@@ -425,6 +431,50 @@ export function ElementPanel() {
     [createElement, openEntity],
   );
 
+  // "+ element in this group" on a group header. The uncategorized bucket has
+  // no real category to create under, so the group header skips the + there.
+  const handleCreateElementInGroup = useCallback(
+    async (categoryId: string, groupName: string) => {
+      if (categoryId === UNCATEGORIZED_ID) return;
+      try {
+        const created = await createElement({ categoryId, groupName });
+        openEntity({ entityType: 'element', id: created.id }, { preview: false });
+      } catch (error) {
+        log.error('Failed to create element in group', error);
+      }
+    },
+    [createElement, openEntity],
+  );
+
+  // Rename a secondary group: rewrite groupName on every element currently in
+  // it. Empty name is treated as cancel (use the picker's "无分组" to ungroup).
+  const handleRenameElementGroup = useCallback(
+    async (items: BookElement[], nextName: string) => {
+      const trimmed = nextName.trim();
+      if (!trimmed) return;
+      for (const el of items) {
+        if (el.groupName === trimmed) continue;
+        try {
+          await updateElement(el.id, { groupName: trimmed });
+        } catch (error) {
+          log.error('Failed to rename element group', error);
+        }
+      }
+    },
+    [updateElement],
+  );
+
+  // Existing group names within a category — feeds the change-group combobox.
+  const groupNamesByCategory = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const categoryId of Object.keys(groupedByCategory)) {
+      out[categoryId] = (groupedByCategory[categoryId] ?? [])
+        .map((g) => g.groupName)
+        .filter((n): n is string => n != null);
+    }
+    return out;
+  }, [groupedByCategory]);
+
   const renderElementCard = (element: BookElement, categoryId: string, elementIndex: number) => {
     const selected = element.id === selectedBookElementId;
     const agentBusy = `element:${element.id}` in agentActive;
@@ -679,40 +729,15 @@ export function ElementPanel() {
                     return (
                       <div key={`${categoryId}::${group.groupName ?? '__ungrouped__'}`}>
                         {group.groupName !== null && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '2px 10px 0 26px',
-                              fontFamily: 'var(--font-mono)',
-                              fontSize: 9,
-                              lineHeight: 1.2,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.1em',
-                              color: 'hsl(var(--ink-4))',
-                            }}
-                          >
-                            <span
-                              aria-hidden
-                              style={{
-                                width: 8,
-                                height: 1,
-                                background: 'hsl(var(--rule))',
-                                flexShrink: 0,
-                              }}
-                            />
-                            <span
-                              style={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {group.groupName}
-                            </span>
-                            <span style={{ color: 'hsl(var(--ink-4))' }}>· {group.items.length}</span>
-                          </div>
+                          <ElementGroupHeader
+                            name={group.groupName}
+                            count={group.items.length}
+                            canAdd={categoryId !== UNCATEGORIZED_ID}
+                            onRename={(next) => void handleRenameElementGroup(group.items, next)}
+                            onAddElement={() =>
+                              void handleCreateElementInGroup(categoryId, group.groupName as string)
+                            }
+                          />
                         )}
                         {cards}
                       </div>
@@ -854,6 +879,12 @@ export function ElementPanel() {
           y={contextMenu.y}
           editorType={contextMenu.entityType}
           onAction={(action) => {
+            // "Change Group" opens an in-place combobox here instead of routing
+            // to the editor + modal (parallels the drift move-to-group flow).
+            if (contextMenu.entityType === 'element' && action === 'groupPicker') {
+              setGroupPicker({ x: contextMenu.x, y: contextMenu.y, elementId: contextMenu.id });
+              return;
+            }
             void dispatchEntityAction({
               entityType: contextMenu.entityType === 'element' ? 'element' : 'category',
               id: contextMenu.id,
@@ -864,6 +895,24 @@ export function ElementPanel() {
         />
       )}
 
+      {groupPicker && (() => {
+        const element = bookElements.find((e) => e.id === groupPicker.elementId);
+        if (!element) return null;
+        const catKey = element.categoryId ?? UNCATEGORIZED_ID;
+        return (
+          <ElementGroupPicker
+            x={groupPicker.x}
+            y={groupPicker.y}
+            current={element.groupName}
+            existing={groupNamesByCategory[catKey] ?? []}
+            onPick={(groupName) => {
+              void updateElement(groupPicker.elementId, { groupName });
+            }}
+            onClose={() => setGroupPicker(null)}
+          />
+        );
+      })()}
+
       {/* Hide the vertical scrollbar on the inner scroll container and the
           horizontal scrollbar on the category footer (scroll still works). */}
       <style>{`
@@ -872,6 +921,144 @@ export function ElementPanel() {
         .left-panel-cat-footer { scrollbar-width: none; }
         .left-panel-cat-footer::-webkit-scrollbar { width: 0; height: 0; display: none; }
       `}</style>
+    </div>
+  );
+}
+
+// Concise secondary-group (groupName) header inside a category. Keeps the
+// minimal label style (rule tick + name + count) but adds: double-click to
+// rename the whole group, and a hover-revealed "+" to create an element
+// directly inside it. Self-contained hover state — avoids touching the global
+// .left-sb-group CSS (which would also flip the category header's + button).
+function ElementGroupHeader({
+  name,
+  count,
+  canAdd,
+  onRename,
+  onAddElement,
+}: {
+  name: string;
+  count: number;
+  canAdd: boolean;
+  onRename: (next: string) => void;
+  onAddElement: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(name);
+  // Guards against onBlur double-committing after Enter, or committing on
+  // Escape (cancel) if the unmount happens to fire a blur.
+  const handledRef = useRef(false);
+
+  if (renaming) {
+    return (
+      <div style={{ padding: '2px 10px 0 26px' }}>
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handledRef.current = true;
+              onRename(draft);
+              setRenaming(false);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              handledRef.current = true;
+              setRenaming(false);
+            }
+          }}
+          onBlur={() => {
+            if (!handledRef.current) onRename(draft);
+            setRenaming(false);
+          }}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '1px 5px',
+            border: '1px solid hsl(var(--accent))',
+            borderRadius: 3,
+            background: 'hsl(var(--paper))',
+            color: 'hsl(var(--ink-1))',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            outline: 'none',
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onDoubleClick={() => {
+        setDraft(name);
+        handledRef.current = false;
+        setRenaming(true);
+      }}
+      title="双击重命名分组"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '2px 10px 0 26px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 9,
+        lineHeight: 1.2,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        color: 'hsl(var(--ink-4))',
+        cursor: 'default',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{ width: 8, height: 1, background: 'hsl(var(--rule))', flexShrink: 0 }}
+      />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </span>
+      <span style={{ color: 'hsl(var(--ink-4))' }}>· {count}</span>
+      {canAdd && hovered && (
+        <button
+          type="button"
+          title="在此分组新建元素"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddElement();
+          }}
+          style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 15,
+            height: 15,
+            borderRadius: 3,
+            border: 'none',
+            background: 'transparent',
+            color: 'hsl(var(--ink-4))',
+            cursor: 'pointer',
+            padding: 0,
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+            e.currentTarget.style.color = 'hsl(var(--ink-1))';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'hsl(var(--ink-4))';
+          }}
+        >
+          <Plus size={11} strokeWidth={1.8} />
+        </button>
+      )}
     </div>
   );
 }
