@@ -44,7 +44,6 @@ type SyncableSlice = {
   paragraphSpacing: unknown;
   maxLineWidth: unknown;
   focusLine: unknown;
-  entityHighlight: unknown;
   entityLinkInteractive: unknown;
   autosave: unknown;
   autoElementLinkEnabled: unknown;
@@ -94,7 +93,6 @@ const SYNC_KEYS: readonly (keyof SyncableSlice)[] = [
   'paragraphSpacing',
   'maxLineWidth',
   'focusLine',
-  'entityHighlight',
   'entityLinkInteractive',
   'autosave',
   'autoElementLinkEnabled',
@@ -224,7 +222,6 @@ function applyServerEntries(entries: PreferenceEntry[]): void {
     },
     maxLineWidth: (v) => store.setMaxLineWidth(Number(v)),
     focusLine: (v) => store.setFocusLine(v as never),
-    entityHighlight: (v) => store.setEntityHighlight(!!v),
     entityLinkInteractive: (v) => store.setEntityLinkInteractive(!!v),
     autosave: (v) => store.setAutosave(!!v),
     autoElementLinkEnabled: (v) => store.setAutoElementLinkEnabled(!!v),

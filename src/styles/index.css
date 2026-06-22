@@ -674,12 +674,8 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 
 /* ============================================================
    Entity Link — the unified inline reference mark (entityLink).
-   Reuses the .element-link visual language but split by:
-   - data-target-kind: element / node / patch / category / storyline
-   - data-origin:      manual / auto / ai
-   Manual marks render fully styled; auto marks render with a
-   dotted underline as a "candidate" affordance until the user
-   confirms them; ai marks use a dashed underline.
+   Reuses the .element-link visual language, split by
+   data-target-kind: element / node / patch / category / storyline.
    ============================================================ */
 .entity-link {
   color: hsl(var(--el-color, var(--accent)));
@@ -749,25 +745,6 @@ button, .no-select { -webkit-user-select: none; user-select: none; }
 .entity-link--node {
   font-weight: 600;
   text-underline-offset: 0.16em;
-}
-
-/* Origin treatment — auto/ai marks get an underline cue so users can
-   tell at a glance whether they confirmed the link themselves. */
-.entity-link--auto {
-  background-image: none;
-  border-bottom: 1px dotted hsl(var(--el-color, var(--accent)) / 0.65);
-}
-.entity-link--auto:hover {
-  background-image: linear-gradient(
-    to top,
-    hsl(var(--el-color, var(--accent)) / 0.16) 0,
-    hsl(var(--el-color, var(--accent)) / 0.16) 100%,
-    transparent 100%
-  );
-}
-.entity-link--ai {
-  background-image: none;
-  border-bottom: 1px dashed hsl(var(--el-color, var(--accent)) / 0.65);
 }
 
 /* Deep-link indicator (mention points at a specific block of the target). */
@@ -1208,15 +1185,6 @@ html[data-focus-line='off'] .page__body .ProseMirror h1,
 html[data-focus-line='off'] .page__body .ProseMirror h2,
 html[data-focus-line='off'] .page__body .ProseMirror h3 {
   opacity: 1;
-}
-
-/* Entity-highlight master toggle. When off, drop the dotted/dashed cues on
-   auto/ai marks but keep manual links visible — manual marks are user intent
-   and shouldn't get hidden. */
-html[data-entity-highlight='off'] .entity-link--auto,
-html[data-entity-highlight='off'] .entity-link--ai {
-  background-image: none !important;
-  border-bottom-color: transparent !important;
 }
 
 /* Reference-link rendering master toggle. When off, every entity-link mark

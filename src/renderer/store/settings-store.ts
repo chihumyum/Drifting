@@ -206,8 +206,6 @@ interface SettingsState {
   resetEditorStyle: () => void;
   focusLine: FocusLineMode;
   setFocusLine: (mode: FocusLineMode) => void;
-  entityHighlight: boolean;
-  setEntityHighlight: (on: boolean) => void;
   entityLinkInteractive: boolean;
   setEntityLinkInteractive: (on: boolean) => void;
   autosave: boolean;
@@ -428,8 +426,6 @@ export const useSettingsStore = create<SettingsState>()(
       resetEditorStyle: () => set({ ...EDITOR_STYLE_DEFAULTS }),
       focusLine: 'paragraph',
       setFocusLine: (m) => set({ focusLine: m }),
-      entityHighlight: true,
-      setEntityHighlight: (on) => set({ entityHighlight: on }),
       entityLinkInteractive: true,
       setEntityLinkInteractive: (on) => set({ entityLinkInteractive: on }),
       autosave: true,

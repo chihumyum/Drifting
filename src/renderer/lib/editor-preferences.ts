@@ -19,7 +19,6 @@ export interface EditorPreferences {
   /** Vertical gap between paragraphs in em (drives --editor-paragraph-spacing). */
   paragraphSpacing: number;
   focusLine: FocusLineMode;
-  entityHighlight: boolean;
   entityLinkInteractive: boolean;
 }
 
@@ -38,6 +37,5 @@ export function applyEditorPreferences(prefs: EditorPreferences): void {
   root.style.setProperty('--editor-indent-step', `${prefs.editorIndentStep}em`);
   root.style.setProperty('--editor-paragraph-spacing', `${prefs.paragraphSpacing}em`);
   root.setAttribute('data-focus-line', prefs.focusLine);
-  root.setAttribute('data-entity-highlight', prefs.entityHighlight ? 'on' : 'off');
   root.setAttribute('data-entity-link-interactive', prefs.entityLinkInteractive ? 'on' : 'off');
 }

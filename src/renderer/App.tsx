@@ -295,7 +295,6 @@ function Layout() {
   const editorIndentStep = useSettingsStore((s) => s.editorIndentStep);
   const paragraphSpacing = useSettingsStore((s) => s.paragraphSpacing);
   const focusLine = useSettingsStore((s) => s.focusLine);
-  const entityHighlight = useSettingsStore((s) => s.entityHighlight);
   const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
   useEffect(() => {
     applyEditorPreferences({
@@ -306,7 +305,6 @@ function Layout() {
       editorIndentStep,
       paragraphSpacing,
       focusLine,
-      entityHighlight,
       entityLinkInteractive,
     });
   }, [
@@ -317,7 +315,6 @@ function Layout() {
     editorIndentStep,
     paragraphSpacing,
     focusLine,
-    entityHighlight,
     entityLinkInteractive,
   ]);
 

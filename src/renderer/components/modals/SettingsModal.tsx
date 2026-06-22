@@ -1516,8 +1516,6 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
     resetEditorStyle,
     focusLine,
     setFocusLine,
-    entityHighlight,
-    setEntityHighlight,
     autosave,
     setAutosave,
     autoElementLinkEnabled,
@@ -1686,11 +1684,6 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
               onChange={setFocusLine}
             />
           }
-        />
-        <Row
-          label="实体高亮"
-          desc="在正文中给已识别的人物 / 地点 / 物件添加下划虚线。"
-          control={<Toggle on={entityHighlight} onChange={setEntityHighlight} />}
         />
         <Row
           label="自动元素链接"
