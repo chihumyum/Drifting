@@ -18,6 +18,10 @@ export interface GroupHeaderCellProps {
   name: string;
   count: number;
   color: string;
+  // Optional leading glyph rendered IN PLACE OF the color dot (e.g. a folder
+  // icon for drift groups, to set them apart from the category color dot).
+  // When omitted the color dot shows as before.
+  glyph?: ReactNode;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   // Whole-row click — typically "open this group's entity editor".
@@ -49,6 +53,7 @@ export function GroupHeaderCell({
   name,
   count,
   color,
+  glyph,
   collapsed,
   onToggleCollapsed,
   onClick,
@@ -151,6 +156,24 @@ export function GroupHeaderCell({
           </span>
         ) : !agentBusy && agentDoneCount > 0 ? (
           <AgentCountBadge count={agentDoneCount} title="未查看的子条目 Agent 改动" />
+        ) : glyph ? (
+          // Custom leading glyph (e.g. drift group folder) replaces the color
+          // dot. Busy still tints it accent so the activity read survives.
+          <span
+            aria-hidden
+            className={agentBusy ? 'agent-glyph-busy' : undefined}
+            title={agentBusy ? 'Agent 正在处理' : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              lineHeight: 1,
+              color: agentBusy ? 'hsl(var(--accent))' : 'hsl(var(--ink-3))',
+            }}
+          >
+            {glyph}
+          </span>
         ) : (
           <span
             aria-hidden

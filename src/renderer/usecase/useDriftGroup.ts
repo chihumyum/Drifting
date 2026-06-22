@@ -20,7 +20,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { useDataStore } from '../store/data-store';
 import { createDriftGroupRepository } from '../sqlite-repo/drift-group-repo';
 import { createBookNodeSqliteRepository } from '../sqlite-repo/node-repo';
-import { isDescendantGroup, type DriftGroup } from '../domain/drift-group';
+import { canMoveGroupUnder, isDescendantGroup, type DriftGroup } from '../domain/drift-group';
 import {
   syncDriftGroupCreate,
   syncDriftGroupDelete,
@@ -112,12 +112,16 @@ export function useDriftGroup({ projectId }: UseDriftGroupContext) {
   // group into itself or its own subtree). newParentGroupId = null → root.
   const moveGroup = useCallback(
     async (id: string, newParentGroupId: string | null): Promise<DriftGroup | null> => {
-      if (newParentGroupId != null) {
-        const groups = useDataStore.getState().driftGroups;
-        if (isDescendantGroup(groups, newParentGroupId, id)) {
-          log.warn(`moveGroup: rejected cyclic move of ${id} into ${newParentGroupId}`);
-          return null;
-        }
+      const groups = useDataStore.getState().driftGroups;
+      if (newParentGroupId != null && isDescendantGroup(groups, newParentGroupId, id)) {
+        log.warn(`moveGroup: rejected cyclic move of ${id} into ${newParentGroupId}`);
+        return null;
+      }
+      // Temporary 2-level nesting cap — reject a move that would push this
+      // group's subtree past MAX_DRIFT_GROUP_DEPTH.
+      if (!canMoveGroupUnder(groups, id, newParentGroupId)) {
+        log.warn(`moveGroup: rejected over-deep move of ${id} into ${newParentGroupId}`);
+        return null;
       }
       return updateGroup(id, { parentGroupId: newParentGroupId });
     },

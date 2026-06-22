@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FolderPlus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
 import { isDrift, type BookNode } from '../../domain/book-node';
 import {
+  MAX_DRIFT_GROUP_DEPTH,
   ROOT_GROUP_KEY,
   buildDriftGroupChildren,
+  canMoveGroupUnder,
   collectDescendantGroupIds,
   type DriftGroup,
 } from '../../domain/drift-group';
@@ -55,7 +57,7 @@ const formatWordCount = (n: number) => {
   return `${Math.round(n / 1000)}k`;
 };
 
-type GroupMenu = { x: number; y: number; groupId: string };
+type GroupMenu = { x: number; y: number; groupId: string; depth: number };
 type MovePicker = { x: number; y: number; kind: 'drift' | 'group'; id: string };
 
 export function DriftPanel() {
@@ -368,42 +370,52 @@ export function DriftPanel() {
   const renderGroup = (group: DriftGroup, depth: number) => {
     const collapsed = collapsedGroupIds.has(group.id);
     const descIds = descendantDriftIds.get(group.id) ?? [];
-    const activity = aggregateActivity(
-      agentActive,
-      agentTouched,
-      descIds.map((id) => entityKey('node', id)),
-    );
     const indentPad = depth * INDENT_STEP;
-    return (
-      <div key={group.id} className="left-sb-group">
-        {renamingGroupId === group.id ? (
-          <GroupRenameRow
-            initial={group.name}
-            paddingLeft={14 + indentPad}
-            onCommit={(name) => {
-              void renameGroup(group.id, name);
-              setRenamingGroupId(null);
-            }}
-            onCancel={() => setRenamingGroupId(null)}
-          />
-        ) : (
-          <div style={{ paddingLeft: indentPad }}>
-            <GroupHeaderCell
-              name={group.name}
-              count={descIds.length}
-              color={group.color || 'hsl(var(--ink-4))'}
-              collapsed={collapsed}
-              onToggleCollapsed={() => toggleCollapsed(group.id)}
-              onClick={() => toggleCollapsed(group.id)}
-              onDoubleClick={() => setRenamingGroupId(group.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setGroupMenu({ x: event.clientX, y: event.clientY, groupId: group.id });
-              }}
-              addButtonTitle="在此新建浮缀"
-              onAdd={() => void createDriftInGroup(group.id)}
-              rightExtra={
+    const openGroupMenu = (event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setGroupMenu({ x: event.clientX, y: event.clientY, groupId: group.id, depth });
+    };
+
+    let header: React.ReactNode;
+    if (renamingGroupId === group.id) {
+      header = (
+        <GroupRenameRow
+          initial={group.name}
+          paddingLeft={(depth === 0 ? 14 : DRIFT_BASE_PAD_LEFT) + indentPad}
+          onCommit={(name) => {
+            void renameGroup(group.id, name);
+            setRenamingGroupId(null);
+          }}
+          onCancel={() => setRenamingGroupId(null)}
+        />
+      );
+    } else if (depth === 0) {
+      // Top-level group: prominent header (chevron + folder glyph — set apart
+      // from the category color dot — + count + add buttons + agent rollup).
+      const activity = aggregateActivity(
+        agentActive,
+        agentTouched,
+        descIds.map((id) => entityKey('node', id)),
+      );
+      header = (
+        <div style={{ paddingLeft: indentPad }}>
+          <GroupHeaderCell
+            name={group.name}
+            count={descIds.length}
+            color={group.color || 'hsl(var(--ink-4))'}
+            glyph={<Folder size={11} strokeWidth={1.8} />}
+            collapsed={collapsed}
+            onToggleCollapsed={() => toggleCollapsed(group.id)}
+            onClick={() => toggleCollapsed(group.id)}
+            onDoubleClick={() => setRenamingGroupId(group.id)}
+            onContextMenu={openGroupMenu}
+            addButtonTitle="在此新建浮缀"
+            onAdd={() => void createDriftInGroup(group.id)}
+            rightExtra={
+              // Sub-group affordance only on groups shallow enough to nest one
+              // more level (temporary 2-level cap).
+              depth < MAX_DRIFT_GROUP_DEPTH - 1 ? (
                 <button
                   type="button"
                   className="left-sb-group-add"
@@ -437,12 +449,89 @@ export function DriftPanel() {
                 >
                   <FolderPlus size={12} strokeWidth={1.6} />
                 </button>
-              }
-              agentBusy={activity.busy}
-              agentDoneCount={activity.doneCount}
-            />
-          </div>
-        )}
+              ) : undefined
+            }
+            agentBusy={activity.busy}
+            agentDoneCount={activity.doneCount}
+          />
+        </div>
+      );
+    } else {
+      // Sub-group (level 2): compact, understated row in the same spirit as the
+      // element panel's secondary group header — a small caret + mono label +
+      // count, with a hover-revealed "+ drift" button. Click toggles collapse,
+      // double-click renames, right-click opens the group menu.
+      header = (
+        <div
+          onClick={() => toggleCollapsed(group.id)}
+          onDoubleClick={() => setRenamingGroupId(group.id)}
+          onContextMenu={openGroupMenu}
+          title="单击折叠 · 双击重命名"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: `3px 10px 3px ${DRIFT_BASE_PAD_LEFT + indentPad}px`,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            lineHeight: 1.2,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: 'hsl(var(--ink-4))',
+            cursor: 'pointer',
+          }}
+        >
+          {collapsed ? (
+            <ChevronRight size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+          ) : (
+            <ChevronDown size={9} strokeWidth={2} style={{ flexShrink: 0 }} />
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {group.name}
+          </span>
+          <span style={{ flexShrink: 0 }}>· {descIds.length}</span>
+          <button
+            type="button"
+            className="left-sb-group-add"
+            title="在此新建浮缀"
+            onClick={(event) => {
+              event.stopPropagation();
+              void createDriftInGroup(group.id);
+            }}
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 15,
+              height: 15,
+              borderRadius: 3,
+              border: 'none',
+              background: 'transparent',
+              color: 'hsl(var(--ink-4))',
+              cursor: 'pointer',
+              padding: 0,
+              flexShrink: 0,
+              transition: 'opacity 0.12s, background 0.12s, color 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'hsl(var(--paper-deep))';
+              e.currentTarget.style.color = 'hsl(var(--ink-1))';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'hsl(var(--ink-4))';
+            }}
+          >
+            <Plus size={11} strokeWidth={1.8} />
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div key={group.id} className="left-sb-group">
+        {header}
         {!collapsed && renderGroupBody(group.id, depth + 1)}
       </div>
     );
@@ -497,12 +586,17 @@ export function DriftPanel() {
       items.push({
         key: 'root',
         label: '根层级（移到顶层）',
-        disabled: currentParent == null,
+        disabled: currentParent == null || !canMoveGroupUnder(driftGroups, picker.id, null),
         trailing: currentParent == null ? <span aria-hidden>✓</span> : undefined,
         onClick: () => void moveGroup(picker.id, null),
       });
       flatGroups.forEach(({ group: g, depth }, idx) => {
-        const disabled = blocked.has(g.id) || g.id === currentParent;
+        // Disable self/subtree, the current parent, and any target that would
+        // push this group's subtree past the 2-level cap.
+        const disabled =
+          blocked.has(g.id) ||
+          g.id === currentParent ||
+          !canMoveGroupUnder(driftGroups, picker.id, g.id);
         items.push({
           key: g.id,
           label: g.name,
@@ -599,11 +693,16 @@ export function DriftPanel() {
           y={groupMenu.y}
           onClose={() => setGroupMenu(null)}
           items={[
-            {
-              key: 'new-sub',
-              label: '新建子分组',
-              onClick: () => void createSubGroup(groupMenu.groupId),
-            },
+            // "新建子分组" gated by the 2-level nesting cap.
+            ...(groupMenu.depth < MAX_DRIFT_GROUP_DEPTH - 1
+              ? [
+                  {
+                    key: 'new-sub',
+                    label: '新建子分组',
+                    onClick: () => void createSubGroup(groupMenu.groupId),
+                  },
+                ]
+              : []),
             {
               key: 'new-drift',
               label: '在此新建浮缀',
