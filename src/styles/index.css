@@ -47,12 +47,12 @@
     /* ─── Drifting-only tokens (full ink scale, paper scale, accents) ─── */
     --paper:                 40 22% 93%;   /* same as background */
     --paper-deep:            40 22% 87%;
-    --surface:               40 35% 97%;
+    --surface:               40 35% 96%;
     --page:                  43 50% 98%;
-    /* 正文纸的「极淡投影」(方案 B / Elevation)。背景不变，纸面微微浮起，
-       边缘柔和无硬线 —— 比加深背景或发丝边框更贴合暖色稿纸气质。固定暖黑
-       色而非走 --ink-1，因为后者在暗色模式会翻成浅色，会变成光晕。 */
-    --page-elevation: 0 1px 0 rgba(28,24,19,0.05), 0 5px 30px -15px rgba(28,24,19,0.13);
+    /* 正文纸的浮起阴影 —— 仅 modern 皮肤启用 (见下方 data-skin='modern')。
+       classic 皮肤不用阴影，改用 --surface / --page 之间略大的明度差 (95% vs
+       98%) 来区分纸与背景，更贴合暖色稿纸的平面气质。 */
+    --page-elevation: none;
 
     --ink-1:                 30  8% 10%;   /* near-black warm */
     --ink-2:                 30 12% 20%;
@@ -125,6 +125,8 @@
     --paper-deep:            30 6%  92%;
     --surface:               0  0%  100%;
     --page:                  0  0%  100%;
+    /* modern 纸与背景同为纯白，没有色差 —— 用极淡投影把纸立起来。 */
+    --page-elevation: 0 1px 0 rgba(28,24,19,0.05), 0 5px 30px -15px rgba(28,24,19,0.13);
     --background:            0  0%  100%;
     --card:                  0  0%  100%;
     --popover:               0  0%  100%;
@@ -194,6 +196,8 @@
     --paper-deep:            220 7%  8%;
     --surface:               220 6%  14%;
     --page:                  220 6%  14%;
+    /* 同色纸面，暗色用纯黑投影立起。 */
+    --page-elevation: 0 1px 0 rgba(0,0,0,0.28), 0 5px 30px -15px rgba(0,0,0,0.55);
     --background:            220 6%  11%;
     --card:                  220 6%  14%;
     --popover:               220 6%  16%;
@@ -557,10 +561,9 @@
 
     --paper:                 36  8% 10%;
     --paper-deep:            36  8%  8%;
-    --surface:               36  8% 12%;
-    --page:                  36  8% 13%;
-    /* 暗色下 surround 与纸几乎同明度，暖黑投影会消失，改用纯黑让纸仍读得出浮起。 */
-    --page-elevation: 0 1px 0 rgba(0,0,0,0.28), 0 5px 30px -15px rgba(0,0,0,0.55);
+    --surface:               36  8% 11%;
+    --page:                  36  8% 14%;
+    /* classic 暗色同样不用阴影 (继承 :root 的 none)，靠明度差 (11% vs 14%) 区分。 */
 
     --ink-1:                 42 25% 88%;
     --ink-2:                 40 22% 76%;
