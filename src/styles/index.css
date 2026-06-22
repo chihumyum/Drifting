@@ -1741,6 +1741,19 @@ html[data-skin='modern'] .editor-scroll::-webkit-scrollbar-thumb {
   background-color: hsl(var(--story-4) / 0.32);
 }
 
+/* Whole-book Cmd+F find highlights (通览全书) — painted across live + static +
+   offscreen chapter rows via the CSS Custom Highlight API (lib/all-chapters-
+   find.ts). Reuses the editor find-bar tints so it reads as the same find
+   feature. ::highlight() only honours background-color/color/text-decoration, so
+   the current match leans on a stronger background (no ring possible here). */
+::highlight(book-find) {
+  background-color: var(--search-find-match-bg, hsl(42 60% 58% / 0.35));
+}
+::highlight(book-find-current) {
+  background-color: var(--search-find-match-cur-bg, hsl(28 85% 52% / 0.55));
+  color: hsl(var(--ink-1));
+}
+
 /* ============================================================
    Per-comment chip (collapsed card)
    ============================================================ */

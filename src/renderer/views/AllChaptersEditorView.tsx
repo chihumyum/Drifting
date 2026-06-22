@@ -7,11 +7,17 @@ import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { useBookContent } from '../usecase/useBookContent';
 import { useBookNode } from '../usecase/useBookNode';
 import { useProjectStore } from '../store/project-store';
-import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
+import { useSettingsStore } from '../store/settings-store';
+import { useUiStore } from '../store/ui-store';
+import { EditorCrumb, EditorTopBar, SET_STATUS_ACTION_PREFIX } from '../components/editor/EditorTopBar';
 import { EditorOutlinePanel, nestHeadings, type OutlineEntry } from '../components/editor/EditorOutlinePanel';
 import { scrollToOutlineAnchor } from '../components/editor/outline-scroll';
 import { VirtualChapterRow } from '../components/editor/VirtualChapterRow';
-import { isChapter, type ChapterNode } from '../domain/book-node';
+import { AllChaptersFindPanel, type FindChapter } from '../components/search/AllChaptersFindPanel';
+import { useShortcutsStore } from '../store/shortcuts-store';
+import { matchesAccelerator } from '../lib/shortcuts';
+import { isChapter, CHAPTER_WRITING_STATUSES, type ChapterNode, type WritingStatus } from '../domain/book-node';
+import { enqueueShadowReview } from '../lib/shadow/job-recorder';
 import { deriveActSegments, type BookAct } from '../domain/book-act';
 import type { NodeContent } from '../domain/node-content';
 import type { EntityLinkRef } from '../lib/extensions/entity-link';
@@ -54,6 +60,19 @@ function actTocId(actId: string): string {
   return `${ACT_TOC_PREFIX}${actId}`;
 }
 
+// Where the reader was in 通览全书, kept in module scope so it survives the
+// view unmounting on a tab switch (this view is torn down when you leave the
+// tab, not just hidden). Keyed by project. Restored on return.
+interface AllChaptersReadPosition {
+  // The scroll-spy's active outline id: a chapter nodeId, or a heading
+  // block-id deeper inside a chapter. Null = top of book (nothing passed the
+  // reading line yet).
+  outlineId: string | null;
+  // The chapter that was promoted to a live editor, if any.
+  focusNodeId: string | null;
+}
+const readPositionByProject = new Map<string, AllChaptersReadPosition>();
+
 // "Read the whole book" mode — every chapter in bookOrder concatenated into
 // one vertical scroller. Each chapter is a full ChapterEditor instance
 // (matching NodeEditorView's literary page styling) but mounted lazily via
@@ -76,12 +95,24 @@ export function AllChaptersEditorView() {
   const projects = useProjectStore((s) => s.projects);
   const projectName = currentProject?.name || projects.find((p) => p.id === projectId)?.name || 'Untitled';
 
+  // Reference-link styling toggle, mirroring the single-entity editors. The
+  // setting is global (applied to <html> in App.tsx); without this switch the
+  // read-through had no way to turn mention styling on, so links rendered as
+  // plain prose with no affordance.
+  const entityLinkInteractive = useSettingsStore((s) => s.entityLinkInteractive);
+  const setEntityLinkInteractive = useSettingsStore((s) => s.setEntityLinkInteractive);
+  const toggleEntityLinkInteractive = useCallback(
+    () => setEntityLinkInteractive(!entityLinkInteractive),
+    [entityLinkInteractive, setEntityLinkInteractive],
+  );
+
   const { getContentByNodeId, updateContentByNodeId, createContent, getOutlineByNodeId } =
     useBookContent({
       userId,
       projectId,
     });
-  const { renameNode, updateNodeSummary, updateNode } = useBookNode({ projectId, userId });
+  const { renameNode, updateNodeSummary, updateNode, deleteNode } = useBookNode({ projectId, userId });
+  const setChapterStorylineEditorNodeId = useUiStore((s) => s.setChapterStorylineEditorNodeId);
 
   // Stable per-node content cache so repeat fetches (after unmount/remount)
   // skip another roundtrip. Tracked by nodeId; null means "fetched, no row".
@@ -107,7 +138,7 @@ export function AllChaptersEditorView() {
   // height. `caret` carries the click point that promoted it, so the editor can
   // drop the cursor where the user pressed. Null = nothing focused (pure
   // read-through).
-  const [focus, setFocus] = useState<{ nodeId: string; caret: { clientX: number; clientY: number } } | null>(null);
+  const [focus, setFocus] = useState<{ nodeId: string; caret: { clientX: number; clientY: number } | null } | null>(null);
   const handleActivate = useCallback(
     (nodeId: string, coords: { clientX: number; clientY: number }) => {
       setFocus({ nodeId, caret: coords });
@@ -225,6 +256,51 @@ export function AllChaptersEditorView() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Whole-book Cmd+F. The single-editor find (App.tsx → EditorFindPanel) only
+  // searches the one live editor; in 通览全书 that's at most the focused chapter
+  // (and nothing when reading). So this view intercepts the same `findInEditor`
+  // accelerator in the CAPTURE phase and stops it before App's window-level
+  // (bubble) handler runs, opening a panel that searches every chapter's
+  // title/summary/prose instead — but never other entities (that's Cmd+Shift+F).
+  const [find, setFind] = useState<{ open: boolean; nonce: number }>({ open: false, nonce: 0 });
+  const hasChaptersRef = useRef(false);
+  useEffect(() => {
+    hasChaptersRef.current = orderedNodes.length > 0;
+  }, [orderedNodes.length]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!hasChaptersRef.current) return;
+      if (!matchesAccelerator(e, useShortcutsStore.getState().bindings.findInEditor)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setFind((f) => ({ open: true, nonce: f.nonce + 1 }));
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  // Chapter snapshot for the find panel: reading order + title/summary; prose is
+  // pulled from the content cache (already prefetched per row) on demand.
+  const findChapters = useMemo<FindChapter[]>(
+    () =>
+      orderedNodes.map((n, index) => ({
+        nodeId: n.id,
+        index,
+        title: n.title || '',
+        summary: n.summary || '',
+      })),
+    [orderedNodes],
+  );
+
+  // Snapshot the saved read-position ONCE at mount, before any effect (the
+  // scroll-spy fires on mount and would overwrite the shared map with the
+  // top-of-book position before the restore effect could read it).
+  const savedPositionRef = useRef<AllChaptersReadPosition | null | undefined>(undefined);
+  if (savedPositionRef.current === undefined) {
+    savedPositionRef.current = readPositionByProject.get(projectId) ?? null;
+  }
+  const didRestoreRef = useRef(false);
+
   // Programmatic-scroll guard for the outline. A TOC click triggers a smooth
   // scrollIntoView that emits a stream of scroll events as it animates; if the
   // scroll-spy reacted to each frame, the active row would race down the whole
@@ -288,6 +364,16 @@ export function AllChaptersEditorView() {
     activeOutlineIdRef.current = id;
     setActiveOutlineId(id);
   }, []);
+  // The chapter (not heading) at the reading line — what the top-bar three-dot
+  // menu acts on. Tracked separately from activeOutlineId, which can resolve to
+  // a heading deep inside the chapter.
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+  const activeChapterIdRef = useRef<string | null>(null);
+  const setActiveChapter = useCallback((id: string | null) => {
+    if (id === activeChapterIdRef.current) return;
+    activeChapterIdRef.current = id;
+    setActiveChapterId(id);
+  }, []);
   // Latest per-chapter outline, read by the spy without re-subscribing the
   // scroll listener every time a chapter publishes its headings.
   const outlineByNodeIdRef = useRef(outlineByNodeId);
@@ -336,6 +422,7 @@ export function AllChaptersEditorView() {
         if (row.getBoundingClientRect().top <= threshold) chapterId = row.dataset.chapterId || null;
         else break;
       }
+      setActiveChapter(chapterId);
       // Within that chapter, the deepest heading above the reading line — the
       // last/closest one — so the highlight extends down into the expanded inner
       // rows. No heading above the line (chapter intro) → the chapter stays active.
@@ -380,7 +467,57 @@ export function AllChaptersEditorView() {
       root.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [orderedNodes.length, setActiveOutline]);
+  }, [orderedNodes.length, setActiveOutline, setActiveChapter]);
+
+  // Restore the reader's last position on return to this tab. Runs once, after
+  // chapters are available (the empty-state early-return keeps scrollRef
+  // unmounted until then). We resolve the anchor by ELEMENT, not raw scrollTop:
+  // content-visibility leaves offscreen rows at an estimated height until
+  // they're measured, so a saved pixel offset would land in the wrong place,
+  // whereas scrolling a known chapter/heading element into view is exact.
+  useEffect(() => {
+    if (didRestoreRef.current) return;
+    if (orderedNodes.length === 0) return; // wait for chapters to load
+    didRestoreRef.current = true;
+    const saved = savedPositionRef.current;
+    if (!saved) return;
+    // Re-open the chapter that was being edited (no caret coords → no jump; the
+    // row's autoFocus is off, so mounting its editor won't steal scroll).
+    if (saved.focusNodeId && orderedNodes.some((n) => n.id === saved.focusNodeId)) {
+      setFocus({ nodeId: saved.focusNodeId, caret: null });
+    }
+    const anchor = saved.outlineId;
+    if (!anchor) return;
+    // A heading anchor only exists once its chapter's prose has rendered, which
+    // is async; chapter rows render immediately. Retry over a bounded window
+    // until the element appears, then jump instantly (no smooth animation).
+    let frame = 0;
+    const restore = () => {
+      const root = scrollRef.current;
+      if (!root) return;
+      const el =
+        root.querySelector<HTMLElement>(`[data-chapter-id="${CSS.escape(anchor)}"]`) ??
+        root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(anchor)}"]`);
+      if (el) {
+        armSpySuppression();
+        setActiveOutline(anchor);
+        el.scrollIntoView({ block: 'start' });
+        return;
+      }
+      if (frame++ < 180) requestAnimationFrame(restore); // ~3s ceiling
+    };
+    requestAnimationFrame(restore);
+  }, [orderedNodes, armSpySuppression, setActiveOutline]);
+
+  // Persist the read-position whenever it changes, so the next tab switch (which
+  // unmounts this view) restores it. The reading anchor comes from the spy
+  // (updates as you scroll); focusNodeId tracks the chapter open for editing.
+  useEffect(() => {
+    readPositionByProject.set(projectId, {
+      outlineId: activeOutlineId,
+      focusNodeId: focus?.nodeId ?? null,
+    });
+  }, [projectId, activeOutlineId, focus]);
 
   // Wire chapter content / title / summary updates back to the data layer.
   // These mirror NodeEditorView's handlers but operate on whichever chapter
@@ -469,6 +606,59 @@ export function AllChaptersEditorView() {
     }, 4000);
     return () => clearInterval(id);
   }, [updateNode]);
+
+  // The top-bar three-dot menu acts on whichever chapter is at the reading line
+  // (falling back to the first chapter before the spy has resolved one). Drift
+  // nodes never appear in 通览全书 — orderedNodes is chapters only — so this is
+  // always the chapter menu: writing status / edit storylines / delete node.
+  const menuTargetNode = useMemo(
+    () => orderedNodes.find((n) => n.id === activeChapterId) ?? orderedNodes[0] ?? null,
+    [orderedNodes, activeChapterId],
+  );
+  const handleChapterMenuAction = useCallback(
+    async (action: string) => {
+      const target = menuTargetNode;
+      if (!target) return;
+
+      if (action === 'editNodeStorylines' || action === 'threadPicker') {
+        setChapterStorylineEditorNodeId(target.id);
+        return;
+      }
+
+      if (action.startsWith(SET_STATUS_ACTION_PREFIX)) {
+        const next = action.slice(SET_STATUS_ACTION_PREFIX.length) as WritingStatus;
+        if (!CHAPTER_WRITING_STATUSES.includes(next as never) || next === target.writingStatus) return;
+        try {
+          // Mirror NodeEditorView: marking a chapter 'finished' optionally runs
+          // it through shadow review first (gated by shadowAutoRun) — lock it to
+          // waiting_review + enqueue; otherwise set the status directly.
+          const autoReviewOnFinish = useSettingsStore.getState().shadowAutoRun;
+          if (next === 'finished' && autoReviewOnFinish) {
+            await updateNode(target.id, { writingStatus: 'waiting_review' });
+            await enqueueShadowReview(target.id, projectId);
+          } else {
+            await updateNode(target.id, { writingStatus: next });
+          }
+        } catch (error) {
+          log.error('[AllChapters] Failed to set writing status', error);
+        }
+        return;
+      }
+
+      if (action === 'deleteNode') {
+        const confirmed = window.confirm(`Delete chapter "${target.title}"?`);
+        if (!confirmed) return;
+        try {
+          await deleteNode(target.id);
+          // If the deleted chapter was the live editor, drop the dangling focus.
+          setFocus((prev) => (prev?.nodeId === target.id ? null : prev));
+        } catch (error) {
+          log.error('[AllChapters] Failed to delete chapter', error);
+        }
+      }
+    },
+    [menuTargetNode, setChapterStorylineEditorNodeId, updateNode, deleteNode, projectId],
+  );
 
   // Whole-book outline → a flat sequence of act dividers (L1) interleaved
   // with chapter rows (L2); each chapter nests its TipTap H1/H2/H3 outline as
@@ -574,11 +764,27 @@ export function AllChaptersEditorView() {
     <div className="editor-shell" style={{ position: 'relative' }}>
       <EditorTopBar
         editorType="node"
+        onMenuAction={handleChapterMenuAction}
+        nodeWritingStatus={menuTargetNode?.writingStatus}
+        nodeStatusKind={menuTargetNode ? 'chapter' : undefined}
+        menuHeader={menuTargetNode ? `操作：${menuTargetNode.title || '无标题章节'}` : undefined}
+        referenceLinkToggle={{
+          enabled: entityLinkInteractive,
+          onToggle: toggleEntityLinkInteractive,
+        }}
         right={
           <>
             <span>{orderedNodes.length} 章</span>
             <span className="editor-bar__sep">·</span>
             <span>{(totalWordCount / 1000).toFixed(1)}k 字</span>
+            {menuTargetNode && (
+              // The chapter at the reading line — what the three-dot menu acts
+              // on. Updates as you scroll.
+              <>
+                <span className="editor-bar__sep">·</span>
+                <span>在 {menuTargetNode.title || '无标题章节'}</span>
+              </>
+            )}
           </>
         }
       >
@@ -654,6 +860,16 @@ export function AllChaptersEditorView() {
           })}
         </div>
       </div>
+
+      {find.open && (
+        <AllChaptersFindPanel
+          scrollRef={scrollRef}
+          chapters={findChapters}
+          fetchContent={fetchContent}
+          focusNonce={find.nonce}
+          onClose={() => setFind((f) => ({ ...f, open: false }))}
+        />
+      )}
     </div>
   );
 }

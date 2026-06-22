@@ -271,14 +271,22 @@
 /* ============================================================
    Editor find panel (in-document Cmd+F)
    ============================================================ */
-.editor-find-panel {
-  /* Anchored inside the central editor column (.app-mid, position:relative)
-     rather than fixed to the viewport, so it no longer overlaps the right
-     sidebar. */
+/* The dock owns positioning + stacks the find bar over its results list.
+   Anchored inside the central editor column (.app-mid / .editor-shell, both
+   position:relative) rather than fixed to the viewport, so it doesn't overlap
+   the right sidebar. */
+.editor-find-dock {
   position: absolute;
   top: 12px;
   right: 16px;
   z-index: 100;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editor-find-panel {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -292,7 +300,8 @@
 }
 
 .editor-find-input {
-  width: 200px;
+  flex: 1;
+  min-width: 0;
   padding: 4px 6px;
   border: 1px solid hsl(var(--rule));
   border-radius: 4px;
@@ -346,4 +355,71 @@
 .ProseMirror .find-match-current {
   background-color: var(--search-find-match-cur-bg);
   box-shadow: 0 0 0 1px var(--search-find-match-cur-ring);
+}
+
+/* ============================================================
+   Find results list (under the find bar) — shared by the
+   whole-book find (通览全书) and the single-editor find.
+   Each row is a one-line context snippet for one match.
+   ============================================================ */
+.find-list {
+  max-height: 320px;
+  overflow-y: auto;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--rule));
+  border-radius: 8px;
+  box-shadow: 0 6px 20px hsl(var(--ink-1) / 0.18);
+  padding: 4px;
+  font-size: 12.5px;
+}
+
+.find-list-group {
+  padding: 4px 8px 2px;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: hsl(var(--ink-3));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.find-list-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: hsl(var(--ink-2));
+}
+.find-list-row:hover {
+  background: var(--search-row-active-bg);
+}
+.find-list-row.is-active {
+  background: var(--search-row-active-bg);
+  color: hsl(var(--ink-1));
+}
+
+.find-list-excerpt {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.6;
+}
+
+.find-list-mark {
+  background: var(--search-find-match-cur-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.find-list-more {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-style: italic;
+  color: hsl(var(--ink-4));
 }

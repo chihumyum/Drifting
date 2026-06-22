@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { FindResultsList, type FindResultRow } from './FindResultsList';
 import '../../../styles/search.css';
 
 interface Match {
@@ -107,6 +108,35 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
   // Recompute matches whenever the query or doc changes.
   const matches = useMemo(() => collectMatches(editor, query), [editor, query]);
 
+  // One-line context snippet per match for the results list. Pulled straight
+  // from the doc around each hit (a single editor → a flat, ungrouped list).
+  const resultRows = useMemo<FindResultRow[]>(() => {
+    if (!query) return [];
+    const doc = editor.state.doc;
+    const size = doc.content.size;
+    // Asymmetric: little leading context so the hit stays left-of-clip + visible,
+    // plenty of trailing context to fill the row (rows clip on the right only).
+    const padBefore = 10;
+    const padAfter = 60;
+    return matches.map((m, i) => {
+      const ctxFrom = Math.max(0, m.from - padBefore);
+      const ctxTo = Math.min(size, m.to + padAfter);
+      const before = doc.textBetween(ctxFrom, m.from, ' ', ' ');
+      const hit = doc.textBetween(m.from, m.to, ' ', ' ');
+      const after = doc.textBetween(m.to, ctxTo, ' ', ' ');
+      const prefix = ctxFrom > 0 ? '…' : '';
+      const matchStart = prefix.length + before.length;
+      return {
+        index: i,
+        groupKey: 'doc',
+        groupLabel: '',
+        excerpt: prefix + before + hit + after + (ctxTo < size ? '…' : ''),
+        matchStart,
+        matchEnd: matchStart + hit.length,
+      };
+    });
+  }, [editor, matches, query]);
+
   // Push current matches + index into the plugin so decorations repaint.
   useEffect(() => {
     const { tr } = editor.state;
@@ -188,47 +218,56 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
 
   return (
     <div
-      className="editor-find-panel"
+      className="editor-find-dock"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <input
-        ref={inputRef}
-        className="editor-find-input"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="在当前编辑器中查找…"
+      <div className="editor-find-panel">
+        <input
+          ref={inputRef}
+          className="editor-find-input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="在当前编辑器中查找…"
+        />
+        <span className="editor-find-stats">
+          {noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
+        </span>
+        <button
+          type="button"
+          className="editor-find-btn"
+          onClick={() => jumpTo(currentIndex - 1)}
+          disabled={noMatches}
+          title="上一个 (Shift+Enter)"
+        >
+          <ChevronUp size={14} />
+        </button>
+        <button
+          type="button"
+          className="editor-find-btn"
+          onClick={() => jumpTo(currentIndex + 1)}
+          disabled={noMatches}
+          title="下一个 (Enter)"
+        >
+          <ChevronDown size={14} />
+        </button>
+        <button
+          type="button"
+          className="editor-find-btn"
+          onClick={onClose}
+          title="关闭 (Esc)"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <FindResultsList
+        rows={resultRows}
+        activeIndex={currentIndex}
+        onPick={jumpTo}
+        totalCount={matches.length}
       />
-      <span className="editor-find-stats">
-        {noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
-      </span>
-      <button
-        type="button"
-        className="editor-find-btn"
-        onClick={() => jumpTo(currentIndex - 1)}
-        disabled={noMatches}
-        title="上一个 (Shift+Enter)"
-      >
-        <ChevronUp size={14} />
-      </button>
-      <button
-        type="button"
-        className="editor-find-btn"
-        onClick={() => jumpTo(currentIndex + 1)}
-        disabled={noMatches}
-        title="下一个 (Enter)"
-      >
-        <ChevronDown size={14} />
-      </button>
-      <button
-        type="button"
-        className="editor-find-btn"
-        onClick={onClose}
-        title="关闭 (Esc)"
-      >
-        <X size={14} />
-      </button>
     </div>
   );
 }
