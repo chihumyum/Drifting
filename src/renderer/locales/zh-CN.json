@@ -1217,9 +1217,11 @@
     "signInShort": "登录",
     "signUpShort": "注册",
     "createAccount": "创建账号",
+    "createAccountShort": "创建账号",
     "signingIn": "登录中…",
     "creating": "创建中…",
     "sendCode": "发送验证码",
+    "sendCodeShort": "发送验证码",
     "resend": "重新发送",
     "useOtp": "用邮箱验证码",
     "remember": "记住我 — 这台机器",
@@ -1248,6 +1250,7 @@
       "featureStorylineSub": "时间轴 · 叙事弧 · 跨线索引",
       "featureShadowTitle": "Shadow · 离线 AI 校读",
       "featureShadowSub": "人物年龄 / 视角越界 / 设定矛盾",
+      "brandVersion": "Drifting Writing Studio · v3.2",
       "footer": "本地优先 · 端到端加密"
     },
     "signin": {
@@ -1350,9 +1353,14 @@
     "header": {
       "workspace": "YOUR WORKSPACE",
       "studio": "DRIFTING WRITING STUDIO",
+      "userPlan": "DRIFTING · 工作区",
       "titleEm": "书架",
       "title": "Bookshelf",
       "subtitle": "在此切换、新建、整理你的所有写作项目。"
+    },
+    "footer": {
+      "brand": "Drifting Writing Studio",
+      "local": "本地"
     },
     "filters": {
       "all": "全部",

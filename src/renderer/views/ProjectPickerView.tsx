@@ -295,7 +295,7 @@ export function ProjectPickerView() {
                 <div className="pp-head__user-name-main">
                   {user?.name || user?.email || 'Drifting'}
                 </div>
-                <div className="pp-head__user-name-plan">DRIFTING · WORKSPACE</div>
+                <div className="pp-head__user-name-plan">{t('projectPicker.header.userPlan')}</div>
               </div>
               <UserAvatar
                 forwardRef={avatarRef}
@@ -428,9 +428,9 @@ export function ProjectPickerView() {
         </section>
 
         <footer className="pp-foot">
-          <span>Drifting Writing Studio</span>
+          <span>{t('projectPicker.footer.brand')}</span>
           <span className="pp-foot__orn">⁂</span>
-          <span>{user?.email || 'local'}</span>
+          <span>{user?.email || t('projectPicker.footer.local')}</span>
         </footer>
       </div>
 

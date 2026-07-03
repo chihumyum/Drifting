@@ -1217,9 +1217,11 @@
     "signInShort": "SIGN IN",
     "signUpShort": "SIGN UP",
     "createAccount": "Create account",
+    "createAccountShort": "CREATE ACCOUNT",
     "signingIn": "Signing in…",
     "creating": "Creating…",
     "sendCode": "Send code",
+    "sendCodeShort": "SEND CODE",
     "resend": "Resend",
     "useOtp": "Use email code",
     "remember": "Remember this device",
@@ -1248,6 +1250,7 @@
       "featureStorylineSub": "timeline · narrative arcs · cross-line references",
       "featureShadowTitle": "Shadow · offline AI review",
       "featureShadowSub": "character age / POV drift / canon contradictions",
+      "brandVersion": "Drifting Writing Studio · v3.2",
       "footer": "Local-first · end-to-end encrypted"
     },
     "signin": {
@@ -1350,9 +1353,14 @@
     "header": {
       "workspace": "YOUR WORKSPACE",
       "studio": "DRIFTING WRITING STUDIO",
+      "userPlan": "DRIFTING · WORKSPACE",
       "titleEm": "Bookshelf",
       "title": "",
       "subtitle": "Switch, create, and organize all of your writing projects."
+    },
+    "footer": {
+      "brand": "Drifting Writing Studio",
+      "local": "local"
     },
     "filters": {
       "all": "All",

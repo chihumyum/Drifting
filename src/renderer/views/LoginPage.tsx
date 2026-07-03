@@ -228,7 +228,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
         </div>
 
         <div className="si-foot">
-          <span>Drifting Writing Studio · v3.2</span>
+          <span>{t('auth.hero.brandVersion')}</span>
           <span className="si-foot__orn">⁂</span>
           <span>{t('auth.hero.footer')}</span>
         </div>
@@ -363,7 +363,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                   ? t('auth.signIn')
                   : t('auth.createAccount')}
               </span>
-              <span>{mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}</span>
+              <span>{mode === 'signin' ? t('auth.signInShort') : t('auth.createAccountShort')}</span>
               <span className="si-submit__arrow">→</span>
             </button>
 
@@ -588,7 +588,7 @@ const OtpForm = ({
         <span className="si-submit__cn">
           {busy ? t('common.processing') : stage === 'enter-email' ? t('auth.sendCode') : t('auth.signIn')}
         </span>
-        <span>{stage === 'enter-email' ? 'SEND CODE' : 'SIGN IN'}</span>
+        <span>{stage === 'enter-email' ? t('auth.sendCodeShort') : t('auth.signInShort')}</span>
         <span className="si-submit__arrow">→</span>
       </button>
 
