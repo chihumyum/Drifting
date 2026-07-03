@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import {
   createInlineMentionRepository,
@@ -77,6 +78,7 @@ function RelationKindTag({
   value: string | null;
   onCommit: (next: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   // Draft is only read while editing; it's seeded fresh from `value` each time
   // the user enters edit mode (see the button's onClick), so no effect is needed
@@ -108,7 +110,7 @@ function RelationKindTag({
             setEditing(false);
           }
         }}
-        placeholder="关系类型…"
+        placeholder={t('referencesPanel.relationKind.placeholder')}
       />
     );
   }
@@ -121,9 +123,9 @@ function RelationKindTag({
         setEditing(true);
       }}
       className={`refs-rel-card__tag${value ? '' : ' refs-rel-card__tag--empty'}`}
-      title="点击编辑关系类型"
+      title={t('referencesPanel.relationKind.editTitle')}
     >
-      {value || '＋ 关系类型'}
+      {value || t('referencesPanel.relationKind.empty')}
     </button>
   );
 }
@@ -134,6 +136,7 @@ export function ReferencesPanel({
   projectId,
   sections = ['relations', 'incoming', 'outgoing'],
 }: ReferencesPanelProps) {
+  const { t } = useTranslation();
   const { navigateToNode, navigateToElement, navigateToCategory, navigateToStoryline } =
     useProjectNavigation();
   const { bookElements, bookNodes, bookElementCategories, storylines, entityRelations } =
@@ -245,21 +248,21 @@ export function ReferencesPanel({
   // Title lookup from the in-memory store. Falls back to a generic label when
   // the entity is gone (deleted but reference row not yet cleaned up).
   const lookupTitle = (kind: EntityKind, id: string): string => {
-    if (kind === 'element') return bookElements.find((e) => e.id === id)?.name ?? '(已删除元素)';
-    if (kind === 'node') return bookNodes.find((n) => n.id === id)?.title ?? '(已删除章节)';
+    if (kind === 'element') return bookElements.find((e) => e.id === id)?.name ?? t('referencesPanel.deleted.element');
+    if (kind === 'node') return bookNodes.find((n) => n.id === id)?.title ?? t('referencesPanel.deleted.node');
     if (kind === 'category')
-      return bookElementCategories.find((cat) => cat.id === id)?.name ?? '(已删除分类)';
+      return bookElementCategories.find((cat) => cat.id === id)?.name ?? t('referencesPanel.deleted.category');
     if (kind === 'storyline')
-      return storylines.find((storyline) => storyline.id === id)?.name ?? '(已删除故事线)';
+      return storylines.find((storyline) => storyline.id === id)?.name ?? t('referencesPanel.deleted.storyline');
     return '(patch)';
   };
 
   const labelForKind = (kind: EntityKind): string => {
-    if (kind === 'element') return '元素';
-    if (kind === 'node') return '章节';
-    if (kind === 'category') return '分类';
-    if (kind === 'storyline') return '故事线';
-    return '补丁';
+    if (kind === 'element') return t('referencesPanel.kind.element');
+    if (kind === 'node') return t('referencesPanel.kind.node');
+    if (kind === 'category') return t('referencesPanel.kind.category');
+    if (kind === 'storyline') return t('referencesPanel.kind.storyline');
+    return t('referencesPanel.kind.patch');
   };
 
   // Aggregate inline backlinks by (fromKind, fromId).
@@ -463,7 +466,7 @@ export function ReferencesPanel({
   };
 
   if (loading) {
-    return <div className="refs-loading">加载中…</div>;
+    return <div className="refs-loading">{t('referencesPanel.loading')}</div>;
   }
 
   const kindClass = (kind: EntityKind) => `refs-kind-${kind}`;
@@ -474,14 +477,14 @@ export function ReferencesPanel({
       {sections.includes('relations') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          <span className="refs-section__title">关联</span>
+          <span className="refs-section__title">{t('referencesPanel.sections.relations')}</span>
           <span className="refs-section__count">{manualRelations.length}</span>
           <button
             type="button"
             onClick={() => setShowLinkPicker((v) => !v)}
             className="refs-section__action"
           >
-            {showLinkPicker ? '取消' : '＋ 新增'}
+            {showLinkPicker ? t('common.cancel') : t('referencesPanel.actions.add')}
           </button>
         </div>
 
@@ -497,7 +500,7 @@ export function ReferencesPanel({
                     pickerFilter === f ? ' refs-picker__filter--active' : ''
                   }`}
                 >
-                  {f === 'all' ? '全部' : labelForKind(f)}
+                  {f === 'all' ? t('referencesPanel.filters.all') : labelForKind(f)}
                 </button>
               ))}
             </div>
@@ -506,12 +509,12 @@ export function ReferencesPanel({
               autoFocus
               value={pickerQuery}
               onChange={(e) => setPickerQuery(e.target.value)}
-              placeholder="搜索可关联的实体…"
+              placeholder={t('referencesPanel.picker.placeholder')}
               className="refs-picker__input"
             />
             <div className="refs-picker__list">
               {pickerCandidates.length === 0 ? (
-                <div className="refs-picker__empty">— 没有可选项 —</div>
+                <div className="refs-picker__empty">{t('referencesPanel.picker.empty')}</div>
               ) : (
                 pickerCandidates.map((c) => (
                   <button
@@ -547,7 +550,7 @@ export function ReferencesPanel({
                   type="button"
                   onClick={() => void handleRemoveManual(rel)}
                   className="refs-rel-card__remove"
-                  aria-label="移除关联"
+                  aria-label={t('referencesPanel.actions.remove')}
                 >
                   ×
                 </button>
@@ -556,7 +559,7 @@ export function ReferencesPanel({
                 type="button"
                 onClick={() => handleNavigate(rel.otherKind, rel.otherId)}
                 className="refs-rel-card__title"
-                title="跳转到该实体"
+                title={t('referencesPanel.actions.jump')}
               >
                 {rel.otherTitle}
               </button>
@@ -568,7 +571,7 @@ export function ReferencesPanel({
             onClick={() => setShowLinkPicker(true)}
             className="refs-rel-card refs-rel-card--add"
           >
-            ＋ 关联实体
+            {t('referencesPanel.actions.linkEntity')}
           </button>
         </div>
       </section>
@@ -578,11 +581,11 @@ export function ReferencesPanel({
       {sections.includes('incoming') && (
       <section className="refs-section">
         <div className="refs-section__header">
-          <span className="refs-section__title">被引用</span>
+          <span className="refs-section__title">{t('referencesPanel.sections.incoming')}</span>
           <span className="refs-section__count">{incomingGroups.length}</span>
         </div>
         {incomingGroups.length === 0 ? (
-          <div className="refs-empty">— 尚未被任何内容引用 —</div>
+          <div className="refs-empty">{t('referencesPanel.empty.incoming')}</div>
         ) : (
           <div className="refs-cards">
             {incomingGroups.map((g) => (
@@ -599,7 +602,10 @@ export function ReferencesPanel({
                 </span>
                 <span className="refs-card__title">{g.fromTitle}</span>
                 <span className="refs-card__meta">
-                  {g.blockCount} 处 · {g.spanCount} 次
+                  {t('referencesPanel.meta.blocksSpans', {
+                    blocks: g.blockCount,
+                    spans: g.spanCount,
+                  })}
                 </span>
                 <span className="refs-card__arrow">↗</span>
               </div>
@@ -613,11 +619,11 @@ export function ReferencesPanel({
       {sections.includes('outgoing') && entityKind === 'element' && (
         <section className="refs-section">
           <div className="refs-section__header">
-            <span className="refs-section__title">引用其他</span>
+            <span className="refs-section__title">{t('referencesPanel.sections.outgoing')}</span>
             <span className="refs-section__count">{outgoingGroups.length}</span>
           </div>
           {outgoingGroups.length === 0 ? (
-            <div className="refs-empty">— 正文中尚未引用其他实体 —</div>
+            <div className="refs-empty">{t('referencesPanel.empty.outgoing')}</div>
           ) : (
             <div className="refs-cards">
               {outgoingGroups.map((g) => (
@@ -633,7 +639,9 @@ export function ReferencesPanel({
                     {labelForKind(g.toKind)}
                   </span>
                   <span className="refs-card__title">{g.toTitle}</span>
-                  <span className="refs-card__meta">{g.spanCount} 次</span>
+                  <span className="refs-card__meta">
+                    {t('referencesPanel.meta.spans', { count: g.spanCount })}
+                  </span>
                   <span className="refs-card__arrow">↗</span>
                 </div>
               ))}

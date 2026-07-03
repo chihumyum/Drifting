@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { commentBlockIds, commentColorKey, type CommentTargetKind } from '../../domain/comment';
 import { useDataStore } from '../../store/data-store';
 import { useAgentEditStore } from '../../store/agent-edit-store';
@@ -64,6 +65,7 @@ export function EditorScrollMarkers({
   targetId,
   commentsVisible = true,
 }: EditorScrollMarkersProps) {
+  const { t } = useTranslation();
   const comments = useDataStore((s) => s.comments);
   // Agent-changed blocks for this entity (any prose entity — node / element /
   // storyline / category). Colored by op — new (green) / changed (blue) /
@@ -138,7 +140,9 @@ export function EditorScrollMarkers({
         cls,
         laneCls: 'editor__scrollmap-tick--span',
         blockIds: ids,
-        title: c.kind === 'todo' ? '跳到 TODO' : '跳到批注',
+        title: c.kind === 'todo'
+          ? t('editorScrollMarkers.jumpToTodo')
+          : t('editorScrollMarkers.jumpToComment'),
       });
     }
 
@@ -172,7 +176,7 @@ export function EditorScrollMarkers({
         cls,
         laneCls,
         blockIds: anchorId ? [anchorId] : [],
-        title: '跳到改动处',
+        title: t('editorScrollMarkers.jumpToChange'),
       });
     }
 
@@ -181,7 +185,7 @@ export function EditorScrollMarkers({
       ticksRef.current = next;
       setTicks(next);
     }
-  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges, commentsVisible]);
+  }, [scrollEl, comments, projectId, targetKind, targetId, agentChanges, commentsVisible, t]);
 
   // Recompute on data change + layout change. Fractions are scroll-independent,
   // so we don't listen to `scroll` — only resize and content-height changes.

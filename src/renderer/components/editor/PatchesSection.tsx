@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import {
   createElementPatchRepository,
@@ -22,6 +23,7 @@ interface PatchesSectionProps {
 // that creates a floating patch (no chapter affiliation). Chapter-anchored
 // patches are created from the chapter side: select text → 右键「新建补丁」.
 export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
+  const { t } = useTranslation();
   const [patches, setPatches] = useState<PatchWithSourceTitle[]>([]);
   const [loading, setLoading] = useState(true);
   // Pending agent review op per patch, used to KEY each card: when the op changes
@@ -87,21 +89,21 @@ export function PatchesSection({ elementId, projectId }: PatchesSectionProps) {
   }, [elementId, projectId, reload]);
 
   if (loading) {
-    return <div className="refs-loading">加载中…</div>;
+    return <div className="refs-loading">{t('referencesPanel.loading')}</div>;
   }
 
   return (
     <section className="refs-section patches-section">
       <div className="refs-section__header">
-        <span className="refs-section__title">补丁</span>
+        <span className="refs-section__title">{t('elementEditor.sections.patches')}</span>
         <span className="refs-section__count">{patches.length}</span>
         <button type="button" onClick={handleAddFloating} className="refs-section__action">
-          ＋ 新建
+          {t('patchesSection.add')}
         </button>
       </div>
       {patches.length === 0 ? (
         <div className="refs-empty">
-          — 尚无补丁。在章节里选中文本 → 右键「新建补丁」可锚定到此元素 —
+          {t('patchesSection.empty')}
         </div>
       ) : (
         <div>

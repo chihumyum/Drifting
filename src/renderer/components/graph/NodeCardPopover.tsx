@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { BookNode } from '../../domain/book-node';
 import type { NodeContent } from '../../domain/node-content';
 import { ChapterEditor } from '../editor/ChapterEditor';
@@ -40,6 +41,7 @@ export function NodeCardPopover({
   onClose,
   onOpenInEditor,
 }: NodeCardPopoverProps) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'default' | 'upgrade'>('default');
   const [summaryDraft, setSummaryDraft] = useState(node.summary ?? '');
   const summaryRef = useAutosizeTextArea(summaryDraft);
@@ -260,21 +262,21 @@ export function NodeCardPopover({
         className={`node-card${mode === 'upgrade' ? ' is-upgrade' : ''}`}
         style={popoverStyle}
         role="dialog"
-        aria-label="章节卡片"
+        aria-label={t('nodeCardPopover.aria.card')}
       >
         {mode === 'default' ? (
           <>
             <div className="node-card__head">
               <span className="node-card__num">{labelNum}</span>
-              <span className="node-card__title" title={node.title || '未命名'}>
-                {node.title || '未命名'}
+              <span className="node-card__title" title={node.title || t('common.untitled')}>
+                {node.title || t('common.untitled')}
               </span>
               <button
                 type="button"
                 className="node-card__close"
                 onClick={onClose}
-                title="关闭"
-                aria-label="关闭"
+                title={t('commentRail.actions.close')}
+                aria-label={t('commentRail.actions.close')}
               >
                 ×
               </button>
@@ -283,7 +285,7 @@ export function NodeCardPopover({
               ref={summaryRef}
               className="node-card__summary"
               value={summaryDraft}
-              placeholder="写一段摘要…"
+              placeholder={t('nodeCardPopover.summaryPlaceholder')}
               onChange={(e) => setSummaryDraft(e.target.value)}
               onBlur={handleSummaryBlur}
               onKeyDown={(e) => {
@@ -300,17 +302,17 @@ export function NodeCardPopover({
                 type="button"
                 className="node-card__btn"
                 onClick={() => setMode('upgrade')}
-                title="展开为简化编辑器"
+                title={t('nodeCardPopover.expandTitle')}
               >
-                展开编辑 ↗
+                {t('nodeCardPopover.expand')} ↗
               </button>
               <button
                 type="button"
                 className="node-card__btn is-primary"
                 onClick={() => onOpenInEditor(node.id)}
-                title="跳转到完整编辑器"
+                title={t('nodeCardPopover.openFullTitle')}
               >
-                在编辑器中打开 →
+                {t('nodeCardPopover.openInEditor')} →
               </button>
             </div>
           </>
@@ -318,29 +320,29 @@ export function NodeCardPopover({
           <>
             <div className="node-card__head">
               <span className="node-card__num">{labelNum}</span>
-              <span className="node-card__title">简化编辑</span>
+              <span className="node-card__title">{t('nodeCardPopover.compactEdit')}</span>
               <button
                 type="button"
                 className="node-card__btn is-ghost"
                 onClick={() => setMode('default')}
-                title="折叠回卡片"
+                title={t('nodeCardPopover.collapseTitle')}
               >
-                ↙ 折叠
+                ↙ {t('nodeCardPopover.collapse')}
               </button>
               <button
                 type="button"
                 className="node-card__btn is-primary"
                 onClick={() => onOpenInEditor(node.id)}
-                title="跳转到完整编辑器"
+                title={t('nodeCardPopover.openFullTitle')}
               >
-                完整编辑器 →
+                {t('nodeCardPopover.fullEditor')} →
               </button>
               <button
                 type="button"
                 className="node-card__close"
                 onClick={onClose}
-                title="关闭"
-                aria-label="关闭"
+                title={t('commentRail.actions.close')}
+                aria-label={t('commentRail.actions.close')}
               >
                 ×
               </button>
@@ -365,12 +367,12 @@ export function NodeCardPopover({
                   minHeight="320px"
                 />
               ) : (
-                <div className="node-card__loading">载入中…</div>
+                <div className="node-card__loading">{t('nodeCardPopover.loading')}</div>
               )}
             </div>
             <div className="node-card__editor-foot">
               <span className="node-card__meta">
-                {node.wordCount ?? 0} 字 · 改动会同步到完整编辑器
+                {t('nodeCardPopover.wordSync', { count: node.wordCount ?? 0 })}
               </span>
             </div>
           </>

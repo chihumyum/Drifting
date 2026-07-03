@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Eye, EyeOff, ListTodo, MessageSquare, MessageSquarePlus, Minimize2, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { EditorCommentRequest } from '../../hooks/useEntityEditor';
 import {
@@ -112,11 +113,11 @@ function colorIcon(key: CommentColorKey, size = 11): ReactNode {
   }
 }
 
-const COLOR_LABEL: Record<CommentColorKey, string> = {
-  todo: 'TODO',
-  shadow: 'SHADOW',
-  copilot: 'COPILOT',
-  manual: 'COMMENT',
+const COLOR_LABEL_KEY: Record<CommentColorKey, string> = {
+  todo: 'commentRail.color.todo',
+  shadow: 'commentRail.color.shadow',
+  copilot: 'commentRail.color.copilot',
+  manual: 'commentRail.color.manual',
 };
 
 interface SnapshotModalProps {
@@ -132,6 +133,7 @@ interface SnapshotModalProps {
 // click-to-view escape hatch, and the only way to recover the text once a block
 // is edited or deleted.
 function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -149,15 +151,15 @@ function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps)
         className="snapshot-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Source block snapshot"
+        aria-label={t('commentRail.snapshot.aria')}
       >
         <div className="snapshot-modal__head">
-          <span>关联原文 · 创建时快照{snapshots.length > 1 ? ` · ${snapshots.length} 段` : ''}</span>
+          <span>{t('commentRail.snapshot.title', { count: snapshots.length })}</span>
           <button
             type="button"
             className="mnote__icon-btn"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('commentRail.actions.close')}
           >
             <X size={12} />
           </button>
@@ -170,8 +172,8 @@ function SnapshotModal({ snapshots, liveBlockIds, onClose }: SnapshotModalProps)
                 key={snap.blockId ?? `snap-${i}`}
                 className={`snapshot-modal__block${gone ? ' snapshot-modal__block--gone' : ''}`}
               >
-                {gone && <span className="snapshot-modal__flag">已删除/改动</span>}
-                {snap.blockText || <span className="snapshot-modal__empty">（空段）</span>}
+                {gone && <span className="snapshot-modal__flag">{t('commentRail.snapshot.changed')}</span>}
+                {snap.blockText || <span className="snapshot-modal__empty">{t('commentRail.snapshot.emptyBlock')}</span>}
               </p>
             );
           })}
@@ -189,6 +191,7 @@ export function CommentRail({
   pendingRequest,
   onPendingRequestChange,
 }: CommentRailProps) {
+  const { t } = useTranslation();
   const userId = useAuthStore((state) => state.user?.id);
   const effectiveUserId = userId ?? 'local';
   const comments = useDataStore((state) => state.comments);
@@ -711,8 +714,10 @@ export function CommentRail({
 
     const body = extractTextFromCommentBody(comment.bodyJson);
     const title = isCopilot
-      ? summary?.title ?? `Copilot 建议${meta ? ` (${meta.kind})` : ''}`
-      : body || '空批注';
+      ? summary?.title ?? (meta
+        ? t('commentRail.card.copilotSuggestionWithKind', { kind: meta.kind })
+        : t('commentRail.card.copilotSuggestion'))
+      : body || t('commentRail.card.emptyComment');
 
     const isActive = activeIds.has(comment.id);
     // Tab/accept is copilot-only — but a copilot suggestion deferred into a TODO
@@ -738,17 +743,19 @@ export function CommentRail({
         <div className="mnote__head">
           <span className="mnote__head-l">
             <span className="mnote__head-glyph">{colorIcon(colorKey)}</span>
-            <span>{isCopilot && capability ? capability.displayName : COLOR_LABEL[colorKey]}</span>
+            <span>{isCopilot && capability ? capability.displayName : t(COLOR_LABEL_KEY[colorKey])}</span>
           </span>
           <span className="mnote__head-r">
-            <span className="mnote__head-conf">{isResolved ? 'resolved' : 'open'}</span>
+            <span className="mnote__head-conf">
+              {isResolved ? t('commentRail.status.resolved') : t('commentRail.status.open')}
+            </span>
             {!loose && (
               <button
                 type="button"
                 className="mnote__icon-btn"
                 onClick={() => collapseToChip(comment.id)}
-                aria-label="折叠"
-                title="折叠为 chip"
+                aria-label={t('commentRail.actions.collapse')}
+                title={t('commentRail.actions.collapseToChip')}
               >
                 <Minimize2 size={11} />
               </button>
@@ -771,9 +778,9 @@ export function CommentRail({
             type="button"
             className={`mnote__tag${isOrphan ? ' mnote__tag--orphan' : ''}`}
             onClick={() => setSnapshotForId(comment.id)}
-            title="正文已变动 · 查看创建时的关联原文"
+            title={t('commentRail.original.title')}
           >
-            {isOrphan ? '原文已删除 · 查看' : '正文已改动 · 查看原文'}
+            {isOrphan ? t('commentRail.original.deleted') : t('commentRail.original.changed')}
           </button>
         )}
         <div className="mnote__actions">
@@ -791,7 +798,7 @@ export function CommentRail({
                 }}
               >
                 <Check size={12} />
-                <span>{summary?.actionLabel ?? '接受'}</span>
+                <span>{summary?.actionLabel ?? t('commentRail.actions.accept')}</span>
               </button>
               <button
                 type="button"
@@ -805,7 +812,7 @@ export function CommentRail({
                 }}
               >
                 <X size={12} />
-                <span>拒绝</span>
+                <span>{t('commentRail.actions.reject')}</span>
               </button>
             </>
           )}
@@ -817,7 +824,7 @@ export function CommentRail({
               onClick={() => void runAction(comment.id, () => commentUsecases.reopenComment(comment.id))}
             >
               <RotateCcw size={12} />
-              <span>未解决</span>
+              <span>{t('commentRail.actions.reopen')}</span>
             </button>
           ) : (
             <button
@@ -836,7 +843,7 @@ export function CommentRail({
               }
             >
               <Check size={12} />
-              <span>解决</span>
+              <span>{t('commentRail.actions.resolve')}</span>
             </button>
           )}
           {isTodo ? (
@@ -844,11 +851,11 @@ export function CommentRail({
               type="button"
               className="mnote__btn mnote__btn--ghost"
               disabled={busy}
-              title="降为批注"
+              title={t('commentRail.actions.revertToNoteTitle')}
               onClick={() => void runAction(comment.id, () => commentUsecases.revertToNote(comment.id))}
             >
               <ListTodo size={12} />
-              <span>转批注</span>
+              <span>{t('commentRail.actions.toNote')}</span>
             </button>
           ) : (
             <button
@@ -858,7 +865,7 @@ export function CommentRail({
               onClick={() => void runAction(comment.id, () => commentUsecases.convertToTodo(comment.id))}
             >
               <ListTodo size={12} />
-              <span>转 TODO</span>
+              <span>{t('commentRail.actions.toTodo')}</span>
             </button>
           )}
           {/* Manual comments can be marked as a Shadow 'exception' — an author
@@ -870,7 +877,7 @@ export function CommentRail({
                 type="button"
                 className="mnote__btn mnote__btn--ghost"
                 disabled={busy}
-                title="取消例外标记"
+                title={t('commentRail.actions.unmarkExceptionTitle')}
                 onClick={() =>
                   void runAction(comment.id, () =>
                     commentUsecases.setCommentKind(comment.id, 'note'),
@@ -878,14 +885,14 @@ export function CommentRail({
                 }
               >
                 <EyeOff size={12} />
-                <span>取消例外</span>
+                <span>{t('commentRail.actions.unmarkException')}</span>
               </button>
             ) : (
               <button
                 type="button"
                 className="mnote__btn"
                 disabled={busy}
-                title="标为例外：Shadow 审阅时把这段视为有意，不再报错"
+                title={t('commentRail.actions.markExceptionTitle')}
                 onClick={() =>
                   void runAction(comment.id, () =>
                     commentUsecases.setCommentKind(comment.id, 'exception'),
@@ -893,7 +900,7 @@ export function CommentRail({
                 }
               >
                 <EyeOff size={12} />
-                <span>标为例外</span>
+                <span>{t('commentRail.actions.markException')}</span>
               </button>
             ))}
           <button
@@ -903,7 +910,7 @@ export function CommentRail({
             onClick={() => void runAction(comment.id, () => commentUsecases.deleteComment(comment.id))}
           >
             <Trash2 size={12} />
-            <span>删除</span>
+            <span>{t('common.delete')}</span>
           </button>
         </div>
       </div>
@@ -929,8 +936,8 @@ export function CommentRail({
         // hovering the icon washes its anchored block/text, same as the card did.
         onMouseEnter={() => setHoveredId(comment.id)}
         onMouseLeave={() => setHoveredId((prev) => (prev === comment.id ? null : prev))}
-        aria-label={COLOR_LABEL[colorKey]}
-        title="展开"
+        aria-label={t(COLOR_LABEL_KEY[colorKey])}
+        title={t('commentRail.actions.expand')}
       >
         {colorIcon(colorKey)}
       </button>
@@ -950,13 +957,13 @@ export function CommentRail({
         <div className="mnote__head">
           <span className="mnote__head-l">
             <MessageSquarePlus size={11} />
-            <span>NEW COMMENT</span>
+            <span>{t('commentRail.composer.newComment')}</span>
           </span>
           <button
             type="button"
             className="mnote__icon-btn"
             onClick={() => onPendingRequestChange(null)}
-            aria-label="Cancel comment"
+            aria-label={t('commentRail.actions.cancelComment')}
           >
             <X size={12} />
           </button>
@@ -974,7 +981,7 @@ export function CommentRail({
               void handleCreate();
             }
           }}
-          placeholder="写批注…"
+          placeholder={t('commentRail.composer.placeholder')}
           rows={4}
         />
         <div className="mnote__actions">
@@ -983,7 +990,7 @@ export function CommentRail({
             className="mnote__btn"
             onClick={() => onPendingRequestChange(null)}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -991,7 +998,7 @@ export function CommentRail({
             disabled={!draft.trim()}
             onClick={() => void handleCreate()}
           >
-            添加
+            {t('commentRail.actions.add')}
           </button>
         </div>
       </div>
@@ -1021,13 +1028,13 @@ export function CommentRail({
       <div className="mnote__head">
         <span className="mnote__head-l">
           <MessageSquarePlus size={11} />
-          <span>本章备注</span>
+          <span>{t('commentRail.entity.title')}</span>
         </span>
         <button
           type="button"
           className="mnote__icon-btn"
           onClick={closeEntityComposer}
-          aria-label="取消"
+          aria-label={t('common.cancel')}
         >
           <X size={12} />
         </button>
@@ -1043,13 +1050,13 @@ export function CommentRail({
             void handleCreateEntityComment();
           }
         }}
-        placeholder="写本章备注（不锚定具体段落）…"
+        placeholder={t('commentRail.entity.placeholder')}
         rows={3}
         autoFocus
       />
       <div className="mnote__actions">
         <button type="button" className="mnote__btn" onClick={closeEntityComposer}>
-          取消
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -1057,7 +1064,7 @@ export function CommentRail({
           disabled={!entityDraft.trim()}
           onClick={() => void handleCreateEntityComment()}
         >
-          添加
+          {t('commentRail.actions.add')}
         </button>
       </div>
     </div>
@@ -1082,8 +1089,16 @@ export function CommentRail({
             type="button"
             className="mnote-stack__ball"
             onClick={() => (total > 0 ? setStackExpanded(true) : openEntityComposer())}
-            aria-label={total > 0 ? `${total} 条本章备注` : '新建本章备注'}
-            title={total > 0 ? `${total} 条本章备注` : '新建本章备注'}
+            aria-label={
+              total > 0
+                ? t('commentRail.entity.noteCount', { count: total })
+                : t('commentRail.entity.newNote')
+            }
+            title={
+              total > 0
+                ? t('commentRail.entity.noteCount', { count: total })
+                : t('commentRail.entity.newNote')
+            }
           >
             <MessageSquare size={11} />
             {total > 1 && <span className="mnote-stack__ball-count">{total}</span>}
@@ -1099,8 +1114,8 @@ export function CommentRail({
             type="button"
             className="mnote-stack__btn"
             onClick={() => setEntityComposerOpen(true)}
-            aria-label="新建本章备注"
-            title="新建本章备注"
+            aria-label={t('commentRail.entity.newNote')}
+            title={t('commentRail.entity.newNote')}
           >
             <MessageSquarePlus size={11} />
           </button>
@@ -1111,8 +1126,8 @@ export function CommentRail({
               setStackExpanded(false);
               closeEntityComposer();
             }}
-            aria-label="收起"
-            title="收起"
+            aria-label={t('commentRail.actions.collapse')}
+            title={t('commentRail.actions.collapse')}
           >
             <Minimize2 size={11} />
           </button>
@@ -1152,7 +1167,7 @@ export function CommentRail({
       <aside
         ref={marginRef}
         className="editor__margin"
-        aria-label="Manuscript comments"
+        aria-label={t('commentRail.aria.margin')}
       >
         {visibleComments
           .filter((comment) => !isStackOrphan(comment))

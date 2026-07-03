@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import '../../../styles/timeline-pin-menu.css';
 
 // Context menu shared by both timeline pins (BottomTimeline's TimelinePin and
@@ -35,6 +36,7 @@ export function TimelinePinMenu({
   onDelete,
   onClose,
 }: TimelinePinMenuProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as HTMLElement | null;
@@ -66,24 +68,24 @@ export function TimelinePinMenu({
       {isBound ? (
         <>
           <button type="button" onClick={run(onOpenDrift)}>
-            打开漂浮节点
+            {t('bottomTimeline.pinMenu.openDrift')}
           </button>
           <button type="button" onClick={run(onUnbind)}>
-            解绑（恢复为纯标签）
+            {t('bottomTimeline.pinMenu.unbind')}
           </button>
         </>
       ) : (
         <>
           <button type="button" onClick={run(onRequestBind)}>
-            绑定漂浮节点…
+            {t('bottomTimeline.pinMenu.bindDrift')}
           </button>
           <button type="button" onClick={run(onRename)}>
-            重命名
+            {t('bottomTimeline.pinMenu.rename')}
           </button>
         </>
       )}
       <button type="button" className="is-danger" onClick={run(onDelete)}>
-        删除标记
+        {t('bottomTimeline.pinMenu.deleteMarker')}
       </button>
     </div>,
     document.body,

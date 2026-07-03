@@ -76,7 +76,7 @@ export const useEvolveStore = create<EvolveStore>((set, get) => {
         const msg = e instanceof Error ? e.message : String(e);
         patch(elementId, {
           running: false,
-          phase: controller.signal.aborted ? '已手动停止' : `失败：${msg}`,
+          phase: controller.signal.aborted ? 'Stopped manually' : `Failed: ${msg}`,
         });
       } finally {
         controllers.delete(elementId);

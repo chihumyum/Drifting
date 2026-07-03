@@ -194,9 +194,9 @@ async function restoreMetadata(
 export async function restoreEntitySnapshot(snapshotId: string): Promise<void> {
   const repo = createEntitySnapshotRepository();
   const row = await repo.getById(snapshotId);
-  if (!row) throw new Error('快照不存在（可能已被清理）');
+  if (!row) throw new Error('Snapshot does not exist or may have been cleaned up');
   const ctx = getActiveAgentToolContext();
-  if (!ctx) throw new Error('无可用写入上下文 — 请在项目内执行恢复');
+  if (!ctx) throw new Error('No writable project context is available. Restore inside an open project.');
 
   const docId = proseDocId(row.entityKind, row.entityId);
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { useParams } from 'react-router-dom';
 import { EditorContent } from '@tiptap/react';
@@ -49,6 +50,7 @@ type ChapterFilter = 'all' | 'written' | 'unwritten';
 export function StorylineEditorView({
   storylineIdOverride,
 }: { storylineIdOverride?: string } = {}) {
+  const { t } = useTranslation();
   const params = useParams<{ projectId: string; storylineId: string }>();
   const projectId = params.projectId;
   const storylineId = storylineIdOverride ?? params.storylineId;
@@ -232,7 +234,7 @@ export function StorylineEditorView({
     content: currentStoryline?.contentJson ?? null,
     ydoc,
     onPersist: handlePersist,
-    placeholder: '札记 · scratch——本线的速记、浮缀、风格备忘…',
+    placeholder: t('storylineEditor.scratchPlaceholder'),
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey: currentStoryline
       ? editorTabSelectionKey(projectId, { entityType: 'storyline', id: currentStoryline.id })
@@ -244,13 +246,13 @@ export function StorylineEditorView({
   // no ordinal — order is the only ranking. 章节序列 is omitted when the storyline
   // has no chapters.
   const frameworkItems: OutlineEntry[] = [
-    { id: 'sl-overview', level: 2, kind: 'section', text: '概述' },
-    { id: 'sl-scratch', level: 2, kind: 'section', text: '札记', children: nestHeadings(outline) },
-    { id: 'sl-kv', level: 2, kind: 'section', text: '字段 · facts' },
-    { id: 'sl-node-template', level: 2, kind: 'section', text: '章节模版 · node template' },
+    { id: 'sl-overview', level: 2, kind: 'section', text: t('storylineEditor.sections.overview') },
+    { id: 'sl-scratch', level: 2, kind: 'section', text: t('storylineEditor.sections.scratchShort'), children: nestHeadings(outline) },
+    { id: 'sl-kv', level: 2, kind: 'section', text: t('storylineEditor.sections.facts') },
+    { id: 'sl-node-template', level: 2, kind: 'section', text: t('storylineEditor.sections.nodeTemplate') },
   ];
   if (sNodes.length > 0) {
-    frameworkItems.push({ id: 'sl-chapters', level: 2, kind: 'section', text: '章节序列' });
+    frameworkItems.push({ id: 'sl-chapters', level: 2, kind: 'section', text: t('storylineEditor.sections.chapters') });
   }
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this storyline's body (ticks + reveal/approve).
@@ -265,18 +267,18 @@ export function StorylineEditorView({
     async (action: string) => {
       if (!storylineId || !currentStoryline) return;
       if (action === 'deleteStoryline') {
-        const confirmed = window.confirm(`Delete storyline "${currentStoryline.name}"?`);
+        const confirmed = window.confirm(t('storylineEditor.deleteConfirm', { name: currentStoryline.name }));
         if (!confirmed) return;
         try {
           await storylineUsecases.deleteStoryline(storylineId);
           leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete storyline:', error);
-          alert('Failed to delete storyline. Please try again.');
+          alert(t('storylineEditor.alerts.deleteFailed'));
         }
       }
     },
-    [storylineId, currentStoryline, storylineUsecases, leaveDeletedEntity],
+    [storylineId, currentStoryline, storylineUsecases, leaveDeletedEntity, t],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.
@@ -298,7 +300,7 @@ export function StorylineEditorView({
   if (!currentStoryline) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'hsl(var(--ink-4))' }}>
-        Loading storyline…
+        {t('storylineEditor.loading')}
       </div>
     );
   }
@@ -322,11 +324,11 @@ export function StorylineEditorView({
         }}
         right={
           <>
-            <span>{sNodes.length} 章</span>
+            <span>{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
             {sNodes.length > 0 && (
               <>
                 <span className="editor-bar__sep">·</span>
-                <span>{(totalWc / 1000).toFixed(1)}k 字</span>
+                <span>{t('storylineEditor.meta.kWords', { count: (totalWc / 1000).toFixed(1) })}</span>
               </>
             )}
           </>
@@ -336,7 +338,7 @@ export function StorylineEditorView({
           dotColor={currentStoryline.color || '#8A2A1E'}
           dropdown={
             storylines.length === 0 ? (
-              <div className="crumb-dropdown__empty">No storylines yet</div>
+              <div className="crumb-dropdown__empty">{t('nodeEditor.empty.noStorylines')}</div>
             ) : (
               storylines.map((s) => {
                 const isActive = s.id === storylineId;
@@ -354,13 +356,13 @@ export function StorylineEditorView({
             )
           }
         >
-          <span>{currentStoryline.name || 'Untitled storyline'}</span>
+          <span>{currentStoryline.name || t('storylineEditor.untitled')}</span>
         </EditorCrumb>
       </EditorTopBar>
 
       <div className="editor-body">
         <EditorOutlinePanel
-          title={`${currentStoryline.name || 'STORYLINE'} · OUTLINE`}
+          title={t('storylineEditor.outlineTitle', { name: currentStoryline.name || 'STORYLINE' })}
           items={frameworkItems}
           activeId={activeOutlineId}
           onItemClick={(id) => {
@@ -372,12 +374,12 @@ export function StorylineEditorView({
           <div className="editor__spread">
           <article className="page" style={{ ['--s-color' as string]: storylineColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
-              <span className="page__folio-line">Storyline</span>
+              <span className="page__folio-line">{t('storylineEditor.folio')}</span>
               <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
                 {currentStoryline.name}
               </span>
-              <span className="page__folio-line">{sNodes.length} 章</span>
-              <span className="page__folio-line">{(totalWc / 1000).toFixed(1)}k 字</span>
+              <span className="page__folio-line">{t('storylineEditor.meta.chapters', { count: sNodes.length })}</span>
+              <span className="page__folio-line">{t('storylineEditor.meta.kWords', { count: (totalWc / 1000).toFixed(1) })}</span>
             </div>
 
             {/* 一 · 概述 */}
@@ -409,7 +411,7 @@ export function StorylineEditorView({
                         e.currentTarget.blur();
                       }
                     }}
-                    placeholder="Untitled storyline"
+                    placeholder={t('storylineEditor.untitled')}
                   />
 
                   {fieldReview.summaryChange ? (
@@ -434,13 +436,13 @@ export function StorylineEditorView({
                           e.currentTarget.blur();
                         }
                       }}
-                      placeholder="一句话概述本线…"
+                      placeholder={t('storylineEditor.summaryPlaceholder')}
                       rows={1}
                     />
                   )}
 
                   <div className="elem-hero__facts">
-                    <div className="elem-hero__fact-k">色标</div>
+                    <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
                       <div className="col-pick">
                         {STORY_COLORS.map((c) => (
@@ -467,7 +469,7 @@ export function StorylineEditorView({
                 under the hero; its H1/H2/H3 headings nest under this anchor in
                 the TOC. */}
             <h2 id="sl-scratch" className="page__scene">
-              <span className="page__scene-title">札记 · scratch</span>
+              <span className="page__scene-title">{t('storylineEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
               <EditorContent editor={editor} />
@@ -476,8 +478,8 @@ export function StorylineEditorView({
             {/* 字段 — storyline's own KV facts (seeded from project's storyline
                 template at creation, owned thereafter). */}
             <h2 id="sl-kv" className="page__scene">
-              <span className="page__scene-title">字段 · facts</span>
-              <span className="page__scene-meta">本线的 key/value 备忘</span>
+              <span className="page__scene-title">{t('storylineEditor.sections.facts')}</span>
+              <span className="page__scene-meta">{t('storylineEditor.meta.facts')}</span>
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -490,7 +492,7 @@ export function StorylineEditorView({
                 valueJson={currentStoryline.kvJson}
                 onPersist={commitKv}
                 suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
-                emptyHint="— 尚无字段。新建故事线时若项目模版已定义，会自动填充 —"
+                emptyHint={t('storylineEditor.empty.noFacts')}
               />
             </div>
 
@@ -498,15 +500,15 @@ export function StorylineEditorView({
                 storyline. Editing only affects future nodes; existing nodes
                 are untouched. */}
             <h2 id="sl-node-template" className="page__scene">
-              <span className="page__scene-title">章节模版 · node template</span>
-              <span className="page__scene-meta">新章节的默认骨架</span>
+              <span className="page__scene-title">{t('storylineEditor.sections.nodeTemplate')}</span>
+              <span className="page__scene-meta">{t('storylineEditor.meta.nodeTemplate')}</span>
             </h2>
             <div className="elem-body">
               <ElementTemplateEditor
                 key={`sl-node-tpl-${currentStoryline.id}`}
                 templateJson={currentStoryline.nodeContentTemplateJson}
                 onPersist={commitNodeTemplate}
-                placeholder="用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…"
+                placeholder={t('storylineEditor.nodeTemplatePlaceholder')}
               />
             </div>
 
@@ -514,18 +516,21 @@ export function StorylineEditorView({
             {sNodes.length > 0 && (
               <>
                 <h2 id="sl-chapters" className="page__scene">
-                  <span className="page__scene-title">章节序列</span>
+                  <span className="page__scene-title">{t('storylineEditor.sections.chapters')}</span>
                   <span className="page__scene-meta">
-                    {sNodes.length} 章 · {(totalWc / 1000).toFixed(1)}k 字
+                    {t('storylineEditor.meta.chaptersWords', {
+                      chapters: sNodes.length,
+                      words: (totalWc / 1000).toFixed(1),
+                    })}
                   </span>
                 </h2>
 
                 <div className="mgr-toolbar">
                   <div className="mgr-toolbar__chips">
                     {([
-                      ['all',        '全部',    sNodes.length],
-                      ['written',    '已写',    writtenCount],
-                      ['unwritten',  '未起',    unwrittenCount],
+                      ['all',        t('storylineEditor.filters.all'),    sNodes.length],
+                      ['written',    t('storylineEditor.filters.written'),    writtenCount],
+                      ['unwritten',  t('storylineEditor.filters.unwritten'),    unwrittenCount],
                     ] as const).map(([k, label, n]) => (
                       <div
                         key={k}
@@ -557,14 +562,14 @@ export function StorylineEditorView({
                         <div className="mgr-row__num">§{String(idx + 1).padStart(2, '0')}</div>
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
-                            <span>{n.title || 'Untitled'}</span>
+                            <span>{n.title || t('common.untitled')}</span>
                           </div>
                           <div className={`mgr-row__summary${n.summary ? '' : ' mgr-row__summary--empty'}`}>
-                            {n.summary || '— 尚未填写一句话摘要 —'}
+                            {n.summary || t('storylineEditor.empty.noChapterSummary')}
                           </div>
                           <div className="mgr-row__meta">
-                            <span><b>{(n.wordCount || 0).toLocaleString()}</b>字</span>
-                            <span>{hasContent ? 'written' : 'unwritten'}</span>
+                            <span><b>{(n.wordCount || 0).toLocaleString()}</b>{t('common.words')}</span>
+                            <span>{hasContent ? t('storylineEditor.filters.written') : t('storylineEditor.filters.unwritten')}</span>
                           </div>
                         </div>
                         <div className="mgr-row__wc">
@@ -573,14 +578,14 @@ export function StorylineEditorView({
                               <>{(n.wordCount / 1000).toFixed(1)}<em>k</em></>
                             ) : '—'}
                           </span>
-                          <span className="mgr-row__wc-k">字</span>
+                          <span className="mgr-row__wc-k">{t('common.words')}</span>
                         </div>
-                        <div className="mgr-row__open" title="打开章节">→</div>
+                        <div className="mgr-row__open" title={t('storylineEditor.actions.openChapter')}>→</div>
                       </div>
                     );
                   })}
                   {filteredNodes.length === 0 && (
-                    <div className="mgr-empty">— 此筛选下暂无章节 —</div>
+                    <div className="mgr-empty">{t('storylineEditor.empty.noFilteredChapters')}</div>
                   )}
                 </div>
               </>

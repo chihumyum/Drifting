@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
@@ -22,6 +23,7 @@ interface Props {
 // 未归属 — the save button label switches in that case to make the intent
 // explicit.
 export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
+  const { t } = useTranslation();
   const { bookNodes, storylines, nodeStorylineMapping, primaryStorylineByNode } = useDataStore();
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
@@ -101,9 +103,9 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
       onClose();
     } catch (error) {
       log.error('Failed to update chapter storylines:', error);
-      alert('Failed to update chapter storylines. Please try again.');
+      alert(t('editChapterStoryline.updateFailed'));
     }
-  }, [curNode, curPrimaryId, draftMainStorylineId, draftStorylineIds, nodeId, onClose, setNodeStorylines, updateNode]);
+  }, [curNode, curPrimaryId, draftMainStorylineId, draftStorylineIds, nodeId, onClose, setNodeStorylines, t, updateNode]);
 
   // The modal only makes sense for chapters — drift nodes are 1:1 with their
   // own kind and never carry storyline membership. Bail out silently if
@@ -151,7 +153,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
           }}
         >
           <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>
-            Edit Chapter Storyline
+            {t('editChapterStoryline.title')}
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{curNode.title}</div>
         </div>
@@ -168,7 +170,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                 fontSize: 13,
               }}
             >
-              这个项目还没有 storyline。
+              {t('editChapterStoryline.empty')}
             </div>
           ) : (
             storylines.map((storyline) => {
@@ -194,7 +196,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                     type="checkbox"
                     checked={selected}
                     onChange={() => handleToggleDraftStoryline(storyline.id)}
-                    aria-label={`Include ${storyline.name}`}
+                    aria-label={t('editChapterStoryline.include', { name: storyline.name })}
                   />
                   <button
                     type="button"
@@ -251,7 +253,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
                       disabled={!selected}
                       onChange={() => handleSelectDraftMain(storyline.id)}
                     />
-                    Main
+                    {t('editChapterStoryline.main')}
                   </label>
                 </div>
               );
@@ -280,7 +282,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
               cursor: 'pointer',
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -296,7 +298,7 @@ export function EditChapterStorylineModal({ nodeId, onClose }: Props) {
               fontWeight: 700,
             }}
           >
-            {willUnaffiliate ? '改为未归属' : 'Save'}
+            {willUnaffiliate ? t('editChapterStoryline.unaffiliate') : t('common.save')}
           </button>
         </div>
       </div>

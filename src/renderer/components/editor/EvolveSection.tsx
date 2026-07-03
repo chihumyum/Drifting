@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Wand2, AlertTriangle, ArrowRight, Square } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
 import { useSettingsStore, type EvolveEditorEngine, type AgentEditMode } from '../../store/settings-store';
@@ -12,15 +13,15 @@ import type { ContradictionSpot, EvolveResult, EvolveStopReason, EvolveTraceStep
 const WARN = 'hsl(28 80% 52%)';
 const OK = 'hsl(var(--accent))';
 
-const STOP_LABEL: Record<EvolveStopReason, string> = {
-  converged: '已收敛 · 矛盾清零',
-  'max-rounds': '到轮次上限 · 仍有残余',
-  stalled: '停滞 · 未净收缩',
-  'no-scope': '无出场章',
-  'dry-run': '仅检测',
-  'needs-confirmation': '规模较大 · 待确认',
-  'out-of-scope': '本质改写 · 需逐场手动',
-  aborted: '已手动停止 · 已暂存待审',
+const STOP_LABEL_KEY: Record<EvolveStopReason, string> = {
+  converged: 'evolveSection.stop.converged',
+  'max-rounds': 'evolveSection.stop.maxRounds',
+  stalled: 'evolveSection.stop.stalled',
+  'no-scope': 'evolveSection.stop.noScope',
+  'dry-run': 'evolveSection.stop.dryRun',
+  'needs-confirmation': 'evolveSection.stop.needsConfirmation',
+  'out-of-scope': 'evolveSection.stop.outOfScope',
+  aborted: 'evolveSection.stop.aborted',
 };
 
 // Element editor section: propagate an element-setting change into the prose of the
@@ -28,6 +29,7 @@ const STOP_LABEL: Record<EvolveStopReason, string> = {
 // (baseline-on-open vs current), runs the gated evolve loop, then shows an overview
 // + the spots needing manual work. canon→patch capture lives elsewhere (DESIGN.md §5).
 export function EvolveSection({ elementId, projectId }: { elementId: string; projectId: string }) {
+  const { t } = useTranslation();
   const el = useDataStore((s) => s.bookElements.find((e) => e.id === elementId && e.projectId === projectId));
   const { navigateToNode } = useProjectNavigation();
   const editorEngine = useSettingsStore((s) => s.evolveEditorEngine);
@@ -102,16 +104,16 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Wand2 size={14} style={{ color: 'hsl(var(--ink-3))' }} />
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'hsl(var(--ink-3))' }}>
-          演化 · EVOLVE
+          {t('evolveSection.kicker')}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {btn('仅检测', () => run({ dryRun: true }), false)}
-          {btn('一键演化', () => run({}), true)}
+          {btn(t('evolveSection.actions.dryRun'), () => run({ dryRun: true }), false)}
+          {btn(t('evolveSection.actions.evolve'), () => run({}), true)}
           {running && (
             <button
               type="button"
               onClick={() => stopRun(elementId)}
-              title="停止本次演化（已暂存的改动保留待审）"
+              title={t('evolveSection.actions.stopTitle')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -126,7 +128,7 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
               }}
             >
               <Square size={11} />
-              停止
+              {t('evolveSection.actions.stop')}
             </button>
           )}
         </div>
@@ -134,7 +136,7 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
         <Seg
-          label="改稿引擎"
+          label={t('evolveSection.controls.engine')}
           value={editorEngine}
           options={[
             ['agent-sdk', 'Agent SDK'],
@@ -144,11 +146,11 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
           disabled={running}
         />
         <Seg
-          label="审批"
+          label={t('evolveSection.controls.approval')}
           value={shadowEditMode}
           options={[
-            ['approve', '需批准'],
-            ['auto', '自动'],
+            ['approve', t('evolveSection.controls.needApproval')],
+            ['auto', t('evolveSection.controls.auto')],
           ]}
           onChange={(v) => setShadowEditMode(v as AgentEditMode)}
           disabled={running}
@@ -169,13 +171,13 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
             disabled={running}
             onChange={(e) => setIncludeDrafts(e.target.checked)}
           />
-          含草稿章
+          {t('evolveSection.controls.includeDrafts')}
         </label>
       </div>
 
       {deltas.length === 0 && (
         <div style={{ fontSize: 12.5, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '4px 0' }}>
-          — 改了该设定后，一键把所有引用它的章节正文改去适应（canon → 正文） —
+          {t('evolveSection.emptyHint')}
         </div>
       )}
 
@@ -183,7 +185,7 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
 
       {running && (
         <div style={{ fontSize: 12, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '6px 0', whiteSpace: 'pre-wrap' }}>
-          {phase || '准备中…'}
+          {phase || t('evolveSection.status.preparing')}
         </div>
       )}
       {!running && phase && !result && (
@@ -198,16 +200,17 @@ export function EvolveSection({ elementId, projectId }: { elementId: string; pro
   );
 }
 
-const PHASE_LABEL: Record<EvolveTraceStep['phase'], string> = {
-  detect: '探测',
-  edit: '改稿',
-  verify: '复验',
+const PHASE_LABEL_KEY: Record<EvolveTraceStep['phase'], string> = {
+  detect: 'evolveSection.trace.phase.detect',
+  edit: 'evolveSection.trace.phase.edit',
+  verify: 'evolveSection.trace.phase.verify',
 };
 
 /** Inspectable trail of the run — each critic 查证/裁决 round and each editor tool
  *  call, tagged [r{round}·phase]《章》. Temporary debugging surface: collapsed by
  *  default after a run, auto-open while running so progress is visible live. */
 function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: boolean }) {
+  const { t } = useTranslation();
   if (trace.length === 0) return null;
   // key remount on running-flip: live run renders force-open (progress visible);
   // once done it remounts collapsed and the user's manual toggle isn't clobbered
@@ -215,7 +218,7 @@ function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: bool
   return (
     <details key={running ? 'live' : 'done'} open={running || undefined} style={{ marginTop: 6 }}>
       <summary style={{ cursor: 'pointer', fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'hsl(var(--ink-4))' }}>
-        过程 · {trace.length} 步（critic / editor 动作与 tool call）
+        {t('evolveSection.trace.summary', { count: trace.length })}
       </summary>
       <div
         style={{
@@ -231,26 +234,28 @@ function TraceView({ trace, running }: { trace: EvolveTraceStep[]; running: bool
           gap: 6,
         }}
       >
-        {trace.map((t, i) => (
+        {trace.map((step, i) => (
           <div key={i} style={{ fontSize: 11, lineHeight: 1.5 }}>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
               <span style={{ color: 'hsl(var(--ink-4))' }}>
-                r{t.round}·{PHASE_LABEL[t.phase]}《{t.chapterTitle}》
+                r{step.round}·{t(PHASE_LABEL_KEY[step.phase])}《{step.chapterTitle}》
               </span>{' '}
-              <span style={{ color: t.actor === 'critic' ? 'hsl(265 45% 55%)' : 'hsl(var(--accent))' }}>
-                {t.actor === 'critic' ? '审' : '改'}
+              <span style={{ color: step.actor === 'critic' ? 'hsl(265 45% 55%)' : 'hsl(var(--accent))' }}>
+                {step.actor === 'critic'
+                  ? t('evolveSection.trace.actor.critic')
+                  : t('evolveSection.trace.actor.editor')}
               </span>{' '}
-              <span style={{ color: 'hsl(var(--ink-2))' }}>{t.step.label}</span>
+              <span style={{ color: 'hsl(var(--ink-2))' }}>{step.step.label}</span>
             </div>
-            {t.step.detail && (
-              <div style={{ color: 'hsl(var(--ink-3))', paddingLeft: 12 }}>{t.step.detail}</div>
+            {step.step.detail && (
+              <div style={{ color: 'hsl(var(--ink-3))', paddingLeft: 12 }}>{step.step.detail}</div>
             )}
-            {t.step.items?.map((it, j) => (
+            {step.step.items?.map((it, j) => (
               <div key={j} style={{ color: 'hsl(var(--ink-3))', paddingLeft: 12 }}>
                 · {it}
               </div>
             ))}
-            {t.step.calls?.map((c, j) => (
+            {step.step.calls?.map((c, j) => (
               <div
                 key={j}
                 title={c.result}
@@ -325,10 +330,11 @@ function ChangedFields({
   onDismiss: (d: FieldDelta) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <details style={{ marginBottom: 6 }} open>
       <summary style={{ cursor: 'pointer', fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-        将演化这 {deltas.length} 项改动：
+        {t('evolveSection.changed.summary', { count: deltas.length })}
         <span style={{ color: 'hsl(var(--ink-1))' }}>{deltas.map((d) => d.label).join('、')}</span>
       </summary>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '6px 0 0', paddingLeft: 4 }}>
@@ -336,14 +342,14 @@ function ChangedFields({
           <div key={`${d.kind}:${d.label}`} style={{ fontSize: 11.5, lineHeight: 1.45, display: 'flex', gap: 6 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-4))' }}>{d.label}</span>
-              <div style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>{d.oldText || '（空）'}</div>
-              <div style={{ color: 'hsl(var(--ink-1))' }}>{d.newText || '（空）'}</div>
+              <div style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>{d.oldText || t('evolveSection.changed.empty')}</div>
+              <div style={{ color: 'hsl(var(--ink-1))' }}>{d.newText || t('evolveSection.changed.empty')}</div>
             </div>
             <button
               type="button"
               onClick={() => onDismiss(d)}
               disabled={disabled}
-              title="此改动无需演化——标记为已落地，从清单移除（再次编辑该字段会重新出现）"
+              title={t('evolveSection.changed.dismissTitle')}
               style={{
                 alignSelf: 'flex-start',
                 flexShrink: 0,
@@ -357,7 +363,7 @@ function ChangedFields({
                 whiteSpace: 'nowrap',
               }}
             >
-              不演化
+              {t('evolveSection.changed.dismiss')}
             </button>
           </div>
         ))}
@@ -377,6 +383,7 @@ function EvolveResultView({
   onForce: () => void;
   running: boolean;
 }) {
+  const { t } = useTranslation();
   const { stopReason, worklist, residual, resolvedCount, rounds, errors, note } = result;
   const staged = Object.values(result.pendingByChapter).reduce((n, cs) => n + cs.length, 0);
   const accent = stopReason === 'converged' ? OK : stopReason === 'out-of-scope' || stopReason === 'needs-confirmation' ? WARN : 'hsl(var(--ink-3))';
@@ -394,14 +401,24 @@ function EvolveResultView({
           padding: '6px 8px',
         }}
       >
-        {STOP_LABEL[stopReason]}
+        {t(STOP_LABEL_KEY[stopReason])}
         {stopReason !== 'out-of-scope' && stopReason !== 'no-scope' && (
           <span style={{ color: 'hsl(var(--ink-4))' }}>
             {' · '}
-            {rounds}轮 · 化解 {resolvedCount} · 残余 {residual.length} · 暂存 {staged} 块改动
+            {t('evolveSection.result.stats', {
+              rounds,
+              resolved: resolvedCount,
+              residual: residual.length,
+              staged,
+            })}
           </span>
         )}
-        {errors.length > 0 && <span style={{ color: WARN }}>{` · ${errors.length} 章失败(已隔离)`}</span>}
+        {errors.length > 0 && (
+          <span style={{ color: WARN }}>
+            {' · '}
+            {t('evolveSection.result.errors', { count: errors.length })}
+          </span>
+        )}
       </div>
 
       {note && (
@@ -427,16 +444,22 @@ function EvolveResultView({
             cursor: running ? 'default' : 'pointer',
           }}
         >
-          确认并演化（{worklist?.length ?? residual.length} 受影响）
+          {t('evolveSection.result.confirmAndEvolve', {
+            count: worklist?.length ?? residual.length,
+          })}
         </button>
       )}
 
       {/* essence worklist — full appearance set for manual reconception (NOT contradictions) */}
       {worklist && worklist.length > 0 && (
-        <ListBlock title={`出场清单 · ${worklist.length} 章（逐场重构，非矛盾清单）`}>
+        <ListBlock title={t('evolveSection.result.worklistTitle', { count: worklist.length })}>
           {worklist.map((w) => (
             <Row key={w.chapterId} onJump={() => onJump(w.chapterId)} title={w.title} order={w.order}>
-              <span style={{ color: 'hsl(var(--ink-4))' }}>{w.blockIds.length ? `${w.blockIds.length} 处出场` : '出场'}</span>
+              <span style={{ color: 'hsl(var(--ink-4))' }}>
+                {w.blockIds.length
+                  ? t('evolveSection.result.appearanceCount', { count: w.blockIds.length })
+                  : t('evolveSection.result.appearance')}
+              </span>
             </Row>
           ))}
         </ListBlock>
@@ -444,7 +467,7 @@ function EvolveResultView({
 
       {/* residual contradictions — the spots still needing manual attention after the loop */}
       {residual.length > 0 && (
-        <ListBlock title={`需手动 · ${residual.length} 处残余矛盾`}>
+        <ListBlock title={t('evolveSection.result.residualTitle', { count: residual.length })}>
           {residual.map((s, i) => (
             <Row key={`${s.chapterId}-${i}`} onJump={() => onJump(s.chapterId)} title={s.chapterTitle} order={undefined}>
               <span style={{ color: 'hsl(var(--ink-3))' }}>{s.reason}</span>
@@ -458,7 +481,7 @@ function EvolveResultView({
 
       {staged > 0 && (
         <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-4))', padding: '0 2px' }}>
-          已暂存 {staged} 块改动 → 到对应章节逐块审阅（✓ 接受 / ✗ 驳回）。
+          {t('evolveSection.result.stagedNote', { count: staged })}
         </div>
       )}
     </div>
@@ -470,6 +493,7 @@ function EvolveResultView({
  *  Merges the round-0 discovery list (initialSpots) with the staged edits
  *  (pendingByChapter, before→after), keyed + ordered by chapter. */
 function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapterId: string) => void }) {
+  const { t } = useTranslation();
   const orderOf = new Map(result.scoped.map((c) => [c.chapterId, c.order] as const));
   const titleOf = new Map(result.scoped.map((c) => [c.chapterId, c.title] as const));
   const rows = new Map<string, { title: string; order: number; found: ContradictionSpot[]; edits: AgentBlockChange[] }>();
@@ -489,7 +513,7 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
   if (ordered.length === 0) return null;
 
   return (
-    <ListBlock title={`演化记录 · ${ordered.length} 章（发现与改动）`}>
+    <ListBlock title={t('evolveSection.activity.title', { count: ordered.length })}>
       {ordered.map(([chapterId, e]) => (
         <details key={chapterId} style={{ borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}>
           <summary style={{ cursor: 'pointer', fontSize: 12, lineHeight: 1.5, display: 'flex', gap: 8, alignItems: 'baseline' }}>
@@ -499,32 +523,35 @@ function ActivityLog({ result, onJump }: { result: EvolveResult; onJump: (chapte
                 ev.preventDefault();
                 onJump(chapterId);
               }}
-              title="跳到该章"
+              title={t('evolveSection.common.jumpToChapter')}
               style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}
             >
               {e.title}
               {Number.isFinite(e.order) ? ` n${e.order}` : ''}
             </button>
             <span style={{ color: 'hsl(var(--ink-3))' }}>
-              发现 {e.found.length} 矛盾 · 改 {e.edits.length} 块
+              {t('evolveSection.activity.summary', {
+                found: e.found.length,
+                edits: e.edits.length,
+              })}
             </span>
           </summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5, margin: '5px 0 8px', paddingLeft: 2 }}>
             {e.found.map((s, i) => (
               <div key={`f${i}`} style={{ fontSize: 11.5, lineHeight: 1.45, color: 'hsl(var(--ink-2))' }}>
-                <span style={{ color: WARN, marginRight: 5 }}>发现</span>
+                <span style={{ color: WARN, marginRight: 5 }}>{t('evolveSection.activity.found')}</span>
                 {s.reason}
               </div>
             ))}
             {e.edits.map((c, i) => (
               <div key={`e${i}`} style={{ fontSize: 11.5, lineHeight: 1.45 }}>
-                <span style={{ color: OK, marginRight: 5 }}>改动</span>
+                <span style={{ color: OK, marginRight: 5 }}>{t('evolveSection.activity.edit')}</span>
                 {c.oldText && (
                   <span style={{ color: 'hsl(var(--ink-4))', textDecoration: 'line-through' }}>{c.oldText}</span>
                 )}
                 {c.oldText && c.newText && <span style={{ color: 'hsl(var(--ink-4))' }}> → </span>}
                 {c.newText && <span style={{ color: 'hsl(var(--ink-1))' }}>{c.newText}</span>}
-                {!c.newText && <span style={{ color: 'hsl(var(--ink-4))' }}>（删除）</span>}
+                {!c.newText && <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.deleted_paren')}</span>}
               </div>
             ))}
           </div>
@@ -554,12 +581,13 @@ function Row({
   order?: number;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12, lineHeight: 1.45, padding: '2px 0', borderLeft: '2px solid hsl(var(--rule))', paddingLeft: 10 }}>
       <button
         type="button"
         onClick={onJump}
-        title="跳到该章"
+        title={t('evolveSection.common.jumpToChapter')}
         style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }}
       >
         {title}

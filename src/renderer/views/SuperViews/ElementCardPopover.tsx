@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
+import { useTranslation } from 'react-i18next';
 import type { BookElement } from '../../domain/book-element';
 import { useBookElement } from '../../usecase/useBookElement';
 import { useEntityEditor } from '../../hooks/useEntityEditor';
@@ -50,6 +51,7 @@ export function ElementCardPopover({
   onClose,
   onOpenInEditor,
 }: ElementCardPopoverProps) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'default' | 'upgrade'>('default');
   const [nameDraft, setNameDraft] = useState(element.name);
   const [summaryDraft, setSummaryDraft] = useState(element.summary ?? '');
@@ -167,7 +169,7 @@ export function ElementCardPopover({
     content: element.contentJson ?? null,
     onPersist: handlePersist,
     autoFocus: false,
-    placeholder: '故事发生时，这个元素是什么？',
+    placeholder: t('elementEditor.bodyPlaceholder'),
     minHeight: '320px',
   });
 
@@ -227,7 +229,7 @@ export function ElementCardPopover({
       <div
         ref={containerRef}
         role="dialog"
-        aria-label="元素卡片"
+        aria-label={t('elementCardPopover.aria.card')}
         style={{
           ...popoverStyle,
           background: 'hsl(var(--paper))',
@@ -280,7 +282,7 @@ export function ElementCardPopover({
                 (e.currentTarget as HTMLInputElement).blur();
               }
             }}
-            placeholder="未命名"
+            placeholder={t('common.untitled')}
             style={{
               flex: 1,
               minWidth: 0,
@@ -297,8 +299,8 @@ export function ElementCardPopover({
           <button
             type="button"
             onClick={onClose}
-            title="关闭"
-            aria-label="关闭"
+            title={t('common.close')}
+            aria-label={t('common.close')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -328,7 +330,7 @@ export function ElementCardPopover({
                   (e.currentTarget as HTMLTextAreaElement).blur();
                 }
               }}
-              placeholder="写一段摘要…"
+              placeholder={t('nodeCardPopover.summaryPlaceholder')}
               rows={1}
               style={{
                 width: '100%',
@@ -363,19 +365,19 @@ export function ElementCardPopover({
                   void commitSummary();
                   setMode('upgrade');
                 }}
-                title="展开为简化编辑器"
+                title={t('nodeCardPopover.expandTitle')}
                 style={popoverBtnStyle}
               >
-                展开编辑 ↗
+                {t('nodeCardPopover.expand')} ↗
               </button>
               <div style={{ flex: 1 }} />
               <button
                 type="button"
                 onClick={() => onOpenInEditor(element.id)}
-                title="跳转到完整编辑器"
+                title={t('nodeCardPopover.openFullTitle')}
                 style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
               >
-                在编辑器中打开 →
+                {t('nodeCardPopover.openInEditor')} →
               </button>
             </div>
           </>
@@ -392,7 +394,7 @@ export function ElementCardPopover({
                 value={summaryDraft}
                 onChange={(e) => setSummaryDraft(e.target.value)}
                 onBlur={() => void commitSummary()}
-                placeholder="摘要…"
+                placeholder={t('elementCardPopover.summaryShortPlaceholder')}
                 rows={1}
                 style={{
                   width: '100%',
@@ -431,7 +433,7 @@ export function ElementCardPopover({
                     padding: 16,
                   }}
                 >
-                  载入中…
+                  {t('nodeCardPopover.loading')}
                 </div>
               )}
             </div>
@@ -449,10 +451,10 @@ export function ElementCardPopover({
               <button
                 type="button"
                 onClick={() => setMode('default')}
-                title="折叠回卡片"
+                title={t('nodeCardPopover.collapseTitle')}
                 style={popoverBtnStyle}
               >
-                ↙ 折叠
+                ↙ {t('nodeCardPopover.collapse')}
               </button>
               <span
                 style={{
@@ -465,15 +467,15 @@ export function ElementCardPopover({
                   textAlign: 'center',
                 }}
               >
-                改动会同步到完整编辑器
+                {t('elementCardPopover.syncNote')}
               </span>
               <button
                 type="button"
                 onClick={() => onOpenInEditor(element.id)}
-                title="跳转到完整编辑器"
+                title={t('nodeCardPopover.openFullTitle')}
                 style={{ ...popoverBtnStyle, ...popoverPrimaryBtnStyle }}
               >
-                完整编辑器 →
+                {t('nodeCardPopover.fullEditor')} →
               </button>
             </div>
           </>

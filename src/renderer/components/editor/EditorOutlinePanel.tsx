@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 
 export interface OutlineEntry {
@@ -89,10 +90,11 @@ export function EditorOutlinePanel({
   items,
   activeId,
   onItemClick,
-  emptyHint = '— 暂无标题 —',
+  emptyHint,
   secondaryItems,
   collapseChaptersByDefault = false,
 }: Props) {
+  const { t } = useTranslation();
   const collapsed = useUiStore((s) => s.outlineCollapsed);
 
   // Track both the rail element (to measure its current x-position) and
@@ -249,16 +251,21 @@ export function EditorOutlinePanel({
   // Count navigable rows for the head badge — acts are dividers, not entries.
   const navCount = items.filter((i) => i.kind !== 'act').length;
   const hasSecondary = secondaryItems && secondaryItems.length > 0;
+  const resolvedEmptyHint = emptyHint ?? t('editorOutline.emptyHint');
 
   const body = (
     <>
       <div className="toc-head">
         <span>{title}</span>
-        {navCount > 0 && <span className="toc-head__count">{navCount} 节</span>}
+        {navCount > 0 && (
+          <span className="toc-head__count">
+            {t('editorOutline.sectionCount', { count: navCount })}
+          </span>
+        )}
       </div>
 
       {items.length === 0 ? (
-        <div className="toc-empty">{emptyHint}</div>
+        <div className="toc-empty">{resolvedEmptyHint}</div>
       ) : (
         items.map((item) => renderEntry(item))
       )}
@@ -277,11 +284,11 @@ export function EditorOutlinePanel({
 
   // Expanded: the panel sits flush at the body's left edge.
   return (
-    <nav className="editor__toc-rail" ref={attachRoot} aria-label="Outline">
+    <nav className="editor__toc-rail" ref={attachRoot} aria-label={t('editorOutline.aria')}>
       <div
         className={`editor__toc-overlay${coversManuscript ? ' editor__toc-overlay--over-manuscript' : ''}`}
         role="dialog"
-        aria-label="Outline"
+        aria-label={t('editorOutline.aria')}
       >
         {body}
       </div>

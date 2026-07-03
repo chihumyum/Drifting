@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events';
 import {
   createEntitySnapshotRepository,
@@ -26,13 +27,6 @@ interface Target {
   entityKind: ProseEntityType;
   entityId: string;
 }
-
-const KIND_LABEL: Record<ProseEntityType, string> = {
-  node: '章节',
-  element: '元素',
-  storyline: '故事线',
-  category: '类目',
-};
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -75,6 +69,7 @@ function toVm(row: EntitySnapshotSummary): RowVm {
 }
 
 export function EntitySnapshotHistoryModal() {
+  const { t } = useTranslation();
   const [target, setTarget] = useState<Target | null>(null);
   const [rows, setRows] = useState<RowVm[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -147,7 +142,7 @@ export function EntitySnapshotHistoryModal() {
       setNote(null);
       try {
         await restoreEntitySnapshot(id);
-        setNote('已恢复到所选版本。恢复前的状态已自动存为新快照。');
+        setNote(t('snapshotHistory.restoreSuccess'));
         // Reload: the pre-restore capture (and possibly a post-restore one)
         // changed the list.
         const list = await createEntitySnapshotRepository().listForEntity(
@@ -156,20 +151,20 @@ export function EntitySnapshotHistoryModal() {
         );
         setRows(list.map(toVm));
       } catch (err) {
-        setNote(`恢复失败：${err instanceof Error ? err.message : String(err)}`);
+        setNote(t('snapshotHistory.restoreFailed', { error: err instanceof Error ? err.message : String(err) }));
       } finally {
         setBusy(false);
         setConfirmId(null);
       }
     },
-    [target],
+    [target, t],
   );
 
   const header = useMemo(() => {
     if (!target) return '';
-    const kind = KIND_LABEL[target.entityKind];
+    const kind = t(`snapshotHistory.kind.${target.entityKind}`);
     return entityName ? `${kind} · ${entityName}` : kind;
-  }, [target, entityName]);
+  }, [target, entityName, t]);
 
   if (!target) return null;
 
@@ -186,7 +181,7 @@ export function EntitySnapshotHistoryModal() {
       />
       <div
         role="dialog"
-        aria-label="历史快照"
+        aria-label={t('snapshotHistory.aria')}
         style={{
           position: 'fixed',
           top: '50%',
@@ -226,7 +221,7 @@ export function EntitySnapshotHistoryModal() {
                 marginBottom: 4,
               }}
             >
-              历史快照 · 30 天
+              {t('snapshotHistory.title')}
             </div>
             <div
               style={{
@@ -244,7 +239,7 @@ export function EntitySnapshotHistoryModal() {
           <button
             type="button"
             onClick={close}
-            aria-label="关闭"
+            aria-label={t('common.close')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -275,9 +270,9 @@ export function EntitySnapshotHistoryModal() {
 
         <div style={{ overflowY: 'auto', padding: '6px 10px 12px', flex: 1 }}>
           {rows === null ? (
-            <EmptyLine text="读取中…" />
+            <EmptyLine text={t('snapshotHistory.loading')} />
           ) : rows.length === 0 ? (
-            <EmptyLine text="暂无快照。编辑正文后系统会按约 15 分钟一次的节奏自动留存。" />
+            <EmptyLine text={t('snapshotHistory.empty')} />
           ) : (
             rows.map((row) => (
               <div
@@ -309,7 +304,7 @@ export function EntitySnapshotHistoryModal() {
                       flexShrink: 0,
                     }}
                   >
-                    {row.words.toLocaleString()} 字
+                    {t('common.wordsCount', { count: row.words.toLocaleString() })}
                   </span>
                   {row.metaLabel && (
                     <span
@@ -337,7 +332,7 @@ export function EntitySnapshotHistoryModal() {
                           onClick={() => void handleRestore(row.id)}
                           style={rowBtn('hsl(var(--accent))')}
                         >
-                          {busy ? '恢复中…' : '确认覆盖当前版本'}
+                          {busy ? t('snapshotHistory.restoring') : t('snapshotHistory.confirmRestore')}
                         </button>
                         <button
                           type="button"
@@ -345,7 +340,7 @@ export function EntitySnapshotHistoryModal() {
                           onClick={() => setConfirmId(null)}
                           style={rowBtn('hsl(var(--ink-3))')}
                         >
-                          取消
+                          {t('common.cancel')}
                         </button>
                       </>
                     ) : (
@@ -354,9 +349,9 @@ export function EntitySnapshotHistoryModal() {
                         disabled={busy}
                         onClick={() => setConfirmId(row.id)}
                         style={rowBtn('hsl(var(--ink-2))')}
-                        title="把正文与字段恢复到这个版本（当前状态会先自动存为快照）"
+                        title={t('snapshotHistory.restoreTitle')}
                       >
-                        恢复…
+                        {t('snapshotHistory.restore')}
                       </button>
                     )}
                   </span>

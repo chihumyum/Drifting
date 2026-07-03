@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import { useAgentEditStore } from '../../store/agent-edit-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
@@ -355,6 +356,7 @@ function ApproveControl({
   onApprove: () => void;
   onReject: () => void;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const node = ref.current;
@@ -404,7 +406,12 @@ function ApproveControl({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollEl, change.blockId, change.op, change.afterPrevId]);
 
-  const label = change.op === 'new' ? '新增' : change.op === 'deleted' ? '删除' : '改写';
+  const label =
+    change.op === 'new'
+      ? t('agentEditAnimator.op.new')
+      : change.op === 'deleted'
+        ? t('agentEditAnimator.op.deleted')
+        : t('agentEditAnimator.op.changed');
   return (
     <div
       ref={ref}
@@ -414,10 +421,10 @@ function ApproveControl({
       style={{ position: 'absolute', top: 0, left: 0, visibility: 'hidden' }}
     >
       <span className="agent-approve__tag">{label}</span>
-      <button type="button" className="agent-approve__btn agent-approve__btn--ok" title="采纳这处改动" onClick={onApprove}>
+      <button type="button" className="agent-approve__btn agent-approve__btn--ok" title={t('fieldReview.acceptTitle')} onClick={onApprove}>
         <Check size={13} />
       </button>
-      <button type="button" className="agent-approve__btn agent-approve__btn--no" title="拒绝并还原" onClick={onReject}>
+      <button type="button" className="agent-approve__btn agent-approve__btn--no" title={t('fieldReview.rejectTitle')} onClick={onReject}>
         <X size={13} />
       </button>
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
@@ -90,6 +91,7 @@ function VirtualChapterRowImpl({
   storylineName,
   chapterRoman,
 }: VirtualChapterRowProps) {
+  const { t } = useTranslation();
   const [content, setContent] = useState<NodeContent | null | undefined>(undefined);
 
   const intrinsicHeight = estimateChapterHeight(node.wordCount || 0);
@@ -147,7 +149,7 @@ function VirtualChapterRowImpl({
       <div className="editor__spread">
         <article className="page">
           <div className="page__folio" aria-hidden="true">
-            <span className="page__folio-line">Chapter</span>
+            <span className="page__folio-line">{t('virtualChapterRow.chapter')}</span>
             <span className="page__folio-line page__folio-line--accent">{chapterRoman}</span>
             {storylineName && (
               <span
@@ -157,7 +159,9 @@ function VirtualChapterRowImpl({
                 {storylineName}
               </span>
             )}
-            <span className="page__folio-line">{(node.wordCount || 0).toLocaleString()} 字</span>
+            <span className="page__folio-line">
+              {t('common.wordsCount', { count: (node.wordCount || 0).toLocaleString() })}
+            </span>
           </div>
 
           {storylineName && <div className="page__chapter-mark">— {storylineName} —</div>}

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import '../../../styles/timeline-pin-menu.css';
 
 // Context menu for the EMPTY area of the narrative time-axis (marker) rail,
@@ -20,6 +21,7 @@ export interface TimelineRailMenuProps {
 }
 
 export function TimelineRailMenu({ x, y, onAddMarker, onClose }: TimelineRailMenuProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const t = e.target as HTMLElement | null;
@@ -50,7 +52,7 @@ export function TimelineRailMenu({ x, y, onAddMarker, onClose }: TimelineRailMen
           onAddMarker();
         }}
       >
-        在此处新建标记
+        {t('bottomTimeline.railMenu.addMarkerHere')}
       </button>
     </div>,
     document.body,

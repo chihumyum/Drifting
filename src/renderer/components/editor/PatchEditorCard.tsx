@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
+import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import loglevel from 'loglevel';
 import {
@@ -33,6 +34,7 @@ interface PatchEditorCardProps {
 }
 
 export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchEditorCardProps) {
+  const { t } = useTranslation();
   const { navigateToNode } = useProjectNavigation();
 
   const [titleValue, setTitleValue] = useState(patch.title ?? '');
@@ -338,9 +340,13 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
 
   const anchorLabel = patch.sourceBlockId
     ? sourceMissing
-      ? `${patch.sourceNodeTitle ?? '(已删除章节)'} · 原段已删除`
-      : `${patch.sourceNodeTitle ?? '(已删除章节)'} · 段`
-    : (patch.sourceNodeTitle ?? '无章节归属');
+      ? t('patchEditorCard.anchor.sourceDeleted', {
+          title: patch.sourceNodeTitle ?? t('patchEditorCard.deletedChapter'),
+        })
+      : t('patchEditorCard.anchor.sourceBlock', {
+          title: patch.sourceNodeTitle ?? t('patchEditorCard.deletedChapter'),
+        })
+    : (patch.sourceNodeTitle ?? t('patchEditorCard.anchor.noChapter'));
 
   // Anchor-click behavior forks three ways:
   //   - original block deleted (+ snapshot exists) → toggle the snapshot
@@ -373,11 +379,11 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
 
   const anchorTitle = sourceMissing
     ? hasSnapshot
-      ? `${anchorLabel} · 点击查看原文快照`
+      ? t('patchEditorCard.anchor.viewSnapshotTitle', { label: anchorLabel })
       : anchorLabel
     : patch.invalidatedAt
-      ? `来自 ${anchorLabel} · 原文已删除，点击跳转到章节`
-      : `来自 ${anchorLabel} · 点击跳转`;
+      ? t('patchEditorCard.anchor.invalidJumpTitle', { label: anchorLabel })
+      : t('patchEditorCard.anchor.jumpTitle', { label: anchorLabel });
 
   return (
     <div
@@ -391,14 +397,24 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           <span
             className={`patch-card__review-tag${isDeleting ? ' patch-card__review-tag--del' : ''}`}
           >
-            {isDeleting ? 'agent 删除' : isChanged ? 'agent 改动' : 'agent 新增'}
+            {isDeleting
+              ? t('patchEditorCard.review.agentDelete')
+              : isChanged
+                ? t('patchEditorCard.review.agentChange')
+                : t('patchEditorCard.review.agentAdd')}
           </span>
           {reviewMode === 'approve' && (
             <span className="patch-card__review-actions">
               <button
                 type="button"
                 className="field-review__btn field-review__btn--ok"
-                title={isDeleting ? '确认删除' : isChanged ? '采纳改动' : '保留这条补丁'}
+                title={
+                  isDeleting
+                    ? t('patchEditorCard.review.confirmDelete')
+                    : isChanged
+                      ? t('patchEditorCard.review.acceptChange')
+                      : t('patchEditorCard.review.keepPatch')
+                }
                 onClick={acceptPatch}
               >
                 <Check size={12} />
@@ -406,7 +422,13 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
               <button
                 type="button"
                 className="field-review__btn field-review__btn--no"
-                title={isDeleting ? '还原（不删除）' : isChanged ? '撤销改动' : '丢弃并删除'}
+                title={
+                  isDeleting
+                    ? t('patchEditorCard.review.restore')
+                    : isChanged
+                      ? t('patchEditorCard.review.rejectChange')
+                      : t('patchEditorCard.review.discardAndDelete')
+                }
                 onClick={rejectPatch}
               >
                 <X size={12} />
@@ -420,7 +442,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           className="patch-card__toggle"
-          aria-label={collapsed ? '展开' : '折叠'}
+          aria-label={collapsed ? t('patchEditorCard.actions.expand') : t('patchEditorCard.actions.collapse')}
         >
           {collapsed ? '▸' : '▾'}
         </button>
@@ -434,7 +456,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             setTitleValue(e.target.value);
           }}
           onBlur={handleSaveTitle}
-          placeholder="补丁标题（可选）"
+          placeholder={t('patchEditorCard.titlePlaceholder')}
           className="patch-card__title"
         />
         {/* Invalidated — the anchored source text was deleted from its chapter,
@@ -445,21 +467,21 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             <button
               type="button"
               className="patch-card__invalid-badge patch-card__invalid-badge--btn"
-              title="锚定的原文已从章节中删除 · 点击查看原文快照"
+              title={t('patchEditorCard.invalid.viewSnapshotTitle')}
               aria-expanded={snapshotOpen}
               onClick={() => {
                 setCollapsed(false);
                 setSnapshotOpen((v) => !v);
               }}
             >
-              失效 {snapshotOpen ? '▾' : '▸'}
+              {t('patchEditorCard.invalid.label')} {snapshotOpen ? '▾' : '▸'}
             </button>
           ) : (
             <span
               className="patch-card__invalid-badge"
-              title="锚定的原文已从章节中删除，此补丁已失效，不再纳入一致性审阅"
+              title={t('patchEditorCard.invalid.title')}
             >
-              失效
+              {t('patchEditorCard.invalid.label')}
             </span>
           ))}
         {/* Source-chapter anchor — SECONDARY, sits after the title. Click
@@ -493,18 +515,20 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
             type="button"
             onClick={() => setAnchorEditing((v) => !v)}
             className="patch-card__anchor-edit"
-            title="改章节归属"
-            aria-label="编辑来源章节"
+            title={t('patchEditorCard.anchor.changeChapter')}
+            aria-label={t('patchEditorCard.anchor.editSourceChapter')}
             aria-expanded={anchorEditing}
           >
             ✎
           </button>
           {anchorEditing && (
             <div className="patch-card__anchor-pop" role="listbox">
-              <div className="patch-card__anchor-pop-kicker">归属到</div>
+              <div className="patch-card__anchor-pop-kicker">{t('patchEditorCard.anchor.assignTo')}</div>
               <div className="patch-card__anchor-pop-list">
                 {chapterOptions.length === 0 && (
-                  <div className="patch-card__anchor-pop-empty">本项目还没有章节</div>
+                  <div className="patch-card__anchor-pop-empty">
+                    {t('patchEditorCard.anchor.noChapters')}
+                  </div>
                 )}
                 {chapterOptions.map((n) => {
                   const current = n.id === patch.sourceNodeId;
@@ -525,14 +549,16 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                           chapter without leaving to recall its contents. */}
                       <span className="patch-card__anchor-pop-body">
                         <span className="patch-card__anchor-pop-title">
-                          {n.title || '(未命名章节)'}
+                          {n.title || t('patchEditorCard.untitledChapter')}
                         </span>
                         {n.summary?.trim() && (
                           <span className="patch-card__anchor-pop-summary">{n.summary.trim()}</span>
                         )}
                       </span>
                       {current && patch.sourceBlockId && (
-                        <span className="patch-card__anchor-pop-tail">块级</span>
+                        <span className="patch-card__anchor-pop-tail">
+                          {t('patchEditorCard.anchor.blockLevel')}
+                        </span>
                       )}
                     </button>
                   );
@@ -552,7 +578,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
                 <span className="patch-card__anchor-pop-mark">
                   {!patch.sourceNodeId ? '✓' : ''}
                 </span>
-                <span className="patch-card__anchor-pop-title">无章节归属</span>
+                <span className="patch-card__anchor-pop-title">
+                  {t('patchEditorCard.anchor.noChapter')}
+                </span>
               </button>
             </div>
           )}
@@ -561,7 +589,7 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           type="button"
           onClick={handleDelete}
           className="patch-card__delete"
-          aria-label="删除补丁"
+          aria-label={t('patchEditorCard.actions.deletePatch')}
         >
           ×
         </button>
@@ -569,7 +597,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
       {!collapsed && snapshotOpen && snapshotText && (
         <div className="patch-card__snapshot">
           {invalidSnapshot && (
-            <div className="patch-card__snapshot-kicker">原文快照 · 已从章节删除</div>
+            <div className="patch-card__snapshot-kicker">
+              {t('patchEditorCard.snapshot.kicker')}
+            </div>
           )}
           <pre className="patch-card__snapshot-body">{snapshotText}</pre>
         </div>
@@ -581,7 +611,9 @@ export function PatchEditorCard({ patch, projectId, onChange, onDelete }: PatchE
           <div className="patch-card__review-diff">
             {(stash?.title ?? '') !== (patch.title ?? '') && (
               <div>
-                <span className="patch-card__review-diff-title">标题</span>{' '}
+                <span className="patch-card__review-diff-title">
+                  {t('patchEditorCard.review.titleField')}
+                </span>{' '}
                 <FieldDiff oldText={stash?.title ?? ''} newText={patch.title ?? ''} />
               </div>
             )}

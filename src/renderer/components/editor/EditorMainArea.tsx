@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import {
@@ -295,6 +296,7 @@ function PaneRenderer({ leaf, projectId }: { leaf: LeafTab; projectId: string })
 }
 
 function EmptyEditorState({ onOpenDashboard }: { onOpenDashboard: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -319,14 +321,15 @@ function EmptyEditorState({ onOpenDashboard }: { onOpenDashboard: () => void }) 
           color: 'hsl(var(--accent))',
         }}
       >
-        打开项目主页
+        {t('editorMainArea.openDashboard')}
       </button>
-      <div style={{ fontSize: 12, color: 'hsl(var(--ink-5))' }}>是时候开始写作了</div>
+      <div style={{ fontSize: 12, color: 'hsl(var(--ink-5))' }}>{t('editorMainArea.emptyHint')}</div>
     </div>
   );
 }
 
 function DropOverlay({ side }: { side: 'left' | 'right' }) {
+  const { t } = useTranslation();
   // Visual hint shown during a drag-to-split. Half-screen tinted rectangle on
   // the side that would receive the drop, with a centered glyph.
   return (
@@ -360,7 +363,9 @@ function DropOverlay({ side }: { side: 'left' | 'right' }) {
           boxShadow: '0 1px 4px hsl(var(--ink-1) / 0.15)',
         }}
       >
-        在{side === 'left' ? '左' : '右'}侧打开
+        {t('editorMainArea.openOnSide', {
+          side: side === 'left' ? t('editorMainArea.side.left') : t('editorMainArea.side.right'),
+        })}
       </div>
     </div>
   );

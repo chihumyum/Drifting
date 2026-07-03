@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { KvEntry, KvList } from '../../domain/kv';
 import { parseKv, stringifyKv } from '../../domain/kv';
 
@@ -46,6 +47,7 @@ export function KvEditor({
   readOnly = false,
   suppressKeys,
 }: Props) {
+  const { t } = useTranslation();
   const initialList = parseKv(valueJson);
   const [rows, setRows] = useState<KvList>(initialList);
   // Track the last `valueJson` we hydrated from so external updates (server
@@ -95,14 +97,14 @@ export function KvEditor({
   };
 
   const resolvedKeyPlaceholder =
-    keyPlaceholder ?? (variant === 'template' ? '字段名 · key (e.g. 视角)' : '字段 · key');
+    keyPlaceholder ?? (variant === 'template' ? t('kvEditor.templateKeyPlaceholder') : t('kvEditor.keyPlaceholder'));
   const resolvedValuePlaceholder =
-    valuePlaceholder ?? (variant === 'template' ? '默认值 / 提示 · value' : '内容 · value');
+    valuePlaceholder ?? (variant === 'template' ? t('kvEditor.templateValuePlaceholder') : t('kvEditor.valuePlaceholder'));
   const resolvedEmptyHint =
     emptyHint ??
     (variant === 'template'
-      ? '— 尚未定义任何模版字段。新建子项时不会自动填充任何 KV —'
-      : '— 尚无 KV 字段 —');
+      ? t('kvEditor.templateEmpty')
+      : t('kvEditor.empty'));
 
   return (
     <div className="kv-editor" data-variant={variant}>
@@ -131,7 +133,7 @@ export function KvEditor({
       )}
       {!readOnly && (
         <button type="button" className="kv-editor__add" onClick={handleAdd}>
-          + 新增字段
+          {t('kvEditor.addField')}
         </button>
       )}
     </div>
@@ -159,6 +161,7 @@ function KvRow({
   onBlur,
   onRemove,
 }: RowProps) {
+  const { t } = useTranslation();
   return (
     <div className="kv-editor__row" role="listitem">
       <input
@@ -186,8 +189,8 @@ function KvRow({
           type="button"
           className="kv-editor__remove"
           onClick={onRemove}
-          title="Remove row"
-          aria-label="Remove row"
+          title={t('kvEditor.removeRow')}
+          aria-label={t('kvEditor.removeRow')}
         >
           ×
         </button>

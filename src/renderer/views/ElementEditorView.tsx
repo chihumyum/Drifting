@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -42,6 +43,7 @@ log.setLevel(loglevel.levels.ERROR);
 export function ElementEditorView({
   elementIdOverride,
 }: { elementIdOverride?: string } = {}) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { leaveDeletedEntity } = useProjectNavigation();
   const params = useParams<{ elementId: string; projectId: string }>();
@@ -172,7 +174,7 @@ export function ElementEditorView({
     content: curElement?.contentJson ?? null,
     ydoc,
     onPersist: handlePersist,
-    placeholder: '故事发生时，这个元素是什么？',
+    placeholder: t('elementEditor.bodyPlaceholder'),
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey:
       projectId && curElement
@@ -186,13 +188,13 @@ export function ElementEditorView({
   // the only ranking. Built before the early return below so the scrollspy hook
   // always runs (Rules of Hooks).
   const frameworkItems: OutlineEntry[] = [
-    { id: 'el-overview', level: 2, kind: 'section', text: '概述' },
-    { id: 'el-bio', level: 2, kind: 'section', text: '传 · biography', children: nestHeadings(outline) },
-    { id: 'el-kv', level: 2, kind: 'section', text: '字段 · facts' },
-    { id: 'el-relations', level: 2, kind: 'section', text: '关联' },
-    { id: 'el-patches', level: 2, kind: 'section', text: '补丁' },
-    { id: 'el-arc', level: 2, kind: 'section', text: '弧线 · ARC' },
-    { id: 'el-evolve', level: 2, kind: 'section', text: '演化 · EVOLVE' },
+    { id: 'el-overview', level: 2, kind: 'section', text: t('elementEditor.sections.overview') },
+    { id: 'el-bio', level: 2, kind: 'section', text: t('elementEditor.sections.bio'), children: nestHeadings(outline) },
+    { id: 'el-kv', level: 2, kind: 'section', text: t('elementEditor.sections.facts') },
+    { id: 'el-relations', level: 2, kind: 'section', text: t('referencesPanel.sections.relations') },
+    { id: 'el-patches', level: 2, kind: 'section', text: t('elementEditor.sections.patches') },
+    { id: 'el-arc', level: 2, kind: 'section', text: t('elementEditor.sections.arc') },
+    { id: 'el-evolve', level: 2, kind: 'section', text: t('evolveSection.kicker') },
   ];
   // Scrollspy needs the FLAT id list (framework anchors + every heading),
   // not just the nested tree's roots.
@@ -209,7 +211,10 @@ export function ElementEditorView({
     } catch (err) {
       if (err instanceof ElementNameConflictError) {
         alert(
-          `无法重命名："${next}" 已被元素「${err.conflictingElement.name}」使用（名字或别名冲突）。`,
+          t('elementEditor.alerts.renameConflict', {
+            name: next,
+            conflicting: err.conflictingElement.name,
+          }),
         );
         setNameValue(curElement?.name ?? '');
         return;
@@ -229,7 +234,10 @@ export function ElementEditorView({
     } catch (err) {
       if (err instanceof ElementNameConflictError) {
         alert(
-          `无法添加别名："${err.conflictingName}" 已被元素「${err.conflictingElement.name}」使用。`,
+          t('elementEditor.alerts.aliasConflict', {
+            name: err.conflictingName,
+            conflicting: err.conflictingElement.name,
+          }),
         );
         return;
       }
@@ -306,7 +314,7 @@ export function ElementEditorView({
       await updateElement(elementId, { groupName: nextGroup });
     } catch (error) {
       log.error('Failed to update group:', error);
-      alert('Failed to update group. Please try again.');
+      alert(t('elementEditor.alerts.groupUpdateFailed'));
     }
   };
 
@@ -350,14 +358,16 @@ export function ElementEditorView({
     async (action: string) => {
       if (!elementId || !curElement) return;
       if (action === 'deleteElement') {
-        const confirmed = window.confirm(`Delete element "${curElement.name}"?`);
+        const confirmed = window.confirm(
+          t('elementEditor.deleteConfirm', { name: curElement.name }),
+        );
         if (!confirmed) return;
         try {
           await elementUsecases.removeElement(elementId);
           leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete element:', error);
-          alert('Failed to delete element. Please try again.');
+          alert(t('elementEditor.alerts.deleteFailed'));
         }
       } else if (action === 'categoryPicker') {
         setEditingCategory(true);
@@ -366,7 +376,7 @@ export function ElementEditorView({
         setShowGroupModal(true);
       }
     },
-    [elementId, curElement, elementUsecases, leaveDeletedEntity, updateElement],
+    [elementId, curElement, elementUsecases, leaveDeletedEntity, t],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.
@@ -396,7 +406,7 @@ export function ElementEditorView({
           color: 'hsl(var(--ink-4))',
         }}
       >
-        Select an element to edit
+        {t('elementEditor.empty.selectElement')}
       </div>
     );
   }
@@ -428,7 +438,7 @@ export function ElementEditorView({
             dotColor={currentCategory.color || '#8A2A1E'}
             dropdown={
               bookElementCategories.length === 0 ? (
-                <div className="crumb-dropdown__empty">No categories yet</div>
+                <div className="crumb-dropdown__empty">{t('elementEditor.empty.noCategories')}</div>
               ) : (
                 bookElementCategories.map((cat) => {
                   const isActive = cat.id === currentCategory.id;
@@ -472,13 +482,13 @@ export function ElementEditorView({
                     if (!isActive) navigate(`/project/${projectId}/element/${el.id}`);
                   }}
                 >
-                  <span>{el.name || 'Untitled Element'}</span>
+                  <span>{el.name || t('elementEditor.untitled')}</span>
                 </div>
               );
             })
           }
         >
-          <span className="editor-crumb-title">{curElement.name || 'Untitled Element'}</span>
+          <span className="editor-crumb-title">{curElement.name || t('elementEditor.untitled')}</span>
         </EditorCrumb>
       </EditorTopBar>
 
@@ -493,13 +503,13 @@ export function ElementEditorView({
             pinOutline(id);
             scrollToOutlineAnchor(id, scrollEl);
           }}
-          emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
+          emptyHint={t('nodeEditor.outline.empty')}
         />
         <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
           <div className="editor__spread">
           <article className="page">
             <div className="page__folio" aria-hidden="true">
-              <span className="page__folio-line">Element</span>
+              <span className="page__folio-line">{t('elementEditor.folio')}</span>
               {currentCategory && (
                 <span className="page__folio-line page__folio-line--accent">
                   {currentCategory.name}
@@ -512,7 +522,9 @@ export function ElementEditorView({
               <div className="elem-hero">
                 <div className="elem-portrait" style={{ background: `${categoryColor}` }}>
                   <span className="elem-portrait__hint">
-                    {currentCategory ? `${currentCategory.name} · 速写` : '速写'}
+                    {currentCategory
+                      ? t('elementEditor.sketchWithCategory', { category: currentCategory.name })
+                      : t('elementEditor.sketch')}
                   </span>
                 </div>
                 <div className="elem-hero__main">
@@ -532,7 +544,7 @@ export function ElementEditorView({
                         e.currentTarget.blur();
                       }
                     }}
-                    placeholder="Untitled Element"
+                    placeholder={t('elementEditor.untitled')}
                   />
 
                   {/* Aliases chip-list. Inline-styled for now; promote to
@@ -570,7 +582,7 @@ export function ElementEditorView({
                         <button
                           type="button"
                           onClick={() => void removeAlias(idx)}
-                          title="移除别名"
+                          title={t('elementEditor.alias.remove')}
                           style={{
                             background: 'transparent',
                             border: 0,
@@ -600,7 +612,11 @@ export function ElementEditorView({
                           e.currentTarget.blur();
                         }
                       }}
-                      placeholder={curElement.aliases.length === 0 ? '+ 添加别名' : '+ 别名'}
+                      placeholder={
+                        curElement.aliases.length === 0
+                          ? t('elementEditor.alias.addFirst')
+                          : t('elementEditor.alias.add')
+                      }
                       style={{
                         background: 'transparent',
                         border: 0,
@@ -640,7 +656,7 @@ export function ElementEditorView({
                           e.currentTarget.blur();
                         }
                       }}
-                      placeholder="一句话角色说明…"
+                      placeholder={t('elementEditor.summaryPlaceholder')}
                       rows={1}
                     />
                   )}
@@ -657,7 +673,7 @@ export function ElementEditorView({
                 directly under the hero so the prose leads; structured 字段
                 follow. Its H1/H2/H3 headings nest under this anchor in the TOC. */}
             <h2 id="el-bio" className="page__scene">
-              <span className="page__scene-title">记 · 传</span>
+              <span className="page__scene-title">{t('elementEditor.sections.bioTitle')}</span>
             </h2>
             <div className="elem-body">
               <EditorContent editor={editor} />
@@ -666,8 +682,8 @@ export function ElementEditorView({
             {/* 字段 — element's own KV facts. Seeded at creation from the
                 category's elementTemplateKvJson; owned thereafter. */}
             <h2 id="el-kv" className="page__scene">
-              <span className="page__scene-title">字段 · facts</span>
-              <span className="page__scene-meta">alias / 类目 / 生年 / 首次出场 …</span>
+              <span className="page__scene-title">{t('elementEditor.sections.facts')}</span>
+              <span className="page__scene-meta">{t('elementEditor.meta.facts')}</span>
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -680,7 +696,7 @@ export function ElementEditorView({
                 valueJson={curElement.kvJson}
                 onPersist={commitKv}
                 suppressKeys={new Set(fieldReview.kvChanges.map((c) => c.field?.key ?? ''))}
-                emptyHint="— 尚无字段。新建元素时若类目模版已定义，会自动填充 —"
+                emptyHint={t('elementEditor.empty.noFacts')}
               />
             </div>
 
@@ -764,7 +780,9 @@ export function ElementEditorView({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>Change Category</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
+              {t('elementEditor.category.change')}
+            </h3>
             <select
               value={curElement.categoryId ?? ''}
               onChange={(e) => {
@@ -791,7 +809,7 @@ export function ElementEditorView({
               {bookElementCategories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
-              <option value="__new__">+ New Category</option>
+              <option value="__new__">{t('elementEditor.category.newOption')}</option>
             </select>
           </div>
         </div>
@@ -828,7 +846,9 @@ export function ElementEditorView({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>
-              分组 · {currentCategory?.name ?? '未分类'}
+              {t('elementEditor.group.title', {
+                category: currentCategory?.name ?? t('storyGraph.edge.uncategorized'),
+              })}
             </h3>
             <input
               type="text"
@@ -841,7 +861,7 @@ export function ElementEditorView({
                 }
                 if (e.key === 'Escape') setShowGroupModal(false);
               }}
-              placeholder="搜索或新建分组…（留空 = 不分组）"
+              placeholder={t('elementEditor.group.placeholder')}
               autoFocus
               style={{
                 width: '100%',
@@ -881,11 +901,11 @@ export function ElementEditorView({
                   fontStyle: 'italic',
                 }}
               >
-                （不分组）
+                {t('elementEditor.group.noGroup')}
               </button>
               {filteredGroups.length === 0 && groupQuery === '' && (
                 <div style={{ padding: '12px', fontSize: 13, color: 'hsl(var(--ink-4))' }}>
-                  此类目下还没有分组。
+                  {t('elementEditor.group.empty')}
                 </div>
               )}
               {filteredGroups.map((name) => {
@@ -927,7 +947,7 @@ export function ElementEditorView({
                     color: 'hsl(var(--accent))',
                   }}
                 >
-                  ＋ 新建分组「{groupQuery}」
+                  {t('elementEditor.group.create', { name: groupQuery })}
                 </button>
               )}
             </div>
@@ -937,7 +957,7 @@ export function ElementEditorView({
                 onClick={() => setShowGroupModal(false)}
                 className="mgr-toolbar__btn"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -972,7 +992,9 @@ export function ElementEditorView({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>New Category</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
+              {t('elementEditor.category.newTitle')}
+            </h3>
             <input
               type="text"
               value={newCategoryName}
@@ -985,7 +1007,7 @@ export function ElementEditorView({
                   setEditingCategory(false);
                 }
               }}
-              placeholder="Category name…"
+              placeholder={t('elementEditor.category.namePlaceholder')}
               autoFocus
               style={{
                 width: '100%',
@@ -1004,14 +1026,14 @@ export function ElementEditorView({
                 onClick={() => { setShowNewCategoryModal(false); setNewCategoryName(''); setEditingCategory(false); }}
                 className="mgr-toolbar__btn"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleCreateNewCategory}
                 className="mgr-toolbar__btn mgr-toolbar__btn--accent"
               >
-                Create
+                {t('elementEditor.category.create')}
               </button>
             </div>
           </div>

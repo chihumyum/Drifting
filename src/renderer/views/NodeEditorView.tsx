@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBookNode } from '../usecase/useBookNode';
 import { useBookContent } from '../usecase/useBookContent';
@@ -78,6 +79,7 @@ log.setLevel(loglevel.levels.ERROR);
 // URL won't always reflect the side this instance is rendering. Pass the leaf
 // id explicitly via `nodeIdOverride` and we'll use that instead of useParams.
 export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } = {}) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const {
     navigateToElement,
@@ -500,7 +502,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       if (action === CONVERT_DRIFT_TO_CHAPTER_ACTION) {
         if (!isDrift(curNode)) return;
         if (storylines.length === 0) {
-          alert('请先在左侧或时间轴新建一条 Storyline，才能把 drift 转换为章节。');
+          alert(t('nodeEditor.alerts.needStoryline'));
           return;
         }
         setConversionPickedId(storylines[0].id);
@@ -511,7 +513,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       if (action === CONVERT_DRIFT_TO_ELEMENT_ACTION) {
         if (!isDrift(curNode)) return;
         if (bookElementCategories.length === 0) {
-          alert('请先在元素超视图新建一个 Category，才能把 drift 转换为元素。');
+          alert(t('nodeEditor.alerts.needCategory'));
           return;
         }
         setConversionPickedId(bookElementCategories[0].id);
@@ -551,13 +553,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           }
         } catch (error) {
           log.error('[NodeEditor] Failed to set writing status:', error);
-          alert('Failed to update writing status. Please try again.');
+          alert(t('nodeEditor.alerts.statusUpdateFailed'));
         }
         return;
       }
 
       if (action === 'deleteNode') {
-        const confirmed = window.confirm(`Delete node "${curNode.title}"?`);
+        const confirmed = window.confirm(t('nodeEditor.deleteConfirm', { name: curNode.title }));
         if (!confirmed) return;
 
         try {
@@ -565,7 +567,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
           leaveDeletedEntity();
         } catch (error) {
           log.error('[NodeEditor] Failed to delete node:', error);
-          alert('Failed to delete node. Please try again.');
+          alert(t('nodeEditor.alerts.deleteFailed'));
         }
       }
     },
@@ -578,6 +580,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       updateNode,
       storylines,
       bookElementCategories,
+      activeProjectId,
+      t,
     ],
   );
 
@@ -666,7 +670,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
       setConversionPickedId(null);
     } catch (error) {
       log.error('[NodeEditor] Drift conversion failed:', error);
-      alert('转换失败，请重试。');
+      alert(t('nodeEditor.alerts.conversionFailed'));
     } finally {
       setConversionBusy(false);
     }
@@ -680,6 +684,8 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
     getContentByNodeId,
     navigateToElement,
     nodeId,
+    activeProjectId,
+    t,
     updateElement,
     updateNode,
   ]);
@@ -719,11 +725,13 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             }}
             right={
               <>
-                <span>{curNode.wordCount.toLocaleString()} 字</span>
+                <span>{t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}</span>
                 {currentStorylines.length > 1 && (
                   <>
                     <span className="editor-bar__sep">·</span>
-                    <span>{currentStorylines.length} storylines</span>
+                    <span>
+                      {t('nodeEditor.meta.storylines', { count: currentStorylines.length })}
+                    </span>
                   </>
                 )}
               </>
@@ -735,7 +743,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 dropdown={
                   <>
                     {storylines.length === 0 ? (
-                      <div className="crumb-dropdown__empty">No storylines yet</div>
+                      <div className="crumb-dropdown__empty">{t('nodeEditor.empty.noStorylines')}</div>
                     ) : (
                       storylines.map((s) => {
                         const isActive = s.id === mainStoryline?.id;
@@ -757,7 +765,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                   </>
                 }
               >
-                <span>{mainStoryline?.name ?? 'No storyline'}</span>
+                <span>{mainStoryline?.name ?? t('nodeEditor.empty.noStoryline')}</span>
               </EditorCrumb>
             )}
 
@@ -776,7 +784,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               dropdown={
                 breadcrumbSiblingNodes.length === 0 ? (
                   <div className="crumb-dropdown__empty">
-                    {isDriftNode ? 'No drifts yet' : 'No chapters'}
+                    {isDriftNode ? t('nodeEditor.empty.noDrifts') : t('nodeEditor.empty.noChapters')}
                   </div>
                 ) : (
                   breadcrumbSiblingNodes.map((n, idx) => {
@@ -793,14 +801,14 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                         {showNum && (
                           <span className="crumb-dropdown__num">{toRoman(idx + 1)}</span>
                         )}
-                        <span>{n.title || 'Untitled'}</span>
+                        <span>{n.title || t('common.untitled')}</span>
                       </div>
                     );
                   })
                 )
               }
             >
-              <span className="editor-crumb-title">{curNode.title || 'Untitled'}</span>
+              <span className="editor-crumb-title">{curNode.title || t('common.untitled')}</span>
             </EditorCrumb>
           </EditorTopBar>
 
@@ -821,39 +829,43 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
               sibling, so it stays put without relying on position:sticky. */}
           <div className="editor-body">
             <EditorOutlinePanel
-              title="本章 · OUTLINE"
+              title={t('nodeEditor.outline.title')}
               items={outlineTree}
               activeId={activeOutlineId}
               onItemClick={(id) => {
                 pinOutline(id);
                 scrollToOutlineAnchor(id, scrollEl);
               }}
-              emptyHint="— 用 H1 / H2 / H3 标题构建大纲 —"
+              emptyHint={t('nodeEditor.outline.empty')}
             />
             <div className={`editor-scroll${marginNotes ? ' editor-scroll--comments' : ''}`} ref={setScrollEl}>
               <div className="editor__spread">
                 <article className="page">
                   {!isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
-                      <span className="page__folio-line">Chapter</span>
+                      <span className="page__folio-line">{t('nodeEditor.folio.chapter')}</span>
                       {mainStoryline && (
                         <span className="page__folio-line" style={{ color: storylineColor, fontWeight: 600 }}>
                           {mainStoryline.name}
                         </span>
                       )}
-                      <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                      <span className="page__folio-line">
+                        {t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}
+                      </span>
                     </div>
                   )}
 
                   {isDriftNode && (
                     <div className="page__folio" aria-hidden="true">
-                      <span className="page__folio-line">Drift</span>
+                      <span className="page__folio-line">{t('nodeEditor.folio.drift')}</span>
                       {driftGroupChain.length > 0 && (
                         <span className="page__folio-line page__folio-line--accent">
                           {driftGroupChain.map((g) => g.name).join(' - ')}
                         </span>
                       )}
-                      <span className="page__folio-line">{curNode.wordCount.toLocaleString()} 字</span>
+                      <span className="page__folio-line">
+                        {t('nodeEditor.meta.words', { count: curNode.wordCount.toLocaleString() })}
+                      </span>
                     </div>
                   )}
 
@@ -957,7 +969,9 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>移动到分组</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>
+              {t('nodeEditor.groupMove.title')}
+            </h3>
             <select
               value={curNode.driftGroupId ?? ''}
               onChange={(e) => {
@@ -978,7 +992,7 @@ export function NodeEditorView({ nodeIdOverride }: { nodeIdOverride?: string } =
                 whiteSpace: 'pre',
               }}
             >
-              <option value="">（根层级 · 不分组）</option>
+              <option value="">{t('nodeEditor.groupMove.root')}</option>
               {driftGroupOptions.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.label}
@@ -1015,15 +1029,18 @@ function ConversionPickerModal({
   onCancel,
   onConfirm,
 }: ConversionPickerModalProps) {
+  const { t } = useTranslation();
   const isChapter = target === 'chapter';
   const options = isChapter
     ? storylines.map((s) => ({ id: s.id, name: s.name, color: s.color }))
     : categories.map((c) => ({ id: c.id, name: c.name, color: c.color }));
-  const title = isChapter ? '转换为章节' : '转换为元素';
+  const title = isChapter ? t('nodeEditor.conversion.toChapter') : t('nodeEditor.conversion.toElement');
   const subtitle = isChapter
-    ? '选择该 drift 归属的 storyline。状态会重置为 draft。'
-    : '选择该 drift 归属的 category。drift 节点会被删除，内容迁移到新建元素中。';
-  const confirmLabel = isChapter ? '转换为章节' : '转换为元素';
+    ? t('nodeEditor.conversion.chapterSubtitle')
+    : t('nodeEditor.conversion.elementSubtitle');
+  const confirmLabel = isChapter
+    ? t('nodeEditor.conversion.toChapter')
+    : t('nodeEditor.conversion.toElement');
 
   return (
     <div
@@ -1064,7 +1081,7 @@ function ConversionPickerModal({
           }}
         >
           <div style={{ fontSize: 18, fontWeight: 700, color: '#2a1a0a' }}>{title}</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{nodeTitle || 'Untitled'}</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: '#7a6a56' }}>{nodeTitle || t('common.untitled')}</div>
           <div style={{ marginTop: 4, fontSize: 12, color: '#a39787', lineHeight: 1.4 }}>
             {subtitle}
           </div>
@@ -1091,7 +1108,7 @@ function ConversionPickerModal({
                 fontSize: 13,
               }}
             >
-              {isChapter ? '没有可用的 Storyline' : '没有可用的 Category'}
+              {isChapter ? t('nodeEditor.conversion.noStorylines') : t('nodeEditor.conversion.noCategories')}
             </div>
           )}
           {options.map((opt) => {
@@ -1137,7 +1154,7 @@ function ConversionPickerModal({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {opt.name || 'Untitled'}
+                  {opt.name || t('common.untitled')}
                 </span>
               </button>
             );
@@ -1167,7 +1184,7 @@ function ConversionPickerModal({
               color: '#5a4a3a',
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -1187,7 +1204,7 @@ function ConversionPickerModal({
               fontWeight: 700,
             }}
           >
-            {busy ? '转换中…' : confirmLabel}
+            {busy ? t('nodeEditor.conversion.converting') : confirmLabel}
           </button>
         </div>
       </div>

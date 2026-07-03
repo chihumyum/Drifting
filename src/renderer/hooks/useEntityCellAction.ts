@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
@@ -37,6 +38,7 @@ interface DispatchInput {
 // queued via `enqueueEntityAction` and the navigation opens the entity tab;
 // the editor view consumes the queued action on mount via `consumeEntityAction`.
 export function useEntityCellAction() {
+  const { t } = useTranslation();
   const { projectId, openEntity } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id);
   const { bookNodes, bookElements, bookElementCategories } = useDataStore();
@@ -75,7 +77,9 @@ export function useEntityCellAction() {
             return;
           }
           if (action === 'deleteNode') {
-            const confirmed = window.confirm(`Delete node "${node.title}"?`);
+            const confirmed = window.confirm(
+              t('entityCellAction.confirmDeleteNode', { name: node.title }),
+            );
             if (!confirmed) return;
             await deleteNode(id);
             return;
@@ -105,7 +109,9 @@ export function useEntityCellAction() {
           const element = bookElements.find((e) => e.id === id);
           if (!element) return;
           if (action === 'deleteElement') {
-            const confirmed = window.confirm(`Delete element "${element.name}"?`);
+            const confirmed = window.confirm(
+              t('entityCellAction.confirmDeleteElement', { name: element.name }),
+            );
             if (!confirmed) return;
             await removeElement(id);
             return;
@@ -133,7 +139,7 @@ export function useEntityCellAction() {
           if (!category) return;
           if (action === 'deleteCategory') {
             const confirmed = window.confirm(
-              `Delete category "${category.name}"?\n\nElements in this category will move to "未分类" (categoryId becomes empty).`,
+              t('entityCellAction.confirmDeleteCategory', { name: category.name }),
             );
             if (!confirmed) return;
             await deleteCategory(id);
@@ -146,7 +152,9 @@ export function useEntityCellAction() {
           if (action === 'deleteStoryline') {
             const storyline = useDataStore.getState().storylines.find((s) => s.id === id);
             if (!storyline) return;
-            const confirmed = window.confirm(`Delete storyline "${storyline.name}"?`);
+            const confirmed = window.confirm(
+              t('entityCellAction.confirmDeleteStoryline', { name: storyline.name }),
+            );
             if (!confirmed) return;
             await deleteStoryline(id);
             return;
@@ -155,10 +163,11 @@ export function useEntityCellAction() {
         }
       } catch (error) {
         log.error('Entity cell action failed:', error);
-        alert('Action failed. Please try again.');
+        alert(t('entityCellAction.actionFailed'));
       }
     },
     [
+      t,
       bookNodes,
       bookElements,
       bookElementCategories,

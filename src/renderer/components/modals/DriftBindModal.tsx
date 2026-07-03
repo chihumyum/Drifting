@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 import { events } from '../../lib/events';
 import { useDataStore } from '../../store/data-store';
@@ -22,6 +23,7 @@ import { actBoundDriftIds } from '../../domain/book-act';
 type Target = { kind: 'marker' | 'act'; id: string };
 
 export function DriftBindModal() {
+  const { t } = useTranslation();
   const [target, setTarget] = useState<Target | null>(null);
   const [query, setQuery] = useState('');
   const { projectId } = useProjectNavigation();
@@ -97,7 +99,7 @@ export function DriftBindModal() {
       />
       <div
         role="dialog"
-        aria-label="绑定漂浮节点"
+        aria-label={t('driftBind.title')}
         style={{
           position: 'fixed',
           top: '50%',
@@ -137,7 +139,7 @@ export function DriftBindModal() {
                 marginBottom: 4,
               }}
             >
-              绑定漂浮节点
+              {t('driftBind.title')}
             </div>
             <div
               style={{
@@ -146,13 +148,13 @@ export function DriftBindModal() {
                 color: 'hsl(var(--ink-1))',
               }}
             >
-              {target.kind === 'marker' ? '为时间标记选择一个漂浮节点' : '为此幕选择一篇大纲/笔记'}
+              {target.kind === 'marker' ? t('driftBind.markerSubtitle') : t('driftBind.actSubtitle')}
             </div>
           </div>
           <button
             type="button"
             onClick={close}
-            aria-label="关闭"
+            aria-label={t('common.close')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -172,7 +174,7 @@ export function DriftBindModal() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索漂浮节点…"
+            placeholder={t('driftBind.searchPlaceholder')}
             style={{
               width: '100%',
               boxSizing: 'border-box',
@@ -199,8 +201,8 @@ export function DriftBindModal() {
               }}
             >
               {query.trim()
-                ? '没有匹配的漂浮节点'
-                : '没有可绑定的漂浮节点 · 都已被占用，或还没有创建'}
+                ? t('driftBind.noMatches')
+                : t('driftBind.empty')}
             </div>
           ) : (
             options.map((n) => (
@@ -235,7 +237,7 @@ export function DriftBindModal() {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {n.title || '未命名'}
+                  {n.title || t('common.untitled')}
                 </div>
                 {n.summary && (
                   <div

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   DRIFT_STATUSES,
   MANUAL_CHAPTER_WRITING_STATUSES,
@@ -24,19 +25,44 @@ export type NodeStatusKind = 'chapter' | 'drift';
 export const SET_STATUS_ACTION_PREFIX = 'setWritingStatus:';
 
 export const WRITING_STATUS_LABELS: Record<WritingStatus, string> = {
-  draft: '草稿',
-  waiting_review: '等待 AI 审阅',
-  revising: '修订中',
-  finished: '已完成',
-  discarded: '已弃用',
-  drifting: '漂浮中',
-  resting: '休眠',
+  draft: 'Draft',
+  waiting_review: 'Waiting for AI review',
+  revising: 'Revising',
+  finished: 'Finished',
+  discarded: 'Discarded',
+  drifting: 'Floating',
+  resting: 'Resting',
 };
 
 export const STATUS_SECTION_LABEL: Record<NodeStatusKind, string> = {
-  chapter: '写作状态',
-  drift: 'Drift 状态',
+  chapter: 'Writing status',
+  drift: 'Drift status',
 };
+
+type Translate = (key: string) => string;
+
+const WRITING_STATUS_LABEL_KEYS: Record<WritingStatus, string> = {
+  draft: 'editorTopBar.status.draft',
+  waiting_review: 'editorTopBar.status.waitingReview',
+  revising: 'editorTopBar.status.revising',
+  finished: 'editorTopBar.status.finished',
+  discarded: 'editorTopBar.status.discarded',
+  drifting: 'editorTopBar.status.drifting',
+  resting: 'editorTopBar.status.resting',
+};
+
+const STATUS_SECTION_LABEL_KEYS: Record<NodeStatusKind, string> = {
+  chapter: 'editorTopBar.statusSection.chapter',
+  drift: 'editorTopBar.statusSection.drift',
+};
+
+export function getWritingStatusLabel(status: WritingStatus, translate?: Translate): string {
+  return translate?.(WRITING_STATUS_LABEL_KEYS[status]) ?? WRITING_STATUS_LABELS[status];
+}
+
+export function getStatusSectionLabel(kind: NodeStatusKind, translate?: Translate): string {
+  return translate?.(STATUS_SECTION_LABEL_KEYS[kind]) ?? STATUS_SECTION_LABEL[kind];
+}
 
 /*
   Shared editor top bar:
@@ -93,6 +119,7 @@ export function EditorTopBar({
   referenceLinkToggle,
   plotPlannerToggle,
 }: EditorTopBarProps) {
+  const { t } = useTranslation();
   const crumbs = injectSeparators(children);
   const showMenu = Boolean(editorType && onMenuAction);
   const outlineCollapsed = useUiStore((s) => s.outlineCollapsed);
@@ -104,7 +131,11 @@ export function EditorTopBar({
         <button
           type="button"
           className={`editor-bar__icon editor-bar__icon--outline${outlineCollapsed ? '' : ' editor-bar__icon--active'}`}
-          title={outlineCollapsed ? '显示大纲' : '隐藏大纲'}
+          title={
+            outlineCollapsed
+              ? t('editorTopBar.actions.showOutline')
+              : t('editorTopBar.actions.hideOutline')
+          }
           aria-pressed={!outlineCollapsed}
           onClick={toggleOutline}
         >
@@ -118,7 +149,11 @@ export function EditorTopBar({
           <button
             type="button"
             className={`editor-bar__icon editor-bar__icon--planner${plotPlannerToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-            title={plotPlannerToggle.enabled ? '收起情节规划' : '展开情节规划'}
+            title={
+              plotPlannerToggle.enabled
+                ? t('editorTopBar.actions.collapsePlotPlanner')
+                : t('editorTopBar.actions.expandPlotPlanner')
+            }
             aria-pressed={plotPlannerToggle.enabled}
             onClick={plotPlannerToggle.onToggle}
           >
@@ -129,7 +164,11 @@ export function EditorTopBar({
           <button
             type="button"
             className={`editor-bar__icon editor-bar__icon--reflink${referenceLinkToggle.enabled ? ' editor-bar__icon--active' : ''}`}
-            title={referenceLinkToggle.enabled ? '隐藏引用链接样式' : '显示引用链接样式'}
+            title={
+              referenceLinkToggle.enabled
+                ? t('editorTopBar.actions.hideReferenceLinks')
+                : t('editorTopBar.actions.showReferenceLinks')
+            }
             aria-pressed={referenceLinkToggle.enabled}
             onClick={referenceLinkToggle.onToggle}
           >
@@ -142,10 +181,10 @@ export function EditorTopBar({
             className={`editor-bar__icon editor-bar__icon--comment${commentToggle.enabled ? ' editor-bar__icon--active' : ''}`}
             title={
               commentToggle.disabled
-                ? 'No comments'
+                ? t('editorTopBar.actions.noComments')
                 : commentToggle.enabled
-                  ? 'Hide comments'
-                  : 'Show comments'
+                  ? t('editorTopBar.actions.hideComments')
+                  : t('editorTopBar.actions.showComments')
             }
             aria-pressed={commentToggle.enabled}
             disabled={commentToggle.disabled}
@@ -164,6 +203,7 @@ export function EditorTopBar({
             nodeWritingStatus={nodeWritingStatus}
             nodeStatusKind={nodeStatusKind}
             menuHeader={menuHeader}
+            translate={t}
           />
         )}
       </div>
@@ -257,6 +297,7 @@ interface EditorBarMenuProps {
   nodeWritingStatus?: WritingStatus;
   nodeStatusKind?: NodeStatusKind;
   menuHeader?: ReactNode;
+  translate?: Translate;
 }
 
 function EditorBarMenu({
@@ -265,6 +306,7 @@ function EditorBarMenu({
   nodeWritingStatus,
   nodeStatusKind,
   menuHeader,
+  translate,
 }: EditorBarMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -296,7 +338,7 @@ function EditorBarMenu({
     };
   }, [isOpen]);
 
-  const items = getMenuItems(editorType, nodeStatusKind);
+  const items = getMenuItems(editorType, nodeStatusKind, translate);
   const showStatus =
     editorType === 'node' && nodeWritingStatus !== undefined && nodeStatusKind !== undefined;
   const statusOptions: readonly WritingStatus[] = showStatus
@@ -316,7 +358,7 @@ function EditorBarMenu({
         ref={buttonRef}
         type="button"
         className="editor-bar__icon"
-        title="More actions"
+        title={translate?.('editorTopBar.actions.more') ?? 'More actions'}
         onClick={() => setIsOpen((prev) => !prev)}
       >
         <MoreVertical size={14} />
@@ -333,7 +375,7 @@ function EditorBarMenu({
           {showStatus && nodeStatusKind && (
             <>
               <div className="editor-bar__menu-section-label">
-                {STATUS_SECTION_LABEL[nodeStatusKind]}
+                {getStatusSectionLabel(nodeStatusKind, translate)}
               </div>
               {statusOptions.map((status) => {
                 const active = status === nodeWritingStatus;
@@ -347,7 +389,7 @@ function EditorBarMenu({
                       setIsOpen(false);
                     }}
                   >
-                    <span>{WRITING_STATUS_LABELS[status]}</span>
+                    <span>{getWritingStatusLabel(status, translate)}</span>
                     {active && <Check size={12} />}
                   </button>
                 );
@@ -392,7 +434,12 @@ export const DRIFT_MOVE_TO_GROUP_ACTION = 'driftMoveToGroup';
 // Exported so left-sidebar panel cells can render the same per-entity
 // context menu as the editor top bar — single source of truth for menu
 // options keeps the two surfaces aligned without duplication.
-export function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatusKind): MenuItem[] {
+export function getMenuItems(
+  editorType: EditorType,
+  nodeStatusKind?: NodeStatusKind,
+  translate?: Translate,
+): MenuItem[] {
+  const label = (key: string, fallback: string) => translate?.(key) ?? fallback;
   switch (editorType) {
     case 'node':
       // Drift nodes don't belong to a storyline yet — multi-select
@@ -401,26 +448,68 @@ export function getMenuItems(editorType: EditorType, nodeStatusKind?: NodeStatus
       // flips back to the chapter set because nodeStatusKind changes.
       if (nodeStatusKind === 'drift') {
         return [
-          { action: CONVERT_DRIFT_TO_CHAPTER_ACTION, label: '转换为章节…' },
-          { action: CONVERT_DRIFT_TO_ELEMENT_ACTION, label: '转换为元素…' },
-          { action: DRIFT_MOVE_TO_GROUP_ACTION, label: '移动到分组…' },
-          { action: 'deleteNode', label: 'Delete Node', danger: true },
+          {
+            action: CONVERT_DRIFT_TO_CHAPTER_ACTION,
+            label: label('editorTopBar.menu.convertToChapter', 'Convert to chapter…'),
+          },
+          {
+            action: CONVERT_DRIFT_TO_ELEMENT_ACTION,
+            label: label('editorTopBar.menu.convertToElement', 'Convert to element…'),
+          },
+          {
+            action: DRIFT_MOVE_TO_GROUP_ACTION,
+            label: label('editorTopBar.menu.moveToGroup', 'Move to group…'),
+          },
+          {
+            action: 'deleteNode',
+            label: label('editorTopBar.menu.deleteNode', 'Delete Node'),
+            danger: true,
+          },
         ];
       }
       return [
-        { action: 'editNodeStorylines', label: 'Edit Storylines' },
-        { action: 'deleteNode', label: 'Delete Node', danger: true },
+        {
+          action: 'editNodeStorylines',
+          label: label('editorTopBar.menu.editStorylines', 'Edit Storylines'),
+        },
+        {
+          action: 'deleteNode',
+          label: label('editorTopBar.menu.deleteNode', 'Delete Node'),
+          danger: true,
+        },
       ];
     case 'element':
       return [
-        { action: 'categoryPicker', label: 'Change Category' },
-        { action: 'groupPicker', label: 'Change Group' },
-        { action: 'deleteElement', label: 'Delete Element', danger: true },
+        {
+          action: 'categoryPicker',
+          label: label('editorTopBar.menu.changeCategory', 'Change Category'),
+        },
+        {
+          action: 'groupPicker',
+          label: label('editorTopBar.menu.changeGroup', 'Change Group'),
+        },
+        {
+          action: 'deleteElement',
+          label: label('editorTopBar.menu.deleteElement', 'Delete Element'),
+          danger: true,
+        },
       ];
     case 'category':
-      return [{ action: 'deleteCategory', label: 'Delete Category', danger: true }];
+      return [
+        {
+          action: 'deleteCategory',
+          label: label('editorTopBar.menu.deleteCategory', 'Delete Category'),
+          danger: true,
+        },
+      ];
     case 'storyline':
-      return [{ action: 'deleteStoryline', label: 'Delete Storyline', danger: true }];
+      return [
+        {
+          action: 'deleteStoryline',
+          label: label('editorTopBar.menu.deleteStoryline', 'Delete Storyline'),
+          danger: true,
+        },
+      ];
     default:
       return [];
   }

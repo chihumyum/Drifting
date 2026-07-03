@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { EntityRelationLink } from '../../store/data-store';
 
 // Dropdown menu invoked from the story graph view's top-right legend. Lists
@@ -65,6 +66,7 @@ export function EdgeKindManager({
   updateEdgeKind,
   deleteEdge,
 }: EdgeKindManagerProps) {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
   // Which row is currently in rename mode (kind name) or showing the
   // color palette popover (kind name).
@@ -116,8 +118,8 @@ export function EdgeKindManager({
   };
 
   const handleDelete = async (kind: string) => {
-    const label = kind === UNCATEGORIZED_KIND ? '未分类' : kind;
-    if (!window.confirm(`删除所有「${label}」关联？此操作不可撤销。`)) return;
+    const label = kind === UNCATEGORIZED_KIND ? t('storyGraph.edge.uncategorized') : kind;
+    if (!window.confirm(t('edgeKindManager.confirmDeleteKind', { label }))) return;
     const target = kind === UNCATEGORIZED_KIND ? null : kind;
     const affected = nodeEdges.filter((e) => (e.kind ?? null) === target);
     for (const e of affected) {
@@ -132,15 +134,15 @@ export function EdgeKindManager({
 
   return (
     <div ref={menuRef} className="edge-kind-mgr" role="menu">
-      <div className="edge-kind-mgr__head">关联类型</div>
+      <div className="edge-kind-mgr__head">{t('edgeKindManager.title')}</div>
 
       {kinds.length === 0 && (
-        <div className="edge-kind-mgr__empty">尚无自定义关联类型</div>
+        <div className="edge-kind-mgr__empty">{t('edgeKindManager.empty')}</div>
       )}
 
       {kinds.map((kind) => {
         const isUncategorized = kind === UNCATEGORIZED_KIND;
-        const label = isUncategorized ? '未分类' : kind;
+        const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
         const color = resolveKindColor(isUncategorized ? null : kind);
         const isEditingName = editingName === kind;
         const isPickingColor = pickingColor === kind;
@@ -150,9 +152,9 @@ export function EdgeKindManager({
               type="button"
               className="edge-kind-mgr__swatch"
               style={{ background: color }}
-              title="点击改色"
+              title={t('edgeKindManager.changeColor')}
               onClick={() => setPickingColor(isPickingColor ? null : kind)}
-              aria-label={`修改 ${label} 的颜色`}
+              aria-label={t('edgeKindManager.changeColorLabel', { label })}
             />
             {isPickingColor && (
               <div className="edge-kind-mgr__palette" role="listbox">
@@ -171,7 +173,7 @@ export function EdgeKindManager({
                 <button
                   type="button"
                   className="edge-kind-mgr__palette-reset"
-                  title="恢复默认色（按名称推导）"
+                  title={t('edgeKindManager.resetColor')}
                   onClick={() => {
                     clearKindColor(isUncategorized ? null : kind);
                     setPickingColor(null);
@@ -186,7 +188,7 @@ export function EdgeKindManager({
               <input
                 className="edge-kind-mgr__name-input"
                 defaultValue={isUncategorized ? '' : kind}
-                placeholder={isUncategorized ? '为未分类边命名…' : undefined}
+                placeholder={isUncategorized ? t('edgeKindManager.nameUncategorizedPlaceholder') : undefined}
                 autoFocus
                 onBlur={(e) => void handleRename(kind, e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -203,8 +205,8 @@ export function EdgeKindManager({
                 onClick={() => setEditingName(kind)}
                 title={
                   isUncategorized
-                    ? '点击为「未分类」边命名（将分类所有未分类边）'
-                    : '点击重命名'
+                    ? t('edgeKindManager.nameUncategorizedTitle')
+                    : t('edgeKindManager.renameTitle')
                 }
               >
                 {label}
@@ -214,9 +216,9 @@ export function EdgeKindManager({
             <button
               type="button"
               className="edge-kind-mgr__delete"
-              title={`删除所有「${label}」关联`}
+              title={t('edgeKindManager.deleteKindTitle', { label })}
               onClick={() => void handleDelete(kind)}
-              aria-label={`删除 ${label}`}
+              aria-label={t('edgeKindManager.deleteKindLabel', { label })}
             >
               ×
             </button>
@@ -230,9 +232,9 @@ export function EdgeKindManager({
           recolored / deleted — it's auto-generated, not user-defined. */}
       <div className="edge-kind-mgr__row is-locked">
         <span className="edge-kind-mgr__swatch is-dashed" aria-hidden />
-        <span className="edge-kind-mgr__name is-static">故事线衔接</span>
-        <span className="edge-kind-mgr__hint" title="多 storyline 节点之间的衔接轨迹，自动生成">
-          自动 · 锁定
+        <span className="edge-kind-mgr__name is-static">{t('edgeKindManager.storylineTransit')}</span>
+        <span className="edge-kind-mgr__hint" title={t('edgeKindManager.storylineTransitTitle')}>
+          {t('edgeKindManager.lockedHint')}
         </span>
       </div>
     </div>

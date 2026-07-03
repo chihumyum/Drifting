@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 const log = loglevel.getLogger('StorylineAllChapterEditor');
@@ -24,6 +25,7 @@ export function StorylineAllChapterEditor({
   nodes,
   onCurrentChapterChange,
 }: StorylineAllChapterProps) {
+  const { t } = useTranslation();
   const userId = useAuthStore((state) => state.user?.id);
   const { projectId } = useProjectNavigation();
   if (!userId) {
@@ -141,7 +143,7 @@ export function StorylineAllChapterEditor({
           fontSize: 14,
         }}
       >
-        No chapters in this storyline
+        {t('storylineAllChapter.empty')}
       </div>
     );
   }

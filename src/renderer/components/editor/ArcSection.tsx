@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Spline } from 'lucide-react';
 import { useElementArc } from '../../usecase/useElementArc';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -9,17 +10,13 @@ const CONF_COLOR: Record<ArcConfidence, string> = {
   med: 'hsl(var(--ink-3))',
   low: 'hsl(var(--ink-4))',
 };
-const TENSION_LABEL: Record<string, string> = {
-  contrast: '前后对比',
-  'possible-drift': '疑似漂移',
-  'uncommitted-evolution': '未记录的演化',
-};
 
 // Element editor section: derive + display this element's cross-chapter arc. The
 // derivation runs the read-pipeline (deriveElementArc) and persists to `element_arc`;
 // here we render the resulting ArcMap. Provenance is chapter-level — labels/orders
 // click through to the chapter (no block-level drill-down; that proved noise).
 export function ArcSection({ elementId, projectId }: { elementId: string; projectId: string }) {
+  const { t } = useTranslation();
   const { job, deriving, derive } = useElementArc(elementId, projectId);
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const { navigateToNode } = useProjectNavigation();
@@ -35,10 +32,10 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Spline size={14} style={{ color: 'hsl(var(--ink-3))' }} />
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em', color: 'hsl(var(--ink-3))' }}>
-          弧线 · ARC
+          {t('arcSection.title')}
         </span>
         <span
-          title="弧线派生属于 Shadow 模块（影）的只读分析能力；模型档位在 设置 · Shadow 里调。"
+          title={t('arcSection.shadowBadgeTitle')}
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 8.5,
@@ -50,7 +47,7 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
             textTransform: 'uppercase',
           }}
         >
-          Shadow
+          {t('arcSection.shadowBadge')}
         </span>
         <button
           type="button"
@@ -75,7 +72,7 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
           ) : (
             <Spline size={12} />
           )}
-          {arc ? '重新派生' : '派生弧线'}
+          {arc ? t('arcSection.actions.rerun') : t('arcSection.actions.derive')}
         </button>
       </div>
 
@@ -91,22 +88,22 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
         }}
       >
         <input type="checkbox" checked={includeDrafts} onChange={(e) => setIncludeDrafts(e.target.checked)} />
-        包含草稿章（默认仅已完成章）
+        {t('arcSection.includeDrafts')}
       </label>
 
       {running && (
         <div style={{ fontSize: 12, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '6px 0' }}>
-          派生中…（逐章抽取 → 蒸馏 → 综合，约 1–2 分钟）
+          {t('arcSection.running')}
         </div>
       )}
       {job?.status === 'failed' && !running && (
         <div style={{ fontSize: 12, color: 'hsl(0 60% 52%)', padding: '6px 0', whiteSpace: 'pre-wrap' }}>
-          ✗ 派生失败：{job.error}
+          {t('arcSection.failed', { error: job.error })}
         </div>
       )}
       {!arc && !running && job?.status !== 'failed' && (
         <div style={{ fontSize: 12.5, fontStyle: 'italic', color: 'hsl(var(--ink-4))', padding: '4px 0' }}>
-          — 从正文派生该元素的跨章发展轨迹（只读分析，不改稿） —
+          {t('arcSection.empty')}
         </div>
       )}
 
@@ -116,22 +113,34 @@ export function ArcSection({ elementId, projectId }: { elementId: string; projec
 }
 
 function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) => void }) {
+  const { t } = useTranslation();
   const overlayByOrder = new Map(arc.patchOverlay.map((o) => [o.atOrder, o]));
   // `n{order}` is a narrative-axis position (narrativeOrder ?? bookOrder), NOT a
   // reader-facing chapter number — keep the neutral `n` framing the point chips use.
-  const axisLabel = arc.axis === 'narrativeOrder' ? '叙事序' : '书序';
+  const axisLabel = arc.axis === 'narrativeOrder'
+    ? t('arcSection.axis.narrativeOrder')
+    : t('arcSection.axis.bookOrder');
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div
-        title={`覆盖 ${arc.coverage.appearances} 个出场章；截至${axisLabel}位置 n${arc.coverage.generatedAtOrder}（n = ${axisLabel}，非读者章号）`}
+        title={t('arcSection.coverageTitle', {
+          count: arc.coverage.appearances,
+          axis: axisLabel,
+          order: arc.coverage.generatedAtOrder,
+        })}
         style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--ink-4))' }}
       >
-        覆盖 {arc.coverage.appearances} 章 · 截至 n{arc.coverage.generatedAtOrder}
-        {arc.coverage.skipped > 0 ? ` · 跳过 ${arc.coverage.skipped}` : ''}
+        {t('arcSection.coverageLine', {
+          count: arc.coverage.appearances,
+          order: arc.coverage.generatedAtOrder,
+        })}
+        {arc.coverage.skipped > 0 ? t('arcSection.skipped', { count: arc.coverage.skipped }) : ''}
       </div>
 
       <details open>
-        <summary style={{ cursor: 'pointer', fontSize: 12, color: 'hsl(var(--ink-3))' }}>整体弧线</summary>
+        <summary style={{ cursor: 'pointer', fontSize: 12, color: 'hsl(var(--ink-3))' }}>
+          {t('arcSection.overall')}
+        </summary>
         <p style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.6, color: 'hsl(var(--ink-2))' }}>
           {arc.narrative}
         </p>
@@ -149,7 +158,7 @@ function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) 
               <button
                 type="button"
                 onClick={() => onJump(p.chapterId)}
-                title="跳到该章"
+                title={t('evolveSection.common.jumpToChapter')}
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 10.5,
@@ -169,7 +178,12 @@ function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) 
                   {p.label}
                   {overlay && (
                     <span
-                      title={`作者 patch「${overlay.patchTitle}」${overlay.alignsWithDerived ? '·命中' : '·未对上'}`}
+                      title={t('arcSection.patchOverlayTitle', {
+                        title: overlay.patchTitle,
+                        status: overlay.alignsWithDerived
+                          ? t('arcSection.patchOverlayHit')
+                          : t('arcSection.patchOverlayMiss'),
+                      })}
                       style={{ fontSize: 10, color: overlay.alignsWithDerived ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))' }}
                     >
                       ◆{overlay.alignsWithDerived ? '' : '?'}
@@ -187,21 +201,21 @@ function ArcMapView({ arc, onJump }: { arc: ArcMap; onJump: (chapterId: string) 
       {arc.tensions.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.06em', color: 'hsl(var(--ink-4))' }}>
-            张力 · 待确认
+            {t('arcSection.tensionsTitle')}
           </span>
-          {arc.tensions.map((t, i) => (
+          {arc.tensions.map((tension, i) => (
             <div key={i} style={{ fontSize: 12, color: 'hsl(var(--ink-2))', lineHeight: 1.45 }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'hsl(var(--ink-4))', marginRight: 6 }}>
-                [{TENSION_LABEL[t.kind] ?? t.kind}]
+                [{t(`arcSection.tensionKind.${tension.kind}`, { defaultValue: tension.kind })}]
               </span>
-              {t.note}
-              {t.orders.length > 0 && (
+              {tension.note}
+              {tension.orders.length > 0 && (
                 <span style={{ marginLeft: 6 }}>
-                  {t.orders.map((o, j) => (
+                  {tension.orders.map((o, j) => (
                     <button
                       key={o}
                       type="button"
-                      onClick={() => onJump(t.chapterIds[j] ?? '')}
+                      onClick={() => onJump(tension.chapterIds[j] ?? '')}
                       style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--accent))', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 2px' }}
                     >
                       →n{o}

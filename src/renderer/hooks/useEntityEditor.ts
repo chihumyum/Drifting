@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '@tiptap/react';
+import { useTranslation } from 'react-i18next';
 import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/core';
 import { Node as PMNode } from '@tiptap/pm/model';
@@ -146,6 +147,12 @@ interface EditorContextMenuOptions {
   onAddComment?: () => void;
   onAddPatch?: () => void;
   onCopilot?: () => void;
+  labels: {
+    format: string;
+    addComment: string;
+    addPatch: string;
+    copilot: string;
+  };
 }
 
 // Position a flyout to the right of its parent menu, aligned to the triggering
@@ -182,12 +189,12 @@ function positionContextFlyout(
 // batch-format every block / the whole selection — and crucially DON'T delete
 // the selection the way typing "/" over it would. Two groups: block-type
 // transforms (also in the slash menu) and inline marks (flyout-only).
-function appendFormatFlyout(menu: HTMLDivElement, editor: Editor): void {
+function appendFormatFlyout(menu: HTMLDivElement, editor: Editor, labelText: string): void {
   const row = document.createElement('button');
   row.type = 'button';
   row.className = 'has-flyout';
   const label = document.createElement('span');
-  label.textContent = '格式';
+  label.textContent = labelText;
   const chevron = document.createElement('span');
   chevron.className = 'editor-comment-menu__chevron';
   chevron.textContent = '›';
@@ -267,13 +274,13 @@ function openEditorContextMenu(opts: EditorContextMenuOptions): void {
 
   // 格式 first — it's the always-available, selection-scoped action. The
   // comment-family entries below are conditional on their handlers.
-  if (opts.editor) appendFormatFlyout(menu, opts.editor);
-  if (opts.onAddComment) addButton('添加批注', opts.onAddComment);
+  if (opts.editor) appendFormatFlyout(menu, opts.editor, opts.labels.format);
+  if (opts.onAddComment) addButton(opts.labels.addComment, opts.onAddComment);
   // Anchor a new element patch to the selection (chapter editors). Opens a
   // modal to pick the element + author title/body.
-  if (opts.onAddPatch) addButton('新建补丁', opts.onAddPatch);
+  if (opts.onAddPatch) addButton(opts.labels.addPatch, opts.onAddPatch);
   // Same entry point as ⇧⌘I — run Copilot on the selection (chapter editors).
-  if (opts.onCopilot) addButton('Copilot 修改', opts.onCopilot);
+  if (opts.onCopilot) addButton(opts.labels.copilot, opts.onCopilot);
 
   document.body.appendChild(menu);
 
@@ -576,6 +583,7 @@ export interface UseEntityEditorResult {
 //   • the @-picker (mentionable entities and "+ create element" affordance),
 //   • the active-editor registry hookup (Cmd+S, Cmd+F bindings).
 export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorResult {
+  const { t } = useTranslation();
   const {
     sourceKind,
     sourceId,
@@ -1155,6 +1163,12 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
               onAddComment,
               onAddPatch,
               onCopilot,
+              labels: {
+                format: t('entityEditor.contextMenu.format'),
+                addComment: t('entityEditor.contextMenu.addComment'),
+                addPatch: t('entityEditor.contextMenu.addPatch'),
+                copilot: t('entityEditor.contextMenu.copilot'),
+              },
             });
             return true;
           },
@@ -1195,6 +1209,7 @@ export function useEntityEditor(config: UseEntityEditorConfig): UseEntityEditorR
       autoFocus,
       editorClass,
       minHeight,
+      t,
       saveSelection,
       // Rebuild the editor when ydoc flips between undefined and a real
       // instance — useYjsDoc starts with isReady=false (no ydoc passed yet)

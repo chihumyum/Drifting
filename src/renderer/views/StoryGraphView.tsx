@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { CHAPTER_ORDER_STRIDE, isChapter, isDrift } from '../domain/book-node';
@@ -150,6 +151,7 @@ const DEFAULT_LANE_ID = '__default__';
 const UNAFFILIATED_LANE_ID = '__unaffiliated__';
 
 export function StoryGraphView() {
+  const { t } = useTranslation();
   const { bookNodes, storylines, nodeStorylineMapping, entityRelations, primaryStorylineByNode } =
     useDataStore();
   const bookActs = useDataStore((s) => s.bookActs);
@@ -561,7 +563,12 @@ export function StoryGraphView() {
   const lanesToRender = useMemo<Lane[]>(() => {
     if (storylines.length === 0) {
       return [
-        { id: DEFAULT_LANE_ID, name: '本书', color: 'hsl(var(--accent))', synthetic: true },
+        {
+          id: DEFAULT_LANE_ID,
+          name: t('bottomTimeline.synthetic.book'),
+          color: 'hsl(var(--accent))',
+          synthetic: true,
+        },
       ];
     }
     const real: Lane[] = storylines.map((s) => ({
@@ -572,12 +579,12 @@ export function StoryGraphView() {
     }));
     real.push({
       id: UNAFFILIATED_LANE_ID,
-      name: '未归属',
+      name: t('bottomTimeline.synthetic.unaffiliated'),
       color: 'hsl(var(--ink-3))',
       synthetic: true,
     });
     return real;
-  }, [storylines]);
+  }, [storylines, t]);
 
   const storylineRowIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -905,19 +912,19 @@ export function StoryGraphView() {
         }
       }
     }
-    const created = addMarker(target, '标记');
+    const created = addMarker(target, t('bottomTimeline.marker.defaultLabel'));
     if (created) setNewlyAddedPinId(created.id);
-  }, [isNarrative, snapValues, addMarker, orderToX]);
+  }, [isNarrative, snapValues, addMarker, orderToX, t]);
 
   // Drop a marker at a specific order (the rail right-click target), as opposed
   // to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
       if (!isNarrative || snapValues.length === 0) return;
-      const created = addMarker(order, '标记');
+      const created = addMarker(order, t('bottomTimeline.marker.defaultLabel'));
       if (created) setNewlyAddedPinId(created.id);
     },
-    [isNarrative, snapValues.length, addMarker],
+    [isNarrative, snapValues.length, addMarker, t],
   );
 
   // ---- Drag / drop ----
@@ -1289,11 +1296,15 @@ export function StoryGraphView() {
     setDriftDropIndex(null);
   }, []);
 
-  const totalsLabel = `${storylines.length} ${storylines.length === 1 ? '故事线' : '故事线'} · ${placedNodes.length}/${bookNodes.length} 章`;
+  const totalsLabel = t('storyGraph.meta', {
+    storylines: storylines.length,
+    placed: placedNodes.length,
+    total: bookNodes.length,
+  });
 
   const renderKindChip = (kind: string) => {
     const isUncategorized = kind === UNCATEGORIZED_KIND;
-    const label = isUncategorized ? '未分类' : kind;
+    const label = isUncategorized ? t('storyGraph.edge.uncategorized') : kind;
     const color = resolveKindColor(isUncategorized ? null : kind);
     const active = !hiddenKinds.has(kind);
     return (
@@ -1308,7 +1319,11 @@ export function StoryGraphView() {
             return next;
           })
         }
-        title={active ? `隐藏「${label}」` : `显示「${label}」`}
+        title={
+          active
+            ? t('storyGraph.edge.hideKind', { label })
+            : t('storyGraph.edge.showKind', { label })
+        }
       >
         <span className="graph-head__filter-dot" style={{ background: color }} />
         <span>{label}</span>
@@ -1319,7 +1334,7 @@ export function StoryGraphView() {
   return (
     <div className="graph-overlay" data-view={viewMode}>
       <SuperViewHeader
-        title="叙事结构图"
+        title={t('storyGraph.title')}
         meta={totalsLabel}
         onBack={close}
         leftSlot={
@@ -1328,16 +1343,16 @@ export function StoryGraphView() {
               <button
                 className={viewMode === 'book' ? 'is-active' : ''}
                 onClick={() => setViewMode('book')}
-                title="按阅读顺序排列"
+                title={t('bottomTimeline.view.bookTitle')}
               >
-                书序
+                {t('bottomTimeline.view.book')}
               </button>
               <button
                 className={viewMode === 'narrative' ? 'is-active' : ''}
                 onClick={() => setViewMode('narrative')}
-                title="按 in-world 时间排列"
+                title={t('bottomTimeline.view.narrativeTitle')}
               >
-                叙事时
+                {t('bottomTimeline.view.narrative')}
               </button>
             </div>
             <button
@@ -1349,10 +1364,14 @@ export function StoryGraphView() {
               }}
               title={
                 placedNodes.length < 2
-                  ? '至少两个章节才能打散'
-                  : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
+                  ? t('bottomTimeline.spread.needTwo')
+                  : t('bottomTimeline.spread.title', {
+                      mode: isNarrative
+                        ? t('bottomTimeline.view.narrative')
+                        : t('bottomTimeline.view.book'),
+                    })
               }
-              aria-label="打散节点"
+              aria-label={t('storyGraph.spreadAria')}
             >
               <svg
                 width="11"
@@ -1370,7 +1389,7 @@ export function StoryGraphView() {
                 <path d="M12 5l2 3-2 3" />
                 <line x1="7" y1="8" x2="9" y2="8" />
               </svg>
-              <span>打散</span>
+              <span>{t('storyGraph.spread')}</span>
             </button>
 
             {/* The 「+幕」act-create action moved into the act rail's head cell
@@ -1391,11 +1410,11 @@ export function StoryGraphView() {
                   type="button"
                   className={`graph-head__unplaced-btn${drawerOpen ? ' is-open' : ''}`}
                   onClick={() => setDrawerOpen((v) => !v)}
-                  title="未放置的章节（拖入下方时间轴）"
+                  title={t('bottomTimeline.unplaced.title')}
                   aria-haspopup="menu"
                   aria-expanded={drawerOpen}
                 >
-                  <span>未放置</span>
+                  <span>{t('bottomTimeline.unplaced.label')}</span>
                   <span className="graph-head__unplaced-count">{unplacedNodes.length}</span>
                 </button>
                 {drawerOpen && (
@@ -1405,7 +1424,7 @@ export function StoryGraphView() {
                   >
                     {unplacedNodes.length === 0 ? (
                       <div className="graph-head__unplaced-empty">
-                        所有章节都在叙事时间轴上
+                        {t('bottomTimeline.unplaced.empty')}
                       </div>
                     ) : (
                       unplacedNodes.map((node) => {
@@ -1420,14 +1439,14 @@ export function StoryGraphView() {
                             onDragStart={(e) => handleChipDragStart(e, node)}
                             onDragEnd={handleDragEnd}
                             style={{ ['--chip-color' as string]: color } as React.CSSProperties}
-                            title={node.title || '未命名'}
+                            title={node.title || t('common.untitled')}
                           >
                             <span className="graph-head__unplaced-chip-dot" />
                             <span className="graph-head__unplaced-chip-num">
                               § {String(node.bookOrder).padStart(2, '0')}
                             </span>
                             <span className="graph-head__unplaced-chip-title">
-                              {node.title || '未命名'}
+                              {node.title || t('common.untitled')}
                             </span>
                           </div>
                         );
@@ -1455,9 +1474,9 @@ export function StoryGraphView() {
               <div className="graph-head__filters">
                 <div
                   className="graph-head__filter is-hint"
-                  title="按住 Shift 点击两个节点即可建立关联"
+                  title={t('storyGraph.edge.hintTitle')}
                 >
-                  Shift + 点击两节点 = 创建关联
+                  {t('storyGraph.edge.hint')}
                 </div>
               </div>
             )}
@@ -1477,12 +1496,12 @@ export function StoryGraphView() {
                 type="button"
                 className={`graph-head__edge-mgr-btn${edgeMgrOpen ? ' is-open' : ''}`}
                 onClick={() => setEdgeMgrOpen((v) => !v)}
-                title="管理关联类型"
+                title={t('storyGraph.edge.manageTitle')}
                 aria-haspopup="menu"
                 aria-expanded={edgeMgrOpen}
               >
                 <span aria-hidden>≡</span>
-                <span>类型</span>
+                <span>{t('storyGraph.edge.type')}</span>
               </button>
               <EdgeKindManager
                 open={edgeMgrOpen}
@@ -1593,14 +1612,18 @@ export function StoryGraphView() {
               <div
                 className="graph-axis-rail-cell"
                 style={{ width: GRAPH_CONFIG.RAIL_WIDTH }}
-                title="叙事时间标记：点击 + 添加可拖动的时间 pin"
+                title={t('bottomTimeline.axis.title')}
               >
-                <span className="graph-rail__axis-name">时间</span>
+                <span className="graph-rail__axis-name">{t('storyGraph.axis.time')}</span>
                 <button
                   type="button"
                   className="graph-rail__axis-add"
                   disabled={snapValues.length === 0}
-                  title={snapValues.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
+                  title={
+                    snapValues.length === 0
+                      ? t('bottomTimeline.axis.needChapter')
+                      : t('bottomTimeline.axis.addPin')
+                  }
                   onClick={(e) => {
                     e.stopPropagation();
                     handleAddPin();
@@ -1834,7 +1857,9 @@ export function StoryGraphView() {
                     />
                     <span>{lane.name}</span>
                   </div>
-                  <div className="graph-rail__meta">{laneNodes.length} 章</div>
+                  <div className="graph-rail__meta">
+                    {t('storyGraph.lane.chapterCount', { count: laneNodes.length })}
+                  </div>
                 </div>
                 <div
                   className="graph-track-cell"
@@ -1920,11 +1945,16 @@ export function StoryGraphView() {
                             ['--tile-color' as string]: color,
                           } as React.CSSProperties
                         }
-                        title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字`}
+                        title={t('storyGraph.node.titleWithWords', {
+                          title: node.title || t('common.untitled'),
+                          count: node.wordCount ?? 0,
+                        })}
                       >
                         <div className="graph-tile__stripe" />
                         <div className="graph-tile__num">§ {String(node.bookOrder).padStart(2, '0')}</div>
-                        <div className="graph-tile__title">{node.title || '未命名'}</div>
+                        <div className="graph-tile__title">
+                          {node.title || t('common.untitled')}
+                        </div>
                         {node.summary && <div className="graph-tile__summary">{node.summary}</div>}
                       </div>
                     );
@@ -1990,7 +2020,7 @@ export function StoryGraphView() {
                         setSelectedEdgeId(edge.id);
                       }}
                     >
-                      <title>{edge.kind ?? '未分类'}</title>
+                      <title>{edge.kind ?? t('storyGraph.edge.uncategorized')}</title>
                     </path>
                     <path
                       d={d}
@@ -2023,14 +2053,14 @@ export function StoryGraphView() {
                   type="button"
                   className="graph-edge-delete"
                   style={{ left: GRAPH_CONFIG.RAIL_WIDTH + midX, top: midY }}
-                  title="删除关联"
+                  title={t('storyGraph.edge.delete')}
                   onClick={(e) => {
                     e.stopPropagation();
                     const id = selectedEdgeId;
                     setSelectedEdgeId(null);
                     void deleteEdge(id);
                   }}
-                  aria-label="删除关联"
+                  aria-label={t('storyGraph.edge.delete')}
                 >
                   ×
                 </button>
@@ -2097,8 +2127,8 @@ export function StoryGraphView() {
         {visibleDriftNodes.length === 0 ? (
           <div className="drift-card__empty">
             {driftNodes.length > 0
-              ? '所有浮缀都已锚定在叙事时间轴上'
-              : '还没有浮缀卡片 · 在左侧 Drift 面板新建灵感笔记'}
+              ? t('storyGraph.drift.allAnchored')
+              : t('storyGraph.drift.empty')}
           </div>
         ) : (
           visibleDriftNodes.map((node, index) => {
@@ -2205,12 +2235,15 @@ export function StoryGraphView() {
                   openEntity({ entityType: 'node', id: node.id }, { preview: false });
                   close();
                 }}
-                title={`${node.title || '未命名'} · ${node.wordCount ?? 0} 字 · shift+点击起关联`}
+                title={t('storyGraph.drift.cardTitle', {
+                  title: node.title || t('common.untitled'),
+                  count: node.wordCount ?? 0,
+                })}
               >
                 <div className="drift-card__num">
                   §{String(node.bookOrder).padStart(2, '0')}
                 </div>
-                <div className="drift-card__title">{node.title || '未命名'}</div>
+                <div className="drift-card__title">{node.title || t('common.untitled')}</div>
                 {node.summary && (
                   <div className="drift-card__summary">{node.summary}</div>
                 )}
@@ -2258,7 +2291,7 @@ export function StoryGraphView() {
                     setSelectedEdgeId(g.id);
                   }}
                 >
-                  <title>{g.kind ?? '未分类'}</title>
+                  <title>{g.kind ?? t('storyGraph.edge.uncategorized')}</title>
                 </path>
                 <path className="graph-drift-edge__halo" d={d} stroke={g.color} />
                 <path
@@ -2287,14 +2320,14 @@ export function StoryGraphView() {
               type="button"
               className="graph-edge-delete is-floating"
               style={{ left: midX, top: midY }}
-              title="删除关联"
+              title={t('storyGraph.edge.delete')}
               onClick={(e) => {
                 e.stopPropagation();
                 const id = selectedEdgeId;
                 setSelectedEdgeId(null);
                 void deleteEdge(id);
               }}
-              aria-label="删除关联"
+              aria-label={t('storyGraph.edge.delete')}
             >
               ×
             </button>
@@ -2305,10 +2338,10 @@ export function StoryGraphView() {
       {/* Status banner when a relation-source tile has been picked. */}
       {linkSource && !newEdgePair && (
         <div className="graph-linkbar">
-          <span>已选中起点：</span>
-          <strong>{nodeById.get(linkSource)?.title || '未命名'}</strong>
-          <span>· 点击另一节点创建关联</span>
-          <button onClick={() => setLinkSource(null)} title="取消">×</button>
+          <span>{t('storyGraph.edge.linkSourcePrefix')}</span>
+          <strong>{nodeById.get(linkSource)?.title || t('common.untitled')}</strong>
+          <span>{t('storyGraph.edge.linkSourceSuffix')}</span>
+          <button onClick={() => setLinkSource(null)} title={t('common.cancel')}>×</button>
         </div>
       )}
 
@@ -2322,13 +2355,13 @@ export function StoryGraphView() {
           }}
         >
           <div className="graph-newedge">
-            <div className="graph-newedge__head">新建关联</div>
+            <div className="graph-newedge__head">{t('storyGraph.edge.newTitle')}</div>
             <div className="graph-newedge__pair">
-              <span>{nodeById.get(newEdgePair.source)?.title || '未命名'}</span>
+              <span>{nodeById.get(newEdgePair.source)?.title || t('common.untitled')}</span>
               <span aria-hidden>→</span>
-              <span>{nodeById.get(newEdgePair.target)?.title || '未命名'}</span>
+              <span>{nodeById.get(newEdgePair.target)?.title || t('common.untitled')}</span>
             </div>
-            <label className="graph-newedge__label">分类（留空 = 未分类）</label>
+            <label className="graph-newedge__label">{t('storyGraph.edge.kindLabel')}</label>
             <div
               className="graph-newedge__select"
               onFocus={() => setNewEdgeSuggestOpen(true)}
@@ -2346,7 +2379,7 @@ export function StoryGraphView() {
                 className="graph-newedge__input"
                 type="text"
                 value={newEdgeKind}
-                placeholder="如：同人物 / 引用 / 时序 …"
+                placeholder={t('storyGraph.edge.kindPlaceholder')}
                 onChange={(e) => setNewEdgeKind(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
@@ -2413,7 +2446,7 @@ export function StoryGraphView() {
               })()}
             </div>
             <div className="graph-newedge__actions">
-              <button onClick={() => setNewEdgePair(null)}>取消</button>
+              <button onClick={() => setNewEdgePair(null)}>{t('common.cancel')}</button>
               <button
                 className="is-primary"
                 onClick={() => {
@@ -2426,7 +2459,7 @@ export function StoryGraphView() {
                   setNewEdgePair(null);
                 }}
               >
-                创建
+                {t('storyGraph.edge.create')}
               </button>
             </div>
           </div>
@@ -2459,17 +2492,27 @@ export function StoryGraphView() {
             extraGroups={[
               [
                 ...(hasAnyStoryline
-                  ? [{ action: 'moveToUnaffiliated', label: '转移至未归属' }]
+                  ? [
+                      {
+                        action: 'moveToUnaffiliated',
+                        label: t('bottomTimeline.menu.moveToUnaffiliated'),
+                      },
+                    ]
                   : []),
                 ...(isNarrative && contextMenu.hasNarrativeOrder
-                  ? [{ action: 'detachFromNarrative', label: '回到未放置' }]
+                  ? [
+                      {
+                        action: 'detachFromNarrative',
+                        label: t('bottomTimeline.menu.detachFromNarrative'),
+                      },
+                    ]
                   : []),
               ],
               [
-                { action: 'startEdgeFrom', label: '从此节点新建关联' },
+                { action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromNode') },
                 {
                   action: 'deleteAllEdges',
-                  label: `删除此节点的所有关联 (${edgeCount})`,
+                  label: t('storyGraph.menu.deleteAllEdges', { count: edgeCount }),
                   danger: true,
                   disabled: edgeCount === 0,
                 },
@@ -2546,7 +2589,7 @@ export function StoryGraphView() {
             subtitle: driftContextMenu.nodeSummary,
           }}
           extraGroups={[
-            [{ action: 'startEdgeFrom', label: '从此浮缀新建关联' }],
+            [{ action: 'startEdgeFrom', label: t('storyGraph.menu.startEdgeFromDrift') }],
           ]}
           onAction={(action) => {
             const nid = driftContextMenu.nodeId;

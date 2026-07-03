@@ -1,9 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 /*
 global BackButton
 */
 export function BackButton() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const canGoBack = location.key !== 'default';
@@ -38,7 +40,7 @@ export function BackButton() {
       }}
     >
       <ArrowLeft size={16} />
-      返回
+      {t('navigation.back')}
     </button>
   );
 }

@@ -16,6 +16,7 @@
  * rect-tracking portal overlay) doesn't apply to a form field and isn't needed.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, X } from 'lucide-react';
 import { diffTokens, type AgentBlockChange } from '../../lib/agent/block-diff';
 
@@ -153,6 +154,7 @@ export function FieldReview({
   /** Revert the field to its old value (approve ✗ only — no typewriter). */
   onReject: () => void;
 }) {
+  const { t } = useTranslation();
   const mode = change.mode ?? 'approve';
   const ref = useRef<HTMLDivElement>(null);
   // Once true, the diff types itself in; its onDone resolves the change.
@@ -247,7 +249,7 @@ export function FieldReview({
           <button
             type="button"
             className="field-review__btn field-review__btn--ok"
-            title="采纳这处改动"
+            title={t('fieldReview.acceptTitle')}
             onClick={() => setCommitting(true)}
           >
             <Check size={12} />
@@ -255,7 +257,7 @@ export function FieldReview({
           <button
             type="button"
             className="field-review__btn field-review__btn--no"
-            title="拒绝并还原"
+            title={t('fieldReview.rejectTitle')}
             onClick={onReject}
           >
             <X size={12} />

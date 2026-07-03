@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   cellKey,
   MAX_CELL_H,
@@ -66,6 +67,7 @@ function HeaderLabel({
 }
 
 export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
+  const { t } = useTranslation();
   const [initial] = useState<PlotGrid>(() => parsePlotGrid(initialJson));
   const [rows, setRows] = useState<PlotAxis[]>(initial.rows);
   const [cols, setCols] = useState<PlotAxis[]>(initial.cols);
@@ -268,12 +270,12 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
               <th className="pl-corner" />
               {cols.map((c) => (
                 <th className="pl-head pl-head--col" key={c.id}>
-                  <HeaderLabel value={c.label} placeholder="列" onCommit={(v) => setColLabel(c.id, v)} />
+                  <HeaderLabel value={c.label} placeholder={t('plotGrid.columnPlaceholder')} onCommit={(v) => setColLabel(c.id, v)} />
                   {cols.length > 1 && (
                     <button
                       type="button"
                       className="pl-head__del"
-                      title="删除此列"
+                      title={t('plotGrid.deleteColumn')}
                       onClick={() => delCol(c.id)}
                     >
                       ×
@@ -287,12 +289,12 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
             {rows.map((r, ri) => (
               <tr key={r.id}>
                 <th className="pl-head pl-head--row">
-                  <HeaderLabel value={r.label} placeholder="行" onCommit={(v) => setRowLabel(r.id, v)} />
+                  <HeaderLabel value={r.label} placeholder={t('plotGrid.rowPlaceholder')} onCommit={(v) => setRowLabel(r.id, v)} />
                   {rows.length > 1 && (
                     <button
                       type="button"
                       className="pl-head__del"
-                      title="删除此行"
+                      title={t('plotGrid.deleteRow')}
                       onClick={() => delRow(r.id)}
                     >
                       ×
@@ -333,13 +335,13 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
           </tbody>
         </table>
 
-        <button type="button" className="pl-add pl-add--col" title="添加一列" onClick={addCol}>
+        <button type="button" className="pl-add pl-add--col" title={t('plotGrid.addColumn')} onClick={addCol}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <line x1="8" y1="3" x2="8" y2="13" />
             <line x1="3" y1="8" x2="13" y2="8" />
           </svg>
         </button>
-        <button type="button" className="pl-add pl-add--row" title="添加一行" onClick={addRow}>
+        <button type="button" className="pl-add pl-add--row" title={t('plotGrid.addRow')} onClick={addRow}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <line x1="8" y1="3" x2="8" y2="13" />
             <line x1="3" y1="8" x2="13" y2="8" />
@@ -348,7 +350,7 @@ export function PlotGridEditor({ initialJson, onChange }: PlotGridEditorProps) {
 
         <div
           className="pl-resize-grip"
-          title="拖拽调整格子大小与比例"
+          title={t('plotGrid.resize')}
           onMouseDown={onGripDown}
           aria-hidden="true"
         >

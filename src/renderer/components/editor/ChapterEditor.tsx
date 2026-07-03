@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useState, type Ref } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -103,6 +104,7 @@ export function ChapterEditor({
   selectionKey,
   activateCaret = null,
 }: ChapterEditorProps) {
+  const { t } = useTranslation();
   if (!projectId) {
     throw new Error('ChapterEditor requires projectId');
   }
@@ -281,7 +283,7 @@ export function ChapterEditor({
                 <input
                   type="text"
                   value={titleValue}
-                  placeholder="Untitled Chapter"
+                  placeholder={t('chapterEditor.untitledChapter')}
                   onChange={(e) => setTitleValue(e.target.value)}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TimelineMarker } from '../../domain/timeline-marker';
 import { TimelinePinMenu } from './TimelinePinMenu';
 
@@ -62,6 +63,7 @@ export function GraphTimelinePin({
   onRequestBind,
   onOpenDrift,
 }: GraphTimelinePinProps) {
+  const { t } = useTranslation();
   const isBound = Boolean(marker.driftNodeId);
   const [editing, setEditing] = useState(editOnMount && !isBound);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -146,9 +148,11 @@ export function GraphTimelinePin({
   const handleUnbind = useCallback(() => {
     onChange({
       driftNodeId: null,
-      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? '标记'),
+      label: marker.label.trim()
+        ? marker.label
+        : (boundDriftTitle ?? t('bottomTimeline.marker.defaultLabel')),
     });
-  }, [onChange, marker.label, boundDriftTitle]);
+  }, [onChange, marker.label, boundDriftTitle, t]);
 
   const className = [
     'graph-pin',
@@ -159,7 +163,7 @@ export function GraphTimelinePin({
     .filter(Boolean)
     .join(' ');
 
-  const displayLabel = isBound ? (boundDriftTitle || '未命名') : marker.label;
+  const displayLabel = isBound ? (boundDriftTitle || t('common.untitled')) : marker.label;
 
   return (
     <div
@@ -203,15 +207,19 @@ export function GraphTimelinePin({
         }}
         title={
           isBound
-            ? '已绑定漂浮节点 · 单击打开'
+            ? t('bottomTimeline.marker.boundTitle')
             : editing
-              ? '回车保存，留空删除'
-              : '双击编辑名称'
+              ? t('bottomTimeline.marker.editingTitle')
+              : t('bottomTimeline.marker.renameTitle')
         }
       >
         {displayLabel}
       </div>
-      <div className="graph-pin__line" onMouseDown={startDrag} title="拖动调整位置" />
+      <div
+        className="graph-pin__line"
+        onMouseDown={startDrag}
+        title={t('bottomTimeline.marker.dragTitle')}
+      />
       {menu && (
         <TimelinePinMenu
           x={menu.x}

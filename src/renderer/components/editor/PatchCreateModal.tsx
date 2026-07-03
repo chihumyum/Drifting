@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import { X } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
@@ -26,6 +27,7 @@ interface PatchCreateModalProps {
 // Themed with shadcn tokens (bg-card / text-foreground / …) so it adapts to
 // light + dark automatically.
 export function PatchCreateModal({ projectId, request, onClose, onCreated }: PatchCreateModalProps) {
+  const { t } = useTranslation();
   const { bookElements } = useDataStore();
   const userId = useAuthStore((state) => state.user?.id);
   // userId can briefly be undefined during initial auth load; useBookElement
@@ -153,16 +155,16 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border px-4 py-3">
           <div>
-            <div className="text-sm font-semibold">新建元素补丁</div>
+            <div className="text-sm font-semibold">{t('patchCreateModal.title')}</div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
-              为选中文本锚定一条元素演化记录
+              {t('patchCreateModal.subtitle')}
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="-mr-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="关闭"
+            aria-label={t('common.close')}
           >
             <X size={15} />
           </button>
@@ -178,11 +180,11 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
 
           {/* Element target */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">目标元素</label>
+            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.targetElement')}</label>
             {elementId ? (
               <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
                 <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
-                  元素
+                  {t('globalSearch.entity.element')}
                 </span>
                 <span className="flex-1 truncate text-sm">{elementName}</span>
                 <button
@@ -195,7 +197,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                   }}
                   className="text-[11px] text-muted-foreground hover:text-foreground"
                 >
-                  更换
+                  {t('patchCreateModal.changeElement')}
                 </button>
               </div>
             ) : (
@@ -206,13 +208,13 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                   autoFocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索元素…"
+                  placeholder={t('patchCreateModal.searchElement')}
                   className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
                 />
                 <div className="max-h-44 overflow-y-auto rounded-md border border-border">
                   {candidates.length === 0 && !noExactMatch ? (
                     <div className="px-2.5 py-2 text-xs italic text-muted-foreground">
-                      没有匹配的元素
+                      {t('patchCreateModal.noElements')}
                     </div>
                   ) : (
                     candidates.map((el) => (
@@ -223,7 +225,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm hover:bg-muted"
                       >
                         <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          元素
+                          {t('globalSearch.entity.element')}
                         </span>
                         <span className="truncate">{el.name}</span>
                       </button>
@@ -236,9 +238,9 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
                       className="flex w-full items-center gap-2 border-t border-border px-2.5 py-1.5 text-left text-sm hover:bg-muted"
                     >
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        新建
+                        {t('patchCreateModal.newElement')}
                       </span>
-                      <span className="truncate">创建元素「{query.trim()}」</span>
+                      <span className="truncate">{t('patchCreateModal.createElement', { name: query.trim() })}</span>
                     </button>
                   )}
                 </div>
@@ -248,23 +250,23 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
 
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">标题（可选）</label>
+            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.patchTitle')}</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="一句话概括这次演化…"
+              placeholder={t('patchCreateModal.titlePlaceholder')}
               className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring"
             />
           </div>
 
           {/* Body */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-medium text-muted-foreground">补丁内容</label>
+            <label className="block text-[11px] font-medium text-muted-foreground">{t('patchCreateModal.body')}</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="描述该元素在此处发生了什么变化…"
+              placeholder={t('patchCreateModal.bodyPlaceholder')}
               rows={4}
               className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-sm leading-relaxed outline-none focus:border-ring"
             />
@@ -278,7 +280,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
             onClick={onClose}
             className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -286,7 +288,7 @@ export function PatchCreateModal({ projectId, request, onClose, onCreated }: Pat
             disabled={!elementId || busy}
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            创建补丁
+            {t('patchCreateModal.createPatch')}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { useUiStore } from '../../store/ui-store';
 import { useAuthStore } from '../../store/auth';
@@ -298,6 +299,7 @@ function ChapterBand({
   onNodeClick,
   linkSourceNodeId,
 }: ChapterBandProps) {
+  const { t } = useTranslation();
   const placedNodes = useMemo(() => nodes.filter(isChapter), [nodes]);
 
   const storylineById = useMemo(
@@ -400,7 +402,7 @@ function ChapterBand({
           textTransform: 'uppercase',
         }}
       >
-        no storylines yet
+        {t('superElement.empty.noStorylines')}
       </div>
     );
   }
@@ -511,7 +513,11 @@ function ChapterBand({
             key={node.id}
             data-super-card="node"
             data-node-id={node.id}
-            title={node.summary ? `${node.title || '未命名'}\n\n${node.summary}` : node.title || '未命名'}
+            title={
+              node.summary
+                ? `${node.title || t('common.untitled')}\n\n${node.summary}`
+                : node.title || t('common.untitled')
+            }
             onClick={(e) => {
               e.stopPropagation();
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -554,7 +560,7 @@ function ChapterBand({
                 flexShrink: 0,
               }}
             >
-              {node.title || '未命名'}
+              {node.title || t('common.untitled')}
             </div>
             {node.summary && (
               <div
@@ -624,6 +630,7 @@ function CategoryBox({
   onElementContextMenu,
   onCategoryContextMenu,
 }: CategoryBoxProps) {
+  const { t } = useTranslation();
   const { category, groups, widthCells, heightCells, totalElements } = model;
   const accent = category?.color ?? 'hsl(var(--ink-4))';
   // Visible box width sheds CATEGORY_GAP_X so two adjacent categories
@@ -708,7 +715,7 @@ function CategoryBox({
             color: 'hsl(var(--ink-1))',
           }}
         >
-          {category?.name ?? '未命名'}
+          {category?.name ?? t('common.untitled')}
         </span>
         <span style={{ color: 'hsl(var(--ink-4))', flexShrink: 0, fontWeight: 400 }}>
           ·{totalElements}
@@ -896,7 +903,7 @@ function CategoryBox({
             textTransform: 'uppercase',
           }}
         >
-          empty
+          {t('superElement.empty.categoryEmpty')}
         </div>
       )}
     </div>
@@ -904,6 +911,7 @@ function CategoryBox({
 }
 
 export function SuperElementView() {
+  const { t } = useTranslation();
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
   const close = useCallback(() => setActiveSuperView('none'), [setActiveSuperView]);
   const { openEntity, projectId } = useProjectNavigation();
@@ -2142,8 +2150,11 @@ export function SuperElementView() {
           button visual styles still live in the trailing <style> block
           so :hover/.is-on can be expressed in real CSS. */}
       <SuperViewHeader
-        title="元素全景"
-        meta={`${bookElementCategories.length} 类 · ${bookElements.length} 元素`}
+        title={t('superElement.title')}
+        meta={t('superElement.meta', {
+          categories: bookElementCategories.length,
+          elements: bookElements.length,
+        })}
         onBack={close}
         rightSlot={
           <>
@@ -2163,7 +2174,7 @@ export function SuperElementView() {
                   padding: '3px 8px',
                 }}
               >
-                选择第二个 {linkSource.kind === 'element' ? '元素 / 章节' : '元素 / 章节'} · ESC 取消
+                {t('superElement.linkHint')}
               </div>
             )}
 
@@ -2172,7 +2183,7 @@ export function SuperElementView() {
                 hides matching edges across both world + drift layers. */}
             {availableKinds.map((k) => {
               const isUncat = k === UNCATEGORIZED_KIND;
-              const label = isUncat ? '未分类' : k;
+              const label = isUncat ? t('storyGraph.edge.uncategorized') : k;
               // Color: hash of kind for named; ink-4 for uncategorised (mirrors
               // the default fallback used by edges with null kind).
               const color = isUncat ? 'hsl(var(--ink-4))' : colorForKind(k);
@@ -2189,7 +2200,11 @@ export function SuperElementView() {
                       return next;
                     })
                   }
-                  title={visible ? `隐藏「${label}」` : `显示「${label}」`}
+                  title={
+                    visible
+                      ? t('storyGraph.edge.hideKind', { label })
+                      : t('storyGraph.edge.showKind', { label })
+                  }
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -2231,31 +2246,35 @@ export function SuperElementView() {
               onClick={() => setEdgesViewportOnly((v) => !v)}
               title={
                 edgesViewportOnly
-                  ? '关闭聚焦 — 显示全部关联线'
-                  : '打开聚焦 — 只显示当前视口内 element 的关联线'
+                  ? t('superElement.focusOffTitle')
+                  : t('superElement.focusOnTitle')
               }
               aria-pressed={edgesViewportOnly}
             >
-              聚焦 · {edgesViewportOnly ? '开' : '关'}
+              {t('superElement.focusToggle', {
+                state: edgesViewportOnly ? t('superElement.stateOn') : t('superElement.stateOff'),
+              })}
             </button>
             <button
               className={`super-element-toggle${bandSticky ? ' is-on' : ''}`}
               onClick={() => setBandSticky((v) => !v)}
               title={
                 bandSticky
-                  ? '关闭章节带粘附'
-                  : '打开章节带粘附 — 平移时章节带停留在视口边缘,元素从其下穿过'
+                  ? t('superElement.stickyOffTitle')
+                  : t('superElement.stickyOnTitle')
               }
               aria-pressed={bandSticky}
             >
-              粘带 · {bandSticky ? '开' : '关'}
+              {t('superElement.stickyToggle', {
+                state: bandSticky ? t('superElement.stateOn') : t('superElement.stateOff'),
+              })}
             </button>
             <button
               className="super-element-reset"
               onClick={resetView}
-              title="重置画布缩放与平移"
+              title={t('superElement.resetTitle')}
             >
-              重置
+              {t('superElement.reset')}
             </button>
           </>
         }
@@ -2443,7 +2462,7 @@ export function SuperElementView() {
               const selected =
                 selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
-              const kindLabel = edge.kind ?? '未分类';
+              const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
               return (
                 <g key={edge.id} data-super-edge>
                   {/* Invisible wide stroke for hit-testing — same trick as
@@ -2547,7 +2566,7 @@ export function SuperElementView() {
               const selected =
                 selectedEdgeId === edge.id || !!focusConnected?.edgeIds.has(edge.id);
               const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
-              const kindLabel = edge.kind ?? '未分类';
+              const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
               return (
                 <g key={edge.id} data-super-edge>
                   <path
@@ -2659,7 +2678,7 @@ export function SuperElementView() {
               pointerEvents: 'none',
             }}
           >
-            no element categories yet.
+            {t('superElement.empty.noCategories')}
           </div>
         )}
       </div>
@@ -2702,7 +2721,8 @@ export function SuperElementView() {
           target.kind === 'element'
             ? bookElements.find((e) => e.id === target.id)?.name ?? '?'
             : bookNodes.find((n) => n.id === target.id)?.title ?? '?';
-        const kindLabel = (k: 'element' | 'node') => (k === 'element' ? '元素' : '章节');
+        const kindLabel = (k: 'element' | 'node') =>
+          k === 'element' ? t('superElement.kind.element') : t('superElement.kind.chapter');
         // Distinct existing kinds (named only — never the uncategorised
         // sentinel) for the input's suggestion dropdown.
         const existingKinds = availableKinds.filter((k) => k !== UNCATEGORIZED_KIND);
@@ -2726,7 +2746,7 @@ export function SuperElementView() {
             <div
               data-super-modal
               role="dialog"
-              aria-label="新建关联"
+              aria-label={t('storyGraph.edge.newTitle')}
               style={{
                 position: 'fixed',
                 left: '50%',
@@ -2753,7 +2773,7 @@ export function SuperElementView() {
                   borderBottom: '1px solid hsl(var(--rule))',
                 }}
               >
-                新建手动关联
+                {t('superElement.manualRelationTitle')}
               </div>
               <div
                 style={{
@@ -2781,7 +2801,7 @@ export function SuperElementView() {
                     letterSpacing: '0.1em',
                   }}
                 >
-                  ↓ 引用
+                  {t('superElement.relationVerb')}
                 </div>
                 <div>
                   <span style={{ color: 'hsl(var(--ink-4))', marginRight: 6 }}>
@@ -2805,7 +2825,7 @@ export function SuperElementView() {
                     marginBottom: 4,
                   }}
                 >
-                  分类（留空 = 未分类）
+                  {t('storyGraph.edge.kindLabel')}
                 </div>
                 <div
                   style={{ position: 'relative' }}
@@ -2820,7 +2840,7 @@ export function SuperElementView() {
                     autoFocus
                     type="text"
                     value={pendingLinkKind}
-                    placeholder="如：同人物 / 引用 / 时序 …"
+                    placeholder={t('storyGraph.edge.kindPlaceholder')}
                     onChange={(e) => setPendingLinkKind(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -2936,7 +2956,7 @@ export function SuperElementView() {
                     cursor: 'pointer',
                   }}
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -2956,7 +2976,7 @@ export function SuperElementView() {
                     cursor: 'pointer',
                   }}
                 >
-                  创建
+                  {t('storyGraph.edge.create')}
                 </button>
               </div>
             </div>
@@ -3008,14 +3028,14 @@ export function SuperElementView() {
                 }}
                 title={
                   node.summary
-                    ? `${node.title || '未命名'}\n\n${node.summary}`
-                    : node.title || '未命名'
+                    ? `${node.title || t('common.untitled')}\n\n${node.summary}`
+                    : node.title || t('common.untitled')
                 }
               >
                 <div className="drift-card__num">
                   §{String(node.bookOrder).padStart(2, '0')}
                 </div>
-                <div className="drift-card__title">{node.title || '未命名'}</div>
+                <div className="drift-card__title">{node.title || t('common.untitled')}</div>
                 {node.summary && (
                   <div className="drift-card__summary">{node.summary}</div>
                 )}
@@ -3041,7 +3061,7 @@ export function SuperElementView() {
           {driftEdgeGeom.map((edge) => {
             const d = edgePath(edge.x1, edge.y1, edge.x2, edge.y2);
             const selected = selectedEdgeId === edge.id;
-            const kindLabel = edge.kind ?? '未分类';
+            const kindLabel = edge.kind ?? t('storyGraph.edge.uncategorized');
             return (
               <g key={edge.id} className={`drift-edge${selected ? ' is-selected' : ''}`}>
                 <path
@@ -3137,11 +3157,11 @@ export function SuperElementView() {
         if (category) {
           tags.push({
             id: `cat-${category.id}`,
-            name: category.name || '未命名分类',
+            name: category.name || t('superElement.unnamedCategory'),
             color: category.color,
           });
         } else if (el && el.categoryId == null) {
-          tags.push({ id: 'cat-none', name: '未分类', color: 'hsl(var(--ink-4))' });
+          tags.push({ id: 'cat-none', name: t('superElement.uncategorized'), color: 'hsl(var(--ink-4))' });
         }
         const groupName = el?.groupName?.trim();
         if (groupName) {
@@ -3158,7 +3178,7 @@ export function SuperElementView() {
               tags,
             }}
             extraGroups={[
-              [{ action: 'startEdgeFrom', label: '从此元素新建关联' }],
+              [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromElement') }],
             ]}
             onAction={(action) => {
               const eid = contextMenu.elementId;
@@ -3199,7 +3219,7 @@ export function SuperElementView() {
             subtitle: driftContextMenu.nodeSummary,
           }}
           extraGroups={[
-            [{ action: 'startEdgeFrom', label: '从此浮缀新建关联' }],
+            [{ action: 'startEdgeFrom', label: t('superElement.startEdgeFromDrift') }],
           ]}
           onAction={(action) => {
             const nid = driftContextMenu.nodeId;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import { useParams } from 'react-router-dom';
@@ -48,6 +49,7 @@ type ElementFilter = 'all' | 'used' | 'unused';
 export function CategoryEditorView({
   categoryIdOverride,
 }: { categoryIdOverride?: string } = {}) {
+  const { t } = useTranslation();
   const params = useParams<{ projectId: string; categoryId: string }>();
   const projectId = params.projectId;
   const categoryId = categoryIdOverride ?? params.categoryId;
@@ -216,7 +218,7 @@ export function CategoryEditorView({
     content: curCategory?.contentJson ?? null,
     ydoc,
     onPersist: handlePersist,
-    placeholder: '札记 · scratch——本类目的设计原则、命名约定、AI 候选规则…',
+    placeholder: t('categoryEditor.scratchPlaceholder'),
     onAddCommentRequest: handleAddCommentRequest,
     selectionKey: curCategory
       ? editorTabSelectionKey(projectId, { entityType: 'category', id: curCategory.id })
@@ -228,13 +230,13 @@ export function CategoryEditorView({
   // ordinal — order is the only ranking. 元素清单 is omitted when the category has
   // no elements.
   const frameworkItems: OutlineEntry[] = [
-    { id: 'cat-overview', level: 2, kind: 'section', text: '概述' },
-    { id: 'cat-scratch', level: 2, kind: 'section', text: '札记', children: nestHeadings(outline) },
-    { id: 'cat-template', level: 2, kind: 'section', text: '元素模版' },
-    { id: 'cat-template-kv', level: 2, kind: 'section', text: '字段模版 · template kv' },
+    { id: 'cat-overview', level: 2, kind: 'section', text: t('categoryEditor.sections.overview') },
+    { id: 'cat-scratch', level: 2, kind: 'section', text: t('categoryEditor.sections.scratchShort'), children: nestHeadings(outline) },
+    { id: 'cat-template', level: 2, kind: 'section', text: t('categoryEditor.sections.elementTemplateShort') },
+    { id: 'cat-template-kv', level: 2, kind: 'section', text: t('categoryEditor.sections.templateKv') },
   ];
   if (cEls.length > 0) {
-    frameworkItems.push({ id: 'cat-elements', level: 2, kind: 'section', text: '元素清单' });
+    frameworkItems.push({ id: 'cat-elements', level: 2, kind: 'section', text: t('categoryEditor.sections.elements') });
   }
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   // Surface agent edits to this category's body (ticks + reveal/approve).
@@ -250,7 +252,7 @@ export function CategoryEditorView({
       if (!curCategory) return;
       if (action === 'deleteCategory') {
         const confirmed = window.confirm(
-          `Delete category "${curCategory.name}"?\n\nElements in this category will move to "未分类" (their categoryId becomes empty).`,
+          t('categoryEditor.deleteConfirm', { name: curCategory.name }),
         );
         if (!confirmed) return;
         try {
@@ -258,11 +260,11 @@ export function CategoryEditorView({
           leaveDeletedEntity();
         } catch (error) {
           log.error('Failed to delete category:', error);
-          alert('Failed to delete category. Please try again.');
+          alert(t('categoryEditor.alerts.deleteFailed'));
         }
       }
     },
-    [curCategory, categoryUsecases, leaveDeletedEntity],
+    [curCategory, categoryUsecases, leaveDeletedEntity, t],
   );
 
   // Pending-action consumer — see NodeEditorView for the queue rationale.
@@ -278,7 +280,7 @@ export function CategoryEditorView({
   if (!curCategory) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'hsl(var(--ink-4))' }}>
-        Loading category…
+        {t('categoryEditor.loading')}
       </div>
     );
   }
@@ -302,7 +304,7 @@ export function CategoryEditorView({
         }}
         right={
           <>
-            <span>{cEls.length} 元素</span>
+            <span>{t('categoryEditor.meta.elements', { count: cEls.length })}</span>
           </>
         }
       >
@@ -310,7 +312,7 @@ export function CategoryEditorView({
           dotColor={curCategory.color || '#8A2A1E'}
           dropdown={
             bookElementCategories.length === 0 ? (
-              <div className="crumb-dropdown__empty">No categories yet</div>
+              <div className="crumb-dropdown__empty">{t('categoryEditor.empty.noCategories')}</div>
             ) : (
               bookElementCategories.map((cat) => {
                 const isActive = cat.id === curCategory.id;
@@ -346,11 +348,11 @@ export function CategoryEditorView({
           <div className="editor__spread">
           <article className="page" style={{ ['--c-color' as string]: categoryColor } as React.CSSProperties}>
             <div className="page__folio" aria-hidden="true">
-              <span className="page__folio-line">Category</span>
+              <span className="page__folio-line">{t('categoryEditor.folio')}</span>
               <span className="page__folio-line" style={{ color: categoryColor, fontWeight: 600 }}>
                 {curCategory.name}
               </span>
-              <span className="page__folio-line">{cEls.length} 元素</span>
+              <span className="page__folio-line">{t('categoryEditor.meta.elements', { count: cEls.length })}</span>
             </div>
 
             {/* 一 · 概述 */}
@@ -382,13 +384,13 @@ export function CategoryEditorView({
                         e.currentTarget.blur();
                       }
                     }}
-                    placeholder="Untitled category"
+                    placeholder={t('categoryEditor.untitled')}
                   />
 
                   <div className="elem-hero__facts">
-                    <div className="elem-hero__fact-k">元素数</div>
-                    <div className="elem-hero__fact-v">{cEls.length} 个</div>
-                    <div className="elem-hero__fact-k">色标</div>
+                    <div className="elem-hero__fact-k">{t('categoryEditor.labels.elementCount')}</div>
+                    <div className="elem-hero__fact-v">{t('categoryEditor.meta.items', { count: cEls.length })}</div>
+                    <div className="elem-hero__fact-k">{t('storylineEditor.labels.color')}</div>
                     <div className="elem-hero__fact-v">
                       <div className="col-pick">
                         {CATEGORY_COLORS.map((c) => (
@@ -414,7 +416,7 @@ export function CategoryEditorView({
                 under the hero; its H1/H2/H3 headings nest under this anchor in
                 the TOC. */}
             <h2 id="cat-scratch" className="page__scene">
-              <span className="page__scene-title">札记 · scratch</span>
+              <span className="page__scene-title">{t('categoryEditor.sections.scratch')}</span>
             </h2>
             <div className="elem-body">
               <EditorContent editor={editor} />
@@ -424,15 +426,15 @@ export function CategoryEditorView({
                 this category. Editing here only affects future elements;
                 existing element bodies are untouched. */}
             <h2 id="cat-template" className="page__scene">
-              <span className="page__scene-title">元素模版 · template</span>
-              <span className="page__scene-meta">新元素的默认骨架</span>
+              <span className="page__scene-title">{t('categoryEditor.sections.elementTemplate')}</span>
+              <span className="page__scene-meta">{t('categoryEditor.meta.elementTemplate')}</span>
             </h2>
             <div className="elem-body">
               <ElementTemplateEditor
                 key={curCategory.id}
                 templateJson={curCategory.elementTemplateJson}
                 onPersist={commitTemplate}
-                placeholder="用 H1 / H2 / H3 写一份默认的元素骨架，新建元素时自动填充…"
+                placeholder={t('categoryEditor.elementTemplatePlaceholder')}
               />
             </div>
 
@@ -440,8 +442,8 @@ export function CategoryEditorView({
                 category. Existing elements stay untouched when this changes
                 (same contract as the TipTap template above). */}
             <h2 id="cat-template-kv" className="page__scene">
-              <span className="page__scene-title">字段模版 · template kv</span>
-              <span className="page__scene-meta">新元素的默认字段</span>
+              <span className="page__scene-title">{t('categoryEditor.sections.templateKv')}</span>
+              <span className="page__scene-meta">{t('categoryEditor.meta.templateKv')}</span>
             </h2>
             <div className="elem-body">
               <FieldReviewStrip
@@ -455,7 +457,7 @@ export function CategoryEditorView({
                 onPersist={commitTemplateKv}
                 variant="template"
                 suppressKeys={new Set(fieldReview.templateKvChanges.map((c) => c.field?.key ?? ''))}
-                emptyHint="— 尚未定义模版字段。可添加如 别名 / 阵营 / 首次出场 等键名 —"
+                emptyHint={t('categoryEditor.empty.noTemplateFields')}
               />
             </div>
 
@@ -463,16 +465,16 @@ export function CategoryEditorView({
             {cEls.length > 0 && (
               <>
                 <h2 id="cat-elements" className="page__scene">
-                  <span className="page__scene-title">元素清单</span>
-                  <span className="page__scene-meta">{cEls.length} 个</span>
+                  <span className="page__scene-title">{t('categoryEditor.sections.elements')}</span>
+                  <span className="page__scene-meta">{t('categoryEditor.meta.items', { count: cEls.length })}</span>
                 </h2>
 
                 <div className="mgr-toolbar">
                   <div className="mgr-toolbar__chips">
                     {([
-                      ['all',    '全部',     cEls.length],
-                      ['used',   '已填写',   usedCount],
-                      ['unused', '未填写',   cEls.length - usedCount],
+                      ['all',    t('storylineEditor.filters.all'),     cEls.length],
+                      ['used',   t('categoryEditor.filters.used'),   usedCount],
+                      ['unused', t('categoryEditor.filters.unused'),   cEls.length - usedCount],
                     ] as const).map(([k, label, n]) => (
                       <div
                         key={k}
@@ -502,22 +504,22 @@ export function CategoryEditorView({
                         <div className="mgr-row__body">
                           <div className="mgr-row__title">
                             <span className="mgr-row__title-mark">◆</span>
-                            <span>{e.name || 'Untitled'}</span>
+                            <span>{e.name || t('common.untitled')}</span>
                           </div>
                           <div className={`mgr-row__summary${role ? '' : ' mgr-row__summary--empty'}`}>
-                            {role || '— 尚未填写一句话角色 —'}
+                            {role || t('categoryEditor.empty.noRole')}
                           </div>
                         </div>
                         <div className="mgr-row__wc">
                           <span className="mgr-row__wc-v">{role ? '·' : '—'}</span>
-                          <span className="mgr-row__wc-k">role</span>
+                          <span className="mgr-row__wc-k">{t('categoryEditor.labels.role')}</span>
                         </div>
-                        <div className="mgr-row__open" title="打开元素">→</div>
+                        <div className="mgr-row__open" title={t('categoryEditor.actions.openElement')}>→</div>
                       </div>
                     );
                   })}
                   {filteredEls.length === 0 && (
-                    <div className="mgr-empty">— 此筛选下暂无元素 —</div>
+                    <div className="mgr-empty">{t('categoryEditor.empty.noFilteredElements')}</div>
                   )}
                 </div>
               </>

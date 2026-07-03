@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import { useAuthStore } from '../store/auth';
@@ -83,6 +84,7 @@ const readPositionByProject = new Map<string, AllChaptersReadPosition>();
 // detect `view === 'all-chapters-editor'` and update nodeUi.selectedId in
 // place. This view watches that selection and scrolls to the matching row.
 export function AllChaptersEditorView() {
+  const { t } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id);
   const { projectId, navigateToHome, navigateToStoryline, navigateToElement, navigateToNode, navigateToCategory } =
     useProjectNavigation();
@@ -726,7 +728,7 @@ export function AllChaptersEditorView() {
             <span>{projectName}</span>
           </EditorCrumb>
           <EditorCrumb>
-            <span className="editor-crumb-title">通览全书</span>
+            <span className="editor-crumb-title">{t('allChapters.title')}</span>
           </EditorCrumb>
         </EditorTopBar>
         <div
@@ -739,7 +741,7 @@ export function AllChaptersEditorView() {
             fontSize: 14,
           }}
         >
-          本项目尚无章节。
+          {t('allChapters.empty.noChapters')}
           <button
             type="button"
             onClick={() => navigateToHome()}
@@ -753,7 +755,7 @@ export function AllChaptersEditorView() {
               color: 'hsl(var(--ink-2))',
             }}
           >
-            回到首页
+            {t('allChapters.actions.backHome')}
           </button>
         </div>
       </div>
@@ -767,22 +769,32 @@ export function AllChaptersEditorView() {
         onMenuAction={handleChapterMenuAction}
         nodeWritingStatus={menuTargetNode?.writingStatus}
         nodeStatusKind={menuTargetNode ? 'chapter' : undefined}
-        menuHeader={menuTargetNode ? `操作：${menuTargetNode.title || '无标题章节'}` : undefined}
+        menuHeader={
+          menuTargetNode
+            ? t('allChapters.menuHeader', {
+                title: menuTargetNode.title || t('allChapters.untitledChapter'),
+              })
+            : undefined
+        }
         referenceLinkToggle={{
           enabled: entityLinkInteractive,
           onToggle: toggleEntityLinkInteractive,
         }}
         right={
           <>
-            <span>{orderedNodes.length} 章</span>
+            <span>{t('storylineEditor.meta.chapters', { count: orderedNodes.length })}</span>
             <span className="editor-bar__sep">·</span>
-            <span>{(totalWordCount / 1000).toFixed(1)}k 字</span>
+            <span>{t('storylineEditor.meta.kWords', { count: (totalWordCount / 1000).toFixed(1) })}</span>
             {menuTargetNode && (
               // The chapter at the reading line — what the three-dot menu acts
               // on. Updates as you scroll.
               <>
                 <span className="editor-bar__sep">·</span>
-                <span>在 {menuTargetNode.title || '无标题章节'}</span>
+                <span>
+                  {t('allChapters.currentAt', {
+                    title: menuTargetNode.title || t('allChapters.untitledChapter'),
+                  })}
+                </span>
               </>
             )}
           </>
@@ -792,18 +804,18 @@ export function AllChaptersEditorView() {
           <span>{projectName}</span>
         </EditorCrumb>
         <EditorCrumb>
-          <span className="editor-crumb-title">通览全书</span>
+          <span className="editor-crumb-title">{t('allChapters.title')}</span>
         </EditorCrumb>
       </EditorTopBar>
 
       <div className="editor-body">
         <EditorOutlinePanel
-          title="通览全书 · OUTLINE"
+          title={t('allChapters.outlineTitle')}
           items={outlineItems}
           activeId={activeOutlineId}
           onItemClick={handleOutlineClick}
           collapseChaptersByDefault
-          emptyHint="— 尚无章节 —"
+          emptyHint={t('allChapters.empty.noChaptersShort')}
         />
         <div className="editor-scroll" ref={scrollRef}>
           {readRows.map((row) => {
@@ -817,8 +829,8 @@ export function AllChaptersEditorView() {
                   <div className="act-break__num">{toRoman(row.seq)}</div>
                   <div className="act-break__label">{row.act.name}</div>
                   <div className="act-break__meta">
-                    {row.count} 章<span className="d">·</span>
-                    {(row.words / 1000).toFixed(1)}k 字
+                    {t('storylineEditor.meta.chapters', { count: row.count })}<span className="d">·</span>
+                    {t('storylineEditor.meta.kWords', { count: (row.words / 1000).toFixed(1) })}
                   </div>
                 </div>
               );
