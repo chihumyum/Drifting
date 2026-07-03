@@ -1,8 +1,10 @@
 import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { events } from '../../lib/events.ts';
 import { useUiStore } from '../../store/ui-store';
 
 export function LeftSidebarTopBar() {
+  const { t } = useTranslation();
   const isMac = navigator.userAgent.includes('Mac');
   const isLeftSidebarOpen = useUiStore((state) => state.sidebars.left.isOpen);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
@@ -36,13 +38,13 @@ export function LeftSidebarTopBar() {
       {/* 红绿灯和按钮之间的空白区域 — 展开时预留给未来的全局状态展示（灵动岛式自适应信息）；收起时按钮直接贴红绿灯 */}
       <GhostIconBtn
         onClick={handleOpenSearch}
-        title="Search"
+        title={t('leftSidebar.top.search')}
         marginLeft={isLeftSidebarOpen ? 'auto' : undefined}
         icon={<Search size={iconSize} strokeWidth={1.6} />}
       />
       <GhostIconBtn
         onClick={handleToggleLeftSidebar}
-        title={isLeftSidebarOpen ? 'Close Left Sidebar' : 'Open Left Sidebar'}
+        title={isLeftSidebarOpen ? t('leftSidebar.top.close') : t('leftSidebar.top.open')}
         icon={
           isLeftSidebarOpen ? (
             <PanelLeftClose size={iconSize} strokeWidth={1.6} />

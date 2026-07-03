@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import '../../styles/super-view-header.css';
 
 const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -28,10 +29,12 @@ export function SuperViewHeader({
   title,
   meta,
   onBack,
-  backLabel = '返回',
+  backLabel,
   leftSlot,
   rightSlot,
 }: SuperViewHeaderProps) {
+  const { t } = useTranslation();
+  const resolvedBackLabel = backLabel ?? t('navigation.back');
   return (
     <div className="super-view-head" style={{ paddingLeft: TRAFFIC_LIGHT_INSET }}>
       <div className="super-view-head__left">
@@ -40,12 +43,12 @@ export function SuperViewHeader({
             type="button"
             className="super-view-head__back"
             onClick={onBack}
-            title={backLabel}
+            title={resolvedBackLabel}
           >
             <span className="super-view-head__back-glyph" aria-hidden>
               ‹
             </span>
-            <span>{backLabel}</span>
+            <span>{resolvedBackLabel}</span>
           </button>
         )}
         <div className="super-view-head__title">

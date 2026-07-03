@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../../store/data-store';
 import { isChapter, isDrift as isDriftNode } from '../../../domain/book-node';
 import { useProjectNavigation } from '../../../hooks/useProjectNavigation';
@@ -124,6 +125,7 @@ function getTabIcon(entityType: TabEntityType, opts?: { isDrift?: boolean }): st
 }
 
 export function TopTimeline() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { projectId, openEntity } = useProjectNavigation();
   const { openTabs, activeTabKey } = useProjectTabs(projectId);
@@ -230,20 +232,22 @@ export function TopTimeline() {
       switch (leaf.entityType) {
         case 'node': {
           const n = bookNodes.find((b) => b.id === leaf.id);
-          if (!n) return 'Untitled Chapter';
+          if (!n) return t('topTimeline.untitled.chapter');
           if (n.title) return n.title;
-          return isChapter(n) ? 'Untitled Chapter' : 'Untitled Drift';
+          return isChapter(n)
+            ? t('topTimeline.untitled.chapter')
+            : t('topTimeline.untitled.drift');
         }
         case 'storyline':
-          return storylines.find((s) => s.id === leaf.id)?.name || 'Untitled Storyline';
+          return storylines.find((s) => s.id === leaf.id)?.name || t('topTimeline.untitled.storyline');
         case 'element':
-          return bookElements.find((e) => e.id === leaf.id)?.name || 'Untitled Element';
+          return bookElements.find((e) => e.id === leaf.id)?.name || t('topTimeline.untitled.element');
         case 'category':
-          return bookElementCategories.find((c) => c.id === leaf.id)?.name || 'Untitled Category';
+          return bookElementCategories.find((c) => c.id === leaf.id)?.name || t('topTimeline.untitled.category');
         case 'dashboard':
-          return '项目主页';
+          return t('topTimeline.singletons.dashboard');
         case 'all-chapters':
-          return '通览全书';
+          return t('topTimeline.singletons.allChapters');
       }
     };
     const colorOfLeaf = (leaf: LeafTab): string | undefined => {
@@ -277,7 +281,7 @@ export function TopTimeline() {
       return Boolean(n) && isDriftNode(n!);
     };
     return { labelOfLeaf, colorOfLeaf, isDriftLeaf };
-  }, [bookNodes, storylines, bookElements, bookElementCategories, primaryStorylineByNode]);
+  }, [bookNodes, storylines, bookElements, bookElementCategories, primaryStorylineByNode, t]);
 
   // Three-phase tab sizing:
   //
@@ -484,26 +488,26 @@ export function TopTimeline() {
         const side = sideHint ?? tab.focused;
         items.push(
           {
-            label: '关闭此格',
+            label: t('topTimeline.menu.closePane'),
             onClick: () => {
               const { nextActive } = closeSplitSide(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             },
           },
           {
-            label: '拆出为独立 Tab',
+            label: t('topTimeline.menu.extractTab'),
             onClick: () => {
               const { nextActive } = extractFromSplit(projectId, tab.id, side);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
             },
           },
           {
-            label: '左右互换',
+            label: t('topTimeline.menu.swapPanes'),
             onClick: () => swapSplitPanes(projectId, tab.id),
           },
           { separator: true },
           {
-            label: '解除分屏',
+            label: t('topTimeline.menu.unsplit'),
             onClick: () => {
               const { nextActive } = unsplitTab(projectId, tab.id);
               if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
@@ -517,7 +521,7 @@ export function TopTimeline() {
       // splits.
       const tabKeyStr = tabKey(tab);
       items.push({
-        label: '关闭',
+        label: t('topTimeline.menu.close'),
         accelerator: 'Cmd+W',
         onClick: () => handleCloseTab(tab),
       });
@@ -527,13 +531,13 @@ export function TopTimeline() {
       if (tab.kind === 'leaf') {
         items.push(
           {
-            label: '在右侧打开',
+            label: t('topTimeline.menu.openRight'),
             onClick: () =>
               splitActiveWith(projectId, { fromKey: tabKeyStr }, 'right'),
             disabled: !allowSplitOpen,
           },
           {
-            label: '在左侧打开',
+            label: t('topTimeline.menu.openLeft'),
             onClick: () =>
               splitActiveWith(projectId, { fromKey: tabKeyStr }, 'left'),
             disabled: !allowSplitOpen,
@@ -544,7 +548,7 @@ export function TopTimeline() {
       items.push(
         { separator: true },
         {
-          label: '关闭其他',
+          label: t('topTimeline.menu.closeOthers'),
           onClick: () => {
             const { nextActive } = closeOtherTabs(projectId, tabKeyStr);
             if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
@@ -553,7 +557,7 @@ export function TopTimeline() {
           disabled: openTabs.length <= 1,
         },
         {
-          label: '关闭右侧全部',
+          label: t('topTimeline.menu.closeRight'),
           onClick: () => {
             const { nextActive } = closeTabsToRight(projectId, tabKeyStr);
             if (nextActive) openEntity({ entityType: nextActive.entityType, id: nextActive.id });
@@ -561,7 +565,7 @@ export function TopTimeline() {
           disabled: tabIndex >= openTabs.length - 1,
         },
         {
-          label: '全部关闭',
+          label: t('topTimeline.menu.closeAll'),
           onClick: () => {
             closeAllTabs(projectId);
             // Land on the bare project URL so the Layout URL → tab sync
@@ -591,6 +595,7 @@ export function TopTimeline() {
       swapSplitPanes,
       unsplitTab,
       splitActiveWith,
+      t,
     ],
   );
 
@@ -835,6 +840,7 @@ function LeafTabSlot({
   onClose,
   onContextMenu,
 }: LeafSlotProps) {
+  const { t } = useTranslation();
   const tone = getSubtleTabTone(color);
   const accent = color || 'hsl(var(--ink-3))';
   // Hover state is React-controlled (not a direct DOM `.style.background`
@@ -991,8 +997,8 @@ function LeafTabSlot({
           onClose();
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        aria-label="Close tab"
-        title="Close tab"
+        aria-label={t('topTimeline.closeTab')}
+        title={t('topTimeline.closeTab')}
         className="app-tab__close"
         style={{
           display: 'flex',
@@ -1173,6 +1179,7 @@ function SplitSubLabel({
   onClose: () => void;
   onContextMenu: (x: number, y: number) => void;
 }) {
+  const { t } = useTranslation();
   const accent = color || 'hsl(var(--ink-3))';
   return (
     <div
@@ -1256,8 +1263,8 @@ function SplitSubLabel({
           onClose();
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        aria-label="Close pane"
-        title="Close pane"
+        aria-label={t('topTimeline.closePane')}
+        title={t('topTimeline.closePane')}
         className="app-tab__close"
         style={{
           display: 'flex',

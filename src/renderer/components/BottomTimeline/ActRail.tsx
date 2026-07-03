@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   deriveActSegments,
   sortActs,
@@ -92,9 +93,10 @@ export function ActRail({
   onRequestBind,
   onUnbindDrift,
   onOpenDrift,
-  railLabel = '幕',
+  railLabel,
   className,
 }: ActRailProps) {
+  const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<ActMenuState | null>(null);
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
@@ -103,6 +105,7 @@ export function ActRail({
 
   const segments = useMemo(() => deriveActSegments(acts, chapters), [acts, chapters]);
   const sorted = useMemo(() => sortActs(acts), [acts]);
+  const displayRailLabel = railLabel ?? t('bottomTimeline.act.railLabel');
 
   useEffect(() => {
     if (editingId) editInputRef.current?.select();
@@ -161,13 +164,17 @@ export function ActRail({
   const railHead =
     railWidth > 0 ? (
       <div className="actrail__rail" style={{ width: railWidth }}>
-        <span>{railLabel}</span>
+        <span>{displayRailLabel}</span>
         {onAddAct && (
           <button
             type="button"
             className="actrail__rail-add"
             disabled={snapOrders.length === 0}
-            title={snapOrders.length === 0 ? '需要至少一个章节才能分幕' : '新建幕'}
+            title={
+              snapOrders.length === 0
+                ? t('bottomTimeline.act.needChapter')
+                : t('bottomTimeline.act.newAct')
+            }
             onClick={(e) => {
               e.stopPropagation();
               onAddAct();
@@ -191,7 +198,7 @@ export function ActRail({
           ref={trackRef}
           className="actrail__track"
           style={{ minWidth: trackWidth }}
-          title="右键此处新建幕，或点头部 ＋"
+          title={t('bottomTimeline.act.emptyTrackTitle')}
           onContextMenu={handleRailContextMenu}
         />
       </div>
@@ -286,9 +293,9 @@ export function ActRail({
           const tint = seg.act.color;
           // Tooltip lives on the chip now (the band is inert), so it reads only
           // when hovering the act chip — not anywhere across the segment.
-          const chipTitle = `${seg.act.name} · ${seg.chapters.length} 章${
+          const chipTitle = `${seg.act.name} · ${t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}${
             seg.act.driftNodeId
-              ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? '幕笔记'}`
+              ? `\n⚓ ${driftTitleById?.(seg.act.driftNodeId) ?? t('bottomTimeline.act.actNote')}`
               : ''
           }`;
           // Drag the chip to move the act's boundary (= its position) — same
@@ -357,7 +364,7 @@ export function ActRail({
                     <button
                       type="button"
                       className="actrail__anchor"
-                      title="打开幕笔记（绑定的漂浮节点）"
+                      title={t('bottomTimeline.act.openActNoteTitle')}
                       onClick={(e) => {
                         // Drag still arms via the chip's onPointerDown (the
                         // 4px threshold keeps this a plain click → open drift;
@@ -376,7 +383,7 @@ export function ActRail({
                     </button>
                   )}
                   <span className="actrail__name">{seg.act.name}</span>
-                  <span className="actrail__count">{seg.chapters.length}章</span>
+                  <span className="actrail__count">{t('bottomTimeline.act.chapterCount', { count: seg.chapters.length })}</span>
                 </span>
               )}
             </div>
@@ -392,7 +399,7 @@ export function ActRail({
               className="actrail__divider"
               style={{ left: orderToX(seg.act.startOrder) }}
               onPointerDown={(e) => startBoundaryDrag(e, i)}
-              title="拖动调整幕边界"
+              title={t('bottomTimeline.act.dragBoundary')}
             />
           );
         })}
@@ -405,7 +412,7 @@ export function ActRail({
       {menu &&
         createPortal(
           (() => {
-            // Bare-rail menu: a single 在此处新建幕, mirroring the marker rail.
+            // Bare-rail menu: a single create action, mirroring the marker rail.
             if (menu.kind === 'rail') {
               return (
                 <div
@@ -420,7 +427,7 @@ export function ActRail({
                       onSplitAt(menu.orderAtCursor);
                     }}
                   >
-                    在此处新建幕
+                    {t('bottomTimeline.act.createHere')}
                   </button>
                 </div>
               );
@@ -440,7 +447,7 @@ export function ActRail({
                     setEditingId(menu.actId);
                   }}
                 >
-                  重命名
+                  {t('bottomTimeline.pinMenu.rename')}
                 </button>
                 <button
                   type="button"
@@ -449,7 +456,7 @@ export function ActRail({
                     onSplitAt(menu.orderAtCursor);
                   }}
                 >
-                  在此处开始新幕
+                  {t('bottomTimeline.act.startHere')}
                 </button>
                 {/* Drift binding — bound acts open / unbind; unbound acts open
                     the standalone bind picker (DriftBindModal). */}
@@ -469,7 +476,7 @@ export function ActRail({
                             });
                         }}
                       >
-                        打开幕笔记
+                        {t('bottomTimeline.act.openActNote')}
                       </button>
                     )}
                     {onUnbindDrift && (
@@ -480,7 +487,7 @@ export function ActRail({
                           onUnbindDrift(menu.actId);
                         }}
                       >
-                        解绑漂浮节点
+                        {t('bottomTimeline.act.unbindDrift')}
                       </button>
                     )}
                   </>
@@ -493,7 +500,7 @@ export function ActRail({
                         onRequestBind(menu.actId);
                       }}
                     >
-                      绑定漂浮节点…
+                      {t('bottomTimeline.pinMenu.bindDrift')}
                     </button>
                   )
                 )}
@@ -505,7 +512,9 @@ export function ActRail({
                     onDeleteAct(menu.actId);
                   }}
                 >
-                  {actIndexOf(menu.actId) === 0 ? '删除此幕（并入下一幕）' : '删除此幕（并入前一幕）'}
+                  {actIndexOf(menu.actId) === 0
+                    ? t('bottomTimeline.act.deleteMergeNext')
+                    : t('bottomTimeline.act.deleteMergePrev')}
                 </button>
               </div>
             );

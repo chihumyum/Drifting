@@ -1,4 +1,5 @@
 import { Home } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore, usePromoteCurrentTab } from '../store/ui-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import {
@@ -19,6 +20,7 @@ import '../../styles/bottom-status-bar.css';
 type SuperViewId = 'element' | 'graph' | 'memo-material';
 
 export function BottomStatusBar() {
+  const { t } = useTranslation();
   const bottomTimelineHidden = useUiStore((s) => s.bottomTimelineHidden);
   const toggleBottomTimelineHidden = useUiStore((s) => s.toggleBottomTimelineHidden);
 
@@ -52,8 +54,8 @@ export function BottomStatusBar() {
           navigateToHome();
         }}
         onDoubleClick={() => promoteCurrentTab()}
-        title="Project Home"
-        aria-label="Project Home"
+        title={t('bottomStatusBar.projectHome')}
+        aria-label={t('bottomStatusBar.projectHome')}
       >
         <Home size={11} strokeWidth={1.6} />
       </button>
@@ -65,8 +67,8 @@ export function BottomStatusBar() {
           navigateToAllChapters();
         }}
         onDoubleClick={() => promoteCurrentTab()}
-        title="通览全书"
-        aria-label="通览全书"
+        title={t('bottomStatusBar.allChapters')}
+        aria-label={t('bottomStatusBar.allChapters')}
       >
         <AllChaptersIcon size={14} />
       </button>
@@ -75,8 +77,8 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__super${activeSuperView === 'element' ? ' is-active' : ''}`}
         onClick={() => toggleSuper('element')}
-        title="Elements"
-        aria-label="Elements"
+        title={t('bottomStatusBar.elements')}
+        aria-label={t('bottomStatusBar.elements')}
       >
         <IcebergIcon size={14} />
       </button>
@@ -84,8 +86,8 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__super${activeSuperView === 'graph' ? ' is-active' : ''}`}
         onClick={() => toggleSuper('graph')}
-        title="Story Graph"
-        aria-label="Story Graph"
+        title={t('bottomStatusBar.storyGraph')}
+        aria-label={t('bottomStatusBar.storyGraph')}
       >
         <StoryGraphViewIcon size={14} />
       </button>
@@ -93,8 +95,8 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__super${activeSuperView === 'memo-material' ? ' is-active' : ''}`}
         onClick={() => toggleSuper('memo-material')}
-        title="TODO & Library"
-        aria-label="TODO & Library"
+        title={t('bottomStatusBar.todoLibrary')}
+        aria-label={t('bottomStatusBar.todoLibrary')}
       >
         <AllRefsIcon size={14} />
       </button>
@@ -106,8 +108,16 @@ export function BottomStatusBar() {
         type="button"
         className={`bsb__seg bsb__timeline-toggle${bottomTimelineHidden ? '' : ' is-open'}`}
         onClick={toggleBottomTimelineHidden}
-        title={bottomTimelineHidden ? '展开 Storyline Timeline' : '收起 Storyline Timeline'}
-        aria-label={bottomTimelineHidden ? '展开 Storyline Timeline' : '收起 Storyline Timeline'}
+        title={
+          bottomTimelineHidden
+            ? t('bottomStatusBar.expandTimeline')
+            : t('bottomStatusBar.collapseTimeline')
+        }
+        aria-label={
+          bottomTimelineHidden
+            ? t('bottomStatusBar.expandTimeline')
+            : t('bottomStatusBar.collapseTimeline')
+        }
       >
         <svg
           width="10"
@@ -121,7 +131,7 @@ export function BottomStatusBar() {
           <line x1="1.5" y1="7" x2="14.5" y2="7" />
           <line x1="4" y1="10.5" x2="9" y2="10.5" />
         </svg>
-        <span>Timeline</span>
+        <span>{t('bottomStatusBar.timeline')}</span>
       </button>
     </div>
   );

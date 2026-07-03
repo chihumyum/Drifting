@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 // In-place combobox for changing an element's secondary group (groupName)
 // within its category. Replaces the old jump-to-editor + modal flow — opened
@@ -27,6 +28,7 @@ export function ElementGroupPicker({
   onPick,
   onClose,
 }: ElementGroupPickerProps) {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
   const [query, setQuery] = useState('');
@@ -104,12 +106,12 @@ export function ElementGroupPicker({
         overflowY: 'auto',
       }}
     >
-      <div className="editor-bar__menu-section-label">移动到分组</div>
+      <div className="editor-bar__menu-section-label">{t('elementGroupPicker.title')}</div>
       <div style={{ padding: '2px 8px 6px' }}>
         <input
           autoFocus
           value={query}
-          placeholder="搜索或新建分组…"
+          placeholder={t('elementGroupPicker.searchPlaceholder')}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && canCreate) {
@@ -137,7 +139,7 @@ export function ElementGroupPicker({
           className="editor-bar__menu-item"
           onClick={() => pick(trimmed)}
         >
-          新建分组「{trimmed}」
+          {t('elementGroupPicker.createGroup', { name: trimmed })}
         </button>
       )}
 
@@ -147,7 +149,7 @@ export function ElementGroupPicker({
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
         onClick={() => pick(null)}
       >
-        <span>无分组</span>
+        <span>{t('elementGroupPicker.noGroup')}</span>
         {current == null && <span aria-hidden>✓</span>}
       </button>
 

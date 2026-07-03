@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../store/data-store';
 import { useStoryline } from '../usecase/useStoryline';
 import { useProject } from '../usecase/useProject';
@@ -38,18 +39,23 @@ function resolveColor(rawColor: string | undefined, fallbackKey: string): string
   return `hsl(var(${hashToToken(fallbackKey)}))`;
 }
 
-function formatRelativeTime(iso: string): string {
+function isZh(locale: string): boolean {
+  return locale.startsWith('zh');
+}
+
+function formatRelativeTime(iso: string, locale: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
   const diffSec = Math.max(0, Math.round((now - then) / 1000));
-  if (diffSec < 60) return '刚刚';
+  const zh = isZh(locale);
+  if (diffSec < 60) return zh ? '刚刚' : 'just now';
   const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} 分钟前`;
+  if (diffMin < 60) return zh ? `${diffMin} 分钟前` : `${diffMin} min ago`;
   const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr} 小时前`;
+  if (diffHr < 24) return zh ? `${diffHr} 小时前` : `${diffHr} hr ago`;
   const diffDay = Math.round(diffHr / 24);
-  if (diffDay < 30) return `${diffDay} 天前`;
-  return new Date(iso).toLocaleDateString();
+  if (diffDay < 30) return zh ? `${diffDay} 天前` : `${diffDay} days ago`;
+  return new Date(iso).toLocaleDateString(locale);
 }
 
 interface ProjectProfileEditorProps {
@@ -58,6 +64,7 @@ interface ProjectProfileEditorProps {
 }
 
 function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(summary);
 
   const persistDraft = () => {
@@ -73,7 +80,7 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={persistDraft}
-          placeholder="写下项目简介、核心命题或故事梗概"
+          placeholder={t('dashboard.profilePlaceholder')}
           rows={5}
         />
       </label>
@@ -82,6 +89,7 @@ function ProjectProfileEditor({ summary, onPersist }: ProjectProfileEditorProps)
 }
 
 export function ProjectDashboard() {
+  const { t, i18n } = useTranslation();
   const { projectId, openEntity, navigateToAllChapters } = useProjectNavigation();
   const userId = useAuthStore((state) => state.user?.id);
   const currentProject = useProjectStore((s) => s.currentProject);
@@ -231,10 +239,10 @@ export function ProjectDashboard() {
 
   // ─── Filter chips ──────────────────────────────────────
   const chips: { id: typeof chip; label: string; count: number }[] = [
-    { id: 'all', label: '全部', count: totalNodes },
-    { id: 'draft', label: '草稿', count: draftNodes },
-    { id: 'todo', label: '未起', count: todoNodes },
-    { id: 'done', label: '已完成', count: doneNodes },
+    { id: 'all', label: t('dashboard.chips.all'), count: totalNodes },
+    { id: 'draft', label: t('dashboard.chips.draft'), count: draftNodes },
+    { id: 'todo', label: t('dashboard.chips.todo'), count: todoNodes },
+    { id: 'done', label: t('dashboard.chips.done'), count: doneNodes },
   ];
 
   // ─── Derived hero meta ─────────────────────────────────
@@ -266,7 +274,7 @@ export function ProjectDashboard() {
     if (!bookNodes.length) return null;
     return [...bookNodes].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
   }, [bookNodes]);
-  const lastTouchedRel = lastTouchedNode ? formatRelativeTime(lastTouchedNode.updatedAt) : '—';
+  const lastTouchedRel = lastTouchedNode ? formatRelativeTime(lastTouchedNode.updatedAt, i18n.language) : '—';
   const lastTouchedTitle = lastTouchedNode?.title || '—';
   const projectSinceLabel = currentProject?.createdAt
     ? new Date(currentProject.createdAt).toLocaleDateString(undefined, {
@@ -300,7 +308,7 @@ export function ProjectDashboard() {
   const openElementOverview = () => setActiveSuperView('element');
   const openAllChapters = () => navigateToAllChapters();
 
-  const todayDateLabel = new Date().toLocaleDateString(undefined, {
+  const todayDateLabel = new Date().toLocaleDateString(i18n.language, {
     month: 'long',
     day: 'numeric',
     weekday: 'long',
@@ -318,16 +326,18 @@ export function ProjectDashboard() {
         const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
         return {
           id: n.id,
-          dateLabel: formatRelativeTime(n.updatedAt),
+          dateLabel: formatRelativeTime(n.updatedAt, i18n.language),
           mark: '§',
           desc: n.title || 'Untitled',
           tail: sl ? ` · ${sl.name}` : '',
-          meta: n.wordCount ? `${n.wordCount.toLocaleString()} 字` : '草稿',
+          meta: n.wordCount
+            ? t('dashboard.wordCount', { count: n.wordCount.toLocaleString() })
+            : t('dashboard.chips.draft'),
           metaCls: (n.wordCount > 0 ? 'pos' : 'neg') as 'pos' | 'neg',
           accent: sl ? resolveColor(sl.color, sl.id) : 'hsl(var(--accent))',
         };
       });
-  }, [chapterNodes, primaryStorylineByNode, storylines]);
+  }, [chapterNodes, primaryStorylineByNode, storylines, i18n.language, t]);
 
   return (
     <div className="dash">
@@ -337,11 +347,11 @@ export function ProjectDashboard() {
           <div>
             <div className="dash-hero__kicker">
               <span className="dash-hero__kicker-dot"></span>
-              <span>PROJECT HOME</span>
+              <span>{t('dashboard.hero.projectHome')}</span>
               <span className="dash-hero__kicker-sep">·</span>
-              <span>VOL. I — DRAFT</span>
+              <span>{t('dashboard.hero.draft')}</span>
               <span className="dash-hero__kicker-sep">·</span>
-              <span>SINCE {projectSinceLabel}</span>
+              <span>{t('dashboard.hero.since', { date: projectSinceLabel })}</span>
             </div>
 
             <input
@@ -350,8 +360,8 @@ export function ProjectDashboard() {
               value={displayedName}
               readOnly={!editableProjectId}
               placeholder="Drifting"
-              aria-label="项目名称"
-              title="点击重命名项目"
+              aria-label={t('dashboard.hero.projectName')}
+              title={t('dashboard.hero.renameProject')}
               onFocus={() => {
                 setNameDraft(currentProjectName);
                 setIsEditingName(true);
@@ -386,25 +396,25 @@ export function ProjectDashboard() {
 
             <div className="dash-hero__meta">
               <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">Storylines · 故事线</span>
+                <span className="dash-hero__metric-k">{t('dashboard.metrics.storylines')}</span>
                 <span className="dash-hero__metric-v">{storylines.length}</span>
               </div>
               <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">Nodes · 章节节点</span>
+                <span className="dash-hero__metric-k">{t('dashboard.metrics.nodes')}</span>
                 <span className="dash-hero__metric-v">
                   {totalNodes}
-                  <em>章</em>
+                  <em>{t('common.chapters')}</em>
                 </span>
               </div>
               <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">Elements · 元素</span>
+                <span className="dash-hero__metric-k">{t('dashboard.metrics.elements')}</span>
                 <span className="dash-hero__metric-v">
                   {bookElements.length}
-                  <em>· {bookElementCategories.length} 类</em>
+                  <em>· {bookElementCategories.length} {t('common.categoriesUnit')}</em>
                 </span>
               </div>
               <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">Words · 已写</span>
+                <span className="dash-hero__metric-k">{t('dashboard.metrics.words')}</span>
                 <span className="dash-hero__metric-v">
                   {(totalWc / 1000).toFixed(1)}
                   <em>
@@ -413,9 +423,9 @@ export function ProjectDashboard() {
                 </span>
               </div>
               <div className="dash-hero__metric">
-                <span className="dash-hero__metric-k">Last touched</span>
+                <span className="dash-hero__metric-k">{t('dashboard.metrics.lastTouched')}</span>
                 <span className="dash-hero__metric-v">
-                  {lastTouchedRel.replace(' 分钟前', '')}
+                  {lastTouchedRel}
                   <em>· {lastTouchedTitle}</em>
                 </span>
               </div>
@@ -437,24 +447,24 @@ export function ProjectDashboard() {
                   {donePct}
                   <em>%</em>
                 </span>
-                <span className="dash-hero__progress-k">DONE</span>
+              <span className="dash-hero__progress-k">{t('dashboard.chips.done')}</span>
               </div>
             </div>
             <div className="dash-hero__btns">
               <button className="dash-hero__btn" onClick={openStoryGraph}>
-                ⌬ 叙事图
+                ⌬ {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-hero__btn" onClick={openElementOverview}>
-                ⊞ 元素总览
+                ⊞ {t('dashboard.actions.elementOverview')}
               </button>
               <button className="dash-hero__btn" onClick={openAllChapters}>
-                ☷ 通览全书
+                ☷ {t('dashboard.actions.allChapters')}
               </button>
               <button
                 className="dash-hero__btn dash-hero__btn--primary"
                 onClick={handleCreateStoryline}
               >
-                ＋ 新章节
+                ＋ {t('dashboard.actions.newChapter')}
               </button>
             </div>
           </div>
@@ -484,9 +494,9 @@ export function ProjectDashboard() {
               onClick={() => openEntity({ entityType: 'node', id: continueNode.id })}
             >
               <div className="dash-continue__kicker">
-                <span>CONTINUE WRITING</span>
+                <span>{t('dashboard.continue.kicker')}</span>
                 <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
-                <em>{formatRelativeTime(continueNode.updatedAt)}</em>
+                <em>{formatRelativeTime(continueNode.updatedAt, i18n.language)}</em>
               </div>
               <div className="dash-continue__path">
                 {continueStoryline ? `${continueStoryline.name} · ` : ''}
@@ -498,21 +508,21 @@ export function ProjectDashboard() {
               )}
               {/* TODO: snippet currently re-uses summary; pull first paragraph from node content once exposed. */}
               <p className="dash-continue__snippet">
-                {continueNode.summary || '未写入正文'}
+                {continueNode.summary || t('dashboard.continue.noBody')}
               </p>
               <div className="dash-continue__foot">
                 <div className="dash-continue__meta">
                   <span>
                     <b>{(continueNode.wordCount || 0).toLocaleString()}</b>
-                    <span style={{ color: 'hsl(var(--ink-4))' }}>字</span>
+                    <span style={{ color: 'hsl(var(--ink-4))' }}>{t('common.words')}</span>
                   </span>
                   {/* TODO: revisions count not yet tracked. */}
                   <span>
-                    <b>—</b>次修订
+                    <b>—</b>{t('dashboard.continue.revisions')}
                   </span>
                 </div>
                 <div className="dash-continue__resume">
-                  继续写作
+                  {t('dashboard.continue.resume')}
                   <span className="dash-continue__resume-arrow">→</span>
                 </div>
               </div>
@@ -520,14 +530,14 @@ export function ProjectDashboard() {
           ) : (
             <article className="dash-continue" style={{ cursor: 'default' }}>
               <div className="dash-continue__kicker">
-                <span>CONTINUE WRITING</span>
+                <span>{t('dashboard.continue.kicker')}</span>
               </div>
-              <div className="dash-continue__path">尚无章节</div>
-              <h2 className="dash-continue__title">从一篇空白开始</h2>
-              <div className="dash-continue__sub">建一条故事线，写下第一章。</div>
+              <div className="dash-continue__path">{t('dashboard.continue.noChapters')}</div>
+              <h2 className="dash-continue__title">{t('dashboard.continue.emptyTitle')}</h2>
+              <div className="dash-continue__sub">{t('dashboard.continue.emptySub')}</div>
               <div className="dash-continue__foot">
                 <div className="dash-continue__resume" onClick={handleCreateStoryline}>
-                  新建故事线
+                  {t('dashboard.actions.newStoryline')}
                   <span className="dash-continue__resume-arrow">→</span>
                 </div>
               </div>
@@ -536,16 +546,16 @@ export function ProjectDashboard() {
 
           {/* TODAY */}
           <aside className="dash-today">
-            <div className="dash-today__kicker">TODAY · 今日</div>
+            <div className="dash-today__kicker">{t('dashboard.today.kicker')}</div>
             <div className="dash-today__date">{todayDateLabel}</div>
             <div className="dash-today__main">
               <span className="dash-today__big">
                 {writingStats.todayWords.toLocaleString()}
               </span>
-              <span className="dash-today__unit">字</span>
+              <span className="dash-today__unit">{t('common.words')}</span>
             </div>
             <div className="dash-today__goal">
-              目标 <b>{dailyGoal.toLocaleString()}</b> 字
+              {t('dashboard.today.goal')} <b>{dailyGoal.toLocaleString()}</b> {t('common.words')}
             </div>
             <div className="dash-today__bar">
               <div
@@ -555,24 +565,24 @@ export function ProjectDashboard() {
             </div>
             <div className="dash-today__streak">
               <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">连续写作</span>
+                <span className="dash-today__streak-k">{t('dashboard.today.streak')}</span>
                 <span className="dash-today__streak-v">
                   {writingStats.streakDays}
-                  <em>天</em>
+                  <em>{t('common.days')}</em>
                 </span>
               </div>
               <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">本周</span>
+                <span className="dash-today__streak-k">{t('dashboard.today.week')}</span>
                 <span className="dash-today__streak-v">
                   {(writingStats.weekWords / 1000).toFixed(1)}
-                  <em>k字</em>
+                  <em>k{t('common.words')}</em>
                 </span>
               </div>
               <div className="dash-today__streak-cell">
-                <span className="dash-today__streak-k">月内</span>
+                <span className="dash-today__streak-k">{t('dashboard.today.month')}</span>
                 <span className="dash-today__streak-v">
                   {writingStats.monthDaysWritten}
-                  <em>天</em>
+                  <em>{t('common.days')}</em>
                 </span>
               </div>
             </div>
@@ -584,25 +594,25 @@ export function ProjectDashboard() {
           <div className="dash-section__head">
             <div className="dash-section__title">
               <span className="dash-section__title-mark">§</span>
-              <span className="dash-section__title-cn">故事线</span>
-              <span className="dash-section__title-en">Storylines</span>
+              <span className="dash-section__title-cn">{t('dashboard.sections.storylines')}</span>
+              <span className="dash-section__title-en">{t('dashboard.sections.storylinesShort')}</span>
               <span className="dash-section__count">
-                · <em>{storylines.length}</em> 线 / <em>{totalNodes}</em> 章 /{' '}
-                <em>{(totalWc / 1000).toFixed(1)}k</em> 字
+                · <em>{storylines.length}</em> {t('common.storylinesUnit')} / <em>{totalNodes}</em> {t('common.chapters')} /{' '}
+                <em>{(totalWc / 1000).toFixed(1)}k</em> {t('common.words')}
               </span>
             </div>
             <div className="dash-section__actions">
               <button className="dash-section__btn" onClick={openStoryGraph}>
-                ⌬ 叙事图
+                ⌬ {t('dashboard.actions.storyGraph')}
               </button>
               <button className="dash-section__btn" onClick={openAllChapters}>
-                ☷ 通览全书
+                ☷ {t('dashboard.actions.allChapters')}
               </button>
               <button
                 className="dash-section__btn dash-section__btn--accent"
                 onClick={handleCreateStoryline}
               >
-                <span className="dash-section__btn-mark">＋</span> 新故事线
+                <span className="dash-section__btn-mark">＋</span> {t('dashboard.actions.newStoryline')}
               </button>
             </div>
           </div>
@@ -629,11 +639,16 @@ export function ProjectDashboard() {
                     <div className="dash-track__name-sub">
                       {s.summary
                         ? s.summary
-                        : `${total} 章 · ${done} 完成 · ${draft} 草稿 · ${total - done - draft} 未起`}
+                        : t('dashboard.storylineSummary', {
+                            total,
+                            done,
+                            draft,
+                            todo: total - done - draft,
+                          })}
                     </div>
                   </div>
 
-                  <div className="dash-track__chapters" title={`${total} chapters`}>
+                  <div className="dash-track__chapters" title={t('dashboard.chaptersTitle', { count: total })}>
                     {sNodes.map((n) => {
                       const status = deriveStatus(n);
                       const isActive = n.id === continueNode?.id;
@@ -659,7 +674,7 @@ export function ProjectDashboard() {
                         <b>
                           {done}/{total}
                         </b>{' '}
-                        章
+                        {t('common.chapters')}
                       </span>
                       <span>{Math.round(trackDonePct)}%</span>
                     </div>
@@ -680,7 +695,7 @@ export function ProjectDashboard() {
                       {(wc / 1000).toFixed(1)}
                       <em>k</em>
                     </span>
-                    <span className="dash-track__wc-k">字 · words</span>
+                    <span className="dash-track__wc-k">{t('dashboard.wordsLabel')}</span>
                   </div>
                 </div>
               );
@@ -688,7 +703,7 @@ export function ProjectDashboard() {
 
             <div className="dash-track dash-track--new" onClick={handleCreateStoryline}>
               <span className="dash-track--new-glyph">＋</span>
-              <span>新建故事线 · NEW STORYLINE</span>
+              <span>{t('dashboard.actions.newStorylineLong')}</span>
             </div>
           </div>
         </section>
@@ -700,10 +715,10 @@ export function ProjectDashboard() {
             <div className="dash-section__head">
               <div className="dash-section__title">
                 <span className="dash-section__title-mark">◆</span>
-                <span className="dash-section__title-cn">元素类目</span>
-                <span className="dash-section__title-en">Element Categories</span>
+                <span className="dash-section__title-cn">{t('dashboard.sections.elementCategories')}</span>
+                <span className="dash-section__title-en">{t('dashboard.sections.elementCategoriesShort')}</span>
                 <span className="dash-section__count">
-                  · <em>{bookElementCategories.length}</em> 类 / <em>{bookElements.length}</em> 个
+                  · <em>{bookElementCategories.length}</em> {t('common.categoriesUnit')} / <em>{bookElements.length}</em> {t('common.itemsUnit')}
                 </span>
               </div>
               <div className="dash-section__actions">
@@ -711,7 +726,7 @@ export function ProjectDashboard() {
                   className="dash-section__btn dash-section__btn--accent"
                   onClick={handleCreateCategory}
                 >
-                  <span className="dash-section__btn-mark">＋</span> 新类目
+                  <span className="dash-section__btn-mark">＋</span> {t('dashboard.actions.newCategory')}
                 </button>
               </div>
             </div>
@@ -738,7 +753,7 @@ export function ProjectDashboard() {
                     </div>
                     <div className="dash-cat__samples">
                       {samples.length === 0 ? (
-                        <span className="dash-cat__samples-empty">— 暂无元素 —</span>
+                        <span className="dash-cat__samples-empty">— {t('dashboard.empty.noElements')} —</span>
                       ) : (
                         samples.map((nm, i) => (
                           <span key={i}>
@@ -754,7 +769,7 @@ export function ProjectDashboard() {
               })}
               <div className="dash-cat dash-cat--new" onClick={handleCreateCategory}>
                 <span className="dash-cat--new__glyph">＋</span>
-                <span>新建类目</span>
+                <span>{t('dashboard.actions.newCategory')}</span>
               </div>
             </div>
           </section>
@@ -764,15 +779,15 @@ export function ProjectDashboard() {
             <div className="dash-section__head">
               <div className="dash-section__title">
                 <span className="dash-section__title-mark">✦</span>
-                <span className="dash-section__title-cn">近日动向</span>
-                <span className="dash-section__title-en">Recent</span>
+                <span className="dash-section__title-cn">{t('dashboard.sections.recent')}</span>
+                <span className="dash-section__title-en">{t('dashboard.sections.recentShort')}</span>
                 <span className="dash-section__count">
-                  · <em>{recentActivity.length}</em> 条
+                  · <em>{recentActivity.length}</em> {t('common.itemsUnit')}
                 </span>
               </div>
               <div className="dash-section__actions">
                 <button className="dash-section__btn" onClick={openAllChapters}>
-                  通览全书 →
+                  {t('dashboard.actions.allChapters')} →
                 </button>
               </div>
             </div>
@@ -780,7 +795,7 @@ export function ProjectDashboard() {
             <div className="dash-act">
               {recentActivity.length === 0 ? (
                 <div className="dash-act-row" style={{ gridTemplateColumns: '1fr' }}>
-                  <span className="dash-cat__samples-empty">— 暂无动向 —</span>
+                  <span className="dash-cat__samples-empty">— {t('dashboard.empty.noActivity')} —</span>
                 </div>
               ) : (
                 recentActivity.map((r) => (
@@ -818,18 +833,18 @@ export function ProjectDashboard() {
             <div className="dash-section__head">
               <div className="dash-section__title">
                 <span className="dash-section__title-mark">◷</span>
-                <span className="dash-section__title-cn">写作计划</span>
-                <span className="dash-section__title-en">Writing Plan</span>
+                <span className="dash-section__title-cn">{t('dashboard.sections.writingPlan')}</span>
+                <span className="dash-section__title-en">{t('dashboard.sections.writingPlanShort')}</span>
                 <span className="dash-section__count">
-                  · 项目 <em>{(totalWc / 1000).toFixed(1)}k</em>
-                  {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} 字
+                  · {t('dashboard.plan.project')} <em>{(totalWc / 1000).toFixed(1)}k</em>
+                  {targetWc > 0 ? ` / ${(targetWc / 1000).toFixed(0)}k` : ''} {t('common.words')}
                 </span>
               </div>
             </div>
 
             <div className="dash-plan">
               <label className="dash-plan__field">
-                <span className="dash-plan__label">项目总目标 · TARGET</span>
+                <span className="dash-plan__label">{t('dashboard.plan.projectTarget')}</span>
                 <span className="dash-plan__input-wrap">
                   <input
                     type="number"
@@ -841,15 +856,15 @@ export function ProjectDashboard() {
                       setProjectWordTarget(projectId, Number(e.target.value) || 0)
                     }
                   />
-                  <span className="dash-plan__unit">字</span>
+                  <span className="dash-plan__unit">{t('common.words')}</span>
                 </span>
                 <span className="dash-plan__hint">
-                  整书规模上限。设为 0 关闭目标进度条。
+                  {t('dashboard.plan.projectHint')}
                 </span>
               </label>
 
               <label className="dash-plan__field">
-                <span className="dash-plan__label">每日目标 · DAILY</span>
+                <span className="dash-plan__label">{t('dashboard.plan.dailyTarget')}</span>
                 <span className="dash-plan__input-wrap">
                   <input
                     type="number"
@@ -861,18 +876,18 @@ export function ProjectDashboard() {
                       setDailyWordGoal(projectId, Number(e.target.value) || 0)
                     }
                   />
-                  <span className="dash-plan__unit">字 / 天</span>
+                  <span className="dash-plan__unit">{t('dashboard.plan.wordsPerDay')}</span>
                 </span>
                 <span className="dash-plan__hint">
-                  今日进度与连续写作天数都依此判定。
+                  {t('dashboard.plan.dailyHint')}
                 </span>
               </label>
 
               <div className="dash-plan__progress">
                 <div className="dash-plan__progress-row">
-                  <span className="dash-plan__progress-k">项目进度</span>
+                  <span className="dash-plan__progress-k">{t('dashboard.plan.projectProgress')}</span>
                   <span className="dash-plan__progress-v">
-                    {targetWc > 0 ? `${projectGoalPct.toFixed(1)}%` : '未设目标'}
+                    {targetWc > 0 ? `${projectGoalPct.toFixed(1)}%` : t('dashboard.plan.noProjectGoal')}
                   </span>
                 </div>
                 <div className="dash-plan__bar">
@@ -882,11 +897,11 @@ export function ProjectDashboard() {
                   ></div>
                 </div>
                 <div className="dash-plan__progress-row">
-                  <span className="dash-plan__progress-k">今日进度</span>
+                  <span className="dash-plan__progress-k">{t('dashboard.plan.todayProgress')}</span>
                   <span className="dash-plan__progress-v">
                     {dailyGoal > 0
                       ? `${writingStats.todayWords.toLocaleString()} / ${dailyGoal.toLocaleString()}`
-                      : '未设每日目标'}
+                      : t('dashboard.plan.noDailyGoal')}
                   </span>
                 </div>
                 <div className="dash-plan__bar">
@@ -906,8 +921,8 @@ export function ProjectDashboard() {
             <div className="dash-section__head">
               <div className="dash-section__title">
                 <span className="dash-section__title-mark">¶</span>
-                <span className="dash-section__title-cn">本书简介</span>
-                <span className="dash-section__title-en">Project Profile</span>
+                <span className="dash-section__title-cn">{t('dashboard.sections.projectProfile')}</span>
+                <span className="dash-section__title-en">{t('dashboard.sections.projectProfileShort')}</span>
               </div>
             </div>
             <ProjectProfileEditor
@@ -928,8 +943,8 @@ export function ProjectDashboard() {
               <div className="dash-section__head">
                 <div className="dash-section__title">
                   <span className="dash-section__title-mark">⁂</span>
-                  <span className="dash-section__title-cn">本书字段</span>
-                  <span className="dash-section__title-en">Project Facts</span>
+                  <span className="dash-section__title-cn">{t('dashboard.sections.projectFacts')}</span>
+                  <span className="dash-section__title-en">{t('dashboard.sections.projectFactsShort')}</span>
                 </div>
               </div>
               <div style={{ padding: '0 4px' }}>
@@ -937,7 +952,7 @@ export function ProjectDashboard() {
                   key={`proj-kv-${currentProject.id}`}
                   valueJson={currentProject.kvJson}
                   onPersist={commitProjectKv}
-                  emptyHint="— 暂无字段 —"
+                  emptyHint={`— ${t('dashboard.empty.noFields')} —`}
                 />
               </div>
             </section>
@@ -946,8 +961,8 @@ export function ProjectDashboard() {
               <div className="dash-section__head">
                 <div className="dash-section__title">
                   <span className="dash-section__title-mark">§</span>
-                  <span className="dash-section__title-cn">故事线字段模版</span>
-                  <span className="dash-section__title-en">Storyline Template</span>
+                  <span className="dash-section__title-cn">{t('dashboard.sections.storylineTemplate')}</span>
+                  <span className="dash-section__title-en">{t('dashboard.sections.storylineTemplateShort')}</span>
                 </div>
               </div>
               <div style={{ padding: '0 4px' }}>
@@ -956,7 +971,7 @@ export function ProjectDashboard() {
                   valueJson={currentProject.storylineTemplateKvJson}
                   onPersist={commitStorylineTemplateKv}
                   variant="template"
-                  emptyHint="— 尚未定义模版字段。可加 视角 / 主角 / 时间线 等 —"
+                  emptyHint={`— ${t('dashboard.empty.noTemplateFields')} —`}
                 />
               </div>
             </section>
@@ -973,7 +988,7 @@ export function ProjectDashboard() {
           <span>Drifting · v3.2 · draft</span>
           <span className="dash-foot__ornament">⁂</span>
           {/* TODO: surface real backup status from the sync subsystem. */}
-          <span>本地 · 自动备份</span>
+          <span>{t('dashboard.footer.backup')}</span>
         </footer>
       </div>
     </div>

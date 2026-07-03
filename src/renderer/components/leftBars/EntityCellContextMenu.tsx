@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   type EditorType,
   type MenuItem,
   type NodeStatusKind,
   getMenuItems,
+  getStatusSectionLabel,
+  getWritingStatusLabel,
   SET_STATUS_ACTION_PREFIX,
-  STATUS_SECTION_LABEL,
-  WRITING_STATUS_LABELS,
 } from '../editor/EditorTopBar';
 import {
   MANUAL_CHAPTER_WRITING_STATUSES,
@@ -72,6 +73,7 @@ export function EntityCellContextMenu({
   onAction,
   onClose,
 }: EntityCellContextMenuProps) {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: x, top: y });
 
@@ -114,7 +116,7 @@ export function EntityCellContextMenu({
     };
   }, [onClose]);
 
-  const items: MenuItem[] = getMenuItems(editorType, nodeStatusKind);
+  const items: MenuItem[] = getMenuItems(editorType, nodeStatusKind, t);
   const showStatus =
     editorType === 'node' && nodeWritingStatus !== undefined && nodeStatusKind !== undefined;
   const statusOptions: readonly WritingStatus[] = showStatus
@@ -209,22 +211,22 @@ export function EntityCellContextMenu({
                   gap: 4,
                 }}
               >
-                {header.tags.map((t) => (
+                {header.tags.map((tag) => (
                   <span
-                    key={t.id}
+                    key={tag.id}
                     style={{
                       fontSize: 10,
                       padding: '1px 6px',
                       borderRadius: 8,
                       color: 'hsl(var(--paper))',
-                      background: t.color || 'hsl(var(--accent))',
+                      background: tag.color || 'hsl(var(--accent))',
                       maxWidth: 120,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {t.name || 'Untitled'}
+                    {tag.name || t('common.untitled')}
                   </span>
                 ))}
               </div>
@@ -235,7 +237,7 @@ export function EntityCellContextMenu({
       {showStatus && nodeStatusKind && (
         <>
           <div className="editor-bar__menu-section-label">
-            {STATUS_SECTION_LABEL[nodeStatusKind]}
+            {getStatusSectionLabel(nodeStatusKind, t)}
           </div>
           {statusOptions.map((status) => {
             const active = status === nodeWritingStatus;
@@ -249,7 +251,7 @@ export function EntityCellContextMenu({
                   onClose();
                 }}
               >
-                <span>{WRITING_STATUS_LABELS[status]}</span>
+                <span>{getWritingStatusLabel(status, t)}</span>
                 {active && <span aria-hidden>✓</span>}
               </button>
             );

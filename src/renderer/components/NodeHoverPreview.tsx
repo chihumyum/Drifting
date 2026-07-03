@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { BookNode } from '../domain/book-node';
 
 interface NodeHoverPreviewProps {
@@ -11,6 +12,7 @@ const MAX_HEIGHT = 240;
 const MAX_WIDTH = 280;
 
 export function NodeHoverPreview({ node, position, showAbove = false }: NodeHoverPreviewProps) {
+  const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function NodeHoverPreview({ node, position, showAbove = false }: NodeHove
         {summary ? (
           <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{summary}</div>
         ) : (
-          <div>No summary</div>
+          <div>{t('nodeHoverPreview.noSummary')}</div>
         )}
       </div>
     </div>

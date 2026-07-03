@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -31,7 +32,6 @@ const DATE_HIDE_WIDTH = 200;
 // belong to no category. Surfaced as a virtual "未分类" group rendered at
 // the tail of the list. Used inside the panel only; never persisted.
 const UNCATEGORIZED_ID = '__uncategorized__';
-const UNCATEGORIZED_LABEL = '未分类';
 const UNCATEGORIZED_COLOR = 'hsl(var(--ink-4))';
 
 const formatShortDate = (input: string | number | Date) => {
@@ -45,6 +45,7 @@ const formatShortDate = (input: string | number | Date) => {
 };
 
 export function ElementPanel() {
+  const { t } = useTranslation();
   const { bookElements, bookElementCategories } = useDataStore();
   const { elementUi } = useUiStore();
   const sidebarWidth = useUiStore((s) => s.sidebars.left.width);
@@ -268,10 +269,10 @@ export function ElementPanel() {
 
   const getCategoryLabel = useCallback(
     (categoryId: string) => {
-      if (categoryId === UNCATEGORIZED_ID) return UNCATEGORIZED_LABEL;
+      if (categoryId === UNCATEGORIZED_ID) return t('leftSidebar.uncategorized');
       return categoryById.get(categoryId)?.name ?? categoryId;
     },
-    [categoryById],
+    [categoryById, t],
   );
 
   // Are there any elements with no category? Drives whether we render the
@@ -565,7 +566,13 @@ export function ElementPanel() {
         <span
           aria-hidden
           className={agentBusy ? 'agent-glyph-busy' : undefined}
-          title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
+          title={
+            agentBusy
+              ? t('agentActivity.working')
+              : agentChanged
+                ? t('agentActivity.changedHere')
+                : undefined
+          }
           style={{
             // Done swaps the diamond for a plain mono "M" marker; working/rest
             // keep the italic serif diamond.
@@ -698,7 +705,7 @@ export function ElementPanel() {
                       }
                 }
                 addButtonTitle={
-                  isUncategorized ? undefined : 'New element in this category'
+                  isUncategorized ? undefined : t('leftSidebar.groups.newElementInCategory')
                 }
                 // Creating a new element in "未分类" means categoryId=null;
                 // we don't surface that affordance — users should pick a real
@@ -759,7 +766,7 @@ export function ElementPanel() {
                 textAlign: 'center',
               }}
             >
-              no elements yet.
+              {t('leftSidebar.empty.noElements')}
             </div>
           )}
         </div>
@@ -790,7 +797,7 @@ export function ElementPanel() {
             {/* Invisible drag handle on the top border — no extra UI. */}
             <div
               onMouseDown={startFooterResize}
-              title="拖拽调整高度"
+              title={t('leftSidebar.groups.resizeFooter')}
               style={{
                 position: 'absolute',
                 top: -3,
@@ -943,6 +950,7 @@ function ElementGroupHeader({
   onRename: (next: string) => void;
   onAddElement: () => void;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(name);
@@ -1001,7 +1009,7 @@ function ElementGroupHeader({
         handledRef.current = false;
         setRenaming(true);
       }}
-      title="双击重命名分组"
+      title={t('leftSidebar.groups.renameElementGroupTitle')}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -1027,7 +1035,7 @@ function ElementGroupHeader({
       {canAdd && (
         <button
           type="button"
-          title="在此分组新建元素"
+          title={t('leftSidebar.groups.addElementToGroup')}
           onClick={(e) => {
             e.stopPropagation();
             onAddElement();

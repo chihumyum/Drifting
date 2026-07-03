@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import type { BookNode } from '../../domain/book-node';
@@ -45,6 +46,7 @@ const formatWordCount = (n: number) => {
 };
 
 export function ChapterPanel() {
+  const { t } = useTranslation();
   const { bookNodes, storylines, storylineNodeMapping, primaryStorylineByNode } = useDataStore();
   const { nodeUi } = useUiStore();
   const persistedViewMode = useUiStore((s) => s.chapterPanelViewMode);
@@ -344,7 +346,7 @@ export function ChapterPanel() {
         {agentChanged ? (
           <span
             aria-hidden
-            title="Agent 刚改动了这里"
+            title={t('agentActivity.changedHere')}
             style={{
               width: 12,
               flexShrink: 0,
@@ -362,7 +364,7 @@ export function ChapterPanel() {
           <span
             aria-hidden
             className={agentBusy ? 'agent-glyph-busy' : undefined}
-            title={agentBusy ? 'Agent 正在处理' : undefined}
+            title={agentBusy ? t('agentActivity.working') : undefined}
             style={{
               width: 12,
               height: 3,
@@ -385,7 +387,7 @@ export function ChapterPanel() {
             whiteSpace: 'nowrap',
           }}
         >
-          <span>{node.title || 'Untitled'}</span>
+          <span>{node.title || t('common.untitled')}</span>
         </div>
 
         {showMeta && cellMeta !== 'none' && (
@@ -453,7 +455,7 @@ export function ChapterPanel() {
                 textAlign: 'center',
               }}
             >
-              no chapters yet.
+              {t('leftSidebar.empty.noChapters')}
             </div>
           )}
         </>
@@ -495,7 +497,7 @@ export function ChapterPanel() {
                       storylineId: storyline.id,
                     });
                   }}
-                  addButtonTitle="New chapter in this storyline"
+                  addButtonTitle={t('leftSidebar.groups.newChapterInStoryline')}
                   onAdd={() => void handleCreateNode(storyline.id)}
                   agentBusy={activity.busy}
                   agentDoneCount={activity.doneCount}
@@ -521,7 +523,7 @@ export function ChapterPanel() {
                 textAlign: 'center',
               }}
             >
-              no storylines yet.
+              {t('leftSidebar.empty.noStorylines')}
             </div>
           )}
         </>
@@ -535,19 +537,19 @@ export function ChapterPanel() {
           more of the panel for the unaffiliated bucket. */}
       {viewMode === 'storyline' && (
         <CollapsibleFooter
-          label="未归属"
+          label={t('leftSidebar.groups.unaffiliated')}
           count={unaffiliatedChapters.length}
           headerExtra={
             !unaffiliatedActivity.busy && unaffiliatedActivity.doneCount > 0 ? (
               <AgentCountBadge
                 count={unaffiliatedActivity.doneCount}
-                title="未查看的 Agent 改动"
+                title={t('agentActivity.unviewedChanges')}
               />
             ) : unaffiliatedActivity.busy ? (
               <span
                 aria-hidden
                 className="agent-glyph-busy"
-                title="Agent 正在处理"
+                title={t('agentActivity.working')}
                 style={{
                   width: 7,
                   height: 7,
@@ -560,8 +562,8 @@ export function ChapterPanel() {
           }
           height={footerHeight}
           onHeightChange={setFooterHeight}
-          expandTitle="展开未归属"
-          collapseTitle="收起未归属"
+          expandTitle={t('leftSidebar.groups.expandUnaffiliated')}
+          collapseTitle={t('leftSidebar.groups.collapseUnaffiliated')}
           bodyStyle={{ padding: '4px 0 12px' }}
         >
           {unaffiliatedChapters.length > 0 ? (
@@ -577,7 +579,7 @@ export function ChapterPanel() {
                 textAlign: 'center',
               }}
             >
-              no unaffiliated chapters.
+              {t('leftSidebar.empty.noUnaffiliatedChapters')}
             </div>
           )}
         </CollapsibleFooter>

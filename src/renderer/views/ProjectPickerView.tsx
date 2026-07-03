@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useProject, type ProjectSummary } from '../usecase/useProject';
 import { useAuthStore } from '../store/auth';
 import { SyncStatusHUD } from '../components/sync/SyncStatusHUD';
@@ -31,12 +32,6 @@ type View = 'grid' | 'list';
 type Filter = 'all' | 'active' | 'paused';
 type Status = 'writing' | 'draft' | 'paused';
 
-const STATUS_LABEL: Record<Status, string> = {
-  writing: '在写',
-  draft:   '草稿',
-  paused:  '搁置',
-};
-
 const STORY_TOKENS = [
   '--story-1',
   '--story-2',
@@ -60,7 +55,11 @@ function glyphFor(name: string): string {
   return (m ? m[0] : trimmed[0]).toUpperCase();
 }
 
-function formatRelative(iso: string): string {
+function isZh(locale: string): boolean {
+  return locale.startsWith('zh');
+}
+
+function formatRelative(iso: string, locale: string): string {
   if (!iso) return '—';
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return '—';
@@ -68,13 +67,27 @@ function formatRelative(iso: string): string {
   const min = 60_000;
   const hr  = 60 * min;
   const day = 24 * hr;
-  if (diff < min)         return '刚刚';
-  if (diff < hr)          return `${Math.floor(diff / min)} 分钟前`;
-  if (diff < day)         return `${Math.floor(diff / hr)} 小时前`;
-  if (diff < 2 * day)     return '昨天';
-  if (diff < 30 * day)    return `${Math.floor(diff / day)} 天前`;
-  if (diff < 365 * day)   return `${Math.floor(diff / (30 * day))} 月前`;
-  return `${Math.floor(diff / (365 * day))} 年前`;
+  const zh = isZh(locale);
+  if (diff < min) return zh ? '刚刚' : 'just now';
+  if (diff < hr) {
+    const n = Math.floor(diff / min);
+    return zh ? `${n} 分钟前` : `${n} min ago`;
+  }
+  if (diff < day) {
+    const n = Math.floor(diff / hr);
+    return zh ? `${n} 小时前` : `${n} hr ago`;
+  }
+  if (diff < 2 * day) return zh ? '昨天' : 'yesterday';
+  if (diff < 30 * day) {
+    const n = Math.floor(diff / day);
+    return zh ? `${n} 天前` : `${n} days ago`;
+  }
+  if (diff < 365 * day) {
+    const n = Math.floor(diff / (30 * day));
+    return zh ? `${n} 月前` : `${n} mo ago`;
+  }
+  const n = Math.floor(diff / (365 * day));
+  return zh ? `${n} 年前` : `${n} yr ago`;
 }
 
 function formatCreated(iso: string): string {
@@ -120,6 +133,7 @@ function displayMetaFor(kvJson: string): ProjectDisplayMeta {
 }
 
 export function ProjectPickerView() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const {
@@ -171,11 +185,11 @@ export function ProjectPickerView() {
         status,
         colorToken: hashToColor(p.id),
         glyph: glyphFor(p.name),
-        lastEditedRel: formatRelative(p.updatedAt),
+        lastEditedRel: formatRelative(p.updatedAt, i18n.language),
         createdRel: formatCreated(p.createdAt),
       };
     }),
-    [projects],
+    [projects, i18n.language],
   );
 
   const filtered = decorated.filter(({ status }) =>
@@ -198,7 +212,7 @@ export function ProjectPickerView() {
     if (busy) return;
     setBusy(true);
     try {
-      const name = form.name.trim() || 'Untitled Project';
+      const name = form.name.trim() || t('projectPicker.untitledProject');
       const project = await createProject({ projectName: name });
       const summary = form.summary.trim();
       if (summary) {
@@ -211,7 +225,7 @@ export function ProjectPickerView() {
     } finally {
       setBusy(false);
     }
-  }, [busy, createProject, updateProject, navigate]);
+  }, [busy, createProject, updateProject, navigate, t]);
 
   const handleEdit = useCallback(async (form: ProjectFormState) => {
     if (!editing || busy) return;
@@ -249,7 +263,7 @@ export function ProjectPickerView() {
       <div className="pp">
         <div style={WINDOW_DRAG_STRIP_STYLE} aria-hidden />
         <div className="pp__inner">
-          <div className="pp-empty">Loading projects…</div>
+          <div className="pp-empty">{t('projectPicker.loading')}</div>
         </div>
         <SyncStatusHUD />
       </div>
@@ -268,12 +282,12 @@ export function ProjectPickerView() {
           <div>
             <div className="pp-head__kicker">
               <span className="pp-head__kicker-dot" />
-              <span>YOUR WORKSPACE</span>
+              <span>{t('projectPicker.header.workspace')}</span>
               <span className="pp-head__kicker-sep">·</span>
-              <span>DRIFTING WRITING STUDIO</span>
+              <span>{t('projectPicker.header.studio')}</span>
             </div>
-            <h1 className="pp-head__title"><em>书架</em> Bookshelf</h1>
-            <p className="pp-head__sub">在此切换、新建、整理你的所有写作项目。</p>
+            <h1 className="pp-head__title"><em>{t('projectPicker.header.titleEm')}</em> {t('projectPicker.header.title')}</h1>
+            <p className="pp-head__sub">{t('projectPicker.header.subtitle')}</p>
           </div>
           <aside className="pp-head__aside">
             <div className="pp-head__user">
@@ -288,7 +302,7 @@ export function ProjectPickerView() {
                 initial={userInitial}
                 size={36}
                 fontSize={16}
-                title="账户菜单"
+                title={t('userMenu.accountMenu')}
                 onClick={() => setMenuOpen((v) => !v)}
               />
             </div>
@@ -306,9 +320,9 @@ export function ProjectPickerView() {
         <div className="pp-toolbar">
           <div className="pp-toolbar__chips">
             {([
-              ['all',    '全部',   counts.all],
-              ['active', '进行中', counts.active],
-              ['paused', '搁置',   counts.paused],
+              ['all',    t('projectPicker.filters.all'),   counts.all],
+              ['active', t('projectPicker.filters.active'), counts.active],
+              ['paused', t('projectPicker.filters.paused'), counts.paused],
             ] as Array<[Filter, string, number]>).map(([k, label, n]) => (
               <div
                 key={k}
@@ -324,17 +338,17 @@ export function ProjectPickerView() {
               <button
                 className={`pp-toolbar__view-btn ${view === 'grid' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('grid')}
-              >⊞ 卡片</button>
+              >⊞ {t('projectPicker.view.card')}</button>
               <button
                 className={`pp-toolbar__view-btn ${view === 'list' ? 'pp-toolbar__view-btn--active' : ''}`}
                 onClick={() => setView('list')}
-              >☰ 列表</button>
+              >☰ {t('projectPicker.view.list')}</button>
             </div>
             <button
               className="pp-toolbar__btn pp-toolbar__btn--accent"
               onClick={() => setCreateOpen(true)}
             >
-              <span className="pp-toolbar__btn-glyph">＋</span> 新项目
+              <span className="pp-toolbar__btn-glyph">＋</span> {t('projectPicker.newProject')}
             </button>
           </div>
         </div>
@@ -344,17 +358,17 @@ export function ProjectPickerView() {
           <div className="pp-section__head">
             <div className="pp-section__title">
               <span className="pp-section__title-mark">¶</span>
-              <span className="pp-section__title-cn">全部项目</span>
-              <span className="pp-section__title-en">All projects</span>
+              <span className="pp-section__title-cn">{t('projectPicker.allProjectsCn')}</span>
+              <span className="pp-section__title-en">{t('projectPicker.allProjectsEn')}</span>
             </div>
             <span className="pp-section__count">
-              {filtered.length} / {decorated.length} 本
+              {t('projectPicker.projectCount', { filtered: filtered.length, total: decorated.length })}
             </span>
           </div>
 
           {decorated.length === 0 ? (
             <div className="pp-empty">
-              还没有项目 — 点击右上角的「+ 新项目」开始写。
+              {t('projectPicker.empty')}
             </div>
           ) : view === 'grid' ? (
             <div className="pp-grid">
@@ -372,13 +386,13 @@ export function ProjectPickerView() {
                   <div>
                     <div className="pp-card--new__glyph">＋</div>
                     <div className="pp-card--new__label">
-                      新建项目<br/>NEW BOOK
+                      {t('projectPicker.newBookLine1')}<br/>{t('projectPicker.newBookLine2')}
                     </div>
                   </div>
                 </div>
                 <div className="pp-card__body">
                   <div className="pp-card__title" style={{ color: 'hsl(var(--ink-4))' }}>
-                    一本新书 · 从这里开始
+                    {t('projectPicker.newBookSubtitle')}
                   </div>
                 </div>
               </div>
@@ -405,7 +419,7 @@ export function ProjectPickerView() {
                     className="pp-list__title-main"
                     style={{ color: 'hsl(var(--ink-4))' }}
                   >
-                    新建项目 · NEW BOOK
+                    {t('projectPicker.newBookInline')}
                   </span>
                 </div>
               </div>
@@ -471,9 +485,12 @@ interface CardProps {
 }
 
 function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
+  const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
   const stats = project.stats;
-  const sourceLabel = project.source === 'server' ? 'CLOUD · SYNCED' : 'LOCAL · 草稿';
+  const sourceLabel = project.source === 'server'
+    ? t('projectPicker.source.cloud')
+    : t('projectPicker.source.localDraft');
   const spineLine = meta.genre || sourceLabel;
 
   return (
@@ -483,8 +500,8 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
       onClick={onOpen}
     >
       <div className="pp-card__menu" onClick={(e) => e.stopPropagation()}>
-        <span className="pp-card__menu-btn" onClick={onEdit} title="编辑">✎</span>
-        <span className="pp-card__menu-btn" onClick={onDelete} title="删除">×</span>
+        <span className="pp-card__menu-btn" onClick={onEdit} title={t('common.edit')}>✎</span>
+        <span className="pp-card__menu-btn" onClick={onDelete} title={t('common.delete')}>×</span>
       </div>
       <div className="pp-card__spine">
         <div className="pp-card__spine-top">
@@ -497,8 +514,8 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
             <div className="pp-card__spine-sub">— {meta.subtitle}</div>
           )}
           <div className="pp-card__spine-foot" style={{ marginTop: 14 }}>
-            <span><b>{formatWordsK(stats.words)}</b> 字</span>
-            <span>{stats.nodes} 章</span>
+            <span><b>{formatWordsK(stats.words)}</b> {t('common.words')}</span>
+            <span>{stats.nodes} {t('common.chapters')}</span>
           </div>
         </div>
       </div>
@@ -508,9 +525,9 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
           {meta.subtitle ? ` · ${meta.subtitle}` : ''}
         </div>
         <div className="pp-card__meta">
-          <span><b>{stats.storylines}</b>线</span>
-          <span><b>{stats.elements}</b>元素</span>
-          <span><b>{stats.categories}</b>类</span>
+          <span><b>{stats.storylines}</b>{t('common.storylinesUnit')}</span>
+          <span><b>{stats.elements}</b>{t('common.elementsUnit')}</span>
+          <span><b>{stats.categories}</b>{t('common.categoriesUnit')}</span>
         </div>
         <div className="pp-card__progress">
           <div
@@ -519,7 +536,7 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
           />
         </div>
         <div className={`pp-card__status pp-card__status--${status}`}>
-          {STATUS_LABEL[status]} · {lastEditedRel}
+          {t(`projectPicker.status.${status}`)} · {lastEditedRel}
         </div>
       </div>
     </div>
@@ -527,10 +544,13 @@ function ProjectCard({ row, onOpen, onEdit, onDelete }: CardProps) {
 }
 
 function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
+  const { t } = useTranslation();
   const { project, meta, status, colorToken, glyph, lastEditedRel } = row;
   const stats = project.stats;
   const subline = meta.genre
-    || (project.source === 'server' ? 'CLOUD · SYNCED' : 'LOCAL · 草稿');
+    || (project.source === 'server'
+      ? t('projectPicker.source.cloud')
+      : t('projectPicker.source.localDraft'));
 
   return (
     <div
@@ -552,13 +572,13 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         <span className="pp-list__cell-v">
           {(stats.words / 1000).toFixed(1)}<em>k</em>
         </span>
-        <span className="pp-list__cell-k">字</span>
+        <span className="pp-list__cell-k">{t('common.words')}</span>
       </div>
       <div className="pp-list__cell">
         <span className="pp-list__cell-v">
-          {stats.nodes}<em>章</em>
+          {stats.nodes}<em>{t('common.chapters')}</em>
         </span>
-        <span className="pp-list__cell-k">章 · 节点</span>
+        <span className="pp-list__cell-k">{t('projectPicker.nodesLabel')}</span>
       </div>
       <div className="pp-list__cell">
         <span
@@ -567,18 +587,18 @@ function ProjectListRow({ row, onOpen, onEdit, onDelete }: CardProps) {
         >
           {lastEditedRel}
         </span>
-        <span className="pp-list__cell-k">{STATUS_LABEL[status]}</span>
+        <span className="pp-list__cell-k">{t(`projectPicker.status.${status}`)}</span>
       </div>
       <div className="pp-list__menu" onClick={(e) => e.stopPropagation()}>
         <span
           className="pp-list__menu-btn"
           onClick={onEdit}
-          title="编辑"
+          title={t('common.edit')}
         >✎</span>
         <span
           className="pp-list__menu-btn"
           onClick={onDelete}
-          title="删除"
+          title={t('common.delete')}
         >×</span>
       </div>
     </div>
@@ -595,6 +615,7 @@ interface DeleteModalProps {
 }
 
 function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) onClose();
@@ -608,26 +629,30 @@ function DeleteModal({ project, busy, onConfirm, onClose }: DeleteModalProps) {
     <div className="pp-modal-backdrop" onClick={onClose}>
       <div className="pp-modal" onClick={(e) => e.stopPropagation()}>
         <div className="pp-modal__head">
-          <div className="pp-modal__kicker">DELETE PROJECT · 删除项目</div>
+          <div className="pp-modal__kicker">{t('projectPicker.delete.kicker')}</div>
           <h2 className="pp-modal__title">
-            确认删除 <em>《{project.name}》</em>？
+            {t('projectPicker.delete.titlePrefix')} <em>《{project.name}》</em>？
           </h2>
         </div>
         <div className="pp-modal__body">
           <p className="pp-modal__sub">
-            删除后将无法恢复。{stats.words.toLocaleString()} 字 · {stats.nodes} 章 · {stats.elements} 个元素都会移除。
+            {t('projectPicker.delete.body', {
+              words: stats.words.toLocaleString(),
+              nodes: stats.nodes,
+              elements: stats.elements,
+            })}
           </p>
         </div>
         <div className="pp-modal__foot">
           <button className="pp-modal__btn" onClick={onClose} disabled={busy}>
-            取消
+            {t('common.cancel')}
           </button>
           <button
             className="pp-modal__btn pp-modal__btn--danger"
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? '删除中…' : '删除'}
+            {busy ? t('projectPicker.delete.deleting') : t('common.delete')}
           </button>
         </div>
       </div>
@@ -644,6 +669,7 @@ interface ProjectFormModalProps {
 }
 
 function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFormModalProps) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<ProjectFormState>({
     name:    project?.name ?? '',
     summary: project?.summary ?? '',
@@ -663,7 +689,9 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
   }, [busy, form, onClose, onSubmit]);
 
   const isEdit = mode === 'edit';
-  const submitLabel = isEdit ? (busy ? '保存中…' : '保存') : (busy ? '创建中…' : '新建');
+  const submitLabel = isEdit
+    ? (busy ? t('common.saving') : t('common.save'))
+    : (busy ? t('common.creating') : t('projectPicker.form.createSubmit'));
 
   return (
     <div className="pp-modal-backdrop" onClick={onClose}>
@@ -674,30 +702,30 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
       >
         <div className="pp-modal__head">
           <div className="pp-modal__kicker">
-            {isEdit ? 'EDIT PROJECT · 编辑项目' : 'NEW PROJECT · 新项目'}
+            {isEdit ? t('projectPicker.form.editKicker') : t('projectPicker.form.createKicker')}
           </div>
           <h2 className="pp-modal__title">
             {isEdit
-              ? <>编辑 <em>《{project?.name}》</em></>
-              : <>新建 <em>一本书</em></>}
+              ? <>{t('projectPicker.form.editTitle')} <em>《{project?.name}》</em></>
+              : <>{t('projectPicker.form.createTitle')} <em>{t('projectPicker.form.createTitleEm')}</em></>}
           </h2>
         </div>
         <div className="pp-modal__body">
           <div className="pp-modal__field">
-            <span className="pp-modal__field-k">名字 · TITLE</span>
+            <span className="pp-modal__field-k">{t('projectPicker.form.nameLabel')}</span>
             <input
               className="pp-modal__input"
-              placeholder="例：渡舟"
+              placeholder={t('projectPicker.form.namePlaceholder')}
               value={form.name}
               onChange={set('name')}
               autoFocus
             />
           </div>
           <div className="pp-modal__field">
-            <span className="pp-modal__field-k">梗概 · SUMMARY</span>
+            <span className="pp-modal__field-k">{t('projectPicker.form.summaryLabel')}</span>
             <textarea
               className="pp-modal__textarea"
-              placeholder="一两句话说明这本书是什么。"
+              placeholder={t('projectPicker.form.summaryPlaceholder')}
               value={form.summary}
               onChange={set('summary')}
             />
@@ -705,7 +733,7 @@ function ProjectFormModal({ mode, project, busy, onSubmit, onClose }: ProjectFor
         </div>
         <div className="pp-modal__foot">
           <button className="pp-modal__btn" onClick={onClose} disabled={busy}>
-            取消
+            {t('common.cancel')}
           </button>
           <button
             className="pp-modal__btn pp-modal__btn--primary"

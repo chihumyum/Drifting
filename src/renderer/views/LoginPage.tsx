@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth';
 import { authClient } from '../lib/auth-client';
 import type { SupportedOAuthProvider } from '../lib/oauth-providers';
@@ -13,8 +14,8 @@ interface SocialProvider {
   key: string;
   iconClass: string;
   icon: string;
-  signInLabel: string;
-  signUpLabel: string;
+  signInLabelKey: string;
+  signUpLabelKey: string;
   sub: string;
   oauth?: SupportedOAuthProvider;
 }
@@ -24,8 +25,8 @@ const SOCIAL_PROVIDERS: SocialProvider[] = [
     key: 'google',
     iconClass: 'si-soc-btn__icon--g',
     icon: 'G',
-    signInLabel: '用 Google 登录',
-    signUpLabel: '用 Google 注册',
+    signInLabelKey: 'auth.social.googleSignIn',
+    signUpLabelKey: 'auth.social.googleSignUp',
     sub: 'OAuth',
     oauth: 'google',
   },
@@ -33,16 +34,16 @@ const SOCIAL_PROVIDERS: SocialProvider[] = [
     key: 'apple',
     iconClass: 'si-soc-btn__icon--a',
     icon: '⌘',
-    signInLabel: '用 Apple 登录',
-    signUpLabel: '用 Apple 注册',
+    signInLabelKey: 'auth.social.appleSignIn',
+    signUpLabelKey: 'auth.social.appleSignUp',
     sub: 'Sign in with Apple',
   },
   {
     key: 'wechat',
     iconClass: 'si-soc-btn__icon--w',
-    icon: '微',
-    signInLabel: '用微信登录',
-    signUpLabel: '用微信注册',
+    icon: 'W',
+    signInLabelKey: 'auth.social.wechatSignIn',
+    signUpLabelKey: 'auth.social.wechatSignUp',
     sub: 'WeChat',
   },
 ];
@@ -59,6 +60,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const adoptSession = useAuthStore((state) => state.adoptSession);
   const checkSession = useAuthStore((state) => state.checkSession);
@@ -83,7 +85,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
       await adoptSession();
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      setError(err instanceof Error ? err.message : t('auth.errors.signInFailed'));
     }
   };
 
@@ -92,18 +94,18 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
       async ({ token, error: callbackError }) => {
         setOauthLoading(null);
         if (callbackError || !token) {
-          setError('OAuth 登录失败，请重试。');
+          setError(t('auth.errors.oauthFailed'));
           return;
         }
         try {
           await checkSession();
         } catch {
-          setError('无法获取登录状态，请重试。');
+          setError(t('auth.errors.sessionFailed'));
         }
       },
     );
     return cleanup;
-  }, [checkSession]);
+  }, [checkSession, t]);
 
   const handleOAuth = async (provider: SupportedOAuthProvider) => {
     setError(null);
@@ -111,7 +113,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
     try {
       await window.electronAPI.auth.openOAuthBrowser(provider);
     } catch {
-      setError('无法打开浏览器，请重试。');
+      setError(t('auth.errors.browserFailed'));
       setOauthLoading(null);
     }
   };
@@ -139,7 +141,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             setMode('verifyAfterSignup');
             return;
           }
-          throw new Error(result.error.message || '登录失败');
+          throw new Error(result.error.message || t('auth.errors.signInFailed'));
         }
         await adoptSession();
         navigate('/');
@@ -149,12 +151,14 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
         // state so the post-verify step can sign in cleanly.
         const result = await authClient.signUp.email({ email, password, name });
         if (result.error) {
-          throw new Error(result.error.message || '注册失败');
+          throw new Error(result.error.message || t('auth.errors.signUpFailed'));
         }
         setMode('verifyAfterSignup');
       }
     } catch (err) {
-      const fallback = mode === 'signin' ? '登录失败，请检查邮箱和密码' : '注册失败，请稍后重试';
+      const fallback = mode === 'signin'
+        ? t('auth.errors.signInCheck')
+        : t('auth.errors.signUpRetry');
       setError(err instanceof Error ? err.message : fallback);
     } finally {
       setIsSubmitting(false);
@@ -169,22 +173,22 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
           <span className="si-brand__glyph">渡</span>
           <span className="si-brand__name">Drifting</span>
           <span className="si-brand__sep">·</span>
-          <span className="si-brand__cn">缀浮</span>
+          <span className="si-brand__cn">{t('auth.brand.cn')}</span>
         </div>
 
         <div className="si-quote">
           <div className="si-quote__kicker">
             <span className="si-quote__kicker-dot"></span>
-            <span>WRITING STUDIO</span>
+            <span>{t('auth.hero.kickerA')}</span>
             <span className="si-quote__kicker-sep">·</span>
-            <span>FOR SERIOUS NOVELISTS</span>
+            <span>{t('auth.hero.kickerB')}</span>
           </div>
           <h1 className="si-quote__title">
-            写作是一场<em>漫长的渡</em>。<br />
-            这里给你一艘<em>足够稳的船</em>。
+            {t('auth.hero.titleA')}<em>{t('auth.hero.titleEmA')}</em>。<br />
+            {t('auth.hero.titleB')}<em>{t('auth.hero.titleEmB')}</em>。
           </h1>
           <p className="si-quote__body">
-            Drifting 把章节、故事线、人物、地点、物件、浮缀 — 你心里所有的卷宗 — 编织在一张可漫游的纸上。
+            {t('auth.hero.body')}
           </p>
 
           <div className="si-feats">
@@ -192,32 +196,32 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               <span className="si-feat__mark">§</span>
               <div className="si-feat__body">
                 <span className="si-feat__title">
-                  章节 · <em>scene & beat</em> 大纲
+                  {t('auth.hero.featureOutlineTitle')} · <em>{t('auth.hero.featureOutlineEm')}</em>
                 </span>
-                <span className="si-feat__sub">markdown header · scrollspy · 大纲即正文</span>
+                <span className="si-feat__sub">{t('auth.hero.featureOutlineSub')}</span>
               </div>
             </div>
             <div className="si-feat">
               <span className="si-feat__mark">◆</span>
               <div className="si-feat__body">
-                <span className="si-feat__title">元素 · 自定义类目 + 字段</span>
-                <span className="si-feat__sub">人物 / 地点 / 物件 / 时代纪 / 语汇 / 你自己的</span>
+                <span className="si-feat__title">{t('auth.hero.featureElementTitle')}</span>
+                <span className="si-feat__sub">{t('auth.hero.featureElementSub')}</span>
               </div>
             </div>
             <div className="si-feat">
               <span className="si-feat__mark">¶</span>
               <div className="si-feat__body">
                 <span className="si-feat__title">
-                  故事线 · <em>多视角</em>叙事
+                  {t('auth.hero.featureStorylineTitleA')} · <em>{t('auth.hero.featureStorylineEm')}</em>{t('auth.hero.featureStorylineTitleB')}
                 </span>
-                <span className="si-feat__sub">时间轴 · 叙事弧 · 跨线索引</span>
+                <span className="si-feat__sub">{t('auth.hero.featureStorylineSub')}</span>
               </div>
             </div>
             <div className="si-feat">
               <span className="si-feat__mark">◐</span>
               <div className="si-feat__body">
-                <span className="si-feat__title">Shadow · 离线 AI 校读</span>
-                <span className="si-feat__sub">人物年龄 / 视角越界 / 设定矛盾</span>
+                <span className="si-feat__title">{t('auth.hero.featureShadowTitle')}</span>
+                <span className="si-feat__sub">{t('auth.hero.featureShadowSub')}</span>
               </div>
             </div>
           </div>
@@ -226,7 +230,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
         <div className="si-foot">
           <span>Drifting Writing Studio · v3.2</span>
           <span className="si-foot__orn">⁂</span>
-          <span>本地优先 · 端到端加密</span>
+          <span>{t('auth.hero.footer')}</span>
         </div>
       </aside>
 
@@ -238,16 +242,16 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             className={`si-tab ${mode === 'signin' ? 'si-tab--active' : ''}`}
             onClick={() => switchMode('signin')}
           >
-            <span className="si-tab__cn">登录</span>
-            <span>SIGN IN</span>
+            <span className="si-tab__cn">{t('auth.signIn')}</span>
+            <span>{t('auth.signInShort')}</span>
           </button>
           <button
             type="button"
             className={`si-tab ${mode === 'signup' ? 'si-tab--active' : ''}`}
             onClick={() => switchMode('signup')}
           >
-            <span className="si-tab__cn">注册</span>
-            <span>SIGN UP</span>
+            <span className="si-tab__cn">{t('auth.signUp')}</span>
+            <span>{t('auth.signUpShort')}</span>
           </button>
         </div>
 
@@ -270,33 +274,33 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
           <form className="si-form" onSubmit={submit}>
             <div className="si-kicker">
               <span className="si-kicker-dot"></span>
-              <span>{mode === 'signin' ? 'WELCOME BACK · 继续写作' : 'NEW HERE · 起航'}</span>
+              <span>{mode === 'signin' ? t('auth.signin.kicker') : t('auth.signup.kicker')}</span>
             </div>
             <h2 className="si-form__title">
               {mode === 'signin' ? (
                 <Fragment>
-                  <em>登录</em> Drifting
+                  <em>{t('auth.signIn')}</em> Drifting
                 </Fragment>
               ) : (
                 <Fragment>
-                  <em>新建</em>账号
+                  <em>{t('auth.signup.titleEm')}</em>{t('auth.signup.titleRest')}
                 </Fragment>
               )}
             </h2>
             <p className="si-form__sub">
               {mode === 'signin'
-                ? '回到你已经构建的世界 — 章节、故事线、元素、浮缀都还在。'
-                : '注册一个账号，开始你的第一本书。我们不会把你的稿子用于任何模型训练。'}
+                ? t('auth.signin.sub')
+                : t('auth.signup.sub')}
             </p>
 
             {error && <div className="si-error">{error}</div>}
 
             {mode === 'signup' && (
               <div className="si-field">
-                <span className="si-field__k">笔名 · PEN NAME</span>
+                <span className="si-field__k">{t('auth.fields.penName')}</span>
                 <input
                   className="si-field__input"
-                  placeholder="例：望舒"
+                  placeholder={t('auth.fields.penNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={isSubmitting}
@@ -307,11 +311,11 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             )}
 
             <div className="si-field">
-              <span className="si-field__k">邮箱 · EMAIL</span>
+              <span className="si-field__k">{t('auth.fields.email')}</span>
               <input
                 className="si-field__input"
                 type="email"
-                placeholder="your@email.com"
+                placeholder={t('auth.fields.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
@@ -322,15 +326,15 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
             <div className="si-field">
               <span className="si-field__k">
-                密码 · PASSWORD
+                {t('auth.fields.password')}
                 {mode === 'signin' && (
-                  <a onClick={() => switchMode('otp')}>用邮箱验证码 →</a>
+                  <a onClick={() => switchMode('otp')}>{t('auth.useOtp')} →</a>
                 )}
               </span>
               <input
                 className="si-field__input"
                 type="password"
-                placeholder={mode === 'signup' ? '至少 10 字符' : '••••••••'}
+                placeholder={mode === 'signup' ? t('auth.fields.passwordSignupPlaceholder') : '••••••••'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isSubmitting}
@@ -345,7 +349,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                 onClick={() => setRemember((v) => !v)}
               >
                 <span className="si-remember__box"></span>
-                <span>记住我 — 这台机器</span>
+                <span>{t('auth.remember')}</span>
               </div>
             )}
 
@@ -353,11 +357,11 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
               <span className="si-submit__cn">
                 {isSubmitting
                   ? mode === 'signin'
-                    ? '登录中…'
-                    : '创建中…'
+                    ? t('auth.signingIn')
+                    : t('auth.creating')
                   : mode === 'signin'
-                  ? '登录'
-                  : '创建账号'}
+                  ? t('auth.signIn')
+                  : t('auth.createAccount')}
               </span>
               <span>{mode === 'signin' ? 'SIGN IN' : 'CREATE ACCOUNT'}</span>
               <span className="si-submit__arrow">→</span>
@@ -365,7 +369,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
             {SOCIAL_LOGIN_ENABLED && (
               <>
-                <div className="si-or">OR · 用第三方</div>
+                <div className="si-or">{t('auth.social.or')}</div>
 
                 <div className="si-social">
               {SOCIAL_PROVIDERS.map((p) => {
@@ -378,18 +382,18 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
                     className="si-soc-btn"
                     onClick={enabled ? () => handleOAuth(p.oauth as SupportedOAuthProvider) : undefined}
                     disabled={!enabled || isSubmitting || oauthLoading !== null}
-                    title={enabled ? undefined : '即将开放'}
+                    title={enabled ? undefined : t('auth.social.comingSoon')}
                   >
                     <span className={`si-soc-btn__icon ${p.iconClass}`}>{p.icon}</span>
                     <span className="si-soc-btn__label">
                       {loading
-                        ? '等待浏览器授权…'
+                        ? t('auth.social.waiting')
                         : mode === 'signin'
-                        ? p.signInLabel
-                        : p.signUpLabel}
+                        ? t(p.signInLabelKey)
+                        : t(p.signUpLabelKey)}
                     </span>
                     <span className="si-soc-btn__sub">
-                      {enabled ? p.sub : '即将开放'}
+                      {enabled ? p.sub : t('auth.social.comingSoon')}
                     </span>
                   </button>
                 );
@@ -401,13 +405,13 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             <div className="si-foot-right">
               {mode === 'signin' ? (
                 <Fragment>
-                  <span>还没有账号？</span>
-                  <a onClick={() => switchMode('signup')}>立即注册 →</a>
+                  <span>{t('auth.noAccount')}</span>
+                  <a onClick={() => switchMode('signup')}>{t('auth.signUpNow')} →</a>
                 </Fragment>
               ) : (
                 <Fragment>
-                  <span>已经有账号？</span>
-                  <a onClick={() => switchMode('signin')}>登录 →</a>
+                  <span>{t('auth.hasAccount')}</span>
+                  <a onClick={() => switchMode('signin')}>{t('auth.signIn')} →</a>
                 </Fragment>
               )}
             </div>
@@ -415,10 +419,10 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             <div className="si-legal">
               {mode === 'signup' && (
                 <Fragment>
-                  注册即代表你同意我们的 <a>服务条款</a> 与 <a>隐私政策</a>。<br />
+                  {t('auth.legal.agree')} <a>{t('auth.legal.terms')}</a> {t('auth.legal.and')} <a>{t('auth.legal.privacy')}</a>。<br />
                 </Fragment>
               )}
-              本地优先 · 端到端加密 · 不用作模型训练
+              {t('auth.legal.footer')}
             </div>
           </form>
         )}
@@ -430,6 +434,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 }
 
 const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
+  const { t } = useTranslation();
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState('');
 
@@ -447,19 +452,19 @@ const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
     <form className="si-form" onSubmit={submit}>
       <div className="si-kicker">
         <span className="si-kicker-dot"></span>
-        <span>RESET · 重置密码</span>
+        <span>{t('auth.forgot.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>找回</em>账号
+        <em>{t('auth.forgot.titleEm')}</em>{t('auth.forgot.titleRest')}
       </h2>
-      <p className="si-form__sub">填邮箱 — 我们寄一封带验证码的信去。</p>
+      <p className="si-form__sub">{t('auth.forgot.sub')}</p>
 
       <div className="si-field">
-        <span className="si-field__k">邮箱 · EMAIL</span>
+        <span className="si-field__k">{t('auth.fields.email')}</span>
         <input
           className="si-field__input"
           type="email"
-          placeholder="your@email.com"
+          placeholder={t('auth.fields.emailPlaceholder')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoFocus
@@ -468,17 +473,17 @@ const ForgotForm = ({ onCancel }: { onCancel: () => void }) => {
       </div>
 
       {sent ? (
-        <div className="si-sent">已寄出。请去 {email || '邮箱'} 查收。</div>
+        <div className="si-sent">{t('auth.forgot.sent', { email: email || t('auth.fields.emailShort') })}</div>
       ) : (
         <button type="submit" className="si-submit">
-          <span className="si-submit__cn">寄出</span>
-          <span>SEND CODE</span>
+          <span className="si-submit__cn">{t('auth.forgot.submit')}</span>
+          <span>{t('auth.forgot.submitShort')}</span>
           <span className="si-submit__arrow">→</span>
         </button>
       )}
 
       <div className="si-foot-right">
-        <a onClick={onCancel}>← 回到登录</a>
+        <a onClick={onCancel}>← {t('auth.backToSignIn')}</a>
       </div>
     </form>
   );
@@ -493,6 +498,7 @@ const OtpForm = ({
   onCancel: () => void;
   onSuccess: () => void | Promise<void>;
 }) => {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<'enter-email' | 'enter-code'>('enter-email');
   const [email, setEmail] = useState(initialEmail ?? '');
   const [otp, setOtp] = useState('');
@@ -505,10 +511,10 @@ const OtpForm = ({
     setBusy(true);
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
-      if (res.error) throw new Error(res.error.message || '发送失败');
+      if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
       setStage('enter-code');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发送失败，请稍后重试');
+      setError(err instanceof Error ? err.message : t('auth.errors.sendRetry'));
     } finally {
       setBusy(false);
     }
@@ -520,10 +526,10 @@ const OtpForm = ({
     setBusy(true);
     try {
       const res = await authClient.signIn.emailOtp({ email, otp });
-      if (res.error) throw new Error(res.error.message || '验证失败');
+      if (res.error) throw new Error(res.error.message || t('auth.errors.verifyFailed'));
       await onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '验证失败');
+      setError(err instanceof Error ? err.message : t('auth.errors.verifyFailed'));
     } finally {
       setBusy(false);
     }
@@ -533,26 +539,26 @@ const OtpForm = ({
     <form className="si-form" onSubmit={stage === 'enter-email' ? sendCode : verifyCode}>
       <div className="si-kicker">
         <span className="si-kicker-dot"></span>
-        <span>OTP · 邮箱验证码登录</span>
+        <span>{t('auth.otp.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>无密码</em>登录
+        <em>{t('auth.otp.titleEm')}</em>{t('auth.otp.titleRest')}
       </h2>
       <p className="si-form__sub">
         {stage === 'enter-email'
-          ? '填邮箱 — 我们寄一个 6 位验证码，10 分钟内有效。'
-          : `已寄到 ${email}。在 10 分钟内输入 6 位验证码。`}
+          ? t('auth.otp.emailSub')
+          : t('auth.otp.codeSub', { email })}
       </p>
 
       {error && <div className="si-error">{error}</div>}
 
       {stage === 'enter-email' ? (
         <div className="si-field">
-          <span className="si-field__k">邮箱 · EMAIL</span>
+          <span className="si-field__k">{t('auth.fields.email')}</span>
           <input
             className="si-field__input"
             type="email"
-            placeholder="your@email.com"
+            placeholder={t('auth.fields.emailPlaceholder')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={busy}
@@ -562,13 +568,13 @@ const OtpForm = ({
         </div>
       ) : (
         <div className="si-field">
-          <span className="si-field__k">验证码 · CODE</span>
+          <span className="si-field__k">{t('auth.fields.code')}</span>
           <input
             className="si-field__input set-input--mono"
             inputMode="numeric"
             pattern="[0-9]{6}"
             maxLength={6}
-            placeholder="6 位数字"
+            placeholder={t('auth.fields.codePlaceholder')}
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
             disabled={busy}
@@ -580,7 +586,7 @@ const OtpForm = ({
 
       <button type="submit" className="si-submit" disabled={busy}>
         <span className="si-submit__cn">
-          {busy ? '处理中…' : stage === 'enter-email' ? '发送验证码' : '登录'}
+          {busy ? t('common.processing') : stage === 'enter-email' ? t('auth.sendCode') : t('auth.signIn')}
         </span>
         <span>{stage === 'enter-email' ? 'SEND CODE' : 'SIGN IN'}</span>
         <span className="si-submit__arrow">→</span>
@@ -589,11 +595,11 @@ const OtpForm = ({
       <div className="si-foot-right">
         {stage === 'enter-code' && (
           <>
-            <a onClick={() => setStage('enter-email')}>← 改邮箱</a>
+            <a onClick={() => setStage('enter-email')}>← {t('auth.changeEmail')}</a>
             <span style={{ margin: '0 8px' }}>·</span>
           </>
         )}
-        <a onClick={onCancel}>← 回到密码登录</a>
+        <a onClick={onCancel}>← {t('auth.backToPasswordSignIn')}</a>
       </div>
     </form>
   );
@@ -613,6 +619,7 @@ const VerifyAfterSignupForm = ({
   onCancel: () => void;
   onSuccess: () => void | Promise<void>;
 }) => {
+  const { t } = useTranslation();
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -626,10 +633,10 @@ const VerifyAfterSignupForm = ({
         email,
         type: 'email-verification',
       });
-      if (res.error) throw new Error(res.error.message || '发送失败');
+      if (res.error) throw new Error(res.error.message || t('auth.errors.sendFailed'));
       setSentOnce(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发送验证码失败');
+      setError(err instanceof Error ? err.message : t('auth.errors.sendCodeFailed'));
     } finally {
       setBusy(false);
     }
@@ -653,13 +660,13 @@ const VerifyAfterSignupForm = ({
     setBusy(true);
     try {
       const verify = await authClient.emailOtp.verifyEmail({ email, otp });
-      if (verify.error) throw new Error(verify.error.message || '验证失败');
+      if (verify.error) throw new Error(verify.error.message || t('auth.errors.verifyFailed'));
       // Email is verified — now we can actually sign in with the password.
       const signIn = await authClient.signIn.email({ email, password });
-      if (signIn.error) throw new Error(signIn.error.message || '登录失败');
+      if (signIn.error) throw new Error(signIn.error.message || t('auth.errors.signInFailed'));
       await onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '验证失败');
+      setError(err instanceof Error ? err.message : t('auth.errors.verifyFailed'));
     } finally {
       setBusy(false);
     }
@@ -669,27 +676,27 @@ const VerifyAfterSignupForm = ({
     <form className="si-form" onSubmit={submit}>
       <div className="si-kicker">
         <span className="si-kicker-dot"></span>
-        <span>VERIFY · 验证邮箱</span>
+        <span>{t('auth.verify.kicker')}</span>
       </div>
       <h2 className="si-form__title">
-        <em>确认</em>邮箱
+        <em>{t('auth.verify.titleEm')}</em>{t('auth.verify.titleRest')}
       </h2>
       <p className="si-form__sub">
         {sentOnce
-          ? `已寄到 ${email}。请在 10 分钟内输入 6 位验证码。`
-          : `正在向 ${email} 发送验证码…`}
+          ? t('auth.verify.sent', { email })
+          : t('auth.verify.sending', { email })}
       </p>
 
       {error && <div className="si-error">{error}</div>}
 
       <div className="si-field">
-        <span className="si-field__k">验证码 · CODE</span>
+        <span className="si-field__k">{t('auth.fields.code')}</span>
         <input
           className="si-field__input set-input--mono"
           inputMode="numeric"
           pattern="[0-9]{6}"
           maxLength={6}
-          placeholder="6 位数字"
+          placeholder={t('auth.fields.codePlaceholder')}
           value={otp}
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
           disabled={busy}
@@ -699,17 +706,16 @@ const VerifyAfterSignupForm = ({
       </div>
 
       <button type="submit" className="si-submit" disabled={busy || otp.length !== 6}>
-        <span className="si-submit__cn">{busy ? '验证中…' : '验证并进入'}</span>
-        <span>VERIFY</span>
+        <span className="si-submit__cn">{busy ? t('auth.verify.verifying') : t('auth.verify.submit')}</span>
+        <span>{t('auth.verify.submitShort')}</span>
         <span className="si-submit__arrow">→</span>
       </button>
 
       <div className="si-foot-right">
-        <a onClick={() => void sendOtp()}>重新发送 →</a>
+        <a onClick={() => void sendOtp()}>{t('auth.resend')} →</a>
         <span style={{ margin: '0 8px' }}>·</span>
-        <a onClick={onCancel}>← 回到登录</a>
+        <a onClick={onCancel}>← {t('auth.backToSignIn')}</a>
       </div>
     </form>
   );
 };
-

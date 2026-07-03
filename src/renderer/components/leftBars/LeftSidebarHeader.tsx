@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import { useDataStore } from '../../store/data-store';
 import { useAgentActivityStore } from '../../store/agent-activity-store';
@@ -29,6 +30,7 @@ function panelForMark(m: ActivityMark, nodeKind: Map<string, string>): TabPanel 
 }
 
 export function LeftSidebarHeader() {
+  const { t } = useTranslation();
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const setActiveLeftPanel = useUiStore((s) => s.setActiveLeftPanel);
 
@@ -109,7 +111,7 @@ export function LeftSidebarHeader() {
       >
         <div className="tab-indicator" style={indicatorStyle} />
         <PanelTab
-          label="章节"
+          label={t('leftSidebar.tabs.chapters')}
           glyph="§"
           compact={compact}
           isActive={activeLeftPanel === 'nodes'}
@@ -117,7 +119,7 @@ export function LeftSidebarHeader() {
           onClick={() => setActiveLeftPanel('nodes')}
         />
         <PanelTab
-          label="元素"
+          label={t('leftSidebar.tabs.elements')}
           glyph="◆"
           compact={compact}
           isActive={activeLeftPanel === 'elements'}
@@ -125,7 +127,7 @@ export function LeftSidebarHeader() {
           onClick={() => setActiveLeftPanel('elements')}
         />
         <PanelTab
-          label="浮缀"
+          label={t('leftSidebar.tabs.drifts')}
           glyph="✺"
           compact={compact}
           isActive={activeLeftPanel === 'drift'}
@@ -181,6 +183,7 @@ function PanelTabButton({
   activity?: GroupActivity;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const busy = activity?.busy ?? false;
   const doneCount = activity?.doneCount ?? 0;
   // Always pill (both skins). Classic: button paints its own surface bg on
@@ -236,13 +239,13 @@ function PanelTabButton({
           accent; only once it finishes and leaves unviewed changes is the glyph
           replaced by their plain count (cell → group → tab bubble, #17). */}
       {!busy && doneCount > 0 ? (
-        <AgentCountBadge count={doneCount} title="未查看的 Agent 改动" />
+        <AgentCountBadge count={doneCount} title={t('agentActivity.unviewedChanges')} />
       ) : (
         glyph && (
           <span
             aria-hidden
             className={busy ? 'agent-glyph-busy' : undefined}
-            title={busy ? 'Agent 正在处理' : undefined}
+            title={busy ? t('agentActivity.working') : undefined}
             style={{
               fontFamily: 'var(--font-serif)',
               fontStyle: 'italic',

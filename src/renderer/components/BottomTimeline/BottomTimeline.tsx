@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMatch } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useStoryline } from '../../usecase/useStoryline';
 import { useBookNode } from '../../usecase/useBookNode';
 import type { Storyline } from '../../domain/storyline';
@@ -109,6 +110,7 @@ function TimelinePin({
   onRequestBind,
   onOpenDrift,
 }: TimelinePinProps) {
+  const { t } = useTranslation();
   const isBound = Boolean(marker.driftNodeId);
   const [editing, setEditing] = useState(editOnMount && !isBound);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -201,9 +203,9 @@ function TimelinePin({
   const handleUnbind = useCallback(() => {
     onChange({
       driftNodeId: null,
-      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? '标记'),
+      label: marker.label.trim() ? marker.label : (boundDriftTitle ?? t('bottomTimeline.marker.defaultLabel')),
     });
-  }, [onChange, marker.label, boundDriftTitle]);
+  }, [onChange, marker.label, boundDriftTitle, t]);
 
   const className = [
     'btl-pin',
@@ -214,7 +216,7 @@ function TimelinePin({
     .filter(Boolean)
     .join(' ');
 
-  const displayLabel = isBound ? (boundDriftTitle || '未命名') : marker.label;
+  const displayLabel = isBound ? (boundDriftTitle || t('common.untitled')) : marker.label;
 
   return (
     <div
@@ -258,15 +260,15 @@ function TimelinePin({
         }}
         title={
           isBound
-            ? '已绑定漂浮节点 · 单击打开'
+            ? t('bottomTimeline.marker.boundTitle')
             : editing
-              ? '回车保存，留空删除'
-              : '双击编辑名称'
+              ? t('bottomTimeline.marker.editingTitle')
+              : t('bottomTimeline.marker.renameTitle')
         }
       >
         {displayLabel}
       </div>
-      <div className="btl-pin__line" onMouseDown={startDrag} title="拖动调整位置" />
+      <div className="btl-pin__line" onMouseDown={startDrag} title={t('bottomTimeline.marker.dragTitle')} />
       {menu && (
         <TimelinePinMenu
           x={menu.x}
@@ -312,6 +314,7 @@ function makeSyntheticStoryline(id: string, name: string, color: string): Storyl
 }
 
 export function BottomTimeline() {
+  const { t } = useTranslation();
   const editorMatch = useMatch('/project/:projectId/editor/:nodeId');
   const storylineMatch = useMatch('/project/:projectId/editor/storyline/:storylineId');
   const nodeId = editorMatch?.params.nodeId;
@@ -932,7 +935,7 @@ export function BottomTimeline() {
         }
       >
         <div className="btl-clip__content">
-          <div className="btl-clip__title">{node.title || '未命名'}</div>
+          <div className="btl-clip__title">{node.title || t('common.untitled')}</div>
         </div>
       </div>
     );
@@ -1078,7 +1081,9 @@ export function BottomTimeline() {
           title={
             isSynthetic
               ? storyline.name || ''
-              : `点击打开「${storyline.name || 'Untitled Storyline'}」`
+              : t('bottomTimeline.storyline.openTitle', {
+                  name: storyline.name || t('topTimeline.untitled.storyline'),
+                })
           }
           style={{ width: TIMELINE_CONFIG.RAIL_WIDTH, cursor: isSynthetic ? 'default' : 'pointer' }}
         >
@@ -1139,7 +1144,7 @@ export function BottomTimeline() {
           )}
           {nodesInStoryline.map((node) => renderNodeCard(node, storyline.id))}
           {nodesInStoryline.length === 0 && !draggedNode && (
-            <div className="btl-empty">No chapters in this storyline</div>
+            <div className="btl-empty">{t('bottomTimeline.empty.noChaptersInStoryline')}</div>
           )}
         </div>
       </div>
@@ -1178,7 +1183,7 @@ export function BottomTimeline() {
     if (storylines.length === 0) {
       return [
         {
-          storyline: makeSyntheticStoryline(DEFAULT_LANE_ID, '本书', 'hsl(var(--accent))'),
+          storyline: makeSyntheticStoryline(DEFAULT_LANE_ID, t('bottomTimeline.synthetic.book'), 'hsl(var(--accent))'),
           nodes: placedNodes,
           synthetic: true,
         },
@@ -1196,13 +1201,13 @@ export function BottomTimeline() {
     // dragged out of the holding popover.
     if (unaffiliatedVisible) {
       real.push({
-        storyline: makeSyntheticStoryline(UNAFFILIATED_LANE_ID, '未归属', 'hsl(var(--ink-3))'),
+        storyline: makeSyntheticStoryline(UNAFFILIATED_LANE_ID, t('bottomTimeline.synthetic.unaffiliated'), 'hsl(var(--ink-3))'),
         nodes: unaffiliatedChapters,
         synthetic: true,
       });
     }
     return real;
-  }, [storylines, placedNodes, getNodesInStoryline, unaffiliatedChapters, unaffiliatedVisible]);
+  }, [storylines, placedNodes, getNodesInStoryline, unaffiliatedChapters, unaffiliatedVisible, t]);
 
   const rowsAreaHeight = Math.max(
     0,
@@ -1323,19 +1328,19 @@ export function BottomTimeline() {
         }
       }
     }
-    const created = addMarker(target, '标记');
+    const created = addMarker(target, t('bottomTimeline.marker.defaultLabel'));
     if (created) setNewlyAddedMarkerId(created.id);
-  }, [snapValues, addMarker, orderToPosition]);
+  }, [snapValues, addMarker, orderToPosition, t]);
 
   // Drop a marker at a specific order (the rail right-click target), as opposed
   // to handleAddPin's viewport-center pick.
   const handleAddPinAtOrder = useCallback(
     (order: number) => {
       if (snapValues.length === 0) return;
-      const created = addMarker(order, '标记');
+      const created = addMarker(order, t('bottomTimeline.marker.defaultLabel'));
       if (created) setNewlyAddedMarkerId(created.id);
     },
-    [snapValues.length, addMarker],
+    [snapValues.length, addMarker, t],
   );
 
   const renderTimeAxis = () => {
@@ -1345,13 +1350,17 @@ export function BottomTimeline() {
         <div
           className="btl-axis__rail"
           style={{ width: TIMELINE_CONFIG.RAIL_WIDTH }}
-          title="叙事时间标记：点击 + 添加可拖动的时间 pin"
+          title={t('bottomTimeline.axis.title')}
         >
-          <span>Time</span>
+          <span>{t('bottomTimeline.axis.time')}</span>
           <button
             type="button"
             className="btl-axis__rail-add"
-            title={snapValues.length === 0 ? '需要至少一个章节才能添加 pin' : '添加时间 pin'}
+            title={
+              snapValues.length === 0
+                ? t('bottomTimeline.axis.needChapter')
+                : t('bottomTimeline.axis.addPin')
+            }
             disabled={snapValues.length === 0}
             onClick={(e) => {
               e.stopPropagation();
@@ -1410,20 +1419,20 @@ export function BottomTimeline() {
     return (
       <div className="btl__head" onClick={(e) => e.stopPropagation()}>
         <div className="btl__head-left">
-          <div className="btl__view-toggle" title="视图：书序 / 叙事时">
+          <div className="btl__view-toggle" title={t('bottomTimeline.view.toggleTitle')}>
             <button
               className={viewMode === 'book' ? 'is-active' : ''}
               onClick={() => setViewMode('book')}
-              title="书序：按阅读顺序排列"
+              title={t('bottomTimeline.view.bookTitle')}
             >
-              书序
+              {t('bottomTimeline.view.book')}
             </button>
             <button
               className={viewMode === 'narrative' ? 'is-active' : ''}
               onClick={() => setViewMode('narrative')}
-              title="叙事时：按 in-world 时间排列（允许倒叙）"
+              title={t('bottomTimeline.view.narrativeTitle')}
             >
-              叙事时
+              {t('bottomTimeline.view.narrative')}
             </button>
           </div>
           {/* 未归属 toggle — only meaningful when there are storylines AND
@@ -1453,13 +1462,17 @@ export function BottomTimeline() {
                 }
                 setUnaffiliatedVisible(next);
               }}
-              title={unaffiliatedVisible ? '隐藏未归属轨道' : '显示未归属轨道'}
+              title={
+                unaffiliatedVisible
+                  ? t('bottomTimeline.unaffiliated.hideTitle')
+                  : t('bottomTimeline.unaffiliated.showTitle')
+              }
             >
               {unaffiliatedVisible ? (
-                '隐藏未归属'
+                t('bottomTimeline.unaffiliated.hide')
               ) : (
                 <>
-                  显示未归属
+                  {t('bottomTimeline.unaffiliated.show')}
                   <span className="btl__unaffiliated-toggle-count">
                     {unaffiliatedChapters.length}
                   </span>
@@ -1474,9 +1487,9 @@ export function BottomTimeline() {
                 type="button"
                 className={`btl__unplaced-btn${unplacedPopoverOpen ? ' is-open' : ''}`}
                 onClick={() => setUnplacedPopoverOpen((v) => !v)}
-                title="未放置到叙事时间轴上的章节"
+                title={t('bottomTimeline.unplaced.title')}
               >
-                <span>未放置</span>
+                <span>{t('bottomTimeline.unplaced.label')}</span>
                 <span className="btl__unplaced-count">{unplacedNodes.length}</span>
                 <span className="btl__unplaced-arrow">▾</span>
               </button>
@@ -1490,7 +1503,7 @@ export function BottomTimeline() {
                   }}
                 >
                   {unplacedNodes.length === 0 ? (
-                    <div className="btl__unplaced-empty">所有章节都在叙事时间轴上</div>
+                    <div className="btl__unplaced-empty">{t('bottomTimeline.unplaced.empty')}</div>
                   ) : (
                     <div className="btl__unplaced-list">
                       {unplacedNodes.map((node) => {
@@ -1506,14 +1519,14 @@ export function BottomTimeline() {
                             onDragEnd={handleDragEnd}
                             onClick={() => setNodeSelection(node.id, 'ui')}
                             style={{ ['--clip-color' as string]: color } as React.CSSProperties}
-                            title={node.title || '未命名'}
+                            title={node.title || t('common.untitled')}
                           >
                             <span className="btl__unplaced-chip-dot" />
                             <span className="btl__unplaced-chip-num">
                               § {String(node.bookOrder ?? 0).padStart(2, '0')}
                             </span>
                             <span className="btl__unplaced-chip-title">
-                              {node.title || '未命名'}
+                              {node.title || t('common.untitled')}
                             </span>
                           </div>
                         );
@@ -1534,8 +1547,12 @@ export function BottomTimeline() {
             className="btl__head-btn"
             title={
               placedNodes.length < 2
-                ? '至少两个章节才能打散'
-                : `打散：把${isNarrative ? '叙事时' : '书序'}重排，让重叠的节点拉开间距`
+                ? t('bottomTimeline.spread.needTwo')
+                : t('bottomTimeline.spread.title', {
+                    mode: isNarrative
+                      ? t('bottomTimeline.view.narrative')
+                      : t('bottomTimeline.view.book'),
+                  })
             }
             disabled={placedNodes.length < 2}
             onClick={() => {
@@ -1560,7 +1577,7 @@ export function BottomTimeline() {
           </button>
           <button
             className="btl__head-btn"
-            title="定位到当前章节"
+            title={t('bottomTimeline.locateCurrent')}
             onClick={() => {
               const activeId = selectedNodeUiId ?? nodeId;
               const activeNode = activeId ? nodeById.get(activeId) ?? null : null;
@@ -1773,10 +1790,10 @@ export function BottomTimeline() {
             extraGroups={[
               [
                 ...(hasAnyStoryline
-                  ? [{ action: 'moveToUnaffiliated', label: '转移至未归属' }]
+                  ? [{ action: 'moveToUnaffiliated', label: t('bottomTimeline.menu.moveToUnaffiliated') }]
                   : []),
                 ...(isNarrative && hasNarrativeOrder
-                  ? [{ action: 'detachFromNarrative', label: '回到未放置' }]
+                  ? [{ action: 'detachFromNarrative', label: t('bottomTimeline.menu.detachFromNarrative') }]
                   : []),
               ],
             ]}
@@ -1811,11 +1828,11 @@ export function BottomTimeline() {
           extraGroups={[
             contextMenu.position !== undefined
               ? [
-                  { action: 'createChapterHere', label: '在此处新建章节' },
+                  { action: 'createChapterHere', label: t('bottomTimeline.menu.createChapterHere') },
                   // Acts live on the bookOrder axis only — narrative-mode
                   // positions are narrativeOrder values, wrong axis.
                   ...(!isNarrative
-                    ? [{ action: 'startActHere', label: '从此处开始新幕' }]
+                    ? [{ action: 'startActHere', label: t('bottomTimeline.menu.startActHere') }]
                     : []),
                 ]
               : [],

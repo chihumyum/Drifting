@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Minus, ArrowDownUp, Plus, FolderPlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 
 import { useDataStore } from '../../store/data-store';
@@ -31,6 +32,7 @@ log.setLevel(loglevel.levels.ERROR);
 const META_HIDE_WIDTH = 180;
 
 export function LeftSidebarSubHeader() {
+  const { t } = useTranslation();
   const activeLeftPanel = useUiStore((s) => s.activeLeftPanel);
   const nodesViewMode = useUiStore((s) => s.chapterPanelViewMode);
   const setChapterViewMode = useUiStore((s) => s.setChapterPanelViewMode);
@@ -130,10 +132,13 @@ export function LeftSidebarSubHeader() {
   // the meta text.
   const meta =
     activeLeftPanel === 'nodes'
-      ? `${storylineNodeCount} 章`
+      ? t('leftSidebar.meta.chapters', { count: storylineNodeCount })
       : activeLeftPanel === 'elements'
-        ? `${bookElementCategories.length} 类 · ${bookElements.length} 元素`
-        : `${driftCount} 浮缀`;
+        ? t('leftSidebar.meta.elements', {
+            categories: bookElementCategories.length,
+            elements: bookElements.length,
+          })
+        : t('leftSidebar.meta.drifts', { count: driftCount });
 
   // The 章节 panel's view-mode switch reflects the *effective* mode: a project
   // with zero storylines is forced to 'global' (mirrors ChapterPanel), so the
@@ -186,55 +191,55 @@ export function LeftSidebarSubHeader() {
 
   const driftSortOptions = useMemo<SortMenuOption<DriftSortMode>[]>(
     () => [
-      { value: 'createdAt', label: '按创建时间' },
-      { value: 'updatedAt', label: '按更新时间' },
-      { value: 'title', label: '按标题字母' },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
+      { value: 'title', label: t('leftSidebar.sort.title') },
     ],
-    [],
+    [t],
   );
   const chapterGlobalSortOptions = useMemo<SortMenuOption<ChapterGlobalSortMode>[]>(
     () => [
-      { value: 'bookOrder', label: '按阅读顺序' },
-      { value: 'narrativeOrder', label: '按叙事顺序' },
-      { value: 'createdAt', label: '按创建时间' },
-      { value: 'updatedAt', label: '按更新时间' },
+      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder') },
+      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder') },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
+      { value: 'updatedAt', label: t('leftSidebar.sort.updatedAt') },
     ],
-    [],
+    [t],
   );
   const chapterStorylineInnerSortOptions = useMemo<
     SortMenuOption<ChapterStorylineInnerSortMode>[]
   >(
     () => [
-      { value: 'bookOrder', label: '按阅读顺序' },
-      { value: 'narrativeOrder', label: '按叙事顺序' },
+      { value: 'bookOrder', label: t('leftSidebar.sort.bookOrder') },
+      { value: 'narrativeOrder', label: t('leftSidebar.sort.narrativeOrder') },
     ],
-    [],
+    [t],
   );
   const elementSortOptions = useMemo<SortMenuOption<ElementSortMode>[]>(
     () => [
-      { value: 'alphabet', label: '按字母顺序' },
-      { value: 'createdAt', label: '按创建时间' },
+      { value: 'alphabet', label: t('leftSidebar.sort.alphabet') },
+      { value: 'createdAt', label: t('leftSidebar.sort.createdAt') },
     ],
-    [],
+    [t],
   );
   // Right-edge cell meta toggle — shared by the 章节 and 浮缀 menus.
   const nodeCellMetaOptions = useMemo<SortMenuOption<NodeCellMeta>[]>(
     () => [
-      { value: 'date', label: '显示日期' },
-      { value: 'wordCount', label: '显示字数' },
-      { value: 'both', label: '显示字数和日期' },
-      { value: 'none', label: '都不显示' },
+      { value: 'date', label: t('leftSidebar.sort.showDate') },
+      { value: 'wordCount', label: t('leftSidebar.sort.showWordCount') },
+      { value: 'both', label: t('leftSidebar.sort.showBoth') },
+      { value: 'none', label: t('leftSidebar.sort.showNone') },
     ],
-    [],
+    [t],
   );
   // Storyline-grouped chapter view only: whether a chapter linked to several
   // storylines shows in every group or just its primary one.
   const chapterDuplicateOptions = useMemo<SortMenuOption<'all' | 'primary'>[]>(
     () => [
-      { value: 'all', label: '在每个所属分组显示' },
-      { value: 'primary', label: '仅在主线分组显示' },
+      { value: 'all', label: t('leftSidebar.sort.duplicatesAll') },
+      { value: 'primary', label: t('leftSidebar.sort.duplicatesPrimary') },
     ],
-    [],
+    [t],
   );
 
   // Chapter panel splits into two menus depending on layout — global view
@@ -244,12 +249,12 @@ export function LeftSidebarSubHeader() {
     activeLeftPanel === 'nodes' && nodesViewMode === 'storyline' && storylines.length > 0;
   const sortMenuTitle =
     activeLeftPanel === 'drift'
-      ? '排序浮缀'
+      ? t('leftSidebar.sort.drifts')
       : activeLeftPanel === 'elements'
-        ? '排序元素'
+        ? t('leftSidebar.sort.elements')
         : chapterIsStoryline
-          ? '排序故事线内章节'
-          : '排序章节';
+          ? t('leftSidebar.sort.storylineChapters')
+          : t('leftSidebar.sort.chapters');
 
   // Chapter-panel view mode is driven by the switch in front of the meta text
   // (全书总览 ⇄ 按 storyline 分组). Flipping it on with zero storylines bootstraps
@@ -288,7 +293,9 @@ export function LeftSidebarSubHeader() {
       onClick = isStorylineMode
         ? () => void handleCreateStoryline()
         : () => void handleCreateNode();
-      title = isStorylineMode ? '新故事线' : '新章节';
+      title = isStorylineMode
+        ? t('leftSidebar.actions.newStoryline')
+        : t('leftSidebar.actions.newChapter');
       if (isStorylineMode) {
         // Reuse the BottomTimeline "+ storyline" glyph (horizontal lane +
         // plus above) so this button reads as a sibling of the timeline's
@@ -315,7 +322,7 @@ export function LeftSidebarSubHeader() {
       // is the implicit target. Avoids the surprise where the header +
       // creates an element under whichever category sorts first.
       onClick = () => void handleCreateCategory();
-      title = '新类目';
+      title = t('leftSidebar.actions.newCategory');
       // Mirror the storyline glyph's "shape + plus above" structure with two
       // stacked lines (a "group/list" of items) so the affordance reads as
       // "+ category" rather than the ambiguous bare plus that users would
@@ -338,7 +345,7 @@ export function LeftSidebarSubHeader() {
       );
     } else {
       onClick = () => void handleCreateDrift();
-      title = '新浮缀';
+      title = t('leftSidebar.actions.newDrift');
     }
     return (
       <SubIconBtn title={title} onClick={onClick} accent>
@@ -353,7 +360,10 @@ export function LeftSidebarSubHeader() {
     // nothing to slot here — the element panel's "+ element" lives per-category.
     if (activeLeftPanel === 'drift') {
       return (
-        <SubIconBtn title="新建分组" onClick={() => void handleCreateDriftGroup()}>
+        <SubIconBtn
+          title={t('leftSidebar.actions.newDriftGroup')}
+          onClick={() => void handleCreateDriftGroup()}
+        >
           <FolderPlus size={12} strokeWidth={1.6} />
         </SubIconBtn>
       );
@@ -391,7 +401,12 @@ export function LeftSidebarSubHeader() {
         >
           {/* 全书总览 ⇄ 按 storyline 分组. Only the 章节 panel groups by storyline. */}
           {activeLeftPanel === 'nodes' && (
-            <ViewModeSwitch on={isStorylineView} onToggle={handleToggleChapterViewMode} />
+            <ViewModeSwitch
+              on={isStorylineView}
+              onToggle={handleToggleChapterViewMode}
+              titleOn={t('leftSidebar.viewMode.storylineTitle')}
+              titleOff={t('leftSidebar.viewMode.globalTitle')}
+            />
           )}
           <span
             style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
@@ -405,12 +420,12 @@ export function LeftSidebarSubHeader() {
             now that drifts can be grouped into folders, 浮缀 分组). The 章节 panel
             toggles its storyline lanes individually, so it's excluded. */}
         {(activeLeftPanel === 'elements' || activeLeftPanel === 'drift') && (
-          <SubIconBtn title="折叠全部" onClick={collapseAll}>
+          <SubIconBtn title={t('leftSidebar.actions.collapseAll')} onClick={collapseAll}>
             <Minus size={11} strokeWidth={1.6} />
           </SubIconBtn>
         )}
         <SubIconBtn
-          title="排序"
+          title={t('leftSidebar.actions.sort')}
           onClick={() => setSortMenuOpen((v) => !v)}
           buttonRef={sortBtnRef}
         >
@@ -434,7 +449,7 @@ export function LeftSidebarSubHeader() {
           title={sortMenuTitle}
           groups={[
             sortMenuGroup({
-              title: '单元格右侧',
+              title: t('leftSidebar.sort.cellMetaGroup'),
               options: nodeCellMetaOptions,
               value: driftCellMeta,
               onChange: setDriftCellMeta,
@@ -453,7 +468,7 @@ export function LeftSidebarSubHeader() {
           title={sortMenuTitle}
           groups={[
             sortMenuGroup({
-              title: '单元格右侧',
+              title: t('leftSidebar.sort.cellMetaGroup'),
               options: nodeCellMetaOptions,
               value: chapterCellMeta,
               onChange: setChapterCellMeta,
@@ -472,13 +487,13 @@ export function LeftSidebarSubHeader() {
           title={sortMenuTitle}
           groups={[
             sortMenuGroup({
-              title: '多线章节',
+              title: t('leftSidebar.sort.duplicatesGroup'),
               options: chapterDuplicateOptions,
               value: chapterStorylinePrimaryOnly ? 'primary' : 'all',
               onChange: (v) => setChapterStorylinePrimaryOnly(v === 'primary'),
             }),
             sortMenuGroup({
-              title: '单元格右侧',
+              title: t('leftSidebar.sort.cellMetaGroup'),
               options: nodeCellMetaOptions,
               value: chapterCellMeta,
               onChange: setChapterCellMeta,
@@ -558,13 +573,23 @@ function SubIconBtn({
  * list), on = 按 storyline 分组 (storyline lanes). Sized down to sit inline with
  * the tiny subheader meta text; mirrors the settings `.tog` switch in shape.
  */
-function ViewModeSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+function ViewModeSwitch({
+  on,
+  onToggle,
+  titleOn,
+  titleOff,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  titleOn: string;
+  titleOff: string;
+}) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
-      title={on ? '按 storyline 分组 · 点此切回全书总览' : '全书总览 · 点此按 storyline 分组'}
+      title={on ? titleOn : titleOff}
       onClick={onToggle}
       style={{
         position: 'relative',
@@ -596,4 +621,3 @@ function ViewModeSwitch({ on, onToggle }: { on: boolean; onToggle: () => void })
     </button>
   );
 }
-

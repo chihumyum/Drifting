@@ -118,7 +118,7 @@ export async function unbindMarkersForDrift(
 ): Promise<void> {
   const repo = createTimelineMarkerRepository(projectId);
   const now = new Date().toISOString();
-  const updated = await repo.unbindForDrift(driftNodeId, fallbackLabel.trim() || '标记', now);
+  const updated = await repo.unbindForDrift(driftNodeId, fallbackLabel.trim() || 'Marker', now);
   const store = useDataStore.getState();
   for (const marker of updated) {
     store.updateTimelineMarker(marker.id, {

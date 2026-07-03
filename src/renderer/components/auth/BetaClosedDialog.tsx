@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface BetaClosedDialogProps {
   open: boolean;
@@ -6,6 +7,7 @@ interface BetaClosedDialogProps {
 }
 
 export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -26,10 +28,10 @@ export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
         </div>
         <div className="space-y-2">
           <h3 id="beta-dialog-title" className="text-lg font-semibold text-slate-900">
-            Drifting 正在开发中
+            {t('auth.betaClosed.title')}
           </h3>
           <p id="beta-dialog-description" className="text-sm leading-relaxed text-slate-500">
-            我们尚未开放新的注册与登录。请留下您的信息或关注后续通知，感谢您的期待与支持。
+            {t('auth.betaClosed.description')}
           </p>
         </div>
         <button
@@ -37,7 +39,7 @@ export function BetaClosedDialog({ open, onClose }: BetaClosedDialogProps) {
           onClick={onClose}
           className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-[#b89968] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#a68858]"
         >
-          我知道了
+          {t('auth.betaClosed.ok')}
         </button>
       </div>
     </div>

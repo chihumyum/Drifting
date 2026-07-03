@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/auth';
 import { useProjectStore } from '../store/project-store';
 import { useBookNode } from '../usecase/useBookNode';
@@ -18,22 +19,23 @@ interface TrashItem {
 }
 
 export function TrashPanel() {
+  const { t } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id);
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const canTrash = useCanUseFeature('trash');
 
   if (!userId || !projectId) {
     return (
-      <div style={{ padding: 24, color: 'hsl(var(--ink-4))' }}>请先打开一个项目。</div>
+      <div style={{ padding: 24, color: 'hsl(var(--ink-4))' }}>{t('trashPanel.noProject')}</div>
     );
   }
 
   if (!canTrash) {
     return (
       <div style={{ padding: 24, color: 'hsl(var(--ink-4))', maxWidth: 480 }}>
-        <h3 style={{ marginBottom: 8 }}>回收站 · Pro</h3>
+        <h3 style={{ marginBottom: 8 }}>{t('trashPanel.proTitle')}</h3>
         <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-          软删除与回收站是 Pro / Studio 功能。当前账号为免费版，删除操作仍为永久删除。
+          {t('trashPanel.proDesc')}
         </p>
       </div>
     );
@@ -43,6 +45,7 @@ export function TrashPanel() {
 }
 
 function TrashPanelInner({ projectId, userId }: { projectId: string; userId: string }) {
+  const { t } = useTranslation();
   const nodeUC = useBookNode({ projectId, userId });
   const elementUC = useBookElement({ projectId, userId });
   const storylineUC = useStoryline({ projectId, userId });
@@ -65,7 +68,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
         next.push({
           kind: n.kind === 'chapter' ? 'chapter' : 'drift',
           id: n.id,
-          label: n.title || '(无标题)',
+          label: n.title || t('globalSearch.fallback.untitled'),
           deletedAt: n.deletedAt,
         });
       }
@@ -83,7 +86,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     } finally {
       setBusy(false);
     }
-  }, [nodeUC, elementUC, storylineUC, categoryUC]);
+  }, [nodeUC, elementUC, storylineUC, categoryUC, t]);
 
   useEffect(() => {
     void reload();
@@ -123,7 +126,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
   // behind a confirm — once purged there's no restore.
   const purge = async (item: TrashItem) => {
     const confirmed = window.confirm(
-      `彻底删除「${item.label}」？此操作无法撤销，将立即永久删除。`,
+      t('trashPanel.confirmPurge', { label: item.label }),
     );
     if (!confirmed) return;
     await purgeOne(item);
@@ -135,7 +138,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
   const purgeAll = async () => {
     if (items.length === 0) return;
     const confirmed = window.confirm(
-      `清空回收站？将永久删除全部 ${items.length} 项，此操作无法撤销。`,
+      t('trashPanel.confirmPurgeAll', { count: items.length }),
     );
     if (!confirmed) return;
     setBusy(true);
@@ -152,45 +155,45 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
   return (
     <div style={{ padding: 24, maxWidth: 720 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>回收站</h3>
+        <h3 style={{ margin: 0 }}>{t('trashPanel.title')}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 11, color: 'hsl(var(--ink-4))' }}>
-            30 天后自动彻底删除
+            {t('trashPanel.retention')}
           </span>
           <button
             className="set-btn set-btn--danger"
             disabled={busy || items.length === 0}
             onClick={() => void purgeAll()}
           >
-            清空回收站
+            {t('trashPanel.clear')}
           </button>
         </div>
       </div>
       {busy && items.length === 0 ? (
-        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>加载中…</div>
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>{t('referencesPanel.loading')}</div>
       ) : items.length === 0 ? (
-        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>回收站是空的。</div>
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>{t('trashPanel.empty')}</div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'hsl(var(--ink-4))', fontSize: 11 }}>
-              <th style={{ padding: '8px 4px' }}>类型</th>
-              <th style={{ padding: '8px 4px' }}>名称</th>
-              <th style={{ padding: '8px 4px' }}>删除时间</th>
+              <th style={{ padding: '8px 4px' }}>{t('trashPanel.columns.type')}</th>
+              <th style={{ padding: '8px 4px' }}>{t('trashPanel.columns.name')}</th>
+              <th style={{ padding: '8px 4px' }}>{t('trashPanel.columns.deletedAt')}</th>
               <th style={{ padding: '8px 4px' }}></th>
             </tr>
           </thead>
           <tbody>
             {items.map((it) => (
               <tr key={`${it.kind}:${it.id}`} style={{ borderTop: '1px solid hsl(var(--rule))' }}>
-                <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-3))' }}>{KIND_LABEL[it.kind]}</td>
+                <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-3))' }}>{t(`trashPanel.kind.${it.kind}`)}</td>
                 <td style={{ padding: '8px 4px' }}>{it.label}</td>
                 <td style={{ padding: '8px 4px', color: 'hsl(var(--ink-4))', fontSize: 11 }}>
                   {new Date(it.deletedAt).toLocaleString()}
                 </td>
                 <td style={{ padding: '8px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button className="set-btn" disabled={busy} onClick={() => void restore(it)}>
-                    恢复
+                    {t('trashPanel.restore')}
                   </button>
                   <button
                     className="set-btn set-btn--danger"
@@ -198,7 +201,7 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
                     style={{ marginLeft: 8 }}
                     onClick={() => void purge(it)}
                   >
-                    立刻删除
+                    {t('trashPanel.purgeNow')}
                   </button>
                 </td>
               </tr>
@@ -209,11 +212,3 @@ function TrashPanelInner({ projectId, userId }: { projectId: string; userId: str
     </div>
   );
 }
-
-const KIND_LABEL: Record<TrashItem['kind'], string> = {
-  chapter: '章节',
-  drift: '浮缀',
-  element: '元素',
-  storyline: '故事线',
-  category: '元素类别',
-};

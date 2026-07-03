@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Folder, FolderPlus, Plus } from 'lucide-react';
 import loglevel from 'loglevel';
 
@@ -61,6 +62,7 @@ type GroupMenu = { x: number; y: number; groupId: string; depth: number };
 type MovePicker = { x: number; y: number; kind: 'drift' | 'group'; id: string };
 
 export function DriftPanel() {
+  const { t } = useTranslation();
   const { bookNodes } = useDataStore();
   const driftGroups = useDataStore((s) => s.driftGroups);
   const { nodeUi } = useUiStore();
@@ -309,7 +311,13 @@ export function DriftPanel() {
         <span
           aria-hidden
           className={agentBusy ? 'agent-glyph-busy' : undefined}
-          title={agentBusy ? 'Agent 正在处理' : agentChanged ? 'Agent 刚改动了这里' : undefined}
+          title={
+            agentBusy
+              ? t('agentActivity.working')
+              : agentChanged
+                ? t('agentActivity.changedHere')
+                : undefined
+          }
           style={{
             fontFamily: agentChanged ? 'var(--font-mono)' : 'var(--font-serif)',
             fontStyle: agentChanged ? 'normal' : 'italic',
@@ -343,7 +351,7 @@ export function DriftPanel() {
             whiteSpace: 'nowrap',
           }}
         >
-          <span>{node.title || 'Untitled'}</span>
+          <span>{node.title || t('common.untitled')}</span>
         </div>
 
         {showMeta && cellMeta !== 'none' && (
@@ -410,7 +418,7 @@ export function DriftPanel() {
             onClick={() => toggleCollapsed(group.id)}
             onDoubleClick={() => setRenamingGroupId(group.id)}
             onContextMenu={openGroupMenu}
-            addButtonTitle="在此新建浮缀"
+            addButtonTitle={t('leftSidebar.groups.newDriftInGroup')}
             onAdd={() => void createDriftInGroup(group.id)}
             rightExtra={
               // Sub-group affordance only on groups shallow enough to nest one
@@ -419,7 +427,7 @@ export function DriftPanel() {
                 <button
                   type="button"
                   className="left-sb-group-add"
-                  title="新建子分组"
+                  title={t('leftSidebar.groups.newSubGroup')}
                   onClick={(event) => {
                     event.stopPropagation();
                     void createSubGroup(group.id);
@@ -466,7 +474,7 @@ export function DriftPanel() {
           onClick={() => toggleCollapsed(group.id)}
           onDoubleClick={() => setRenamingGroupId(group.id)}
           onContextMenu={openGroupMenu}
-          title="单击折叠 · 双击重命名"
+          title={t('leftSidebar.groups.clickCollapseRename')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -493,7 +501,7 @@ export function DriftPanel() {
           <button
             type="button"
             className="left-sb-group-add"
-            title="在此新建浮缀"
+            title={t('leftSidebar.groups.newDriftInGroup')}
             onClick={(event) => {
               event.stopPropagation();
               void createDriftInGroup(group.id);
@@ -562,7 +570,7 @@ export function DriftPanel() {
       const current = node?.driftGroupId ?? null;
       items.push({
         key: 'root',
-        label: '根层级（移出分组）',
+        label: t('leftSidebar.groups.moveDriftToRoot'),
         disabled: current == null,
         trailing: current == null ? <span aria-hidden>✓</span> : undefined,
         onClick: () => void moveDriftToGroup(picker.id, null),
@@ -585,7 +593,7 @@ export function DriftPanel() {
       const blocked = new Set([picker.id, ...collectDescendantGroupIds(driftGroups, picker.id)]);
       items.push({
         key: 'root',
-        label: '根层级（移到顶层）',
+        label: t('leftSidebar.groups.moveGroupToRoot'),
         disabled: currentParent == null || !canMoveGroupUnder(driftGroups, picker.id, null),
         trailing: currentParent == null ? <span aria-hidden>✓</span> : undefined,
         onClick: () => void moveGroup(picker.id, null),
@@ -640,7 +648,7 @@ export function DriftPanel() {
               textAlign: 'center',
             }}
           >
-            no drift notes yet.
+            {t('leftSidebar.empty.noDrifts')}
           </div>
         ) : (
           renderGroupBody(null, 0)
@@ -698,24 +706,24 @@ export function DriftPanel() {
               ? [
                   {
                     key: 'new-sub',
-                    label: '新建子分组',
+                    label: t('leftSidebar.groups.newSubGroup'),
                     onClick: () => void createSubGroup(groupMenu.groupId),
                   },
                 ]
               : []),
             {
               key: 'new-drift',
-              label: '在此新建浮缀',
+              label: t('leftSidebar.groups.newDriftInGroup'),
               onClick: () => void createDriftInGroup(groupMenu.groupId),
             },
             {
               key: 'rename',
-              label: '重命名',
+              label: t('leftSidebar.groups.rename'),
               onClick: () => setRenamingGroupId(groupMenu.groupId),
             },
             {
               key: 'move',
-              label: '移动到分组…',
+              label: t('leftSidebar.groups.moveToGroup'),
               onClick: () =>
                 setMovePicker({
                   x: groupMenu.x,
@@ -726,7 +734,7 @@ export function DriftPanel() {
             },
             {
               key: 'delete',
-              label: '删除分组',
+              label: t('leftSidebar.groups.deleteGroup'),
               danger: true,
               dividerBefore: true,
               onClick: () => void deleteGroup(groupMenu.groupId),
@@ -739,7 +747,11 @@ export function DriftPanel() {
         <SimpleContextMenu
           x={movePicker.x}
           y={movePicker.y}
-          title={movePicker.kind === 'drift' ? '移动浮缀到分组' : '移动分组到'}
+          title={
+            movePicker.kind === 'drift'
+              ? t('leftSidebar.groups.moveDriftTitle')
+              : t('leftSidebar.groups.moveGroupTitle')
+          }
           onClose={() => setMovePicker(null)}
           items={buildMoveItems(movePicker)}
         />

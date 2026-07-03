@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { AgentCountBadge } from './AgentCountBadge';
 
@@ -67,6 +68,7 @@ export function GroupHeaderCell({
   agentDoneCount = 0,
   agentSelfChanged = false,
 }: GroupHeaderCellProps) {
+  const { t } = useTranslation();
   return (
     <div
       onClick={onClick}
@@ -140,7 +142,7 @@ export function GroupHeaderCell({
         {!agentBusy && agentSelfChanged ? (
           <span
             aria-hidden
-            title="Agent 刚改动了此线 / 类的正文"
+            title={t('agentActivity.groupBodyChanged')}
             style={{
               width: 7,
               flexShrink: 0,
@@ -155,14 +157,14 @@ export function GroupHeaderCell({
             M
           </span>
         ) : !agentBusy && agentDoneCount > 0 ? (
-          <AgentCountBadge count={agentDoneCount} title="未查看的子条目 Agent 改动" />
+          <AgentCountBadge count={agentDoneCount} title={t('agentActivity.childChanges')} />
         ) : glyph ? (
           // Custom leading glyph (e.g. drift group folder) replaces the color
           // dot. Busy still tints it accent so the activity read survives.
           <span
             aria-hidden
             className={agentBusy ? 'agent-glyph-busy' : undefined}
-            title={agentBusy ? 'Agent 正在处理' : undefined}
+            title={agentBusy ? t('agentActivity.working') : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -178,7 +180,7 @@ export function GroupHeaderCell({
           <span
             aria-hidden
             className={agentBusy ? 'agent-glyph-busy' : undefined}
-            title={agentBusy ? 'Agent 正在处理' : undefined}
+            title={agentBusy ? t('agentActivity.working') : undefined}
             style={{
               width: 7,
               height: 7,

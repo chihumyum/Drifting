@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import '../../styles/drift-panel.css';
 
 // Shared drift-panel UX: bottom-anchored tab → slide-up panel with cards →
@@ -140,12 +141,14 @@ export function DriftPanel({
   onOpen,
   onClose,
   closeDisabled,
-  tabLabel = '浮缀',
+  tabLabel,
   panelAriaHidden,
   handDragHandlers,
   handRef,
   children,
 }: DriftPanelProps) {
+  const { t } = useTranslation();
+  const resolvedTabLabel = tabLabel ?? t('driftPanel.tabLabel');
   return (
     <div className="drift-panel-shell">
       <div
@@ -156,9 +159,9 @@ export function DriftPanel({
             type="button"
             className="drift-panel__tab"
             onClick={onOpen}
-            title={`展开${tabLabel}`}
+            title={t('driftPanel.expandTitle', { label: resolvedTabLabel })}
           >
-            <span>{tabLabel}</span>
+            <span>{resolvedTabLabel}</span>
             <span className="drift-panel__count">{count}</span>
           </button>
         )}
@@ -169,8 +172,8 @@ export function DriftPanel({
               className="drift-panel__close"
               onClick={onClose}
               disabled={closeDisabled}
-              title={`收起${tabLabel}`}
-              aria-label={`收起${tabLabel}`}
+              title={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
+              aria-label={t('driftPanel.collapseTitle', { label: resolvedTabLabel })}
             >
               ×
             </button>
