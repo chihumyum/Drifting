@@ -1231,6 +1231,12 @@
     "backToSignIn": "回到登录",
     "backToPasswordSignIn": "回到密码登录",
     "changeEmail": "改邮箱",
+    "controls": {
+      "title": "登录页快捷设置",
+      "language": "语言",
+      "switchToDark": "切换到深色模式",
+      "switchToLight": "切换到浅色模式"
+    },
     "hero": {
       "kickerA": "WRITING STUDIO",
       "kickerB": "FOR SERIOUS NOVELISTS",

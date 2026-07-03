@@ -1,8 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Languages, Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
+import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
+import { UI_LOCALE_OPTIONS } from '../lib/i18n';
 import type { SupportedOAuthProvider } from '../lib/oauth-providers';
 import { APP_CLOSED_MESSAGE, isAppClosedForPublic } from '../utils/appAccess';
 import { BetaClosedDialog } from '../components/auth/BetaClosedDialog';
@@ -54,6 +57,46 @@ const SOCIAL_PROVIDERS: SocialProvider[] = [
 // pass later. Typed `boolean` (not literal false) so the gated JSX still
 // type-checks and its handlers don't read as dead code.
 const SOCIAL_LOGIN_ENABLED: boolean = false;
+
+function LoginQuickToggles() {
+  const { t } = useTranslation();
+  const themeMode = useSettingsStore((s) => s.themeMode);
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const uiLocale = useSettingsStore((s) => s.uiLocale);
+  const setUiLocale = useSettingsStore((s) => s.setUiLocale);
+  const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
+  const darkActive = themeMode === 'dark';
+
+  return (
+    <div className="si-controls" role="group" aria-label={t('auth.controls.title')}>
+      <div className="si-controls__seg" role="group" aria-label={t('auth.controls.language')}>
+        <Languages size={13} aria-hidden="true" />
+        {UI_LOCALE_OPTIONS.map((locale) => (
+          <button
+            key={locale.code}
+            type="button"
+            className={`si-controls__btn${normalizedUiLocale === locale.code ? ' si-controls__btn--active' : ''}`}
+            onClick={() => setUiLocale(locale.code)}
+            title={locale.name}
+            aria-pressed={normalizedUiLocale === locale.code}
+          >
+            {locale.code === 'zh-CN' ? '中' : 'EN'}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className={`si-controls__icon${darkActive ? ' si-controls__icon--active' : ''}`}
+        onClick={() => setThemeMode(darkActive ? 'light' : 'dark')}
+        title={darkActive ? t('auth.controls.switchToLight') : t('auth.controls.switchToDark')}
+        aria-label={darkActive ? t('auth.controls.switchToLight') : t('auth.controls.switchToDark')}
+        aria-pressed={darkActive}
+      >
+        {darkActive ? <Sun size={14} aria-hidden="true" /> : <Moon size={14} aria-hidden="true" />}
+      </button>
+    </div>
+  );
+}
 
 interface LoginPageProps {
   initialMode?: Exclude<Mode, 'forgot'>;
@@ -167,6 +210,7 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
 
   return (
     <div className="signin">
+      <LoginQuickToggles />
       {/* ═══ Left · editorial / brand ═══ */}
       <aside className="si-left">
         <div className="si-brand">

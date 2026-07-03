@@ -1231,6 +1231,12 @@
     "backToSignIn": "Back to sign in",
     "backToPasswordSignIn": "Back to password sign in",
     "changeEmail": "Change email",
+    "controls": {
+      "title": "Sign-in quick settings",
+      "language": "Language",
+      "switchToDark": "Switch to dark mode",
+      "switchToLight": "Switch to light mode"
+    },
     "hero": {
       "kickerA": "WRITING STUDIO",
       "kickerB": "FOR SERIOUS NOVELISTS",
