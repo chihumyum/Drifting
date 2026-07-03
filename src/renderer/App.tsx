@@ -278,12 +278,6 @@ function Layout() {
     return useDataStore.subscribe(tick);
   }, [projectId]);
 
-  // UI locale → i18next
-  const uiLocale = useSettingsStore((state) => state.uiLocale);
-  useEffect(() => {
-    setI18nLocale(uiLocale);
-  }, [uiLocale]);
-
   // Editor typography → CSS variables on <html>. Select fields one at a
   // time so each subscriber is a stable primitive identity — wrapping
   // them in an object literal here would mint a new snapshot every render
@@ -925,9 +919,20 @@ function AppearanceEffects() {
   return null;
 }
 
+// The bookshelf and auth routes render outside Layout, so locale syncing has
+// to live at the app shell level rather than in the project editor layout.
+function LocaleEffects() {
+  const uiLocale = useSettingsStore((state) => state.uiLocale);
+  useEffect(() => {
+    setI18nLocale(uiLocale);
+  }, [uiLocale]);
+  return null;
+}
+
 export default function App() {
   return (
     <>
+      <LocaleEffects />
       <AppearanceEffects />
       <Routes>
       {/* 公开路由 */}
