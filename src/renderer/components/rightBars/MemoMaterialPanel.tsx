@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link2, Link2Off, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
 // Electron 40's V8. The legacy build ships the polyfill.
@@ -120,6 +121,7 @@ type ViewFilter = 'all' | 'related';
  * TODOs live in the sibling TodoPanel, not here.
  */
 export function LibraryPanel({ focused }: Props) {
+  const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const libraryItems = useDataStore((s) => s.libraryItems);
@@ -188,7 +190,7 @@ export function LibraryPanel({ focused }: Props) {
     if (!path) return;
     const res = await window.electronAPI.material.openLocal(path);
     if (!res.ok) {
-      alert(`无法打开文件：${res.error}`);
+      alert(t('memoMaterial.error.openFile', { error: res.error }));
     }
   };
 
@@ -235,8 +237,8 @@ export function LibraryPanel({ focused }: Props) {
           <EmptyState
             message={
               filter === 'related'
-                ? '当前条目没有关联的素材。'
-                : '还没有素材。点击右上 "+" 新建。'
+                ? t('memoMaterial.empty.noRelated')
+                : t('memoMaterial.empty.noMaterials')
             }
           />
         )}
@@ -332,6 +334,7 @@ function Toolbar({
   showRelations: boolean;
   onToggleShowRelations: () => void;
 }) {
+  const { t } = useTranslation();
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   // Two-step compaction:
   //   showCount goes off first (~ 230px) — least informational signal.
@@ -372,14 +375,14 @@ function Toolbar({
     >
       <div style={{ display: 'flex', gap: 4 }}>
         <FilterPill active={filter === 'all'} onClick={() => onFilterChange('all')}>
-          {compact ? 'All' : '全部'}
+          {compact ? t('memoMaterial.toolbar.allShort') : t('memoMaterial.toolbar.all')}
         </FilterPill>
         <FilterPill
           active={filter === 'related'}
           disabled={!focusedKind}
           onClick={() => onFilterChange('related')}
         >
-          {compact ? 'Cur' : '仅当前条目'}
+          {compact ? t('memoMaterial.toolbar.currentShort') : t('memoMaterial.toolbar.current')}
         </FilterPill>
       </div>
       <div
@@ -393,10 +396,14 @@ function Toolbar({
           letterSpacing: '0.08em',
         }}
       >
-        {showCount && <span>{libraryItemTotal} 素材</span>}
+        {showCount && <span>{t('memoMaterial.toolbar.count', { count: libraryItemTotal })}</span>}
         <button
           onClick={onToggleShowRelations}
-          title={showRelations ? '隐藏关联' : '显示关联'}
+          title={
+            showRelations
+              ? t('memoMaterial.toolbar.hideRelations')
+              : t('memoMaterial.toolbar.showRelations')
+          }
           aria-pressed={showRelations}
           style={{
             display: 'flex',
@@ -427,7 +434,7 @@ function Toolbar({
         </button>
         <button
           onClick={onCompose}
-          title="新建素材"
+          title={t('memoMaterial.toolbar.newMaterial')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -548,10 +555,11 @@ function LibraryItemContextMenu({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: x, top: y });
   const isTextSnippet = material.kind === 'text';
-  const kindLabel = LIBRARY_ITEM_KIND_LABEL[material.kind] ?? material.kind;
+  const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
   const subtitle = libraryItemSubtitle(material);
 
   useLayoutEffect(() => {
@@ -610,17 +618,19 @@ function LibraryItemContextMenu({
       style={{ left: pos.left, top: pos.top, zIndex: 10000 }}
     >
       <div className="btl-cmenu__head">
-        <div className="btl-cmenu__title">{material.title || subtitle || '无标题'}</div>
-        <div className="btl-cmenu__summary">类型：{kindLabel}</div>
+        <div className="btl-cmenu__title">{material.title || subtitle || t('common.untitled')}</div>
+        <div className="btl-cmenu__summary">{t('memoMaterial.menu.type', { type: kindLabel })}</div>
         <div className="btl-cmenu__summary">
-          {relationCount > 0 ? `已关联 ${relationCount} 项` : '未关联'}
+          {relationCount > 0
+            ? t('memoMaterial.menu.relationCount', { count: relationCount })
+            : t('memoMaterial.menu.noRelations')}
         </div>
       </div>
 
       <div className="btl-cmenu__group">
         <LibraryItemContextMenuItem
           glyph="＋"
-          label="关联…"
+          label={t('memoMaterial.menu.addRelation')}
           action="addRelation"
           onAction={handleAction}
         />
@@ -630,7 +640,7 @@ function LibraryItemContextMenu({
         <div className="btl-cmenu__group">
           <LibraryItemContextMenuItem
             glyph="↗"
-            label="在系统app中打开"
+            label={t('memoMaterial.menu.openInSystem')}
             action="openInSystem"
             onAction={handleAction}
           />
@@ -640,7 +650,7 @@ function LibraryItemContextMenu({
       <div className="btl-cmenu__group">
         <LibraryItemContextMenuItem
           glyph="×"
-          label="删除材料"
+          label={t('memoMaterial.menu.deleteMaterial')}
           action="delete"
           onAction={handleAction}
           variant="danger"
@@ -671,6 +681,7 @@ export function TodoCard({
   onAddRelation: (t: RelationTarget) => void;
   onRemoveRelation: (t: RelationTarget) => void;
 }) {
+  const { t } = useTranslation();
   const { navigateToNode } = useProjectNavigation();
   const text = extractTextFromCommentBody(todo.bodyJson);
   const [hover, setHover] = useState(false);
@@ -721,7 +732,7 @@ export function TodoCard({
         {isBlockAnchored && (
           <button
             onClick={jumpToAnchor}
-            title="跳转到关联 block"
+            title={t('memoMaterial.todo.jumpToBlock')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -741,8 +752,8 @@ export function TodoCard({
         <span style={{ flex: 1 }} />
         <button
           onClick={onResolve}
-          title="标记为已完成"
-          aria-label="标记为已完成"
+          title={t('memoMaterial.todo.markDone')}
+          aria-label={t('memoMaterial.todo.markDone')}
           style={{
             width: 12,
             height: 12,
@@ -756,7 +767,7 @@ export function TodoCard({
         />
         <button
           onClick={onDelete}
-          title="删除"
+          title={t('common.delete')}
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 12,
@@ -783,7 +794,7 @@ export function TodoCard({
           lineHeight: 1.4,
         }}
       >
-        {text || <em style={{ color: 'hsl(var(--ink-4))' }}>(空 TODO)</em>}
+        {text || <em style={{ color: 'hsl(var(--ink-4))' }}>{t('memoMaterial.todo.empty')}</em>}
       </div>
 
       {showPicker && (
@@ -815,7 +826,7 @@ export function TodoCard({
             alignSelf: 'flex-start',
           }}
         >
-          ＋ 关联
+          ＋ {t('memoMaterial.menu.relation')}
         </button>
       )}
     </div>
@@ -856,6 +867,7 @@ export function LibraryItemCard({
    *  where there's enough vertical room to show full bodies up front. */
   defaultExpanded?: boolean;
 }) {
+  const { t } = useTranslation();
   const [hover, setHover] = useState(false);
   const [draft, setDraft] = useState(material.title);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -872,7 +884,7 @@ export function LibraryItemCard({
   // works even when collapsed (lasts until the user closes the picker).
   const showPicker = pickerOpen || (showRelations && selectedSet.size > 0);
   const accent = 'hsl(var(--story-4))';
-  const kindLabel = LIBRARY_ITEM_KIND_LABEL[material.kind] ?? material.kind;
+  const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
   const subtitle = libraryItemSubtitle(material);
   const isTextSnippet = material.kind === 'text';
   const imageSrc = libraryItemImageSrc(material);
@@ -945,7 +957,7 @@ export function LibraryItemCard({
           {material.kind === 'image' && imageSrc && (
             <button
               onClick={() => setImageExpanded((v) => !v)}
-              title={imageExpanded ? '收起图片' : '展开图片'}
+              title={imageExpanded ? t('memoMaterial.card.collapseImage') : t('memoMaterial.card.expandImage')}
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
               style={{
@@ -962,13 +974,13 @@ export function LibraryItemCard({
                 transition: 'opacity 120ms ease',
               }}
             >
-              {imageExpanded ? '收起' : '展开'}
+              {imageExpanded ? t('memoMaterial.card.collapse') : t('memoMaterial.card.expand')}
             </button>
           )}
           {isTextSnippet && (
             <button
               onClick={() => setTextExpanded((v) => !v)}
-              title={textExpanded ? '收起片段' : '展开片段'}
+              title={textExpanded ? t('memoMaterial.card.collapseSnippet') : t('memoMaterial.card.expandSnippet')}
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
               style={{
@@ -985,13 +997,13 @@ export function LibraryItemCard({
                 transition: 'opacity 120ms ease',
               }}
             >
-              {textExpanded ? '收起' : '展开'}
+              {textExpanded ? t('memoMaterial.card.collapse') : t('memoMaterial.card.expand')}
             </button>
           )}
           {!isTextSnippet && (
             <button
               onClick={onOpenInSystem}
-              title="在系统 app 中打开"
+              title={t('memoMaterial.menu.openInSystem')}
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
               style={{
@@ -1008,7 +1020,7 @@ export function LibraryItemCard({
                 transition: 'opacity 120ms ease',
               }}
             >
-              在系统app中打开
+              {t('memoMaterial.menu.openInSystem')}
             </button>
           )}
         </div>
@@ -1069,7 +1081,7 @@ export function LibraryItemCard({
                 >
                   {material.title || (
                     <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-                      {subtitle || '无标题'}
+                      {subtitle || t('common.untitled')}
                     </span>
                   )}
                 </div>
@@ -1144,9 +1156,9 @@ export function LibraryItemCard({
                   minHeight: 18,
                 }}
               >
-                {material.title || (
-                  <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-                    {subtitle || '无标题'}
+                  {material.title || (
+                    <span style={{ color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
+                    {subtitle || t('common.untitled')}
                   </span>
                 )}
               </div>
@@ -1164,7 +1176,7 @@ export function LibraryItemCard({
                 wordBreak: 'break-word',
               }}
             >
-              {material.bodyJson || '添加片段正文…'}
+              {material.bodyJson || t('memoMaterial.card.addSnippetBody')}
             </div>
           </div>
         )}
@@ -1173,7 +1185,7 @@ export function LibraryItemCard({
           <button
             type="button"
             onClick={onOpenInApp}
-            title="全屏查看图片"
+            title={t('memoMaterial.card.fullscreenImage')}
             style={{
               marginTop: 8,
               padding: 0,
@@ -1223,7 +1235,7 @@ export function LibraryItemCard({
               wordBreak: 'break-word',
             }}
           >
-            {material.bodyJson || '添加片段正文…'}
+            {material.bodyJson || t('memoMaterial.card.addSnippetBody')}
           </div>
         )}
 
@@ -1259,6 +1271,7 @@ export function LibraryItemCard({
 // Thumbnail — inline preview tile for image / pdf / url libraryItems.
 
 function LibraryItemThumbnail({ material, onClick }: { material: LibraryItem; onClick: () => void }) {
+  const { t } = useTranslation();
   const size = 64;
   const [errored, setErrored] = useState(false);
   let src: string | null = null;
@@ -1295,9 +1308,9 @@ function LibraryItemThumbnail({ material, onClick }: { material: LibraryItem; on
           color: 'hsl(var(--ink-4))',
           cursor: 'pointer',
         }}
-        title={material.kind === 'pdf' ? '生成预览中…' : '打开'}
+        title={material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open')}
       >
-        {material.kind === 'pdf' ? '…' : LIBRARY_ITEM_KIND_LABEL[material.kind]}
+        {material.kind === 'pdf' ? '…' : t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind })}
       </div>
     );
   }
@@ -1338,6 +1351,7 @@ export function TextSnippetPopover({
   onExpand: () => void;
   onUpdate: (updates: Partial<LibraryItem>) => void;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(material.bodyJson ?? '');
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -1418,7 +1432,7 @@ export function TextSnippetPopover({
               color: 'hsl(var(--story-4))',
             }}
           >
-            片段
+            {t('memoMaterial.kind.text')}
           </span>
           <span
             title={material.title}
@@ -1433,11 +1447,11 @@ export function TextSnippetPopover({
               whiteSpace: 'nowrap',
             }}
           >
-            {material.title || 'Untitled'}
+            {material.title || t('common.untitled')}
           </span>
           <button
             onClick={expand}
-            title="展开全屏 (Stage 2)"
+            title={t('memoMaterial.preview.expandFullscreenTitle')}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
@@ -1451,12 +1465,12 @@ export function TextSnippetPopover({
               cursor: 'pointer',
             }}
           >
-            全屏 ↗
+            {t('memoMaterial.preview.fullscreen')}
           </button>
           <button
             onClick={close}
-            title="关闭 (Esc)"
-            aria-label="关闭"
+            title={t('memoMaterial.preview.closeEsc')}
+            aria-label={t('common.cancel')}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
@@ -1476,7 +1490,7 @@ export function TextSnippetPopover({
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="片段正文…"
+            placeholder={t('memoMaterial.card.snippetPlaceholder')}
             style={{
               width: '100%',
               height: '100%',
@@ -1541,6 +1555,7 @@ export function LibraryItemFullscreenPreview({
   onClose: () => void;
   onUpdate: (updates: Partial<LibraryItem>) => void;
 }) {
+  const { t } = useTranslation();
   const [textDraft, setTextDraft] = useState(() => material.bodyJson ?? '');
   const [viewport, setViewport] = useState({ scale: 1, panX: 0, panY: 0 });
   const previewSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -1671,7 +1686,7 @@ export function LibraryItemFullscreenPreview({
 
   const content = (() => {
     if (material.kind === 'image') {
-      if (!imageSrc) return <FullscreenEmpty message="无法预览图片" />;
+      if (!imageSrc) return <FullscreenEmpty message={t('memoMaterial.preview.noImage')} />;
       return (
         <img
           src={imageSrc}
@@ -1698,7 +1713,7 @@ export function LibraryItemFullscreenPreview({
 
     if (material.kind === 'pdf') {
       const pdfPath = material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null);
-      if (!pdfPath) return <FullscreenEmpty message="无法预览 PDF" />;
+      if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
       return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
     }
 
@@ -1707,7 +1722,7 @@ export function LibraryItemFullscreenPreview({
         autoFocus
         value={textDraft}
         onChange={(event) => setTextDraft(event.target.value)}
-        placeholder="片段正文…"
+        placeholder={t('memoMaterial.card.snippetPlaceholder')}
         style={{
           width: '100%',
           height: '100%',
@@ -1780,6 +1795,7 @@ function PdfCanvasPreview({
   filePath: string;
   viewport: LibraryItemPreviewViewport;
 }) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -1812,7 +1828,7 @@ function PdfCanvasPreview({
         if (cancelled) return;
         if (!res.ok) {
           console.error('[pdf preview] readBytes failed:', res.error);
-          setError('无法打开 PDF');
+          setError(t('memoMaterial.preview.openPdfFailed'));
           return;
         }
         // pdf.js takes ownership of the buffer, so hand it a fresh view.
@@ -1831,7 +1847,7 @@ function PdfCanvasPreview({
       .catch((err) => {
         if (cancelled) return;
         console.error('[pdf preview] getDocument failed:', err);
-        setError('无法打开 PDF');
+        setError(t('memoMaterial.preview.openPdfFailed'));
       });
 
     return () => {
@@ -1842,7 +1858,7 @@ function PdfCanvasPreview({
         void loadingTask.destroy();
       }
     };
-  }, [filePath]);
+  }, [filePath, t]);
 
   useEffect(() => {
     if (!pdfDocument || !canvasRef.current) return;
@@ -1881,14 +1897,14 @@ function PdfCanvasPreview({
       .catch((nextError: unknown) => {
         if (cancelled || isPdfRenderCancel(nextError)) return;
         console.error('[pdf preview] render failed:', nextError);
-        setError('无法渲染 PDF');
+        setError(t('memoMaterial.preview.renderPdfFailed'));
       });
 
     return () => {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width]);
+  }, [pdfDocument, pageNumber, pageCount, surfaceSize.height, surfaceSize.width, t]);
 
   const goToPreviousPage = useCallback(() => {
     setPageNumber((page) => Math.max(1, page - 1));
@@ -1929,7 +1945,7 @@ function PdfCanvasPreview({
       {error ? (
         <FullscreenEmpty message={error} />
       ) : !pdfDocument ? (
-        <FullscreenEmpty message="加载 PDF…" />
+        <FullscreenEmpty message={t('memoMaterial.preview.loadingPdf')} />
       ) : (
         <canvas
           ref={canvasRef}
@@ -1970,13 +1986,13 @@ function PdfCanvasPreview({
           }}
         >
           <PdfPageButton onClick={goToPreviousPage} disabled={pageNumber <= 1}>
-            上一页
+            {t('memoMaterial.preview.previousPage')}
           </PdfPageButton>
           <span>
             {pageNumber} / {pageCount}
           </span>
           <PdfPageButton onClick={goToNextPage} disabled={pageNumber >= pageCount}>
-            下一页
+            {t('memoMaterial.preview.nextPage')}
           </PdfPageButton>
         </div>
       )}
@@ -2028,13 +2044,6 @@ function FullscreenEmpty({ message }: { message: string }) {
   );
 }
 
-export const LIBRARY_ITEM_KIND_LABEL: Record<LibraryItemKind, string> = {
-  image: '图片',
-  pdf: 'PDF',
-  url: 'URL',
-  text: '片段',
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Resolved TODO archive — slim bottom-pinned drawer for resolved/converted
 // TODOs, mirroring the old ResolvedArchive layout but with the simpler
@@ -2049,12 +2058,13 @@ export function ResolvedTodoArchive({
   onReopen: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <CollapsibleFooter
-      label="已完成"
+      label={t('memoMaterial.archive.done')}
       count={todos.length}
-      expandTitle="展开已完成"
-      collapseTitle="收起已完成"
+      expandTitle={t('memoMaterial.archive.expandDone')}
+      collapseTitle={t('memoMaterial.archive.collapseDone')}
       bodyStyle={{ padding: '4px 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}
     >
       {todos.length === 0 && (
@@ -2066,7 +2076,7 @@ export function ResolvedTodoArchive({
             padding: '8px 4px',
           }}
         >
-          无已完成 TODO
+          {t('memoMaterial.archive.noDone')}
         </div>
       )}
       {todos.map((todo) => (
@@ -2092,11 +2102,11 @@ export function ResolvedTodoArchive({
               wordBreak: 'break-word',
             }}
           >
-            {extractTextFromCommentBody(todo.bodyJson) || '(空 TODO)'}
+            {extractTextFromCommentBody(todo.bodyJson) || t('memoMaterial.todo.empty')}
           </div>
           <button
             onClick={() => onReopen(todo.id)}
-            title="重新打开"
+            title={t('memoMaterial.archive.reopen')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -2111,7 +2121,7 @@ export function ResolvedTodoArchive({
           </button>
           <button
             onClick={() => onDelete(todo.id)}
-            title="删除"
+            title={t('common.delete')}
             style={{
               border: 'none',
               background: 'transparent',
@@ -2142,11 +2152,12 @@ export function ComposeTodoDialog({
   onCancel: () => void;
   onCreate: (body: string, relations: RelationTarget[]) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   useEscapeToClose(true, onCancel);
   const [body, setBody] = useState('');
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     focused.kind && focused.id && isStructuralEntityKind(focused.kind)
-      ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }]
+      ? [{ kind: focused.kind, id: focused.id, label: t('memoMaterial.dialog.currentItem') }]
       : [],
   );
   const selectedSet = useMemo(
@@ -2155,12 +2166,12 @@ export function ComposeTodoDialog({
   );
 
   return (
-    <DialogShell title="新建 TODO" onCancel={onCancel}>
+    <DialogShell title={t('memoMaterial.dialog.newTodo')} onCancel={onCancel}>
       <textarea
         autoFocus
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="待办内容…"
+        placeholder={t('memoMaterial.dialog.todoPlaceholder')}
         rows={3}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -2224,6 +2235,7 @@ export function ComposeLibraryItemDialog({
     relations: RelationTarget[],
   ) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [kind, setKind] = useState<LibraryItemKind>('url');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -2243,7 +2255,7 @@ export function ComposeLibraryItemDialog({
     // looking at a comment / library item themselves, skip the pre-fill — those
     // kinds aren't legal toKinds.
     focused.kind && focused.id && isStructuralEntityKind(focused.kind)
-      ? [{ kind: focused.kind, id: focused.id, label: '(当前条目)' }]
+      ? [{ kind: focused.kind, id: focused.id, label: t('memoMaterial.dialog.currentItem') }]
       : [],
   );
   const selectedSet = useMemo(
@@ -2338,7 +2350,7 @@ export function ComposeLibraryItemDialog({
       if (!localPath) return;
       void onCreate(
         {
-          title: title.trim() || localPath.split(/[\\/]/).pop() || 'Untitled',
+          title: title.trim() || localPath.split(/[\\/]/).pop() || t('common.untitled'),
           kind,
           source: 'local',
           uri: `file://${localPath}`,
@@ -2353,7 +2365,7 @@ export function ComposeLibraryItemDialog({
     // card after create; this is just the initial seed.
     void onCreate(
       {
-        title: title.trim() || 'Untitled',
+        title: title.trim() || t('common.untitled'),
         kind: 'text',
         source: 'local',
         uri: '',
@@ -2364,11 +2376,11 @@ export function ComposeLibraryItemDialog({
   };
 
   return (
-    <DialogShell title="新建材料" onCancel={onCancel}>
+    <DialogShell title={t('memoMaterial.dialog.newMaterial')} onCancel={onCancel}>
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['url', 'image', 'pdf', 'text'] as LibraryItemKind[]).map((k) => (
           <FilterPill key={k} active={kind === k} onClick={() => setKind(k)}>
-            {LIBRARY_ITEM_KIND_LABEL[k]}
+            {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
           </FilterPill>
         ))}
       </div>
@@ -2376,7 +2388,7 @@ export function ComposeLibraryItemDialog({
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="标题"
+        placeholder={t('memoMaterial.dialog.titlePlaceholder')}
         style={dialogInputStyle}
       />
 
@@ -2427,7 +2439,7 @@ export function ComposeLibraryItemDialog({
                     marginBottom: 2,
                   }}
                 >
-                  {resolving ? '解析网页…' : '网页信息'}
+                  {resolving ? t('memoMaterial.dialog.resolvingUrl') : t('memoMaterial.dialog.urlInfo')}
                 </div>
                 <div
                   style={{
@@ -2440,7 +2452,7 @@ export function ComposeLibraryItemDialog({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {urlMeta?.title ?? (resolving ? '…' : '未取到标题')}
+                  {urlMeta?.title ?? (resolving ? '…' : t('memoMaterial.dialog.noUrlTitle'))}
                 </div>
               </div>
             </div>
@@ -2463,7 +2475,7 @@ export function ComposeLibraryItemDialog({
               cursor: 'pointer',
             }}
           >
-            选择文件…
+            {t('memoMaterial.dialog.chooseFile')}
           </button>
           {localPath && (
             <span
@@ -2488,7 +2500,7 @@ export function ComposeLibraryItemDialog({
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="片段正文…"
+          placeholder={t('memoMaterial.card.snippetPlaceholder')}
           rows={5}
           style={{
             ...dialogInputStyle,
@@ -2578,6 +2590,7 @@ function DialogActions({
   onConfirm: () => void;
   confirmDisabled?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -2600,7 +2613,7 @@ function DialogActions({
           cursor: 'pointer',
         }}
       >
-        取消
+        {t('common.cancel')}
       </button>
       <button
         onClick={onConfirm}
@@ -2617,7 +2630,7 @@ function DialogActions({
           opacity: confirmDisabled ? 0.5 : 1,
         }}
       >
-        创建
+        {t('memoMaterial.dialog.create')}
       </button>
     </div>
   );

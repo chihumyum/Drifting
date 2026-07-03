@@ -140,7 +140,7 @@ export function applyEvent(list: ChatMsg[], ev: AgentEvent): ChatMsg[] {
 /** First user line, condensed, as the conversation title. */
 function deriveTitle(text: string): string {
   const t = text.replace(/\s+/g, ' ').trim();
-  if (!t) return '新对话';
+  if (!t) return 'New chat';
   return t.length > 40 ? `${t.slice(0, 40)}…` : t;
 }
 

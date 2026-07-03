@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { isDrift, isChapter, deriveStatus, type DerivedStatus } from '../../domain/book-node';
 import { deriveActSegments, type BookAct } from '../../domain/book-act';
@@ -7,7 +8,7 @@ import { getChapterContentJson } from '../../lib/agent/chapter-prose';
 import { computeProseStats, type ProseStats } from '../../lib/prose-stats';
 import { createInlineMentionRepository } from '../../sqlite-repo/inline-mention-repo';
 import { ReferencesPanel } from '../editor/ReferencesPanel';
-import { WRITING_STATUS_LABELS } from '../editor/EditorTopBar';
+import { getWritingStatusLabel } from '../editor/EditorTopBar';
 import { events } from '../../lib/events';
 import type { ProseEntityType } from '../../lib/yjs-doc-id';
 import { useUiStore, useProjectTabs, focusedLeafOf, tabKey } from '../../store/ui-store';
@@ -28,6 +29,7 @@ interface ResolvedTarget {
 }
 
 export function RightSidebarPanels() {
+  const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const { activeTabKey, openTabs } = useProjectTabs(projectId);
   const rightPanelGroup = useUiStore((s) => s.rightPanelGroup);
@@ -55,16 +57,26 @@ export function RightSidebarPanels() {
     // leaf or a split. The non-focused half of a split doesn't reflect here.
     const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey);
     if (!activeTab) {
-      return { kind: 'none', id: null, title: '—', kicker: '未打开标签页' };
+      return { kind: 'none', id: null, title: '—', kicker: t('rightSidebar.kickers.noTab') };
     }
     const leaf = focusedLeafOf(activeTab);
     if (leaf.entityType === 'dashboard') {
-      return { kind: 'none', id: null, title: '项目主页', kicker: '本项目 · 概览' };
+      return {
+        kind: 'none',
+        id: null,
+        title: t('rightSidebar.targets.dashboard'),
+        kicker: t('rightSidebar.kickers.dashboard'),
+      };
     }
     if (leaf.entityType === 'all-chapters') {
       // kicker only surfaces in the stats tab (library/todo use hardcoded
       // project-wide kickers), so phrase it for the aggregate stats view.
-      return { kind: 'all-chapters', id: null, title: '通览全书', kicker: '全书 · 节奏统计' };
+      return {
+        kind: 'all-chapters',
+        id: null,
+        title: t('rightSidebar.targets.allChapters'),
+        kicker: t('rightSidebar.kickers.allChapters'),
+      };
     }
     if (leaf.entityType === 'node') {
       const node = bookNodes.find((n) => n.id === leaf.id);
@@ -75,8 +87,10 @@ export function RightSidebarPanels() {
       return {
         kind: drift ? 'drift' : 'chapter',
         id: node.id,
-        title: node.title || (drift ? 'Untitled Drift' : 'Untitled Chapter'),
-        kicker: drift ? '本浮缀 · 片段与材料' : '本章 · 片段与材料',
+        title: node.title || (drift ? t('topTimeline.untitled.drift') : t('topTimeline.untitled.chapter')),
+        kicker: drift
+          ? t('rightSidebar.kickers.driftContent')
+          : t('rightSidebar.kickers.chapterContent'),
         color: storyline?.color,
       };
     }
@@ -85,8 +99,8 @@ export function RightSidebarPanels() {
       return {
         kind: 'storyline',
         id: leaf.id,
-        title: s?.name || 'Untitled Storyline',
-        kicker: '本故事线 · 片段与材料',
+        title: s?.name || t('topTimeline.untitled.storyline'),
+        kicker: t('rightSidebar.kickers.storylineContent'),
         color: s?.color,
       };
     }
@@ -96,8 +110,8 @@ export function RightSidebarPanels() {
       return {
         kind: 'element',
         id: leaf.id,
-        title: e?.name || 'Untitled Element',
-        kicker: '本元素 · 片段与材料',
+        title: e?.name || t('topTimeline.untitled.element'),
+        kicker: t('rightSidebar.kickers.elementContent'),
         color: cat?.color,
       };
     }
@@ -107,12 +121,12 @@ export function RightSidebarPanels() {
         kind: 'category',
         id: leaf.id,
         title: c?.name || leaf.id,
-        kicker: '本类目 · 片段与材料',
+        kicker: t('rightSidebar.kickers.categoryContent'),
         color: c?.color,
       };
     }
     return { kind: 'none', id: null, title: '—', kicker: '—' };
-  }, [activeTabKey, openTabs, bookNodes, bookElements, storylines, bookElementCategories]);
+  }, [activeTabKey, openTabs, bookNodes, bookElements, storylines, bookElementCategories, t]);
 
   const focusedForPanel: FocusedEntity = useMemo(() => {
     if (!target.kind || target.kind === 'none' || !target.id) {
@@ -155,16 +169,18 @@ export function RightSidebarPanels() {
   const headerKicker = isAgentGroup
     ? ''
     : activeRightPanel === 'stats'
-      ? target.kicker.replace('片段与材料', '详细统计')
+      ? t(`rightSidebar.kickers.stats.${target.kind}`, {
+          defaultValue: t('rightSidebar.kickers.stats.none'),
+        })
       : activeRightPanel === 'todo'
-        ? '全项目 · TODO'
-        : '全项目 · 素材库';
+        ? t('rightSidebar.kickers.todo')
+        : t('rightSidebar.kickers.library');
   const headerTitle = isAgentGroup
     ? ''
     : activeRightPanel === 'todo'
       ? 'TODO'
       : activeRightPanel === 'library'
-        ? '素材库'
+        ? t('rightSidebar.tabs.library')
         : target.title;
 
   // Wide right panel → show both groups side by side. Triggered by the panel's
@@ -341,12 +357,13 @@ function StatsView({
   storylineNodeMapping,
   primaryStorylineByNode,
 }: StatsViewProps) {
+  const { t } = useTranslation();
   if (target.kind === 'all-chapters') {
     return <AllChaptersStats bookNodes={bookNodes} bookActs={bookActs} />;
   }
   if (target.kind === 'chapter' || target.kind === 'drift') {
     const node = bookNodes.find((n) => n.id === target.id);
-    if (!node) return <EmptyState message="找不到当前章节。" />;
+    if (!node) return <EmptyState message={t('rightSidebar.empty.missingChapter')} />;
     // Reading-order rank among chapters (1-based). bookOrder is a sparse,
     // dev-only sort key; surface the chapter's position instead. Drifts have
     // a null bookOrder and are excluded, so they get no chapter number.
@@ -371,7 +388,7 @@ function StatsView({
   }
   if (target.kind === 'storyline') {
     const storyline = storylines.find((s) => s.id === target.id);
-    if (!storyline) return <EmptyState message="找不到当前故事线。" />;
+    if (!storyline) return <EmptyState message={t('rightSidebar.empty.missingStoryline')} />;
     const nodeIds = storylineNodeMapping[storyline.id] ?? [];
     const nodes = nodeIds
       .map((id) => bookNodes.find((n) => n.id === id))
@@ -387,13 +404,13 @@ function StatsView({
   }
   if (target.kind === 'element') {
     const element = bookElements.find((e) => e.id === target.id);
-    if (!element) return <EmptyState message="找不到当前元素。" />;
+    if (!element) return <EmptyState message={t('rightSidebar.empty.missingElement')} />;
     const category = categories.find((c) => c.id === element.categoryId);
     return <ElementStats element={element} category={category} />;
   }
   if (target.kind === 'category') {
     const category = categories.find((c) => c.id === target.id);
-    if (!category) return <EmptyState message="找不到当前类目。" />;
+    if (!category) return <EmptyState message={t('rightSidebar.empty.missingCategory')} />;
     const cElements = bookElements.filter((e) => e.categoryId === category.id);
     return (
       <CategoryStats
@@ -404,7 +421,7 @@ function StatsView({
       />
     );
   }
-  return <EmptyState message="项目主页暂无单项统计。打开一个章节、元素或故事线查看详情。" />;
+  return <EmptyState message={t('rightSidebar.empty.noStats')} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -463,8 +480,10 @@ function ChapterRhythmChart({
   longest: RhythmChapter | null;
   shortest: RhythmChapter | null;
 }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState<number | null>(null);
   const active = hovered != null ? chapters[hovered] : null;
+  const untitled = t('common.untitled');
 
   return (
     <>
@@ -477,7 +496,7 @@ function ChapterRhythmChart({
               key={n.id}
               role="button"
               tabIndex={-1}
-              title={`跳到「${n.title || 'Untitled'}」`}
+              title={t('rightSidebar.stats.jumpTo', { name: n.title || untitled })}
               onMouseEnter={() => setHovered(i)}
               onClick={() => scrollReadingViewTo(`[data-chapter-id="${CSS.escape(n.id)}"]`)}
               // Contiguous full-width rows (no gaps) keep the whole column a
@@ -516,16 +535,25 @@ function ChapterRhythmChart({
       >
         {active ? (
           <div style={{ color: 'hsl(var(--ink-1))' }}>
-            {active.title || 'Untitled'}（{(active.wordCount || 0).toLocaleString()}字）
+            {t('rightSidebar.stats.titleWithWords', {
+              title: active.title || untitled,
+              words: (active.wordCount || 0).toLocaleString(),
+            })}
           </div>
         ) : longest ? (
           <>
             <div>
-              最长 · {longest.title || 'Untitled'}（{(longest.wordCount || 0).toLocaleString()}字）
+              {t('rightSidebar.stats.longestWithWords', {
+                title: longest.title || untitled,
+                words: (longest.wordCount || 0).toLocaleString(),
+              })}
             </div>
             {shortest && shortest.id !== longest.id && (
               <div>
-                最短 · {shortest.title || 'Untitled'}（{(shortest.wordCount || 0).toLocaleString()}字）
+                {t('rightSidebar.stats.shortestWithWords', {
+                  title: shortest.title || untitled,
+                  words: (shortest.wordCount || 0).toLocaleString(),
+                })}
               </div>
             )}
           </>
@@ -536,11 +564,11 @@ function ChapterRhythmChart({
 }
 
 const STATUS_BUCKET_ORDER = ['done', 'draft', 'todo'] as const;
-const STATUS_BUCKET_LABEL: Record<DerivedStatus, string> = {
-  done: '已完成',
-  draft: '草稿',
-  todo: '待写',
-  discarded: '弃用',
+const STATUS_BUCKET_LABEL_KEY: Record<DerivedStatus, string> = {
+  done: 'rightSidebar.status.done',
+  draft: 'rightSidebar.status.draft',
+  todo: 'rightSidebar.status.todo',
+  discarded: 'rightSidebar.status.discarded',
 };
 const STATUS_BUCKET_OPACITY: Record<(typeof STATUS_BUCKET_ORDER)[number], number> = {
   done: 1,
@@ -555,6 +583,7 @@ function AllChaptersStats({
   bookNodes: ReturnType<typeof useDataStore.getState>['bookNodes'];
   bookActs: ReturnType<typeof useDataStore.getState>['bookActs'];
 }) {
+  const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const projectWordTarget = useWritingStatsStore((s) =>
     projectId ? s.plans[projectId]?.projectWordTarget : undefined,
@@ -628,24 +657,24 @@ function AllChaptersStats({
   const donePct = count ? Math.round((statusCounts.done / count) * 100) : 0;
 
   if (count === 0) {
-    return <EmptyState message="全书还没有章节。开始写第一章后，这里会显示全书节奏。" />;
+    return <EmptyState message={t('rightSidebar.stats.noChapters')} />;
   }
 
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title="全书概览">
+      <StatsSection title={t('rightSidebar.stats.bookOverview')}>
         <MetaGrid>
-          <MetaK>总字数</MetaK>
-          <MetaV>{totalWc.toLocaleString()} 字</MetaV>
-          <MetaK>章节数</MetaK>
-          <MetaV>{count} 章</MetaV>
-          <MetaK>平均每章</MetaK>
-          <MetaV>{avgWc.toLocaleString()} 字</MetaV>
+          <MetaK>{t('rightSidebar.stats.totalWords')}</MetaK>
+          <MetaV>{t('rightSidebar.stats.wordsValue', { count: totalWc.toLocaleString() })}</MetaV>
+          <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
+          <MetaV>{t('rightSidebar.stats.chaptersValue', { count })}</MetaV>
+          <MetaK>{t('rightSidebar.stats.averagePerChapter')}</MetaK>
+          <MetaV>{t('rightSidebar.stats.wordsValue', { count: avgWc.toLocaleString() })}</MetaV>
         </MetaGrid>
         {targetPct != null && (
           <div style={{ marginTop: 8 }}>
             <StatsRow
-              k="已写 / 目标"
+              k={t('rightSidebar.stats.writtenTarget')}
               v={`${totalWc.toLocaleString()} / ${projectWordTarget!.toLocaleString()}`}
             >
               <ProgressBar pct={targetPct} />
@@ -655,7 +684,7 @@ function AllChaptersStats({
       </StatsSection>
 
       {actRows.length > 0 && (
-        <StatsSection title="分幕节奏" topBorder>
+        <StatsSection title={t('rightSidebar.stats.actRhythm')} topBorder>
           <div
             style={{
               display: 'flex',
@@ -670,7 +699,11 @@ function AllChaptersStats({
               r.pct > 0 ? (
                 <div
                   key={r.act.id}
-                  title={`${r.act.name} · ${r.cnt}章 · ${r.words.toLocaleString()}字`}
+                  title={t('rightSidebar.stats.actTooltip', {
+                    name: r.act.name,
+                    chapters: r.cnt,
+                    words: r.words.toLocaleString(),
+                  })}
                   style={{ width: `${r.pct}%`, background: r.color }}
                 />
               ) : null,
@@ -682,8 +715,12 @@ function AllChaptersStats({
                 key={r.act.id}
                 name={r.act.name}
                 color={r.color}
-                meta={`${r.cnt}章 · ${(r.words / 1000).toFixed(1)}k · ${Math.round(r.pct)}%`}
-                title={`跳到「${r.act.name}」`}
+                meta={t('rightSidebar.stats.actMeta', {
+                  chapters: r.cnt,
+                  wordsK: (r.words / 1000).toFixed(1),
+                  pct: Math.round(r.pct),
+                })}
+                title={t('rightSidebar.stats.jumpTo', { name: r.act.name })}
                 onOpen={() => scrollReadingViewTo(`[data-act-id="${CSS.escape(r.act.id)}"]`)}
               />
             ))}
@@ -691,9 +728,9 @@ function AllChaptersStats({
         </StatsSection>
       )}
 
-      <StatsSection title="完成度" topBorder>
+      <StatsSection title={t('rightSidebar.stats.completion')} topBorder>
         {activeTotal === 0 ? (
-          <Notes>章节都已弃用或暂无进度。</Notes>
+          <Notes>{t('rightSidebar.stats.noActiveProgress')}</Notes>
         ) : (
           <>
             <div
@@ -710,7 +747,10 @@ function AllChaptersStats({
                 statusCounts[s] > 0 ? (
                   <div
                     key={s}
-                    title={`${STATUS_BUCKET_LABEL[s]} ${statusCounts[s]} 章`}
+                    title={t('rightSidebar.stats.statusCount', {
+                      status: t(STATUS_BUCKET_LABEL_KEY[s]),
+                      count: statusCounts[s],
+                    })}
                     style={{
                       width: `${(statusCounts[s] / activeTotal) * 100}%`,
                       background: 'hsl(var(--accent))',
@@ -729,16 +769,22 @@ function AllChaptersStats({
               }}
             >
               {STATUS_BUCKET_ORDER.filter((s) => statusCounts[s] > 0)
-                .map((s) => `${STATUS_BUCKET_LABEL[s]} ${statusCounts[s]}`)
+                .map((s) =>
+                  t('rightSidebar.stats.statusCount', {
+                    status: t(STATUS_BUCKET_LABEL_KEY[s]),
+                    count: statusCounts[s],
+                  }),
+                )
                 .join(' · ') || '—'}
-              {statusCounts.discarded > 0 && `（弃用 ${statusCounts.discarded}）`}
+              {statusCounts.discarded > 0 &&
+                t('rightSidebar.stats.discardedParen', { count: statusCounts.discarded })}
             </div>
-            <StatsRow k="已完成" v={`${donePct}%`} />
+            <StatsRow k={t('rightSidebar.status.done')} v={`${donePct}%`} />
           </>
         )}
       </StatsSection>
 
-      <StatsSection title="章节长度节奏" topBorder>
+      <StatsSection title={t('rightSidebar.stats.chapterLengthRhythm')} topBorder>
         <ChapterRhythmChart
           chapters={chapters}
           maxWc={maxWc}
@@ -937,11 +983,12 @@ function SnapshotEntryButton({
   entityKind: ProseEntityType;
   entityId: string;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       onClick={() => events.emit('snapshot-history:open', { entityKind, entityId })}
-      title="浏览并恢复这个实体的历史版本（30 天）"
+      title={t('rightSidebar.stats.snapshotTitle')}
       style={{
         width: '100%',
         marginTop: 14,
@@ -965,7 +1012,7 @@ function SnapshotEntryButton({
         e.currentTarget.style.color = 'hsl(var(--ink-2))';
       }}
     >
-      ↺ 历史快照…
+      ↺ {t('rightSidebar.stats.snapshotButton')}
     </button>
   );
 }
@@ -987,6 +1034,7 @@ function ChapterStats({
   primaryStorylineId: string | null;
   chapterNumber: number | null;
 }) {
+  const { t } = useTranslation();
   const storyline = primaryStorylineId
     ? storylines.find((s) => s.id === primaryStorylineId)
     : undefined;
@@ -997,11 +1045,17 @@ function ChapterStats({
   const { openEntity } = useProjectNavigation();
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title={target.kind === 'drift' ? '浮缀坐标' : '章节坐标'}>
+      <StatsSection
+        title={
+          target.kind === 'drift'
+            ? t('rightSidebar.stats.driftCoordinates')
+            : t('rightSidebar.stats.chapterCoordinates')
+        }
+      >
         <MetaGrid>
           {storyline ? (
             <>
-              <MetaK>Storyline</MetaK>
+              <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
               <MetaV>
                 <Dot color={storyline.color} />
                 <SerifSpan>{storyline.name}</SerifSpan>
@@ -1009,40 +1063,65 @@ function ChapterStats({
             </>
           ) : (
             <>
-              <MetaK>类型</MetaK>
+              <MetaK>{t('rightSidebar.stats.type')}</MetaK>
               <MetaV>
-                <SerifSpan>{target.kind === 'drift' ? '浮缀 · 自由片段' : '章节'}</SerifSpan>
+                <SerifSpan>
+                  {target.kind === 'drift'
+                    ? t('rightSidebar.stats.driftFreeFragment')
+                    : t('rightSidebar.stats.chapter')}
+                </SerifSpan>
               </MetaV>
             </>
           )}
           {chapterNumber != null && (
             <>
-              <MetaK>全书位置</MetaK>
-              <MetaV>第 {chapterNumber} 章</MetaV>
+              <MetaK>{t('rightSidebar.stats.bookPosition')}</MetaK>
+              <MetaV>{t('rightSidebar.stats.chapterOrdinal', { count: chapterNumber })}</MetaV>
             </>
           )}
-          <MetaK>最近修改</MetaK>
+          <MetaK>{t('rightSidebar.stats.lastModified')}</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(node.updatedAt)}</SerifSpan>
           </MetaV>
         </MetaGrid>
       </StatsSection>
 
-      <StatsSection title="字数 · 节奏" topBorder>
-        <StatsRow k="已写 / 目标" v={`${node.wordCount.toLocaleString()} / ${targetWc.toLocaleString()}`}>
+      <StatsSection title={t('rightSidebar.stats.wordRhythm')} topBorder>
+        <StatsRow
+          k={t('rightSidebar.stats.writtenTarget')}
+          v={`${node.wordCount.toLocaleString()} / ${targetWc.toLocaleString()}`}
+        >
           <ProgressBar pct={wcPct} />
         </StatsRow>
         <StatsRow
-          k="段落 / 句"
-          v={stats ? `${stats.paragraphs} 段 · ${stats.sentences} 句` : '—'}
+          k={t('rightSidebar.stats.paragraphSentence')}
+          v={
+            stats
+              ? t('rightSidebar.stats.paragraphSentenceValue', {
+                  paragraphs: stats.paragraphs,
+                  sentences: stats.sentences,
+                })
+              : '—'
+          }
           placeholder={!stats}
         />
-        <StatsRow k="对白比" v={stats ? `${dialoguePct}%` : '—'} placeholder={!stats}>
+        <StatsRow
+          k={t('rightSidebar.stats.dialogueRatio')}
+          v={stats ? `${dialoguePct}%` : '—'}
+          placeholder={!stats}
+        >
           {stats && <ProgressBar pct={dialoguePct} />}
         </StatsRow>
       </StatsSection>
 
-      <StatsSection title={target.kind === 'drift' ? '本篇元素' : '本章元素'} topBorder>
+      <StatsSection
+        title={
+          target.kind === 'drift'
+            ? t('rightSidebar.stats.thisFragmentElements')
+            : t('rightSidebar.stats.thisChapterElements')
+        }
+        topBorder
+      >
         {elements && elements.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {elements.map(({ elementId, mentionCount }) => {
@@ -1052,7 +1131,7 @@ function ChapterStats({
               return (
                 <StatsLinkRow
                   key={elementId}
-                  name={el.name || 'Untitled'}
+                  name={el.name || t('common.untitled')}
                   color={cat?.color}
                   meta={`×${mentionCount}`}
                   onOpen={() => openEntity({ entityType: 'element', id: elementId })}
@@ -1061,7 +1140,11 @@ function ChapterStats({
             })}
           </div>
         ) : (
-          <Notes>{elements ? '正文尚未 @ 提及任何元素。' : '统计加载中…'}</Notes>
+          <Notes>
+            {elements
+              ? t('rightSidebar.stats.noMentionedElements')
+              : t('rightSidebar.stats.loading')}
+          </Notes>
         )}
       </StatsSection>
 
@@ -1087,6 +1170,7 @@ function StatsLinkRow({
   /** Hover tooltip; defaults to the element-open phrasing. */
   title?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       role="button"
@@ -1095,7 +1179,7 @@ function StatsLinkRow({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') onOpen();
       }}
-      title={title ?? `打开元素「${name}」`}
+      title={title ?? t('rightSidebar.stats.openEntity', { name })}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -1165,6 +1249,7 @@ function StorylineStats({
   bookElements: ReturnType<typeof useDataStore.getState>['bookElements'];
   categories: ReturnType<typeof useDataStore.getState>['bookElementCategories'];
 }) {
+  const { t } = useTranslation();
   const total = nodes.length;
   const totalWc = nodes.reduce((a, n) => a + (n.wordCount || 0), 0);
   const avgWc = total ? Math.round(totalWc / total) : 0;
@@ -1191,25 +1276,25 @@ function StorylineStats({
 
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title="故事线坐标">
+      <StatsSection title={t('rightSidebar.stats.storylineCoordinates')}>
         <MetaGrid>
-          <MetaK>Storyline</MetaK>
+          <MetaK>{t('rightSidebar.stats.storyline')}</MetaK>
           <MetaV>
             <Dot color={storyline.color} />
             <SerifSpan>{storyline.name}</SerifSpan>
           </MetaV>
-          <MetaK>章数</MetaK>
-          <MetaV>{total} 章</MetaV>
-          <MetaK>最近</MetaK>
+          <MetaK>{t('rightSidebar.stats.chapterCount')}</MetaK>
+          <MetaV>{t('rightSidebar.stats.chaptersValue', { count: total })}</MetaV>
+          <MetaK>{t('rightSidebar.stats.recent')}</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(storyline.updatedAt)}</SerifSpan>
           </MetaV>
         </MetaGrid>
       </StatsSection>
 
-      <StatsSection title="写作进度" topBorder>
+      <StatsSection title={t('rightSidebar.stats.writingProgress')} topBorder>
         {activeTotal === 0 ? (
-          <Notes>这条线还没有章节。</Notes>
+          <Notes>{t('rightSidebar.stats.storylineNoChapters')}</Notes>
         ) : (
           <>
             <div
@@ -1228,7 +1313,10 @@ function StorylineStats({
                 return (
                   <div
                     key={s}
-                    title={`${WRITING_STATUS_LABELS[s]} ${n} 章`}
+                    title={t('rightSidebar.stats.statusCount', {
+                      status: getWritingStatusLabel(s, t),
+                      count: n,
+                    })}
                     style={{
                       width: `${(n / activeTotal) * 100}%`,
                       background: storyline.color,
@@ -1247,20 +1335,30 @@ function StorylineStats({
               }}
             >
               {STORYLINE_STATUS_ORDER.filter((s) => (statusCounts.get(s) ?? 0) > 0)
-                .map((s) => `${WRITING_STATUS_LABELS[s]} ${statusCounts.get(s)}`)
+                .map((s) =>
+                  t('rightSidebar.stats.statusCount', {
+                    status: getWritingStatusLabel(s, t),
+                    count: statusCounts.get(s),
+                  }),
+                )
                 .join(' · ') || '—'}
-              {discarded > 0 && `（弃用 ${discarded}）`}
+              {discarded > 0 && t('rightSidebar.stats.discardedParen', { count: discarded })}
             </div>
-            <StatsRow k="平均字数" v={`${avgWc.toLocaleString()} 字 / 章`} />
+            <StatsRow
+              k={t('rightSidebar.stats.averageWords')}
+              v={t('rightSidebar.stats.wordsPerChapterValue', {
+                words: avgWc.toLocaleString(),
+              })}
+            />
           </>
         )}
       </StatsSection>
 
-      <StatsSection title="本线核心元素" topBorder>
+      <StatsSection title={t('rightSidebar.stats.storylineCoreElements')} topBorder>
         {coreElements === null ? (
-          <Notes>统计加载中…</Notes>
+          <Notes>{t('rightSidebar.stats.loading')}</Notes>
         ) : coreElements.length === 0 ? (
-          <Notes>本线章节正文尚未 @ 提及任何元素。</Notes>
+          <Notes>{t('rightSidebar.stats.storylineNoMentionedElements')}</Notes>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {coreElements.slice(0, 8).map(({ elementId, mentionCount }) => {
@@ -1270,7 +1368,7 @@ function StorylineStats({
               return (
                 <StatsLinkRow
                   key={elementId}
-                  name={el.name || 'Untitled'}
+                  name={el.name || t('common.untitled')}
                   color={cat?.color}
                   meta={`×${mentionCount}`}
                   onOpen={() => openEntity({ entityType: 'element', id: elementId })}
@@ -1286,7 +1384,9 @@ function StorylineStats({
                   padding: '6px 2px 0',
                 }}
               >
-                还有 {coreElements.length - 8} 个元素出场较少
+                {t('rightSidebar.stats.moreLowAppearanceElements', {
+                  count: coreElements.length - 8,
+                })}
               </div>
             )}
           </div>
@@ -1305,20 +1405,21 @@ function ElementStats({
   element: ReturnType<typeof useDataStore.getState>['bookElements'][number];
   category?: ReturnType<typeof useDataStore.getState>['bookElementCategories'][number];
 }) {
+  const { t } = useTranslation();
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title="元素坐标">
+      <StatsSection title={t('rightSidebar.stats.elementCoordinates')}>
         <MetaGrid>
-          <MetaK>类目</MetaK>
+          <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
             {category && <Dot color={category.color} />}
             <SerifSpan>{category?.name ?? '—'}</SerifSpan>
           </MetaV>
-          <MetaK>名称</MetaK>
+          <MetaK>{t('rightSidebar.stats.name')}</MetaK>
           <MetaV>
             <SerifSpan>{element.name}</SerifSpan>
           </MetaV>
-          <MetaK>更新</MetaK>
+          <MetaK>{t('rightSidebar.stats.updated')}</MetaK>
           <MetaV>
             <SerifSpan>{formatDateTime(element.updatedAt)}</SerifSpan>
           </MetaV>
@@ -1328,7 +1429,7 @@ function ElementStats({
       {/* 被引用 / 引用其他 — the same read-only projections the element
           editor used to host in its body; the editor keeps only the
           editable 关联 section. */}
-      <StatsSection title="引用" topBorder>
+      <StatsSection title={t('rightSidebar.stats.references')} topBorder>
         <ReferencesPanel
           entityKind="element"
           entityId={element.id}
@@ -1355,6 +1456,7 @@ function CategoryStats({
     typeof useDataStore.getState
   >['primaryStorylineByNode'];
 }) {
+  const { t } = useTranslation();
   const total = elements.length;
   const { openEntity } = useProjectNavigation();
   const health = useCategoryHealth(
@@ -1383,31 +1485,37 @@ function CategoryStats({
 
   return (
     <div style={{ padding: 12 }}>
-      <StatsSection title="类目坐标">
+      <StatsSection title={t('rightSidebar.stats.categoryCoordinates')}>
         <MetaGrid>
-          <MetaK>Category</MetaK>
+          <MetaK>{t('rightSidebar.stats.category')}</MetaK>
           <MetaV>
             <Dot color={category.color} />
             <SerifSpan>{category.name}</SerifSpan>
           </MetaV>
-          <MetaK>元素数</MetaK>
-          <MetaV>{total} 个</MetaV>
+          <MetaK>{t('rightSidebar.stats.elementCount')}</MetaK>
+          <MetaV>{t('rightSidebar.stats.elementsValue', { count: total })}</MetaV>
         </MetaGrid>
       </StatsSection>
 
-      <StatsSection title="健康度" topBorder>
+      <StatsSection title={t('rightSidebar.stats.health')} topBorder>
         {health === null ? (
-          <Notes>统计加载中…</Notes>
+          <Notes>{t('rightSidebar.stats.loading')}</Notes>
         ) : total === 0 ? (
-          <Notes>类目下还没有元素。</Notes>
+          <Notes>{t('rightSidebar.stats.categoryNoElements')}</Notes>
         ) : (
           <>
-            <StatsRow k="已出场" v={`${appeared} / ${total}`}>
+            <StatsRow k={t('rightSidebar.stats.appeared')} v={`${appeared} / ${total}`}>
               <ProgressBar pct={(appeared / total) * 100} color={category.color} />
             </StatsRow>
             <StatsRow
-              k="平均出场"
-              v={appeared > 0 ? `${avgChapters.toFixed(1)} 章 / 元素` : '—'}
+              k={t('rightSidebar.stats.averageAppearance')}
+              v={
+                appeared > 0
+                  ? t('rightSidebar.stats.avgChaptersPerElement', {
+                      count: avgChapters.toFixed(1),
+                    })
+                  : '—'
+              }
               placeholder={appeared === 0}
             />
           </>
@@ -1415,15 +1523,15 @@ function CategoryStats({
       </StatsSection>
 
       {health !== null && total > 0 && (
-        <StatsSection title="未出场元素" topBorder>
+        <StatsSection title={t('rightSidebar.stats.unappearedElements')} topBorder>
           {unappeared.length === 0 ? (
-            <Notes>所有元素都已在正文出场。</Notes>
+            <Notes>{t('rightSidebar.stats.allElementsAppeared')}</Notes>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {unappeared.slice(0, 20).map((el) => (
                 <StatsLinkRow
                   key={el.id}
-                  name={el.name || 'Untitled'}
+                  name={el.name || t('common.untitled')}
                   color={category.color}
                   onOpen={() => openEntity({ entityType: 'element', id: el.id })}
                 />
@@ -1437,7 +1545,9 @@ function CategoryStats({
                     padding: '6px 2px 0',
                   }}
                 >
-                  还有 {unappeared.length - 20} 个未出场
+                  {t('rightSidebar.stats.moreUnappearedElements', {
+                    count: unappeared.length - 20,
+                  })}
                 </div>
               )}
             </div>
@@ -1446,7 +1556,7 @@ function CategoryStats({
       )}
 
       {storylineRows.length > 0 && (
-        <StatsSection title="故事线分布" topBorder>
+        <StatsSection title={t('rightSidebar.stats.storylineDistribution')} topBorder>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {storylineRows.map(({ slId, count, storyline }) =>
               storyline ? (
@@ -1454,7 +1564,7 @@ function CategoryStats({
                   key={slId}
                   name={storyline.name}
                   color={storyline.color}
-                  meta={`${count} 个元素`}
+                  meta={t('rightSidebar.stats.elementsValue', { count })}
                   onOpen={() => openEntity({ entityType: 'storyline', id: slId })}
                 />
               ) : (
@@ -1478,7 +1588,7 @@ function CategoryStats({
                       flex: 1,
                     }}
                   >
-                    漂浮 / 未归线
+                    {t('rightSidebar.stats.floatingStoryline')}
                   </span>
                   <span
                     style={{
@@ -1487,7 +1597,7 @@ function CategoryStats({
                       color: 'hsl(var(--ink-3))',
                     }}
                   >
-                    {count} 个元素
+                    {t('rightSidebar.stats.elementsValue', { count })}
                   </span>
                 </div>
               ),

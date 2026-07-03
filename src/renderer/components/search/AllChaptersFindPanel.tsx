@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 
 import type { NodeContent } from '../../domain/node-content';
@@ -47,6 +48,7 @@ export function AllChaptersFindPanel({
   focusNonce,
   onClose,
 }: AllChaptersFindPanelProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [docs, setDocs] = useState<ChapterDoc[]>([]);
@@ -99,12 +101,12 @@ export function AllChaptersFindPanel({
       matches.map((m, i) => ({
         index: i,
         groupKey: m.nodeId,
-        groupLabel: titleByNode.get(m.nodeId) || '无标题章节',
+        groupLabel: titleByNode.get(m.nodeId) || t('findPanel.untitledChapter'),
         excerpt: m.excerpt.text,
         matchStart: m.excerpt.matchStart,
         matchEnd: m.excerpt.matchEnd,
       })),
-    [matches, titleByNode],
+    [matches, titleByNode, t],
   );
 
   // Scroll a match's container into view; if its row hasn't rendered yet, fall
@@ -211,17 +213,17 @@ export function AllChaptersFindPanel({
             setCurrentIndex(0);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="在全书中查找…"
+          placeholder={t('findPanel.bookPlaceholder')}
         />
         <span className="editor-find-stats">
-          {noMatches ? (query ? '0/0' : '全书') : `${safeIndex + 1}/${matches.length}`}
+          {noMatches ? (query ? '0/0' : t('findPanel.wholeBook')) : `${safeIndex + 1}/${matches.length}`}
         </span>
         <button
           type="button"
           className="editor-find-btn"
           onClick={() => jumpTo(safeIndex - 1)}
           disabled={noMatches}
-          title="上一个 (Shift+Enter)"
+          title={t('findPanel.previousTitle')}
         >
           <ChevronUp size={14} />
         </button>
@@ -230,11 +232,11 @@ export function AllChaptersFindPanel({
           className="editor-find-btn"
           onClick={() => jumpTo(safeIndex + 1)}
           disabled={noMatches}
-          title="下一个 (Enter)"
+          title={t('findPanel.nextTitle')}
         >
           <ChevronDown size={14} />
         </button>
-        <button type="button" className="editor-find-btn" onClick={onClose} title="关闭 (Esc)">
+        <button type="button" className="editor-find-btn" onClick={onClose} title={t('findPanel.closeTitle')}>
           <X size={14} />
         </button>
       </div>

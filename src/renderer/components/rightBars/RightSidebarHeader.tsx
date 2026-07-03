@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../store/ui-store';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 
@@ -33,6 +34,7 @@ export function RightSidebarHeader({
   group,
   flat,
 }: RightSidebarHeaderProps) {
+  const { t } = useTranslation();
   const storeGroup = useUiStore((state) => state.rightPanelGroup);
   const activeRightPanel = useUiStore((state) => state.activeRightPanel);
   const setActiveRightPanel = useUiStore((state) => state.setActiveRightPanel);
@@ -140,14 +142,14 @@ export function RightSidebarHeader({
                 active={isActive('content', 'library')}
                 onClick={() => onSelect('content', 'library')}
               >
-                <span>{compactLabels ? 'LIB' : '素材库'}</span>
+                <span>{compactLabels ? 'LIB' : t('rightSidebar.tabs.library')}</span>
               </RightPanelTab>
               <RightPanelTab
                 id="stats"
                 active={isActive('content', 'stats')}
                 onClick={() => onSelect('content', 'stats')}
               >
-                <span>{compactLabels ? 'SS' : 'Stats'}</span>
+                <span>{compactLabels ? 'SS' : t('rightSidebar.tabs.stats')}</span>
               </RightPanelTab>
             </>
           )}

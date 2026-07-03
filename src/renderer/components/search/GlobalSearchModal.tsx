@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import { sql } from 'drizzle-orm';
 import { useDataStore } from '../../store/data-store';
@@ -70,11 +71,11 @@ interface GlobalSearchModalProps {
 const MAX_OCCURRENCES_PER_ENTITY = 30;
 const EXCERPT_RADIUS = 28;
 
-const ENTITY_LABEL: Record<SearchableEntityType, string> = {
-  node: '章节',
-  storyline: '故事线',
-  element: '元素',
-  category: '分类',
+const ENTITY_LABEL_KEY: Record<SearchableEntityType, string> = {
+  node: 'globalSearch.entity.node',
+  storyline: 'globalSearch.entity.storyline',
+  element: 'globalSearch.entity.element',
+  category: 'globalSearch.entity.category',
 };
 
 const ENTITY_ICON: Record<SearchableEntityType, string> = {
@@ -84,11 +85,11 @@ const ENTITY_ICON: Record<SearchableEntityType, string> = {
   category: '⌘',
 };
 
-const FIELD_LABEL: Record<Field, string> = {
-  title: '标题',
-  name: '名称',
-  summary: '简介',
-  body: '正文',
+const FIELD_LABEL_KEY: Record<Field, string> = {
+  title: 'globalSearch.field.title',
+  name: 'globalSearch.field.name',
+  summary: 'globalSearch.field.summary',
+  body: 'globalSearch.field.body',
 };
 
 // Find every occurrence of `q` in `text`, up to `cap` returned. The full count
@@ -191,6 +192,7 @@ function renderOccurrence(o: Occurrence): React.ReactNode {
 // -----------------------------------------------------------------------------
 
 export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [groups, setGroups] = useState<EntityGroup[]>([]);
@@ -255,7 +257,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         const g = buildGroup(
           'node',
           n.id,
-          n.title || '(无标题)',
+          n.title || t('globalSearch.fallback.untitled'),
           [
             { field: 'title', text: n.title || '' },
             { field: 'summary', text: n.summary || '' },
@@ -270,7 +272,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         const g = buildGroup(
           'storyline',
           s.id,
-          s.name || '(无标题)',
+          s.name || t('globalSearch.fallback.untitled'),
           [
             { field: 'name', text: s.name || '' },
             { field: 'summary', text: s.summary || '' },
@@ -285,7 +287,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         const g = buildGroup(
           'element',
           e.id,
-          e.name || '(无名称)',
+          e.name || t('globalSearch.fallback.unnamed'),
           [
             { field: 'name', text: e.name || '' },
             { field: 'summary', text: e.summary || '' },
@@ -300,7 +302,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
         const g = buildGroup(
           'category',
           c.id,
-          c.name || '(无名称)',
+          c.name || t('globalSearch.fallback.unnamed'),
           [
             { field: 'name', text: c.name || '' },
             { field: 'body', text: bodyText },
@@ -316,7 +318,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
       cancelled = true;
       window.clearTimeout(handle);
     };
-  }, [query, bookNodes, storylines, bookElements, categories]);
+  }, [query, bookNodes, storylines, bookElements, categories, t]);
 
   useEffect(() => {
     setSelectedIdx(0);
@@ -399,18 +401,21 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
             className="gsearch-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索章节、故事线、元素、分类的标题、简介、正文…"
+            placeholder={t('globalSearch.placeholder')}
           />
           {hasQuery && (
             <span className="gsearch-stats">
-              {groups.length} 个 · {totalOccurrences} 处
+              {t('globalSearch.stats', {
+                groups: groups.length,
+                occurrences: totalOccurrences,
+              })}
             </span>
           )}
           <button
             type="button"
             className="gsearch-close-btn"
             onClick={onClose}
-            title="关闭 (Esc)"
+            title={t('globalSearch.closeTitle')}
           >
             <X size={13} />
           </button>
@@ -421,9 +426,9 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
           className={`gsearch-results${noResults || !hasQuery ? ' is-empty-state' : ''}`}
         >
           {!hasQuery && (
-            <div className="gsearch-empty">输入关键字以搜索项目内的所有 entity</div>
+            <div className="gsearch-empty">{t('globalSearch.emptyPrompt')}</div>
           )}
-          {noResults && <div className="gsearch-empty">没有找到匹配项</div>}
+          {noResults && <div className="gsearch-empty">{t('globalSearch.noResults')}</div>}
           {groups.map((g, gi) => (
             <div key={`${g.entityType}:${g.entityId}`} className="gsearch-group">
               <div className="gsearch-group-header" onClick={() => choose(g)}>
@@ -436,7 +441,7 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
                     ? `${g.occurrences.length}+${g.truncated}`
                     : g.occurrences.length}
                 </span>
-                <span className="gsearch-kind">{ENTITY_LABEL[g.entityType]}</span>
+                <span className="gsearch-kind">{t(ENTITY_LABEL_KEY[g.entityType])}</span>
               </div>
               {g.occurrences.map((o, oi) => {
                 const flatIdx = groupOffsets[gi] + oi;
@@ -449,13 +454,15 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
                     onMouseEnter={() => setSelectedIdx(flatIdx)}
                     onClick={() => choose(g)}
                   >
-                    <span className="gsearch-field-tag">{FIELD_LABEL[o.field]}</span>
+                    <span className="gsearch-field-tag">{t(FIELD_LABEL_KEY[o.field])}</span>
                     <span className="gsearch-excerpt">{renderOccurrence(o)}</span>
                   </div>
                 );
               })}
               {g.truncated > 0 && (
-                <div className="gsearch-truncated">…还有 {g.truncated} 处未显示</div>
+                <div className="gsearch-truncated">
+                  {t('globalSearch.truncated', { count: g.truncated })}
+                </div>
               )}
             </div>
           ))}

@@ -10,6 +10,8 @@
  *   - once the user has cleared every comment (待办归零): 通过 (finish) / 重跑.
  */
 import { useEffect, useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Archive,
@@ -35,21 +37,6 @@ import { enqueueShadowReview, stopShadowJob } from '../../lib/shadow/job-recorde
 import { useStaleReviews, type StaleReview } from '../../usecase/useStaleReviews';
 import type { ShadowConsultedKind, ShadowJob, ShadowTracePhase } from '../../domain/shadow-job';
 
-const PHASE_LABEL: Record<ShadowTracePhase, string> = {
-  gather: '收集',
-  resolve: '规则',
-  check: '取证',
-  emit: '批注',
-  decide: '结论',
-};
-
-const CONSULTED_KIND_LABEL: Record<ShadowConsultedKind, string> = {
-  node: '章节',
-  element: '设定',
-  storyline: '故事线',
-  category: '类别',
-};
-
 interface OpsStats {
   doneCount: number; // completed reviews (lifetime)
   passRate: number | null; // % of completed reviews that passed clean
@@ -60,8 +47,8 @@ interface OpsStats {
 }
 
 /** Short label for a rule — its first non-empty line, clipped. */
-function ruleLabelOf(raw: string): string {
-  const line = raw.split('\n').map((s) => s.trim()).find(Boolean) ?? '规则';
+function ruleLabelOf(raw: string, t: TFunction): string {
+  const line = raw.split('\n').map((s) => s.trim()).find(Boolean) ?? t('shadowPanel.ruleFallback');
   return line.length > 14 ? `${line.slice(0, 14)}…` : line;
 }
 
@@ -83,14 +70,23 @@ function fmtDuration(ms: number): string {
   return rs ? `${m}m${rs}s` : `${m}m`;
 }
 
+function phaseLabelOf(phase: ShadowTracePhase, t: TFunction): string {
+  return t(`shadowPanel.phase.${phase}`);
+}
+
+function consultedKindLabelOf(kind: ShadowConsultedKind, t: TFunction): string {
+  return t(`shadowPanel.consultedKind.${kind}`);
+}
+
 // Compact ops-health strip at the top of the panel: lifetime review count, clean
 // pass rate, mean run time, open 待办, and the most-triggered rules. Read-only —
 // it observes the persisted shadow_job + comment telemetry.
 function OpsSummary({ ops }: { ops: OpsStats }) {
+  const { t } = useTranslation();
   const cells: { label: string; value: string; accent?: string }[] = [
-    { label: '复审', value: String(ops.doneCount) },
+    { label: t('shadowPanel.ops.reviews'), value: String(ops.doneCount) },
     {
-      label: '通过率',
+      label: t('shadowPanel.ops.passRate'),
       value: ops.passRate === null ? '—' : `${ops.passRate}%`,
       accent:
         ops.passRate === null
@@ -101,9 +97,9 @@ function OpsSummary({ ops }: { ops: OpsStats }) {
               ? 'hsl(32 80% 44%)'
               : 'hsl(0 64% 51%)',
     },
-    { label: '平均耗时', value: ops.avgMs === null ? '—' : fmtDuration(ops.avgMs) },
+    { label: t('shadowPanel.ops.avgDuration'), value: ops.avgMs === null ? '—' : fmtDuration(ops.avgMs) },
     {
-      label: '待办',
+      label: t('shadowPanel.ops.todos'),
       value: String(ops.openTodos),
       accent: ops.openTodos > 0 ? 'hsl(32 80% 44%)' : undefined,
     },
@@ -155,7 +151,7 @@ function OpsSummary({ ops }: { ops: OpsStats }) {
       </div>
       {ops.activeCount > 0 && (
         <div style={{ fontSize: 10, color: 'hsl(var(--ink-3))', marginTop: 6, textAlign: 'center' }}>
-          {ops.activeCount} 个审阅进行中 / 排队中
+          {t('shadowPanel.ops.active', { count: ops.activeCount })}
         </div>
       )}
       {ops.topRules.length > 0 && (
@@ -169,7 +165,9 @@ function OpsSummary({ ops }: { ops: OpsStats }) {
             borderTop: '1px solid hsl(var(--rule) / 0.6)',
           }}
         >
-          <span style={{ fontSize: 9.5, color: 'hsl(var(--ink-4))', alignSelf: 'center' }}>规则触发</span>
+          <span style={{ fontSize: 9.5, color: 'hsl(var(--ink-4))', alignSelf: 'center' }}>
+            {t('shadowPanel.ops.topRules')}
+          </span>
           {ops.topRules.map((r, i) => (
             <span
               key={i}
@@ -203,14 +201,14 @@ interface ReviewInfo {
   actionable: boolean; // latest + done + decision draft + chapter not finished
 }
 
-function relTime(iso: string): string {
-  const t = Date.parse(iso);
-  if (!t) return '';
-  const d = Date.now() - t;
-  if (d < 60_000) return '刚刚';
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} 分钟前`;
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} 小时前`;
-  return `${Math.floor(d / 86_400_000)} 天前`;
+function relTime(iso: string, t: TFunction): string {
+  const startedMs = Date.parse(iso);
+  if (!startedMs) return '';
+  const d = Date.now() - startedMs;
+  if (d < 60_000) return t('shadowPanel.time.justNow');
+  if (d < 3_600_000) return t('shadowPanel.time.minutesAgo', { count: Math.floor(d / 60_000) });
+  if (d < 86_400_000) return t('shadowPanel.time.hoursAgo', { count: Math.floor(d / 3_600_000) });
+  return t('shadowPanel.time.daysAgo', { count: Math.floor(d / 86_400_000) });
 }
 
 interface StatusView {
@@ -219,29 +217,29 @@ interface StatusView {
   text: string;
 }
 
-function statusView(job: ShadowJob, review: ReviewInfo): StatusView {
+function statusView(job: ShadowJob, review: ReviewInfo, t: TFunction): StatusView {
   // A draft review whose chapter is now finished was passed by the user.
   if (review.chapterFinished && job.decision === 'draft') {
-    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: '已通过' };
+    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: t('shadowPanel.status.passedByUser') };
   }
   if (job.status === 'queued') {
-    return { icon: <Clock size={13} />, color: 'hsl(var(--ink-3))', text: '排队中…' };
+    return { icon: <Clock size={13} />, color: 'hsl(var(--ink-3))', text: t('shadowPanel.status.queued') };
   }
   if (job.status === 'running') {
     return {
       icon: <Loader2 size={14} style={{ animation: 'drift-spin 0.9s linear infinite' }} />,
       color: 'hsl(var(--ink-2))',
-      text: '审阅中…',
+      text: t('shadowPanel.status.running'),
     };
   }
   if (job.status === 'stopped') {
-    return { icon: <Square size={13} />, color: 'hsl(var(--ink-3))', text: '已终止' };
+    return { icon: <Square size={13} />, color: 'hsl(var(--ink-3))', text: t('shadowPanel.status.stopped') };
   }
   if (job.status === 'failed') {
-    return { icon: <AlertTriangle size={14} />, color: 'hsl(0 64% 51%)', text: job.error || '失败' };
+    return { icon: <AlertTriangle size={14} />, color: 'hsl(0 64% 51%)', text: job.error || t('shadowPanel.status.failed') };
   }
   if (job.decision === 'finished') {
-    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: '通过' };
+    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: t('shadowPanel.status.passed') };
   }
   // decision === 'draft' (issues): prefer the live comment counts when this is the
   // chapter's current review.
@@ -249,22 +247,22 @@ function statusView(job: ShadowJob, review: ReviewInfo): StatusView {
     return {
       icon: <AlertTriangle size={14} />,
       color: review.open > 0 ? 'hsl(32 80% 44%)' : 'hsl(142 42% 40%)',
-      text: `待办 ${review.open} · 已解决 ${review.handled}/${review.total}`,
+      text: t('shadowPanel.status.todos', { open: review.open, handled: review.handled, total: review.total }),
     };
   }
   if (review.actionable && review.total === 0) {
-    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: '待办归零' };
+    return { icon: <CheckCircle2 size={14} />, color: 'hsl(142 42% 40%)', text: t('shadowPanel.status.todosCleared') };
   }
   // Superseded (non-latest) draft review: a newer review for this chapter exists,
   // so its old findings are HISTORY, not actionable 待改 — they may well already be
   // resolved. Don't show the stale orange "N 处待改"; mark it re-reviewed, faded.
   if (!review.isLatest) {
-    return { icon: <RotateCw size={13} />, color: 'hsl(var(--ink-4))', text: '已被复审取代' };
+    return { icon: <RotateCw size={13} />, color: 'hsl(var(--ink-4))', text: t('shadowPanel.status.superseded') };
   }
   return {
     icon: <AlertTriangle size={14} />,
     color: 'hsl(32 80% 44%)',
-    text: `${job.findingCount} 处待改`,
+    text: t('shadowPanel.status.findings', { count: job.findingCount }),
   };
 }
 
@@ -295,6 +293,7 @@ const actionBtn: React.CSSProperties = {
 };
 
 export function ShadowPanel() {
+  const { t } = useTranslation();
   const { projectId, navigateToNode } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const shadowJobs = useDataStore((s) => s.shadowJobs);
@@ -352,14 +351,14 @@ export function ShadowPanel() {
       .then((rules) => {
         if (cancelled) return;
         const m = new Map<string, string>();
-        for (const r of rules) m.set(r.id, ruleLabelOf(r.rawContent));
+        for (const r of rules) m.set(r.id, ruleLabelOf(r.rawContent, t));
         setRuleLabels(m);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, t]);
 
   // Aggregate ops health over ALL this project's jobs (incl. archived — lifetime
   // telemetry) + shadow comments. Cheap derivations; no extra I/O.
@@ -385,9 +384,9 @@ export function ShadowPanel() {
     const topRules = [...freq.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
-      .map(([id, count]) => ({ label: ruleLabels.get(id) ?? '规则', count }));
+      .map(([id, count]) => ({ label: ruleLabels.get(id) ?? t('shadowPanel.ruleFallback'), count }));
     return { doneCount: done.length, passRate, avgMs, activeCount, openTodos, topRules };
-  }, [mine, comments, projectId, ruleLabels]);
+  }, [mine, comments, projectId, ruleLabels, t]);
 
   // Archivable = a settled task the user is done attending to: completed with every
   // 待办 resolved (open === 0), or manually stopped. A running review — or a done
@@ -470,10 +469,10 @@ export function ShadowPanel() {
       (n) => n.projectId === projectId && n.kind === 'chapter' && n.writingStatus === 'finished',
     );
     if (finished.length === 0) return;
-    const list = finished.map((n) => `· ${n.title || '(未命名章节)'}`).join('\n');
+    const list = finished.map((n) => `· ${n.title || t('shadowPanel.untitledChapter')}`).join('\n');
     if (
       !window.confirm(
-        `将对全书以下 ${finished.length} 个已完成章节重新审阅：\n\n${list}\n\n可能消耗较多 token 与时间。继续？`,
+        t('shadowPanel.confirm.sweepBook', { count: finished.length, list }),
       )
     )
       return;
@@ -515,7 +514,7 @@ export function ShadowPanel() {
               lineHeight: 1.5,
             }}
           >
-            暂无 shadow 任务
+            {t('shadowPanel.empty.title')}
             <div
               style={{
                 marginTop: 6,
@@ -526,7 +525,7 @@ export function ShadowPanel() {
                 color: 'hsl(var(--ink-4))',
               }}
             >
-              标记章节「已完成」即触发审阅
+              {t('shadowPanel.empty.sub')}
             </div>
           </div>
         ) : (
@@ -563,7 +562,7 @@ export function ShadowPanel() {
             <button
               type="button"
               onClick={sweepBook}
-              title="对全书已完成章节重新审阅（整书回归）"
+              title={t('shadowPanel.actions.reviewWholeBookTitle')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -577,13 +576,13 @@ export function ShadowPanel() {
                 borderRadius: 4,
               }}
             >
-              <RotateCw size={12} /> 复审全书
+              <RotateCw size={12} /> {t('shadowPanel.actions.reviewWholeBook')}
             </button>
             {archivableCount > 0 && (
               <button
                 type="button"
                 onClick={archiveCompleted}
-                title="归档已处理的任务（已通过/待办已清空/已终止；不含未解决与运行中）"
+                title={t('shadowPanel.actions.archiveCompletedTitle')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -597,7 +596,7 @@ export function ShadowPanel() {
                   borderRadius: 4,
                 }}
               >
-                <Archive size={12} /> 归档已完成
+                <Archive size={12} /> {t('shadowPanel.actions.archiveCompleted')}
               </button>
             )}
           </div>
@@ -613,7 +612,7 @@ export function ShadowPanel() {
               fontStyle: 'italic',
             }}
           >
-            全部已归档
+            {t('shadowPanel.empty.allArchived')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -639,18 +638,18 @@ export function ShadowPanel() {
       </div>
 
       <CollapsibleFooter
-        label="已归档"
+        label={t('shadowPanel.archived.label')}
         count={archived.length}
         expanded={showArchived}
         onExpandedChange={setShowArchived}
-        expandTitle="展开已归档"
-        collapseTitle="收起已归档"
+        expandTitle={t('shadowPanel.archived.expand')}
+        collapseTitle={t('shadowPanel.archived.collapse')}
         headerActions={
           archived.length > 0 ? (
             <button
               type="button"
               onClick={() => void deleteAllArchived()}
-              title="清空已归档"
+              title={t('shadowPanel.archived.clearTitle')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -665,7 +664,7 @@ export function ShadowPanel() {
                 flexShrink: 0,
               }}
             >
-              <Trash2 size={12} /> 清空
+              <Trash2 size={12} /> {t('shadowPanel.archived.clear')}
             </button>
           ) : null
         }
@@ -680,11 +679,11 @@ export function ShadowPanel() {
               padding: '8px 4px',
             }}
           >
-            无已归档任务
+            {t('shadowPanel.empty.noArchived')}
           </div>
         )}
         {archived.map((job) => {
-          const sv = statusView(job, reviewOf(job));
+          const sv = statusView(job, reviewOf(job), t);
           const isOpen = expandedArchived.has(job.id);
           return (
             <div
@@ -725,10 +724,10 @@ export function ShadowPanel() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {job.chapterTitle || '章节'}
+                    {job.chapterTitle || t('shadowPanel.chapterFallback')}
                   </span>
                 </div>
-                <button type="button" onClick={() => deleteOne(job.id)} title="彻底删除" style={iconBtn}>
+                <button type="button" onClick={() => deleteOne(job.id)} title={t('shadowPanel.actions.deletePermanently')} style={iconBtn}>
                   <X size={13} />
                 </button>
               </div>
@@ -743,7 +742,9 @@ export function ShadowPanel() {
                   }}
                 >
                   {job.trace.length === 0 ? (
-                    <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>无轨迹记录</div>
+                    <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
+                      {t('shadowPanel.empty.noTrace')}
+                    </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                       {job.trace.map((step, i) => (
@@ -763,7 +764,7 @@ export function ShadowPanel() {
                               marginTop: 1,
                             }}
                           >
-                            {PHASE_LABEL[step.phase]}
+                            {phaseLabelOf(step.phase, t)}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-1))', fontWeight: 500 }}>
@@ -812,10 +813,14 @@ function StaleSection({
   onReviewAll: () => void;
   onOpen: (chapterId: string) => void;
 }) {
+  const { t } = useTranslation();
   const reason = (r: StaleReview): string => {
     const names = Array.from(new Set(r.changes.map((c) => c.name)));
-    const head = names.slice(0, 3).join('、');
-    return names.length > 3 ? `依据 ${head} 等 ${names.length} 项已改动` : `依据 ${head} 已改动`;
+    if (names.length === 0) return t('shadowPanel.stale.changedUnknown');
+    const head = names.slice(0, 3).join(t('shadowPanel.stale.listSeparator'));
+    return names.length > 3
+      ? t('shadowPanel.stale.manyChanged', { names: head, count: names.length })
+      : t('shadowPanel.stale.changed', { names: head });
   };
   return (
     <div
@@ -839,12 +844,12 @@ function StaleSection({
         }}
       >
         <AlertTriangle size={13} />
-        需复审 · {reviews.length}
+        {t('shadowPanel.stale.needsReview', { count: reviews.length })}
         {reviews.length > 1 && (
           <button
             type="button"
             onClick={onReviewAll}
-            title="重新审阅全部需复审章节"
+            title={t('shadowPanel.stale.reviewAllTitle')}
             style={{
               marginLeft: 'auto',
               display: 'inline-flex',
@@ -860,7 +865,7 @@ function StaleSection({
               borderRadius: 5,
             }}
           >
-            <RotateCw size={11} /> 复审全部
+            <RotateCw size={11} /> {t('shadowPanel.stale.reviewAll')}
           </button>
         )}
       </div>
@@ -878,9 +883,9 @@ function StaleSection({
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                }}
-              >
-                {r.chapterTitle || '章节'}
+              }}
+            >
+                {r.chapterTitle || t('shadowPanel.chapterFallback')}
               </div>
               <div
                 style={{
@@ -898,9 +903,9 @@ function StaleSection({
               type="button"
               onClick={() => onReview(r.chapterId)}
               style={{ ...actionBtn, flexShrink: 0 }}
-              title="重新审阅本章"
+              title={t('shadowPanel.stale.reviewOneTitle')}
             >
-              <RotateCw size={12} /> 复审
+              <RotateCw size={12} /> {t('shadowPanel.stale.reviewOne')}
             </button>
           </div>
         ))}
@@ -932,7 +937,8 @@ function JobCell({
   onPass: () => void;
   onRerun: () => void;
 }) {
-  const sv = statusView(job, review);
+  const { t } = useTranslation();
+  const sv = statusView(job, review, t);
   const running = job.status === 'running';
   // Queued or running → in-flight: offer Stop (cancel). Otherwise → Archive.
   const active = running || job.status === 'queued';
@@ -973,7 +979,7 @@ function JobCell({
                 whiteSpace: 'nowrap',
               }}
             >
-              {job.chapterTitle || '章节'}
+              {job.chapterTitle || t('shadowPanel.chapterFallback')}
             </div>
             <div
               style={{
@@ -989,14 +995,14 @@ function JobCell({
           </div>
         </div>
         <span style={{ fontSize: 10, color: 'hsl(var(--ink-4))', flexShrink: 0 }}>
-          {relTime(job.startedAt)}
+          {relTime(job.startedAt, t)}
         </span>
         {active ? (
-          <button type="button" onClick={onStop} title="终止审阅" style={{ ...iconBtn, color: 'hsl(0 60% 52%)' }}>
+          <button type="button" onClick={onStop} title={t('shadowPanel.actions.stopReview')} style={{ ...iconBtn, color: 'hsl(0 60% 52%)' }}>
             <Square size={13} fill="currentColor" />
           </button>
         ) : (
-          <button type="button" onClick={onArchive} title="归档" style={iconBtn}>
+          <button type="button" onClick={onArchive} title={t('shadowPanel.actions.archive')} style={iconBtn}>
             <Archive size={13} />
           </button>
         )}
@@ -1013,16 +1019,16 @@ function JobCell({
           {review.actionable && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
               {review.open > 0 ? (
-                <button type="button" onClick={onForcePass} style={actionBtn} title="解决全部待办并标记本章完成">
-                  <CheckCircle2 size={12} /> 强制通过（解决 {review.open} 项）
+                <button type="button" onClick={onForcePass} style={actionBtn} title={t('shadowPanel.actions.forcePassTitle')}>
+                  <CheckCircle2 size={12} /> {t('shadowPanel.actions.forcePass', { count: review.open })}
                 </button>
               ) : (
                 <>
                   <button type="button" onClick={onPass} style={{ ...actionBtn, borderColor: 'hsl(142 36% 50%)' }}>
-                    <CheckCircle2 size={12} /> 通过
+                    <CheckCircle2 size={12} /> {t('shadowPanel.actions.pass')}
                   </button>
                   <button type="button" onClick={onRerun} style={actionBtn}>
-                    <RotateCw size={12} /> 重跑
+                    <RotateCw size={12} /> {t('shadowPanel.actions.rerun')}
                   </button>
                 </>
               )}
@@ -1041,7 +1047,7 @@ function JobCell({
               padding: '0 0 6px',
             }}
           >
-            打开章节 →
+            {t('shadowPanel.actions.openChapter')}
           </button>
 
           {verdicts.length > 0 && (
@@ -1063,7 +1069,7 @@ function JobCell({
                 }}
               >
                 {showResult ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                结论（{verdicts.length}）
+                {t('shadowPanel.job.verdicts', { count: verdicts.length })}
               </button>
               {showResult && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 5, paddingLeft: 4 }}>
@@ -1114,10 +1120,10 @@ function JobCell({
                   fontWeight: 600,
                   padding: 0,
                 }}
-                title="本次审阅实际查证的设定/章节（精确依赖边，仅观察）"
+                title={t('shadowPanel.job.consultedTitle')}
               >
                 {showConsulted ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                实际查证（{job.consulted.length}）
+                {t('shadowPanel.job.consulted', { count: job.consulted.length })}
               </button>
               {showConsulted && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6, paddingLeft: 4 }}>
@@ -1137,7 +1143,7 @@ function JobCell({
                       }}
                     >
                       <span style={{ fontSize: 8.5, letterSpacing: '0.04em', color: 'hsl(var(--ink-4))' }}>
-                        {CONSULTED_KIND_LABEL[c.kind]}
+                        {consultedKindLabelOf(c.kind, t)}
                       </span>
                       {c.label}
                     </span>
@@ -1149,7 +1155,7 @@ function JobCell({
 
           {job.trace.length === 0 ? (
             <div style={{ fontSize: 11, color: 'hsl(var(--ink-4))', fontStyle: 'italic' }}>
-              {running ? '审阅进行中…' : '无轨迹记录'}
+              {running ? t('shadowPanel.empty.runningTrace') : t('shadowPanel.empty.noTrace')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -1170,7 +1176,7 @@ function JobCell({
                       marginTop: 1,
                     }}
                   >
-                    {PHASE_LABEL[step.phase]}
+                    {phaseLabelOf(step.phase, t)}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11.5, color: 'hsl(var(--ink-1))', fontWeight: 500 }}>

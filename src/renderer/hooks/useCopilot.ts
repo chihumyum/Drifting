@@ -147,7 +147,7 @@ export function useCopilot({
       // announces its whole arc (started → completed/failed).
       const taskId = `copilot:${cap.id}:${nodeId}:${localFireId}`;
       const chapterTitle =
-        useDataStore.getState().bookNodes.find((n) => n.id === nodeId)?.title || '本章';
+        useDataStore.getState().bookNodes.find((n) => n.id === nodeId)?.title || 'This chapter';
       const taskTitle = `Copilot · ${cap.displayName}`;
       if (forced) {
         events.emit('ai-task', {
@@ -267,8 +267,8 @@ export function useCopilot({
             state: 'completed',
             title: taskTitle,
             detail: persistedAny
-              ? `${results.length} 条建议 · ${chapterTitle}`
-              : `无新建议 · ${chapterTitle}`,
+              ? `${results.length} suggestions · ${chapterTitle}`
+              : `No new suggestions · ${chapterTitle}`,
             chapterId: nodeId,
             count: results.length,
             at: Date.now(),

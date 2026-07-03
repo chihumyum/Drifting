@@ -17,6 +17,7 @@
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { marked } from 'marked';
+import { useTranslation } from 'react-i18next';
 import {
   useSettingsStore,
   AGENT_MODEL_OPTIONS,
@@ -79,6 +80,7 @@ function mdToHtml(text: string): string {
 // ---- Components ------------------------------------------------------------
 
 function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
+  const { t } = useTranslation();
   const icon = msg.status === 'running' ? '◌' : msg.status === 'ok' ? '✓' : '✗';
   const inputStr = useMemo(() => {
     if (msg.input == null) return '';
@@ -100,13 +102,13 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
         <div style={toolBody}>
           {inputStr && (
             <>
-              <div style={toolBodyLabel}>input</div>
+              <div style={toolBodyLabel}>{t('agentPanel.tool.input')}</div>
               <pre style={toolPre}>{inputStr}</pre>
             </>
           )}
           {msg.result && (
             <>
-              <div style={toolBodyLabel}>result</div>
+              <div style={toolBodyLabel}>{t('agentPanel.tool.result')}</div>
               <pre style={toolPre}>{msg.result}</pre>
             </>
           )}
@@ -117,6 +119,7 @@ function ToolRow({ msg }: { msg: Extract<ChatMsg, { kind: 'tool' }> }) {
 }
 
 function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
+  const { t } = useTranslation();
   // Open while the model is thinking; auto-collapse once the block finishes.
   const [open, setOpen] = useState(true);
   const wasStreaming = useRef(msg.streaming);
@@ -133,7 +136,7 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
           setOpen((o) => !o);
         }}
       >
-        💭 思考{msg.streaming ? '中…' : '过程'}
+        💭 {msg.streaming ? t('agentPanel.thinking.streaming') : t('agentPanel.thinking.done')}
       </summary>
       <div style={thinkingBody}>{msg.text}</div>
     </details>
@@ -146,6 +149,7 @@ function ThinkingRow({ msg }: { msg: Extract<ChatMsg, { kind: 'thinking' }> }) {
  * (inline toggle), and reasoning effort (an inline 5-dot meter) in place.
  */
 function ComposerConfig() {
+  const { t } = useTranslation();
   const agentModel = useSettingsStore((s) => s.agentModel);
   const setAgentModel = useSettingsStore((s) => s.setAgentModel);
   const agentThinking = useSettingsStore((s) => s.agentThinking);
@@ -162,7 +166,10 @@ function ComposerConfig() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'main' | 'model' | 'memory'>('main');
 
-  const modelShort = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel)?.short ?? agentModel;
+  const modelOption = AGENT_MODEL_OPTIONS.find((m) => m.value === agentModel);
+  const modelShort = t(`settings.agent.modelOptions.${agentModel}.short`, {
+    defaultValue: modelOption?.short ?? agentModel,
+  });
   const effortShort = AGENT_EFFORT_OPTIONS.find((e) => e.value === agentEffort)?.short ?? agentEffort;
   const effortIdx = AGENT_EFFORT_OPTIONS.findIndex((e) => e.value === agentEffort);
 
@@ -177,8 +184,8 @@ function ComposerConfig() {
         type="button"
         className={'agt-cfg' + (open ? ' agt-cfg--open' : '')}
         onClick={() => setOpen((o) => !o)}
-        title="模型与推理"
-        aria-label="模型与推理设置"
+        title={t('agentPanel.config.title')}
+        aria-label={t('agentPanel.config.aria')}
       >
         <svg
           width="16"
@@ -201,18 +208,18 @@ function ComposerConfig() {
           <div className="agt-menu">
             {view === 'main' ? (
               <>
-                <div className="agt-menu__sec">模型</div>
+                <div className="agt-menu__sec">{t('agentPanel.config.model')}</div>
                 <div className="agt-menu__row agt-menu__row--btn" onClick={() => setView('model')}>
-                  <span>切换模型</span>
+                  <span>{t('agentPanel.config.switchModel')}</span>
                   <span className="agt-menu__val">
                     {modelShort}
                     <span className="agt-menu__caret">›</span>
                   </span>
                 </div>
                 <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">推理</div>
+                <div className="agt-menu__sec">{t('agentPanel.config.reasoning')}</div>
                 <div className="agt-menu__row">
-                  <span>扩展思考</span>
+                  <span>{t('agentPanel.config.extendedThinking')}</span>
                   <button
                     type="button"
                     aria-pressed={agentThinking === 'adaptive'}
@@ -222,7 +229,7 @@ function ComposerConfig() {
                 </div>
                 {agentThinking === 'adaptive' && (
                   <div className="agt-menu__row">
-                    <span>强度 · {effortShort}</span>
+                    <span>{t('agentPanel.config.effort', { effort: effortShort })}</span>
                     <span className="agt-dots">
                       {AGENT_EFFORT_OPTIONS.map((o, i) => (
                         <button
@@ -237,9 +244,9 @@ function ComposerConfig() {
                   </div>
                 )}
                 <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">改动</div>
-                <div className="agt-menu__row" title="开启后，agent 对正文的每处改动都进入审阅，由你逐块确认或还原；关闭则自动应用并以动画揭示。">
-                  <span>审阅改动</span>
+                <div className="agt-menu__sec">{t('agentPanel.config.edits')}</div>
+                <div className="agt-menu__row" title={t('agentPanel.config.reviewEditsTitle')}>
+                  <span>{t('agentPanel.config.reviewEdits')}</span>
                   <button
                     type="button"
                     aria-pressed={agentEditMode === 'approve'}
@@ -248,18 +255,18 @@ function ComposerConfig() {
                   />
                 </div>
                 <div className="agt-menu__divider" />
-                <div className="agt-menu__sec">记忆</div>
+                <div className="agt-menu__sec">{t('agentPanel.config.memory')}</div>
                 <div
                   className="agt-menu__row agt-menu__row--btn"
-                  title="agent 记住的偏好 / 否决 / 指令；会注入到后续对话与 Shadow 审阅。"
+                  title={t('agentPanel.config.memoryTitle')}
                   onClick={() => {
                     void memory.refresh();
                     setView('memory');
                   }}
                 >
-                  <span>管理记忆</span>
+                  <span>{t('agentPanel.config.manageMemory')}</span>
                   <span className="agt-menu__val">
-                    {visibleMemories.length || '无'}
+                    {visibleMemories.length || t('agentPanel.common.none')}
                     <span className="agt-menu__caret">›</span>
                   </span>
                 </div>
@@ -267,7 +274,7 @@ function ComposerConfig() {
             ) : view === 'model' ? (
               <>
                 <div className="agt-menu__back" onClick={() => setView('main')}>
-                  ‹ 模型
+                  ‹ {t('agentPanel.config.model')}
                 </div>
                 {AGENT_MODEL_OPTIONS.map((m) => (
                   <div
@@ -278,7 +285,7 @@ function ComposerConfig() {
                       setView('main');
                     }}
                   >
-                    <span>{m.label}</span>
+                    <span>{t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}</span>
                     {m.value === agentModel && <span className="agt-menu__check">●</span>}
                   </div>
                 ))}
@@ -286,11 +293,11 @@ function ComposerConfig() {
             ) : (
               <>
                 <div className="agt-menu__back" onClick={() => setView('main')}>
-                  ‹ 记忆
+                  ‹ {t('agentPanel.config.memory')}
                 </div>
                 {visibleMemories.length === 0 ? (
                   <div className="agt-menu__row agt-menu__row--empty">
-                    <span style={{ opacity: 0.6 }}>暂无记忆</span>
+                    <span style={{ opacity: 0.6 }}>{t('agentPanel.config.noMemory')}</span>
                   </div>
                 ) : (
                   <div style={{ maxHeight: 280, overflowY: 'auto' }}>
@@ -298,7 +305,11 @@ function ComposerConfig() {
                       <div key={m.id} className="agt-mem">
                         <div className="agt-mem__main">
                           <span className={'agt-mem__kind agt-mem__kind--' + m.kind}>
-                            {m.kind === 'veto' ? '否决' : m.kind === 'directive' ? '指令' : '偏好'}
+                            {m.kind === 'veto'
+                              ? t('agentPanel.memoryKind.veto')
+                              : m.kind === 'directive'
+                                ? t('agentPanel.memoryKind.directive')
+                                : t('agentPanel.memoryKind.preference')}
                           </span>
                           <span className="agt-mem__body" title={m.body}>
                             {m.body}
@@ -309,7 +320,7 @@ function ComposerConfig() {
                             <button
                               type="button"
                               className="agt-mem__btn"
-                              title="批准（开始生效）"
+                              title={t('agentPanel.config.approveMemory')}
                               onClick={() => void memory.approve(m.id)}
                             >
                               ✓
@@ -318,7 +329,7 @@ function ComposerConfig() {
                           <button
                             type="button"
                             className="agt-mem__btn agt-mem__btn--del"
-                            title="删除"
+                            title={t('common.delete')}
                             onClick={() => void memory.remove(m.id)}
                           >
                             ✕
@@ -391,6 +402,7 @@ function fmtMs(ms: number): string {
  * cost is dominated by output/thinking, not input re-processing.
  */
 function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
+  const { t } = useTranslation();
   const inTok = msg.inputTokens + msg.cacheReadTokens + msg.cacheCreationTokens;
   const hasTiming = msg.durationMs != null;
   const localMs =
@@ -398,13 +410,24 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
       ? Math.max(0, msg.durationMs - msg.durationApiMs)
       : null;
   const title =
-    `本轮用量\n` +
-    `输入 ${inTok}（缓存读 ${msg.cacheReadTokens} · 缓存写 ${msg.cacheCreationTokens} · 净算 ${msg.inputTokens}）\n` +
-    `输出 ${msg.outputTokens} · 轮次 ${msg.turns}` +
+    `${t('agentPanel.usage.turnUsage')}\n` +
+    `${t('agentPanel.usage.inputDetail', {
+      input: inTok,
+      cacheRead: msg.cacheReadTokens,
+      cacheWrite: msg.cacheCreationTokens,
+      net: msg.inputTokens,
+    })}\n` +
+    `${t('agentPanel.usage.outputTurns', {
+      output: msg.outputTokens,
+      turns: msg.turns,
+    })}` +
     (msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : '') +
     (hasTiming
-      ? `\n总耗时 ${msg.durationMs}ms · API ${msg.durationApiMs}ms · 本地 ${localMs}ms` +
-        `\n（总≈API → 慢在模型侧；缓存读高且缓存写≈0 → 前缀已缓存，每轮成本在输出/思考）`
+      ? `\n${t('agentPanel.usage.timingDetail', {
+          total: msg.durationMs,
+          api: msg.durationApiMs,
+          local: localMs,
+        })}` + `\n${t('agentPanel.usage.timingHint')}`
       : '');
   return (
     <div style={usageRow} title={title}>
@@ -412,7 +435,7 @@ function UsageRow({ msg }: { msg: Extract<ChatMsg, { kind: 'usage' }> }) {
       {msg.costUsd > 0 ? ` · ${fmtCost(msg.costUsd)}` : ''}
       {hasTiming ? ` · ⏱${fmtMs(msg.durationMs!)}` : ''}
       {hasTiming && msg.durationApiMs != null ? ` (api ${fmtMs(msg.durationApiMs)})` : ''}
-      {msg.turns > 0 ? ` · ${msg.turns}轮` : ''}
+      {msg.turns > 0 ? ` · ${t('agentPanel.usage.turnsShort', { count: msg.turns })}` : ''}
       {msg.cacheReadTokens > 0 ? ` · ⚡${fmtTokens(msg.cacheReadTokens)}` : ''}
     </div>
   );
@@ -428,16 +451,17 @@ const ENTITY_GLYPH: Record<ActivityEntityType, string> = {
 function entityRefName(
   s: ReturnType<typeof useDataStore.getState>,
   ref: ToolEntityRef,
+  deletedLabel: string,
 ): string {
   switch (ref.entityType) {
     case 'node':
-      return s.bookNodes.find((n) => n.id === ref.id)?.title || '（已删除）';
+      return s.bookNodes.find((n) => n.id === ref.id)?.title || deletedLabel;
     case 'element':
-      return s.bookElements.find((e) => e.id === ref.id)?.name || '（已删除）';
+      return s.bookElements.find((e) => e.id === ref.id)?.name || deletedLabel;
     case 'storyline':
-      return s.storylines.find((sl) => sl.id === ref.id)?.name || '（已删除）';
+      return s.storylines.find((sl) => sl.id === ref.id)?.name || deletedLabel;
     case 'category':
-      return s.bookElementCategories.find((c) => c.id === ref.id)?.name || '（已删除）';
+      return s.bookElementCategories.find((c) => c.id === ref.id)?.name || deletedLabel;
     default:
       return ref.id;
   }
@@ -451,12 +475,16 @@ function EntityLinkChip({
   refItem: ToolEntityRef;
   onOpen: (ref: ToolEntityRef) => void;
 }) {
-  const name = useDataStore((s) => entityRefName(s, refItem));
+  const { t } = useTranslation();
+  const deletedLabel = t('common.deleted_paren');
+  const name = useDataStore((s) => entityRefName(s, refItem, deletedLabel));
   return (
     <button type="button" className="agt-entity-chip" onClick={() => onOpen(refItem)}>
       <span className="agt-entity-chip__glyph">{ENTITY_GLYPH[refItem.entityType]}</span>
       <span>{name}</span>
-      <span className="agt-entity-chip__op">{refItem.op === 'create' ? '新建' : '已改'}</span>
+      <span className="agt-entity-chip__op">
+        {refItem.op === 'create' ? t('agentPanel.entity.created') : t('agentPanel.entity.edited')}
+      </span>
     </button>
   );
 }
@@ -469,6 +497,7 @@ function EntityLinkChip({
  * the count starts fresh whenever the model drops back into思考.
  */
 function PendingRow() {
+  const { t } = useTranslation();
   const [secs, setSecs] = useState(0);
   useEffect(() => {
     const start = Date.now();
@@ -480,7 +509,11 @@ function PendingRow() {
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
       <span className="agt-pending__dot" />
-      <span>{secs > 0 ? `思考中 · ${secs}s` : '思考中…'}</span>
+      <span>
+        {secs > 0
+          ? t('agentPanel.pending.withSeconds', { seconds: secs })
+          : t('agentPanel.pending.now')}
+      </span>
     </div>
   );
 }
@@ -514,12 +547,13 @@ const MessageView = memo(function MessageView({ msg }: { msg: ChatMsg }) {
 });
 
 function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items'] }) {
+  const { t } = useTranslation();
   if (items.length === 0) return null;
   const done = items.filter((t) => t.status === 'completed').length;
   return (
     <div style={todoBox}>
       <div style={todoHead}>
-        <span>计划</span>
+        <span>{t('agentPanel.todos.plan')}</span>
         <span style={{ opacity: 0.7 }}>
           {done}/{items.length}
         </span>
@@ -549,6 +583,7 @@ function TodoList({ items }: { items: Extract<ChatMsg, { kind: 'todos' }>['items
 }
 
 export function CompanionPanel({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const api = window.electronAPI?.agent;
   const agentAuth = useSettingsStore((s) => s.agentAuth);
 
@@ -736,7 +771,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   // The active conversation's summary (gives the current session's title). Null
   // until the first turn persists a row — a fresh chat has no name to rename.
   const activeConv = convList.find((c) => c.id === activeConvId) ?? null;
-  const sessionName = activeConv ? activeConv.title || '未命名' : '新对话';
+  const sessionName = activeConv ? activeConv.title || t('common.untitled') : t('agentPanel.newConversation');
   // Title of the conversation whose turn is running in the background (if any),
   // for the "switch to the running conversation" banner.
   const runningConv = otherRunning
@@ -793,20 +828,29 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       setRevertNote(null);
       try {
         const r = await revertToTurn(projectId, turnId);
-        const parts = [`已回退 ${r.turns} 轮`];
-        if (r.blocks) parts.push(`${r.blocks} 处正文`);
-        if (r.fields) parts.push(`${r.fields} 个字段`);
+        const parts = [t('agentPanel.revert.turns', { count: r.turns })];
+        if (r.blocks) parts.push(t('agentPanel.revert.blocks', { count: r.blocks }));
+        if (r.fields) parts.push(t('agentPanel.revert.fields', { count: r.fields }));
         setRevertNote(
-          r.skipped.length ? `${parts.join(' · ')}；${r.skipped.length} 项无法自动还原` : parts.join(' · '),
+          r.skipped.length
+            ? t('agentPanel.revert.partial', {
+                summary: parts.join(' · '),
+                count: r.skipped.length,
+              })
+            : parts.join(' · '),
         );
       } catch (err) {
-        setRevertNote(`回退失败：${err instanceof Error ? err.message : String(err)}`);
+        setRevertNote(
+          t('agentPanel.revert.failed', {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
       } finally {
         setReverting(false);
         setConfirmTurnId(null);
       }
     },
-    [projectId],
+    [projectId, t],
   );
 
   const beginHeaderRename = useCallback(() => {
@@ -837,10 +881,10 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   );
 
   if (!api) {
-    return <div style={hintBox}>Agent 不可用。</div>;
+    return <div style={hintBox}>{t('agentPanel.unavailable')}</div>;
   }
   if (status === null) {
-    return <div style={hintBox}>Checking…</div>;
+    return <div style={hintBox}>{t('agentPanel.checking')}</div>;
   }
 
   const usable =
@@ -854,20 +898,20 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
   if (!usable) {
     const notConnectedText =
       agentAuth === 'hosted'
-        ? '当前为「托管订阅」模式,但尚未就绪。前往设置登录并开通订阅。'
+        ? t('agentPanel.setup.hosted')
         : agentAuth === 'apikey'
-          ? '当前为「Anthropic API Key」模式,但还没填写密钥。前往设置填入你的 API Key。'
-          : '当前为「自带 Claude 账号」模式,但还没连接。前往设置连接你的 Claude 账号(Max/Pro)。';
+          ? t('agentPanel.setup.apiKey')
+          : t('agentPanel.setup.byok');
     return (
       <div style={hintBox}>
-        <div style={hintTitle}>Agent 未连接</div>
+        <div style={hintTitle}>{t('agentPanel.setup.title')}</div>
         <div style={hintText}>{notConnectedText}</div>
         <button
           type="button"
           style={primaryBtn}
           onClick={() => events.emit('settings:open', { railId: 'agent' })}
         >
-          前往设置
+          {t('agentPanel.setup.openSettings')}
         </button>
       </div>
     );
@@ -903,7 +947,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             style={sessionNameBtn}
             onClick={beginHeaderRename}
             disabled={!activeConv}
-            title={activeConv ? '点击重命名当前对话' : undefined}
+            title={activeConv ? t('agentPanel.toolbar.renameTitle') : undefined}
           >
             {sessionName}
           </button>
@@ -918,9 +962,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 setShowHistory(false);
                 setConfirmTurnId(null);
               }}
-              title="回退到某一轮 agent 改动之前"
+              title={t('agentPanel.toolbar.snapshotsTitle')}
             >
-              ↺ 快照 · {checkpoints.length}
+              ↺ {t('agentPanel.toolbar.snapshots', { count: checkpoints.length })}
             </button>
           )}
           <button
@@ -930,12 +974,13 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               setShowHistory((s) => !s);
               setShowSnapshots(false);
             }}
-            title="历史对话"
+            title={t('agentPanel.toolbar.historyTitle')}
           >
-            ☰ 历史{convList.length ? ` · ${convList.length}` : ''}
+            ☰ {t('agentPanel.toolbar.history')}
+            {convList.length ? ` · ${convList.length}` : ''}
           </button>
-          <button type="button" style={ghostBtn} onClick={handleNew} title="开始新对话">
-            ＋ 新对话
+          <button type="button" style={ghostBtn} onClick={handleNew} title={t('agentPanel.toolbar.newTitle')}>
+            ＋ {t('agentPanel.newConversation')}
           </button>
         </div>
       </div>
@@ -948,7 +993,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             </div>
           )}
           {checkpoints.length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无可回退的改动快照</div>
+            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
+              {t('agentPanel.snapshots.empty')}
+            </div>
           ) : (
             checkpoints.map((cp, i) => {
               const entityCount = Object.keys(cp.entities).length;
@@ -960,10 +1007,14 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
               return (
                 <div key={cp.turnId} style={historyItem}>
                   <span style={historyTitle} title={cp.label}>
-                    {cp.label || '(空指令)'}
+                    {cp.label || t('agentPanel.snapshots.emptyInstruction')}
                   </span>
                   <span style={historyTime}>
-                    {relTime(new Date(cp.ts).toISOString())} · {changeCount} 处 / {entityCount} 实体
+                    {relTime(new Date(cp.ts).toISOString())} ·{' '}
+                    {t('agentPanel.snapshots.meta', {
+                      changes: changeCount,
+                      entities: entityCount,
+                    })}
                   </span>
                   {confirming ? (
                     <>
@@ -973,12 +1024,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                         disabled={reverting}
                         title={
                           i === 0
-                            ? '撤销这一轮的全部改动'
-                            : `撤销这一轮及其后 ${i} 轮的全部改动`
+                            ? t('agentPanel.snapshots.revertThisTitle')
+                            : t('agentPanel.snapshots.revertThisAndAfterTitle', { count: i })
                         }
                         onClick={() => void handleRevert(cp.turnId)}
                       >
-                        {reverting ? '回退中…' : '确认回退'}
+                        {reverting ? t('agentPanel.snapshots.reverting') : t('agentPanel.snapshots.confirmRevert')}
                       </button>
                       <button
                         type="button"
@@ -986,7 +1037,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                         disabled={reverting}
                         onClick={() => setConfirmTurnId(null)}
                       >
-                        取消
+                        {t('common.cancel')}
                       </button>
                     </>
                   ) : (
@@ -996,12 +1047,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                       disabled={reverting || running || otherRunning}
                       title={
                         running || otherRunning
-                          ? 'agent 正在运行，结束后才能回退'
-                          : '回退到这一轮改动之前'
+                          ? t('agentPanel.snapshots.runningTitle')
+                          : t('agentPanel.snapshots.revertBeforeTitle')
                       }
                       onClick={() => setConfirmTurnId(cp.turnId)}
                     >
-                      ↺ 回退
+                      ↺ {t('agentPanel.snapshots.revert')}
                     </button>
                   )}
                 </div>
@@ -1014,7 +1065,9 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
       {showHistory && (
         <div style={historyPanel} ref={historyPanelRef}>
           {convList.length === 0 ? (
-            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>暂无历史对话</div>
+            <div style={{ padding: 12, opacity: 0.5, fontSize: 12 }}>
+              {t('agentPanel.history.empty')}
+            </div>
           ) : (
             convList.map((c) =>
               editingItemId === c.id ? (
@@ -1043,12 +1096,12 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   style={{ ...historyItem, ...(c.id === activeConvId ? historyItemActive : null) }}
                   onClick={() => handleLoad(c.id)}
                 >
-                  <span style={historyTitle}>{c.title || '未命名'}</span>
+                  <span style={historyTitle}>{c.title || t('agentPanel.history.untitled')}</span>
                   <span style={historyTime}>{relTime(c.updatedAt)}</span>
                   <button
                     type="button"
                     style={historyAct}
-                    title="重命名"
+                    title={t('agentPanel.history.rename')}
                     onClick={(e) => beginItemRename(c, e)}
                   >
                     ✎
@@ -1056,7 +1109,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                   <button
                     type="button"
                     style={historyAct}
-                    title="删除对话"
+                    title={t('agentPanel.history.delete')}
                     onClick={(e) => handleDelete(c.id, e)}
                   >
                     ×
@@ -1072,7 +1125,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
         <div ref={logRef} style={logStyle} onScroll={onScroll}>
           {messages.length === 0 ? (
             <div style={{ opacity: 0.5 }}>
-              给 Agent 发条消息开始。它可以读写本项目的章节、元素与关系。
+              {t('agentPanel.empty.start')}
             </div>
           ) : (
             messages.map((m, i) => <MessageView key={i} msg={m} />)
@@ -1080,7 +1133,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           {waiting && <PendingRow />}
           {turnRefs.length > 0 && (
             <div className="agt-entity-links">
-              <span style={{ opacity: 0.55, fontSize: 11 }}>本轮改动</span>
+              <span style={{ opacity: 0.55, fontSize: 11 }}>{t('agentPanel.turnChanges')}</span>
               {turnRefs.map((r) => (
                 <EntityLinkChip key={`${r.entityType}:${r.id}`} refItem={r} onOpen={openRef} />
               ))}
@@ -1088,20 +1141,20 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
           )}
         </div>
         {!atBottom && (
-          <button type="button" style={jumpBtn} onClick={jumpToBottom} title="回到最新">
+          <button type="button" style={jumpBtn} onClick={jumpToBottom} title={t('agentPanel.jumpLatest')}>
             ↓
           </button>
         )}
       </div>
 
       {(sessionUsage.outTok > 0 || sessionUsage.tools > 0) && (
-        <div style={usageFooter} title="本会话累计 token / 费用 / 工具调用次数">
-          <span style={{ opacity: 0.7 }}>本会话</span>
+        <div style={usageFooter} title={t('agentPanel.usage.sessionTitle')}>
+          <span style={{ opacity: 0.7 }}>{t('agentPanel.usage.session')}</span>
           <span>
             ↑{fmtTokens(sessionUsage.inTok)} ↓{fmtTokens(sessionUsage.outTok)}
           </span>
           {sessionUsage.cost > 0 && <span>{fmtCost(sessionUsage.cost)}</span>}
-          <span>{sessionUsage.tools} 次工具</span>
+          <span>{t('agentPanel.usage.toolsCount', { count: sessionUsage.tools })}</span>
         </div>
       )}
 
@@ -1111,11 +1164,13 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             type="button"
             className="agt-otherrun"
             onClick={() => handleLoad(runningConvId)}
-            title="切换到正在运行的对话"
+            title={t('agentPanel.running.switchTitle')}
           >
             <span className="agt-otherrun__dot" />
             <span className="agt-otherrun__text">
-              Agent 正在「{runningConv?.title || '另一个对话'}」中工作 · 查看
+              {t('agentPanel.running.message', {
+                title: runningConv?.title || t('agentPanel.running.otherConversation'),
+              })}
             </span>
           </button>
         )}
@@ -1131,7 +1186,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 handleSend();
               }
             }}
-            placeholder="Ask the agent… (Cmd/Ctrl+Enter)"
+            placeholder={t('agentPanel.composer.placeholder')}
             rows={1}
           />
           <div className="agt-composer__bar">
@@ -1139,7 +1194,7 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
             <div className="agt-composer__spacer" />
             {running ? (
               <button type="button" className="agt-send agt-send--stop" onClick={abort}>
-                Stop
+                {t('agentPanel.composer.stop')}
               </button>
             ) : otherRunning ? (
               <button
@@ -1147,13 +1202,13 @@ export function CompanionPanel({ projectId }: { projectId: string }) {
                 className="agt-send"
                 disabled
                 style={{ opacity: 0.45, cursor: 'not-allowed' }}
-                title="Agent 正在另一个对话中工作,完成后可继续"
+                title={t('agentPanel.running.disabledTitle')}
               >
-                Send
+                {t('agentPanel.composer.send')}
               </button>
             ) : (
               <button type="button" className="agt-send" onClick={handleSend}>
-                Send
+                {t('agentPanel.composer.send')}
               </button>
             )}
           </div>

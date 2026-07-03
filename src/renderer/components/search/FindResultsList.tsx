@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // One result row: a one-line context snippet with the matched substring marked,
 // plus the index of the underlying match (so the owner can navigate/highlight)
@@ -58,6 +59,7 @@ export function FindResultsList({
   showGroups = false,
   totalCount,
 }: FindResultsListProps) {
+  const { t } = useTranslation();
   const activeRef = useRef<HTMLButtonElement>(null);
 
   // Keep the focused row visible as the user steps through matches.
@@ -99,7 +101,9 @@ export function FindResultsList({
         );
       })}
       {totalCount > MAX_ROWS && (
-        <div className="find-list-more">仅显示前 {MAX_ROWS} 条 · 共 {totalCount} 条</div>
+        <div className="find-list-more">
+          {t('findResults.truncated', { shown: MAX_ROWS, total: totalCount })}
+        </div>
       )}
     </div>
   );

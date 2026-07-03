@@ -12,12 +12,14 @@
  */
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../store/settings-store';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
 import { ShadowRulesSection } from './dashboard/ShadowRulesSection';
 import '../../styles/copilot-surface.css';
 
 export function ShadowQuickMenu() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // Button rect captured on open (reading the ref in render is disallowed). Drives
   // the portaled panel's fixed position, same as CopilotBottomMenu.
@@ -83,15 +85,15 @@ export function ShadowQuickMenu() {
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
               <ToggleRow
-                label="完成时自动审阅"
-                desc="标记章节「已完成」时自动审阅；关闭则直接置为完成，可随时手动复审"
+                label={t('shadowQuickMenu.autoReview')}
+                desc={t('shadowQuickMenu.autoReviewDesc')}
                 checked={autoRun}
                 onChange={setAutoRun}
               />
 
               <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
               <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
-                规则
+                {t('shadowQuickMenu.rules')}
               </div>
               {projectId ? (
                 <ShadowRulesSection projectId={projectId} embedded />
@@ -104,7 +106,7 @@ export function ShadowQuickMenu() {
                     padding: '4px 2px',
                   }}
                 >
-                  打开一个项目后可编辑 Shadow 规则
+                  {t('shadowQuickMenu.noProject')}
                 </div>
               )}
             </div>

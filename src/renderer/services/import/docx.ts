@@ -82,7 +82,7 @@ export async function parseDocx(file: File): Promise<ParsedDoc> {
   const html = result.value;
   const doc = generateJSON(html, PARSER_EXTENSIONS) as JSONContent;
   const warnings: string[] = [];
-  if (/<img\b/i.test(html)) warnings.push('图片未导入（编辑器暂不支持嵌入图片）。');
+  if (/<img\b/i.test(html)) warnings.push('Images were not imported because the editor does not support embedded images yet.');
   for (const m of result.messages ?? []) {
     if (m.type === 'warning') warnings.push(m.message);
   }

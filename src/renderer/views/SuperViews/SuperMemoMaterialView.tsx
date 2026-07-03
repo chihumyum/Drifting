@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { ChevronUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { isChapter } from '../../domain/book-node';
 import { useUiStore } from '../../store/ui-store';
@@ -23,7 +24,6 @@ import {
   LibraryItemFullscreenPreview,
   TextSnippetPopover,
   TodoCard,
-  LIBRARY_ITEM_KIND_LABEL,
   type FocusedEntity,
 } from '../../components/rightBars/MemoMaterialPanel';
 import { EntityRelationPicker } from '../../components/rightBars/EntityRelationPicker';
@@ -67,6 +67,7 @@ const NO_DRAG_REGION: CSSProperties = {
  * All cards reuse the right-sidebar primitives so actions stay in sync.
  */
 export function SuperMemoMaterialView() {
+  const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const setActiveSuperView = useUiStore((s) => s.setActiveSuperView);
@@ -199,8 +200,8 @@ export function SuperMemoMaterialView() {
     const path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
     if (!path) return;
     const res = await window.electronAPI.material.openLocal(path);
-    if (!res.ok) alert(`无法打开文件：${res.error}`);
-  }, []);
+    if (!res.ok) alert(t('memoMaterial.error.openFile', { error: res.error }));
+  }, [t]);
 
   const openLibraryItemInApp = useCallback((m: LibraryItem) => {
     if (m.kind === 'url') {
@@ -252,14 +253,17 @@ export function SuperMemoMaterialView() {
           LibraryItemMain section header so the global header stays focused
           on cross-cutting controls. */}
       <SuperViewHeader
-        title="TODO & 素材库"
-        meta={`${comments.filter((c) => c.kind === 'todo').length} TODO · ${libraryItems.length} 素材`}
+        title={t('memoMaterial.super.title')}
+        meta={t('memoMaterial.super.meta', {
+          todos: comments.filter((c) => c.kind === 'todo').length,
+          materials: libraryItems.length,
+        })}
         onBack={closeView}
         rightSlot={
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索标题或正文…"
+            placeholder={t('memoMaterial.super.searchPlaceholder')}
             style={{
               width: 220,
               fontFamily: 'var(--font-serif)',
@@ -423,10 +427,11 @@ function KindChip({
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onClick}
-      title={active ? '点击隐藏此 kind' : '点击显示'}
+      title={active ? t('memoMaterial.super.hideKind') : t('memoMaterial.super.showKind')}
       style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 9.5,
@@ -462,12 +467,13 @@ function EntityFilterButton({
   entityFilter: FocusedEntity;
   onChange: (next: FocusedEntity) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const { bookNodes, bookElements, storylines, bookElementCategories } = useDataStore();
 
   const label = useMemo(() => {
-    if (!entityFilter.kind || !entityFilter.id) return '全部';
+    if (!entityFilter.kind || !entityFilter.id) return t('memoMaterial.super.all');
     const { kind, id } = entityFilter;
     if (kind === 'node') {
       const n = bookNodes.find((x) => x.id === id);
@@ -480,7 +486,7 @@ function EntityFilterButton({
     if (kind === 'category')
       return bookElementCategories.find((x) => x.id === id)?.name || id;
     return id;
-  }, [entityFilter, bookNodes, bookElements, storylines, bookElementCategories]);
+  }, [entityFilter, bookNodes, bookElements, storylines, bookElementCategories, t]);
 
   const selected = useMemo(
     () =>
@@ -492,7 +498,7 @@ function EntityFilterButton({
 
   return (
     <>
-      <span style={kickerStyle}>关联</span>
+      <span style={kickerStyle}>{t('memoMaterial.super.relations')}</span>
       <button
         ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
@@ -514,7 +520,11 @@ function EntityFilterButton({
           whiteSpace: 'nowrap',
           ...NO_DRAG_REGION,
         }}
-        title={entityFilter.kind ? `仅显示与 "${label}" 关联的条目` : '限定到某个实体'}
+        title={
+          entityFilter.kind
+            ? t('memoMaterial.super.entityFilterActiveTitle', { label })
+            : t('memoMaterial.super.entityFilterTitle')
+        }
       >
         <span
           style={{
@@ -529,7 +539,7 @@ function EntityFilterButton({
         {entityFilter.kind ? (
           <span
             role="button"
-            aria-label="清除关联过滤"
+            aria-label={t('memoMaterial.super.clearEntityFilter')}
             onClick={(e) => {
               e.stopPropagation();
               onChange({ kind: null, id: null });
@@ -583,7 +593,7 @@ function EntityFilterButton({
                 marginBottom: 6,
               }}
             >
-              选择实体后只显示关联的备忘 / 材料
+              {t('memoMaterial.super.entityFilterHint')}
             </div>
             <EntityRelationPicker
               selected={selected}
@@ -623,6 +633,7 @@ function TodoRail({
   }>;
   onCompose: () => void;
 }) {
+  const { t } = useTranslation();
   const renderTodo = (todo: Comment) => {
     const relations = entityRelations
       .filter((r) => r.fromKind === 'comment' && r.fromId === todo.id)
@@ -666,7 +677,7 @@ function TodoRail({
         count={openTodos.length}
         accent={openTodos.length > 0 ? 'hsl(var(--story-2))' : undefined}
         action={
-          <button onClick={onCompose} style={ghostBtnStyle} title="新建 TODO">
+          <button onClick={onCompose} style={ghostBtnStyle} title={t('memoMaterial.dialog.newTodo')}>
             ＋
           </button>
         }
@@ -684,7 +695,7 @@ function TodoRail({
         }}
       >
         {openTodos.length === 0 && (
-          <RailEmpty hint="点击 ＋ 新建 TODO，或在编辑器批注卡上 ↗ 升格为 TODO" />
+          <RailEmpty hint={t('memoMaterial.super.todoEmptyHint')} />
         )}
         {openTodos.map(renderTodo)}
       </div>
@@ -819,6 +830,7 @@ function LibraryItemMain({
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
   onCompose: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -845,7 +857,7 @@ function LibraryItemMain({
           background: 'hsl(var(--paper))',
         }}
       >
-        <span style={kickerStyle}>MATERIAL</span>
+        <span style={kickerStyle}>{t('memoMaterial.super.material')}</span>
         <span
           style={{
             fontFamily: 'var(--font-mono)',
@@ -858,7 +870,7 @@ function LibraryItemMain({
 
         <ToolbarDivider />
 
-        <span style={kickerStyle}>KIND</span>
+        <span style={kickerStyle}>{t('memoMaterial.super.kind')}</span>
         <div style={{ display: 'flex', gap: 4 }}>
           {KIND_ORDER.map((k) => (
             <KindChip
@@ -867,7 +879,7 @@ function LibraryItemMain({
               count={kindCounts[k] ?? 0}
               onClick={() => onToggleKind(k)}
             >
-              {LIBRARY_ITEM_KIND_LABEL[k]}
+              {t(`memoMaterial.kind.${k}`, { defaultValue: k })}
             </KindChip>
           ))}
         </div>
@@ -893,7 +905,7 @@ function LibraryItemMain({
         </span>
         <button
           onClick={onCompose}
-          title="新建材料"
+          title={t('memoMaterial.dialog.newMaterial')}
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
@@ -906,7 +918,7 @@ function LibraryItemMain({
             letterSpacing: '0.08em',
           }}
         >
-          ＋ 新建材料
+          {t('memoMaterial.super.newMaterialButton')}
         </button>
       </div>
 
@@ -932,7 +944,7 @@ function LibraryItemMain({
           >
             {totalLibraryItems === 0 ? (
               <>
-                <div>项目里还没有材料。</div>
+                <div>{t('memoMaterial.super.noMaterials')}</div>
                 <button
                   onClick={onCompose}
                   style={{
@@ -948,11 +960,11 @@ function LibraryItemMain({
                     letterSpacing: '0.08em',
                   }}
                 >
-                  ＋ 新建材料
+                  {t('memoMaterial.super.newMaterialButton')}
                 </button>
               </>
             ) : (
-              '当前过滤条件下没有匹配的材料。'
+              t('memoMaterial.super.noFilteredMaterials')
             )}
           </div>
         )}
@@ -1010,6 +1022,7 @@ function KindGroup({
   openLibraryItemInApp: (m: LibraryItem) => void;
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   return (
     <section style={{ marginBottom: 18 }}>
       <div
@@ -1023,7 +1036,7 @@ function KindGroup({
           borderBottom: '1px dashed hsl(var(--rule))',
         }}
       >
-        <span>{LIBRARY_ITEM_KIND_LABEL[kind]}</span>
+        <span>{t(`memoMaterial.kind.${kind}`, { defaultValue: kind })}</span>
         <span style={{ color: 'hsl(var(--ink-4))' }}>{items.length}</span>
       </div>
       <div
@@ -1089,6 +1102,7 @@ function BottomDrawer({
   openLibraryItemInApp: (m: LibraryItem) => void;
   openLibraryItemInSystem: (m: LibraryItem) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -1175,16 +1189,16 @@ function BottomDrawer({
           flexShrink: 0,
         }}
         aria-expanded={expanded}
-        title={expanded ? '收起抽屉' : '展开抽屉'}
+        title={expanded ? t('memoMaterial.super.collapseDrawer') : t('memoMaterial.super.expandDrawer')}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span>
-            待整理{' '}
+            {t('memoMaterial.super.orphans')}{' '}
             <span style={{ color: 'hsl(var(--ink-4))' }}>{orphans.length}</span>
           </span>
           <span style={{ color: 'hsl(var(--ink-5))' }}>·</span>
           <span>
-            已解决{' '}
+            {t('memoMaterial.super.resolved')}{' '}
             <span style={{ color: 'hsl(var(--ink-4))' }}>{resolvedTodos.length}</span>
           </span>
         </span>
@@ -1218,7 +1232,7 @@ function BottomDrawer({
               background: 'hsl(var(--paper))',
             }}
           >
-            <SubHeader kicker="待整理 · 无关联材料" count={orphans.length} />
+            <SubHeader kicker={t('memoMaterial.super.orphanHeader')} count={orphans.length} />
             <div
               className="smm-scroll"
               style={{
@@ -1244,7 +1258,7 @@ function BottomDrawer({
                     textAlign: 'center',
                   }}
                 >
-                  所有材料都已关联到至少一个实体。
+                  {t('memoMaterial.super.noOrphans')}
                 </div>
               )}
               {orphans.map((mat) => (
@@ -1278,7 +1292,7 @@ function BottomDrawer({
               background: 'hsl(var(--paper))',
             }}
           >
-            <SubHeader kicker="已解决 · TODO 归档" count={resolvedTodos.length} />
+            <SubHeader kicker={t('memoMaterial.super.resolvedHeader')} count={resolvedTodos.length} />
             <div
               className="smm-scroll"
               style={{
@@ -1302,7 +1316,7 @@ function BottomDrawer({
                     textAlign: 'center',
                   }}
                 >
-                  暂无已完成的 TODO。
+                  {t('memoMaterial.super.noResolvedTodos')}
                 </div>
               )}
               {resolvedTodos.map((c) => (
@@ -1358,6 +1372,7 @@ function ResolvedTodoRow({
   onReopen: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const text = extractTextFromCommentBody(todo.bodyJson);
   return (
     <div
@@ -1394,11 +1409,11 @@ function ResolvedTodoRow({
         }}
         title={text}
       >
-        {text || '(空 TODO)'}
+        {text || t('memoMaterial.todo.empty')}
       </div>
       <button
         onClick={onReopen}
-        title="重新打开"
+        title={t('memoMaterial.archive.reopen')}
         style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 9.5,
@@ -1410,11 +1425,11 @@ function ResolvedTodoRow({
           cursor: 'pointer',
         }}
       >
-        重开
+        {t('memoMaterial.super.reopenShort')}
       </button>
       <button
         onClick={onDelete}
-        title="删除"
+        title={t('common.delete')}
         style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 11,
@@ -1430,4 +1445,3 @@ function ResolvedTodoRow({
     </div>
   );
 }
-

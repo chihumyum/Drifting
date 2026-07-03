@@ -9,6 +9,7 @@
  */
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react';
 import {
   useSettingsStore,
@@ -22,9 +23,9 @@ import { events } from '../../lib/events';
 import '../../../styles/copilot-surface.css';
 
 const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
-  { value: 'auto', label: '跟随手稿' },
-  { value: 'zh-CN', label: '简体中文' },
-  { value: 'zh-TW', label: '繁體中文' },
+  { value: 'auto', label: 'Follow manuscript' },
+  { value: 'zh-CN', label: 'Simplified Chinese' },
+  { value: 'zh-TW', label: 'Traditional Chinese' },
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
@@ -32,6 +33,7 @@ const OUTPUT_LANG_OPTIONS: { value: CopilotOutputLang; label: string }[] = [
 ];
 
 export function CopilotBottomMenu() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   // Button rect captured on open (in the click handler — reading the ref in
   // render is disallowed). Drives the portaled panel's fixed position.
@@ -92,8 +94,8 @@ export function CopilotBottomMenu() {
             />
             <div onMouseDown={(e) => e.stopPropagation()} style={panelStyle}>
           <ToggleRow
-            label="自动触发"
-            desc="编辑时后台自动运行任务；⇧⌘I 手动触发始终可用"
+            label={t('settings.copilot.autoTrigger')}
+            desc={t('settings.copilot.autoTriggerDesc')}
             checked={autoTrigger}
             onChange={setAutoTrigger}
           />
@@ -109,9 +111,9 @@ export function CopilotBottomMenu() {
               }}
             >
               <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>输出语言</span>
+                <span style={{ fontSize: 13, color: 'var(--copilot-text)' }}>{t('settings.copilot.outputLang')}</span>
                 <span style={{ fontSize: 10.5, color: 'var(--copilot-text-dim)', lineHeight: 1.3 }}>
-                  本项目 Copilot 生成语言
+                  {t('settings.copilot.outputLangDesc')}
                 </span>
               </span>
               <select
@@ -129,7 +131,7 @@ export function CopilotBottomMenu() {
               >
                 {OUTPUT_LANG_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label}
+                    {t(`settings.copilot.outputLangOptions.${o.value}`, { defaultValue: o.label })}
                   </option>
                 ))}
               </select>
@@ -137,9 +139,16 @@ export function CopilotBottomMenu() {
           )}
 
           <div style={{ borderTop: '1px solid var(--copilot-border-soft)', margin: '8px 0 6px' }} />
-          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>自动任务</div>
-          {COPILOT_TASKS.map((t) => (
-            <TaskRow key={t.id} taskId={t.id} label={t.label} desc={t.desc} />
+          <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '0 2px 4px' }}>
+            {t('settings.copilot.tasksTitle')}
+          </div>
+          {COPILOT_TASKS.map((task) => (
+            <TaskRow
+              key={task.id}
+              taskId={task.id}
+              label={t(`settings.copilot.tasks.${task.id}.label`, { defaultValue: task.label })}
+              desc={t(`settings.copilot.tasks.${task.id}.desc`, { defaultValue: task.desc })}
+            />
           ))}
 
           <button
@@ -160,7 +169,7 @@ export function CopilotBottomMenu() {
               cursor: 'pointer',
             }}
           >
-            更多设置…
+            {t('settings.copilot.moreSettings')}
           </button>
             </div>
           </>,
@@ -179,6 +188,7 @@ const DEBOUNCE_MAX_SEC = 60;
  * surfaces stay in sync.
  */
 function TaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string; desc: string }) {
+  const { t } = useTranslation();
   const cfg = useSettingsStore((s) => s.copilotTaskConfigs[taskId]);
   const setEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
   const setDebounceMs = useSettingsStore((s) => s.setCopilotTaskDebounceMs);
@@ -201,7 +211,7 @@ function TaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string
             value={Math.min(DEBOUNCE_MAX_SEC, Math.max(DEBOUNCE_MIN_SEC, effectiveSec))}
             onChange={(e) => setDebounceMs(taskId, parseInt(e.target.value, 10) * 1000)}
             style={{ flex: 1, minWidth: 0, accentColor: 'var(--copilot-accent)', height: 12 }}
-            title="停笔多久后自动触发"
+            title={t('settings.copilot.debounceTitle')}
           />
           <span
             style={{

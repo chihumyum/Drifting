@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { useDataStore } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -38,6 +39,7 @@ interface Props {
  * any picked relations wired in.
  */
 export function TodoPanel({ focused }: Props) {
+  const { t } = useTranslation();
   const { projectId } = useProjectNavigation();
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const comments = useDataStore((s) => s.comments);
@@ -131,7 +133,7 @@ export function TodoPanel({ focused }: Props) {
         }}
       >
         {openTodos.length === 0 && (
-          <EmptyState message='还没有 TODO。点击右上 "+" 新建。' />
+          <EmptyState message={t('todoPanel.empty')} />
         )}
 
         {openTodos.map((c) => (
@@ -185,6 +187,7 @@ export function TodoPanel({ focused }: Props) {
 // Count is dropped first when the toolbar narrows (panel width < 200px).
 
 function Subheader({ count, onCompose }: { count: number; onCompose: () => void }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
   const [showCount, setShowCount] = useState(true);
   useEffect(() => {
@@ -229,7 +232,7 @@ function Subheader({ count, onCompose }: { count: number; onCompose: () => void 
       )}
       <button
         onClick={onCompose}
-        title="新建 TODO"
+        title={t('todoPanel.newTodo')}
         style={{
           display: 'flex',
           alignItems: 'center',

@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronUp } from 'lucide-react';
 import { useSettingsStore } from '../../store/settings-store';
 
@@ -81,6 +82,7 @@ export function CollapsibleFooter({
   children,
   bodyStyle,
 }: CollapsibleFooterProps) {
+  const { t } = useTranslation();
   const expandedControlled = expanded !== undefined;
   const [expandedInternal, setExpandedInternal] = useState(defaultExpanded);
   const isExpanded = expandedControlled ? Boolean(expanded) : expandedInternal;
@@ -176,7 +178,7 @@ export function CollapsibleFooter({
       {isExpanded && (
         <div
           onMouseDown={startDrag}
-          title="拖动调整高度"
+          title={t('common.resizeHeight')}
           aria-hidden
           style={{
             position: 'absolute',

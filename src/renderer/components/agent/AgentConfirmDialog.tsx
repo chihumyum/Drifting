@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useAgentConfirmStore } from '../../store/agent-confirm-store';
 
 /**
@@ -7,6 +8,7 @@ import { useAgentConfirmStore } from '../../store/agent-confirm-store';
  * agent-confirm-store for the promise/timeout plumbing.
  */
 export function AgentConfirmDialog() {
+  const { t } = useTranslation();
   const pending = useAgentConfirmStore((s) => s.pending);
   if (!pending) return null;
 
@@ -51,7 +53,7 @@ export function AgentConfirmDialog() {
               cursor: 'pointer',
             }}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -66,7 +68,7 @@ export function AgentConfirmDialog() {
               cursor: 'pointer',
             }}
           >
-            允许删除
+            {t('agentConfirm.allowDelete')}
           </button>
         </div>
       </div>

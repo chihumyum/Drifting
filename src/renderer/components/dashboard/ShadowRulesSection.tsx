@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import loglevel from 'loglevel';
 import { createProjectRuleRepository } from '../../sqlite-repo/project-rule-repo';
 import type { ProjectRule } from '../../domain/project-rule';
@@ -20,6 +21,7 @@ export function ShadowRulesSection({
   // "＋ 新增规则" affordance + the rows.
   embedded?: boolean;
 }) {
+  const { t } = useTranslation();
   const repo = useMemo(() => createProjectRuleRepository(), []);
   const [rules, setRules] = useState<ProjectRule[]>([]);
 
@@ -99,7 +101,7 @@ export function ShadowRulesSection({
         cursor: 'pointer',
       }}
     >
-      ＋ 新增规则
+      {t('shadowRules.add')}
     </button>
   );
 
@@ -111,8 +113,8 @@ export function ShadowRulesSection({
         <div className="dash-section__head">
           <div className="dash-section__title">
             <span className="dash-section__title-mark">⊘</span>
-            <span className="dash-section__title-cn">Shadow 规则</span>
-            <span className="dash-section__title-en">Shadow Rules</span>
+            <span className="dash-section__title-cn">{t('shadowRules.titleCn')}</span>
+            <span className="dash-section__title-en">{t('shadowRules.titleEn')}</span>
           </div>
           {addButton}
         </div>
@@ -127,7 +129,7 @@ export function ShadowRulesSection({
               padding: '8px 2px',
             }}
           >
-            — 暂无规则。用自然语言写下本书的设定/约束，保存后自动编译成可检查的 checklist —
+            {t('shadowRules.empty')}
           </div>
         ) : (
           rules.map((r) => (
@@ -148,7 +150,7 @@ export function ShadowRulesSection({
             lineHeight: 1.5,
           }}
         >
-          每条规则会被 LLM 编译成原子 checklist；机械项（字数/出场/禁用词）零误报，语义项交由审阅引擎判断。本书简介与字段作为辅助依据，不必在此重复。
+          {t('shadowRules.help')}
         </p>
       </div>
     </section>
@@ -163,6 +165,7 @@ interface RuleRowProps {
 }
 
 function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState(rule.rawContent);
   const [committing, setCommitting] = useState(false);
   // Re-sync the local draft when the underlying rule changes (prev-snapshot
@@ -191,7 +194,7 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => void commit()}
           rows={2}
-          placeholder="例：全文第三人称限知 / 主角第五章前不知身世 / 目标字数 3000"
+          placeholder={t('shadowRules.placeholder')}
           style={{
             flex: 1,
             resize: 'vertical',
@@ -223,12 +226,12 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
               checked={rule.enabled}
               onChange={(e) => void onToggle(rule.id, e.target.checked)}
             />
-            启用
+            {t('shadowRules.enabled')}
           </label>
           <button
             type="button"
             onClick={() => void onRemove(rule.id)}
-            title="删除规则"
+            title={t('shadowRules.deleteTitle')}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
@@ -254,7 +257,7 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
             color: 'hsl(var(--ink-4))',
           }}
         >
-          编译中…
+          {t('shadowRules.compiling')}
         </div>
       ) : rule.checklist.length > 0 ? (
         <div style={{ marginTop: 6, paddingLeft: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -300,7 +303,7 @@ function RuleRow({ rule, onCommit, onToggle, onRemove }: RuleRowProps) {
               color: 'hsl(var(--ink-4))',
             }}
           >
-            判定指引 · {rule.kind}
+            {t('shadowRules.judgingGuide', { kind: rule.kind })}
           </summary>
           <div
             style={{

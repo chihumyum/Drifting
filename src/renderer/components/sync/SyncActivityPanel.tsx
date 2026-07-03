@@ -9,6 +9,7 @@
  *   - per-row durationMs, byte counts, error message if failed
  */
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SyncOperationEvent } from '../../lib/events';
 import { useSyncObserver } from '../../services/sync-observer.service';
 
@@ -16,12 +17,6 @@ const STATE_COLOR: Record<SyncOperationEvent['state'], string> = {
   started: 'hsl(var(--story-2))',
   succeeded: 'hsl(var(--story-3))',
   failed: 'hsl(var(--accent))',
-};
-
-const STATE_LABEL: Record<SyncOperationEvent['state'], string> = {
-  started: '进行中',
-  succeeded: '成功',
-  failed: '失败',
 };
 
 function formatTime(ts: number): string {
@@ -34,20 +29,26 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function summarize(event: SyncOperationEvent): string {
+function summarize(event: SyncOperationEvent, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (event.kind === 'yjs') {
     if (event.phase === 'push') {
-      return `推送 ${event.localUpdateCount ?? 0} 条 · 接受 ${event.serverSeqCount ?? 0}`;
+      return t('syncActivity.summary.push', {
+        local: event.localUpdateCount ?? 0,
+        accepted: event.serverSeqCount ?? 0,
+      });
     }
-    return `拉取 ${event.remoteUpdateCount ?? 0} 条 · 应用 ${event.appliedUpdateCount ?? 0} · 跳过 ${
-      event.skippedUpdateCount ?? 0
-    }`;
+    return t('syncActivity.summary.pull', {
+      remote: event.remoteUpdateCount ?? 0,
+      applied: event.appliedUpdateCount ?? 0,
+      skipped: event.skippedUpdateCount ?? 0,
+    });
   }
   if (event.resourceCount !== undefined) return `${event.resourceCount} resources`;
   return `${event.entityType ?? 'entity'} ${event.operation}`;
 }
 
 export function SyncActivityPanel() {
+  const { t } = useTranslation();
   const history = useSyncObserver((s) => s.history);
   const metrics = useSyncObserver((s) => s.metrics);
   const clear = useSyncObserver((s) => s.clear);
@@ -78,15 +79,15 @@ export function SyncActivityPanel() {
           borderRadius: 5,
         }}
       >
-        <Stat label="成功率" value={`${Math.round(metrics.successRate * 100)}%`} />
+        <Stat label={t('syncActivity.stats.successRate')} value={`${Math.round(metrics.successRate * 100)}%`} />
         <Stat
-          label="累计"
+          label={t('syncActivity.stats.total')}
           value={`${metrics.succeeded} / ${metrics.total}`}
-          sub={metrics.failed > 0 ? `${metrics.failed} 失败` : '0 失败'}
+          sub={t('syncActivity.stats.failed', { count: metrics.failed })}
         />
-        <Stat label="进行中" value={String(metrics.inflight)} />
+        <Stat label={t('syncActivity.stats.inflight')} value={String(metrics.inflight)} />
         <Stat
-          label="上次成功"
+          label={t('syncActivity.stats.lastSuccess')}
           value={metrics.lastSuccessAt ? formatTime(metrics.lastSuccessAt) : '—'}
         />
       </div>
@@ -100,7 +101,7 @@ export function SyncActivityPanel() {
               className={'seg__btn' + (filterKind === k ? ' seg__btn--active' : '')}
               onClick={() => setFilterKind(k)}
             >
-              {k === 'all' ? '全部' : k === 'yjs' ? 'Yjs' : 'CRUD'}
+              {k === 'all' ? t('syncActivity.filters.all') : k === 'yjs' ? 'Yjs' : 'CRUD'}
             </button>
           ))}
         </div>
@@ -111,13 +112,13 @@ export function SyncActivityPanel() {
               className={'seg__btn' + (filterState === s ? ' seg__btn--active' : '')}
               onClick={() => setFilterState(s)}
             >
-              {s === 'all' ? '全部' : STATE_LABEL[s]}
+              {s === 'all' ? t('syncActivity.filters.all') : t(`syncActivity.state.${s}`)}
             </button>
           ))}
         </div>
         <span style={{ flex: 1 }} />
         <button className="set-btn" onClick={clear}>
-          清空
+          {t('syncActivity.clear')}
         </button>
       </div>
 
@@ -139,7 +140,7 @@ export function SyncActivityPanel() {
               fontFamily: 'var(--font-mono)',
             }}
           >
-            没有匹配的记录。
+            {t('syncActivity.empty')}
           </div>
         ) : (
           filtered.map((event) => (
@@ -178,13 +179,13 @@ export function SyncActivityPanel() {
                     display: 'inline-block',
                   }}
                 />
-                {STATE_LABEL[event.state]}
+                {t(`syncActivity.state.${event.state}`)}
               </span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'hsl(var(--ink-3))' }}>
                 {event.kind} · {event.phase}
               </span>
               <span style={{ color: 'hsl(var(--ink-2))', minWidth: 0 }}>
-                {summarize(event)}
+                {summarize(event, t)}
                 {event.error && (
                   <span
                     style={{ color: 'hsl(var(--accent))', fontSize: 11, marginLeft: 8 }}

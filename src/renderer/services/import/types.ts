@@ -47,13 +47,13 @@ export function inferFormat(filename: string): ImportFormat | null {
 
 /** UI-friendly label per target. */
 export const TARGET_LABEL: Record<ImportTarget, string> = {
-  chapter: '章节',
-  element: '元素',
-  inspiration: '浮缀',
+  chapter: 'Chapter',
+  element: 'Element',
+  inspiration: 'Drift',
 };
 
 export const TARGET_DESC: Record<ImportTarget, string> = {
-  chapter: '主线节点 — 进时间线、参与字数统计。',
-  element: '人物 / 地点 / 物件等参考资料。需选择类别。',
-  inspiration: '浮缀卡 — 不归属任何故事线，独立悬浮。',
+  chapter: 'Mainline node that enters the timeline and word counts.',
+  element: 'Reference material such as people, places, and objects. Requires a category.',
+  inspiration: 'Free-floating drift card outside storylines.',
 };

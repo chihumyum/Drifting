@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDataStore } from '../../store/data-store';
 import { isChapter } from '../../domain/book-node';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
@@ -48,6 +49,7 @@ export function EntityRelationPicker({
   open: controlledOpen,
   onOpenChange,
 }: Props) {
+  const { t } = useTranslation();
   const { bookNodes, bookElements, storylines, bookElementCategories, primaryStorylineByNode } =
     useDataStore();
   const { navigateToNode, navigateToElement, navigateToStoryline, navigateToCategory } =
@@ -91,7 +93,7 @@ export function EntityRelationPicker({
     const drifts: RelationTarget[] = [];
     bookNodes.forEach((n) => {
       const isCh = isChapter(n);
-      const label = n.title || (isCh ? 'Untitled Chapter' : 'Untitled Drift');
+      const label = n.title || (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift'));
       if (!matches(label)) return;
       const primaryId = primaryStorylineByNode[n.id] ?? null;
       const sl = primaryId ? storylines.find((s) => s.id === primaryId) : undefined;
@@ -104,19 +106,19 @@ export function EntityRelationPicker({
       .filter((e) => matches(e.name || ''))
       .map((e) => {
         const cat = bookElementCategories.find((c) => c.id === e.categoryId);
-        return { kind: 'element', id: e.id, label: e.name || 'Untitled Element', color: cat?.color };
+        return { kind: 'element', id: e.id, label: e.name || t('relationPicker.untitledElement'), color: cat?.color };
       });
 
     const sls: RelationTarget[] = storylines
       .filter((s) => matches(s.name || ''))
-      .map((s) => ({ kind: 'storyline', id: s.id, label: s.name || 'Untitled Storyline', color: s.color }));
+      .map((s) => ({ kind: 'storyline', id: s.id, label: s.name || t('relationPicker.untitledStoryline'), color: s.color }));
 
     const cats: RelationTarget[] = bookElementCategories
       .filter((c) => matches(c.name || ''))
       .map((c) => ({ kind: 'category', id: c.id, label: c.name || c.id, color: c.color }));
 
     return { chapters, drifts, elements, storylines: sls, categories: cats };
-  }, [bookNodes, bookElements, storylines, bookElementCategories, query]);
+  }, [bookNodes, bookElements, storylines, bookElementCategories, query, t]);
 
   const toggle = (t: RelationTarget) => {
     const key = `${t.kind}:${t.id}`;
@@ -141,7 +143,7 @@ export function EntityRelationPicker({
           out.push({
             kind,
             id,
-            label: n?.title || (isCh ? 'Untitled Chapter' : 'Untitled Drift'),
+            label: n?.title || (isCh ? t('relationPicker.untitledChapter') : t('relationPicker.untitledDrift')),
             color: sl?.color,
           });
           break;
@@ -167,7 +169,7 @@ export function EntityRelationPicker({
       }
     });
     return out;
-  }, [selected, bookNodes, bookElements, storylines, bookElementCategories]);
+  }, [selected, bookNodes, bookElements, storylines, bookElementCategories, t]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -205,7 +207,7 @@ export function EntityRelationPicker({
             cursor: 'pointer',
           }}
         >
-          {open ? '收起' : '＋ 关联'}
+          {open ? t('relationPicker.collapse') : t('relationPicker.addRelation')}
         </button>
       </div>
 
@@ -223,7 +225,7 @@ export function EntityRelationPicker({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索章节 / 元素 / 故事线…"
+            placeholder={t('relationPicker.searchPlaceholder')}
             style={{
               width: '100%',
               fontFamily: 'var(--font-serif)',
@@ -237,11 +239,11 @@ export function EntityRelationPicker({
               outline: 'none',
             }}
           />
-          <Group label="章节" items={groups.chapters} selected={selected} onToggle={toggle} />
-          <Group label="浮缀" items={groups.drifts} selected={selected} onToggle={toggle} />
-          <Group label="元素" items={groups.elements} selected={selected} onToggle={toggle} />
-          <Group label="故事线" items={groups.storylines} selected={selected} onToggle={toggle} />
-          <Group label="类目" items={groups.categories} selected={selected} onToggle={toggle} />
+          <Group label={t('relationPicker.groups.chapters')} items={groups.chapters} selected={selected} onToggle={toggle} />
+          <Group label={t('relationPicker.groups.drifts')} items={groups.drifts} selected={selected} onToggle={toggle} />
+          <Group label={t('relationPicker.groups.elements')} items={groups.elements} selected={selected} onToggle={toggle} />
+          <Group label={t('relationPicker.groups.storylines')} items={groups.storylines} selected={selected} onToggle={toggle} />
+          <Group label={t('relationPicker.groups.categories')} items={groups.categories} selected={selected} onToggle={toggle} />
         </div>
       )}
     </div>
@@ -301,6 +303,7 @@ function Chip({
    *  × runs `onRemove`. Without it the whole chip is one toggle button. */
   onRemove?: () => void;
 }) {
+  const { t } = useTranslation();
   if (onRemove) {
     // Split-mode: rendered as a div so the body and × can be independent
     // click targets (nested <button>s are invalid HTML).
@@ -323,7 +326,7 @@ function Chip({
       >
         <button
           onClick={onClick}
-          title={`跳转至 ${target.label}`}
+          title={t('relationPicker.jumpTo', { label: target.label })}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -360,8 +363,8 @@ function Chip({
             e.stopPropagation();
             onRemove();
           }}
-          title="移除关联"
-          aria-label="移除关联"
+          title={t('relationPicker.removeRelation')}
+          aria-label={t('relationPicker.removeRelation')}
           style={{
             display: 'inline-grid',
             placeItems: 'center',

@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, FileText, Folder, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
 import { useDataStore } from '../../store/data-store';
 import { useBookNode } from '../../usecase/useBookNode';
@@ -27,8 +28,6 @@ import { CHAPTER_ORDER_STRIDE, isChapter } from '../../domain/book-node';
 import {
   inferFormat,
   parseFile,
-  TARGET_DESC,
-  TARGET_LABEL,
   type ImportTarget,
   type ParsedDoc,
 } from '../../services/import';
@@ -50,6 +49,7 @@ interface QueuedItem {
 const ACCEPTED_EXTS = ['.md', '.markdown', '.txt', '.docx'];
 
 export function ImportDialog({ open, onClose }: ImportDialogProps) {
+  const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -261,7 +261,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
               margin: 0,
             }}
           >
-            导入文件
+            {t('importDialog.title')}
           </h2>
           <button
             onClick={onClose}
@@ -272,23 +272,23 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         </div>
 
         <p style={{ fontSize: 13, color: 'hsl(var(--ink-3))', marginTop: 8, marginBottom: 18 }}>
-          每次导入只能选一种类型，支持 <code>.md</code> / <code>.docx</code> / <code>.txt</code>。
-          可以选多个文件或一个文件夹（仅取支持的扩展名）。
+          {t('importDialog.descriptionA')} <code>.md</code> / <code>.docx</code> / <code>.txt</code>。
+          {t('importDialog.descriptionB')}
         </p>
 
         {/* Target type */}
         <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>类型 · TARGET</div>
+          <div className="set-sec__title" style={{ marginBottom: 10 }}>{t('importDialog.targetTitle')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['chapter', 'element', 'inspiration'] as const).map((t) => (
+            {(['chapter', 'element', 'inspiration'] as const).map((targetKind) => (
               <button
-                key={t}
-                onClick={() => setTarget(t)}
-                className={'set-tier' + (target === t ? ' set-tier--active' : '')}
+                key={targetKind}
+                onClick={() => setTarget(targetKind)}
+                className={'set-tier' + (target === targetKind ? ' set-tier--active' : '')}
                 style={{ flex: 1, textAlign: 'left' }}
               >
-                <div className="set-tier__name">{TARGET_LABEL[t]}</div>
-                <div className="set-tier__desc">{TARGET_DESC[t]}</div>
+                <div className="set-tier__name">{t(`importDialog.targets.${targetKind}.label`)}</div>
+                <div className="set-tier__desc">{t(`importDialog.targets.${targetKind}.desc`)}</div>
               </button>
             ))}
           </div>
@@ -297,10 +297,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
         {/* Target-specific config */}
         {target === 'chapter' && (
           <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>归属故事线</div>
+            <div className="set-sec__title" style={{ marginBottom: 6 }}>{t('importDialog.storylineTitle')}</div>
             {storylines.length === 0 ? (
               <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
-                项目里还没有故事线。请先创建一条，或选择「浮缀」导入。
+                {t('importDialog.noStorylines')}
               </div>
             ) : (
               <select
@@ -321,10 +321,10 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         {target === 'element' && (
           <section style={{ marginBottom: 16 }}>
-            <div className="set-sec__title" style={{ marginBottom: 6 }}>归属类别</div>
+            <div className="set-sec__title" style={{ marginBottom: 6 }}>{t('importDialog.categoryTitle')}</div>
             {categories.length === 0 ? (
               <div style={{ fontSize: 12, color: 'hsl(var(--accent))' }}>
-                项目里还没有元素类别。请先创建一个。
+                {t('importDialog.noCategories')}
               </div>
             ) : (
               <select
@@ -345,18 +345,18 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         {/* File picker */}
         <section style={{ marginBottom: 16 }}>
-          <div className="set-sec__title" style={{ marginBottom: 10 }}>文件 · FILES</div>
+          <div className="set-sec__title" style={{ marginBottom: 10 }}>{t('importDialog.filesTitle')}</div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="set-btn" onClick={onPickFiles}>
-              <FileText size={13} style={{ marginRight: 4 }} /> 选择文件
+              <FileText size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFiles')}
             </button>
             <button className="set-btn" onClick={onPickFolder}>
-              <Folder size={13} style={{ marginRight: 4 }} /> 选择文件夹
+              <Folder size={13} style={{ marginRight: 4 }} /> {t('importDialog.chooseFolder')}
             </button>
             <span style={{ flex: 1 }} />
             {items.length > 0 && (
               <button className="set-btn set-btn--ghost" onClick={() => setItems([])}>
-                清空
+                {t('importDialog.clear')}
               </button>
             )}
           </div>
@@ -459,7 +459,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                       textTransform: 'uppercase',
                     }}
                   >
-                    {it.status}
+                    {t(`importDialog.status.${it.status}`)}
                   </span>
                   <button
                     onClick={() => removeItem(it.id)}
@@ -469,7 +469,7 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
                       cursor: 'pointer',
                       color: 'hsl(var(--ink-4))',
                     }}
-                    title="移除"
+                    title={t('common.delete')}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -490,11 +490,11 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
               marginBottom: 12,
             }}
           >
-            完成 · 成功 <b>{summary.ok}</b>
+            {t('importDialog.summary.done')} · {t('importDialog.summary.ok')} <b>{summary.ok}</b>
             {summary.failed > 0 && (
               <>
                 {' · '}
-                失败 <b style={{ color: 'hsl(var(--accent))' }}>{summary.failed}</b>
+                {t('importDialog.summary.failed')} <b style={{ color: 'hsl(var(--accent))' }}>{summary.failed}</b>
               </>
             )}
           </div>
@@ -502,14 +502,16 @@ export function ImportDialog({ open, onClose }: ImportDialogProps) {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 'auto' }}>
           <button className="set-btn" onClick={onClose}>
-            关闭
+            {t('settings.close')}
           </button>
           <button
             className="set-btn set-btn--primary"
             onClick={commit}
             disabled={running || !canCommit}
           >
-            {running ? '导入中…' : `开始导入 (${items.filter((it) => it.status === 'ready').length})`}
+            {running
+              ? t('importDialog.importing')
+              : t('importDialog.start', { count: items.filter((it) => it.status === 'ready').length })}
           </button>
         </div>
       </div>

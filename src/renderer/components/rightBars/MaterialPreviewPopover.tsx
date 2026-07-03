@@ -1,6 +1,7 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Node as PMNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/core';
 import type { LibraryItem } from '../../domain/library-item';
@@ -21,6 +22,7 @@ interface Props {
  * browser via `openExternal`. Both code paths live in the panel itself.
  */
 export function MaterialPreviewPopover({ item, onClose }: Props) {
+  const { t } = useTranslation();
   const editor = useEditor({
     editable: false,
     extensions: [
@@ -128,7 +130,7 @@ export function MaterialPreviewPopover({ item, onClose }: Props) {
                 color: 'hsl(var(--ink-4))',
               }}
             >
-              Library · 片段
+              {t('materialPreview.kicker')}
             </div>
             <div
               style={{
@@ -147,7 +149,7 @@ export function MaterialPreviewPopover({ item, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            title="关闭 (Esc)"
+            title={t('materialPreview.closeTitle')}
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
@@ -161,7 +163,7 @@ export function MaterialPreviewPopover({ item, onClose }: Props) {
               cursor: 'pointer',
             }}
           >
-            关闭
+            {t('common.close')}
           </button>
         </div>
         <div

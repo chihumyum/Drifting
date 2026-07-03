@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Ban, Bell, CheckCircle2, Loader2, Sparkles, Trash2, X } from 'lucide-react';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import {
@@ -33,12 +34,12 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function relTime(ms: number, now: number): string {
+function relTime(ms: number, now: number, t: (key: string, options?: Record<string, unknown>) => string): string {
   const d = Math.max(0, now - ms);
-  if (d < 60_000) return '刚刚';
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} 分钟前`;
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} 小时前`;
-  return `${Math.floor(d / 86_400_000)} 天前`;
+  if (d < 60_000) return t('notifications.time.justNow');
+  if (d < 3_600_000) return t('notifications.time.minutesAgo', { count: Math.floor(d / 60_000) });
+  if (d < 86_400_000) return t('notifications.time.hoursAgo', { count: Math.floor(d / 3_600_000) });
+  return t('notifications.time.daysAgo', { count: Math.floor(d / 86_400_000) });
 }
 
 function sourceLabel(n: AppNotification): string {
@@ -79,6 +80,7 @@ function toneColor(n: AppNotification): string {
 }
 
 export function NotificationPill() {
+  const { t } = useTranslation();
   const items = useNotificationStore((s) => s.items);
   const centerOpen = useNotificationStore((s) => s.centerOpen);
   const toggleCenter = useNotificationStore((s) => s.toggleCenter);
@@ -187,7 +189,7 @@ export function NotificationPill() {
         ref={btnRef}
         type="button"
         onClick={handleToggle}
-        title="通知"
+        title={t('notifications.title')}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -227,6 +229,7 @@ function NotificationCenter({
   anchor: Anchor;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useTranslation();
   const items = useNotificationStore((s) => s.items);
   const remove = useNotificationStore((s) => s.remove);
   const clear = useNotificationStore((s) => s.clear);
@@ -269,12 +272,12 @@ function NotificationCenter({
           borderBottom: '1px solid hsl(var(--rule))',
         }}
       >
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--ink-1))' }}>通知</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--ink-1))' }}>{t('notifications.title')}</span>
         {items.length > 0 && (
           <button
             type="button"
             onClick={clear}
-            title="清空"
+            title={t('notifications.clear')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -288,7 +291,7 @@ function NotificationCenter({
               borderRadius: 4,
             }}
           >
-            <Trash2 size={12} /> 清空
+            <Trash2 size={12} /> {t('notifications.clear')}
           </button>
         )}
       </div>
@@ -304,7 +307,7 @@ function NotificationCenter({
             fontStyle: 'italic',
           }}
         >
-          暂无通知
+          {t('notifications.empty')}
         </div>
       ) : (
         <div style={{ overflowY: 'auto' }}>
@@ -342,7 +345,7 @@ function NotificationCenter({
                     {sourceLabel(n)}
                   </span>
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: 'hsl(var(--ink-4))' }}>
-                    {relTime(n.updatedAt, now)}
+                    {relTime(n.updatedAt, now, t)}
                   </span>
                 </div>
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--ink-1))', marginTop: 2 }}>
@@ -363,7 +366,7 @@ function NotificationCenter({
               </div>
               <button
                 type="button"
-                aria-label="移除"
+                aria-label={t('notifications.remove')}
                 onClick={(e) => {
                   e.stopPropagation();
                   remove(n.id);

@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
+import { useTranslation } from 'react-i18next';
 import { useCopilotInlineStore, type CopilotInlineCtx } from '../../store/copilot-inline-store';
 import { useSettingsStore, COPILOT_TASKS } from '../../store/settings-store';
 import { capabilitiesForTrigger } from '../../lib/copilot/capability';
@@ -53,6 +54,7 @@ interface CopilotInlinePopoverProps {
 }
 
 export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverProps) {
+  const { t } = useTranslation();
   const ctx = useCopilotInlineStore((s) => s.ctx);
   const close = useCopilotInlineStore((s) => s.close);
   const allowNewContent = useSettingsStore((s) => s.copilotInlineEditAllowNewContent);
@@ -87,8 +89,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
   const menuCaps = useMemo(() => capabilitiesForTrigger('editor-block-debounced'), []);
   const taskLabel = useCallback(
-    (id: string) => COPILOT_TASKS.find((t) => t.id === id)?.label ?? id,
-    [],
+    (id: string) =>
+      t(`copilotInline.tasks.${id}`, {
+        defaultValue: COPILOT_TASKS.find((task) => task.id === id)?.label ?? id,
+      }),
+    [t],
   );
 
   // Reset to a fresh input state on each new invocation (render-phase reset —
@@ -115,8 +120,18 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     if (!ctx) return [];
     const list: Action[] = [];
     if (ctx.mode === 'selection') {
-      list.push({ key: 'inline', kind: 'inline', label: '局部文本修改', group: '对选中的文本触发' });
-      list.push({ key: 'ask', kind: 'ask', label: '问', group: '对选中的文本触发' });
+      list.push({
+        key: 'inline',
+        kind: 'inline',
+        label: t('copilotInline.actions.inlineSelection'),
+        group: t('copilotInline.groups.selection'),
+      });
+      list.push({
+        key: 'ask',
+        kind: 'ask',
+        label: t('copilotInline.actions.ask'),
+        group: t('copilotInline.groups.selection'),
+      });
       for (const cap of menuCaps) {
         const off = !taskConfigs[cap.id as keyof typeof taskConfigs]?.enabled;
         list.push({
@@ -124,17 +139,32 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
           kind: 'cap',
           capId: cap.id,
           label: taskLabel(cap.id),
-          note: off ? '已关闭 · 单次运行' : undefined,
-          group: '对选中的文本触发',
+          note: off ? t('copilotInline.status.offOneShot') : undefined,
+          group: t('copilotInline.groups.selection'),
         });
       }
     } else {
-      list.push({ key: 'inline', kind: 'inline', label: '局部修改', group: '在光标处触发' });
-      list.push({ key: 'ask', kind: 'ask', label: '问', group: '在光标处触发' });
+      list.push({
+        key: 'inline',
+        kind: 'inline',
+        label: t('copilotInline.actions.inlineCursor'),
+        group: t('copilotInline.groups.cursor'),
+      });
+      list.push({
+        key: 'ask',
+        kind: 'ask',
+        label: t('copilotInline.actions.ask'),
+        group: t('copilotInline.groups.cursor'),
+      });
     }
-    list.push({ key: 'chapter', kind: 'chapter', label: '生成章节摘要', group: '本章节触发' });
+    list.push({
+      key: 'chapter',
+      kind: 'chapter',
+      label: t('copilotInline.actions.chapterSummary'),
+      group: t('copilotInline.groups.chapter'),
+    });
     return list;
-  }, [ctx, menuCaps, taskConfigs, taskLabel]);
+  }, [ctx, menuCaps, taskConfigs, taskLabel, t]);
 
   const selIndex = Math.min(selectedIndex, Math.max(0, actions.length - 1));
 
@@ -304,12 +334,12 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
     if (!result) return;
     const ok = applyInlineEdit(editor, result);
     if (!ok) {
-      setError('选区已发生变化，无法应用修改。');
+      setError(t('copilotInline.errors.selectionChanged'));
       setPhase('error');
       return;
     }
     close();
-  }, [result, editor, close]);
+  }, [result, editor, close, t]);
 
   // Run a block-scoped capability via the manual-run engine, carrying the
   // typed prompt as a steer. Results land in the margin; close the popover.
@@ -338,19 +368,19 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
       const r = await generateChapterSummary({ projectId: ctx.projectId, chapterId: ctx.nodeId });
       setChapterMsg(
         r.status === 'written'
-          ? '已生成章节摘要'
+          ? t('copilotInline.chapter.written')
           : r.status === 'skipped-nonempty'
-            ? '本章已有摘要，未覆盖'
+            ? t('copilotInline.chapter.skippedNonempty')
             : r.status === 'no-sections'
-              ? '暂无段落摘要可汇总'
-              : '生成失败',
+              ? t('copilotInline.chapter.noSections')
+              : t('copilotInline.chapter.failed'),
       );
     } catch {
-      setChapterMsg('生成失败');
+      setChapterMsg(t('copilotInline.chapter.failed'));
     } finally {
       setChapterBusy(false);
     }
-  }, [ctx]);
+  }, [ctx, t]);
 
   const triggerAction = useCallback(
     (a: Action | undefined) => {
@@ -438,7 +468,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   triggerAction(actions[selIndex]);
                 }
               }}
-              placeholder="输入修改要求 / 问题…"
+              placeholder={t('copilotInline.input.placeholder')}
               rows={2}
               className="copilot-field"
               style={{
@@ -455,7 +485,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             />
 
             <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', margin: '7px 2px 2px' }}>
-              ↑/↓ 选择 · ⏎ 执行
+              {t('copilotInline.input.hint')}
             </div>
 
             {groups.map((group) => (
@@ -482,13 +512,13 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                       <span>{action.label}</span>
                       {action.note && (
                         <span style={{ fontSize: 10, color: 'var(--copilot-text-faint)' }}>
-                          {isChapterBusy ? '生成中…' : action.note}
+                          {isChapterBusy ? t('copilotInline.status.generating') : action.note}
                         </span>
                       )}
                     </button>
                   );
                 })}
-                {group.name === '本章节触发' && chapterMsg && (
+                {group.name === t('copilotInline.groups.chapter') && chapterMsg && (
                   <div style={{ fontSize: 11, color: 'var(--copilot-text-dim)', padding: '2px 4px' }}>{chapterMsg}</div>
                 )}
               </div>
@@ -499,9 +529,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
         {phase === 'running' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px' }}>
             <span style={spinnerStyle} />
-            <span style={{ color: 'var(--copilot-text-dim)' }}>正在修改……</span>
+            <span style={{ color: 'var(--copilot-text-dim)' }}>
+              {t('copilotInline.status.editing')}
+            </span>
             <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         )}
@@ -520,15 +552,19 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                 paddingRight: 2,
               }}
             >
-              {chatTurns.map((t, i) => (
-                <div key={i} style={t.role === 'user' ? askUserTurn : askModelTurn}>
-                  <div style={askTurnLabel}>{t.role === 'user' ? '你' : '副手'}</div>
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{t.content}</div>
+              {chatTurns.map((turn, i) => (
+                <div key={i} style={turn.role === 'user' ? askUserTurn : askModelTurn}>
+                  <div style={askTurnLabel}>
+                    {turn.role === 'user'
+                      ? t('copilotInline.chat.you')
+                      : t('copilotInline.chat.assistant')}
+                  </div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{turn.content}</div>
                 </div>
               ))}
               {(chatBusy || streamingText) && (
                 <div style={askModelTurn}>
-                  <div style={askTurnLabel}>副手</div>
+                  <div style={askTurnLabel}>{t('copilotInline.chat.assistant')}</div>
                   <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                     {streamingText ? (
                       <>
@@ -536,7 +572,9 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                         {chatBusy && <span style={caretStyle} />}
                       </>
                     ) : (
-                      <span style={{ color: 'var(--copilot-text-dim)' }}>正在思考……</span>
+                      <span style={{ color: 'var(--copilot-text-dim)' }}>
+                        {t('copilotInline.status.thinking')}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -554,7 +592,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   if (!chatBusy) void sendAsk(chatInput);
                 }
               }}
-              placeholder={chatBusy ? '回答生成中…' : '追问…（⏎ 发送，⇧⏎ 换行）'}
+              placeholder={
+                chatBusy
+                  ? t('copilotInline.chat.generatingPlaceholder')
+                  : t('copilotInline.chat.followupPlaceholder')
+              }
               rows={2}
               disabled={chatBusy}
               className="copilot-field"
@@ -575,7 +617,7 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               {chatBusy ? (
                 <button type="button" onClick={() => abortRef.current?.abort()} style={ghostBtn}>
-                  停止
+                  {t('copilotInline.actions.stop')}
                 </button>
               ) : (
                 <button
@@ -584,11 +626,11 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                   style={{ ...primaryBtn, opacity: chatInput.trim() ? 1 : 0.5 }}
                   disabled={!chatInput.trim()}
                 >
-                  发送 <kbd style={kbdStyle}>↵</kbd>
+                  {t('copilotInline.actions.send')} <kbd style={kbdStyle}>↵</kbd>
                 </button>
               )}
               <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                关闭
+                {t('copilotInline.actions.close')}
               </button>
             </div>
           </div>
@@ -603,12 +645,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
               <div>
                 {changeCount === 0 ? (
                   <div style={{ color: 'var(--copilot-text-dim)', padding: '4px 2px' }}>
-                    模型未对所选内容作出修改。
+                    {t('copilotInline.result.noChange')}
                   </div>
                 ) : (
                   <>
                     <div style={{ ...previewLabel, marginBottom: 6 }}>
-                      {result.span ? '改动预览' : `共 ${changeCount} 处改动`}
+                      {result.span
+                        ? t('copilotInline.result.preview')
+                        : t('copilotInline.result.changeCount', { count: changeCount })}
                     </div>
                     <div
                       style={{
@@ -628,8 +672,10 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                           <div key={b.id}>
                             <div style={diffCardLabel}>
                               {b.kind === 'heading'
-                                ? '标题'
-                                : `第 ${result.blocks!.indexOf(b) + 1} 段`}
+                                ? t('copilotInline.result.heading')
+                                : t('copilotInline.result.paragraph', {
+                                    index: result.blocks!.indexOf(b) + 1,
+                                  })}
                             </div>
                             <div style={diffBox}>
                               <DiffText diff={b.diff} />
@@ -646,14 +692,14 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   {changeCount > 0 && (
                     <button type="button" onClick={acceptResult} style={primaryBtn}>
-                      接受 <kbd style={kbdStyle}>↵</kbd>
+                      {t('copilotInline.actions.accept')} <kbd style={kbdStyle}>↵</kbd>
                     </button>
                   )}
                   <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
-                    重写
+                    {t('copilotInline.actions.rewrite')}
                   </button>
                   <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                    放弃
+                    {t('copilotInline.actions.discard')}
                   </button>
                 </div>
               </div>
@@ -662,22 +708,24 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
         {phase === 'refused' && result && (
           <div>
-            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>未执行</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>
+              {t('copilotInline.refused.title')}
+            </div>
             <div style={{ color: 'var(--copilot-text-dim)' }}>{result.reason}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button
                 type="button"
                 onClick={() => void runEdit(lastInstructionRef.current, { forceAllowNewContent: true })}
                 style={primaryBtn}
-                title="仅本次允许生成新内容（缺少全局上下文，质量可能下降）"
+                title={t('copilotInline.refused.forceTitle')}
               >
-                本次执行
+                {t('copilotInline.refused.force')}
               </button>
               <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
-                换个指令
+                {t('copilotInline.refused.changeInstruction')}
               </button>
               <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                关闭
+                {t('copilotInline.actions.close')}
               </button>
             </div>
           </div>
@@ -685,14 +733,16 @@ export function CopilotInlinePopover({ editor, nodeId }: CopilotInlinePopoverPro
 
         {phase === 'error' && (
           <div>
-            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>出错了</div>
+            <div style={{ color: 'var(--copilot-warn)', fontWeight: 600, marginBottom: 4 }}>
+              {t('copilotInline.error.title')}
+            </div>
             <div style={{ color: 'var(--copilot-text-dim)', wordBreak: 'break-word' }}>{error}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button type="button" onClick={() => setPhase('input')} style={ghostBtn}>
-                重试
+                {t('copilotInline.error.retry')}
               </button>
               <button type="button" onClick={doClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>
-                关闭
+                {t('copilotInline.actions.close')}
               </button>
             </div>
           </div>

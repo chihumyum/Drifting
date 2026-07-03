@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, DownloadCloud, Loader2, UploadCloud, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { events, type SyncOperationEvent } from '../../lib/events';
 import { useDataStore } from '../../store/data-store';
 import { useProjectStore } from '../../store/project-store';
@@ -43,16 +45,16 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function getTitle(event: SyncToast): string {
+function getTitle(event: SyncToast, t: TFunction): string {
   const action =
     event.kind === 'crud'
       ? `${event.operation[0].toUpperCase()}${event.operation.slice(1)}`
       : event.phase === 'push'
         ? 'Push'
         : 'Pull';
-  if (event.state === 'started') return `${action} syncing`;
-  if (event.state === 'failed') return `${action} failed`;
-  return `${action} complete`;
+  if (event.state === 'started') return t('syncHud.title.started', { action });
+  if (event.state === 'failed') return t('syncHud.title.failed', { action });
+  return t('syncHud.title.complete', { action });
 }
 
 function getTone(event: SyncToast) {
@@ -82,54 +84,70 @@ function getTone(event: SyncToast) {
   };
 }
 
-function getUpdateSummary(event: SyncToast): string {
+function getUpdateSummary(event: SyncToast, t: TFunction): string {
   if (event.kind === 'crud') {
-    if (event.resourceCount !== undefined) return `${event.resourceCount} resources fetched`;
-    return `${event.entityType ?? 'entity'} ${event.operation}`;
+    if (event.resourceCount !== undefined) {
+      return t('syncHud.summary.resources', { count: event.resourceCount });
+    }
+    return t('syncHud.summary.crud', {
+      entity: event.entityType ?? t('syncHud.entity.entity'),
+      operation: event.operation,
+    });
   }
 
   if (event.phase === 'push') {
-    return `${event.localUpdateCount ?? 0} local updates, ${event.serverSeqCount ?? 0} accepted`;
+    return t('syncHud.summary.push', {
+      local: event.localUpdateCount ?? 0,
+      accepted: event.serverSeqCount ?? 0,
+    });
   }
 
-  return `${event.remoteUpdateCount ?? 0} remote, ${event.appliedUpdateCount ?? 0} applied, ${
-    event.skippedUpdateCount ?? 0
-  } own skipped`;
+  return t('syncHud.summary.pull', {
+    remote: event.remoteUpdateCount ?? 0,
+    applied: event.appliedUpdateCount ?? 0,
+    skipped: event.skippedUpdateCount ?? 0,
+  });
 }
 
-function getEntityTypeLabel(entityType?: string): string {
+function getEntityTypeLabel(entityType: string | undefined, t: TFunction): string {
   switch (entityType) {
     case 'project':
-      return 'Project';
+      return t('syncHud.entity.project');
     case 'node':
     case 'nodeContent':
-      return 'Chapter';
+      return t('syncHud.entity.chapter');
     case 'storyline':
-      return 'Storyline';
+      return t('syncHud.entity.storyline');
     case 'nodeStorylineLink':
-      return 'Storyline link';
+      return t('syncHud.entity.storylineLink');
     case 'element':
-      return 'Element';
+      return t('syncHud.entity.element');
     case 'elementCategory':
-      return 'Element category';
+      return t('syncHud.entity.elementCategory');
     case 'libraryItem':
-      return 'Library item';
+      return t('syncHud.entity.libraryItem');
     case 'entityRelation':
-      return 'Relation';
+      return t('syncHud.entity.relation');
     case 'comment':
-      return 'Comment';
+      return t('syncHud.entity.comment');
     case 'commentAction':
-      return 'Comment action';
+      return t('syncHud.entity.commentAction');
     default:
-      return 'Entity';
+      return t('syncHud.entity.entity');
   }
 }
 
-function quoteEntityName(entityType: string | undefined, entityName: string, entityId?: string) {
-  return `${getEntityTypeLabel(entityType)} "${entityName}" (${shortId(entityId)})`;
+function quoteEntityName(
+  entityType: string | undefined,
+  entityName: string,
+  entityId: string | undefined,
+  t: TFunction,
+) {
+  return `${getEntityTypeLabel(entityType, t)} "${entityName}" (${shortId(entityId)})`;
 }
 
 export function SyncStatusHUD() {
+  const { t } = useTranslation();
   const syncDebugToasts = useSettingsStore((state) => state.syncDebugToasts);
   const [toasts, setToasts] = useState<SyncToast[]>([]);
   const bookNodes = useDataStore((state) => state.bookNodes);
@@ -162,7 +180,7 @@ export function SyncStatusHUD() {
 
   const formatEntityName = (toast: SyncToast): string => {
     if (toast.entityName?.trim()) {
-      return quoteEntityName(toast.entityType, toast.entityName.trim(), toast.entityId);
+      return quoteEntityName(toast.entityType, toast.entityName.trim(), toast.entityId, t);
     }
 
     let entityType = toast.entityType;
@@ -174,9 +192,9 @@ export function SyncStatusHUD() {
 
     const name =
       entityType && entityId ? entityNameByKey.get(`${entityType}:${entityId}`)?.trim() : undefined;
-    if (name) return quoteEntityName(entityType, name, entityId);
+    if (name) return quoteEntityName(entityType, name, entityId, t);
 
-    return `${getEntityTypeLabel(entityType)} ${shortId(entityId)}`;
+    return `${getEntityTypeLabel(entityType, t)} ${shortId(entityId)}`;
   };
 
   useEffect(() => {
@@ -265,7 +283,7 @@ export function SyncStatusHUD() {
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#172033' }}>
-                  {getTitle(toast)}
+                  {getTitle(toast, t)}
                 </div>
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
                   {toast.kind.toUpperCase()} · {toast.method} {toast.endpoint} ·{' '}
@@ -274,7 +292,7 @@ export function SyncStatusHUD() {
               </div>
               <button
                 type="button"
-                aria-label="Dismiss sync status"
+                aria-label={t('syncHud.dismiss')}
                 onClick={() => dismiss(toast.requestId)}
                 style={{
                   width: 24,
@@ -305,7 +323,7 @@ export function SyncStatusHUD() {
             >
               {toast.docId && (
                 <>
-                  <span style={{ color: '#64748b' }}>File</span>
+                  <span style={{ color: '#64748b' }}>{t('syncHud.labels.file')}</span>
                   <span
                     title={toast.docId}
                     style={{
@@ -321,7 +339,7 @@ export function SyncStatusHUD() {
                 </>
               )}
 
-              <span style={{ color: '#64748b' }}>Entity</span>
+              <span style={{ color: '#64748b' }}>{t('syncHud.labels.entity')}</span>
               <span
                 title={formatEntityName(toast)}
                 style={{
@@ -335,11 +353,11 @@ export function SyncStatusHUD() {
               </span>
 
               <span style={{ color: '#64748b' }}>
-                {toast.kind === 'crud' ? 'Operation' : 'Updates'}
+                {toast.kind === 'crud' ? t('syncHud.labels.operation') : t('syncHud.labels.updates')}
               </span>
-              <span style={{ color: '#334155' }}>{getUpdateSummary(toast)}</span>
+              <span style={{ color: '#334155' }}>{getUpdateSummary(toast, t)}</span>
 
-              <span style={{ color: '#64748b' }}>Device</span>
+              <span style={{ color: '#64748b' }}>{t('syncHud.labels.device')}</span>
               <span
                 title={toast.deviceId}
                 style={{
@@ -355,7 +373,7 @@ export function SyncStatusHUD() {
 
               {toast.error && (
                 <>
-                  <span style={{ color: '#64748b' }}>Error</span>
+                  <span style={{ color: '#64748b' }}>{t('syncHud.labels.error')}</span>
                   <span style={{ color: '#991b1b' }}>{toast.error}</span>
                 </>
               )}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -78,6 +79,7 @@ interface EditorFindPanelProps {
 }
 
 export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -229,7 +231,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="在当前编辑器中查找…"
+          placeholder={t('findPanel.currentPlaceholder')}
         />
         <span className="editor-find-stats">
           {noMatches ? '0/0' : `${currentIndex + 1}/${matches.length}`}
@@ -239,7 +241,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
           className="editor-find-btn"
           onClick={() => jumpTo(currentIndex - 1)}
           disabled={noMatches}
-          title="上一个 (Shift+Enter)"
+          title={t('findPanel.previousTitle')}
         >
           <ChevronUp size={14} />
         </button>
@@ -248,7 +250,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
           className="editor-find-btn"
           onClick={() => jumpTo(currentIndex + 1)}
           disabled={noMatches}
-          title="下一个 (Enter)"
+          title={t('findPanel.nextTitle')}
         >
           <ChevronDown size={14} />
         </button>
@@ -256,7 +258,7 @@ export function EditorFindPanel({ editor, onClose }: EditorFindPanelProps) {
           type="button"
           className="editor-find-btn"
           onClick={onClose}
-          title="关闭 (Esc)"
+          title={t('findPanel.closeTitle')}
         >
           <X size={14} />
         </button>
