@@ -213,9 +213,8 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
       {/* ═══ Left · editorial / brand ═══ */}
       <aside className="si-left">
         <div className="si-brand">
-          <span className="si-brand__glyph">渡</span>
           <span className="si-brand__name">Drifting</span>
-          <span className="si-brand__sep">·</span>
+          <span className="si-brand__sep">/</span>
           <span className="si-brand__cn">{t('auth.brand.cn')}</span>
         </div>
 
@@ -285,16 +284,14 @@ export function LoginPage({ initialMode = 'signin' }: LoginPageProps) {
             className={`si-tab ${mode === 'signin' ? 'si-tab--active' : ''}`}
             onClick={() => switchMode('signin')}
           >
-            <span className="si-tab__cn">{t('auth.signIn')}</span>
-            <span>{t('auth.signInShort')}</span>
+            <span>{t('auth.signIn')}</span>
           </button>
           <button
             type="button"
             className={`si-tab ${mode === 'signup' ? 'si-tab--active' : ''}`}
             onClick={() => switchMode('signup')}
           >
-            <span className="si-tab__cn">{t('auth.signUp')}</span>
-            <span>{t('auth.signUpShort')}</span>
+            <span>{t('auth.signUp')}</span>
           </button>
         </div>
 

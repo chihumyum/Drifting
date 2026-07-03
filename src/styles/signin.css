@@ -81,30 +81,25 @@
 }
 
 .si-brand {
-  display: flex; align-items: baseline; gap: 12px;
+  display: flex; align-items: baseline; gap: 10px;
   font-family: var(--font-serif);
   font-size: 22px;
   font-weight: 400;
   color: hsl(var(--ink-1));
   position: relative; z-index: 1;
 }
-.si-brand__glyph {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 28px;
-  color: hsl(var(--accent));
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
 .si-brand__name { letter-spacing: 0.005em; }
 .si-brand__cn {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 16px;
+  font-size: 18px;
   color: hsl(var(--ink-3));
 }
-.si-brand__sep { color: hsl(var(--ink-5)); }
+.si-brand__sep {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: hsl(var(--ink-5));
+}
 
 /* Mid editorial block */
 .si-quote {
@@ -254,15 +249,8 @@
   cursor: pointer;
   position: relative;
   transition: color 0.12s;
-  display: flex; align-items: baseline; justify-content: center; gap: 6px;
+  display: flex; align-items: baseline; justify-content: center;
   white-space: nowrap;
-}
-.si-tab__cn {
-  font-family: var(--font-serif);
-  font-size: 15px;
-  font-style: italic;
-  letter-spacing: 0.01em;
-  text-transform: none;
 }
 .si-tab:hover { color: hsl(var(--ink-2)); }
 .si-tab--active { color: hsl(var(--ink-1)); }
