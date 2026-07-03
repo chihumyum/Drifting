@@ -23,57 +23,41 @@
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 14px;
   font-family: var(--font-mono);
 }
 .si-controls__seg {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 30px;
-  padding: 2px 3px 2px 8px;
-  color: hsl(var(--ink-4));
-  background: hsl(var(--surface) / 0.92);
-  border: 1px solid hsl(var(--rule));
-  border-radius: 4px;
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
+  gap: 10px;
 }
 .si-controls__btn,
 .si-controls__icon {
-  height: 24px;
+  height: 28px;
   border: 0;
-  border-radius: 3px;
   color: hsl(var(--ink-4));
   background: transparent;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  padding: 0;
+  transition: color 0.12s, opacity 0.12s;
 }
 .si-controls__btn {
-  min-width: 28px;
-  padding: 0 8px;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0;
 }
 .si-controls__icon {
-  width: 30px;
+  width: 18px;
   display: grid;
   place-items: center;
-  background: hsl(var(--surface) / 0.92);
-  border: 1px solid hsl(var(--rule));
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
 }
 .si-controls__btn:hover,
 .si-controls__icon:hover {
   color: hsl(var(--ink-1));
-  background: hsl(var(--paper-deep));
 }
 .si-controls__btn--active,
 .si-controls__icon--active {
-  color: hsl(var(--ink-1));
-  background: hsl(var(--page));
+  color: hsl(var(--accent));
 }
 
 /* ─── Left page · brand / editorial ─── */

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Languages, Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings-store';
 import { authClient } from '../lib/auth-client';
@@ -70,7 +70,6 @@ function LoginQuickToggles() {
   return (
     <div className="si-controls" role="group" aria-label={t('auth.controls.title')}>
       <div className="si-controls__seg" role="group" aria-label={t('auth.controls.language')}>
-        <Languages size={13} aria-hidden="true" />
         {UI_LOCALE_OPTIONS.map((locale) => (
           <button
             key={locale.code}
