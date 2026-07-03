@@ -77,9 +77,9 @@ export type AgentToolSearch = 'off' | 'auto' | 'on';
 
 /** Tool-search options for the settings picker. */
 export const AGENT_TOOL_SEARCH_OPTIONS: { value: AgentToolSearch; label: string }[] = [
-  { value: 'off', label: '关闭 · 全量加载工具' },
-  { value: 'auto', label: '自动 · 超阈值才启用' },
-  { value: 'on', label: '开启 · 强制工具检索' },
+  { value: 'off', label: 'Off · load all tools' },
+  { value: 'auto', label: 'Auto · enable above threshold' },
+  { value: 'on', label: 'On · force tool search' },
 ];
 /**
  * How the agent's prose edits surface in the editor:
@@ -103,10 +103,10 @@ export type EvolveEditorEngine = 'agent-sdk' | 'shadow-fc';
  * track the latest of each family; pinned ids name an exact version.
  */
 export const AGENT_MODEL_OPTIONS: { value: string; label: string; short: string }[] = [
-  { value: 'default', label: '默认 · 跟随订阅 / CLI', short: '默认' },
-  { value: 'opus', label: 'Opus · 跟随最新', short: 'Opus' },
-  { value: 'sonnet', label: 'Sonnet · 跟随最新', short: 'Sonnet' },
-  { value: 'haiku', label: 'Haiku · 跟随最新', short: 'Haiku' },
+  { value: 'default', label: 'Default · subscription / CLI', short: 'Default' },
+  { value: 'opus', label: 'Opus · latest', short: 'Opus' },
+  { value: 'sonnet', label: 'Sonnet · latest', short: 'Sonnet' },
+  { value: 'haiku', label: 'Haiku · latest', short: 'Haiku' },
   { value: 'claude-opus-4-8', label: 'Claude Opus 4.8', short: 'Opus 4.8' },
   { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
@@ -125,6 +125,10 @@ export type LocaleCode = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr';
 export type CopilotOutputLang = LocaleCode | 'auto';
 export type DateFormat = 'cjk' | 'iso' | 'us';
 
+function normalizeUiLocale(locale: LocaleCode): LocaleCode {
+  return locale.startsWith('zh') ? 'zh-CN' : 'en';
+}
+
 // The AUTO-task switches — only the wired, debounced copilot capabilities. The
 // unimplemented placeholders (人物一致性核查 / 时间线对齐 / 自动链接 / 语言润色 /
 // 资料检索) were removed — they rendered toggles that did nothing. elementExtract
@@ -135,8 +139,8 @@ export type DateFormat = 'cjk' | 'iso' | 'us';
 export type CopilotTaskId = 'elementExtract' | 'elementPatch';
 
 export const COPILOT_TASKS: { id: CopilotTaskId; label: string; desc: string }[] = [
-  { id: 'elementExtract', label: '元素抽取', desc: '从手稿中抽取人物 / 地点 / 物件' },
-  { id: 'elementPatch', label: '元素补丁建议', desc: '从段落里发现已有人物/地点的状态变化，生成 patch 提案' },
+  { id: 'elementExtract', label: 'Element extraction', desc: 'Extract people, places, and objects from the manuscript' },
+  { id: 'elementPatch', label: 'Element patch suggestions', desc: 'Detect state changes for existing people or places and draft patch proposals' },
 ];
 
 /**
@@ -432,7 +436,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAutosave: (on) => set({ autosave: on }),
 
       uiLocale: 'zh-CN',
-      setUiLocale: (l) => set({ uiLocale: l }),
+      setUiLocale: (l) => set({ uiLocale: normalizeUiLocale(l) }),
       manuscriptLocale: 'zh-CN',
       setManuscriptLocale: (l) => set({ manuscriptLocale: l }),
       spellcheck: true,

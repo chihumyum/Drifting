@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   byokKeychain,
   agentApiKeychain,
@@ -61,6 +62,7 @@ import {
   type ShortcutActionId,
 } from '../../store/shortcuts-store';
 import { acceleratorFromEvent, formatAccelerator } from '../../lib/shortcuts';
+import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -92,22 +94,29 @@ interface RailDef {
   badge?: { text: string; tone?: 'accent' | 'warn' };
 }
 
+interface RailBaseDef {
+  id: RailId;
+  groupKey: string;
+  glyph: string;
+  labelKey: string;
+}
+
 // Static rail definition. The subscription row's badge is filled in at
 // render time from the actual cached plan — see SetRail.
-const RAIL_BASE: Omit<RailDef, 'badge'>[] = [
-  { id: 'account', group: '我的账户', glyph: '◌', label: '账号' },
-  { id: 'subscription', group: '我的账户', glyph: '¶', label: '订阅' },
-  { id: 'trash', group: '我的账户', glyph: '⌫', label: '回收站' },
-  { id: 'appearance', group: '偏好', glyph: '☀', label: '外观' },
-  { id: 'editor', group: '偏好', glyph: '§', label: '编辑器' },
-  { id: 'language', group: '偏好', glyph: '文', label: '语言' },
-  { id: 'copilot', group: '智能', glyph: '⌁', label: 'Copilot · 副手' },
-  { id: 'shadow', group: '智能', glyph: '◐', label: 'Shadow Agent' },
-  { id: 'agent', group: '智能', glyph: '✦', label: 'General Agent' },
-  { id: 'keys', group: '控制', glyph: '⌨', label: '快捷键' },
-  { id: 'sync', group: '控制', glyph: '⇅', label: '同步与数据' },
-  { id: 'privacy', group: '关于', glyph: '⚷', label: '隐私' },
-  { id: 'about', group: '关于', glyph: '渡', label: '关于 Drifting' },
+const RAIL_BASE: RailBaseDef[] = [
+  { id: 'account', groupKey: 'settings.groups.account', glyph: '◌', labelKey: 'settings.rail.account' },
+  { id: 'subscription', groupKey: 'settings.groups.account', glyph: '¶', labelKey: 'settings.rail.subscription' },
+  { id: 'trash', groupKey: 'settings.groups.account', glyph: '⌫', labelKey: 'settings.rail.trash' },
+  { id: 'appearance', groupKey: 'settings.groups.preferences', glyph: '☀', labelKey: 'settings.rail.appearance' },
+  { id: 'editor', groupKey: 'settings.groups.preferences', glyph: '§', labelKey: 'settings.rail.editor' },
+  { id: 'language', groupKey: 'settings.groups.preferences', glyph: '文', labelKey: 'settings.rail.language' },
+  { id: 'copilot', groupKey: 'settings.groups.intelligence', glyph: '⌁', labelKey: 'settings.rail.copilot' },
+  { id: 'shadow', groupKey: 'settings.groups.intelligence', glyph: '◐', labelKey: 'settings.rail.shadow' },
+  { id: 'agent', groupKey: 'settings.groups.intelligence', glyph: '✦', labelKey: 'settings.rail.agent' },
+  { id: 'keys', groupKey: 'settings.groups.control', glyph: '⌨', labelKey: 'settings.rail.keys' },
+  { id: 'sync', groupKey: 'settings.groups.control', glyph: '⇅', labelKey: 'settings.rail.sync' },
+  { id: 'privacy', groupKey: 'settings.groups.about', glyph: '⚷', labelKey: 'settings.rail.privacy' },
+  { id: 'about', groupKey: 'settings.groups.about', glyph: '渡', labelKey: 'settings.rail.about_app' },
 ];
 
 const RAIL_IDS = new Set<RailId>([
@@ -130,14 +139,21 @@ const RAIL_IDS = new Set<RailId>([
 // real cached plan instead of a hardcoded "PRO".
 function useRail(): RailDef[] {
   const plan = useFeatureAccessStore((s) => s.plan);
+  const { t } = useTranslation();
   return useMemo<RailDef[]>(() => {
     return RAIL_BASE.map((r) => {
+      const base = {
+        id: r.id,
+        group: t(r.groupKey),
+        glyph: r.glyph,
+        label: t(r.labelKey),
+      };
       if (r.id === 'subscription') {
-        return { ...r, badge: { text: plan.toUpperCase() } };
+        return { ...base, badge: { text: plan.toUpperCase() } };
       }
-      return r;
+      return base;
     });
-  }, [plan]);
+  }, [plan, t]);
 }
 
 export function SettingsModal({ isOpen, onClose, initialRailId }: SettingsModalProps) {
@@ -263,6 +279,7 @@ function SetHead({
   setQuery: (s: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const isMac = navigator.userAgent.includes('Mac');
   return (
     <div
@@ -271,7 +288,7 @@ function SetHead({
     >
       <div className="set-head__left">
         <div className="set-head__title">
-          设定 <em>Settings · Esc 关闭</em>
+          {t('settings.title')} <em>{t('settings.title_en')} · {t('settings.esc_close')}</em>
         </div>
       </div>
 
@@ -281,14 +298,14 @@ function SetHead({
           <path d="M10.5 10.5 L14 14" />
         </svg>
         <input
-          placeholder="搜索设定…"
+          placeholder={t('settings.search_placeholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <kbd>⌘F</kbd>
       </div>
 
-      <button className="set-head__close" onClick={onClose} title="关闭 (Esc)">
+      <button className="set-head__close" onClick={onClose} title={t('settings.close_with_esc')}>
         ×
       </button>
     </div>
@@ -306,6 +323,7 @@ function SetRail({
   active: RailId;
   onSelect: (id: RailId) => void;
 }) {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const tier = useSettingsStore((s) => s.copilotTier);
   const initial = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase();
@@ -321,8 +339,8 @@ function SetRail({
       <div className="set-rail__who">
         <div className="set-rail__who-avatar">{initial}</div>
         <div className="set-rail__who-body">
-          <div className="set-rail__who-name">{user?.name ?? user?.email ?? '本地用户'}</div>
-          <div className="set-rail__who-meta">{tier.toUpperCase()} · 模型档位</div>
+          <div className="set-rail__who-name">{user?.name ?? user?.email ?? t('settings.local_user')}</div>
+          <div className="set-rail__who-meta">{tier.toUpperCase()} · {t('settings.model_tier')}</div>
         </div>
       </div>
 
@@ -474,6 +492,7 @@ function Row({
 type RegisterRef = (el: HTMLElement | null) => void;
 
 function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
@@ -572,7 +591,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
         email: user.email,
         type: 'email-verification',
       });
-      if (res.error) throw new Error(res.error.message || '发送失败');
+      if (res.error) throw new Error(res.error.message || t('settings.account.send_failed'));
       setVerifySent(true);
     } catch (err) {
       setVerifyError(err instanceof Error ? err.message : String(err));
@@ -590,7 +609,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
         email: user.email,
         otp: verifyCode.trim(),
       });
-      if (res.error) throw new Error(res.error.message || '验证失败');
+      if (res.error) throw new Error(res.error.message || t('settings.account.verify_failed'));
       setVerifyOpen(false);
       setVerifyCode('');
       setVerifySent(false);
@@ -617,7 +636,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   };
 
   const handleRequestDeletion = async () => {
-    if (!window.confirm('确认请求注销账户？账号将进入 30 天宽限期。')) return;
+    if (!window.confirm(t('settings.account.delete_confirm'))) return;
     setDeletionBusy(true);
     try {
       const status = await accountService.requestDeletion();
@@ -640,16 +659,16 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="account">
       <PanelHead
-        kicker="账号 · ACCOUNT"
-        title="你的写作身份。"
-        sub="这些信息会出现在协作面板、稿件元数据和 Shadow Agent 的署名里——是你给自己作品留下的指印。"
+        kicker={t('settings.account.kicker')}
+        title={t('settings.account.title')}
+        sub={t('settings.account.sub')}
       />
 
       <div className="set-sec">
-        <SecHead title="个人资料" hint="公开 · PUBLIC" />
+        <SecHead title={t('settings.account.profile')} hint="PUBLIC" />
         <Row
-          label="显示名"
-          desc="协作者与 Shadow 报告里看见的名字。"
+          label={t('settings.account.display_name')}
+          desc={t('settings.account.display_name_desc')}
           control={
             nameDraft !== null ? (
               <>
@@ -664,25 +683,27 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                   onClick={handleSaveName}
                   disabled={savingName}
                 >
-                  保存
+                  {t('settings.common.save')}
                 </button>
                 <button className="set-btn" onClick={() => setNameDraft(null)}>
-                  取消
+                  {t('settings.common.cancel')}
                 </button>
               </>
             ) : (
               <div className="set-field">
-                <span className="set-field__value">{user?.name ?? '未设置'}</span>
+                <span className="set-field__value">
+                  {user?.name ?? t('settings.account.not_set')}
+                </span>
                 <button className="set-field__edit" onClick={() => setNameDraft(user?.name ?? '')}>
-                  编辑
+                  {t('settings.common.edit')}
                 </button>
               </div>
             )
           }
         />
         <Row
-          label="邮箱"
-          desc="用于登录与账户找回。"
+          label={t('settings.account.email')}
+          desc={t('settings.account.email_desc')}
           control={
             emailDraft !== null ? (
               <>
@@ -698,10 +719,10 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                   onClick={handleSaveEmail}
                   disabled={savingEmail}
                 >
-                  保存
+                  {t('settings.common.save')}
                 </button>
                 <button className="set-btn" onClick={() => setEmailDraft(null)}>
-                  取消
+                  {t('settings.common.cancel')}
                 </button>
               </>
             ) : (
@@ -710,7 +731,7 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                 {user?.email && (
                   emailVerified ? (
                     <span className="set-mono" style={{ fontSize: 11, color: 'hsl(var(--accent))' }}>
-                      ✓ 已验证
+                      ✓ {t('settings.account.verified')}
                     </span>
                   ) : (
                     <button
@@ -720,12 +741,12 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                         setVerifyError(null);
                       }}
                     >
-                      验证
+                      {t('settings.account.verify')}
                     </button>
                   )
                 )}
                 <button className="set-field__edit" onClick={() => setEmailDraft(user?.email ?? '')}>
-                  更改
+                  {t('settings.common.change')}
                 </button>
               </div>
             )
@@ -747,7 +768,8 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             {!verifySent ? (
               <>
                 <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  我们会向 <code>{user?.email}</code> 寄一个 6 位验证码。
+                  {t('settings.account.send_verify_intro')}{' '}
+                  <code>{user?.email}</code>
                 </div>
                 {verifyError && (
                   <div style={{ color: 'hsl(var(--accent))', fontSize: 12 }}>{verifyError}</div>
@@ -758,21 +780,25 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                     onClick={handleSendVerifyOtp}
                     disabled={verifyBusy}
                   >
-                    寄出
+                    {t('settings.account.send')}
                   </button>
-                  <button className="set-btn" onClick={() => setVerifyOpen(false)}>取消</button>
+                  <button className="set-btn" onClick={() => setVerifyOpen(false)}>
+                    {t('settings.common.cancel')}
+                  </button>
                 </div>
               </>
             ) : (
               <>
                 <div style={{ fontSize: 12, color: 'hsl(var(--ink-3))' }}>
-                  已寄到 <code>{user?.email}</code>，10 分钟内输入 6 位验证码。
+                  {t('settings.account.verify_sent_prefix')}{' '}
+                  <code>{user?.email}</code>
+                  {t('settings.account.verify_sent_suffix')}
                 </div>
                 <input
                   className="set-input set-input--mono"
                   inputMode="numeric"
                   maxLength={6}
-                  placeholder="6 位数字"
+                  placeholder={t('settings.account.otp_placeholder')}
                   value={verifyCode}
                   onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 />
@@ -785,16 +811,16 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                     onClick={handleVerifyEmailOtp}
                     disabled={verifyBusy || verifyCode.length !== 6}
                   >
-                    确认
+                    {t('settings.account.confirm')}
                   </button>
                   <button className="set-btn" onClick={handleSendVerifyOtp} disabled={verifyBusy}>
-                    重发
+                    {t('settings.account.resend')}
                   </button>
                   <button
                     className="set-btn"
                     onClick={() => { setVerifyOpen(false); setVerifySent(false); setVerifyCode(''); }}
                   >
-                    取消
+                    {t('settings.common.cancel')}
                   </button>
                 </div>
               </>
@@ -802,9 +828,13 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
           </div>
         )}
         <Row
-          label="密码"
-          desc="更改后其他设备会被强制下线。"
-          control={<button className="set-btn" onClick={() => setPwOpen((v) => !v)}>更改</button>}
+          label={t('settings.account.password')}
+          desc={t('settings.account.password_desc')}
+          control={
+            <button className="set-btn" onClick={() => setPwOpen((v) => !v)}>
+              {t('settings.common.change')}
+            </button>
+          }
         />
         {pwOpen && (
           <div
@@ -822,14 +852,14 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
             <input
               className="set-input"
               type="password"
-              placeholder="当前密码"
+              placeholder={t('settings.account.current_password')}
               value={pwCurrent}
               onChange={(e) => setPwCurrent(e.target.value)}
             />
             <input
               className="set-input"
               type="password"
-              placeholder="新密码（至少 8 位）"
+              placeholder={t('settings.account.new_password')}
               value={pwNew}
               onChange={(e) => setPwNew(e.target.value)}
             />
@@ -842,9 +872,11 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
                 onClick={handleChangePassword}
                 disabled={pwBusy || pwCurrent.length === 0 || pwNew.length < 8}
               >
-                保存密码
+                {t('settings.account.save_password')}
               </button>
-              <button className="set-btn" onClick={() => setPwOpen(false)}>取消</button>
+              <button className="set-btn" onClick={() => setPwOpen(false)}>
+                {t('settings.common.cancel')}
+              </button>
             </div>
           </div>
         )}
@@ -852,91 +884,100 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="登入设备" hint="ACTIVE SESSIONS" />
+        <SecHead title={t('settings.account.devices')} hint={t('settings.account.devices_hint')} />
         {sessions === null ? (
-          <div className="set-row__desc">读取中…</div>
+          <div className="set-row__desc">{t('settings.account.sessions_loading')}</div>
         ) : sessions.length === 0 ? (
-          <div className="set-row__desc">仅本机会话。</div>
+          <div className="set-row__desc">{t('settings.account.current_session_only')}</div>
         ) : (
           sessions.map((s) => (
             <div className="set-device" key={s.id}>
               <div className="set-device__glyph">{s.isCurrent ? '▤' : '▢'}</div>
               <div>
                 <div className="set-device__name">
-                  <b>{s.userAgent ?? '未知设备'}</b>
+                  <b>{s.userAgent ?? t('settings.account.unknown_device')}</b>
                 </div>
                 <div className="set-device__meta">
                   {s.ipAddress ?? '—'} · {new Date(s.createdAt).toLocaleString()}
                 </div>
               </div>
               <div className={'set-device__chip' + (s.isCurrent ? '' : ' set-device__chip--idle')}>
-                {s.isCurrent ? '本机' : '其他'}
+                {s.isCurrent ? t('settings.account.this_device') : t('settings.account.other_device')}
               </div>
               <button
                 className="set-btn set-btn--ghost"
                 onClick={() => (s.isCurrent ? handleLogout() : handleRevokeSession(s.id, s.token))}
                 disabled={revokingId === s.id}
               >
-                {s.isCurrent ? '登出本机' : revokingId === s.id ? '撤销中…' : '撤销'}
+                {s.isCurrent
+                  ? t('settings.account.logout_device')
+                  : revokingId === s.id
+                    ? t('settings.account.revoking')
+                    : t('settings.account.revoke')}
               </button>
             </div>
           ))
         )}
         {revokeError && (
           <div className="set-row__desc" style={{ color: 'hsl(var(--accent))' }}>
-            撤销失败：{revokeError}
+            {t('settings.account.revoke_failed', { error: revokeError })}
           </div>
         )}
       </div>
 
       <div className="set-sec">
-        <SecHead title="退出登录" hint="SIGN OUT" />
+        <SecHead title={t('settings.account.sign_out_title')} hint="SIGN OUT" />
         <Row
-          label="登出本机账号"
-          desc="结束当前设备会话；本地稿件保留，下次回来重新登录即可。"
+          label={t('settings.account.sign_out_label')}
+          desc={t('settings.account.sign_out_desc')}
           control={
             <button
               className="set-btn set-btn--primary"
               onClick={handleLogout}
             >
-              退出登录
+              {t('settings.account.sign_out_button')}
             </button>
           }
         />
       </div>
 
       <div className="set-danger">
-        <div className="set-danger__title">危险区</div>
+        <div className="set-danger__title">{t('settings.account.danger_zone')}</div>
         <Row
-          label="导出全部数据"
-          desc="下载所有手稿、元素、Shadow 记录与版本历史。"
-          control={<button className="set-btn">请求导出</button>}
+          label={t('settings.account.export_all')}
+          desc={t('settings.account.export_all_desc')}
+          control={<button className="set-btn">{t('settings.account.export_all_btn')}</button>}
         />
         {deletion?.pending ? (
           <Row
-            label="账户已计划删除"
-            desc={`${deletion.daysLeft ?? 30} 天后永久删除（${deletion.scheduledAt ? new Date(deletion.scheduledAt).toLocaleDateString() : ''}）`}
+            label={t('settings.account.delete_pending_title')}
+            desc={t('settings.account.delete_pending_desc', {
+              daysLeft: deletion.daysLeft ?? 30,
+              date: deletion.scheduledAt
+                ? new Date(deletion.scheduledAt).toLocaleDateString()
+                : '',
+            })}
             control={
               <button
                 className="set-btn"
                 onClick={handleCancelDeletion}
                 disabled={deletionBusy}
               >
-                取消注销
+                {t('settings.account.delete_cancel')}
               </button>
             }
           />
         ) : (
           <Row
-            label="删除账户"
-            desc="将保留稿件 30 天后永久删除，期间可以恢复。"
+            label={t('settings.account.delete_account')}
+            desc={t('settings.account.delete_account_desc')}
             control={
               <button
                 className="set-btn set-btn--danger"
                 onClick={handleRequestDeletion}
                 disabled={deletionBusy}
               >
-                删除…
+                {t('settings.account.delete_account_btn')}
               </button>
             }
           />
@@ -949,10 +990,10 @@ function AccountPanel({ registerRef }: { registerRef: RegisterRef }) {
 // 订阅 — 仅展示当前计划与「升级 / 降级」「浏览发票」二级页面入口
 type SubView = 'overview' | 'plans' | 'invoices';
 
-const PLAN_LABEL: Record<string, string> = {
-  free: '渡口（免费）',
-  pro: 'Shadow Pro',
-  studio: 'Studio',
+const PLAN_LABEL_KEY: Record<string, string> = {
+  free: 'settings.subscription.plans.free_label',
+  pro: 'settings.subscription.plans.pro_label',
+  studio: 'settings.subscription.plans.studio_label',
 };
 
 const PLAN_PRICE: Record<string, string> = {
@@ -962,6 +1003,7 @@ const PLAN_PRICE: Record<string, string> = {
 };
 
 function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const [view, setView] = useState<SubView>('overview');
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1023,12 +1065,12 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
 
   const configured = !!status?.stripeConfigured;
   const plan = status?.plan ?? 'free';
-  const planName = PLAN_LABEL[plan] ?? plan;
+  const planName = PLAN_LABEL_KEY[plan] ? t(PLAN_LABEL_KEY[plan]) : plan;
   const renewLine = status?.currentPeriodEnd
-    ? `下次扣款 ${new Date(status.currentPeriodEnd).toLocaleDateString()}${
-        status.cancelAtPeriodEnd ? ' · 已取消（不会续费）' : ''
-      }`
-    : '尚未订阅付费方案';
+    ? `${t('settings.subscription.renew_line', {
+        date: new Date(status.currentPeriodEnd).toLocaleDateString(),
+      })}${status.cancelAtPeriodEnd ? t('settings.subscription.cancel_at_period_end') : ''}`
+    : t('settings.subscription.no_paid_plan');
 
   if (view === 'plans') {
     return (
@@ -1039,46 +1081,80 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
           onClick={() => setView('overview')}
         >
           <span>←</span>
-          <span>返回订阅</span>
+          <span>{t('settings.subscription.back')}</span>
         </button>
-        <PanelHead kicker="升级 / 降级" title="挑一个更合脚的方案。" />
+        <PanelHead
+          kicker={t('settings.subscription.plans_kicker')}
+          title={t('settings.subscription.plans_title')}
+        />
         <div className="set-plans">
           <PlanCard
-            kicker="免费"
-            name="渡口"
+            kicker={t('settings.subscription.free')}
+            name={t('settings.subscription.plans.free_name')}
             price="¥0"
             features={[
-              '1 个项目 · 50,000 字',
-              '基础任务自动化 · 50 次/月',
-              '无 Shadow Agent',
-              '无 BYOK',
+              t('settings.subscription.plans.free_feature_1'),
+              t('settings.subscription.plans.free_feature_2'),
+              t('settings.subscription.plans.free_feature_3'),
+              t('settings.subscription.plans.free_feature_4'),
             ]}
-            ctaLabel={plan === 'free' ? '当前方案' : switching === 'free' ? '切换中…' : '降级'}
+            ctaLabel={
+              plan === 'free'
+                ? t('settings.subscription.current_plan')
+                : switching === 'free'
+                  ? t('settings.subscription.switching')
+                  : t('settings.subscription.downgrade')
+            }
             current={plan === 'free'}
             onClick={plan === 'free' ? undefined : () => switchPlan('free')}
           />
           <PlanCard
-            kicker={plan === 'pro' ? '当前 · CURRENT' : '主流推荐'}
+            kicker={
+              plan === 'pro'
+                ? t('settings.subscription.current_kicker')
+                : t('settings.subscription.recommended')
+            }
             name="Shadow Pro"
             price="¥58"
             features={[
-              '无限项目与字数',
-              'Shadow Agent · 50 任务/月',
-              'Copilot 自动化无限',
-              '自带模型 BYOK',
-              '版本历史 90 天',
+              t('settings.subscription.plans.pro_feature_1'),
+              t('settings.subscription.plans.pro_feature_2'),
+              t('settings.subscription.plans.pro_feature_3'),
+              t('settings.subscription.plans.pro_feature_4'),
+              t('settings.subscription.plans.pro_feature_5'),
             ]}
-            ctaLabel={plan === 'pro' ? '当前方案' : switching === 'pro' ? '切换中…' : '升级'}
+            ctaLabel={
+              plan === 'pro'
+                ? t('settings.subscription.current_plan')
+                : switching === 'pro'
+                  ? t('settings.subscription.switching')
+                  : t('settings.subscription.upgrade')
+            }
             current={plan === 'pro'}
             primary={plan !== 'pro'}
             onClick={plan === 'pro' ? undefined : () => switchPlan('pro')}
           />
           <PlanCard
-            kicker={plan === 'studio' ? '当前 · CURRENT' : '专业作家'}
+            kicker={
+              plan === 'studio'
+                ? t('settings.subscription.current_kicker')
+                : t('settings.subscription.professional')
+            }
             name="Studio"
             price="¥168"
-            features={['Shadow Agent · 不限', '协作者 · 5 席位', '版本历史 1 年', '优先稳定通道']}
-            ctaLabel={plan === 'studio' ? '当前方案' : switching === 'studio' ? '切换中…' : '升级'}
+            features={[
+              t('settings.subscription.plans.studio_feature_1'),
+              t('settings.subscription.plans.studio_feature_2'),
+              t('settings.subscription.plans.studio_feature_3'),
+              t('settings.subscription.plans.studio_feature_4'),
+            ]}
+            ctaLabel={
+              plan === 'studio'
+                ? t('settings.subscription.current_plan')
+                : switching === 'studio'
+                  ? t('settings.subscription.switching')
+                  : t('settings.subscription.upgrade')
+            }
             current={plan === 'studio'}
             primary={plan !== 'studio'}
             onClick={plan === 'studio' ? undefined : () => switchPlan('studio')}
@@ -1096,7 +1172,7 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
             lineHeight: 1.6,
           }}
         >
-          <b>DEV</b> · 当前未接入支付。点击直接切换订阅等级，立即生效。Stripe 接通后此面板会改回 Checkout 流程。
+          <b>DEV</b> · {t('settings.subscription.dev_notice')}
         </div>
       </section>
     );
@@ -1111,17 +1187,22 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
           onClick={() => setView('overview')}
         >
           <span>←</span>
-          <span>返回订阅</span>
+          <span>{t('settings.subscription.back')}</span>
         </button>
-        <PanelHead kicker="发票 · INVOICES" title="过往扣款明细。" />
+        <PanelHead
+          kicker={t('settings.subscription.invoices_kicker')}
+          title={t('settings.subscription.invoices_title')}
+        />
         <div className="set-sec">
-          <SecHead title="近期" />
+          <SecHead title={t('settings.subscription.recent')} />
           {!configured && (
-            <div className="set-row__desc">支付通道未配置，无法获取发票。</div>
+            <div className="set-row__desc">{t('settings.subscription.stripe_unconfigured')}</div>
           )}
-          {configured && invoices === null && <div className="set-row__desc">读取中…</div>}
+          {configured && invoices === null && (
+            <div className="set-row__desc">{t('settings.subscription.loading')}</div>
+          )}
           {configured && invoices && invoices.length === 0 && (
-            <div className="set-row__desc">暂无发票记录。</div>
+            <div className="set-row__desc">{t('settings.subscription.no_invoices')}</div>
           )}
           {configured &&
             invoices?.map((inv) => (
@@ -1145,7 +1226,7 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
                       className="set-btn"
                       onClick={() => window.open(inv.pdfUrl ?? '', '_blank')}
                     >
-                      下载 PDF
+                      {t('settings.subscription.download_pdf')}
                     </button>
                   ) : null
                 }
@@ -1159,17 +1240,18 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="subscription">
       <PanelHead
-        kicker="订阅 · SUBSCRIPTION"
-        title="你的方案与发票。"
+        kicker={t('settings.subscription.kicker')}
+        title={t('settings.subscription.title')}
         sub={
           loading ? (
-            '加载中…'
+            t('settings.subscription.loading')
           ) : configured ? (
             <>
-              当前方案 <em className="set-italic">{planName.toUpperCase()}</em> · {renewLine}
+              {t('settings.subscription.current_plan_inline')}{' '}
+              <em className="set-italic">{planName}</em> · {renewLine}
             </>
           ) : (
-            <>当前为免费方案。</>
+            <>{t('settings.subscription.free_plan_inline')}</>
           )
         }
       />
@@ -1177,11 +1259,13 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
       <div className="set-plan-current">
         <div className="set-plan-current__body">
           <div className="set-plan-current__kicker">
-            {plan === 'free' ? '免费' : '当前 · CURRENT'}
+            {plan === 'free'
+              ? t('settings.subscription.free')
+              : t('settings.subscription.current_kicker')}
           </div>
           <div className="set-plan-current__name">{planName}</div>
           <div className="set-plan-current__meta">
-            {PLAN_PRICE[plan] ?? '—'} / 月 · {renewLine}
+            {PLAN_PRICE[plan] ?? '—'} {t('settings.subscription.per_month')} · {renewLine}
           </div>
         </div>
         <div className="set-plan-current__cta">
@@ -1189,25 +1273,25 @@ function SubscriptionPanel({ registerRef }: { registerRef: RegisterRef }) {
             className="set-btn"
             onClick={isByokOnly() ? undefined : () => setView('plans')}
             disabled={isByokOnly()}
-            title={isByokOnly() ? '托管方案即将开放' : undefined}
+            title={isByokOnly() ? t('settings.subscription.hosted_coming_soon') : undefined}
           >
-            升级 / 降级
+            {t('settings.subscription.plans_kicker')}
           </button>
           <button className="set-btn" onClick={() => setView('invoices')}>
-            浏览发票
+            {t('settings.subscription.view_invoices')}
           </button>
         </div>
       </div>
 
       {configured && plan !== 'free' && (
         <div className="set-sec" style={{ marginTop: 28 }}>
-          <SecHead title="付款方式 / 取消" hint="VIA STRIPE PORTAL" />
+          <SecHead title={t('settings.subscription.payment_cancel')} hint="VIA STRIPE PORTAL" />
           <Row
-            label="管理付款方式与发票"
-            desc="跳转到 Stripe 安全门户。"
+            label={t('settings.subscription.manage_payment')}
+            desc={t('settings.subscription.manage_payment_desc')}
             control={
               <button className="set-btn" onClick={() => subscriptionService.openCustomerPortal()}>
-                打开门户
+                {t('settings.subscription.open_portal')}
               </button>
             }
           />
@@ -1236,13 +1320,14 @@ function PlanCard({
   primary?: boolean;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className={'set-plan' + (current ? ' set-plan--current' : '')}>
       <div className="set-plan__kicker">{kicker}</div>
       <div className="set-plan__name">{name}</div>
       <div className="set-plan__price">
         {price}
-        <sub>/月</sub>
+        <sub>{t('settings.subscription.month_suffix')}</sub>
       </div>
       <div className="set-plan__rule" />
       {features.map((f) => (
@@ -1264,21 +1349,22 @@ function PlanCard({
 }
 
 function TrashRailPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   return (
     <section className="set-panel" ref={registerRef} id="trash">
       <PanelHead
-        kicker="回收站 · TRASH"
-        title="软删除的内容。"
-        sub="30 天后自动彻底删除。Pro/Studio 专享 — Free 账号删除即永久删除。"
+        kicker={t('settings.trash.kicker')}
+        title={t('settings.trash.title')}
+        sub={t('settings.trash.sub')}
       />
       <TrashPanel />
     </section>
   );
 }
 
-const SHADOW_USAGE_FEATURE_LABEL: Record<string, string> = {
-  'shadow:review': '章节审阅 · CI',
-  'shadow:arc': '弧线派生',
+const SHADOW_USAGE_FEATURE_LABEL_KEY: Record<string, string> = {
+  'shadow:review': 'settings.shadow_usage.feature_review',
+  'shadow:arc': 'settings.shadow_usage.feature_arc',
 };
 
 const EMPTY_USAGE_SUMMARY: AiUsageSummary = {
@@ -1297,6 +1383,7 @@ function monthStartISO(): string {
 // server-side and intentionally NOT shown here. Tokens only (no cost/$, no quota:
 // BYOK has no hosted budget). Rendered as a section INSIDE the Shadow panel.
 function ShadowUsageSection() {
+  const { t } = useTranslation();
   const [scope, setScope] = useState<'month' | 'all'>('month');
   const [summary, setSummary] = useState<AiUsageSummary | null>(null);
 
@@ -1322,15 +1409,17 @@ function ShadowUsageSection() {
   return (
     <>
       <div className="set-sec">
-        <SecHead title="本地用量" hint="USAGE" />
+        <SecHead title={t('settings.shadow_usage.title')} hint="USAGE" />
         <p className="set-row__desc" style={{ margin: '-4px 0 8px' }}>
-          只统计<b>在本机直连执行</b>的 Shadow 调用（章节审阅 + 弧线派生）的 token；托管用量在服务端计量、不在此处，自带 Key 无配额。
+          {t('settings.shadow_usage.desc_a')}
+          <b>{t('settings.shadow_usage.local_direct')}</b>
+          {t('settings.shadow_usage.desc_b')}
         </p>
         <Seg<'month' | 'all'>
           value={scope}
           options={[
-            { value: 'month', label: '本月' },
-            { value: 'all', label: '累计' },
+            { value: 'month', label: t('settings.shadow_usage.this_month') },
+            { value: 'all', label: t('settings.shadow_usage.all_time') },
           ]}
           onChange={setScope}
         />
@@ -1353,7 +1442,7 @@ function ShadowUsageSection() {
             color: 'hsl(var(--ink-4))',
           }}
         >
-          Tokens（输入 + 输出）
+          {t('settings.shadow_usage.tokens_label')}
         </div>
         <div
           style={{
@@ -1379,17 +1468,20 @@ function ShadowUsageSection() {
           }}
         >
           <span>
-            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.calls.toLocaleString()}</b> 次调用
+            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.calls.toLocaleString()}</b>{' '}
+            {t('settings.shadow_usage.calls')}
           </span>
           <span>
-            输入 <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.inputTokens.toLocaleString()}</b>
+            {t('settings.shadow_usage.input')}{' '}
+            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.inputTokens.toLocaleString()}</b>
           </span>
           <span>
-            输出 <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.outputTokens.toLocaleString()}</b>
+            {t('settings.shadow_usage.output')}{' '}
+            <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.outputTokens.toLocaleString()}</b>
           </span>
           {s.total.cachedTokens > 0 && (
             <span>
-              缓存{' '}
+              {t('settings.shadow_usage.cached')}{' '}
               <b style={{ color: 'hsl(var(--ink-2))' }}>{s.total.cachedTokens.toLocaleString()}</b>
             </span>
           )}
@@ -1397,17 +1489,23 @@ function ShadowUsageSection() {
       </div>
 
       <div className="set-sec" style={{ marginTop: 24 }}>
-        <SecHead title="按能力" hint="BY FEATURE" />
+        <SecHead title={t('settings.shadow_usage.by_feature')} hint="BY FEATURE" />
         {s.byFeature.length === 0 ? (
           <p className="set-row__desc" style={{ margin: '4px 0 0' }}>
-            还没有本地用量记录。跑一次章节审阅或弧线派生后，token 用量会出现在这里。
+            {t('settings.shadow_usage.empty')}
           </p>
         ) : (
           s.byFeature.map((f) => (
             <Row
               key={f.feature}
-              label={SHADOW_USAGE_FEATURE_LABEL[f.feature] ?? f.feature}
-              desc={`${f.calls.toLocaleString()} 次调用`}
+              label={
+                SHADOW_USAGE_FEATURE_LABEL_KEY[f.feature]
+                  ? t(SHADOW_USAGE_FEATURE_LABEL_KEY[f.feature])
+                  : f.feature
+              }
+              desc={t('settings.shadow_usage.calls_count', {
+                count: f.calls.toLocaleString(),
+              })}
               control={
                 <span className="set-mono" style={{ fontSize: 12, color: 'hsl(var(--ink-2))' }}>
                   {(f.inputTokens + f.outputTokens).toLocaleString()} tok
@@ -1422,36 +1520,37 @@ function ShadowUsageSection() {
 }
 
 function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const themeMode = useSettingsStore((s) => s.themeMode);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
   const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
 
   const themes: { value: ThemeMode; name: string; kind: string; tp: string }[] = [
-    { value: 'light', name: '浅色', kind: 'LIGHT', tp: 'tp--light' },
-    { value: 'dark', name: '深色', kind: 'DARK', tp: 'tp--dark' },
-    { value: 'system', name: '跟随系统', kind: 'SYSTEM', tp: 'tp--system' },
+    { value: 'light', name: t('settings.appearance.light'), kind: 'LIGHT', tp: 'tp--light' },
+    { value: 'dark', name: t('settings.appearance.dark'), kind: 'DARK', tp: 'tp--dark' },
+    { value: 'system', name: t('settings.appearance.system'), kind: 'SYSTEM', tp: 'tp--system' },
   ];
 
   return (
     <section className="set-panel" ref={registerRef} id="appearance">
       <PanelHead
-        kicker="外观 · APPEARANCE"
-        title="书桌的光线，由你决定。"
-        sub="挑一个最合眼的明度，Shadow 模式是否进一步偏冷的色调由你决定。"
+        kicker={t('settings.appearance.kicker')}
+        title={t('settings.appearance.title')}
+        sub={t('settings.appearance.sub')}
       />
 
       <div className="set-sec">
-        <SecHead title="皮肤" hint="SKIN" />
+        <SecHead title={t('settings.appearance.skin')} hint="SKIN" />
         <Row
-          label="界面外观"
-          desc="经典手稿，或现代 Craft / Arc 风的浮岛。"
+          label={t('settings.appearance.skin_label')}
+          desc={t('settings.appearance.skin_desc')}
           control={
             <Seg
               value={appearanceSkin}
               options={[
-                { value: 'classic', label: '经典' },
-                { value: 'modern', label: '现代' },
+                { value: 'classic', label: t('settings.appearance.skin_classic') },
+                { value: 'modern', label: t('settings.appearance.skin_modern') },
               ]}
               onChange={setAppearanceSkin}
             />
@@ -1460,7 +1559,7 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="主题" hint="THEME" />
+        <SecHead title={t('settings.appearance.theme')} hint="THEME" />
         <div className="set-theme-grid">
           {themes.map((t) => (
             <button
@@ -1500,6 +1599,7 @@ function AppearancePanel({ registerRef }: { registerRef: RegisterRef }) {
 }
 
 function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const {
     bodyFontSize,
     setBodyFontSize,
@@ -1525,53 +1625,41 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="editor">
       <PanelHead
-        kicker="编辑器 · EDITOR"
-        title="字落在纸上的样子。"
-        sub="写作区的字体、行距、聚焦行为，与稿件本身的导出无关。"
+        kicker={t('settings.editor.kicker')}
+        title={t('settings.editor.title')}
+        sub={t('settings.editor.sub')}
       />
 
       <div className="set-sec">
-        <SecHead title="预览" hint="PREVIEW" />
+        <SecHead title={t('settings.editor.preview')} hint="PREVIEW" />
         {/* Live sample — reads the same --editor-* CSS variables the real editor
             does (set by applyEditorPreferences), so 字号 / 行距 / 段间距 / 段首缩进
             and the Tab 缩进 width all update here as the controls below change. */}
         {/* The box's own width tracks 纸张宽度 (--editor-max-width), capped to the
             settings column, so narrowing the page narrows the preview too. */}
         <div className="set-preview" aria-hidden="true">
-          <p>
-            沉默在两人之间蔓延，像潮水漫过礁石。她终于开口，声音轻得几乎被海风吹散，落在他听不真切的地方。海面上最后一缕光正缓缓收拢，把两人的影子拉得很长。
-          </p>
-          <p>
-            “你还会回来吗？”他没有立刻回答，只是望着那轮渐渐沉入海平线的夕阳，许久才轻轻点头。可那点头里有太多迟疑，连他自己也分不清是承诺，还是不忍。
-          </p>
-          <p>
-            风从堤岸的另一头吹来，带着咸涩与潮湿的气息。她把外套裹得更紧了些，没有再追问，只是把那句话默默记在心里——有些答案，问出口反而会碎。
-          </p>
-          <p>
-            远处的灯塔一明一灭，像是替谁数着无法言说的心事。海浪一遍遍冲刷着脚下的礁石，把白日里说过的、没说出口的，都揉进了潮声里。
-          </p>
-          <p data-indent="1">
-            很多年后，他仍记得那个傍晚——以及那句始终没有说出口的告别。每当海风再次掠过窗棂，那一刻的沉默便会重新浮上来，清晰得仿佛从未走远。（此段演示 Tab 缩进）
-          </p>
-          <p>
-            后来他们各自走进了不同的人生，城市的灯火把记忆冲淡又点亮。可只要提起海，提起夕阳，那个傍晚总会准时回到眼前，温柔而固执。
-          </p>
+          <p>{t('settings.editor.preview_p1')}</p>
+          <p>{t('settings.editor.preview_p2')}</p>
+          <p>{t('settings.editor.preview_p3')}</p>
+          <p>{t('settings.editor.preview_p4')}</p>
+          <p data-indent="1">{t('settings.editor.preview_p5')}</p>
+          <p>{t('settings.editor.preview_p6')}</p>
         </div>
       </div>
 
       <div className="set-sec">
         <SecHead
-          title="排版"
+          title={t('settings.editor.typesetting')}
           hint="TYPESETTING"
           action={
             <button type="button" className="set-btn set-btn--ghost" onClick={resetEditorStyle}>
-              还原推荐样式
+              {t('settings.editor.reset_style')}
             </button>
           }
         />
         <Row
-          label="字号"
-          desc="编辑视图字号；导出稿件不受影响。"
+          label={t('settings.editor.font_size')}
+          desc={t('settings.editor.font_size_desc')}
           control={
             <div className="set-slider">
               <input
@@ -1587,7 +1675,7 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
         <Row
-          label="行距"
+          label={t('settings.editor.line_height')}
           control={
             <div className="set-slider">
               <input
@@ -1604,34 +1692,37 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
         <Row
-          label="段首缩进"
-          desc="仅编辑视图。导出时按稿件格式独立设定。"
+          label={t('settings.editor.indent')}
+          desc={t('settings.editor.indent_desc')}
           control={
             <Seg<ParagraphIndent>
               value={paragraphIndent}
               options={[
-                { value: 'none', label: '无' },
-                { value: 'one', label: '一字符' },
-                { value: 'two', label: '两字符' },
+                { value: 'none', label: t('settings.editor.indent_none') },
+                { value: 'one', label: t('settings.editor.indent_one') },
+                { value: 'two', label: t('settings.editor.indent_two') },
               ]}
               onChange={setParagraphIndent}
             />
           }
         />
         <Row
-          label="Tab 缩进"
-          desc="按 Tab 给段落整体左缩进一级的宽度；Shift+Tab 退回。"
+          label={t('settings.editor.tab_indent')}
+          desc={t('settings.editor.tab_indent_desc')}
           control={
             <Seg<string>
               value={String(editorIndentStep)}
-              options={['1', '2', '3', '4'].map((v) => ({ value: v, label: `${v} 字符` }))}
+              options={['1', '2', '3', '4'].map((v) => ({
+                value: v,
+                label: t('settings.editor.chars_count', { count: v }),
+              }))}
               onChange={(v) => setEditorIndentStep(Number(v))}
             />
           }
         />
         <Row
-          label="段间距"
-          desc="段落之间的垂直间距；仅编辑视图。"
+          label={t('settings.editor.paragraph_spacing')}
+          desc={t('settings.editor.paragraph_spacing_desc')}
           control={
             <div className="set-slider">
               <input
@@ -1648,8 +1739,8 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
         <Row
-          label="纸张宽度"
-          desc="编辑器中部纸张的宽度；正文按固定边距填满纸张。"
+          label={t('settings.editor.page_width')}
+          desc={t('settings.editor.page_width_desc')}
           control={
             <div className="set-slider">
               <input
@@ -1668,33 +1759,34 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="书写体验" hint="FLOW" />
+        <SecHead title={t('settings.editor.flow')} hint="FLOW" />
         <Row
-          label="聚焦行"
-          desc="把当前段落以外的内容轻度淡出。"
+          label={t('settings.editor.focus_line')}
+          desc={t('settings.editor.focus_line_desc')}
           control={
             <Seg<FocusLineMode>
               value={focusLine}
               options={[
-                { value: 'off', label: '关' },
-                { value: 'paragraph', label: '段落' },
-                { value: 'line', label: '行' },
-                { value: 'sentence', label: '句' },
+                { value: 'off', label: t('settings.editor.focus_off') },
+                { value: 'paragraph', label: t('settings.editor.focus_paragraph') },
+                { value: 'line', label: t('settings.editor.focus_line_only') },
+                { value: 'sentence', label: t('settings.editor.focus_sentence') },
               ]}
               onChange={setFocusLine}
             />
           }
         />
         <Row
-          label="自动元素链接"
-          desc="输入时自动识别已存在的元素名称（如人物、地点），并链接到对应页面。"
+          label={t('settings.editor.auto_element_link')}
+          desc={t('settings.editor.auto_element_link_desc')}
           control={<Toggle on={autoElementLinkEnabled} onChange={setAutoElementLinkEnabled} />}
         />
         <Row
-          label="自动保存"
+          label={t('settings.editor.autosave')}
           desc={
             <>
-              每次空闲超过 <code>3 秒</code>。
+              {t('settings.editor.autosave_desc_a')} <code>3 {t('settings.editor.seconds')}</code>
+              {t('settings.editor.autosave_desc_b')}
             </>
           }
           control={<Toggle on={autosave} onChange={setAutosave} />}
@@ -1705,6 +1797,7 @@ function EditorPanel({ registerRef }: { registerRef: RegisterRef }) {
 }
 
 function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const {
     uiLocale,
     setUiLocale,
@@ -1716,30 +1809,31 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
     setDateFormat,
   } = useSettingsStore();
 
-  const locales: { code: LocaleCode; name: string; native: string }[] = [
-    { code: 'zh-CN', name: '中文（简体）', native: '默认' },
-    { code: 'zh-TW', name: '中文（繁體）', native: '繁體' },
+  const manuscriptLocales: { code: LocaleCode; name: string; native: string }[] = [
+    { code: 'zh-CN', name: t('settings.language.locales.zhCN'), native: t('settings.language.locales.default') },
+    { code: 'zh-TW', name: t('settings.language.locales.zhTW'), native: t('settings.language.locales.traditional') },
     { code: 'en', name: 'English', native: 'English' },
     { code: 'ja', name: '日本語', native: '日本語' },
     { code: 'ko', name: '한국어', native: '한국어' },
-    { code: 'fr', name: 'Français', native: 'beta' },
+    { code: 'fr', name: 'Français', native: t('settings.language.locales.beta') },
   ];
+  const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
 
   return (
     <section className="set-panel" ref={registerRef} id="language">
       <PanelHead
-        kicker="语言 · LANGUAGE"
-        title="界面用什么语言对你说话。"
-        sub="这只关乎界面文本——稿件与 Shadow 的回复语言独立设置在下方。"
+        kicker={t('settings.language.kicker')}
+        title={t('settings.language.title')}
+        sub={t('settings.language.sub')}
       />
 
       <div className="set-sec">
-        <SecHead title="界面语言" hint="UI LOCALE" />
+        <SecHead title={t('settings.language.ui_locale')} hint="UI LOCALE" />
         <div className="set-locales">
-          {locales.map((l) => (
+          {UI_LOCALE_OPTIONS.map((l) => (
             <button
               key={l.code}
-              className={'set-locale' + (uiLocale === l.code ? ' set-locale--active' : '')}
+              className={'set-locale' + (normalizedUiLocale === l.code ? ' set-locale--active' : '')}
               onClick={() => setUiLocale(l.code)}
             >
               <span className="set-locale__code">{l.code}</span>
@@ -1751,10 +1845,10 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="写作语言" hint="MANUSCRIPT" />
+        <SecHead title={t('settings.language.manuscript')} hint="MANUSCRIPT" />
         <Row
-          label="手稿默认语言"
-          desc="影响拼写检查、断行、Shadow Agent 的回复语言。"
+          label={t('settings.language.manuscript_default')}
+          desc={t('settings.language.manuscript_default_desc')}
           control={
             <select
               className="set-input"
@@ -1762,7 +1856,7 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
               value={manuscriptLocale}
               onChange={(e) => setManuscriptLocale(e.target.value as LocaleCode)}
             >
-              {locales.map((l) => (
+              {manuscriptLocales.map((l) => (
                 <option key={l.code} value={l.code}>
                   {l.name} · {l.code}
                 </option>
@@ -1771,18 +1865,18 @@ function LanguagePanel({ registerRef }: { registerRef: RegisterRef }) {
           }
         />
         <Row
-          label="拼写检查"
-          desc="中文按词典检查别字。英文使用系统拼写。"
+          label={t('settings.language.spellcheck')}
+          desc={t('settings.language.spellcheck_desc')}
           control={<Toggle on={spellcheck} onChange={setSpellcheck} />}
         />
         <Row
-          label="日期与数字"
-          desc="影响时间线轴标签。"
+          label={t('settings.language.date_format')}
+          desc={t('settings.language.date_format_desc')}
           control={
             <Seg<DateFormat>
               value={dateFormat}
               options={[
-                { value: 'cjk', label: '中文' },
+                { value: 'cjk', label: t('settings.language.date_cjk') },
                 { value: 'iso', label: 'ISO' },
                 { value: 'us', label: 'US' },
               ]}
@@ -1824,6 +1918,7 @@ function GroupHead({ label, hint, desc }: { label: string; hint?: string; desc?:
 
 /** Connect / status for the Agent's credentials (Claude OAuth or hosted). */
 function AgentAuthRow({ auth }: { auth: AgentAuth }) {
+  const { t } = useTranslation();
   const api = window.electronAPI?.agent;
   const [status, setStatus] = useState<{
     byokConnected: boolean;
@@ -1914,20 +2009,20 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
     const ok = !!status?.hostedAvailable;
     return (
       <div className="set-sec">
-        <SecHead title="状态" hint="HOSTED" />
+        <SecHead title={t('settings.agentAuth.statusTitle')} hint="HOSTED" />
         <Row
-          label={ok ? '已就绪' : '未登录'}
+          label={ok ? t('settings.agentAuth.hostedReady') : t('settings.agentAuth.hostedSignedOut')}
           desc={
             ok
-              ? '已登录 Drifting，可用托管额度调用 Agent。'
-              : '托管 Agent 需要先登录 Drifting 账号（在「账户」中登录）。'
+              ? t('settings.agentAuth.hostedReadyDesc')
+              : t('settings.agentAuth.hostedSignedOutDesc')
           }
           control={
             <span
               className="set-mono"
               style={{ color: ok ? 'hsl(var(--accent))' : 'hsl(var(--ink-4))' }}
             >
-              {ok ? '● 可用' : '○ 未就绪'}
+              {ok ? t('settings.agentAuth.hostedAvailable') : t('settings.agentAuth.hostedUnavailable')}
             </span>
           }
         />
@@ -1942,7 +2037,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
         <SecHead title="Anthropic API Key" hint="PAY-AS-YOU-GO" />
         {keyEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>粘贴 Anthropic API Key（sk-ant-…）：</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>{t('settings.agentAuth.pasteApiKey')}</div>
             <input
               className="set-input set-input--mono"
               style={{ minWidth: 320 }}
@@ -1953,7 +2048,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
             />
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="set-btn set-btn--primary" onClick={saveKey}>
-                保存
+                {t('settings.common.save')}
               </button>
               <button
                 className="set-btn"
@@ -1962,33 +2057,33 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
                   setKeyEditing(false);
                 }}
               >
-                取消
+                {t('settings.common.cancel')}
               </button>
             </div>
           </div>
         ) : hasKey ? (
           <Row
-            label="已填写"
-            desc="Agent 将用你的 Anthropic API Key（按量付费）直连 Anthropic。密钥仅存于本机 Keychain。"
+            label={t('settings.agentAuth.filled')}
+            desc={t('settings.agentAuth.apiKeyFilledDesc')}
             control={
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <code className="set-mono">{maskBYOK(keyStored)}</code>
                 <button className="set-btn" onClick={() => setKeyEditing(true)}>
-                  编辑
+                  {t('settings.common.edit')}
                 </button>
                 <button className="set-btn set-btn--danger" onClick={clearKey}>
-                  删除
+                  {t('settings.common.delete')}
                 </button>
               </div>
             }
           />
         ) : (
           <Row
-            label="未填写"
-            desc="使用 Anthropic Console 的 API Key（按量付费，无需订阅 / OAuth）。"
+            label={t('settings.agentAuth.notFilled')}
+            desc={t('settings.agentAuth.apiKeyEmptyDesc')}
             control={
               <button className="set-btn set-btn--primary" onClick={() => setKeyEditing(true)}>
-                填入 Key
+                {t('settings.agentAuth.enterKey')}
               </button>
             }
           />
@@ -2000,30 +2095,30 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
   const connected = !!status?.byokConnected;
   return (
     <div className="set-sec">
-      <SecHead title="Claude 账号 · OAuth" hint="BYOK" />
+      <SecHead title={t('settings.agentAuth.oauthTitle')} hint="BYOK" />
       {connected ? (
         <Row
-          label="已连接"
-          desc="Agent 将用你的 Claude 账号直连 Anthropic。"
+          label={t('settings.agentAuth.connected')}
+          desc={t('settings.agentAuth.oauthConnectedDesc')}
           control={
             <button className="set-btn set-btn--danger" onClick={disconnect}>
-              断开
+              {t('settings.common.disconnect')}
             </button>
           }
         />
       ) : !awaitingCode ? (
         <Row
-          label="未连接"
-          desc="用你的 Claude 账号（Max/Pro）授权。点击后打开浏览器，把页面上的 code 粘回来。"
+          label={t('settings.agentAuth.notConnected')}
+          desc={t('settings.agentAuth.oauthEmptyDesc')}
           control={
             <button className="set-btn set-btn--primary" onClick={connect}>
-              连接 Claude
+              {t('settings.agentAuth.connectClaude')}
             </button>
           }
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>粘贴授权 code：</div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>{t('settings.agentAuth.pasteCode')}</div>
           <input
             className="set-input set-input--mono"
             value={code}
@@ -2033,7 +2128,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
           />
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="set-btn set-btn--primary" disabled={busy} onClick={submit}>
-              {busy ? '验证中…' : '提交'}
+              {busy ? t('settings.agentAuth.verifying') : t('settings.agentAuth.submit')}
             </button>
             <button
               className="set-btn"
@@ -2042,7 +2137,7 @@ function AgentAuthRow({ auth }: { auth: AgentAuth }) {
                 setErr(null);
               }}
             >
-              取消
+              {t('settings.common.cancel')}
             </button>
           </div>
         </div>
@@ -2077,6 +2172,7 @@ function ProviderRow({
   name: string;
   desc: string;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [stored, setStored] = useState<string | null>(null);
@@ -2123,11 +2219,11 @@ function ProviderRow({
         setTestState('ok');
       } else {
         setTestState('fail');
-        setTestMsg(res.data?.message ?? '密钥无效');
+        setTestMsg(res.data?.message ?? t('settings.byokProvider.invalidKey'));
       }
     } catch {
       setTestState('fail');
-      setTestMsg('请求失败（服务器未启动或网络问题）');
+      setTestMsg(t('settings.byokProvider.requestFailed'));
     }
   };
 
@@ -2158,7 +2254,9 @@ function ProviderRow({
         <div className="set-provider__main">
           <div className="set-provider__name">
             <b>{name}</b>
-            <em className={connected ? 'is-byok' : ''}>{connected ? '自带密钥' : '未连接'}</em>
+            <em className={connected ? 'is-byok' : ''}>
+              {connected ? t('settings.byokProvider.ownKey') : t('settings.byokProvider.notConnected')}
+            </em>
           </div>
           <div className="set-provider__desc">{desc}</div>
         </div>
@@ -2177,7 +2275,7 @@ function ProviderRow({
                 <input
                   className="set-input set-input--mono"
                   style={{ minWidth: 320 }}
-                  placeholder="粘贴密钥..."
+                  placeholder={t('settings.byokProvider.keyPlaceholder')}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   autoFocus
@@ -2199,7 +2297,7 @@ function ProviderRow({
         {loading ? null : editing ? (
           <>
             <button className="set-btn set-btn--primary" onClick={save}>
-              保存
+              {t('settings.common.save')}
             </button>
             <button
               className="set-btn"
@@ -2208,17 +2306,17 @@ function ProviderRow({
                 setEditing(false);
               }}
             >
-              取消
+              {t('settings.common.cancel')}
             </button>
           </>
         ) : connected ? (
           <>
             <button className="set-btn" onClick={testConnection} disabled={testState === 'testing'}>
-              {testState === 'testing' ? '测试中…' : '测试连接'}
+              {testState === 'testing' ? t('settings.byokProvider.testing') : t('settings.common.test_connection')}
             </button>
             {testState === 'ok' && (
               <span className="set-mono" style={{ color: '#2e7d52' }}>
-                ✓ 可用
+                {t('settings.byokProvider.available')}
               </span>
             )}
             {testState === 'fail' && (
@@ -2233,21 +2331,21 @@ function ProviderRow({
                 setEditing(true);
               }}
             >
-              编辑密钥
+              {t('settings.byokProvider.editKey')}
             </button>
             {copilotAiMode === 'byok' &&
               (isActive ? (
                 <span className="set-mono" style={{ color: '#4D6BFE', fontWeight: 600 }}>
-                  ✓ 当前 BYOK
+                  {t('settings.byokProvider.currentByok')}
                 </span>
               ) : (
                 <button className="set-btn" onClick={() => setCopilotByokProvider(provider)}>
-                  设为当前
+                  {t('settings.byokProvider.setCurrent')}
                 </button>
               ))}
             <span style={{ flex: 1 }} />
             <button className="set-btn set-btn--danger" onClick={disconnect}>
-              断开
+              {t('settings.common.disconnect')}
             </button>
           </>
         ) : (
@@ -2258,7 +2356,7 @@ function ProviderRow({
               setEditing(true);
             }}
           >
-            连接
+            {t('settings.common.connect')}
           </button>
         )}
       </div>
@@ -2275,19 +2373,9 @@ function ProviderRow({
 // to BYOK so it can never actually route.
 const HOSTED_TIER_DISABLED = isByokOnly();
 
-const SHADOW_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
-  {
-    value: 'hosted',
-    kicker: 'HOSTED',
-    name: '托管',
-    desc: '走 Drifting 的通道与额度。只需在下方选一个能力档位（低 / 中 / 高）。',
-  },
-  {
-    value: 'byok',
-    kicker: 'BYOK',
-    name: '自带 Key',
-    desc: '用你自己的 DeepSeek Key（与 Copilot 共用 Keychain 里的同一条），在下方选模型。',
-  },
+const SHADOW_AI_MODES: { value: AiMode; kicker: string }[] = [
+  { value: 'hosted', kicker: 'HOSTED' },
+  { value: 'byok', kicker: 'BYOK' },
 ];
 
 // Shadow BYOK shares Copilot's DeepSeek keychain entry (byok.deepseek) — it has no
@@ -2295,24 +2383,25 @@ const SHADOW_AI_MODES: { value: AiMode; kicker: string; name: string; desc: stri
 // jumps to the Copilot panel (where the key is actually entered) so the user isn't
 // left with a silent no-key BYOK that only errors at run time.
 function ShadowDeepseekKeyStatus() {
+  const { t } = useTranslation();
   const connected = useByokConnected('deepseek');
   const jumpToCopilot = () =>
     document.getElementById('copilot')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (connected === null) return null;
   return (
     <Row
-      label="DeepSeek 密钥"
-      desc="Shadow 自带 Key 与 Copilot 共用同一条 DeepSeek 密钥（Keychain）。在「Copilot · 副手」面板填写或更换。"
+      label={t('settings.shadow.deepseekKey')}
+      desc={t('settings.shadow.deepseekKeyDesc')}
       control={
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span
             className="set-mono"
             style={{ fontSize: 12, color: connected ? '#2e7d52' : 'hsl(38 80% 42%)' }}
           >
-            {connected ? '✓ 已连接' : '⚠ 未连接'}
+            {connected ? t('settings.shadow.keyConnected') : t('settings.shadow.keyNotConnected')}
           </span>
           <button className="set-btn" onClick={jumpToCopilot}>
-            前往 Copilot 填写
+            {t('settings.shadow.goToCopilot')}
           </button>
         </div>
       }
@@ -2325,6 +2414,7 @@ function ShadowDeepseekKeyStatus() {
 // (lib/shadow/model-routing.ts). Hosted = a capability tier the server maps to a
 // concrete model (低 flash / 中 pro / 高 sonnet); BYOK = pin a DeepSeek model.
 function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const shadowAiMode = useSettingsStore((s) => s.shadowAiMode);
   const setShadowAiMode = useSettingsStore((s) => s.setShadowAiMode);
   const shadowTier = useSettingsStore((s) => s.shadowTier);
@@ -2335,19 +2425,18 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="shadow">
       <PanelHead
-        kicker="SHADOW · 影"
-        title="影，替你巡查全书。"
+        kicker={t('settings.shadow.kicker')}
+        title={t('settings.shadow.title')}
         sub={
           <>
-            Shadow 的两个能力——章节连贯审阅（CI）与元素弧线派生——共用这里的模型档位。
-            托管按能力档位走 Drifting 额度；自带 Key 用你自己的 DeepSeek 额度。
-            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+            {t('settings.shadow.sub')}
+            <span className="set-italic"> {t('settings.shadow.keyPrivacy')}</span>
           </>
         }
       />
 
       <div className="set-sec">
-        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
         <div className="set-tiers">
           {SHADOW_AI_MODES.map((m) => {
             const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
@@ -2361,14 +2450,14 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
                 }
                 onClick={disabled ? undefined : () => setShadowAiMode(m.value)}
                 disabled={disabled}
-                title={disabled ? '托管暂不可用 · 测试版仅支持自带 Key' : undefined}
+                title={disabled ? t('settings.ai.hostedByokOnlyTitle') : undefined}
               >
                 <div className="set-tier__kicker">
                   {m.kicker}
-                  {disabled ? ' · 暂不可用' : ''}
+                  {disabled ? t('settings.ai.disabledSuffix') : ''}
                 </div>
-                <div className="set-tier__name">{m.name}</div>
-                <div className="set-tier__desc">{m.desc}</div>
+                <div className="set-tier__name">{t(`settings.shadow.aiModes.${m.value}.name`)}</div>
+                <div className="set-tier__desc">{t(`settings.shadow.aiModes.${m.value}.desc`)}</div>
               </button>
             );
           })}
@@ -2377,32 +2466,31 @@ function ShadowPanel({ registerRef }: { registerRef: RegisterRef }) {
 
       {shadowAiMode === 'hosted' ? (
         <div className="set-sec">
-          <SecHead title="能力档位" hint="TIER" />
+          <SecHead title={t('settings.ai.tierTitle')} hint="TIER" />
           <div className="set-tiers">
-            {SHADOW_TIERS.map((t) => (
+            {SHADOW_TIERS.map((tier) => (
               <button
-                key={t.value}
-                className={'set-tier' + (shadowTier === t.value ? ' set-tier--active' : '')}
-                onClick={() => setShadowTier(t.value)}
+                key={tier.value}
+                className={'set-tier' + (shadowTier === tier.value ? ' set-tier--active' : '')}
+                onClick={() => setShadowTier(tier.value)}
               >
-                <div className="set-tier__kicker">{t.kicker}</div>
-                <div className="set-tier__name">{t.name}</div>
-                <div className="set-tier__desc">{t.desc}</div>
+                <div className="set-tier__kicker">{t(`settings.shadow.tiers.${tier.value}.kicker`)}</div>
+                <div className="set-tier__name">{t(`settings.shadow.tiers.${tier.value}.name`)}</div>
+                <div className="set-tier__desc">{t(`settings.shadow.tiers.${tier.value}.desc`)}</div>
               </button>
             ))}
           </div>
           <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
-            「高 · Sonnet」需托管订阅（服务端调用）。本地直连仅支持「低 / 中」DeepSeek 档位——若选了高，
-            review 会自动回退到中档、arc 派生会提示需托管。
+            {t('settings.shadow.hostedTierNote')}
           </p>
         </div>
       ) : (
         <div className="set-sec">
-          <SecHead title="自带密钥 · BYOK" hint="DEEPSEEK" />
+          <SecHead title={t('settings.ai.byokTitle')} hint="DEEPSEEK" />
           <ShadowDeepseekKeyStatus />
           <Row
-            label="DeepSeek 模型"
-            desc="自带 Key 时 Shadow 实际调用的模型。"
+            label={t('settings.shadow.deepseekModel')}
+            desc={t('settings.shadow.deepseekModelDesc')}
             control={
               <select
                 className="set-input"
@@ -2444,6 +2532,7 @@ function clampDebounceSec(sec: number): number {
  * defaults to the capability's `defaultDebounceMs` until the user overrides.
  */
 function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label: string; desc: string }) {
+  const { t } = useTranslation();
   const cfg = useSettingsStore((s) => s.copilotTaskConfigs[taskId]);
   const setEnabled = useSettingsStore((s) => s.setCopilotTaskEnabled);
   const setDebounceMs = useSettingsStore((s) => s.setCopilotTaskDebounceMs);
@@ -2468,7 +2557,7 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
             <strong style={{ fontSize: 14 }}>{label}</strong>
             {!wired && (
               <span style={{ fontSize: 11, color: 'hsl(var(--ink-3))', padding: '1px 6px', borderRadius: 4, background: 'hsl(var(--rule) / 0.3)' }}>
-                未上线
+                {t('settings.copilot.notLive')}
               </span>
             )}
           </div>
@@ -2483,13 +2572,13 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
       {wired && enabled && (
         <div style={{ marginTop: 12, paddingLeft: 4 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 12, color: 'hsl(var(--ink-3))', marginBottom: 4 }}>
-            <span>触发节奏</span>
+            <span>{t('settings.copilot.triggerRhythm')}</span>
             <span>
-              停笔
+              {t('settings.copilot.afterStopPrefix')}
               <span style={{ fontFamily: 'var(--font-mono)', margin: '0 4px', color: 'hsl(var(--ink-1))' }}>
                 {effectiveSec}s
               </span>
-              后触发
+              {t('settings.copilot.afterStopSuffix')}
               {isOverride && (
                 <button
                   onClick={() => setDebounceMs(taskId, undefined)}
@@ -2502,9 +2591,9 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
                     cursor: 'pointer',
                     padding: 0,
                   }}
-                  title="恢复该 task 的内置默认值"
+                  title={t('settings.copilot.resetTaskDefaultTitle')}
                 >
-                  重置默认
+                  {t('settings.copilot.resetDefault')}
                 </button>
               )}
             </span>
@@ -2526,25 +2615,15 @@ function CopilotTaskRow({ taskId, label, desc }: { taskId: CopilotTaskId; label:
   );
 }
 
-const COPILOT_TIERS: { value: ModelTier; kicker: string; name: string; desc: string }[] = [
-  { value: 'lite', kicker: 'LITE', name: '轻量', desc: '速度优先。短建议、实体抽取等高吞吐任务。' },
-  { value: 'standard', kicker: 'STANDARD', name: '标准', desc: '日常默认。结构、连贯、润色都够用。' },
-  { value: 'pro', kicker: 'PRO', name: '深思', desc: '长上下文、长任务推理。慢一点，更稳。' },
+const COPILOT_TIERS: { value: ModelTier; kicker: string }[] = [
+  { value: 'lite', kicker: 'LITE' },
+  { value: 'standard', kicker: 'STANDARD' },
+  { value: 'pro', kicker: 'PRO' },
 ];
 
-const COPILOT_AI_MODES: { value: AiMode; kicker: string; name: string; desc: string }[] = [
-  {
-    value: 'hosted',
-    kicker: 'HOSTED',
-    name: '托管',
-    desc: '走 Drifting 的通道与额度，开箱即用。只需在上方选一个能力档位。',
-  },
-  {
-    value: 'byok',
-    kicker: 'BYOK',
-    name: '自带 Key',
-    desc: '用你自己的 Key 调用（在下方选 provider、填模型与 Key），不计入托管额度。',
-  },
+const COPILOT_AI_MODES: { value: AiMode; kicker: string }[] = [
+  { value: 'hosted', kicker: 'HOSTED' },
+  { value: 'byok', kicker: 'BYOK' },
 ];
 
 // Known models per BYOK provider — drives the Copilot model dropdown so the user
@@ -2555,8 +2634,8 @@ const COPILOT_AI_MODES: { value: AiMode; kicker: string; name: string; desc: str
 // UX layer over the same copilotByokModel value, NOT new routing.
 const COPILOT_BYOK_MODELS: Record<BYOKProvider, { value: string; label: string }[]> = {
   deepseek: [
-    { value: 'deepseek-v4-flash', label: 'DeepSeek Flash · 快' },
-    { value: 'deepseek-v4-pro', label: 'DeepSeek Pro · 稳' },
+    { value: 'deepseek-v4-flash', label: 'DeepSeek Flash' },
+    { value: 'deepseek-v4-pro', label: 'DeepSeek Pro' },
   ],
   anthropic: [
     { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
@@ -2606,6 +2685,7 @@ const BYOK_MODEL_CUSTOM = '__custom__';
 // Copilot BYOK model picker: a dropdown of known models for the active provider
 // (+ provider-default + 自定义…), replacing the old hand-typed model-id input.
 function CopilotByokModelPicker() {
+  const { t } = useTranslation();
   const provider = useSettingsStore((s) => s.copilotByokProvider);
   const model = useSettingsStore((s) => s.copilotByokModel);
   const setModel = useSettingsStore((s) => s.setCopilotByokModel);
@@ -2629,19 +2709,19 @@ function CopilotByokModelPicker() {
           }
         }}
       >
-        <option value="">provider 默认（留空）</option>
+        <option value="">{t('settings.copilot.providerDefault')}</option>
         {known.map((m) => (
           <option key={m.value} value={m.value}>
             {m.label}
           </option>
         ))}
-        <option value={BYOK_MODEL_CUSTOM}>自定义…</option>
+        <option value={BYOK_MODEL_CUSTOM}>{t('settings.copilot.customModel')}</option>
       </select>
       {showCustom && (
         <input
           className="set-input set-input--mono"
           style={{ minWidth: 240 }}
-          placeholder="输入完整 model id"
+          placeholder={t('settings.copilot.modelIdPlaceholder')}
           value={model}
           onChange={(e) => setModel(e.target.value)}
         />
@@ -2654,6 +2734,7 @@ function CopilotByokModelPicker() {
 // would silently fall back to hosted (byok-headers.ts). Removes the "filled a key
 // but forgot 设为当前 / selected BYOK with no key" silent trap.
 function CopilotByokWarning() {
+  const { t } = useTranslation();
   const provider = useSettingsStore((s) => s.copilotByokProvider);
   const connected = useByokConnected(provider);
   if (connected !== false) return null;
@@ -2670,13 +2751,15 @@ function CopilotByokWarning() {
         color: 'hsl(var(--ink-2))',
       }}
     >
-      当前 BYOK provider「{BYOK_PROVIDER_LABEL[provider]}」未连接密钥 —— 实际调用会
-      <b>静默回退托管</b>。请在下方为它「连接」密钥，或把已连接的 provider「设为当前」。
+      {t('settings.copilot.byokWarningPrefix', { provider: BYOK_PROVIDER_LABEL[provider] })}
+      <b>{t('settings.copilot.byokWarningStrong')}</b>
+      {t('settings.copilot.byokWarningSuffix')}
     </div>
   );
 }
 
 function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const copilotTier = useSettingsStore((s) => s.copilotTier);
   const setCopilotTier = useSettingsStore((s) => s.setCopilotTier);
   const copilotAiMode = useSettingsStore((s) => s.copilotAiMode);
@@ -2693,19 +2776,18 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="copilot">
       <PanelHead
-        kicker="COPILOT · 副手"
-        title="把琐事交给一个安静的副手。"
+        kicker={t('settings.copilot.kicker')}
+        title={t('settings.copilot.title')}
         sub={
           <>
-            正文里的轻量补全、实体抽取、润色等结构化任务。托管模式只需选能力档位；自带 Key
-            可指定 provider 与模型。
-            <span className="set-italic"> 你的密钥仅存于本机 Keychain，不上传服务器。</span>
+            {t('settings.copilot.sub')}
+            <span className="set-italic"> {t('settings.copilot.keyPrivacy')}</span>
           </>
         }
       />
 
       <div className="set-sec">
-        <SecHead title="AI 调用方式" hint="ROUTING" />
+        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
         <div className="set-tiers">
           {COPILOT_AI_MODES.map((m) => {
             const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
@@ -2719,14 +2801,14 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
                 }
                 onClick={disabled ? undefined : () => setCopilotAiMode(m.value)}
                 disabled={disabled}
-                title={disabled ? '托管暂不可用 · 测试版仅支持自带 Key' : undefined}
+                title={disabled ? t('settings.ai.hostedByokOnlyTitle') : undefined}
               >
                 <div className="set-tier__kicker">
                   {m.kicker}
-                  {disabled ? ' · 暂不可用' : ''}
+                  {disabled ? t('settings.ai.disabledSuffix') : ''}
                 </div>
-                <div className="set-tier__name">{m.name}</div>
-                <div className="set-tier__desc">{m.desc}</div>
+                <div className="set-tier__name">{t(`settings.copilot.aiModes.${m.value}.name`)}</div>
+                <div className="set-tier__desc">{t(`settings.copilot.aiModes.${m.value}.desc`)}</div>
               </button>
             );
           })}
@@ -2735,64 +2817,64 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
 
       {copilotAiMode === 'hosted' ? (
         <div className="set-sec">
-          <SecHead title="能力档位" hint="TIER" />
+          <SecHead title={t('settings.ai.tierTitle')} hint="TIER" />
           <div className="set-tiers">
-            {COPILOT_TIERS.map((t) => (
+            {COPILOT_TIERS.map((tier) => (
               <button
-                key={t.value}
-                className={'set-tier' + (copilotTier === t.value ? ' set-tier--active' : '')}
-                onClick={() => setCopilotTier(t.value)}
+                key={tier.value}
+                className={'set-tier' + (copilotTier === tier.value ? ' set-tier--active' : '')}
+                onClick={() => setCopilotTier(tier.value)}
               >
-                <div className="set-tier__kicker">{t.kicker}</div>
-                <div className="set-tier__name">{t.name}</div>
-                <div className="set-tier__desc">{t.desc}</div>
+                <div className="set-tier__kicker">{tier.kicker}</div>
+                <div className="set-tier__name">{t(`settings.copilot.tiers.${tier.value}.name`)}</div>
+                <div className="set-tier__desc">{t(`settings.copilot.tiers.${tier.value}.desc`)}</div>
               </button>
             ))}
           </div>
           <p className="set-row__desc" style={{ margin: '8px 0 0' }}>
-            档位是「能力档」，具体模型由服务端按档位选择（所以这里不显示模型名）。想精确指定某个模型，请改用「自带 Key」。
+            {t('settings.copilot.tierNote')}
           </p>
         </div>
       ) : (
         <>
           <div className="set-sec">
-            <SecHead title="自带密钥 · BYOK" hint="4 PROVIDERS" />
+            <SecHead title={t('settings.ai.byokTitle')} hint="4 PROVIDERS" />
             <CopilotByokWarning />
             <ProviderRow
               provider="deepseek"
               logoClass="set-provider__logo--deepseek"
               logoText="D"
               name="DeepSeek"
-              desc="选「自带 Key」后实际调用的 provider。在此填入你的 DeepSeek Key。"
+              desc={t('settings.copilot.providers.deepseek')}
             />
             <ProviderRow
               provider="anthropic"
               logoClass="set-provider__logo--anthropic"
               logoText="A"
               name="Anthropic"
-              desc="Claude Opus / Sonnet / Haiku。Drifting 通过你的密钥按你的额度计费。"
+              desc={t('settings.copilot.providers.anthropic')}
             />
             <ProviderRow
               provider="openai"
               logoClass="set-provider__logo--openai"
               logoText="O"
               name="OpenAI"
-              desc="GPT 系列模型。"
+              desc={t('settings.copilot.providers.openai')}
             />
             <ProviderRow
               provider="google"
               logoClass="set-provider__logo--google"
               logoText="G"
               name="Google"
-              desc="Gemini 2.5 Pro / Flash · 长上下文场景。"
+              desc={t('settings.copilot.providers.google')}
             />
           </div>
 
           <div className="set-sec">
-            <SecHead title="模型" hint="MODEL" />
+            <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
             <Row
-              label="指定模型"
-              desc="当前 provider 下要用的模型（留空 = 由服务端选该 provider 的默认模型；列表外的可选「自定义…」手填 id）。"
+              label={t('settings.copilot.byokModel')}
+              desc={t('settings.copilot.byokModelDesc')}
               control={<CopilotByokModelPicker />}
             />
           </div>
@@ -2800,30 +2882,30 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       )}
 
       <div className="set-sec">
-        <SecHead title="开关" hint="ENABLE" />
+        <SecHead title={t('settings.copilot.switchesTitle')} hint="ENABLE" />
         <Row
-          label="自动触发"
-          desc="编辑时按 debounce 自动后台运行 task。关闭后只在你手动触发（⇧⌘I / 右键）时运行。"
+          label={t('settings.copilot.autoTrigger')}
+          desc={t('settings.copilot.autoTriggerDesc')}
           control={<Toggle on={autoTrigger} onChange={setAutoTrigger} />}
         />
         <Row
-          label="在 drift 节点中启用"
-          desc="drift 是灵感草稿区，默认不打扰。关闭时 Copilot 只在章节编辑器里工作；开启后 drift 编辑器也会跑同样的 task。"
+          label={t('settings.copilot.enableInDrift')}
+          desc={t('settings.copilot.enableInDriftDesc')}
           control={<Toggle on={copilotInDrift} onChange={setCopilotInDrift} />}
         />
       </div>
 
       <div className="set-sec">
-        <SecHead title="段落概要" hint="SUMMARY" />
+        <SecHead title={t('settings.copilot.summaryTitle')} hint="SUMMARY" />
         <Row
-          label="生成段落概要"
-          desc="任何 task 触发后，若未被概要的 block 累积到阈值，会发一次概要调用。概要会作为后续 task 的上下文，提升 patch 召回；关闭则不生成、不注入。"
+          label={t('settings.copilot.generateSummaries')}
+          desc={t('settings.copilot.generateSummariesDesc')}
           control={<Toggle on={generateSummaries} onChange={setGenerateSummaries} />}
         />
         {generateSummaries && (
           <Row
-            label="概要阈值"
-            desc={`攒够 ${sectionSize} 个未概要的 block 后再生成一段。值越大越省 token；值越小概要越频繁。`}
+            label={t('settings.copilot.summaryThreshold')}
+            desc={t('settings.copilot.summaryThresholdDesc', { count: sectionSize })}
             stack
             control={
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 220 }}>
@@ -2845,7 +2927,7 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
                     color: 'hsl(var(--ink-2))',
                   }}
                 >
-                  {sectionSize} 块
+                  {t('settings.copilot.blocks', { count: sectionSize })}
                 </span>
               </div>
             }
@@ -2854,12 +2936,17 @@ function CopilotPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <div className="set-sec">
-        <SecHead title="自动任务" hint="TASKS" />
+        <SecHead title={t('settings.copilot.tasksTitle')} hint="TASKS" />
         <p className="set-row__desc" style={{ margin: '-4px 0 0' }}>
-          每个 task 都能独立开关和调触发节奏。低 debounce 适合轻量识别（如实体抽取），高 debounce 适合重型分析（如 patch 提议）。
+          {t('settings.copilot.tasksDesc')}
         </p>
-        {COPILOT_TASKS.map((t) => (
-          <CopilotTaskRow key={t.id} taskId={t.id} label={t.label} desc={t.desc} />
+        {COPILOT_TASKS.map((task) => (
+          <CopilotTaskRow
+            key={task.id}
+            taskId={task.id}
+            label={t(`settings.copilot.tasks.${task.id}.label`, { defaultValue: task.label })}
+            desc={t(`settings.copilot.tasks.${task.id}.desc`, { defaultValue: task.desc })}
+          />
         ))}
       </div>
     </section>
@@ -2890,6 +2977,7 @@ const fmtConvTime = (iso: string): string => {
 // list: view + approve a pending memory + delete. Open-gated load like the usage
 // section; all setState in async callbacks (clear of set-state-in-effect).
 function AgentMemorySection({ open }: { open: boolean }) {
+  const { t } = useTranslation();
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [memories, setMemories] = useState<AgentMemory[]>([]);
   const [draftKind, setDraftKind] = useState<AgentMemoryKind>('preference');
@@ -2921,7 +3009,11 @@ function AgentMemorySection({ open }: { open: boolean }) {
   const visible = memories.filter((m) => m.status !== 'dismissed');
 
   const kindLabel = (k: AgentMemory['kind']) =>
-    k === 'veto' ? '否决' : k === 'directive' ? '指令' : '偏好';
+    k === 'veto'
+      ? t('settings.agentMemory.kind.veto')
+      : k === 'directive'
+        ? t('settings.agentMemory.kind.directive')
+        : t('settings.agentMemory.kind.preference');
 
   const approve = (id: string) => {
     if (!projectId) return;
@@ -2929,7 +3021,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
   };
   const remove = (id: string) => {
     if (!projectId) return;
-    if (!window.confirm('删除这条记忆？将不再影响后续对话与审阅。')) return;
+    if (!window.confirm(t('settings.agentMemory.deleteConfirm'))) return;
     void softDeleteMemory(projectId, id).then(reload);
   };
   // Manual add — author-authored, active immediately (it's the author's own).
@@ -2946,10 +3038,9 @@ function AgentMemorySection({ open }: { open: boolean }) {
 
   return (
     <div className="set-sec">
-      <SecHead title="记忆" hint="MEMORY" />
+      <SecHead title={t('settings.agentMemory.title')} hint="MEMORY" />
       <p className="set-panel__sub" style={{ marginTop: -2, marginBottom: 12 }}>
-        Agent 保存的长期指引——写作偏好、已否决的提案、对内容的指令。会注入到后续对话，并供 Shadow
-        审阅参考；只有「生效」的条目才起作用。Agent 在对话里记下的会出现在这里，你也可以手动新增。
+        {t('settings.agentMemory.desc')}
       </p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <select
@@ -2958,14 +3049,14 @@ function AgentMemorySection({ open }: { open: boolean }) {
           value={draftKind}
           onChange={(e) => setDraftKind(e.target.value as AgentMemoryKind)}
         >
-          <option value="preference">偏好</option>
-          <option value="directive">指令</option>
-          <option value="veto">否决</option>
+          <option value="preference">{t('settings.agentMemory.kind.preference')}</option>
+          <option value="directive">{t('settings.agentMemory.kind.directive')}</option>
+          <option value="veto">{t('settings.agentMemory.kind.veto')}</option>
         </select>
         <input
           className="set-input"
           style={{ flex: 1, minWidth: 0 }}
-          placeholder="手动新增一条记忆……"
+          placeholder={t('settings.agentMemory.placeholder')}
           value={draftBody}
           onChange={(e) => setDraftBody(e.target.value)}
           onKeyDown={(e) => {
@@ -2978,7 +3069,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
           disabled={!draftBody.trim()}
           onClick={add}
         >
-          添加
+          {t('settings.agentMemory.add')}
         </button>
       </div>
       {visible.length === 0 ? (
@@ -2991,7 +3082,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
             fontSize: 12.5,
           }}
         >
-          暂无记忆。
+          {t('settings.agentMemory.empty')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -3044,18 +3135,18 @@ function AgentMemorySection({ open }: { open: boolean }) {
                         marginTop: 4,
                       }}
                     >
-                      待批准
+                      {t('settings.agentMemory.pending')}
                     </div>
                   )}
                 </div>
                 <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
                   {pending && (
                     <button className="set-btn" onClick={() => approve(m.id)}>
-                      批准
+                      {t('settings.agentMemory.approve')}
                     </button>
                   )}
                   <button className="set-btn set-btn--danger" onClick={() => remove(m.id)}>
-                    删除
+                    {t('settings.common.delete')}
                   </button>
                 </div>
               </div>
@@ -3068,6 +3159,7 @@ function AgentMemorySection({ open }: { open: boolean }) {
 }
 
 function AgentUsageSection({ open }: { open: boolean }) {
+  const { t } = useTranslation();
   const projectId = useProjectStore((s) => s.currentProject?.id ?? null);
   const [rows, setRows] = useState<AgentConversationUsage[]>([]);
   // Two reporting windows, à la the Shadow usage panel: this-month vs all-time.
@@ -3110,7 +3202,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
   // The manageable history list is live conversations only (all of them, not
   // window-scoped — you manage every chat regardless of when it was last used).
   const live = rows.filter((r) => !r.deletedAt);
-  const scopeLabel = scope === 'month' ? '本月' : '累计';
+  const scopeLabel = scope === 'month' ? t('settings.agentUsage.month') : t('settings.agentUsage.all');
 
   // Soft-delete through the chat store so the right-rail Companion (if bound to
   // this project) drops the conversation too — abort an in-flight turn, clear the
@@ -3126,7 +3218,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
   // Bulk soft-delete behind a confirm — clearing all is easy to fire by accident.
   const handleClearAll = () => {
     if (live.length === 0) return;
-    if (!window.confirm(`清空全部对话历史？将移除本项目的 ${live.length} 条 Agent 对话。`)) return;
+    if (!window.confirm(t('settings.agentUsage.clearConfirm', { count: live.length }))) return;
     void useAgentChatStore.getState().clearConversations();
     const now = new Date().toISOString();
     setRows((rs) => rs.map((r) => (r.deletedAt ? r : { ...r, deletedAt: now })));
@@ -3182,41 +3274,43 @@ function AgentUsageSection({ open }: { open: boolean }) {
   return (
     <>
       <GroupHead
-        label="用量"
+        label={t('settings.agentUsage.usage')}
         hint="USAGE"
-        desc="本项目里 Agent 用了多少 token、花了多少钱。统计自每轮返回的用量（输入含缓存读取）；自付费模式下为你的实际花费，数据保存在本地。按本月 / 累计两个口径查看。"
+        desc={t('settings.agentUsage.usageDesc')}
       />
 
       {!projectId ? (
-        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后查看其 Agent 用量。</div>
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>
+          {t('settings.agentUsage.noProjectUsage')}
+        </div>
       ) : (
         <>
           <div style={{ marginBottom: 12 }}>
             <Seg<'month' | 'all'>
               value={scope}
               options={[
-                { value: 'month', label: '本月' },
-                { value: 'all', label: '累计' },
+                { value: 'month', label: t('settings.agentUsage.month') },
+                { value: 'all', label: t('settings.agentUsage.all') },
               ]}
               onChange={setScope}
             />
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             {card(
-              `${scopeLabel} Token`,
+              t('settings.agentUsage.tokenCard', { scope: scopeLabel }),
               fmtUsageTok(totals.input + totals.output),
               `↑${fmtUsageTok(totals.input)} ↓${fmtUsageTok(totals.output)}`,
             )}
-            {card(`${scopeLabel}费用`, fmtUsageUsd(totals.cost))}
-            {card('对话 / 轮次', `${withUsage.length} / ${totals.turns}`)}
+            {card(t('settings.agentUsage.costCard', { scope: scopeLabel }), fmtUsageUsd(totals.cost))}
+            {card(t('settings.agentUsage.conversationsTurns'), `${withUsage.length} / ${totals.turns}`)}
           </div>
         </>
       )}
 
       <GroupHead
-        label="对话历史"
+        label={t('settings.agentUsage.history')}
         hint="HISTORY"
-        desc="本项目的所有 Agent 对话。删除为软删除，会与右栏「历史」同步移除，不影响其它项目。"
+        desc={t('settings.agentUsage.historyDesc')}
       />
 
       {projectId && live.length > 0 && (
@@ -3242,16 +3336,18 @@ function AgentUsageSection({ open }: { open: boolean }) {
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            清空历史
+            {t('settings.agentUsage.clearHistory')}
           </button>
         </div>
       )}
 
       {!projectId ? (
-        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>打开一个项目后管理其对话历史。</div>
+        <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13 }}>
+          {t('settings.agentUsage.noProjectHistory')}
+        </div>
       ) : live.length === 0 ? (
         <div style={{ color: 'hsl(var(--ink-4))', fontSize: 13, padding: '8px 0' }}>
-          还没有对话 — 给 Agent 发一条消息试试。
+          {t('settings.agentUsage.noHistory')}
         </div>
       ) : (
         <div
@@ -3285,7 +3381,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
                   color: 'hsl(var(--ink-1))',
                 }}
               >
-                {r.title || '未命名'}
+                {r.title || t('settings.agentUsage.untitled')}
               </span>
               <span
                 style={{
@@ -3323,7 +3419,7 @@ function AgentUsageSection({ open }: { open: boolean }) {
               </span>
               <button
                 type="button"
-                title="删除这条对话"
+                title={t('settings.agentUsage.deleteConversation')}
                 onClick={() => handleDelete(r.id)}
                 style={{
                   flexShrink: 0,
@@ -3355,28 +3451,14 @@ function AgentUsageSection({ open }: { open: boolean }) {
   );
 }
 
-const AGENT_AUTH_OPTIONS: { value: AgentAuth; kicker: string; name: string; desc: string }[] = [
-  {
-    value: 'oauth',
-    kicker: 'CLAUDE 账号',
-    name: '自带 Claude',
-    desc: '用你的 Claude 账号（Max/Pro）登录（OAuth），直连 Anthropic，不计入托管额度。',
-  },
-  {
-    value: 'apikey',
-    kicker: 'API KEY',
-    name: 'Anthropic Key',
-    desc: '用 Anthropic Console 的 API Key（按量付费），无需订阅。密钥仅存于本机 Keychain。',
-  },
-  {
-    value: 'hosted',
-    kicker: 'HOSTED',
-    name: '托管订阅',
-    desc: '走 Drifting 的通道与额度，无需你自己的 Claude 账号或 Key。',
-  },
+const AGENT_AUTH_OPTIONS: { value: AgentAuth; kickerKey: string }[] = [
+  { value: 'oauth', kickerKey: 'settings.agent.auth.oauth.kicker' },
+  { value: 'apikey', kickerKey: 'settings.agent.auth.apikey.kicker' },
+  { value: 'hosted', kickerKey: 'settings.agent.auth.hosted.kicker' },
 ];
 
 function AgentPanel({ open, registerRef }: { open: boolean; registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const agentAuth = useSettingsStore((s) => s.agentAuth);
   const setAgentAuth = useSettingsStore((s) => s.setAgentAuth);
   const agentModel = useSettingsStore((s) => s.agentModel);
@@ -3391,19 +3473,18 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
   return (
     <section className="set-panel" ref={registerRef} id="agent">
       <PanelHead
-        kicker="GENERAL AGENT · 对话"
-        title="右栏那位能动手的 Agent。"
+        kicker={t('settings.agent.kicker')}
+        title={t('settings.agent.title')}
         sub={
           <>
-            对话式、能读写整本稿子的 Agent（Claude Agent SDK）。可用你的 Claude 账号、Anthropic
-            API Key，或走托管订阅；模型与推理强度可细调。
-            <span className="set-italic"> 凭据仅存于本机，不上传服务器。</span>
+            {t('settings.agent.sub')}
+            <span className="set-italic"> {t('settings.agent.credentialPrivacy')}</span>
           </>
         }
       />
 
       <div className="set-sec">
-        <SecHead title="调用方式" hint="ROUTING" />
+        <SecHead title={t('settings.ai.routing')} hint="ROUTING" />
         <div className="set-tiers">
           {AGENT_AUTH_OPTIONS.map((m) => {
             const disabled = HOSTED_TIER_DISABLED && m.value === 'hosted';
@@ -3417,14 +3498,14 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
               }
               onClick={disabled ? undefined : () => setAgentAuth(m.value)}
               disabled={disabled}
-              title={disabled ? '托管暂不可用 · 测试版用你自己的 Claude 账号或 Key' : undefined}
+              title={disabled ? t('settings.agent.hostedDisabledTitle') : undefined}
             >
               <div className="set-tier__kicker">
-                {m.kicker}
-                {disabled ? ' · 暂不可用' : ''}
+                {t(m.kickerKey)}
+                {disabled ? t('settings.ai.disabledSuffix') : ''}
               </div>
-              <div className="set-tier__name">{m.name}</div>
-              <div className="set-tier__desc">{m.desc}</div>
+              <div className="set-tier__name">{t(`settings.agent.auth.${m.value}.name`)}</div>
+              <div className="set-tier__desc">{t(`settings.agent.auth.${m.value}.desc`)}</div>
             </button>
             );
           })}
@@ -3434,10 +3515,10 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       <AgentAuthRow auth={agentAuth} />
 
       <div className="set-sec">
-        <SecHead title="模型" hint="MODEL" />
+        <SecHead title={t('settings.ai.modelTitle')} hint="MODEL" />
         <Row
-          label="对话模型"
-          desc="「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给订阅 / CLI。"
+          label={t('settings.agent.chatModel')}
+          desc={t('settings.agent.chatModelDesc')}
           control={
             <select
               className="set-input"
@@ -3447,7 +3528,7 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
             >
               {AGENT_MODEL_OPTIONS.map((m) => (
                 <option key={m.value} value={m.value}>
-                  {m.label}
+                  {t(`settings.agent.modelOptions.${m.value}.label`, { defaultValue: m.label })}
                 </option>
               ))}
             </select>
@@ -3456,10 +3537,10 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       </div>
 
       <div className="set-sec">
-        <SecHead title="推理参数" hint="REASONING" />
+        <SecHead title={t('settings.agent.reasoningTitle')} hint="REASONING" />
         <Row
-          label="扩展思考"
-          desc="开启后模型会先「想」再答，复杂任务更稳；关闭更快更省。思考过程会显示在对话里。"
+          label={t('settings.agent.thinking')}
+          desc={t('settings.agent.thinkingDesc')}
           control={
             <Toggle
               on={agentThinking === 'adaptive'}
@@ -3468,8 +3549,8 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
           }
         />
         <Row
-          label="思考强度"
-          desc="思考开启时生效。high 推理最深（默认），low 最快；xhigh / max 仅部分 Opus 版本支持。"
+          label={t('settings.agent.effort')}
+          desc={t('settings.agent.effortDesc')}
           control={
             <Seg<AgentEffort>
               value={agentEffort}
@@ -3481,14 +3562,17 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
       </div>
 
       <div className="set-sec">
-        <SecHead title="工具检索" hint="TOOL SEARCH" />
+        <SecHead title={t('settings.agent.toolSearchTitle')} hint="TOOL SEARCH" />
         <Row
-          label="工具检索（实验）"
-          desc="约 49 个工具的定义常驻上下文约 10k tokens。开启后按需检索、每轮只加载相关的 3–5 个，省 token；「自动」仅在工具占比超阈值（约 10%）时才触发，当前规模下基本不启用。需 Sonnet 4+/Opus 4+，Haiku 不支持。"
+          label={t('settings.agent.toolSearch')}
+          desc={t('settings.agent.toolSearchDesc')}
           control={
             <Seg<AgentToolSearch>
               value={agentToolSearch}
-              options={AGENT_TOOL_SEARCH_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              options={AGENT_TOOL_SEARCH_OPTIONS.map((o) => ({
+                value: o.value,
+                label: t(`settings.agent.toolSearchOptions.${o.value}`, { defaultValue: o.label }),
+              }))}
               onChange={setAgentToolSearch}
             />
           }
@@ -3503,6 +3587,7 @@ function AgentPanel({ open, registerRef }: { open: boolean; registerRef: Registe
 }
 
 function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const bindings = useShortcutsStore((s) => s.bindings);
   const setBinding = useShortcutsStore((s) => s.setBinding);
   const resetBinding = useShortcutsStore((s) => s.resetBinding);
@@ -3527,7 +3612,12 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
       );
       if (conflict) {
         const def = SHORTCUT_ACTIONS.find((a) => a.id === conflict[0]);
-        setError(`${formatAccelerator(accelerator)} 已被「${def?.label ?? conflict[0]}」占用`);
+        setError(
+          t('settings.keys.conflict', {
+            accelerator: formatAccelerator(accelerator),
+            action: def ? t(`settings.keys.actions.${def.id}.label`) : conflict[0],
+          }),
+        );
         return;
       }
       setBinding(recording, accelerator);
@@ -3536,14 +3626,14 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [recording, bindings, setBinding]);
+  }, [recording, bindings, setBinding, t]);
 
   return (
     <section className="set-panel" ref={registerRef} id="keys">
       <PanelHead
-        kicker="键盘 · KEYBOARD"
-        title="手不离键盘的写作。"
-        sub="点击任意快捷键即可重新绑定。按 Esc 取消录制。"
+        kicker={t('settings.keys.kicker')}
+        title={t('settings.keys.title')}
+        sub={t('settings.keys.sub')}
       />
 
       {error && (
@@ -3553,19 +3643,21 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
       )}
 
       <div className="set-keys">
-        <div className="set-keys__group-head">所有动作 · {SHORTCUT_ACTIONS.length} ACTIONS</div>
+        <div className="set-keys__group-head">
+          {t('settings.keys.allActions', { count: SHORTCUT_ACTIONS.length })}
+        </div>
         {SHORTCUT_ACTIONS.map((action) => {
           const accel = bindings[action.id];
           const isRecording = recording === action.id;
           return (
             <div className="set-keys__row" key={action.id}>
               <div>
-                <div className="set-keys__label">{action.label}</div>
+                <div className="set-keys__label">{t(`settings.keys.actions.${action.id}.label`)}</div>
                 <div className="set-row__desc" style={{ marginTop: 2 }}>
-                  {action.description}
+                  {t(`settings.keys.actions.${action.id}.desc`)}
                 </div>
               </div>
-              <span className="set-keys__cat">{isRecording ? '录制中' : ''}</span>
+              <span className="set-keys__cat">{isRecording ? t('settings.keys.recording') : ''}</span>
               <button
                 className="set-keys__combo"
                 onClick={() => {
@@ -3574,9 +3666,9 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
                 }}
                 onDoubleClick={() => resetBinding(action.id)}
                 style={{ background: 'transparent', border: 0, padding: 0 }}
-                title="双击恢复默认"
+                title={t('settings.keys.resetOneTitle')}
               >
-                {(isRecording ? '按下新组合键…' : formatAccelerator(accel)).split('+').map((part, i, arr) => (
+                {(isRecording ? t('settings.keys.pressNewCombo') : formatAccelerator(accel)).split('+').map((part, i, arr) => (
                   <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                     <span className="kbd">{part}</span>
                     {i < arr.length - 1 && <span className="kbd kbd--plus">+</span>}
@@ -3589,15 +3681,16 @@ function KeysPanel({ registerRef }: { registerRef: RegisterRef }) {
       </div>
 
       <Row
-        label="恢复全部默认"
-        desc="重置所有快捷键。"
-        control={<button className="set-btn" onClick={resetAll}>恢复</button>}
+        label={t('settings.keys.resetAll')}
+        desc={t('settings.keys.resetAllDesc')}
+        control={<button className="set-btn" onClick={resetAll}>{t('settings.keys.reset')}</button>}
       />
     </section>
   );
 }
 
 function SyncSummaryRow() {
+  const { t } = useTranslation();
   // Live metrics from the sync observer. We don't import the full
   // SyncActivityPanel here — that keeps the overview row light.
   const metrics = useSyncObserver((s) => s.metrics);
@@ -3607,12 +3700,12 @@ function SyncSummaryRow() {
   const successPct = Math.round(metrics.successRate * 100);
   return (
     <Row
-      label="Drifting 云"
+      label={t('settings.sync.cloud')}
       desc={
         <>
-          上次成功 <span className="set-italic">{last}</span> · 成功率{' '}
+          {t('settings.sync.lastSuccess')} <span className="set-italic">{last}</span> · {t('settings.sync.successRate')}{' '}
           <b>{successPct}%</b>
-          {metrics.inflight > 0 ? ` · 进行中 ${metrics.inflight}` : ''}
+          {metrics.inflight > 0 ? t('settings.sync.inflight', { count: metrics.inflight }) : ''}
         </>
       }
       control={
@@ -3621,9 +3714,9 @@ function SyncSummaryRow() {
             className="set-mono"
             style={{ color: metrics.failed > 0 ? 'hsl(var(--accent))' : 'hsl(var(--accent))' }}
           >
-            {metrics.inflight > 0 ? '同步中' : '在线'}
+            {metrics.inflight > 0 ? t('settings.sync.syncing') : t('settings.sync.online')}
           </span>
-          <button className="set-btn">立即同步</button>
+          <button className="set-btn">{t('settings.sync.sync_now')}</button>
         </>
       }
     />
@@ -3631,6 +3724,7 @@ function SyncSummaryRow() {
 }
 
 function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const {
     wifiOnlySync,
     setWifiOnlySync,
@@ -3650,12 +3744,12 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
           onClick={() => setActivityOpen(false)}
         >
           <span>←</span>
-          <span>返回同步</span>
+          <span>{t('settings.sync.back_to_sync')}</span>
         </button>
         <PanelHead
-          kicker="同步活动 · ACTIVITY"
-          title="刚才同步了什么。"
-          sub="最近 200 条同步事件。失败原因会展开在每行尾部。"
+          kicker={t('settings.sync.activity_kicker')}
+          title={t('settings.sync.activity_title')}
+          sub={t('settings.sync.activity_sub')}
         />
         <SyncActivityPanel />
       </section>
@@ -3665,59 +3759,59 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="sync">
       <PanelHead
-        kicker="同步 · SYNC"
-        title="稿子放哪儿，又备份在哪儿。"
-        sub="Drifting 默认端到端加密同步。本地仓库与云端互为副本。"
+        kicker={t('settings.sync.kicker')}
+        title={t('settings.sync.title')}
+        sub={t('settings.sync.sub')}
       />
 
       <div className="set-sec">
-        <SecHead title="云同步" hint="E2E ENCRYPTED" />
+        <SecHead title={t('settings.sync.cloud_sync')} hint="E2E ENCRYPTED" />
         <SyncSummaryRow />
         <Row
-          label="同步活动"
-          desc="最近 200 条 push / pull 事件，含失败原因。"
+          label={t('settings.sync.activity')}
+          desc={t('settings.sync.activity_desc')}
           control={
             <button className="set-btn" onClick={() => setActivityOpen(true)}>
-              查看完整记录
+              {t('settings.sync.activity_open')}
             </button>
           }
         />
         <Row
-          label="仅 Wi-Fi 同步"
-          desc="在 iPad / iPhone 上避免移动流量。"
+          label={t('settings.sync.wifi_only')}
+          desc={t('settings.sync.wifi_only_desc')}
           control={<Toggle on={wifiOnlySync} onChange={setWifiOnlySync} />}
         />
         <Row
-          label="本地仓库"
+          label={t('settings.sync.vault_path')}
           desc={<span className="set-mono">~/Library/Drifting/vault</span>}
-          control={<button className="set-btn">在 Finder 中显示</button>}
+          control={<button className="set-btn">{t('settings.sync.show_in_finder')}</button>}
         />
         <Row
-          label="调试模式 · Toast"
-          desc="开启后，主页右下角会浮出 push / pull 事件的小提示，用于排查同步问题。"
+          label={t('settings.sync.debug_toast')}
+          desc={t('settings.sync.debug_toast_desc')}
           control={<Toggle on={syncDebugToasts} onChange={setSyncDebugToasts} />}
         />
       </div>
 
       <div className="set-sec">
-        <SecHead title="版本历史" hint="SNAPSHOTS" />
+        <SecHead title={t('settings.sync.history')} hint="SNAPSHOTS" />
         <Row
-          label="自动快照"
-          desc={<>每章节每 <code>5 分钟</code> 一份；保留 90 天。</>}
+          label={t('settings.sync.auto_snapshot')}
+          desc={<>{t('settings.sync.auto_snapshot_desc')}</>}
           control={<Toggle on={autoSnapshot} onChange={setAutoSnapshot} />}
         />
         <Row
-          label="手动里程碑"
-          desc="标记重大稿——永久保留，不计入 90 天。"
-          control={<button className="set-btn">查看</button>}
+          label={t('settings.sync.milestones')}
+          desc={t('settings.sync.milestones_desc')}
+          control={<button className="set-btn">{t('settings.sync.view_milestones')}</button>}
         />
       </div>
 
       <div className="set-sec">
-        <SecHead title="导入" hint="IMPORT" />
+        <SecHead title={t('settings.sync.import_files')} hint="IMPORT" />
         <Row
-          label="导入"
-          desc="从 Markdown / Word / 纯文本 导入为章节、元素或浮缀。"
+          label={t('settings.sync.import_files')}
+          desc={t('settings.sync.import_files_desc')}
           control={
             <button
               className="set-btn"
@@ -3725,7 +3819,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
                 events.emit('import:open');
               }}
             >
-              选择文件…
+              {t('settings.sync.select_file')}
             </button>
           }
         />
@@ -3735,6 +3829,7 @@ function SyncPanel({ registerRef }: { registerRef: RegisterRef }) {
 }
 
 function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   const {
     improveModelsWithManuscripts,
     setImproveModelsWithManuscripts,
@@ -3747,99 +3842,100 @@ function PrivacyPanel({ registerRef }: { registerRef: RegisterRef }) {
   return (
     <section className="set-panel" ref={registerRef} id="privacy">
       <PanelHead
-        kicker="隐私 · PRIVACY"
-        title="你的稿子，停在哪儿。"
-        sub="这页直说：Drifting 用了什么、不用什么、何时离开你的机器。"
+        kicker={t('settings.privacy.kicker')}
+        title={t('settings.privacy.title')}
+        sub={t('settings.privacy.sub')}
       />
 
       <div className="set-note">
-        稿件以端到端加密同步，密钥仅在你机器上生成。Drifting 服务器看不到稿件原文。
+        {t('settings.privacy.noteA')}
         <br />
         <span className="set-mono" style={{ display: 'inline-block', marginTop: 6 }}>
-          默认情况下你的稿件 <b>不会</b> 被用于训练任何模型。
+          {t('settings.privacy.noteBPrefix')} <b>{t('settings.privacy.noteBStrong')}</b> {t('settings.privacy.noteBSuffix')}
         </span>
       </div>
 
       <div className="set-sec" style={{ marginTop: 18 }}>
-        <SecHead title="数据使用" hint="YOUR CONTROL" />
+        <SecHead title={t('settings.privacy.dataUsage')} hint="YOUR CONTROL" />
         <Row
-          label="允许使用稿件改进官方模型"
-          desc="仅你明确开启时。被采样的段落会先去标识化处理。"
+          label={t('settings.privacy.improveModels')}
+          desc={t('settings.privacy.improveModelsDesc')}
           control={
             <Toggle on={improveModelsWithManuscripts} onChange={setImproveModelsWithManuscripts} />
           }
         />
         <Row
-          label="发送匿名使用统计"
-          desc="界面点击、错误、性能指标。不含稿件内容。"
+          label={t('settings.privacy.usageStats')}
+          desc={t('settings.privacy.usageStatsDesc')}
           control={<Toggle on={sendUsageStats} onChange={setSendUsageStats} />}
         />
         <Row
-          label="崩溃日志"
-          desc="应用崩溃时上传堆栈与运行环境。"
+          label={t('settings.privacy.crashLogs')}
+          desc={t('settings.privacy.crashLogsDesc')}
           control={<Toggle on={sendCrashLogs} onChange={setSendCrashLogs} />}
         />
       </div>
 
       <Row
-        label="查看完整隐私政策"
-        desc={<span className="set-mono">最近更新 2026·04·02</span>}
-        control={<button className="set-btn">在浏览器打开</button>}
+        label={t('settings.privacy.fullPolicy')}
+        desc={<span className="set-mono">{t('settings.privacy.lastUpdated')}</span>}
+        control={<button className="set-btn">{t('settings.common.open_in_browser')}</button>}
       />
     </section>
   );
 }
 
 function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
+  const { t } = useTranslation();
   return (
     <section className="set-panel" ref={registerRef} id="about">
-      <PanelHead kicker="关于 · ABOUT" title="Drifting · 缀浮" sub="终极写作体验" />
+      <PanelHead kicker={t('settings.about.kicker')} title={t('settings.about.title')} sub={t('settings.about.sub')} />
 
       <div className="set-about">
         <div className="set-about__glyph">D</div>
         <div className="set-about__main">
           <div className="set-about__name">
-            Drifting <em>缀浮</em>
+            Drifting <em>{t('settings.about.cnName')}</em>
           </div>
           <div className="set-about__meta">
             <span>
-              版本 <b>0.1.0</b>
+              {t('settings.about.version')} <b>0.1.0</b>
             </span>
             <span>
-              通道 <b>开发</b>
+              {t('settings.about.channel')} <b>{t('settings.about.channelDev')}</b>
             </span>
             <span>
-              引擎 <b>Tiptap + SQLite</b>
+              {t('settings.about.engine')} <b>Tiptap + SQLite</b>
             </span>
           </div>
         </div>
-        <button className="set-btn">检查更新</button>
+        <button className="set-btn">{t('settings.about.checkUpdates')}</button>
       </div>
 
       <div className="set-sec" style={{ marginTop: 24 }}>
-        <SecHead title="致谢与许可" hint="CREDITS" />
+        <SecHead title={t('settings.about.credits')} hint="CREDITS" />
         <Row
-          label={<span className="set-italic">字体</span>}
-          desc="Newsreader · Inter Tight · JetBrains Mono · 思源宋体 SC"
+          label={<span className="set-italic">{t('settings.about.fonts')}</span>}
+          desc={t('settings.about.fontsDesc')}
         />
         <Row
-          label={<span className="set-italic">开源依赖</span>}
+          label={<span className="set-italic">{t('settings.about.openSource')}</span>}
           desc="Tiptap · Yjs · Drizzle · React · Electron Forge"
-          control={<button className="set-btn">查看清单</button>}
+          control={<button className="set-btn">{t('settings.about.viewList')}</button>}
         />
       </div>
 
       <div className="set-sec">
-        <SecHead title="联系" hint="HELLO" />
+        <SecHead title={t('settings.about.contact')} hint="HELLO" />
         <Row
-          label="写信给团队"
+          label={t('settings.about.emailTeam')}
           desc={<span className="set-mono">hi@drifting.app</span>}
-          control={<button className="set-btn">写邮件</button>}
+          control={<button className="set-btn">{t('settings.about.writeEmail')}</button>}
         />
         <Row
-          label="提交反馈"
-          desc="附带当前稿件上下文的报告（可选）。"
-          control={<button className="set-btn">反馈…</button>}
+          label={t('settings.about.submitFeedback')}
+          desc={t('settings.about.submitFeedbackDesc')}
+          control={<button className="set-btn">{t('settings.about.feedback')}</button>}
         />
       </div>
 
@@ -3854,7 +3950,7 @@ function AboutPanel({ registerRef }: { registerRef: RegisterRef }) {
           lineHeight: 1.6,
         }}
       >
-        为夜里不睡的写作人造。
+        {t('settings.about.tagline')}
       </p>
     </section>
   );

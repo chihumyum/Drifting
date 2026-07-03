@@ -11,11 +11,14 @@ import {
   HelpCircle,
   Palette,
   LogOut,
+  Languages,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/auth';
 import { useSettingsStore } from '../../store/settings-store';
 import { events } from '../../lib/events';
+import { UI_LOCALE_OPTIONS } from '../../lib/i18n';
 import { useFeatureAccessStore } from '../../lib/feature-access';
 import loglevel from 'loglevel';
 
@@ -35,6 +38,7 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserMenuProps) {
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const plan = useFeatureAccessStore((s) => s.plan);
@@ -45,6 +49,8 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const appearanceSkin = useSettingsStore((s) => s.appearanceSkin);
   const setAppearanceSkin = useSettingsStore((s) => s.setAppearanceSkin);
+  const uiLocale = useSettingsStore((s) => s.uiLocale);
+  const setUiLocale = useSettingsStore((s) => s.setUiLocale);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
@@ -93,8 +99,9 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
 
   if (!open || !position) return null;
 
-  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'Local';
+  const displayName = user?.name?.trim() || user?.email?.split('@')[0] || t('common.local');
   const initial = displayName.charAt(0).toUpperCase();
+  const normalizedUiLocale = uiLocale.startsWith('zh') ? 'zh-CN' : 'en';
 
   return createPortal(
     <>
@@ -160,7 +167,9 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 marginTop: 2,
               }}
             >
-              {user?.email ? `${PLAN_LABEL[plan] ?? plan.toUpperCase()} · BETA` : 'LOCAL'}
+              {user?.email
+                ? `${PLAN_LABEL[plan] ?? plan.toUpperCase()} · BETA`
+                : t('common.local').toUpperCase()}
             </span>
           </div>
         </div>
@@ -168,7 +177,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
         <MenuGroup>
           <MenuItem
             icon={<Palette size={13} />}
-            label="外观"
+            label={t('userMenu.appearance')}
             tail={
               <div
                 onClick={(e) => e.stopPropagation()}
@@ -183,16 +192,16 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 <ThemeSwitchBtn
                   active={appearanceSkin === 'classic'}
                   onClick={() => setAppearanceSkin('classic')}
-                  title="经典 · 文学手稿风"
+                  title={t('userMenu.skinClassicTitle')}
                 >
-                  经典
+                  {t('userMenu.skinClassic')}
                 </ThemeSwitchBtn>
                 <ThemeSwitchBtn
                   active={appearanceSkin === 'modern'}
                   onClick={() => setAppearanceSkin('modern')}
-                  title="现代 · Craft / Arc 风（Preview）"
+                  title={t('userMenu.skinModernTitle')}
                 >
-                  现代
+                  {t('userMenu.skinModern')}
                 </ThemeSwitchBtn>
               </div>
             }
@@ -207,7 +216,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 <Monitor size={13} />
               )
             }
-            label="主题"
+            label={t('userMenu.theme')}
             tail={
               <div
                 onClick={(e) => e.stopPropagation()}
@@ -222,24 +231,51 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 <ThemeSwitchBtn
                   active={themeMode === 'light'}
                   onClick={() => setThemeMode('light')}
-                  title="浅色"
+                  title={t('userMenu.themeLight')}
                 >
-                  明
+                  {t('userMenu.themeLightShort')}
                 </ThemeSwitchBtn>
                 <ThemeSwitchBtn
                   active={themeMode === 'dark'}
                   onClick={() => setThemeMode('dark')}
-                  title="深色"
+                  title={t('userMenu.themeDark')}
                 >
-                  暗
+                  {t('userMenu.themeDarkShort')}
                 </ThemeSwitchBtn>
                 <ThemeSwitchBtn
                   active={themeMode === 'system'}
                   onClick={() => setThemeMode('system')}
-                  title="跟随系统"
+                  title={t('userMenu.themeSystem')}
                 >
-                  系统
+                  {t('userMenu.themeSystemShort')}
                 </ThemeSwitchBtn>
+              </div>
+            }
+          />
+          <MenuItem
+            icon={<Languages size={13} />}
+            label={t('userMenu.language')}
+            tail={
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'flex',
+                  marginLeft: 'auto',
+                  background: 'hsl(var(--paper-deep))',
+                  borderRadius: 3,
+                  padding: 1,
+                }}
+              >
+                {UI_LOCALE_OPTIONS.map((locale) => (
+                  <ThemeSwitchBtn
+                    key={locale.code}
+                    active={normalizedUiLocale === locale.code}
+                    onClick={() => setUiLocale(locale.code)}
+                    title={locale.name}
+                  >
+                    {locale.code === 'zh-CN' ? '中' : 'EN'}
+                  </ThemeSwitchBtn>
+                ))}
               </div>
             }
           />
@@ -247,7 +283,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
             <>
               <MenuItem
                 icon={<Settings size={13} />}
-                label="设定"
+                label={t('userMenu.settings')}
                 meta="⌘,"
                 onClick={() => {
                   events.emit('settings:open', {});
@@ -256,7 +292,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               />
               <MenuItem
                 icon={<Keyboard size={13} />}
-                label="键盘快捷键"
+                label={t('userMenu.keyboardShortcuts')}
                 meta="⌘K ⌘/"
                 onClick={() => {
                   events.emit('settings:open', { railId: 'keys' });
@@ -272,7 +308,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
               <>
                 <MenuItem
                   icon={<Upload size={13} />}
-                  label="导入"
+                  label={t('userMenu.import')}
                   meta="MD · DOCX · TXT"
                   onClick={() => {
                     events.emit('import:open');
@@ -281,7 +317,7 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
                 />
                 <MenuItem
                   icon={<BookOpenText size={13} />}
-                  label="书架 · 切换项目"
+                  label={t('userMenu.bookshelf')}
                   onClick={() => {
                     navigate('/');
                     onClose();
@@ -292,14 +328,14 @@ export function UserMenu({ triggerRef, open, onClose, scope = 'project' }: UserM
         )}
 
         <MenuGroup last={scope === 'project'}>
-          <MenuItem icon={<HelpCircle size={13} />} label="帮助 · 反馈" />
+          <MenuItem icon={<HelpCircle size={13} />} label={t('userMenu.helpFeedback')} />
         </MenuGroup>
 
         {scope === 'shelf' && (
           <MenuGroup last>
             <MenuItem
               icon={<LogOut size={13} />}
-              label={signingOut ? '登出中…' : '登出账号'}
+              label={signingOut ? t('userMenu.signingOut') : t('userMenu.signOut')}
               meta="SIGN OUT"
               onClick={signingOut ? undefined : handleSignOut}
             />
