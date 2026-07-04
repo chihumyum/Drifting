@@ -40,6 +40,7 @@ import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
 import { projectAssetService } from '../services/project-asset.service';
+import { assetCacheService, extForMime } from '../services/asset-cache.service';
 import type { LibraryItem } from '../domain/library-item';
 
 const log = loglevel.getLogger('ElementEditorView');
@@ -120,17 +121,19 @@ export function ElementEditorView({
       : null;
   const portraitPreviewMaterial = useMemo<LibraryItem | null>(() => {
     if (!projectId || !curElement || !portraitAsset || !portraitUrl) return null;
+    const hasSource = Boolean(portraitAsset.sourceObjectKey);
     const now = portraitAsset.updatedAt || portraitAsset.createdAt || '1970-01-01T00:00:00.000Z';
     return {
       id: portraitAsset.id,
       projectId,
       title: curElement.name || t('elementEditor.untitled'),
       kind: 'image',
-      source: 'url',
-      uri: portraitUrl,
+      source: hasSource ? 'r2' : 'url',
+      uri: hasSource ? `asset://${portraitAsset.id}` : portraitUrl,
       localPath: null,
-      mime: portraitAsset.displayMime,
-      sizeBytes: portraitAsset.displaySizeBytes,
+      assetId: portraitAsset.id,
+      mime: hasSource ? portraitAsset.sourceMime : portraitAsset.displayMime,
+      sizeBytes: hasSource ? portraitAsset.sourceSizeBytes : portraitAsset.displaySizeBytes,
       bodyJson: null,
       notesJson: null,
       thumbnailUri: null,
@@ -425,11 +428,18 @@ export function ElementEditorView({
       };
     }
 
-    projectAssetService
-      .getAssetUrl(projectId, readyPortraitAssetId, 'display')
-      .then((url) => {
+    const asset = portraitAsset;
+    if (!asset || asset.status !== 'ready') {
+      return () => {
+        canceled = true;
+      };
+    }
+
+    assetCacheService
+      .ensureCachedVariant(projectId, asset, 'display')
+      .then((cached) => {
         if (!canceled) {
-          setPortraitUrlByAssetId((prev) => ({ ...prev, [readyPortraitAssetId]: url }));
+          setPortraitUrlByAssetId((prev) => ({ ...prev, [readyPortraitAssetId]: cached.fileUrl }));
           setPortraitErrorState(null);
         }
       })
@@ -447,7 +457,7 @@ export function ElementEditorView({
     return () => {
       canceled = true;
     };
-  }, [projectId, elementId, readyPortraitAssetId, portraitUrl, t]);
+  }, [projectId, elementId, portraitAsset, readyPortraitAssetId, portraitUrl, t]);
 
   const handleUploadPortrait = useCallback(async () => {
     if (!projectId || !elementId) return;
@@ -482,17 +492,50 @@ export function ElementEditorView({
       uploadedAssetId = upload.asset.id;
       await projectAssetUsecases.upsertLocalAsset(upload.asset);
 
-      await Promise.all([
-        projectAssetService.uploadToSignedUrl(
-          upload.uploads.display.url,
-          display.bytes,
-          upload.uploads.display.contentType,
+      const sourceExt = extForMime(inspection.mime, 'png');
+      const [, displayCache] = await Promise.all([
+        assetCacheService.copyFile(
+          projectId,
+          upload.asset.id,
+          'source',
+          sourceExt,
+          picked.filePath,
         ),
-        projectAssetService.uploadToSignedUrl(
-          upload.uploads.thumbnail.url,
+        assetCacheService.writeBytes(projectId, upload.asset.id, 'display', 'jpg', display.bytes),
+        assetCacheService.writeBytes(
+          projectId,
+          upload.asset.id,
+          'thumbnail',
+          'jpg',
           thumbnail.bytes,
-          upload.uploads.thumbnail.contentType,
         ),
+      ]);
+
+      await Promise.all([
+        assetCacheService.uploadFile({
+          url: upload.uploads.source.url,
+          projectId,
+          assetId: upload.asset.id,
+          variant: 'source',
+          ext: sourceExt,
+          contentType: upload.uploads.source.contentType,
+        }),
+        assetCacheService.uploadFile({
+          url: upload.uploads.display.url,
+          projectId,
+          assetId: upload.asset.id,
+          variant: 'display',
+          ext: 'jpg',
+          contentType: upload.uploads.display.contentType,
+        }),
+        assetCacheService.uploadFile({
+          url: upload.uploads.thumbnail.url,
+          projectId,
+          assetId: upload.asset.id,
+          variant: 'thumbnail',
+          ext: 'jpg',
+          contentType: upload.uploads.thumbnail.contentType,
+        }),
       ]);
 
       const readyAsset = await projectAssetService.completeUpload(projectId, upload.asset.id);
@@ -500,12 +543,14 @@ export function ElementEditorView({
       const previousAssetId = portraitAssetId;
       await updateElement(elementId, { portraitAssetId: readyAsset.id });
 
-      const signedUrl = await projectAssetService.getAssetUrl(projectId, readyAsset.id, 'display');
-      setPortraitUrlByAssetId((prev) => ({ ...prev, [readyAsset.id]: signedUrl }));
+      setPortraitUrlByAssetId((prev) => ({ ...prev, [readyAsset.id]: displayCache.fileUrl }));
       if (previousAssetId && previousAssetId !== readyAsset.id) {
         void projectAssetService
           .deleteAsset(projectId, previousAssetId)
-          .then(() => projectAssetUsecases.removeLocalAsset(previousAssetId))
+          .then(async () => {
+            await projectAssetUsecases.removeLocalAsset(previousAssetId);
+            await assetCacheService.deleteAsset(projectId, previousAssetId);
+          })
           .catch((error) => log.warn('Failed to delete replaced portrait asset:', error));
       }
     } catch (error) {
@@ -519,7 +564,10 @@ export function ElementEditorView({
       if (cleanupAssetId) {
         void projectAssetService
           .deleteAsset(projectId, cleanupAssetId)
-          .then(() => projectAssetUsecases.removeLocalAsset(cleanupAssetId))
+          .then(async () => {
+            await projectAssetUsecases.removeLocalAsset(cleanupAssetId);
+            await assetCacheService.deleteAsset(projectId, cleanupAssetId);
+          })
           .catch((cleanupError) =>
             log.warn('Failed to clean up incomplete portrait upload:', cleanupError),
           );
@@ -539,29 +587,46 @@ export function ElementEditorView({
   const handleRemovePortrait = useCallback(async () => {
     if (!projectId || !elementId || !portraitAssetId) return;
     const assetId = portraitAssetId;
-    setPortraitBusy(true);
+    const previousUrl = portraitUrlByAssetId[assetId] ?? null;
     setPortraitErrorState(null);
+    setPortraitUrlByAssetId((prev) => {
+      const next = { ...prev };
+      delete next[assetId];
+      return next;
+    });
 
     try {
-      await projectAssetService.deleteAsset(projectId, assetId);
       await updateElement(elementId, { portraitAssetId: null });
-      setPortraitUrlByAssetId((prev) => {
-        const next = { ...prev };
-        delete next[assetId];
-        return next;
+      void Promise.allSettled([
+        projectAssetService.deleteAsset(projectId, assetId),
+        projectAssetUsecases.removeLocalAsset(assetId),
+        assetCacheService.deleteAsset(projectId, assetId),
+      ]).then((results) => {
+        const failed = results.find((result) => result.status === 'rejected');
+        if (failed?.status === 'rejected') {
+          log.warn('Failed to clean up removed portrait asset:', failed.reason);
+        }
       });
-      await projectAssetUsecases.removeLocalAsset(assetId);
     } catch (error) {
       log.error('Failed to remove element portrait:', error);
+      if (previousUrl) {
+        setPortraitUrlByAssetId((prev) => ({ ...prev, [assetId]: previousUrl }));
+      }
       setPortraitErrorState({
         elementId,
         assetId,
         message: t('elementEditor.portrait.removeFailed'),
       });
-    } finally {
-      setPortraitBusy(false);
     }
-  }, [projectId, elementId, portraitAssetId, projectAssetUsecases, updateElement, t]);
+  }, [
+    projectId,
+    elementId,
+    portraitAssetId,
+    portraitUrlByAssetId,
+    projectAssetUsecases,
+    updateElement,
+    t,
+  ]);
 
   const handlePortraitSurfaceClick = useCallback(() => {
     if (portraitBusy) return;
@@ -757,7 +822,10 @@ export function ElementEditorView({
                     tabIndex={portraitBusy ? -1 : 0}
                     title={portraitSurfaceLabel}
                     aria-label={portraitSurfaceLabel}
-                    onClick={handlePortraitSurfaceClick}
+                    onClick={(event) => {
+                      if (portraitUrl) event.currentTarget.blur();
+                      handlePortraitSurfaceClick();
+                    }}
                     onKeyDown={handlePortraitSurfaceKeyDown}
                   >
                     {portraitUrl ? (
