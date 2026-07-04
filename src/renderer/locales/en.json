@@ -2531,6 +2531,17 @@
     "summaryPlaceholder": "One-sentence role description…",
     "sketch": "Sketch",
     "sketchWithCategory": "{{category}} · sketch",
+    "portrait": {
+      "upload": "Upload",
+      "replace": "Replace",
+      "view": "View large image",
+      "loading": "Image loading",
+      "remove": "Remove image",
+      "uploading": "Uploading",
+      "uploadFailed": "Image upload failed. Please try again.",
+      "removeFailed": "Failed to remove image. Please try again.",
+      "loadFailed": "Image failed to load."
+    },
     "sections": {
       "overview": "Overview",
       "bio": "Biography",

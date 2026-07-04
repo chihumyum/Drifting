@@ -58,6 +58,7 @@ function localLibraryItemUrl(m: LibraryItem): string | null {
 
 function libraryItemImageSrc(m: LibraryItem): string | null {
   if (m.kind !== 'image') return null;
+  if (/^(https?:|data:|blob:)/.test(m.uri)) return m.uri;
   return localLibraryItemUrl(m);
 }
 

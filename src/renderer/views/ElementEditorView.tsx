@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAutosizeTextArea } from '../hooks/useAutosizeTextArea';
 import { EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
+import { ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDataStore } from '../store/data-store';
 import { commentBelongsToEntity, commentIdsRelatedToEntity } from '../domain/comment';
@@ -10,6 +11,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { useBookElement } from '../usecase/useBookElement';
 import { ElementNameConflictError } from '../domain/book-element';
 import { useElementCategory } from '../usecase/useElementCategory';
+import { useProjectAsset } from '../usecase/useProjectAsset';
 import { EditorCrumb, EditorTopBar } from '../components/editor/EditorTopBar';
 import { CommentRail } from '../components/editor/CommentRail';
 import { EditorReviewLayer } from '../components/editor/EditorReviewLayer';
@@ -24,6 +26,7 @@ import { ReferencesPanel } from '../components/editor/ReferencesPanel';
 import { PatchesSection } from '../components/editor/PatchesSection';
 import { ArcSection } from '../components/editor/ArcSection';
 import { EvolveSection } from '../components/editor/EvolveSection';
+import { LibraryItemFullscreenPreview } from '../components/rightBars/MemoMaterialPanel';
 import loglevel from 'loglevel';
 import { useAuthStore } from '../store/auth';
 import { useProjectNavigation } from '../hooks/useProjectNavigation';
@@ -36,6 +39,8 @@ import { useEntityYjsDoc } from '../hooks/useEntityYjsDoc';
 import { useEntityMarginNotes } from '../hooks/useEntityMarginNotes';
 import { useCanPromoteOnEdit, usePromoteCurrentTab, useUiStore } from '../store/ui-store';
 import { editorTabSelectionKey } from '../lib/editor-selection-memory';
+import { projectAssetService } from '../services/project-asset.service';
+import type { LibraryItem } from '../domain/library-item';
 
 const log = loglevel.getLogger('ElementEditorView');
 log.setLevel(loglevel.levels.ERROR);
@@ -59,8 +64,13 @@ export function ElementEditorView({
   const bookElementCategories = useDataStore((s) => s.bookElementCategories);
   const comments = useDataStore((s) => s.comments);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const projectAssets = useDataStore((s) => s.projectAssets);
 
   const elementUsecases = useBookElement({
+    projectId: projectId ?? '',
+    userId: userId ?? '',
+  });
+  const projectAssetUsecases = useProjectAsset({
     projectId: projectId ?? '',
     userId: userId ?? '',
   });
@@ -71,6 +81,12 @@ export function ElementEditorView({
   const { updateElement } = elementUsecases;
 
   const curElement = elementId ? bookElements.find((e) => e.id === elementId) ?? null : null;
+  const portraitAssetId = curElement?.portraitAssetId ?? null;
+  const portraitAsset = useMemo(() => {
+    if (!portraitAssetId) return null;
+    return projectAssets.find((asset) => asset.id === portraitAssetId) ?? null;
+  }, [portraitAssetId, projectAssets]);
+  const readyPortraitAssetId = portraitAsset?.status === 'ready' ? portraitAsset.id : null;
 
   const [editingCategory, setEditingCategory] = useState(false);
   const [nameValue, setNameValue] = useState(curElement?.name || '');
@@ -81,6 +97,48 @@ export function ElementEditorView({
   const [groupNameInput, setGroupNameInput] = useState('');
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [pendingComment, setPendingComment] = useState<EditorCommentRequest | null>(null);
+  const [portraitUrlByAssetId, setPortraitUrlByAssetId] = useState<Record<string, string>>({});
+  const [portraitBusy, setPortraitBusy] = useState(false);
+  const [portraitPreviewOpen, setPortraitPreviewOpen] = useState(false);
+  const [portraitErrorState, setPortraitErrorState] = useState<{
+    elementId: string | null;
+    assetId: string | null;
+    message: string;
+  } | null>(null);
+  const portraitUrl =
+    readyPortraitAssetId ? (portraitUrlByAssetId[readyPortraitAssetId] ?? null) : null;
+  const portraitHasImageSlot = !!readyPortraitAssetId;
+  const portraitSurfaceLabel = portraitUrl
+    ? t('elementEditor.portrait.view')
+    : portraitHasImageSlot
+      ? t('elementEditor.portrait.loading')
+      : t('elementEditor.portrait.upload');
+  const portraitError =
+    portraitErrorState?.elementId === (elementId ?? null) &&
+    portraitErrorState.assetId === portraitAssetId
+      ? portraitErrorState.message
+      : null;
+  const portraitPreviewMaterial = useMemo<LibraryItem | null>(() => {
+    if (!projectId || !curElement || !portraitAsset || !portraitUrl) return null;
+    const now = portraitAsset.updatedAt || portraitAsset.createdAt || '1970-01-01T00:00:00.000Z';
+    return {
+      id: portraitAsset.id,
+      projectId,
+      title: curElement.name || t('elementEditor.untitled'),
+      kind: 'image',
+      source: 'url',
+      uri: portraitUrl,
+      localPath: null,
+      mime: portraitAsset.displayMime,
+      sizeBytes: portraitAsset.displaySizeBytes,
+      bodyJson: null,
+      notesJson: null,
+      thumbnailUri: null,
+      orderKey: 0,
+      createdAt: portraitAsset.createdAt || now,
+      updatedAt: now,
+    };
+  }, [projectId, curElement, portraitAsset, portraitUrl, t]);
   // Clear the cell's "M" once the user opens this element (coarse — element
   // writes arrive as structural changes; see useAgentChangeMarks).
   useAgentChangeMarks(scrollEl, 'element', elementId);
@@ -354,6 +412,177 @@ export function ElementEditorView({
   }, [groupOptions, groupQuery]);
   const groupQueryIsExisting = groupQuery !== '' && groupOptions.includes(groupQuery);
 
+  useEffect(() => {
+    let canceled = false;
+    if (!projectId || !readyPortraitAssetId) {
+      return () => {
+        canceled = true;
+      };
+    }
+    if (portraitUrl) {
+      return () => {
+        canceled = true;
+      };
+    }
+
+    projectAssetService
+      .getAssetUrl(projectId, readyPortraitAssetId, 'display')
+      .then((url) => {
+        if (!canceled) {
+          setPortraitUrlByAssetId((prev) => ({ ...prev, [readyPortraitAssetId]: url }));
+          setPortraitErrorState(null);
+        }
+      })
+      .catch((error) => {
+        log.error('Failed to load element portrait:', error);
+        if (!canceled) {
+          setPortraitErrorState({
+            elementId: elementId ?? null,
+            assetId: readyPortraitAssetId,
+            message: t('elementEditor.portrait.loadFailed'),
+          });
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [projectId, elementId, readyPortraitAssetId, portraitUrl, t]);
+
+  const handleUploadPortrait = useCallback(async () => {
+    if (!projectId || !elementId) return;
+    setPortraitErrorState(null);
+    let uploadedAssetId: string | null = null;
+
+    try {
+      const picked = await window.electronAPI.material.pickFile('image');
+      if (!picked.ok) return;
+
+      setPortraitBusy(true);
+      const [inspection, display, thumbnail] = await Promise.all([
+        window.electronAPI.material.inspectImage(picked.filePath),
+        window.electronAPI.material.createImageVariant(picked.filePath, 1600, 82),
+        window.electronAPI.material.createImageVariant(picked.filePath, 512, 72),
+      ]);
+      if (!inspection.ok) throw new Error(inspection.error);
+      if (!display.ok) throw new Error(display.error);
+      if (!thumbnail.ok) throw new Error(thumbnail.error);
+
+      const upload = await projectAssetService.createElementPortraitUpload(projectId, {
+        elementId,
+        sourceMime: inspection.mime,
+        sourceSizeBytes: inspection.sizeBytes,
+        displayMime: display.mime,
+        displaySizeBytes: display.sizeBytes,
+        thumbnailMime: thumbnail.mime,
+        thumbnailSizeBytes: thumbnail.sizeBytes,
+        width: inspection.width,
+        height: inspection.height,
+      });
+      uploadedAssetId = upload.asset.id;
+      await projectAssetUsecases.upsertLocalAsset(upload.asset);
+
+      await Promise.all([
+        projectAssetService.uploadToSignedUrl(
+          upload.uploads.display.url,
+          display.bytes,
+          upload.uploads.display.contentType,
+        ),
+        projectAssetService.uploadToSignedUrl(
+          upload.uploads.thumbnail.url,
+          thumbnail.bytes,
+          upload.uploads.thumbnail.contentType,
+        ),
+      ]);
+
+      const readyAsset = await projectAssetService.completeUpload(projectId, upload.asset.id);
+      await projectAssetUsecases.upsertLocalAsset(readyAsset);
+      const previousAssetId = portraitAssetId;
+      await updateElement(elementId, { portraitAssetId: readyAsset.id });
+
+      const signedUrl = await projectAssetService.getAssetUrl(projectId, readyAsset.id, 'display');
+      setPortraitUrlByAssetId((prev) => ({ ...prev, [readyAsset.id]: signedUrl }));
+      if (previousAssetId && previousAssetId !== readyAsset.id) {
+        void projectAssetService
+          .deleteAsset(projectId, previousAssetId)
+          .then(() => projectAssetUsecases.removeLocalAsset(previousAssetId))
+          .catch((error) => log.warn('Failed to delete replaced portrait asset:', error));
+      }
+    } catch (error) {
+      log.error('Failed to upload element portrait:', error);
+      setPortraitErrorState({
+        elementId,
+        assetId: portraitAssetId,
+        message: t('elementEditor.portrait.uploadFailed'),
+      });
+      const cleanupAssetId = uploadedAssetId;
+      if (cleanupAssetId) {
+        void projectAssetService
+          .deleteAsset(projectId, cleanupAssetId)
+          .then(() => projectAssetUsecases.removeLocalAsset(cleanupAssetId))
+          .catch((cleanupError) =>
+            log.warn('Failed to clean up incomplete portrait upload:', cleanupError),
+          );
+      }
+    } finally {
+      setPortraitBusy(false);
+    }
+  }, [
+    projectId,
+    elementId,
+    portraitAssetId,
+    projectAssetUsecases,
+    updateElement,
+    t,
+  ]);
+
+  const handleRemovePortrait = useCallback(async () => {
+    if (!projectId || !elementId || !portraitAssetId) return;
+    const assetId = portraitAssetId;
+    setPortraitBusy(true);
+    setPortraitErrorState(null);
+
+    try {
+      await projectAssetService.deleteAsset(projectId, assetId);
+      await updateElement(elementId, { portraitAssetId: null });
+      setPortraitUrlByAssetId((prev) => {
+        const next = { ...prev };
+        delete next[assetId];
+        return next;
+      });
+      await projectAssetUsecases.removeLocalAsset(assetId);
+    } catch (error) {
+      log.error('Failed to remove element portrait:', error);
+      setPortraitErrorState({
+        elementId,
+        assetId,
+        message: t('elementEditor.portrait.removeFailed'),
+      });
+    } finally {
+      setPortraitBusy(false);
+    }
+  }, [projectId, elementId, portraitAssetId, projectAssetUsecases, updateElement, t]);
+
+  const handlePortraitSurfaceClick = useCallback(() => {
+    if (portraitBusy) return;
+    if (portraitUrl) {
+      setPortraitPreviewOpen(true);
+      return;
+    }
+    if (readyPortraitAssetId) return;
+    void handleUploadPortrait();
+  }, [handleUploadPortrait, portraitBusy, portraitUrl, readyPortraitAssetId]);
+
+  const handlePortraitSurfaceKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      handlePortraitSurfaceClick();
+    },
+    [handlePortraitSurfaceClick],
+  );
+
   const handleContextAction = useCallback(
     async (action: string) => {
       if (!elementId || !curElement) return;
@@ -386,7 +615,7 @@ export function ElementEditorView({
     if (!elementId || !curElement) return;
     if (!pendingEntityAction) return;
     const queued = consumeEntityAction('element', elementId);
-    if (queued) void handleContextAction(queued);
+    if (queued) queueMicrotask(() => void handleContextAction(queued));
   }, [
     elementId,
     curElement,
@@ -520,12 +749,75 @@ export function ElementEditorView({
 
             <section id="el-overview">
               <div className="elem-hero">
-                <div className="elem-portrait" style={{ background: `${categoryColor}` }}>
-                  <span className="elem-portrait__hint">
-                    {currentCategory
-                      ? t('elementEditor.sketchWithCategory', { category: currentCategory.name })
-                      : t('elementEditor.sketch')}
-                  </span>
+                <div className="elem-portrait-wrap">
+                  <div
+                    className={`elem-portrait${portraitHasImageSlot ? ' elem-portrait--image' : ''}${portraitBusy ? ' elem-portrait--busy' : ''}`}
+                    style={portraitHasImageSlot ? undefined : { background: `${categoryColor}` }}
+                    role="button"
+                    tabIndex={portraitBusy ? -1 : 0}
+                    title={portraitSurfaceLabel}
+                    aria-label={portraitSurfaceLabel}
+                    onClick={handlePortraitSurfaceClick}
+                    onKeyDown={handlePortraitSurfaceKeyDown}
+                  >
+                    {portraitUrl ? (
+                      <img className="elem-portrait__img" src={portraitUrl} alt="" />
+                    ) : !portraitHasImageSlot ? (
+                      <span className="elem-portrait__hint">
+                        {currentCategory
+                          ? t('elementEditor.sketchWithCategory', { category: currentCategory.name })
+                          : t('elementEditor.sketch')}
+                      </span>
+                    ) : null}
+                    <div className="elem-portrait__actions">
+                      <button
+                        type="button"
+                        className="elem-portrait__action"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleUploadPortrait();
+                        }}
+                        disabled={portraitBusy}
+                        title={t(
+                          portraitAsset
+                            ? 'elementEditor.portrait.replace'
+                            : 'elementEditor.portrait.upload',
+                        )}
+                      >
+                        {portraitBusy ? (
+                          <Loader2 className="elem-portrait__icon elem-portrait__icon--spin" aria-hidden />
+                        ) : (
+                          <ImagePlus className="elem-portrait__icon" aria-hidden />
+                        )}
+                        <span>
+                          {portraitBusy
+                            ? t('elementEditor.portrait.uploading')
+                            : portraitAsset
+                              ? t('elementEditor.portrait.replace')
+                              : t('elementEditor.portrait.upload')}
+                        </span>
+                      </button>
+                      {portraitAsset && (
+                        <button
+                          type="button"
+                          className="elem-portrait__action elem-portrait__action--icon"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleRemovePortrait();
+                          }}
+                          disabled={portraitBusy}
+                          title={t('elementEditor.portrait.remove')}
+                        >
+                          <Trash2 className="elem-portrait__icon" aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {portraitError && (
+                    <div className="elem-portrait__error" role="alert">
+                      {portraitError}
+                    </div>
+                  )}
                 </div>
                 <div className="elem-hero__main">
                   <input
@@ -1038,6 +1330,14 @@ export function ElementEditorView({
             </div>
           </div>
         </div>
+      )}
+
+      {portraitPreviewOpen && portraitPreviewMaterial && (
+        <LibraryItemFullscreenPreview
+          material={portraitPreviewMaterial}
+          onClose={() => setPortraitPreviewOpen(false)}
+          onUpdate={() => undefined}
+        />
       )}
     </div>
   );

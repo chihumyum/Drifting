@@ -425,6 +425,94 @@ ipcMain.handle(
   },
 );
 
+function bufferToArrayBuffer(buf: Buffer): ArrayBuffer {
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
+function resizeImageInside(image: Electron.NativeImage, maxLongEdge: number) {
+  const sourceSize = image.getSize();
+  const width = Math.max(1, Math.round(sourceSize.width));
+  const height = Math.max(1, Math.round(sourceSize.height));
+  const longest = Math.max(width, height);
+  if (longest <= maxLongEdge) {
+    return { image, width, height };
+  }
+  const resized =
+    width >= height
+      ? image.resize({ width: maxLongEdge, quality: 'good' })
+      : image.resize({ height: maxLongEdge, quality: 'good' });
+  const resizedSize = resized.getSize();
+  return {
+    image: resized,
+    width: Math.max(1, Math.round(resizedSize.width)),
+    height: Math.max(1, Math.round(resizedSize.height)),
+  };
+}
+
+ipcMain.handle(
+  'material:createImageVariant',
+  async (_event, filePath: string, maxLongEdge = 1600, quality = 82) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+      return { ok: false, error: 'invalid path' } as const;
+    }
+    try {
+      const boundedMax = Math.max(1, Math.min(4096, Math.round(maxLongEdge)));
+      const boundedQuality = Math.max(1, Math.min(100, Math.round(quality)));
+      const image = nativeImage.createFromPath(filePath);
+      if (image.isEmpty()) return { ok: false, error: 'not an image' } as const;
+      const variant = resizeImageInside(image, boundedMax);
+      const jpeg = variant.image.toJPEG(boundedQuality);
+      return {
+        ok: true,
+        bytes: bufferToArrayBuffer(jpeg),
+        mime: 'image/jpeg',
+        sizeBytes: jpeg.byteLength,
+        width: variant.width,
+        height: variant.height,
+      } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+function inferImageMime(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase().replace(/^\./, '');
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'heic') return 'image/heic';
+  if (ext === 'heif') return 'image/heif';
+  return 'image/png';
+}
+
+ipcMain.handle('material:inspectImage', async (_event, filePath: string) => {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    return { ok: false, error: 'invalid path' } as const;
+  }
+  try {
+    const stat = await fs.promises.stat(filePath);
+    const image = nativeImage.createFromPath(filePath);
+    if (image.isEmpty()) return { ok: false, error: 'not an image' } as const;
+    const size = image.getSize();
+    return {
+      ok: true,
+      mime: inferImageMime(filePath),
+      sizeBytes: stat.size,
+      width: size.width,
+      height: size.height,
+    } as const;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    } as const;
+  }
+});
+
 // Resolve a remote URL's <title>, <meta property="og:image">, and favicon
 // from the main process. Doing this in main keeps it CORS-free and out of the
 // renderer's network context. We cap the body read at 256 KiB — the <head>
@@ -536,7 +624,7 @@ ipcMain.handle(
     const { dialog } = await import('electron');
     const filters: Electron.FileFilter[] = [];
     if (kind === 'image') {
-      filters.push({ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'] });
+      filters.push({ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif'] });
     } else if (kind === 'pdf') {
       filters.push({ name: 'PDFs', extensions: ['pdf'] });
     }

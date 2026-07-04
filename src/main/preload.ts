@@ -74,6 +74,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('material:readBytes', filePath) as Promise<
         { ok: true; bytes: ArrayBuffer } | { ok: false; error: string }
       >,
+    inspectImage: (filePath: string) =>
+      ipcRenderer.invoke('material:inspectImage', filePath) as Promise<
+        | { ok: true; mime: string; sizeBytes: number; width: number; height: number }
+        | { ok: false; error: string }
+      >,
+    createImageVariant: (filePath: string, maxLongEdge: number, quality: number) =>
+      ipcRenderer.invoke('material:createImageVariant', filePath, maxLongEdge, quality) as Promise<
+        | {
+            ok: true;
+            bytes: ArrayBuffer;
+            mime: string;
+            sizeBytes: number;
+            width: number;
+            height: number;
+          }
+        | { ok: false; error: string }
+      >,
     resolveUrlMeta: (url: string) =>
       ipcRenderer.invoke('material:resolveUrlMeta', url) as Promise<
         | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
@@ -232,6 +249,27 @@ export interface ElectronAPI {
     readBytes: (
       filePath: string,
     ) => Promise<{ ok: true; bytes: ArrayBuffer } | { ok: false; error: string }>;
+    inspectImage: (
+      filePath: string,
+    ) => Promise<
+      | { ok: true; mime: string; sizeBytes: number; width: number; height: number }
+      | { ok: false; error: string }
+    >;
+    createImageVariant: (
+      filePath: string,
+      maxLongEdge: number,
+      quality: number,
+    ) => Promise<
+      | {
+          ok: true;
+          bytes: ArrayBuffer;
+          mime: string;
+          sizeBytes: number;
+          width: number;
+          height: number;
+        }
+      | { ok: false; error: string }
+    >;
     resolveUrlMeta: (
       url: string,
     ) => Promise<

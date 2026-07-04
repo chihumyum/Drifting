@@ -2531,6 +2531,17 @@
     "summaryPlaceholder": "一句话角色说明…",
     "sketch": "速写",
     "sketchWithCategory": "{{category}} · 速写",
+    "portrait": {
+      "upload": "上传",
+      "replace": "替换",
+      "view": "查看大图",
+      "loading": "图片加载中",
+      "remove": "移除图片",
+      "uploading": "上传中",
+      "uploadFailed": "图片上传失败，请重试。",
+      "removeFailed": "移除图片失败，请重试。",
+      "loadFailed": "图片加载失败。"
+    },
     "sections": {
       "overview": "概述",
       "bio": "传 · biography",

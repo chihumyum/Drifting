@@ -48,6 +48,49 @@ interface ElectronAPI {
       }) => void,
     ) => () => void;
   };
+  material: {
+    openLocal: (filePath: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+    openExternal: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+    pickFile: (
+      kind?: 'image' | 'pdf' | 'any',
+    ) => Promise<
+      { ok: true; filePath: string; sizeBytes: number | null } | { ok: false; canceled: true }
+    >;
+    thumbnail: (
+      filePath: string,
+      size?: number,
+    ) => Promise<{ ok: true; dataUrl: string } | { ok: false; error: string }>;
+    readBytes: (
+      filePath: string,
+    ) => Promise<{ ok: true; bytes: ArrayBuffer } | { ok: false; error: string }>;
+    inspectImage: (
+      filePath: string,
+    ) => Promise<
+      | { ok: true; mime: string; sizeBytes: number; width: number; height: number }
+      | { ok: false; error: string }
+    >;
+    createImageVariant: (
+      filePath: string,
+      maxLongEdge: number,
+      quality: number,
+    ) => Promise<
+      | {
+          ok: true;
+          bytes: ArrayBuffer;
+          mime: string;
+          sizeBytes: number;
+          width: number;
+          height: number;
+        }
+      | { ok: false; error: string }
+    >;
+    resolveUrlMeta: (
+      url: string,
+    ) => Promise<
+      | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
+      | { ok: false; error: string }
+    >;
+  };
 }
 
 declare global {
