@@ -3,6 +3,7 @@ import type { Storyline } from '../domain/storyline';
 import type { BookNode } from '../domain/book-node';
 import { normalizeBookNode } from '../domain/book-node';
 import type { BookElement, BookElementCategory } from '../domain/book-element';
+import type { ProjectAsset } from '../domain/project-asset';
 import type { LibraryItem } from '../domain/library-item';
 import type { Comment, CommentAction } from '../domain/comment';
 import type { ShadowJob } from '../domain/shadow-job';
@@ -74,6 +75,11 @@ interface DataState {
   addBookElement: (element: BookElement) => void;
   updateBookElement: (id: string, updates: Partial<BookElement>) => void;
   removeBookElement: (id: string) => void;
+
+  projectAssets: ProjectAsset[];
+  setProjectAssets: (assets: ProjectAsset[]) => void;
+  upsertProjectAsset: (asset: ProjectAsset) => void;
+  removeProjectAsset: (id: string) => void;
 
   /**
    * Soft-deleted (trashed) entity ids, keyed via {@link trashedKey}. Trashed
@@ -164,9 +170,7 @@ function sortMarkers(markers: TimelineMarker[]): TimelineMarker[] {
   return markers.slice().sort((a, b) => a.narrativeOrder - b.narrativeOrder);
 }
 
-function deriveNodeStorylineMapping(
-  forward: Record<string, string[]>,
-): Record<string, string[]> {
+function deriveNodeStorylineMapping(forward: Record<string, string[]>): Record<string, string[]> {
   const reverse: Record<string, string[]> = {};
   Object.entries(forward).forEach(([storylineId, nodeIds]) => {
     nodeIds.forEach((nodeId) => {
@@ -313,6 +317,20 @@ export const useDataStore = create<DataState>((set) => ({
   removeBookElement: (id) =>
     set((state) => ({ bookElements: state.bookElements.filter((element) => element.id !== id) })),
 
+  projectAssets: [],
+  setProjectAssets: (projectAssets) => set({ projectAssets }),
+  upsertProjectAsset: (asset) =>
+    set((state) => {
+      const exists = state.projectAssets.some((item) => item.id === asset.id);
+      return {
+        projectAssets: exists
+          ? state.projectAssets.map((item) => (item.id === asset.id ? asset : item))
+          : [asset, ...state.projectAssets],
+      };
+    }),
+  removeProjectAsset: (id) =>
+    set((state) => ({ projectAssets: state.projectAssets.filter((asset) => asset.id !== id) })),
+
   trashedEntityIds: new Set<string>(),
   setTrashedEntityIds: (trashedEntityIds) => set({ trashedEntityIds }),
   markTrashed: (kind, id) =>
@@ -344,8 +362,7 @@ export const useDataStore = create<DataState>((set) => ({
 
   comments: [],
   setComments: (comments) => set({ comments }),
-  addComment: (comment) =>
-    set((state) => ({ comments: [...state.comments, comment] })),
+  addComment: (comment) => set((state) => ({ comments: [...state.comments, comment] })),
   updateComment: (id, updates) =>
     set((state) => ({
       comments: state.comments.map((comment) =>
@@ -429,8 +446,7 @@ export const useDataStore = create<DataState>((set) => ({
     set((state) => ({ driftGroups: state.driftGroups.filter((g) => g.id !== id) })),
 
   timelineMarkers: [],
-  setTimelineMarkers: (timelineMarkers) =>
-    set({ timelineMarkers: sortMarkers(timelineMarkers) }),
+  setTimelineMarkers: (timelineMarkers) => set({ timelineMarkers: sortMarkers(timelineMarkers) }),
   addTimelineMarker: (marker) =>
     set((state) => ({ timelineMarkers: sortMarkers([...state.timelineMarkers, marker]) })),
   updateTimelineMarker: (id, updates) =>

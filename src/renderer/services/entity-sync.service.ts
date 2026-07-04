@@ -38,6 +38,7 @@ import {
   NodeContentTable,
   NodeStorylineLinkTable,
   ProjectTable,
+  ProjectAssetTable,
   StorylineTable,
   TimelineMarkerTable,
 } from '../schema/drizzle';
@@ -45,6 +46,7 @@ import { useDataStore } from '../store/data-store';
 import { useProjectStore } from '../store/project-store';
 import type { BookNode, ChapterWritingStatus, DriftStatus } from '../domain/book-node';
 import { decodeAliases } from '../domain/book-element';
+import type { ProjectAsset } from '../domain/project-asset';
 import { decodeBlockHashes, decodeBlockIds } from '../domain/block-section';
 import type { BlockSectionSource } from '../domain/block-section';
 import { createElementPatchRepository } from '../sqlite-repo/element-patch-repo';
@@ -128,6 +130,7 @@ export interface ProjectGraphPayload {
   nodeStorylineLinks: Record<string, unknown>[];
   elements: Record<string, unknown>[];
   elementCategories: Record<string, unknown>[];
+  projectAssets?: Record<string, unknown>[];
   entityRelations: Record<string, unknown>[];
   inlineMentions: Record<string, unknown>[];
   entityPatches: Record<string, unknown>[];
@@ -648,7 +651,10 @@ function resolveMutationRequest(m: SyncMutation): MutationRequest | null {
           data: payload,
         };
       }
-      return { method: 'DELETE', endpoint: `/api/projects/${projectId}/agent-memories/${entityId}` };
+      return {
+        method: 'DELETE',
+        endpoint: `/api/projects/${projectId}/agent-memories/${entityId}`,
+      };
 
     // ---- Book Act (幕) ----
     case 'bookAct':
@@ -814,9 +820,7 @@ async function tryRecoverMissingRemote(m: SyncMutation): Promise<boolean> {
         url: createReq.endpoint,
         data: createReq.data,
       });
-      log.info(
-        `[sync] recovered orphan elementPatch ${m.entityId} via POST (was 404 on PATCH)`,
-      );
+      log.info(`[sync] recovered orphan elementPatch ${m.entityId} via POST (was 404 on PATCH)`);
       return true;
     } catch (err) {
       log.warn(`[sync] elementPatch recovery POST failed for ${m.entityId}:`, err);
@@ -846,9 +850,7 @@ async function tryRecoverMissingRemote(m: SyncMutation): Promise<boolean> {
         url: createReq.endpoint,
         data: createReq.data,
       });
-      log.info(
-        `[sync] recovered orphan blockSection ${m.entityId} via POST (was 404 on PATCH)`,
-      );
+      log.info(`[sync] recovered orphan blockSection ${m.entityId} via POST (was 404 on PATCH)`);
       return true;
     } catch (err) {
       log.warn(`[sync] blockSection recovery POST failed for ${m.entityId}:`, err);
@@ -931,6 +933,23 @@ function numberValue(row: Record<string, unknown>, key: string, fallback = 0): n
 function nullableNumberValue(row: Record<string, unknown>, key: string): number | null {
   const value = row[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function projectAssetKind(value: string): ProjectAsset['kind'] {
+  return value === 'image' ? 'image' : 'image';
+}
+
+function projectAssetRole(value: string): ProjectAsset['role'] {
+  return value === 'element_portrait' ? 'element_portrait' : 'element_portrait';
+}
+
+function projectAssetOwnerKind(value: string): ProjectAsset['ownerKind'] {
+  return value === 'element' ? 'element' : 'element';
+}
+
+function projectAssetStatus(value: string): ProjectAsset['status'] {
+  if (value === 'ready' || value === 'failed') return value;
+  return 'pending';
 }
 
 // deletedAt arrives as an ISO string over JSON (or a Date in-process). Preserve
@@ -1076,11 +1095,36 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       elementTemplateJson: stringValue(row, 'elementTemplateJson', '{}'),
       elementTemplateKvJson: stringValue(row, 'elementTemplateKvJson', '[]'),
       color: stringValue(row, 'color'),
-      layoutMode: (stringValue(row, 'layoutMode', 'auto') === 'pinned'
-        ? 'pinned'
-        : 'auto') as 'auto' | 'pinned',
+      layoutMode: (stringValue(row, 'layoutMode', 'auto') === 'pinned' ? 'pinned' : 'auto') as
+        | 'auto'
+        | 'pinned',
       gridX: nullableNumberValue(row, 'gridX'),
       gridY: nullableNumberValue(row, 'gridY'),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })),
+  );
+  dataStore.setProjectAssets(
+    (graph.projectAssets ?? []).map((row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      kind: projectAssetKind(stringValue(row, 'kind', 'image')),
+      role: projectAssetRole(stringValue(row, 'role', 'element_portrait')),
+      ownerKind: projectAssetOwnerKind(stringValue(row, 'ownerKind', 'element')),
+      ownerId: stringValue(row, 'ownerId'),
+      status: projectAssetStatus(stringValue(row, 'status', 'pending')),
+      displayObjectKey: stringValue(row, 'displayObjectKey'),
+      thumbnailObjectKey: stringValue(row, 'thumbnailObjectKey'),
+      sourceMime: nullableStringValue(row, 'sourceMime'),
+      displayMime: stringValue(row, 'displayMime'),
+      thumbnailMime: stringValue(row, 'thumbnailMime', 'image/jpeg'),
+      sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
+      displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
+      thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
+      width: nullableNumberValue(row, 'width'),
+      height: nullableNumberValue(row, 'height'),
+      completedAt: nullableDateText(row.completedAt),
+      deletedAt: nullableDateText(row.deletedAt),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
     })),
@@ -1108,6 +1152,7 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         kvJson: stringValue(row, 'kvJson', '[]'),
         aliases: decodeAliases(stringValue(row, 'aliasesJson', '[]')),
         groupName: nullableStringValue(row, 'groupName'),
+        portraitAssetId: nullableStringValue(row, 'portraitAssetId'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
       };
@@ -1118,9 +1163,10 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'projectId'),
       title: stringValue(row, 'title'),
-      kind: (stringValue(row, 'kind') === 'markdown'
-        ? 'text'
-        : (stringValue(row, 'kind') as 'image' | 'pdf' | 'url' | 'text')),
+      kind:
+        stringValue(row, 'kind') === 'markdown'
+          ? 'text'
+          : (stringValue(row, 'kind') as 'image' | 'pdf' | 'url' | 'text'),
       source: (stringValue(row, 'source', 'local') || 'local') as 'local' | 'url',
       uri: stringValue(row, 'uri'),
       localPath: nullableStringValue(row, 'localPath'),
@@ -1429,19 +1475,13 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         );
       await tx
         .delete(EntityRelationTable)
-        .where(
-          and(eq(EntityRelationTable.toKind, kind), inArray(EntityRelationTable.toId, ids)),
-        );
+        .where(and(eq(EntityRelationTable.toKind, kind), inArray(EntityRelationTable.toId, ids)));
       await tx
         .delete(InlineMentionTable)
-        .where(
-          and(eq(InlineMentionTable.fromKind, kind), inArray(InlineMentionTable.fromId, ids)),
-        );
+        .where(and(eq(InlineMentionTable.fromKind, kind), inArray(InlineMentionTable.fromId, ids)));
       await tx
         .delete(InlineMentionTable)
-        .where(
-          and(eq(InlineMentionTable.toKind, kind), inArray(InlineMentionTable.toId, ids)),
-        );
+        .where(and(eq(InlineMentionTable.toKind, kind), inArray(InlineMentionTable.toId, ids)));
     };
 
     if (oldNodeIds.length > 0) {
@@ -1510,6 +1550,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     await tx.delete(TimelineMarkerTable).where(eq(TimelineMarkerTable.projectId, projectId));
     await tx.delete(BookNodeTable).where(eq(BookNodeTable.projectId, projectId));
     await tx.delete(BookElementTable).where(eq(BookElementTable.projectId, projectId));
+    await tx.delete(ProjectAssetTable).where(eq(ProjectAssetTable.projectId, projectId));
     await tx.delete(StorylineTable).where(eq(StorylineTable.projectId, projectId));
     await tx.delete(ElementCategoryTable).where(eq(ElementCategoryTable.projectId, projectId));
 
@@ -1547,6 +1588,33 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
     }));
     if (elementCategories.length > 0) {
       await insertRowsBatched(tx, ElementCategoryTable, elementCategories);
+    }
+
+    const projectAssets = normalizeRows(graph.projectAssets ?? [], (row) => ({
+      id: stringValue(row, 'id'),
+      projectId: stringValue(row, 'projectId'),
+      kind: stringValue(row, 'kind', 'image') || 'image',
+      role: stringValue(row, 'role', 'element_portrait') || 'element_portrait',
+      ownerKind: stringValue(row, 'ownerKind', 'element') || 'element',
+      ownerId: stringValue(row, 'ownerId'),
+      status: stringValue(row, 'status', 'pending') || 'pending',
+      displayObjectKey: stringValue(row, 'displayObjectKey'),
+      thumbnailObjectKey: stringValue(row, 'thumbnailObjectKey'),
+      sourceMime: nullableStringValue(row, 'sourceMime'),
+      displayMime: stringValue(row, 'displayMime'),
+      thumbnailMime: stringValue(row, 'thumbnailMime', 'image/jpeg') || 'image/jpeg',
+      sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
+      displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
+      thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
+      width: nullableNumberValue(row, 'width'),
+      height: nullableNumberValue(row, 'height'),
+      completedAt: nullableDateText(row.completedAt),
+      deletedAt: nullableDateText(row.deletedAt),
+      createdAt: dateText(row.createdAt),
+      updatedAt: dateText(row.updatedAt),
+    })).filter((row) => row.id && row.projectId);
+    if (projectAssets.length > 0) {
+      await insertRowsBatched(tx, ProjectAssetTable, projectAssets);
     }
 
     const storylines = normalizeRows(graph.storylines, (row) => ({
@@ -1631,6 +1699,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
         // will follow this client one; pre-migration server omits the field.
         aliasesJson: stringValue(row, 'aliasesJson', '[]'),
         groupName: nullableStringValue(row, 'groupName'),
+        portraitAssetId: nullableStringValue(row, 'portraitAssetId'),
         createdAt: dateText(row.createdAt),
         updatedAt: dateText(row.updatedAt),
         deletedAt: nullableDateText(row.deletedAt),
@@ -1702,9 +1771,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       toId: stringValue(row, 'toId'),
       createdAt: dateText(row.createdAt),
       updatedAt: dateText(row.updatedAt),
-    })).filter(
-      (row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson,
-    );
+    })).filter((row) => row.id && row.fromId && row.toId && row.fromBlockId && row.fromSpansJson);
     if (inlineMentions.length > 0) {
       await insertRowsBatched(tx, InlineMentionTable, inlineMentions);
     }
@@ -1930,7 +1997,9 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
   applyGraphToStores(graph);
 }
 
-export async function pullAndHydrateProjectGraph(projectId: string): Promise<ProjectGraphPayload | null> {
+export async function pullAndHydrateProjectGraph(
+  projectId: string,
+): Promise<ProjectGraphPayload | null> {
   if (!isSyncEnabled()) return null;
 
   // Try to drain the outbox first. If anything is still queued after the
@@ -1979,6 +2048,7 @@ export async function pullAndHydrateProjectGraph(projectId: string): Promise<Pro
       response.data.nodeStorylineLinks.length +
       response.data.elements.length +
       response.data.elementCategories.length +
+      (response.data.projectAssets?.length ?? 0) +
       response.data.entityRelations.length +
       response.data.inlineMentions.length +
       response.data.entityPatches.length +

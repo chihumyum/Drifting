@@ -393,6 +393,20 @@
       "when": 1784000000000,
       "tag": "0055_drift_group",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1784100000000,
+      "tag": "0056_element_portrait_asset",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1784200000000,
+      "tag": "0057_project_asset_display_variant",
+      "breakpoints": true
     }
   ]
 }

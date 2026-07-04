@@ -64,6 +64,7 @@ import { useStoryline } from './usecase/useStoryline';
 import { useBookElement } from './usecase/useBookElement';
 import { useBookContent } from './usecase/useBookContent';
 import { useElementCategory } from './usecase/useElementCategory';
+import { useProjectAsset } from './usecase/useProjectAsset';
 import { useLibraryItem } from './usecase/useLibraryItem';
 import { useEntityRelations } from './usecase/useEntityRelations';
 import { useComment } from './usecase/useComment';
@@ -218,6 +219,7 @@ function Layout() {
   const storylineUsecases = useStoryline({ projectId: projectId, userId: userId });
   const elementUsecases = useBookElement({ projectId: projectId, userId: userId });
   const categoryUsecases = useElementCategory({ projectId: projectId, userId: userId });
+  const projectAssetUsecases = useProjectAsset({ projectId: projectId, userId: userId });
   const libraryItemUsecases = useLibraryItem({ projectId: projectId, userId: userId });
   const relationUsecases = useEntityRelations({ projectId: projectId, userId: userId });
   const commentUsecases = useComment({ projectId: projectId, userId: userId });
@@ -378,6 +380,7 @@ function Layout() {
           storylineUsecases.loadStorylines(),
           elementUsecases.loadInitial(),
           categoryUsecases.loadCategories(),
+          projectAssetUsecases.loadInitial(),
           libraryItemUsecases.loadInitial(),
           relationUsecases.loadInitial(),
           commentUsecases.loadInitial(),
@@ -419,6 +422,7 @@ function Layout() {
     storylineUsecases,
     elementUsecases,
     categoryUsecases,
+    projectAssetUsecases,
     libraryItemUsecases,
     relationUsecases,
     commentUsecases,

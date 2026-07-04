@@ -162,6 +162,44 @@ export const ElementCategoryTable = sqliteTable(
   ],
 );
 
+// Project Asset
+// Cloud-backed binary assets owned by a project. v1 uses this for element
+// portrait images: private R2 object keys for compressed display and thumbnail
+// images live here, while BookElement.portraitAssetId points at the asset row.
+export const ProjectAssetTable = sqliteTable(
+  'project_asset',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull().default('image'),
+    role: text('role').notNull().default('element_portrait'),
+    ownerKind: text('owner_kind').notNull(),
+    ownerId: text('owner_id').notNull(),
+    status: text('status').notNull().default('pending'),
+    displayObjectKey: text('display_object_key').notNull(),
+    thumbnailObjectKey: text('thumbnail_object_key').notNull(),
+    sourceMime: text('source_mime'),
+    displayMime: text('display_mime').notNull(),
+    thumbnailMime: text('thumbnail_mime').notNull().default('image/jpeg'),
+    sourceSizeBytes: integer('source_size_bytes'),
+    displaySizeBytes: integer('display_size_bytes'),
+    thumbnailSizeBytes: integer('thumbnail_size_bytes'),
+    width: integer('width'),
+    height: integer('height'),
+    completedAt: text('completed_at'),
+    deletedAt: text('deleted_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_project_asset_project').on(t.projectId),
+    index('idx_project_asset_owner').on(t.ownerKind, t.ownerId),
+    index('idx_project_asset_status').on(t.status),
+  ],
+);
+
 // Storylines
 // project(1) <-> storyline(N)
 // storyline(N) <-> node(N)
@@ -340,12 +378,16 @@ export const BookElementTable = sqliteTable('element', {
   // see migration 0030.
   aliasesJson: text('aliases_json').notNull().default('[]'),
   groupName: text('group_name'),
+  portraitAssetId: text('portrait_asset_id').references(() => ProjectAssetTable.id, {
+    onDelete: 'set null',
+  }),
   deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (t) => [
   index('idx_element_deleted_at').on(t.deletedAt),
   index('idx_element_category').on(t.categoryId),
+  index('idx_element_portrait_asset').on(t.portraitAssetId),
 ]);
 
 // Node <-> Storyline (Many-to-Many)

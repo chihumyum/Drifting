@@ -4,9 +4,9 @@ import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
 import { decodeAliases, encodeAliases, type BookElement } from '../domain/book-element';
 
 export type ElementCreateData = BookElement;
-export type ElementUpdateData = Partial<
-  Omit<BookElement, 'id' | 'createdAt'>
-> & { updatedAt: string };
+export type ElementUpdateData = Partial<Omit<BookElement, 'id' | 'createdAt'>> & {
+  updatedAt: string;
+};
 
 export interface ElementRepository {
   findById(id: string): Promise<BookElement | null>;
@@ -31,6 +31,7 @@ function toDomain(record: typeof BookElementTable.$inferSelect): BookElement {
     kvJson: record.kvJson ?? '[]',
     aliases: decodeAliases(record.aliasesJson),
     groupName: record.groupName,
+    portraitAssetId: record.portraitAssetId,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -99,6 +100,7 @@ export function createBookElementSqliteRepository(
       kvJson: input.kvJson ?? '[]',
       aliasesJson: encodeAliases(input.aliases),
       groupName: input.groupName,
+      portraitAssetId: input.portraitAssetId,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt,
     };
@@ -123,6 +125,7 @@ export function createBookElementSqliteRepository(
     if (data.kvJson !== undefined) updateValues.kvJson = data.kvJson;
     if (data.aliases !== undefined) updateValues.aliasesJson = encodeAliases(data.aliases);
     if (data.groupName !== undefined) updateValues.groupName = data.groupName;
+    if (data.portraitAssetId !== undefined) updateValues.portraitAssetId = data.portraitAssetId;
 
     await dbProvider()
       .update(BookElementTable)

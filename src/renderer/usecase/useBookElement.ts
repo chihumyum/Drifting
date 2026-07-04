@@ -118,7 +118,8 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
       // throwing, so the user can spin up several blank elements before
       // renaming them. An explicit name still goes through the uniqueness
       // check below and surfaces a conflict.
-      const resolvedName = explicitName || makeUniqueElementName('New Element', prev, activeProjectId);
+      const resolvedName =
+        explicitName || makeUniqueElementName('New Element', prev, activeProjectId);
       const resolvedAliases = (input.aliases ?? [])
         .map((a) => a.trim())
         .filter((a) => a.length > 0);
@@ -136,10 +137,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         activeProjectId,
       );
       if (conflict) {
-        throw new ElementNameConflictError(
-          conflict.conflictingName,
-          conflict.conflictingElement,
-        );
+        throw new ElementNameConflictError(conflict.conflictingName, conflict.conflictingElement);
       }
 
       const newElement: BookElement = {
@@ -152,6 +150,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         kvJson: seededKvJson,
         aliases: resolvedAliases,
         groupName: input.groupName?.trim() || null,
+        portraitAssetId: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -175,6 +174,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             kvJson: persisted.kvJson,
             aliasesJson: encodeAliases(persisted.aliases),
             groupName: persisted.groupName,
+            portraitAssetId: persisted.portraitAssetId,
           }),
       });
       // Let every open editor retroactively link prose that already mentioned
@@ -214,10 +214,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
           id, // exclude self — renaming an element to its own name isn't a conflict
         );
         if (conflict) {
-          throw new ElementNameConflictError(
-            conflict.conflictingName,
-            conflict.conflictingElement,
-          );
+          throw new ElementNameConflictError(conflict.conflictingName, conflict.conflictingElement);
         }
       }
 
@@ -230,6 +227,10 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         summary: updates.summary ?? existing.summary,
         aliases: nextAliases,
         groupName: updates.groupName !== undefined ? updates.groupName : existing.groupName,
+        portraitAssetId:
+          updates.portraitAssetId !== undefined
+            ? updates.portraitAssetId
+            : existing.portraitAssetId,
         updatedAt: now.toISOString(),
       };
 
@@ -245,6 +246,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             kvJson: updatedElement.kvJson,
             aliases: updatedElement.aliases,
             groupName: updatedElement.groupName,
+            portraitAssetId: updatedElement.portraitAssetId,
             updatedAt: updatedElement.updatedAt,
           });
           if (!persisted) {
@@ -265,6 +267,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
             kvJson: persisted.kvJson,
             aliasesJson: encodeAliases(persisted.aliases),
             groupName: persisted.groupName,
+            portraitAssetId: persisted.portraitAssetId,
           }),
       });
     },
@@ -292,9 +295,7 @@ export function useBookElement({ projectId, userId }: UseBookElementContext) {
         .map((r) => r.id);
       if (doomedIds.length > 0) {
         const doomedSet = new Set(doomedIds);
-        useDataStore
-          .getState()
-          .setEntityRelations(relations.filter((r) => !doomedSet.has(r.id)));
+        useDataStore.getState().setEntityRelations(relations.filter((r) => !doomedSet.has(r.id)));
         for (const relationId of doomedIds) {
           await relationRepo.removeRelation(relationId);
           syncEntityRelationDelete(relationId, activeProjectId);

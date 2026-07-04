@@ -25,6 +25,9 @@ export interface BookElement {
   // Lightweight secondary grouping label within a category. Null = "ungrouped".
   // See schema/drizzle.ts for rationale.
   groupName: string | null;
+  // Cloud-backed portrait image. Null means render the category-color sketch
+  // placeholder. The asset metadata row carries private R2 object keys.
+  portraitAssetId: string | null;
   createdAt: string;
   updatedAt: string;
 }
