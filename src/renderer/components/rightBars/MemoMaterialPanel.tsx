@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link2, Link2Off, Plus } from 'lucide-react';
+import { Link2, Link2Off, Loader2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 // Use the "legacy" build: pdf.js v5's modern bundle calls
 // `Map.prototype.getOrInsertComputed`, a TC39 Stage 2.7 proposal not yet in
@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
-import { useDataStore } from '../../store/data-store';
+import { useDataStore, type LibraryItemUploadState } from '../../store/data-store';
 import { useProjectNavigation } from '../../hooks/useProjectNavigation';
 import { useAuthStore } from '../../store/auth';
 import { useLibraryItem } from '../../usecase/useLibraryItem';
@@ -21,6 +21,8 @@ import { isStructuralEntityKind } from '../../domain/entity-kinds';
 import { scrollToBlockWhenReady } from '../../lib/scroll-to-block';
 import { EntityRelationPicker, type RelationTarget } from './EntityRelationPicker';
 import { CollapsibleFooter } from '../ui/CollapsibleFooter';
+import { assetCacheService } from '../../services/asset-cache.service';
+import type { AssetVariant } from '../../services/project-asset.service';
 import '../../../styles/bottom-timeline.css';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -47,6 +49,7 @@ function libraryItemSubtitle(m: LibraryItem): string {
       return m.uri;
     }
   }
+  if (m.source === 'r2') return m.mime ?? '';
   return basename(m.localPath ?? m.uri);
 }
 
@@ -65,6 +68,61 @@ function libraryItemImageSrc(m: LibraryItem): string | null {
 function libraryItemPdfSrc(m: LibraryItem): string | null {
   if (m.kind !== 'pdf') return null;
   return localLibraryItemUrl(m);
+}
+
+function useCachedLibraryItemVariant(
+  material: LibraryItem,
+  variant: AssetVariant,
+  enabled = true,
+): { filePath: string | null; fileUrl: string | null; loading: boolean } {
+  const { projectId } = useProjectNavigation();
+  const projectAssets = useDataStore((s) => s.projectAssets);
+  const asset = useMemo(() => {
+    if (material.source !== 'r2' || !material.assetId) return null;
+    return projectAssets.find((item) => item.id === material.assetId) ?? null;
+  }, [material.assetId, material.source, projectAssets]);
+  const cacheKey =
+    enabled && material.source === 'r2' && asset?.status === 'ready'
+      ? `${projectId}:${asset.id}:${variant}:${asset.updatedAt}`
+      : null;
+  const [cached, setCached] = useState<{
+    key: string;
+    filePath: string | null;
+    fileUrl: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!cacheKey || !asset) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    assetCacheService
+      .ensureCachedVariant(projectId, asset, variant)
+      .then((file) => {
+        if (!cancelled) {
+          setCached({ key: cacheKey, filePath: file.filePath, fileUrl: file.fileUrl });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn('[material] failed to cache asset variant:', error);
+          setCached({ key: cacheKey, filePath: null, fileUrl: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [asset, cacheKey, projectId, variant]);
+
+  if (!cacheKey) return { filePath: null, fileUrl: null, loading: false };
+  if (cached?.key === cacheKey) {
+    return { filePath: cached.filePath, fileUrl: cached.fileUrl, loading: false };
+  }
+  return { filePath: null, fileUrl: null, loading: true };
 }
 
 function clampLibraryItemPreviewScale(scale: number): number {
@@ -127,6 +185,7 @@ export function LibraryPanel({ focused }: Props) {
   const userId = useAuthStore((s) => s.user?.id) ?? '';
   const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const projectAssets = useDataStore((s) => s.projectAssets);
 
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
   const relationUsecases = useEntityRelations({ projectId, userId });
@@ -187,7 +246,18 @@ export function LibraryPanel({ focused }: Props) {
       return;
     }
     // image / pdf — local file goes through the OS default app.
-    const path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
+    let path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
+    if (m.source === 'r2' && m.assetId) {
+      const asset = projectAssets.find((item) => item.id === m.assetId);
+      if (!asset) return;
+      try {
+        const cached = await assetCacheService.ensureCachedVariant(projectId, asset, 'source');
+        path = cached.filePath;
+      } catch (error) {
+        alert(t('memoMaterial.error.openFile', { error: String(error) }));
+        return;
+      }
+    }
     if (!path) return;
     const res = await window.electronAPI.material.openLocal(path);
     if (!res.ok) {
@@ -875,6 +945,9 @@ export function LibraryItemCard({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageExpanded, setImageExpanded] = useState(defaultExpanded);
   const [textExpanded, setTextExpanded] = useState(defaultExpanded);
+  const uploadState = useDataStore((s) => s.libraryItemUploadStates[material.id] ?? null);
+  const uploadBusy = uploadState?.state === 'uploading';
+  const uploadFailed = uploadState?.state === 'failed';
   const selectedSet = useMemo(
     () => new Set(relations.map((r) => `${r.toKind}:${r.toId}`)),
     [relations],
@@ -888,9 +961,29 @@ export function LibraryItemCard({
   const kindLabel = t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind });
   const subtitle = libraryItemSubtitle(material);
   const isTextSnippet = material.kind === 'text';
-  const imageSrc = libraryItemImageSrc(material);
-  const isImageExpanded = material.kind === 'image' && imageExpanded && !!imageSrc;
+  const r2Display = useCachedLibraryItemVariant(
+    material,
+    'display',
+    material.source === 'r2' && material.kind === 'image' && imageExpanded,
+  );
+  const imageSrc =
+    material.source === 'r2' && material.kind === 'image'
+      ? r2Display.fileUrl
+      : libraryItemImageSrc(material);
+  const canExpandImage =
+    !uploadBusy &&
+    material.kind === 'image' &&
+    (!!imageSrc || (material.source === 'r2' && !!material.assetId));
+  const isImageExpanded = !uploadBusy && material.kind === 'image' && imageExpanded && !!imageSrc;
   const isTextExpanded = isTextSnippet && textExpanded;
+  const handleOpenInSystem = useCallback(() => {
+    if (uploadBusy) return;
+    onOpenInSystem();
+  }, [onOpenInSystem, uploadBusy]);
+  const handleOpenInApp = useCallback(() => {
+    if (uploadBusy) return;
+    onOpenInApp();
+  }, [onOpenInApp, uploadBusy]);
   // Auto-generate PDF thumbnails the first time a card renders. macOS Quick
   // Look (via nativeImage.createThumbnailFromPath) renders the first page;
   // cache the resulting data URL on the material so we don't redo it.
@@ -955,7 +1048,7 @@ export function LibraryItemCard({
         >
           <span style={{ color: accent }}>{kindLabel}</span>
           <span style={{ flex: 1 }} />
-          {material.kind === 'image' && imageSrc && (
+          {canExpandImage && (
             <button
               onClick={() => setImageExpanded((v) => !v)}
               title={imageExpanded ? t('memoMaterial.card.collapseImage') : t('memoMaterial.card.expandImage')}
@@ -1003,10 +1096,11 @@ export function LibraryItemCard({
           )}
           {!isTextSnippet && (
             <button
-              onClick={onOpenInSystem}
+              onClick={handleOpenInSystem}
               title={t('memoMaterial.menu.openInSystem')}
               aria-hidden={!hover}
               tabIndex={hover ? 0 : -1}
+              disabled={uploadBusy}
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 9.5,
@@ -1015,7 +1109,7 @@ export function LibraryItemCard({
                 border: '1px solid hsl(var(--rule))',
                 background: 'hsl(var(--paper))',
                 color: 'hsl(var(--ink-2))',
-                cursor: 'pointer',
+                cursor: uploadBusy ? 'default' : 'pointer',
                 opacity: hover ? 1 : 0,
                 pointerEvents: hover ? 'auto' : 'none',
                 transition: 'opacity 120ms ease',
@@ -1028,7 +1122,11 @@ export function LibraryItemCard({
 
         {!isImageExpanded && !isTextExpanded && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minHeight: 0 }}>
-            <LibraryItemThumbnail material={material} onClick={onOpenInApp} />
+            <LibraryItemThumbnail
+              material={material}
+              uploadState={uploadState}
+              onClick={handleOpenInApp}
+            />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               {editing ? (
                 <input
@@ -1087,19 +1185,25 @@ export function LibraryItemCard({
                   )}
                 </div>
               )}
-              {subtitle && !isTextSnippet && (
+              {(uploadState || (subtitle && !isTextSnippet)) && (
                 <div
-                  title={material.uri}
+                  title={uploadFailed ? uploadState.error : material.uri}
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 10,
-                    color: 'hsl(var(--ink-4))',
+                    color: uploadFailed
+                      ? 'hsl(var(--danger, var(--accent)))'
+                      : 'hsl(var(--ink-4))',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {subtitle}
+                  {uploadBusy
+                    ? t('memoMaterial.upload.uploading')
+                    : uploadFailed
+                      ? t('memoMaterial.upload.failed')
+                      : subtitle}
                 </div>
               )}
             </div>
@@ -1165,14 +1269,14 @@ export function LibraryItemCard({
               </div>
             )}
             <div
-              onClick={onOpenInApp}
+              onClick={handleOpenInApp}
               style={{
                 fontFamily: 'var(--font-serif)',
                 fontSize: 12.5,
                 color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
                 fontStyle: material.bodyJson ? 'normal' : 'italic',
                 lineHeight: 1.5,
-                cursor: 'text',
+                cursor: uploadBusy ? 'default' : 'text',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
@@ -1185,15 +1289,16 @@ export function LibraryItemCard({
         {isImageExpanded && (
           <button
             type="button"
-            onClick={onOpenInApp}
+            onClick={handleOpenInApp}
             title={t('memoMaterial.card.fullscreenImage')}
+            disabled={uploadBusy}
             style={{
               marginTop: 8,
               padding: 0,
               border: '1px solid hsl(var(--rule))',
               borderRadius: 4,
               background: 'hsl(var(--paper-deep) / 0.35)',
-              cursor: 'zoom-in',
+              cursor: uploadBusy ? 'default' : 'zoom-in',
               overflow: 'hidden',
               width: '100%',
               maxHeight: 220,
@@ -1217,7 +1322,7 @@ export function LibraryItemCard({
 
         {isTextSnippet && !isTextExpanded && (
           <div
-            onClick={onOpenInApp}
+            onClick={handleOpenInApp}
             style={{
               marginTop: 6,
               fontFamily: 'var(--font-serif)',
@@ -1225,7 +1330,7 @@ export function LibraryItemCard({
               color: material.bodyJson ? 'hsl(var(--ink-2))' : 'hsl(var(--ink-4))',
               fontStyle: material.bodyJson ? 'normal' : 'italic',
               lineHeight: 1.5,
-              cursor: 'text',
+              cursor: uploadBusy ? 'default' : 'text',
               maxHeight: 140,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -1258,7 +1363,7 @@ export function LibraryItemCard({
           relationCount={relations.length}
           x={contextMenu.x}
           y={contextMenu.y}
-          onOpenInSystem={onOpenInSystem}
+          onOpenInSystem={handleOpenInSystem}
           onAddRelation={() => setPickerOpen(true)}
           onDelete={onDelete}
           onClose={closeContextMenu}
@@ -1271,13 +1376,31 @@ export function LibraryItemCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Thumbnail — inline preview tile for image / pdf / url libraryItems.
 
-function LibraryItemThumbnail({ material, onClick }: { material: LibraryItem; onClick: () => void }) {
+function LibraryItemThumbnail({
+  material,
+  uploadState,
+  onClick,
+}: {
+  material: LibraryItem;
+  uploadState: LibraryItemUploadState | null;
+  onClick: () => void;
+}) {
   const { t } = useTranslation();
   const size = 64;
-  const [errored, setErrored] = useState(false);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const uploadBusy = uploadState?.state === 'uploading';
+  const r2Thumbnail = useCachedLibraryItemVariant(
+    material,
+    'thumbnail',
+    material.source === 'r2' && (material.kind === 'image' || material.kind === 'pdf'),
+  );
+  const currentImageKey = `${material.id}:${material.assetId ?? ''}:${r2Thumbnail.fileUrl ?? material.thumbnailUri ?? material.uri}`;
+  const errored = errorKey === currentImageKey;
   let src: string | null = null;
   if (!errored) {
-    if (material.kind === 'image') {
+    if (material.source === 'r2' && (material.kind === 'image' || material.kind === 'pdf')) {
+      src = r2Thumbnail.fileUrl;
+    } else if (material.kind === 'image') {
       // webSecurity is disabled in dev, so file:// loads inline. In production
       // the same window config currently applies; if we ever re-enable
       // webSecurity we'll need to register a custom protocol.
@@ -1289,12 +1412,12 @@ function LibraryItemThumbnail({ material, onClick }: { material: LibraryItem; on
     }
   }
   if (!src) {
-    if (material.kind === 'text' || (material.kind === 'pdf' && !material.localPath)) {
+    if (material.kind === 'text' || (material.kind === 'pdf' && !material.localPath && material.source !== 'r2')) {
       return null;
     }
     return (
       <div
-        onClick={onClick}
+        onClick={uploadBusy ? undefined : onClick}
         style={{
           width: size,
           height: size,
@@ -1307,31 +1430,65 @@ function LibraryItemThumbnail({ material, onClick }: { material: LibraryItem; on
           fontFamily: 'var(--font-mono)',
           fontSize: 9.5,
           color: 'hsl(var(--ink-4))',
-          cursor: 'pointer',
+          cursor: uploadBusy ? 'default' : 'pointer',
         }}
         title={material.kind === 'pdf' ? t('memoMaterial.preview.generating') : t('memoMaterial.preview.open')}
       >
-        {material.kind === 'pdf' ? '…' : t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind })}
+        {uploadBusy ? (
+          <Loader2 size={15} style={{ animation: 'drift-spin 900ms linear infinite' }} aria-hidden />
+        ) : material.kind === 'pdf' ? (
+          '...'
+        ) : (
+          t(`memoMaterial.kind.${material.kind}`, { defaultValue: material.kind })
+        )}
       </div>
     );
   }
   return (
-    <img
-      src={src}
-      alt=""
-      onError={() => setErrored(true)}
-      onClick={onClick}
+    <button
+      type="button"
+      onClick={uploadBusy ? undefined : onClick}
+      disabled={uploadBusy}
       style={{
         width: size,
         height: size,
         flexShrink: 0,
-        objectFit: 'cover',
-        borderRadius: 3,
         border: '1px solid hsl(var(--rule))',
+        borderRadius: 3,
         background: 'hsl(var(--paper-deep))',
-        cursor: 'pointer',
+        cursor: uploadBusy ? 'default' : 'pointer',
+        padding: 0,
+        overflow: 'hidden',
+        position: 'relative',
       }}
-    />
+      title={uploadBusy ? t('memoMaterial.upload.uploading') : t('memoMaterial.preview.open')}
+    >
+      <img
+        src={src}
+        alt=""
+        onError={() => setErrorKey(currentImageKey)}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
+      />
+      {uploadBusy && (
+        <span
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            background: 'hsl(var(--paper) / 0.64)',
+            color: 'hsl(var(--ink-3))',
+          }}
+        >
+          <Loader2 size={15} style={{ animation: 'drift-spin 900ms linear infinite' }} aria-hidden />
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -1570,11 +1727,23 @@ export function LibraryItemFullscreenPreview({
   } | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressSurfaceClickRef = useRef(false);
-  const imageSrc = libraryItemImageSrc(material);
-  const pdfSrc = libraryItemPdfSrc(material);
   const isImagePreview = material.kind === 'image';
   const isPdfPreview = material.kind === 'pdf';
   const isZoomablePreview = isImagePreview || isPdfPreview;
+  const r2ImageSource = useCachedLibraryItemVariant(
+    material,
+    'source',
+    material.source === 'r2' && isImagePreview,
+  );
+  const r2PdfSource = useCachedLibraryItemVariant(
+    material,
+    'source',
+    material.source === 'r2' && isPdfPreview,
+  );
+  const imageSrc =
+    material.source === 'r2' && isImagePreview ? r2ImageSource.fileUrl : libraryItemImageSrc(material);
+  const pdfSrc =
+    material.source === 'r2' && isPdfPreview ? r2PdfSource.fileUrl : libraryItemPdfSrc(material);
 
   const close = useCallback(() => {
     if (material.kind === 'text' && textDraft !== (material.bodyJson ?? '')) {
@@ -1713,7 +1882,10 @@ export function LibraryItemFullscreenPreview({
     }
 
     if (material.kind === 'pdf') {
-      const pdfPath = material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null);
+      const pdfPath =
+        material.source === 'r2'
+          ? r2PdfSource.filePath
+          : material.localPath ?? (pdfSrc ? pdfSrc.replace(/^file:\/\//, '') : null);
       if (!pdfPath) return <FullscreenEmpty message={t('memoMaterial.preview.noPdf')} />;
       return <PdfCanvasPreview filePath={pdfPath} viewport={viewport} />;
     }
@@ -2249,6 +2421,7 @@ export function ComposeLibraryItemDialog({
     favicon: string | null;
   } | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const titleAutoFilled = useRef(false);
   const [relations, setRelations] = useState<RelationTarget[]>(() =>
     // Pre-fill the new comment / library item with the currently-focused entity, but
@@ -2326,54 +2499,67 @@ export function ComposeLibraryItemDialog({
   })();
 
   const submit = async () => {
-    if (kind === 'url') {
-      const trimmedUrl = url.trim();
-      // If the debounce hasn't fired yet, resolve once more synchronously so
-      // the title / thumbnail are present at create time.
-      let meta = urlMeta;
-      if (!meta && /^https?:\/\//i.test(trimmedUrl)) {
-        const res = await window.electronAPI.material.resolveUrlMeta(trimmedUrl);
-        if (res.ok) meta = { title: res.title, ogImage: res.ogImage, favicon: res.favicon };
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    try {
+      if (kind === 'url') {
+        const trimmedUrl = url.trim();
+        // If the debounce hasn't fired yet, resolve once more synchronously so
+        // the title / thumbnail are present at create time.
+        let meta = urlMeta;
+        if (!meta && /^https?:\/\//i.test(trimmedUrl)) {
+          const res = await window.electronAPI.material.resolveUrlMeta(trimmedUrl);
+          if (res.ok) meta = { title: res.title, ogImage: res.ogImage, favicon: res.favicon };
+        }
+        await onCreate(
+          {
+            title: title.trim() || meta?.title || trimmedUrl,
+            kind: 'url',
+            source: 'url',
+            uri: trimmedUrl,
+            thumbnailUri: meta?.ogImage ?? meta?.favicon ?? null,
+          },
+          relations,
+        );
+        return;
       }
-      void onCreate(
+      if (kind === 'image' || kind === 'pdf') {
+        if (!localPath) return;
+        await onCreate(
+          {
+            title: title.trim() || localPath.split(/[\\/]/).pop() || t('common.untitled'),
+            kind,
+            source: 'local',
+            uri: `file://${localPath}`,
+            localPath,
+            sizeBytes,
+          },
+          relations,
+        );
+        return;
+      }
+      // text snippet — title + plain-text body. Body is editable inline on the
+      // card after create; this is just the initial seed.
+      await onCreate(
         {
-          title: title.trim() || meta?.title || trimmedUrl,
-          kind: 'url',
-          source: 'url',
-          uri: trimmedUrl,
-          thumbnailUri: meta?.ogImage ?? meta?.favicon ?? null,
-        },
-        relations,
-      );
-      return;
-    }
-    if (kind === 'image' || kind === 'pdf') {
-      if (!localPath) return;
-      void onCreate(
-        {
-          title: title.trim() || localPath.split(/[\\/]/).pop() || t('common.untitled'),
-          kind,
+          title: title.trim() || t('common.untitled'),
+          kind: 'text',
           source: 'local',
-          uri: `file://${localPath}`,
-          localPath,
-          sizeBytes,
+          uri: '',
+          bodyJson: body.trim() ? body : null,
         },
         relations,
       );
-      return;
+    } catch (error) {
+      console.warn('[material] create failed:', error);
+      alert(
+        t('memoMaterial.error.createFailed', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    } finally {
+      setSubmitting(false);
     }
-    // text snippet — title + plain-text body. Body is editable inline on the
-    // card after create; this is just the initial seed.
-    void onCreate(
-      {
-        title: title.trim() || t('common.untitled'),
-        kind: 'text',
-        source: 'local',
-        uri: '',
-        bodyJson: body.trim() ? body : null,
-      },
-      relations,
-    );
   };
 
   return (
@@ -2525,7 +2711,11 @@ export function ComposeLibraryItemDialog({
         />
       </div>
 
-      <DialogActions onCancel={onCancel} onConfirm={submit} confirmDisabled={!canSubmit} />
+      <DialogActions
+        onCancel={onCancel}
+        onConfirm={() => void submit()}
+        confirmDisabled={!canSubmit || submitting}
+      />
     </DialogShell>
   );
 }

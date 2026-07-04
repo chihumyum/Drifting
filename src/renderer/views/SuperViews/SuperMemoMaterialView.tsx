@@ -31,6 +31,7 @@ import { createPlainCommentDoc, extractTextFromCommentBody } from '../../domain/
 import type { Comment } from '../../domain/comment';
 import type { LibraryItem, LibraryItemKind } from '../../domain/library-item';
 import type { EntityKind } from '../../lib/extensions/entity-link';
+import { assetCacheService } from '../../services/asset-cache.service';
 
 const KIND_ORDER: LibraryItemKind[] = ['image', 'pdf', 'url', 'text'];
 
@@ -76,6 +77,7 @@ export function SuperMemoMaterialView() {
   const comments = useDataStore((s) => s.comments);
   const libraryItems = useDataStore((s) => s.libraryItems);
   const entityRelations = useDataStore((s) => s.entityRelations);
+  const projectAssets = useDataStore((s) => s.projectAssets);
 
   const commentUsecases = useComment({ projectId, userId });
   const libraryItemUsecases = useLibraryItem({ projectId, userId });
@@ -191,17 +193,31 @@ export function SuperMemoMaterialView() {
     [libraryItems, textPopoverId],
   );
 
-  const openLibraryItemInSystem = useCallback(async (m: LibraryItem) => {
-    if (m.kind === 'text') return;
-    if (m.kind === 'url') {
-      await window.electronAPI.material.openExternal(m.uri);
-      return;
-    }
-    const path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
-    if (!path) return;
-    const res = await window.electronAPI.material.openLocal(path);
-    if (!res.ok) alert(t('memoMaterial.error.openFile', { error: res.error }));
-  }, [t]);
+  const openLibraryItemInSystem = useCallback(
+    async (m: LibraryItem) => {
+      if (m.kind === 'text') return;
+      if (m.kind === 'url') {
+        await window.electronAPI.material.openExternal(m.uri);
+        return;
+      }
+      let path = m.localPath ?? m.uri.replace(/^file:\/\//, '');
+      if (m.source === 'r2' && m.assetId) {
+        const asset = projectAssets.find((item) => item.id === m.assetId);
+        if (!asset) return;
+        try {
+          const cached = await assetCacheService.ensureCachedVariant(projectId, asset, 'source');
+          path = cached.filePath;
+        } catch (error) {
+          alert(t('memoMaterial.error.openFile', { error: String(error) }));
+          return;
+        }
+      }
+      if (!path) return;
+      const res = await window.electronAPI.material.openLocal(path);
+      if (!res.ok) alert(t('memoMaterial.error.openFile', { error: res.error }));
+    },
+    [projectAssets, projectId, t],
+  );
 
   const openLibraryItemInApp = useCallback((m: LibraryItem) => {
     if (m.kind === 'url') {
@@ -1105,6 +1121,7 @@ function BottomDrawer({
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DRAWER_DEFAULT_HEIGHT);
+  const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   const handleDragMove = useCallback((e: PointerEvent) => {
@@ -1116,33 +1133,30 @@ function BottomDrawer({
 
   const handleDragEnd = useCallback(() => {
     dragRef.current = null;
-    window.removeEventListener('pointermove', handleDragMove);
-    window.removeEventListener('pointerup', handleDragEnd);
-    window.removeEventListener('pointercancel', handleDragEnd);
-  }, [handleDragMove]);
+    setDragging(false);
+  }, []);
 
   const handleDragStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!expanded) return;
       e.preventDefault();
       dragRef.current = { startY: e.clientY, startHeight: height };
-      window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', handleDragEnd);
-      window.addEventListener('pointercancel', handleDragEnd);
+      setDragging(true);
     },
-    [expanded, handleDragMove, handleDragEnd, height],
+    [expanded, height],
   );
 
-  useEffect(
-    () => () => {
-      if (dragRef.current) {
-        window.removeEventListener('pointermove', handleDragMove);
-        window.removeEventListener('pointerup', handleDragEnd);
-        window.removeEventListener('pointercancel', handleDragEnd);
-      }
-    },
-    [handleDragMove, handleDragEnd],
-  );
+  useEffect(() => {
+    if (!dragging) return;
+    window.addEventListener('pointermove', handleDragMove);
+    window.addEventListener('pointerup', handleDragEnd);
+    window.addEventListener('pointercancel', handleDragEnd);
+    return () => {
+      window.removeEventListener('pointermove', handleDragMove);
+      window.removeEventListener('pointerup', handleDragEnd);
+      window.removeEventListener('pointercancel', handleDragEnd);
+    };
+  }, [dragging, handleDragMove, handleDragEnd]);
 
   const drawerHeight = expanded ? height : DRAWER_HEADER_HEIGHT;
 
@@ -1155,7 +1169,7 @@ function BottomDrawer({
         background: 'hsl(var(--paper-deep) / 0.5)',
         display: 'flex',
         flexDirection: 'column',
-        transition: dragRef.current ? 'none' : 'height 0.18s ease',
+        transition: dragging ? 'none' : 'height 0.18s ease',
       }}
     >
       <div

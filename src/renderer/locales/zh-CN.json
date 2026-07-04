@@ -1101,7 +1101,12 @@
   },
   "memoMaterial": {
     "error": {
-      "openFile": "无法打开文件：{{error}}"
+      "openFile": "无法打开文件：{{error}}",
+      "createFailed": "素材创建失败：{{error}}"
+    },
+    "upload": {
+      "uploading": "上传中...",
+      "failed": "上传失败"
     },
     "empty": {
       "noRelated": "当前条目没有关联的素材。",

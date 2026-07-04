@@ -1101,7 +1101,12 @@
   },
   "memoMaterial": {
     "error": {
-      "openFile": "Could not open file: {{error}}"
+      "openFile": "Could not open file: {{error}}",
+      "createFailed": "Could not create material: {{error}}"
+    },
+    "upload": {
+      "uploading": "Uploading...",
+      "failed": "Upload failed"
     },
     "empty": {
       "noRelated": "No materials are linked to the current item.",

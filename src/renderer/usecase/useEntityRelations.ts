@@ -76,6 +76,8 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
       }
       const kind = options?.kind?.trim() || null;
       const state = useDataStore.getState();
+      const deferSyncForPendingLibraryItem =
+        fromKind === 'library_item' && !!state.libraryItemUploadStates[fromId];
       // Don't double-add the same pair with the same kind. Different kinds
       // between the same pair are allowed.
       const dup = state.entityRelations.find(
@@ -113,15 +115,17 @@ export function useEntityRelations({ projectId, userId }: UseEntityRelationsCont
           await getDb().insert(EntityRelationTable).values(newRow);
           return newRow;
         },
-        sync: () =>
-          syncEntityRelationCreate(newRow.id, projectId, {
-            id: newRow.id,
-            fromKind: newRow.fromKind,
-            fromId: newRow.fromId,
-            toKind: newRow.toKind,
-            toId: newRow.toId,
-            kind: newRow.kind,
-          }),
+        sync: deferSyncForPendingLibraryItem
+          ? undefined
+          : () =>
+              syncEntityRelationCreate(newRow.id, projectId, {
+                id: newRow.id,
+                fromKind: newRow.fromKind,
+                fromId: newRow.fromId,
+                toKind: newRow.toKind,
+                toId: newRow.toId,
+                kind: newRow.kind,
+              }),
       });
     },
     [ensureDb, projectId],

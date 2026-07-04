@@ -33,6 +33,10 @@ export interface EntityRelationLink {
 // happen to share a uuid don't collide.
 export const trashedKey = (kind: EntityKind, id: string): string => `${kind}:${id}`;
 
+export type LibraryItemUploadState =
+  | { state: 'uploading' }
+  | { state: 'failed'; error: string };
+
 interface DataState {
   storylines: Storyline[];
   /** storyline.id → nodeId[] */
@@ -96,10 +100,13 @@ interface DataState {
   unmarkTrashed: (kind: EntityKind, id: string) => void;
 
   libraryItems: LibraryItem[];
+  libraryItemUploadStates: Record<string, LibraryItemUploadState>;
   setLibraryItems: (items: LibraryItem[]) => void;
   addLibraryItem: (item: LibraryItem) => void;
   updateLibraryItem: (id: string, updates: Partial<LibraryItem>) => void;
   removeLibraryItem: (id: string) => void;
+  setLibraryItemUploadState: (id: string, state: LibraryItemUploadState) => void;
+  clearLibraryItemUploadState: (id: string) => void;
 
   comments: Comment[];
   setComments: (comments: Comment[]) => void;
@@ -351,6 +358,7 @@ export const useDataStore = create<DataState>((set) => ({
     }),
 
   libraryItems: [],
+  libraryItemUploadStates: {},
   setLibraryItems: (libraryItems) => set({ libraryItems }),
   addLibraryItem: (item) => set((state) => ({ libraryItems: [item, ...state.libraryItems] })),
   updateLibraryItem: (id, updates) =>
@@ -358,7 +366,25 @@ export const useDataStore = create<DataState>((set) => ({
       libraryItems: state.libraryItems.map((m) => (m.id === id ? { ...m, ...updates } : m)),
     })),
   removeLibraryItem: (id) =>
-    set((state) => ({ libraryItems: state.libraryItems.filter((m) => m.id !== id) })),
+    set((state) => {
+      const nextUploadStates = { ...state.libraryItemUploadStates };
+      delete nextUploadStates[id];
+      return {
+        libraryItems: state.libraryItems.filter((m) => m.id !== id),
+        libraryItemUploadStates: nextUploadStates,
+      };
+    }),
+  setLibraryItemUploadState: (id, uploadState) =>
+    set((state) => ({
+      libraryItemUploadStates: { ...state.libraryItemUploadStates, [id]: uploadState },
+    })),
+  clearLibraryItemUploadState: (id) =>
+    set((state) => {
+      if (!state.libraryItemUploadStates[id]) return {};
+      const nextUploadStates = { ...state.libraryItemUploadStates };
+      delete nextUploadStates[id];
+      return { libraryItemUploadStates: nextUploadStates };
+    }),
 
   comments: [],
   setComments: (comments) => set({ comments }),
