@@ -2540,18 +2540,18 @@ function DialogShell({
   children: React.ReactNode;
 }) {
   useEscapeToClose(true, onCancel);
-  return (
+  return createPortal(
     <div
       onClick={onCancel}
       style={{
         position: 'fixed',
         inset: 0,
         background: 'hsl(var(--ink-1) / 0.30)',
-        zIndex: 900,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
+        padding: 32,
       }}
     >
       <div
@@ -2560,7 +2560,10 @@ function DialogShell({
           background: 'hsl(var(--paper))',
           border: '1px solid hsl(var(--rule))',
           borderRadius: 6,
-          width: 'min(440px, 92vw)',
+          width: 'min(520px, 92vw)',
+          maxHeight: 'calc(100vh - 64px)',
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
           padding: 16,
           boxShadow: '0 16px 32px -12px hsl(var(--ink-1) / 0.30)',
         }}
@@ -2578,7 +2581,8 @@ function DialogShell({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
