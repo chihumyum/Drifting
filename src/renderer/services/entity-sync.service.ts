@@ -936,15 +936,15 @@ function nullableNumberValue(row: Record<string, unknown>, key: string): number 
 }
 
 function projectAssetKind(value: string): ProjectAsset['kind'] {
-  return value === 'image' ? 'image' : 'image';
+  return value === 'pdf' ? 'pdf' : 'image';
 }
 
 function projectAssetRole(value: string): ProjectAsset['role'] {
-  return value === 'element_portrait' ? 'element_portrait' : 'element_portrait';
+  return value === 'library_material' ? 'library_material' : 'element_portrait';
 }
 
 function projectAssetOwnerKind(value: string): ProjectAsset['ownerKind'] {
-  return value === 'element' ? 'element' : 'element';
+  return value === 'library_item' ? 'library_item' : 'element';
 }
 
 function projectAssetStatus(value: string): ProjectAsset['status'] {
@@ -1113,14 +1113,16 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
       ownerKind: projectAssetOwnerKind(stringValue(row, 'ownerKind', 'element')),
       ownerId: stringValue(row, 'ownerId'),
       status: projectAssetStatus(stringValue(row, 'status', 'pending')),
-      displayObjectKey: stringValue(row, 'displayObjectKey'),
-      thumbnailObjectKey: stringValue(row, 'thumbnailObjectKey'),
+      sourceObjectKey: nullableStringValue(row, 'sourceObjectKey'),
+      displayObjectKey: nullableStringValue(row, 'displayObjectKey'),
+      thumbnailObjectKey: nullableStringValue(row, 'thumbnailObjectKey'),
       sourceMime: nullableStringValue(row, 'sourceMime'),
-      displayMime: stringValue(row, 'displayMime'),
-      thumbnailMime: stringValue(row, 'thumbnailMime', 'image/jpeg'),
+      displayMime: nullableStringValue(row, 'displayMime'),
+      thumbnailMime: nullableStringValue(row, 'thumbnailMime'),
       sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
       displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
       thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
+      sourceSha256: nullableStringValue(row, 'sourceSha256'),
       width: nullableNumberValue(row, 'width'),
       height: nullableNumberValue(row, 'height'),
       completedAt: nullableDateText(row.completedAt),
@@ -1167,9 +1169,10 @@ function applyGraphToStores(graph: ProjectGraphPayload): void {
         stringValue(row, 'kind') === 'markdown'
           ? 'text'
           : (stringValue(row, 'kind') as 'image' | 'pdf' | 'url' | 'text'),
-      source: (stringValue(row, 'source', 'local') || 'local') as 'local' | 'url',
+      source: (stringValue(row, 'source', 'local') || 'local') as 'local' | 'url' | 'r2',
       uri: stringValue(row, 'uri'),
       localPath: nullableStringValue(row, 'localPath'),
+      assetId: nullableStringValue(row, 'assetId'),
       mime: nullableStringValue(row, 'mime'),
       sizeBytes:
         typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)
@@ -1598,14 +1601,16 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       ownerKind: stringValue(row, 'ownerKind', 'element') || 'element',
       ownerId: stringValue(row, 'ownerId'),
       status: stringValue(row, 'status', 'pending') || 'pending',
-      displayObjectKey: stringValue(row, 'displayObjectKey'),
-      thumbnailObjectKey: stringValue(row, 'thumbnailObjectKey'),
+      sourceObjectKey: nullableStringValue(row, 'sourceObjectKey'),
+      displayObjectKey: nullableStringValue(row, 'displayObjectKey'),
+      thumbnailObjectKey: nullableStringValue(row, 'thumbnailObjectKey'),
       sourceMime: nullableStringValue(row, 'sourceMime'),
-      displayMime: stringValue(row, 'displayMime'),
-      thumbnailMime: stringValue(row, 'thumbnailMime', 'image/jpeg') || 'image/jpeg',
+      displayMime: nullableStringValue(row, 'displayMime'),
+      thumbnailMime: nullableStringValue(row, 'thumbnailMime'),
       sourceSizeBytes: nullableNumberValue(row, 'sourceSizeBytes'),
       displaySizeBytes: nullableNumberValue(row, 'displaySizeBytes'),
       thumbnailSizeBytes: nullableNumberValue(row, 'thumbnailSizeBytes'),
+      sourceSha256: nullableStringValue(row, 'sourceSha256'),
       width: nullableNumberValue(row, 'width'),
       height: nullableNumberValue(row, 'height'),
       completedAt: nullableDateText(row.completedAt),
@@ -1854,6 +1859,7 @@ export async function hydrateProjectGraph(graph: ProjectGraphPayload): Promise<v
       source: stringValue(row, 'source', 'local') || 'local',
       uri: stringValue(row, 'uri'),
       localPath: nullableStringValue(row, 'localPath'),
+      assetId: nullableStringValue(row, 'assetId'),
       mime: nullableStringValue(row, 'mime'),
       sizeBytes:
         typeof row.sizeBytes === 'number' && Number.isFinite(row.sizeBytes)

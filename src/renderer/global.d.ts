@@ -84,12 +84,86 @@ interface ElectronAPI {
         }
       | { ok: false; error: string }
     >;
+    createThumbnailVariant: (
+      filePath: string,
+      size: number,
+      quality: number,
+    ) => Promise<
+      | {
+          ok: true;
+          bytes: ArrayBuffer;
+          mime: string;
+          sizeBytes: number;
+          width: number;
+          height: number;
+        }
+      | { ok: false; error: string }
+    >;
     resolveUrlMeta: (
       url: string,
     ) => Promise<
       | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
       | { ok: false; error: string }
     >;
+  };
+  assetCache: {
+    getPath: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) => Promise<
+      | {
+          ok: true;
+          filePath: string;
+          fileUrl: string;
+          exists: boolean;
+          sizeBytes: number | null;
+        }
+      | { ok: false; error: string }
+    >;
+    writeBytes: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      bytes: ArrayBuffer | Uint8Array,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    copyFile: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      sourcePath: string,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    uploadFile: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      contentType: string,
+    ) => Promise<{ ok: true; sizeBytes: number } | { ok: false; error: string }>;
+    download: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    deleteAsset: (
+      projectId: string,
+      assetId: string,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
   };
 }
 

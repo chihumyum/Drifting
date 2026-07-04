@@ -1,6 +1,6 @@
-export type ProjectAssetKind = 'image';
-export type ProjectAssetRole = 'element_portrait';
-export type ProjectAssetOwnerKind = 'element';
+export type ProjectAssetKind = 'image' | 'pdf';
+export type ProjectAssetRole = 'element_portrait' | 'library_material';
+export type ProjectAssetOwnerKind = 'element' | 'library_item';
 export type ProjectAssetStatus = 'pending' | 'ready' | 'failed';
 
 export interface ProjectAsset {
@@ -11,14 +11,16 @@ export interface ProjectAsset {
   ownerKind: ProjectAssetOwnerKind;
   ownerId: string;
   status: ProjectAssetStatus;
-  displayObjectKey: string;
-  thumbnailObjectKey: string;
+  sourceObjectKey: string | null;
+  displayObjectKey: string | null;
+  thumbnailObjectKey: string | null;
   sourceMime: string | null;
-  displayMime: string;
-  thumbnailMime: string;
+  displayMime: string | null;
+  thumbnailMime: string | null;
   sourceSizeBytes: number | null;
   displaySizeBytes: number | null;
   thumbnailSizeBytes: number | null;
+  sourceSha256: string | null;
   width: number | null;
   height: number | null;
   completedAt: string | null;

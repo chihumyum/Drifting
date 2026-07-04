@@ -88,6 +88,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
             sizeBytes: number;
             width: number;
             height: number;
+        }
+        | { ok: false; error: string }
+      >,
+    createThumbnailVariant: (filePath: string, size: number, quality: number) =>
+      ipcRenderer.invoke('material:createThumbnailVariant', filePath, size, quality) as Promise<
+        | {
+            ok: true;
+            bytes: ArrayBuffer;
+            mime: string;
+            sizeBytes: number;
+            width: number;
+            height: number;
           }
         | { ok: false; error: string }
       >,
@@ -95,6 +107,93 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('material:resolveUrlMeta', url) as Promise<
         | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
         | { ok: false; error: string }
+      >,
+  },
+
+  assetCache: {
+    getPath: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) =>
+      ipcRenderer.invoke('assetCache:getPath', projectId, assetId, variant, ext) as Promise<
+        | {
+            ok: true;
+            filePath: string;
+            fileUrl: string;
+            exists: boolean;
+            sizeBytes: number | null;
+          }
+        | { ok: false; error: string }
+      >,
+    writeBytes: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      bytes: ArrayBuffer | Uint8Array,
+    ) =>
+      ipcRenderer.invoke(
+        'assetCache:writeBytes',
+        projectId,
+        assetId,
+        variant,
+        ext,
+        bytes,
+      ) as Promise<
+        | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+        | { ok: false; error: string }
+      >,
+    copyFile: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      sourcePath: string,
+    ) =>
+      ipcRenderer.invoke(
+        'assetCache:copyFile',
+        projectId,
+        assetId,
+        variant,
+        ext,
+        sourcePath,
+      ) as Promise<
+        | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+        | { ok: false; error: string }
+      >,
+    uploadFile: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      contentType: string,
+    ) =>
+      ipcRenderer.invoke(
+        'assetCache:uploadFile',
+        url,
+        projectId,
+        assetId,
+        variant,
+        ext,
+        contentType,
+      ) as Promise<{ ok: true; sizeBytes: number } | { ok: false; error: string }>,
+    download: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) =>
+      ipcRenderer.invoke('assetCache:download', url, projectId, assetId, variant, ext) as Promise<
+        | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+        | { ok: false; error: string }
+      >,
+    deleteAsset: (projectId: string, assetId: string) =>
+      ipcRenderer.invoke('assetCache:deleteAsset', projectId, assetId) as Promise<
+        { ok: true } | { ok: false; error: string }
       >,
   },
 
@@ -270,12 +369,86 @@ export interface ElectronAPI {
         }
       | { ok: false; error: string }
     >;
+    createThumbnailVariant: (
+      filePath: string,
+      size: number,
+      quality: number,
+    ) => Promise<
+      | {
+          ok: true;
+          bytes: ArrayBuffer;
+          mime: string;
+          sizeBytes: number;
+          width: number;
+          height: number;
+        }
+      | { ok: false; error: string }
+    >;
     resolveUrlMeta: (
       url: string,
     ) => Promise<
       | { ok: true; title: string | null; ogImage: string | null; favicon: string | null }
       | { ok: false; error: string }
     >;
+  };
+  assetCache: {
+    getPath: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) => Promise<
+      | {
+          ok: true;
+          filePath: string;
+          fileUrl: string;
+          exists: boolean;
+          sizeBytes: number | null;
+        }
+      | { ok: false; error: string }
+    >;
+    writeBytes: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      bytes: ArrayBuffer | Uint8Array,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    copyFile: (
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      sourcePath: string,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    uploadFile: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+      contentType: string,
+    ) => Promise<{ ok: true; sizeBytes: number } | { ok: false; error: string }>;
+    download: (
+      url: string,
+      projectId: string,
+      assetId: string,
+      variant: 'source' | 'display' | 'thumbnail',
+      ext: string,
+    ) => Promise<
+      | { ok: true; filePath: string; fileUrl: string; sizeBytes: number }
+      | { ok: false; error: string }
+    >;
+    deleteAsset: (
+      projectId: string,
+      assetId: string,
+    ) => Promise<{ ok: true } | { ok: false; error: string }>;
   };
 }
 

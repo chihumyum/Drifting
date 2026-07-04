@@ -25,6 +25,7 @@ function toDomain(record: typeof LibraryItemTable.$inferSelect): LibraryItem {
     source: record.source as LibraryItemSource,
     uri: record.uri,
     localPath: record.localPath,
+    assetId: record.assetId,
     mime: record.mime,
     sizeBytes: record.sizeBytes,
     bodyJson: record.bodyJson,
@@ -72,6 +73,7 @@ export function createLibraryItemSqliteRepository(
         source: input.source,
         uri: input.uri,
         localPath: input.localPath,
+        assetId: input.assetId,
         mime: input.mime,
         sizeBytes: input.sizeBytes,
         bodyJson: input.bodyJson,
@@ -95,6 +97,7 @@ export function createLibraryItemSqliteRepository(
       if (data.source !== undefined) updateValues.source = data.source;
       if (data.uri !== undefined) updateValues.uri = data.uri;
       if (data.localPath !== undefined) updateValues.localPath = data.localPath;
+      if (data.assetId !== undefined) updateValues.assetId = data.assetId;
       if (data.mime !== undefined) updateValues.mime = data.mime;
       if (data.sizeBytes !== undefined) updateValues.sizeBytes = data.sizeBytes;
       if (data.bodyJson !== undefined) updateValues.bodyJson = data.bodyJson;

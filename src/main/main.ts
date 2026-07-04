@@ -429,6 +429,285 @@ function bufferToArrayBuffer(buf: Buffer): ArrayBuffer {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
 }
 
+type AssetVariant = 'source' | 'display' | 'thumbnail';
+
+function safeCacheSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function safeCacheExt(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
+}
+
+function assetCacheDir(projectId: string, assetId: string): string {
+  return path.join(
+    app.getPath('userData'),
+    'asset-cache',
+    safeCacheSegment(projectId),
+    safeCacheSegment(assetId),
+  );
+}
+
+function assetCachePath(
+  projectId: string,
+  assetId: string,
+  variant: AssetVariant,
+  ext: string,
+): string {
+  return path.join(assetCacheDir(projectId, assetId), `${variant}.${safeCacheExt(ext)}`);
+}
+
+function isAssetVariant(value: unknown): value is AssetVariant {
+  return value === 'source' || value === 'display' || value === 'thumbnail';
+}
+
+function bufferFromIpcBytes(bytes: ArrayBuffer | Uint8Array): Buffer {
+  if (bytes instanceof Uint8Array) {
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+  return Buffer.from(bytes);
+}
+
+async function ensureAssetCacheDir(projectId: string, assetId: string): Promise<string> {
+  const dir = assetCacheDir(projectId, assetId);
+  await fs.promises.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function invalidAssetCacheArgs(projectId: string, assetId: string, variant: unknown, ext: string) {
+  if (typeof projectId !== 'string' || !projectId.trim()) return true;
+  if (typeof assetId !== 'string' || !assetId.trim()) return true;
+  if (!isAssetVariant(variant)) return true;
+  if (typeof ext !== 'string' || !ext.trim()) return true;
+  return false;
+}
+
+ipcMain.handle(
+  'assetCache:getPath',
+  async (_event, projectId: string, assetId: string, variant: AssetVariant, ext: string) => {
+    if (invalidAssetCacheArgs(projectId, assetId, variant, ext)) {
+      return { ok: false, error: 'invalid asset cache args' } as const;
+    }
+    const filePath = assetCachePath(projectId, assetId, variant, ext);
+    try {
+      const stat = await fs.promises.stat(filePath);
+      return {
+        ok: true,
+        filePath,
+        fileUrl: pathToFileURL(filePath).toString(),
+        exists: stat.isFile(),
+        sizeBytes: stat.size,
+      } as const;
+    } catch {
+      return {
+        ok: true,
+        filePath,
+        fileUrl: pathToFileURL(filePath).toString(),
+        exists: false,
+        sizeBytes: null,
+      } as const;
+    }
+  },
+);
+
+ipcMain.handle(
+  'assetCache:writeBytes',
+  async (
+    _event,
+    projectId: string,
+    assetId: string,
+    variant: AssetVariant,
+    ext: string,
+    bytes: ArrayBuffer | Uint8Array,
+  ) => {
+    if (invalidAssetCacheArgs(projectId, assetId, variant, ext)) {
+      return { ok: false, error: 'invalid asset cache args' } as const;
+    }
+    try {
+      await ensureAssetCacheDir(projectId, assetId);
+      const filePath = assetCachePath(projectId, assetId, variant, ext);
+      const buf = bufferFromIpcBytes(bytes);
+      await fs.promises.writeFile(filePath, buf);
+      return {
+        ok: true,
+        filePath,
+        fileUrl: pathToFileURL(filePath).toString(),
+        sizeBytes: buf.byteLength,
+      } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+ipcMain.handle(
+  'assetCache:copyFile',
+  async (
+    _event,
+    projectId: string,
+    assetId: string,
+    variant: AssetVariant,
+    ext: string,
+    sourcePath: string,
+  ) => {
+    if (invalidAssetCacheArgs(projectId, assetId, variant, ext)) {
+      return { ok: false, error: 'invalid asset cache args' } as const;
+    }
+    if (typeof sourcePath !== 'string' || !sourcePath.trim()) {
+      return { ok: false, error: 'invalid source path' } as const;
+    }
+    try {
+      await ensureAssetCacheDir(projectId, assetId);
+      const filePath = assetCachePath(projectId, assetId, variant, ext);
+      await fs.promises.copyFile(sourcePath, filePath);
+      const stat = await fs.promises.stat(filePath);
+      return {
+        ok: true,
+        filePath,
+        fileUrl: pathToFileURL(filePath).toString(),
+        sizeBytes: stat.size,
+      } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+ipcMain.handle(
+  'assetCache:uploadFile',
+  async (
+    _event,
+    url: string,
+    projectId: string,
+    assetId: string,
+    variant: AssetVariant,
+    ext: string,
+    contentType: string,
+  ) => {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      return { ok: false, error: 'invalid upload url' } as const;
+    }
+    if (invalidAssetCacheArgs(projectId, assetId, variant, ext)) {
+      return { ok: false, error: 'invalid asset cache args' } as const;
+    }
+    try {
+      const filePath = assetCachePath(projectId, assetId, variant, ext);
+      const body = await fs.promises.readFile(filePath);
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: body as unknown as BodyInit,
+      });
+      if (!response.ok) {
+        return { ok: false, error: `HTTP ${response.status}` } as const;
+      }
+      return { ok: true, sizeBytes: body.byteLength } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+ipcMain.handle(
+  'assetCache:download',
+  async (
+    _event,
+    url: string,
+    projectId: string,
+    assetId: string,
+    variant: AssetVariant,
+    ext: string,
+  ) => {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      return { ok: false, error: 'invalid download url' } as const;
+    }
+    if (invalidAssetCacheArgs(projectId, assetId, variant, ext)) {
+      return { ok: false, error: 'invalid asset cache args' } as const;
+    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return { ok: false, error: `HTTP ${response.status}` } as const;
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      await ensureAssetCacheDir(projectId, assetId);
+      const filePath = assetCachePath(projectId, assetId, variant, ext);
+      await fs.promises.writeFile(filePath, bytes);
+      return {
+        ok: true,
+        filePath,
+        fileUrl: pathToFileURL(filePath).toString(),
+        sizeBytes: bytes.byteLength,
+      } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
+ipcMain.handle('assetCache:deleteAsset', async (_event, projectId: string, assetId: string) => {
+  if (typeof projectId !== 'string' || !projectId.trim()) {
+    return { ok: false, error: 'invalid project id' } as const;
+  }
+  if (typeof assetId !== 'string' || !assetId.trim()) {
+    return { ok: false, error: 'invalid asset id' } as const;
+  }
+  try {
+    await fs.promises.rm(assetCacheDir(projectId, assetId), { recursive: true, force: true });
+    return { ok: true } as const;
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    } as const;
+  }
+});
+
+ipcMain.handle(
+  'material:createThumbnailVariant',
+  async (_event, filePath: string, size = 512, quality = 72) => {
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+      return { ok: false, error: 'invalid path' } as const;
+    }
+    try {
+      const boundedSize = Math.max(1, Math.min(2048, Math.round(size)));
+      const boundedQuality = Math.max(1, Math.min(100, Math.round(quality)));
+      const image = await nativeImage.createThumbnailFromPath(filePath, {
+        width: boundedSize,
+        height: boundedSize,
+      });
+      if (image.isEmpty()) return { ok: false, error: 'empty thumbnail' } as const;
+      const jpeg = image.toJPEG(boundedQuality);
+      const imageSize = image.getSize();
+      return {
+        ok: true,
+        bytes: bufferToArrayBuffer(jpeg),
+        mime: 'image/jpeg',
+        sizeBytes: jpeg.byteLength,
+        width: Math.max(1, Math.round(imageSize.width)),
+        height: Math.max(1, Math.round(imageSize.height)),
+      } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as const;
+    }
+  },
+);
+
 function resizeImageInside(image: Electron.NativeImage, maxLongEdge: number) {
   const sourceSize = image.getSize();
   const width = Math.max(1, Math.round(sourceSize.width));

@@ -31,6 +31,7 @@ function toDomain(record: typeof ProjectAssetTable.$inferSelect): ProjectAsset {
     ownerKind: record.ownerKind as ProjectAssetOwnerKind,
     ownerId: record.ownerId,
     status: record.status as ProjectAssetStatus,
+    sourceObjectKey: record.sourceObjectKey,
     displayObjectKey: record.displayObjectKey,
     thumbnailObjectKey: record.thumbnailObjectKey,
     sourceMime: record.sourceMime,
@@ -39,6 +40,7 @@ function toDomain(record: typeof ProjectAssetTable.$inferSelect): ProjectAsset {
     sourceSizeBytes: record.sourceSizeBytes,
     displaySizeBytes: record.displaySizeBytes,
     thumbnailSizeBytes: record.thumbnailSizeBytes,
+    sourceSha256: record.sourceSha256,
     width: record.width,
     height: record.height,
     completedAt: record.completedAt,
@@ -81,6 +83,7 @@ export function createProjectAssetSqliteRepository(
       ownerKind: input.ownerKind,
       ownerId: input.ownerId,
       status: input.status,
+      sourceObjectKey: input.sourceObjectKey,
       displayObjectKey: input.displayObjectKey,
       thumbnailObjectKey: input.thumbnailObjectKey,
       sourceMime: input.sourceMime,
@@ -89,6 +92,7 @@ export function createProjectAssetSqliteRepository(
       sourceSizeBytes: input.sourceSizeBytes,
       displaySizeBytes: input.displaySizeBytes,
       thumbnailSizeBytes: input.thumbnailSizeBytes,
+      sourceSha256: input.sourceSha256,
       width: input.width,
       height: input.height,
       completedAt: input.completedAt,
@@ -112,6 +116,7 @@ export function createProjectAssetSqliteRepository(
     if (data.ownerKind !== undefined) updateValues.ownerKind = data.ownerKind;
     if (data.ownerId !== undefined) updateValues.ownerId = data.ownerId;
     if (data.status !== undefined) updateValues.status = data.status;
+    if (data.sourceObjectKey !== undefined) updateValues.sourceObjectKey = data.sourceObjectKey;
     if (data.displayObjectKey !== undefined)
       updateValues.displayObjectKey = data.displayObjectKey;
     if (data.thumbnailObjectKey !== undefined)
@@ -125,6 +130,7 @@ export function createProjectAssetSqliteRepository(
       updateValues.displaySizeBytes = data.displaySizeBytes;
     if (data.thumbnailSizeBytes !== undefined)
       updateValues.thumbnailSizeBytes = data.thumbnailSizeBytes;
+    if (data.sourceSha256 !== undefined) updateValues.sourceSha256 = data.sourceSha256;
     if (data.width !== undefined) updateValues.width = data.width;
     if (data.height !== undefined) updateValues.height = data.height;
     if (data.completedAt !== undefined) updateValues.completedAt = data.completedAt;

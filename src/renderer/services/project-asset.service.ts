@@ -1,12 +1,12 @@
 import { apiClient } from '../lib/axios-config';
 import type { ProjectAsset } from '../domain/project-asset';
 
-export type AssetVariant = 'display' | 'thumbnail';
+export type AssetVariant = 'source' | 'display' | 'thumbnail';
 
 export interface ElementPortraitUploadInput {
   elementId: string;
-  sourceMime: string | null;
-  sourceSizeBytes: number | null;
+  sourceMime: string;
+  sourceSizeBytes: number;
   displayMime: string;
   displaySizeBytes: number;
   thumbnailMime: string;
@@ -18,7 +18,31 @@ export interface ElementPortraitUploadInput {
 export interface ElementPortraitUploadResponse {
   asset: ProjectAsset;
   uploads: {
+    source: { url: string; contentType: string; objectKey: string };
     display: { url: string; contentType: string; objectKey: string };
+    thumbnail: { url: string; contentType: string; objectKey: string };
+  };
+}
+
+export interface LibraryMaterialUploadInput {
+  libraryItemId: string;
+  kind: 'image' | 'pdf';
+  sourceMime: string;
+  sourceSizeBytes: number;
+  sourceSha256?: string | null;
+  displayMime?: string | null;
+  displaySizeBytes?: number | null;
+  thumbnailMime: string;
+  thumbnailSizeBytes: number;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface LibraryMaterialUploadResponse {
+  asset: ProjectAsset;
+  uploads: {
+    source: { url: string; contentType: string; objectKey: string };
+    display: { url: string; contentType: string; objectKey: string } | null;
     thumbnail: { url: string; contentType: string; objectKey: string };
   };
 }
@@ -42,23 +66,27 @@ export function normalizeProjectAsset(row: Record<string, unknown>): ProjectAsse
   return {
     id: String(row.id ?? ''),
     projectId: String(row.projectId ?? ''),
-    kind: (row.kind === 'image' ? row.kind : 'image') as ProjectAsset['kind'],
-    role: (row.role === 'element_portrait' ? row.role : 'element_portrait') as ProjectAsset['role'],
-    ownerKind: (row.ownerKind === 'element'
-      ? row.ownerKind
+    kind: (row.kind === 'pdf' ? 'pdf' : 'image') as ProjectAsset['kind'],
+    role: (row.role === 'library_material'
+      ? 'library_material'
+      : 'element_portrait') as ProjectAsset['role'],
+    ownerKind: (row.ownerKind === 'library_item'
+      ? 'library_item'
       : 'element') as ProjectAsset['ownerKind'],
     ownerId: String(row.ownerId ?? ''),
     status: (row.status === 'ready' || row.status === 'failed'
       ? row.status
       : 'pending') as ProjectAsset['status'],
-    displayObjectKey: String(row.displayObjectKey ?? ''),
-    thumbnailObjectKey: String(row.thumbnailObjectKey ?? ''),
+    sourceObjectKey: typeof row.sourceObjectKey === 'string' ? row.sourceObjectKey : null,
+    displayObjectKey: typeof row.displayObjectKey === 'string' ? row.displayObjectKey : null,
+    thumbnailObjectKey: typeof row.thumbnailObjectKey === 'string' ? row.thumbnailObjectKey : null,
     sourceMime: typeof row.sourceMime === 'string' ? row.sourceMime : null,
-    displayMime: String(row.displayMime ?? ''),
-    thumbnailMime: String(row.thumbnailMime ?? 'image/jpeg'),
+    displayMime: typeof row.displayMime === 'string' ? row.displayMime : null,
+    thumbnailMime: typeof row.thumbnailMime === 'string' ? row.thumbnailMime : null,
     sourceSizeBytes: nullableNumber(row.sourceSizeBytes),
     displaySizeBytes: nullableNumber(row.displaySizeBytes),
     thumbnailSizeBytes: nullableNumber(row.thumbnailSizeBytes),
+    sourceSha256: typeof row.sourceSha256 === 'string' ? row.sourceSha256 : null,
     width: nullableNumber(row.width),
     height: nullableNumber(row.height),
     completedAt: nullableDateText(row.completedAt),
@@ -79,6 +107,17 @@ export const projectAssetService = {
       asset: Record<string, unknown>;
       uploads: ElementPortraitUploadResponse['uploads'];
     }>(`/api/projects/${projectId}/assets/element-portrait-upload`, input);
+    return { asset: normalizeProjectAsset(data.asset), uploads: data.uploads };
+  },
+
+  async createLibraryMaterialUpload(
+    projectId: string,
+    input: LibraryMaterialUploadInput,
+  ): Promise<LibraryMaterialUploadResponse> {
+    const { data } = await apiClient.post<{
+      asset: Record<string, unknown>;
+      uploads: LibraryMaterialUploadResponse['uploads'];
+    }>(`/api/projects/${projectId}/assets/library-material-upload`, input);
     return { asset: normalizeProjectAsset(data.asset), uploads: data.uploads };
   },
 
@@ -127,7 +166,7 @@ export const projectAssetService = {
 
   async deleteAsset(projectId: string, assetId: string): Promise<void> {
     await apiClient.delete(`/api/projects/${projectId}/assets/${assetId}`);
-    for (const variant of ['display', 'thumbnail'] as const) {
+    for (const variant of ['source', 'display', 'thumbnail'] as const) {
       urlCache.delete(`${projectId}:${assetId}:${variant}`);
     }
   },

@@ -163,9 +163,8 @@ export const ElementCategoryTable = sqliteTable(
 );
 
 // Project Asset
-// Cloud-backed binary assets owned by a project. v1 uses this for element
-// portrait images: private R2 object keys for compressed display and thumbnail
-// images live here, while BookElement.portraitAssetId points at the asset row.
+// Cloud-backed binary assets owned by a project. R2 is the canonical source;
+// Electron keeps per-device local cache files derived from these object keys.
 export const ProjectAssetTable = sqliteTable(
   'project_asset',
   {
@@ -178,14 +177,16 @@ export const ProjectAssetTable = sqliteTable(
     ownerKind: text('owner_kind').notNull(),
     ownerId: text('owner_id').notNull(),
     status: text('status').notNull().default('pending'),
-    displayObjectKey: text('display_object_key').notNull(),
-    thumbnailObjectKey: text('thumbnail_object_key').notNull(),
+    sourceObjectKey: text('source_object_key'),
+    displayObjectKey: text('display_object_key'),
+    thumbnailObjectKey: text('thumbnail_object_key'),
     sourceMime: text('source_mime'),
-    displayMime: text('display_mime').notNull(),
-    thumbnailMime: text('thumbnail_mime').notNull().default('image/jpeg'),
+    displayMime: text('display_mime'),
+    thumbnailMime: text('thumbnail_mime'),
     sourceSizeBytes: integer('source_size_bytes'),
     displaySizeBytes: integer('display_size_bytes'),
     thumbnailSizeBytes: integer('thumbnail_size_bytes'),
+    sourceSha256: text('source_sha256'),
     width: integer('width'),
     height: integer('height'),
     completedAt: text('completed_at'),
@@ -766,8 +767,9 @@ export const CommentActionTable = sqliteTable(
 //   'text'                                — free-form note (bodyJson set,
 //                                            uri/localPath/mime all empty)
 // Source describes where the underlying payload lives:
-//   'local' — uri is a file:// path; localPath is the absolute on-disk path
+//   'local' — legacy local-only item; uri/localPath point at the picked file
 //   'url'   — uri is the http(s) URL itself
+//   'r2'    — uri is asset://<project_asset.id>; local files are cache only
 // 'markdown' attachments and 'text' notes store their TipTap doc in bodyJson.
 // notesJson is the author's free-form annotations attached to the item.
 // Linkage to chapters / elements / etc. goes through `entity_relation` with
@@ -781,9 +783,10 @@ export const LibraryItemTable = sqliteTable(
       .references(() => ProjectTable.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default(''),
     kind: text('kind').notNull(), // 'image' | 'pdf' | 'url' | 'markdown' | 'text'
-    source: text('source').notNull().default('local'), // 'local' | 'url'
+    source: text('source').notNull().default('local'), // 'local' | 'url' | 'r2'
     uri: text('uri').notNull().default(''),
     localPath: text('local_path'),
+    assetId: text('asset_id').references(() => ProjectAssetTable.id, { onDelete: 'set null' }),
     mime: text('mime'),
     sizeBytes: integer('size_bytes'),
     bodyJson: text('body_json'),
@@ -796,6 +799,7 @@ export const LibraryItemTable = sqliteTable(
   (t) => [
     index('idx_library_item_project').on(t.projectId),
     index('idx_library_item_project_kind').on(t.projectId, t.kind),
+    index('idx_library_item_asset').on(t.assetId),
   ],
 );
 
