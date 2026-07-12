@@ -21,6 +21,7 @@ import { Value } from '@sinclair/typebox/value';
 import { apiClient } from '../../axios-config';
 import { AIError } from '../types';
 import { aiByokHeaders } from './byok-headers';
+import { useSettingsStore } from '../../../store/settings-store';
 
 /** Description-free prompt handle held by the renderer. */
 export interface RemotePrompt<TInputSchema extends TSchema, TOutputSchema extends TSchema> {
@@ -34,10 +35,9 @@ export interface RemotePrompt<TInputSchema extends TSchema, TOutputSchema extend
 }
 
 /** Identity helper that gives full input/output inference at definition sites. */
-export function defineRemotePrompt<
-  TInputSchema extends TSchema,
-  TOutputSchema extends TSchema,
->(p: RemotePrompt<TInputSchema, TOutputSchema>): RemotePrompt<TInputSchema, TOutputSchema> {
+export function defineRemotePrompt<TInputSchema extends TSchema, TOutputSchema extends TSchema>(
+  p: RemotePrompt<TInputSchema, TOutputSchema>,
+): RemotePrompt<TInputSchema, TOutputSchema> {
   return p;
 }
 
@@ -49,10 +49,7 @@ export interface RunStructuredOptions {
   projectId?: string;
 }
 
-export async function runStructured<
-  TInputSchema extends TSchema,
-  TOutputSchema extends TSchema,
->(
+export async function runStructured<TInputSchema extends TSchema, TOutputSchema extends TSchema>(
   prompt: RemotePrompt<TInputSchema, TOutputSchema>,
   input: Static<TInputSchema>,
   options: RunStructuredOptions = {},
@@ -69,17 +66,18 @@ export async function runStructured<
 
   let data: unknown;
   try {
+    const configuredModel = useSettingsStore.getState().copilotByokModel.trim();
     const res = await apiClient.request<unknown>({
       method: 'POST',
       url: '/api/ai/run',
       data: {
         promptId: prompt.id,
         promptVersion: prompt.version,
-        model: options.model,
+        model: configuredModel || options.model,
         input,
         projectId: options.projectId,
       },
-      // BYOK key (when ai_mode='byok'); empty for the hosted path.
+      // Pre-Alpha always requires a transient BYOK key.
       headers: await aiByokHeaders(),
       signal: options.signal,
     });
@@ -121,8 +119,7 @@ function mapRunError(err: unknown): AIError {
   const response = (err as { response?: { status?: number; data?: RunErrorBody } } | null)
     ?.response;
   const status = response?.status;
-  const message =
-    response?.data?.message || (err instanceof Error ? err.message : String(err));
+  const message = response?.data?.message || (err instanceof Error ? err.message : String(err));
 
   if (status === undefined) return new AIError('network', message, err);
   if (status === 429) return new AIError('rate-limit', message, err);

@@ -24,11 +24,9 @@ export const APP_CONFIG = {
   // Authentication
   REQUIRE_AUTH: readBooleanEnv(import.meta.env.VITE_REQUIRE_AUTH, true),
 
-  // BYOK-only build: the server carries NO hosted AI key (we can't legally bill),
-  // so the "hosted" AI tier is disabled — the UI hides it and any persisted
-  // 'hosted' selection is coerced to BYOK so it can't silently route to the
-  // keyless server. Off by default; set VITE_BYOK_ONLY=true in the beta build.
-  BYOK_ONLY: readBooleanEnv(import.meta.env.VITE_BYOK_ONLY, false),
+  // Pre-Alpha is BYOK-only. Hosted AI is deliberately unavailable regardless
+  // of persisted settings or build environment.
+  BYOK_ONLY: true,
 
   // API endpoints
   API_BASE_URL:
@@ -65,7 +63,8 @@ export function isAuthRequired(): boolean {
 /**
  * Whether this is a BYOK-only build (hosted AI tier disabled). When true, every
  * AI subsystem (Copilot / Shadow / General Agent) hides its hosted option and
- * routes only through the user's own key/account.
+ * routes only through the user's own credentials. General Agent keeps both
+ * Claude Code OAuth and Anthropic API Key; Drifting-hosted inference is off.
  */
 export function isByokOnly(): boolean {
   return APP_CONFIG.BYOK_ONLY;

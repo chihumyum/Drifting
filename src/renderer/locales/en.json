@@ -1,4 +1,14 @@
 {
+  "preAlphaGuide": {
+    "title": "Welcome to Drifting Pre-Alpha",
+    "intro": "This is an early build for a small group of testers. Core writing, cloud sync, and relational data work, but APIs, data formats, and UX may still change.",
+    "trial": "This is a 30-day trial account; the server deletes the account and cloud data after expiry.",
+    "sync": "Manuscripts are stored in readable form on Drifting's server; end-to-end encryption is not provided.",
+    "byok": "There is no hosted AI service. Copilot and Shadow use your own API key; General Agent can also use your Claude Code account login.",
+    "backup": "Regularly use Relational Markdown Export to keep a readable copy.",
+    "settingsHint": "After opening a book, connect your model credentials in Settings → Copilot / Shadow / Agent. API keys persist only in the local Keychain; General Agent also supports Claude Code OAuth.",
+    "continue": "I understand — continue"
+  },
   "settings": {
     "title": "Settings",
     "title_en": "",
@@ -384,7 +394,7 @@
       "kicker": "PRIVACY",
       "title": "Where your manuscript stops.",
       "sub": "A plain view of what Drifting uses, what it does not use, and when data leaves your machine.",
-      "noteA": "Manuscripts sync with end-to-end encryption, and keys are generated only on your devices. Drifting servers cannot read manuscript prose.",
+      "noteA": "Manuscripts are synced and stored on Drifting servers. End-to-end encryption is not currently provided; only upload content you are comfortable storing in this Pre-Alpha service.",
       "noteBPrefix": "By default, your manuscript is",
       "noteBStrong": "not",
       "noteBSuffix": "used to train any model.",
@@ -428,6 +438,8 @@
       "tierTitle": "Capability tier",
       "byokTitle": "Bring your own key · BYOK",
       "modelTitle": "Model",
+      "preAlphaByokOnly": "Pre-Alpha provides no hosted model or Drifting AI quota. Every AI call requires your own API key and uses that provider's billing and quota.",
+      "preAlphaAgentCredentials": "Pre-Alpha provides no Drifting-hosted Agent. You may keep Claude Code OAuth login or use your own Anthropic API key; both are your personal credentials.",
       "hostedByokOnlyTitle": "Hosted is unavailable · beta only supports BYOK",
       "disabledSuffix": " · Unavailable"
     },
@@ -473,8 +485,8 @@
     "shadow": {
       "kicker": "SHADOW",
       "title": "Shadow reviews the book for you.",
-      "sub": "Shadow's chapter continuity review and element-arc derivation share the model tier here. Hosted uses Drifting quota by capability tier; BYOK uses your own DeepSeek quota.",
-      "keyPrivacy": "Your key stays in local Keychain and is not uploaded.",
+      "sub": "Shadow's continuity review and element-arc derivation share your DeepSeek key. Pre-Alpha provides no hosted quota.",
+      "keyPrivacy": "Your key stays in local Keychain and the client calls the model provider directly.",
       "aiModes": {
         "hosted": {
           "name": "Hosted",
@@ -515,8 +527,8 @@
     "copilot": {
       "kicker": "COPILOT",
       "title": "Give the small work to a quiet assistant.",
-      "sub": "Lightweight completion, entity extraction, polishing, and other structured tasks inside prose. Hosted mode only needs a capability tier; BYOK can pin provider and model.",
-      "keyPrivacy": "Your key stays in local Keychain and is not uploaded.",
+      "sub": "Lightweight completion, entity extraction, polishing, and other structured tasks inside prose. Pre-Alpha only supports your own API key; you can pin provider and model.",
+      "keyPrivacy": "The key is persisted only in local Keychain. Copilot sends it transiently through Drifting Server for the provider call; the server does not store it.",
       "aiModes": {
         "hosted": {
           "name": "Hosted",
@@ -551,8 +563,8 @@
       "providerDefault": "Provider default (blank)",
       "customModel": "Custom…",
       "modelIdPlaceholder": "Enter full model id",
-      "byokWarningPrefix": "Current BYOK provider \"{{provider}}\" has no connected key; calls will ",
-      "byokWarningStrong": "silently fall back to hosted",
+      "byokWarningPrefix": "Current BYOK provider \"{{provider}}\" has no connected key; ",
+      "byokWarningStrong": "AI calls will fail",
       "byokWarningSuffix": ". Connect a key below or set a connected provider as current.",
       "byokModel": "Pinned model",
       "byokModelDesc": "Model to use under the current provider. Blank means the server picks that provider's default; choose Custom to enter an id outside the list.",
@@ -603,7 +615,7 @@
     "agent": {
       "kicker": "GENERAL AGENT",
       "title": "The agent in the right rail that can act.",
-      "sub": "A conversational agent that can read and write the whole manuscript through Claude Agent SDK. It can use your Claude account, Anthropic API Key, or hosted subscription; model and reasoning strength are configurable.",
+      "sub": "A conversational agent that can read and write the whole manuscript through Claude Agent SDK. Pre-Alpha supports your Claude Code OAuth account or Anthropic API key, with no Drifting-hosted mode.",
       "credentialPrivacy": "Credentials stay local and are not uploaded.",
       "hostedDisabledTitle": "Hosted is unavailable · beta uses your own Claude account or key",
       "auth": {
@@ -624,10 +636,10 @@
         }
       },
       "chatModel": "Chat model",
-      "chatModelDesc": "\"Follow latest\" uses aliases that track each tier's latest version; you can also pin a concrete version. Default leaves it to subscription or CLI.",
+      "chatModelDesc": "\"Follow latest\" uses aliases that track each tier's latest version; you can also pin a concrete version. Default leaves it to the Anthropic SDK.",
       "modelOptions": {
         "default": {
-          "label": "Default · subscription / CLI",
+          "label": "Default · Anthropic SDK",
           "short": "Default"
         },
         "opus": {
@@ -1262,7 +1274,7 @@
       "featureShadowTitle": "Shadow · offline AI review",
       "featureShadowSub": "character age / POV drift / canon contradictions",
       "brandVersion": "Drifting Writing Studio · v3.2",
-      "footer": "Local-first · end-to-end encrypted"
+      "footer": "Local-first · cloud sync"
     },
     "signin": {
       "kicker": "WELCOME BACK · KEEP WRITING",
@@ -1301,7 +1313,7 @@
       "terms": "Terms",
       "and": "and",
       "privacy": "Privacy Policy",
-      "footer": "Local-first · end-to-end encrypted · not used for model training"
+      "footer": "Local-first · cloud sync · not used for model training"
     },
     "forgot": {
       "kicker": "RESET · PASSWORD RECOVERY",

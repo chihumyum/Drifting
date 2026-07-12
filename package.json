@@ -1,7 +1,7 @@
 {
   "name": "drifting-electron",
   "productName": "Drifting",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Drifting - A creative writing and storytelling tool",
   "main": ".vite/build/main.js",
   "scripts": {

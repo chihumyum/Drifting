@@ -1,4 +1,14 @@
 {
+  "preAlphaGuide": {
+    "title": "欢迎参加 Drifting Pre-Alpha",
+    "intro": "这是给少量内测用户使用的早期版本。核心写作、云同步与关系数据已经可用，但接口、数据格式和体验仍可能变化。",
+    "trial": "当前账户是 30 天试用账户；到期后服务器会清理账户及云端数据。",
+    "sync": "稿件会以可读形式存储在 Drifting 服务器，目前不提供端到端加密。",
+    "byok": "不提供 hosted AI 服务；Copilot 和 Shadow 使用你自己的 API Key，General Agent 也可使用你的 Claude Code 账号登录。",
+    "backup": "请定期用“导出关系型 Markdown”保存一份可阅读的副本。",
+    "settingsHint": "进入一本书后，可在“设置 → Copilot / Shadow / Agent”中连接自己的模型凭据。API Key 只持久化在本机 Keychain；General Agent 也支持 Claude Code OAuth。",
+    "continue": "了解，继续使用"
+  },
   "settings": {
     "title": "设定",
     "title_en": "Settings",
@@ -384,7 +394,7 @@
       "kicker": "隐私 · PRIVACY",
       "title": "你的稿子，停在哪儿。",
       "sub": "这页直说：Drifting 用了什么、不用什么、何时离开你的机器。",
-      "noteA": "稿件以端到端加密同步，密钥仅在你机器上生成。Drifting 服务器看不到稿件原文。",
+      "noteA": "稿件会同步并存储在 Drifting 服务器上，目前不提供端到端加密。请仅上传你愿意交由 Pre-Alpha 服务保存的内容。",
       "noteBPrefix": "默认情况下你的稿件",
       "noteBStrong": "不会",
       "noteBSuffix": "被用于训练任何模型。",
@@ -428,6 +438,8 @@
       "tierTitle": "能力档位",
       "byokTitle": "自带密钥 · BYOK",
       "modelTitle": "模型",
+      "preAlphaByokOnly": "Pre-Alpha 不提供任何托管模型或 Drifting 额度。所有 AI 调用都必须使用你自己的 API Key，并计入对应服务商的费用与额度。",
+      "preAlphaAgentCredentials": "Pre-Alpha 不提供 Drifting 托管 Agent。你可以保留 Claude Code OAuth 登录，或使用自己的 Anthropic API Key；两者都属于你的个人凭据。",
       "hostedByokOnlyTitle": "托管暂不可用 · 测试版仅支持自带 Key",
       "disabledSuffix": " · 暂不可用"
     },
@@ -473,8 +485,8 @@
     "shadow": {
       "kicker": "SHADOW · 影",
       "title": "影，替你巡查全书。",
-      "sub": "Shadow 的两个能力——章节连贯审阅（CI）与元素弧线派生——共用这里的模型档位。托管按能力档位走 Drifting 额度；自带 Key 用你自己的 DeepSeek 额度。",
-      "keyPrivacy": "你的密钥仅存于本机 Keychain，不上传服务器。",
+      "sub": "Shadow 的章节连贯审阅（CI）与元素弧线派生共用你的 DeepSeek Key。Pre-Alpha 不提供托管额度。",
+      "keyPrivacy": "你的密钥仅存于本机 Keychain，由客户端直连模型服务商。",
       "aiModes": {
         "hosted": {
           "name": "托管",
@@ -515,8 +527,8 @@
     "copilot": {
       "kicker": "COPILOT · 副手",
       "title": "把琐事交给一个安静的副手。",
-      "sub": "正文里的轻量补全、实体抽取、润色等结构化任务。托管模式只需选能力档位；自带 Key 可指定 provider 与模型。",
-      "keyPrivacy": "你的密钥仅存于本机 Keychain，不上传服务器。",
+      "sub": "正文里的轻量补全、实体抽取、润色等结构化任务。Pre-Alpha 仅支持你自己的 API Key，可指定 provider 与模型。",
+      "keyPrivacy": "密钥持久化仅在本机 Keychain；Copilot 请求会将它临时传给 Drifting Server 代理调用，但服务器不会保存。",
       "aiModes": {
         "hosted": {
           "name": "托管",
@@ -551,8 +563,8 @@
       "providerDefault": "provider 默认（留空）",
       "customModel": "自定义…",
       "modelIdPlaceholder": "输入完整 model id",
-      "byokWarningPrefix": "当前 BYOK provider「{{provider}}」未连接密钥 —— 实际调用会",
-      "byokWarningStrong": "静默回退托管",
+      "byokWarningPrefix": "当前 BYOK provider「{{provider}}」未连接密钥 —— ",
+      "byokWarningStrong": "AI 调用会直接失败",
       "byokWarningSuffix": "。请在下方为它「连接」密钥，或把已连接的 provider「设为当前」。",
       "byokModel": "指定模型",
       "byokModelDesc": "当前 provider 下要用的模型（留空 = 由服务端选该 provider 的默认模型；列表外的可选「自定义…」手填 id）。",
@@ -603,7 +615,7 @@
     "agent": {
       "kicker": "GENERAL AGENT · 对话",
       "title": "右栏那位能动手的 Agent。",
-      "sub": "对话式、能读写整本稿子的 Agent（Claude Agent SDK）。可用你的 Claude 账号、Anthropic API Key，或走托管订阅；模型与推理强度可细调。",
+      "sub": "对话式、能读写整本稿子的 Agent（Claude Agent SDK）。Pre-Alpha 支持你的 Claude Code 账号 OAuth 或 Anthropic API Key，不提供 Drifting 托管模式。",
       "credentialPrivacy": "凭据仅存于本机，不上传服务器。",
       "hostedDisabledTitle": "托管暂不可用 · 测试版用你自己的 Claude 账号或 Key",
       "auth": {
@@ -624,10 +636,10 @@
         }
       },
       "chatModel": "对话模型",
-      "chatModelDesc": "「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给订阅 / CLI。",
+      "chatModelDesc": "「跟随最新」用别名自动指向各档最新版本；也可固定到具体版本。默认则交给 Anthropic SDK。",
       "modelOptions": {
         "default": {
-          "label": "默认 · 跟随订阅 / CLI",
+          "label": "默认 · Anthropic SDK",
           "short": "默认"
         },
         "opus": {
@@ -1262,7 +1274,7 @@
       "featureShadowTitle": "Shadow · 离线 AI 校读",
       "featureShadowSub": "人物年龄 / 视角越界 / 设定矛盾",
       "brandVersion": "Drifting Writing Studio · v3.2",
-      "footer": "本地优先 · 端到端加密"
+      "footer": "本地优先 · 云端同步"
     },
     "signin": {
       "kicker": "WELCOME BACK · 继续写作",
@@ -1301,7 +1313,7 @@
       "terms": "服务条款",
       "and": "与",
       "privacy": "隐私政策",
-      "footer": "本地优先 · 端到端加密 · 不用作模型训练"
+      "footer": "本地优先 · 云端同步 · 不用作模型训练"
     },
     "forgot": {
       "kicker": "RESET · 重置密码",

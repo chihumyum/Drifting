@@ -30,6 +30,7 @@ import { EditorMainArea } from './components/editor/EditorMainArea';
 import { useSyncSplitFocusedUrl } from './components/editor/useSyncSplitFocusedUrl';
 import { BottomStatusBar } from './components/BottomStatusBar';
 import { SettingsModal } from './components/modals/SettingsModal';
+import { PreAlphaOnboardingDialog } from './components/modals/PreAlphaOnboardingDialog';
 import { EntitySnapshotHistoryModal } from './components/modals/EntitySnapshotHistoryModal';
 import { DriftBindModal } from './components/modals/DriftBindModal';
 import { ImportDialog } from './components/modals/ImportDialog';
@@ -938,6 +939,7 @@ export default function App() {
     <>
       <LocaleEffects />
       <AppearanceEffects />
+      <PreAlphaOnboardingDialog />
       <Routes>
       {/* 公开路由 */}
       <Route

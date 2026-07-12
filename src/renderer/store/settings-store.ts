@@ -445,8 +445,8 @@ export const useSettingsStore = create<SettingsState>()(
       setDateFormat: (f) => set({ dateFormat: f }),
 
       // Fresh installs start on BYOK in a BYOK-only build (no hosted key server-side).
-      copilotAiMode: APP_CONFIG.BYOK_ONLY ? 'byok' : 'hosted',
-      setCopilotAiMode: (m) => set({ copilotAiMode: m }),
+      copilotAiMode: 'byok',
+      setCopilotAiMode: () => set({ copilotAiMode: 'byok' }),
       copilotByokProvider: 'deepseek',
       setCopilotByokProvider: (p) => set({ copilotByokProvider: p }),
       copilotByokModel: '',
@@ -455,8 +455,8 @@ export const useSettingsStore = create<SettingsState>()(
       // for a quality-sensitive consistency judge / arc derive (steadier reasoning,
       // far fewer JSON-format failures than flash). Dial down to 低 for flash, or
       // switch to BYOK to pin your own model.
-      shadowAiMode: APP_CONFIG.BYOK_ONLY ? 'byok' : 'hosted',
-      setShadowAiMode: (m) => set({ shadowAiMode: m }),
+      shadowAiMode: 'byok',
+      setShadowAiMode: () => set({ shadowAiMode: 'byok' }),
       shadowTier: 'standard',
       setShadowTier: (t) => set({ shadowTier: t }),
       shadowAutoRun: true,
@@ -466,7 +466,7 @@ export const useSettingsStore = create<SettingsState>()(
       shadowByokModel: 'deepseek-v4-flash',
       setShadowByokModel: (m) => set({ shadowByokModel: m }),
       agentAuth: 'oauth',
-      setAgentAuth: (a) => set({ agentAuth: a }),
+      setAgentAuth: (auth) => set({ agentAuth: auth === 'hosted' ? 'oauth' : auth }),
       agentModel: 'default',
       setAgentModel: (m) => set({ agentModel: m }),
       agentEffort: 'high',
