@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as Y from 'yjs';
 import { useYjsDoc, type UseYjsDocResult } from './useYjsDoc';
-import { syncDocument } from '../services/yjs-sync.service';
+import { registerSyncDocument, syncDocument } from '../services/yjs-sync.service';
 import { isSyncEnabled } from '../lib/config';
 import loglevel from 'loglevel';
 
@@ -58,7 +58,7 @@ export function useYjsSync({
   seedFromLegacy,
 }: UseYjsSyncOptions): UseYjsSyncResult {
   const yjsResult = useYjsDoc({ docId, userId, seedFromLegacy });
-  const { ydoc, isReady } = yjsResult;
+  const { ydoc, isReady, flushPendingWrites } = yjsResult;
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSyncEnabled() ? 'idle' : 'disabled');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -67,36 +67,68 @@ export function useYjsSync({
   const materializeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMaterializeRef = useRef(onMaterialize);
   onMaterializeRef.current = onMaterialize;
-  const syncingRef = useRef(false);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
 
   const doSync = useCallback(async () => {
-    if (!isSyncEnabled() || syncingRef.current) return;
-    syncingRef.current = true;
-    setSyncStatus('syncing');
-    try {
+    if (!isSyncEnabled()) return;
+    if (syncPromiseRef.current) return syncPromiseRef.current;
+
+    const operation = (async () => {
+      setSyncStatus('syncing');
+      await flushPendingWrites();
       await syncDocument(docId, projectId, ydoc);
       setLastSyncAt(new Date().toISOString());
       setSyncStatus('idle');
+    })();
+    syncPromiseRef.current = operation;
+    try {
+      await operation;
     } catch (e) {
       log.error(`[useYjsSync] sync failed for ${docId}:`, e);
       setSyncStatus('error');
+      throw e;
     } finally {
-      syncingRef.current = false;
+      if (syncPromiseRef.current === operation) syncPromiseRef.current = null;
     }
-  }, [docId, projectId, ydoc]);
+  }, [docId, flushPendingWrites, projectId, ydoc]);
+
+  const doBackgroundSync = useCallback(() => {
+    void doSync().catch(() => {
+      // doSync has already recorded the error and updated visible status.
+    });
+  }, [doSync]);
+
+  const forceSync = useCallback(async () => {
+    // Cmd+S must include edits made while a periodic sync was already in
+    // flight. Wait for that cycle, then start one fresh cycle with a fresh
+    // pending-write drain instead of merely sharing the older promise.
+    if (syncPromiseRef.current) {
+      try {
+        await syncPromiseRef.current;
+      } catch {
+        // Retry immediately below; visible status was already set to error.
+      }
+    }
+    await doSync();
+  }, [doSync]);
+
+  useEffect(() => {
+    if (!isReady || !isSyncEnabled()) return;
+    return registerSyncDocument(docId, forceSync);
+  }, [docId, forceSync, isReady]);
 
   // Initial sync + periodic timer
   useEffect(() => {
     if (!isReady || !isSyncEnabled()) return;
 
-    const initialTimer = setTimeout(doSync, INITIAL_SYNC_DELAY_MS);
-    const periodicTimer = setInterval(doSync, PERIODIC_SYNC_MS);
+    const initialTimer = setTimeout(doBackgroundSync, INITIAL_SYNC_DELAY_MS);
+    const periodicTimer = setInterval(doBackgroundSync, PERIODIC_SYNC_MS);
 
     return () => {
       clearTimeout(initialTimer);
       clearInterval(periodicTimer);
     };
-  }, [isReady, doSync]);
+  }, [isReady, doBackgroundSync]);
 
   // Debounced push on local edits
   useEffect(() => {
@@ -108,7 +140,7 @@ export function useYjsSync({
       }
 
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = setTimeout(doSync, DEBOUNCE_PUSH_MS);
+      debounceTimerRef.current = setTimeout(doBackgroundSync, DEBOUNCE_PUSH_MS);
     };
 
     ydoc.on('update', handleUpdate);
@@ -116,7 +148,7 @@ export function useYjsSync({
       ydoc.off('update', handleUpdate);
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [isReady, ydoc, doSync]);
+  }, [isReady, ydoc, doBackgroundSync]);
 
   // Mutation-log double-write. Serializes the Y.Doc's TipTap-shaped JSON and
   // hands it to the caller's onMaterialize on a 5s debounce. The server stays

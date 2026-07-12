@@ -5,7 +5,13 @@
 import * as Y from 'yjs';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../lib/db';
-import { yjsSyncCursor } from '../schema/drizzle';
+import {
+  BookElementTable,
+  BookNodeTable,
+  ElementCategoryTable,
+  StorylineTable,
+  yjsSyncCursor,
+} from '../schema/drizzle';
 import { isSyncEnabled } from '../lib/config';
 import { apiClient } from '../lib/axios-config';
 import { maybeCaptureSnapshotHistory } from './snapshot-history.service';
@@ -19,6 +25,64 @@ const log = loglevel.getLogger('yjs-sync');
 log.setLevel(loglevel.levels.WARN);
 
 const PUSH_BATCH_SIZE = 50;
+const PULL_PAGE_SIZE = 1000;
+const MAX_PULL_PAGES = 10_000;
+
+const activeSyncDocuments = new Map<string, () => Promise<void>>();
+
+/** Register an open document for the app-wide Cmd+S flush. */
+export function registerSyncDocument(docId: string, syncNow: () => Promise<void>): () => void {
+  activeSyncDocuments.set(docId, syncNow);
+  return () => {
+    if (activeSyncDocuments.get(docId) === syncNow) activeSyncDocuments.delete(docId);
+  };
+}
+
+/** Push and pull every open Yjs document before Cmd+S/quit completes. */
+export async function forceSyncAllDocuments(): Promise<void> {
+  if (!isSyncEnabled()) return;
+  const activeIds = new Set(activeSyncDocuments.keys());
+  const activeResults = await Promise.allSettled(
+    [...activeSyncDocuments.values()].map((syncNow) => syncNow()),
+  );
+  const repo = createYjsRepository();
+  const closedDocIds = (await repo.listDocIds()).filter((docId) => !activeIds.has(docId));
+  const closedResults = await Promise.allSettled(
+    closedDocIds.map(async (docId) => {
+      const projectId = await resolveProjectIdForDoc(docId);
+      if (!projectId) return;
+      await pushUpdates(docId, projectId, repo);
+    }),
+  );
+  const failures = [...activeResults, ...closedResults].filter(
+    (result) => result.status === 'rejected',
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((failure) => (failure as PromiseRejectedResult).reason),
+      `${failures.length} Yjs document(s) failed to sync`,
+    );
+  }
+}
+
+async function resolveProjectIdForDoc(docId: string): Promise<string | null> {
+  const parsed = parseDocId(docId);
+  if (!parsed?.entityId) return null;
+  const table =
+    parsed.kind === 'node-content'
+      ? BookNodeTable
+      : parsed.kind === 'element'
+        ? BookElementTable
+        : parsed.kind === 'storyline'
+          ? StorylineTable
+          : ElementCategoryTable;
+  const rows = await getDb()
+    .select({ projectId: table.projectId })
+    .from(table)
+    .where(eq(table.id, parsed.entityId))
+    .limit(1);
+  return rows[0]?.projectId ?? null;
+}
 
 export function getYjsDeviceId(): string {
   return getDeviceId();
@@ -204,7 +268,7 @@ export async function pushUpdates(
       endpoint: '/api/sync/push',
       docId,
       ...getEntityMetaFromDocId(docId),
-      
+
       projectId,
       deviceId,
       localUpdateCount: batch.length,
@@ -243,7 +307,7 @@ export async function pushUpdates(
         endpoint: '/api/sync/push',
         docId,
         ...getEntityMetaFromDocId(docId),
-        
+
         projectId,
         deviceId,
         localUpdateCount: batch.length,
@@ -262,7 +326,7 @@ export async function pushUpdates(
         endpoint: '/api/sync/push',
         docId,
         ...getEntityMetaFromDocId(docId),
-        
+
         projectId,
         deviceId,
         localUpdateCount: batch.length,
@@ -295,71 +359,58 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
     endpoint: '/api/sync/pull',
     docId,
     ...getEntityMetaFromDocId(docId),
-    
+
     deviceId,
   });
 
   try {
-    const res = await apiClient.get('/api/sync/pull', {
-      params: { docId, sinceSeq: cursor.lastServerSeq },
-    });
-
-    const updates: Array<{
-      serverSeq: number;
-      data: string;
-      clientUpdateId: string;
-      deviceId: string | null;
-    }> = res.data?.updates ?? [];
-
-    if (updates.length === 0) {
-      emitSyncOperation({
-        requestId,
-        kind: 'yjs',
-        phase: 'pull',
-        state: 'succeeded',
-        operation: 'pull',
-        method: 'GET',
-        endpoint: '/api/sync/pull',
-        docId,
-        ...getEntityMetaFromDocId(docId),
-        
-        deviceId,
-        remoteUpdateCount: 0,
-        appliedUpdateCount: 0,
-        skippedUpdateCount: 0,
-        durationMs: nowMs() - startedAt,
-      });
-      return;
-    }
-
     let maxSeq = cursor.lastServerSeq;
     let appliedCount = 0;
-    let skippedCount = 0;
+    let pageCount = 0;
 
-    for (const u of updates) {
-      // Apply unconditionally. The historical "skip when u.deviceId === me"
-      // optimization assumed local sqlite still has the rows I pushed, so
-      // re-applying them on pull is wasted work. That assumption breaks the
-      // recovery case: if local sqlite is wiped but cursor.lastServerSeq is
-      // preserved (or just trailing my push), every pulled update has my
-      // own deviceId, gets skipped, and ydoc stays empty forever.
-      //
-      // Y.applyUpdate is idempotent so re-applying our own ops costs only a
-      // few extra CPU cycles per pull. Keep the codepath simple.
-      const blob = base64ToUint8(u.data);
-      Y.applyUpdate(ydoc, blob, 'remote');
-      maxSeq = Math.max(maxSeq, u.serverSeq);
-      appliedCount += 1;
+    while (pageCount < MAX_PULL_PAGES) {
+      const res = await apiClient.get('/api/sync/pull', {
+        params: { docId, sinceSeq: maxSeq, limit: PULL_PAGE_SIZE },
+      });
+      const updates: Array<{
+        serverSeq: number;
+        data: string;
+        clientUpdateId: string;
+        deviceId: string | null;
+      }> = res.data?.updates ?? [];
+      if (updates.length === 0) break;
+
+      const previousSeq = maxSeq;
+      for (const update of updates) {
+        // Yjs updates are idempotent, including updates originating on this
+        // device. Applying every row also makes a wiped-device recovery safe.
+        Y.applyUpdate(ydoc, base64ToUint8(update.data), 'remote');
+        maxSeq = Math.max(maxSeq, update.serverSeq);
+        appliedCount += 1;
+      }
+      if (maxSeq <= previousSeq) {
+        throw new Error(`Sync pull made no cursor progress for ${docId}`);
+      }
+      pageCount += 1;
+      if (res.data?.hasMore !== true) break;
     }
 
-    // Save a snapshot after applying remote updates
-    const fullState = Y.encodeStateAsUpdate(ydoc);
-    await r.upsertSnapshot(docId, fullState);
-    // Time-machine trail: remote edits arriving on this device are capture
-    // moments too (15-min gated + deduped inside).
-    maybeCaptureSnapshotHistory(docId, fullState);
+    if (pageCount >= MAX_PULL_PAGES) {
+      throw new Error(`Sync pull exceeded ${MAX_PULL_PAGES} pages for ${docId}`);
+    }
 
-    await updateCursor(docId, { lastServerSeq: maxSeq });
+    if (appliedCount > 0) {
+      // Persist only after the complete catch-up, so the editor remains in its
+      // existing loading state instead of becoming editable halfway through.
+      const fullState = Y.encodeStateAsUpdate(ydoc);
+      await r.upsertSnapshot(docId, fullState);
+      // The durable snapshot must land before the cursor advances. If a later
+      // page or the process fails, leaving the old cursor simply replays
+      // idempotent Yjs updates; advancing first could skip data not in SQLite.
+      await updateCursor(docId, { lastServerSeq: maxSeq });
+      maybeCaptureSnapshotHistory(docId, fullState);
+    }
+
     emitSyncOperation({
       requestId,
       kind: 'yjs',
@@ -370,14 +421,17 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       endpoint: '/api/sync/pull',
       docId,
       ...getEntityMetaFromDocId(docId),
-      
+
       deviceId,
-      remoteUpdateCount: updates.length,
+      remoteUpdateCount: appliedCount,
       appliedUpdateCount: appliedCount,
-      skippedUpdateCount: skippedCount,
+      skippedUpdateCount: 0,
       durationMs: nowMs() - startedAt,
     });
-    log.info(`[pull] ${docId}: applied ${appliedCount} remote updates, lastServerSeq=${maxSeq}`);
+    log.info(
+      `[pull] ${docId}: applied ${appliedCount} remote updates in ${pageCount} page(s), ` +
+        `lastServerSeq=${maxSeq}`,
+    );
   } catch (error) {
     emitSyncOperation({
       requestId,
@@ -389,7 +443,7 @@ export async function pullUpdates(docId: string, ydoc: Y.Doc, repo?: YjsReposito
       endpoint: '/api/sync/pull',
       docId,
       ...getEntityMetaFromDocId(docId),
-      
+
       deviceId,
       durationMs: nowMs() - startedAt,
       error: getErrorMessage(error),

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import loglevel from 'loglevel';
 import * as Y from 'yjs';
 import { initDatabase } from '../lib/db';
@@ -38,6 +38,8 @@ export interface UseYjsDocResult {
   ydoc: Y.Doc;
   isReady: boolean;
   hasLocalState: boolean;
+  /** Wait until every queued local update has reached SQLite. */
+  flushPendingWrites: () => Promise<void>;
 }
 
 export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): UseYjsDocResult {
@@ -52,6 +54,9 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
   const [hasLocalState, setHasLocalState] = useState(false);
   const localUpdatesSinceSnapshotRef = useRef(0);
   const writeQueueRef = useRef(Promise.resolve());
+  const flushPendingWrites = useCallback(async () => {
+    await writeQueueRef.current;
+  }, []);
   // Hold a stable ref so the load effect doesn't re-fire when callers pass
   // an inline arrow function.
   const seedRef = useRef(seedFromLegacy);
@@ -125,6 +130,19 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
             if (cancelled) return;
             const fullState = Y.encodeStateAsUpdate(ydoc);
             await repo.upsertSnapshot(docId, fullState);
+          }
+        } else if (isSyncEnabled()) {
+          // A second device can have a valid but stale local snapshot. Catch it
+          // all the way up before exposing the editor, otherwise the user can
+          // start typing while thousands of remote operations are still being
+          // applied underneath the visible document.
+          try {
+            await pullUpdates(docId, ydoc, repo);
+          } catch (err) {
+            // Preserve offline-first availability when the server is down: the
+            // existing local snapshot is still safe to edit and will converge
+            // on a later periodic sync.
+            log.warn(`[useYjsDoc] catch-up pull failed for ${docId}:`, err);
           }
         }
 
@@ -234,5 +252,6 @@ export function useYjsDoc({ docId, userId, seedFromLegacy }: UseYjsDocOptions): 
     ydoc,
     isReady,
     hasLocalState,
+    flushPendingWrites,
   };
 }

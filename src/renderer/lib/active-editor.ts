@@ -20,10 +20,7 @@ export function getActiveEditor(): Editor | null {
   return active && !active.isDestroyed ? active : null;
 }
 
-export function setEditorSaveCallback(
-  editor: Editor,
-  save: () => void | Promise<void>,
-): void {
+export function setEditorSaveCallback(editor: Editor, save: () => void | Promise<void>): void {
   saveCallbacks.set(editor, save);
 }
 
@@ -31,12 +28,12 @@ export function clearEditorSaveCallback(editor: Editor): void {
   saveCallbacks.delete(editor);
 }
 
-export function saveActiveEditor(): boolean {
+export async function saveActiveEditor(): Promise<boolean> {
   const editor = getActiveEditor();
   if (!editor) return false;
   const save = saveCallbacks.get(editor);
   if (!save) return false;
-  void save();
+  await save();
   return true;
 }
 

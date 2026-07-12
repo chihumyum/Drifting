@@ -365,7 +365,7 @@
         },
         "saveCurrentEditor": {
           "label": "Save current editor",
-          "desc": "Force the current editor to persist to the local database"
+          "desc": "Save the current editor and immediately push updates for every open document"
         },
         "goBack": {
           "label": "Go back",

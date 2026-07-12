@@ -17,6 +17,7 @@ export interface YjsSnapshotRow {
 
 export interface YjsRepository {
   listUpdates(docId: string, sinceId?: number): Promise<YjsUpdateRow[]>;
+  listDocIds(): Promise<string[]>;
   appendUpdate(docId: string, updateBlob: Uint8Array): Promise<number>;
   getSnapshot(docId: string): Promise<YjsSnapshotRow | null>;
   upsertSnapshot(docId: string, stateBlob: Uint8Array): Promise<void>;
@@ -93,6 +94,11 @@ export function createYjsRepository(): YjsRepository {
     return inserted[0].id;
   };
 
+  const listDocIds = async (): Promise<string[]> => {
+    const rows = await getDb().selectDistinct({ docId: yjsUpdates.docId }).from(yjsUpdates);
+    return rows.map((row) => row.docId);
+  };
+
   const getSnapshot = async (docId: string): Promise<YjsSnapshotRow | null> => {
     const rows = await getDb()
       .select()
@@ -162,6 +168,7 @@ export function createYjsRepository(): YjsRepository {
 
   return {
     listUpdates,
+    listDocIds,
     appendUpdate,
     getSnapshot,
     upsertSnapshot,

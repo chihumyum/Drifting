@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-  useParams,
-} from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { NodeEditorView } from './views/NodeEditorView';
 import { ElementEditorView } from './views/ElementEditorView';
 import { CategoryEditorView } from './views/CategoryEditorView';
@@ -52,6 +45,7 @@ import { startSyncObserver } from './services/sync-observer.service';
 import { matchesAccelerator } from './lib/shortcuts';
 import { getActiveEditor, saveActiveEditor, subscribeActiveEditor } from './lib/active-editor';
 import { forceFlush as forceFlushEntitySync } from './services/entity-sync.service';
+import { forceSyncAllDocuments } from './services/yjs-sync.service';
 import { flushPreferencesSync } from './services/preferences-sync.service';
 import type { Editor } from '@tiptap/core';
 import { useProjectNavigation } from './hooks/useProjectNavigation';
@@ -88,7 +82,10 @@ const log = loglevel.getLogger('App');
 // here is cheaper than pulling navigation logic into a shared util.
 function urlForLeaf(
   projectId: string,
-  leaf: { entityType: 'node' | 'storyline' | 'element' | 'category' | 'dashboard' | 'all-chapters'; id: string },
+  leaf: {
+    entityType: 'node' | 'storyline' | 'element' | 'category' | 'dashboard' | 'all-chapters';
+    id: string;
+  },
 ): string | null {
   switch (leaf.entityType) {
     case 'node':
@@ -329,7 +326,10 @@ function Layout() {
   useEffect(() => {
     const SHOW_THRESHOLD = 200; // px of cumulative travel before showing
     const IDLE_MS = 1000;
-    const state = new WeakMap<HTMLElement, { lastTop: number; travel: number; timer: ReturnType<typeof setTimeout> | null }>();
+    const state = new WeakMap<
+      HTMLElement,
+      { lastTop: number; travel: number; timer: ReturnType<typeof setTimeout> | null }
+    >();
     const onScroll = (e: Event) => {
       const target = e.target as HTMLElement | null;
       if (!target || !(target instanceof HTMLElement)) return;
@@ -564,7 +564,9 @@ function Layout() {
         // Always swallow Cmd+S — the browser's default save-page dialog would
         // be useless inside the app. If no editor is active the call is a noop.
         e.preventDefault();
-        saveActiveEditor();
+        void saveActiveEditor()
+          .then(() => forceSyncAllDocuments())
+          .catch((error) => log.warn('[App] Cmd+S sync failed:', error));
         return;
       }
 
@@ -595,10 +597,7 @@ function Layout() {
         return;
       }
 
-      if (
-        matchesAccelerator(e, bindings.prevTab) ||
-        matchesAccelerator(e, bindings.nextTab)
-      ) {
+      if (matchesAccelerator(e, bindings.prevTab) || matchesAccelerator(e, bindings.nextTab)) {
         const state = useUiStore.getState();
         const project = state.tabsByProject[projectId];
         if (!project || project.openTabs.length === 0) return;
@@ -611,8 +610,7 @@ function Layout() {
         // If no current selection (e.g. on project home), step from the edge
         // so Cmd+Alt+Right starts at the first tab and Cmd+Alt+Left at the last.
         const baseIdx = currentIdx === -1 ? (direction > 0 ? -1 : 0) : currentIdx;
-        const nextIdx =
-          (baseIdx + direction + project.openTabs.length) % project.openTabs.length;
+        const nextIdx = (baseIdx + direction + project.openTabs.length) % project.openTabs.length;
         const nextTab = project.openTabs[nextIdx];
         // Tab activation is a different operation than "open entity":
         //   - splits can't go through openEntity (would replace focused
@@ -682,12 +680,13 @@ function Layout() {
   useEffect(() => {
     const flush = async () => {
       try {
-        saveActiveEditor();
+        await saveActiveEditor();
       } catch (error) {
         log.warn('[App] saveActiveEditor during flush failed:', error);
       }
       await Promise.allSettled([
         forceFlushEntitySync(),
+        forceSyncAllDocuments(),
         flushPreferencesSync(),
       ]);
     };
@@ -706,7 +705,7 @@ function Layout() {
       // Synchronous best-effort path — pushes active editor state through
       // the persistence pipeline before the window actually tears down.
       try {
-        saveActiveEditor();
+        void saveActiveEditor();
       } catch {
         /* ignore */
       }
@@ -825,10 +824,7 @@ function Layout() {
               instead of the viewport's top-right, which used to occlude the
               right sidebar. */}
           {findPanelEditor && (
-            <EditorFindPanel
-              editor={findPanelEditor}
-              onClose={() => setFindPanelEditor(null)}
-            />
+            <EditorFindPanel editor={findPanelEditor} onClose={() => setFindPanelEditor(null)} />
           )}
         </main>
         <Sidebar sidebarType="right">
@@ -872,10 +868,7 @@ function Layout() {
           onClose={() => setChapterStorylineEditorNodeId(null)}
         />
       )}
-      <GlobalSearchModal
-        isOpen={isGlobalSearchOpen}
-        onClose={() => setIsGlobalSearchOpen(false)}
-      />
+      <GlobalSearchModal isOpen={isGlobalSearchOpen} onClose={() => setIsGlobalSearchOpen(false)} />
       <SyncStatusHUD />
     </div>
   );
